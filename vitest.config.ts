@@ -12,8 +12,13 @@ export default defineConfig({
       exclude: ["src/**/*.test.ts"],
       reporter: ["text", "lcov", "json-summary"],
       reportsDirectory: "coverage",
-      // thresholds: {} — INTENTIONALLY OMITTED in the wire-up commit so intermediate
-      // commits don't fail before the floor is measured. Armed in the next commit.
+      // SINGLE SOURCE OF TRUTH for the merge floor. Ratchet up (or down, intentionally)
+      // via a one-line visible edit to this number. No env vars, no CI flags. Branch /
+      // function / per-file thresholds are forbidden without a constitution amendment
+      // (gate #5 — reviewers MUST flag any PR that adds those keys).
+      thresholds: {
+        statements: 84.3,
+      },
     },
   },
 });
