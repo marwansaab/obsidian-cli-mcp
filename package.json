@@ -1,10 +1,10 @@
 {
-  "name": "obsidian-cli-mcp",
+  "name": "@marwansaab/obsidian-cli-mcp",
   "version": "0.1.0",
   "description": "Windows-host MCP server bridging MCP clients to the Obsidian Integrated CLI binary via a single obsidian_exec tool.",
   "type": "module",
   "bin": {
-    "obsidian-cli-mcp": "./dist/index.js"
+    "obsidian-cli-mcp": "dist/index.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
