@@ -1,0 +1,65 @@
+{
+  "$comment": "Published MCP tool contract for obsidian_exec. The 'inputSchema' below MUST be the JSON Schema produced by zodToJsonSchema(obsidianExecSchema) at runtime — this file is the human-readable mirror, asserted equivalent in tool.test.ts. Single source of truth: src/tools/obsidian_exec/schema.ts.",
+  "name": "obsidian_exec",
+  "description": "Invoke any Obsidian Integrated CLI subcommand on the host where the bridge is running. Bridges MCP clients (including sandboxed ones that cannot exec the obsidian binary directly) to the running Obsidian desktop instance. The 'command' field names the CLI subcommand; 'parameters' becomes 'key=value' argv tokens; 'flags' are appended as bare-word tokens; 'vault' (if set) scopes the invocation to a named vault by prepending 'vault=<value>' as the first positional; 'copy' appends '--copy' to copy stdout to the OS clipboard. Returns stdout, stderr, exitCode, and the exact argv invoked. Failures (non-zero exit, missing binary, timeout, captured-output exceeds 10 MiB) surface as structured errors with stable code identifiers — see contracts/errors.contract.md.",
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["command"],
+    "properties": {
+      "command": {
+        "type": "string",
+        "minLength": 1,
+        "description": "The CLI subcommand to invoke (the first positional after the binary). Examples: 'version', 'help', 'eval', 'search', 'read', 'tasks'."
+      },
+      "parameters": {
+        "type": "object",
+        "additionalProperties": {
+          "anyOf": [
+            { "type": "string" },
+            { "type": "number" },
+            { "type": "boolean" }
+          ]
+        },
+        "description": "Key/value pairs assembled into argv as 'key=value' tokens (numbers and booleans stringified). Order in the spawned argv matches the object's property declaration order. Example: { \"query\": \"meeting\", \"limit\": 10 } → 'query=meeting' 'limit=10'."
+      },
+      "flags": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!--).*"
+        },
+        "description": "Bare-word boolean flags (no leading '--'). Each appended verbatim to argv. Example: ['silent', 'overwrite']. The schema rejects any element starting with '--' — use the 'copy' field for the one supported '--'-prefixed flag."
+      },
+      "vault": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Vault name or ID. When set, the bridge prepends 'vault=<value>' as the FIRST positional argument after the binary, before the command name. When omitted, the command targets Obsidian's currently focused vault."
+      },
+      "copy": {
+        "type": "boolean",
+        "description": "When true, append '--copy' as the final argv token to copy stdout to the OS clipboard. The only '--'-prefixed flag this tool produces."
+      },
+      "timeoutMs": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 120000,
+        "description": "Per-call timeout in milliseconds (default 30000, hard maximum 120000). Counted from the moment the child is spawned, not from when the call is enqueued. On expiry, the bridge sends SIGTERM, then SIGKILL after a 2-second grace period, and surfaces a CLI_TIMEOUT error."
+      }
+    }
+  },
+  "outputSchema": {
+    "$comment": "MCP does not currently require tools to publish an output schema, but this is the documented success-response shape. Failure responses are structured errors per contracts/errors.contract.md.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["stdout", "stderr", "exitCode", "argv"],
+    "properties": {
+      "stdout": { "type": "string", "description": "Full captured stdout (UTF-8 decoded). Capped at 10 MiB; overflow yields CLI_OUTPUT_TOO_LARGE." },
+      "stderr": { "type": "string", "description": "Full captured stderr (UTF-8 decoded). May be non-empty even on exitCode 0 (CLI warnings)." },
+      "exitCode": { "type": "integer", "const": 0, "description": "Always 0 on the success path. Any non-zero exit raises CLI_NON_ZERO_EXIT instead." },
+      "argv": { "type": "array", "items": { "type": "string" }, "description": "The exact array passed to spawn(binary, argv, ...) — does NOT include the binary itself. Provided for diagnostic and reproducibility purposes." }
+    }
+  }
+}
