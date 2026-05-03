@@ -132,9 +132,8 @@ Full error contract: [specs/001-add-cli-bridge/contracts/errors.contract.md](spe
 
 | Command | What it does |
 |---------|--------------|
-| `npm test` | Run the full test suite once via Vitest (no coverage instrumentation — fast). |
-| `npm run test:watch` | Vitest in watch mode for TDD. |
-| `npm run test:coverage` | Run tests with V8 coverage; writes `coverage/lcov.info`, `coverage/coverage-summary.json`, and the HTML report under `coverage/lcov-report/`. **This is what gates merges** — see "CI and quality gates" below. |
+| `npm test` | Run the full test suite once via Vitest **with V8 coverage and the threshold gate enforced** — the same command CI runs. Writes `coverage/lcov.info`, `coverage/coverage-summary.json`, and the HTML report under `coverage/lcov-report/`. Exits non-zero if aggregate statements fall below the floor. |
+| `npm run test:watch` | Vitest in watch mode for TDD. **No coverage / no gate** — use `npm test` to confirm before pushing. |
 | `npm run lint` | ESLint flat config; merge requires zero warnings. |
 | `npm run typecheck` | `tsc --noEmit` against the full `src/` tree (including tests, so the lint's typed rules see them too). |
 | `npm run build` | `tsc -p tsconfig.build.json` — compiles `src/` to `dist/`, excluding `*.test.ts`. |
@@ -164,7 +163,7 @@ GitHub Actions runs a single job, `Lint / Typecheck / Test / Build`, on every `p
 1. `npm ci` (Node 22 with npm cache)
 2. `npm run lint`
 3. `npm run typecheck`
-4. `npm run test:coverage` — runs tests AND enforces the coverage gate
+4. `npm test` — runs tests AND enforces the coverage gate (single source of truth — same command developers run locally)
 5. `npm run build`
 
 Fail-fast — a failure in any step surfaces the precise stage and stops the pipeline. Concurrency is set so a new push to a branch cancels the in-flight run for that ref.
