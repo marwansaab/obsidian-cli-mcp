@@ -1,5 +1,6 @@
 // Original — no upstream. Schema validation tests for obsidian_exec across US1/US2/US3 fields.
 import { test, expect } from "vitest";
+
 import { obsidianExecSchema } from "./schema.js";
 
 // --- US1 (command + parameters) ---

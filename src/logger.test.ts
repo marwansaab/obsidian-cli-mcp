@@ -1,6 +1,8 @@
 // Original — no upstream. Tests for the JSON-lines stderr logger (FR-024, FR-025, FR-026).
-import { test, expect } from "vitest";
 import { Writable } from "node:stream";
+
+import { test, expect } from "vitest";
+
 import { createLogger } from "./logger.js";
 
 function captureStream(): { stream: Writable; lines: () => string[] } {

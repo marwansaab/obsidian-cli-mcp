@@ -1,12 +1,14 @@
 // Original — no upstream. Tests for obsidian_exec MCP tool registration and dispatch.
-import { test, expect } from "vitest";
 import { Writable } from "node:stream";
+
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { test, expect } from "vitest";
+
+import { obsidianExecInputJsonSchema } from "./schema.js";
+import { registerObsidianExecTool, OBSIDIAN_EXEC_TOOL_NAME, OBSIDIAN_EXEC_DESCRIPTION } from "./tool.js";
 import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
-import { registerObsidianExecTool, OBSIDIAN_EXEC_TOOL_NAME, OBSIDIAN_EXEC_DESCRIPTION } from "./tool.js";
-import { obsidianExecInputJsonSchema } from "./schema.js";
 
 function makeServer(): Server {
   return new Server({ name: "test", version: "0.0.0" }, { capabilities: { tools: {} } });

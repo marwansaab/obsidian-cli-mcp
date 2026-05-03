@@ -1,6 +1,8 @@
 // Original — no upstream. Tests for the MCP Server bootstrap and lifecycle handlers (FR-001, FR-028, FR-029).
-import { test, expect } from "vitest";
 import { Writable } from "node:stream";
+
+import { test, expect } from "vitest";
+
 import { createServer, type ShutdownContext } from "./server.js";
 
 function captureStream(): { stream: Writable; lines: () => string[] } {

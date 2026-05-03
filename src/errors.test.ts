@@ -1,5 +1,6 @@
 // Original — no upstream. Tests for the project-wide UpstreamError class (FR-018, Principle IV).
 import { test, expect } from "vitest";
+
 import { UpstreamError } from "./errors.js";
 
 test("UpstreamError extends Error", () => {

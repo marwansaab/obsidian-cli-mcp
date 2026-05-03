@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Original — no upstream. Entrypoint: constructs the MCP server, connects the stdio transport, idles on the event loop.
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+
 import { createServer } from "./server.js";
 
 async function main(): Promise<void> {

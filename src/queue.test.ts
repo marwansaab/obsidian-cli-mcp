@@ -1,5 +1,6 @@
 // Original — no upstream. Tests for the FIFO single-flight queue (FR-023).
 import { test, expect } from "vitest";
+
 import { createQueue } from "./queue.js";
 
 test("queue.run resolves to the task's return value", async () => {

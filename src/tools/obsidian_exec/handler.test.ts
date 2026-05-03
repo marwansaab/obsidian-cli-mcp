@@ -1,11 +1,13 @@
 // Original — no upstream. Tests for the obsidian_exec spawn handler. US1/US2/US3 cases.
-import { test, expect } from "vitest";
 import { EventEmitter } from "node:events";
 import { Writable, Readable } from "node:stream";
+
+import { test, expect } from "vitest";
+
+import { executeObsidianExec, killActiveChild, DEFAULT_TIMEOUT_MS, OUTPUT_CAP_BYTES, type SpawnLike } from "./handler.js";
+import { UpstreamError } from "../../errors.js";
 import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
-import { UpstreamError } from "../../errors.js";
-import { executeObsidianExec, killActiveChild, DEFAULT_TIMEOUT_MS, OUTPUT_CAP_BYTES, type SpawnLike } from "./handler.js";
 
 interface MockChildSpec {
   stdoutChunks?: Buffer[];

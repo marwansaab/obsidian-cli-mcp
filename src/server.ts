@@ -1,10 +1,12 @@
 // Original — no upstream. MCP Server bootstrap, tool registration, and lifecycle handlers (FR-001, FR-028, FR-029).
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import type { Writable } from "node:stream";
+
 import { createLogger, type Logger, type ShutdownReason } from "./logger.js";
 import { createQueue, type Queue } from "./queue.js";
-import { registerObsidianExecTool } from "./tools/obsidian_exec/tool.js";
 import { killActiveChild as defaultKillActiveChild } from "./tools/obsidian_exec/handler.js";
+import { registerObsidianExecTool } from "./tools/obsidian_exec/tool.js";
+
+import type { Writable } from "node:stream";
 
 export interface ShutdownContext {
   loggerStream?: Writable;

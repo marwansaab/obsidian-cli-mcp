@@ -1,12 +1,14 @@
 // Original — no upstream. obsidian_exec MCP tool registration: ListTools + CallTool dispatch with structured error mapping.
-import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z, ZodError } from "zod";
+
+import { executeObsidianExec, type ExecuteDeps } from "./handler.js";
+import { obsidianExecSchema, obsidianExecInputJsonSchema } from "./schema.js";
 import { UpstreamError } from "../../errors.js";
+
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
-import { obsidianExecSchema, obsidianExecInputJsonSchema } from "./schema.js";
-import { executeObsidianExec, type ExecuteDeps } from "./handler.js";
+import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 
 export const OBSIDIAN_EXEC_TOOL_NAME = "obsidian_exec";
 

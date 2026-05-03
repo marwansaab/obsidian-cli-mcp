@@ -1,10 +1,12 @@
 // Original — no upstream. obsidian_exec handler: argv assembly, spawn-and-collect, timeout, output cap, error mapping.
 import { spawn as nodeSpawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 import { randomUUID } from "node:crypto";
+
 import { UpstreamError } from "../../errors.js";
+
+import type { ObsidianExecInput } from "./schema.js";
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
-import type { ObsidianExecInput } from "./schema.js";
 
 export const DEFAULT_TIMEOUT_MS = 30_000;
 export const SIGKILL_GRACE_MS = 2_000;
