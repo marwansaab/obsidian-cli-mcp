@@ -16,15 +16,17 @@ A minimal Windows-host MCP server that bridges any MCP client (running locally o
 ### Install
 
 ```pwsh
-npm install -g obsidian-cli-mcp
+npm install -g @marwansaab/obsidian-cli-mcp
 # or, for one-shot use without global install:
-npx -y obsidian-cli-mcp
+npx -y @marwansaab/obsidian-cli-mcp
 ```
+
+> The package is published under the `@marwansaab` npm scope. The binary it installs is `obsidian-cli-mcp` (unscoped — what you'd type at a shell prompt or what your MCP client invokes after a global install).
 
 Verify the bridge boots:
 
 ```pwsh
-npx obsidian-cli-mcp
+npx -y @marwansaab/obsidian-cli-mcp
 # Expected: no stdout (stdout is reserved for MCP wire traffic).
 # Press Ctrl+C — a single bridge.shutdown JSON line appears on stderr,
 # then the process exits with code 0.
@@ -41,7 +43,7 @@ Edit `%APPDATA%\Claude\claude_desktop_config.json`:
   "mcpServers": {
     "obsidian-cli-mcp": {
       "command": "npx",
-      "args": ["-y", "obsidian-cli-mcp"],
+      "args": ["-y", "@marwansaab/obsidian-cli-mcp"],
       "env": {
         // Optional override if 'obsidian' isn't on PATH:
         // "OBSIDIAN_BIN": "C:\\Users\\you\\AppData\\Local\\Obsidian\\obsidian.exe"
@@ -55,14 +57,14 @@ Restart Claude Desktop. The `obsidian_exec` tool will appear in the tools list.
 
 ### Claude Cowork (sandboxed Linux container) → Windows host
 
-Cowork's container can't exec the Windows `obsidian` binary directly — that's exactly the problem this bridge solves. Run the bridge on the **Windows host** and configure Cowork to tunnel its MCP stdio to that host process. The exact `command` depends on your host-to-container tunneling tool; the point is that the configured command's stdio MUST end up wired to a `npx obsidian-cli-mcp` process running on the Windows host.
+Cowork's container can't exec the Windows `obsidian` binary directly — that's exactly the problem this bridge solves. Run the bridge on the **Windows host** and configure Cowork to tunnel its MCP stdio to that host process. The exact `command` depends on your host-to-container tunneling tool; the point is that the configured command's stdio MUST end up wired to a `npx -y @marwansaab/obsidian-cli-mcp` process running on the Windows host.
 
 ```jsonc
 {
   "mcpServers": {
     "obsidian-cli-mcp": {
       "command": "<your host-stdio bridge command>",
-      "args": ["<args that exec 'npx obsidian-cli-mcp' on the Windows host>"]
+      "args": ["<args that exec 'npx -y @marwansaab/obsidian-cli-mcp' on the Windows host>"]
     }
   }
 }
@@ -116,7 +118,7 @@ Full error contract: [specs/001-add-cli-bridge/contracts/errors.contract.md](spe
 ## Operating notes
 
 - **Calls serialize.** A FIFO queue runs at most one `obsidian` child at a time. If you fire several `obsidian_exec` calls in parallel, they complete in arrival order. The `queueDepth` field in each `call.start` log line tells you how many calls were waiting when each one started.
-- **Stdout is sacred.** Logs and diagnostics go to stderr only; stdout is reserved for the MCP wire protocol. Pipe stderr if you want to keep logs: `npx obsidian-cli-mcp 2> bridge.log`.
+- **Stdout is sacred.** Logs and diagnostics go to stderr only; stdout is reserved for the MCP wire protocol. Pipe stderr if you want to keep logs: `npx -y @marwansaab/obsidian-cli-mcp 2> bridge.log`.
 - **Output cap is 10 MiB per stream** (stdout and stderr counted independently). Calls returning megabytes of payload (e.g., `eval` over a huge vault) get a `CLI_OUTPUT_TOO_LARGE` with the captured 10 MiB prefix in `details.partial`.
 - **Clean shutdown.** Ctrl+C, `Stop-Process`, `taskkill` (without `/F`), or MCP-client disconnect all run the same cleanup: kill any in-flight `obsidian` child (SIGTERM, then SIGKILL after a 2-second grace), drop queued calls, emit a final `bridge.shutdown` log line, exit with code 0. **Hard kills (`taskkill /F`) bypass cleanup** — that's a host-OS limitation, not a bridge defect.
 
@@ -190,7 +192,7 @@ Features larger than a single-file change enter via the Spec Kit workflow: `/spe
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| Tool doesn't appear in MCP client | Bridge process not booting | Run `npx obsidian-cli-mcp` directly in a terminal; check stderr for the error |
+| Tool doesn't appear in MCP client | Bridge process not booting | Run `npx -y @marwansaab/obsidian-cli-mcp` directly in a terminal; check stderr for the error |
 | `CLI_BINARY_NOT_FOUND` | `obsidian` not on PATH | Set `OBSIDIAN_BIN` in MCP-client `env` to the absolute binary path; restart the client |
 | `CLI_NON_ZERO_EXIT` on every call | Obsidian desktop not running | Open Obsidian; retry |
 | `CLI_TIMEOUT` on slow commands | Default 30 s too short for the workload | Pass `timeoutMs: 90000` (max 120000) on the call |
