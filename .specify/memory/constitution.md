@@ -1,19 +1,29 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: TEMPLATE → 1.0.0 (initial ratification)
-Modified principles: N/A — initial ratification; all five principles introduced anew.
-Added sections:
-  - Core Principles
-    - I. Modular Code Organization
-    - II. Public Surface Test Coverage (NON-NEGOTIABLE)
-    - III. Boundary Input Validation with Zod
-    - IV. Explicit Upstream Error Propagation
-    - V. Attribution & Layered Composition Transparency
-  - Technical Standards & Stack Constraints
-  - Development Workflow & Quality Gates
-  - Governance
-Removed sections: none (template placeholders replaced).
+Version change: 1.0.0 → 1.1.0 (MINOR — Test framework standard switched from
+node:test to Vitest; new automated coverage gate added to Development Workflow.)
+
+Modified sections:
+  - Technical Standards & Stack Constraints → Test framework paragraph rewritten:
+    Vitest with @vitest/coverage-v8 is now the mandated framework (replaces
+    node:test). node:test, jest, and mocha are now the "requires amendment"
+    list.
+  - Development Workflow & Quality Gates → Inserted a new gate (#5) for the
+    aggregate statements coverage threshold. Subsequent gates renumbered
+    (5→6, 6→7, 7→8). The discipline rule that branch / function / per-file
+    thresholds are forbidden without amendment is also captured here.
+
+Added sections: none.
+Removed sections: none.
+Modified principles: none — all five principles unchanged.
+
+Driver: bringing the repo's CI gating in line with the project's actual
+implementation needs (V8 coverage with reporter ecosystem, threshold gating,
+single-source-of-truth floor that ratchets via visible diff). Vitest's V8
+coverage provider gives this off the shelf; node:test's experimental coverage
+flag does not.
+
 Templates requiring updates:
   - .specify/templates/plan-template.md: ✅ compatible — its Constitution Check
     section already delegates to this file; no edits required.
@@ -21,10 +31,13 @@ Templates requiring updates:
   - .specify/templates/tasks-template.md: ✅ no constitution-specific references.
   - .specify/templates/checklist-template.md: ✅ no constitution-specific references.
   - CLAUDE.md: ✅ already defers to plan/constitution; no edits required.
+
 Follow-up TODOs:
   - README.md: add an "Attributions" section per Principle V before any module
     with upstream lineage is merged. (Currently the repo has no source-derived
     code to attribute, but the section MUST exist before any lifted code lands.)
+  - 001-add-cli-bridge: existing tests must migrate from node:test to Vitest
+    in the same change set that lands this amendment.
 -->
 
 # obsidian-cli-mcp Constitution
@@ -169,11 +182,16 @@ to its source.
   (per Principle III); ad-hoc `citty` definitions that diverge from the zod
   schema are a constitution violation. The shared schema lives in the
   `schema.ts` of the per-surface module.
-- **Test framework**: `node:test` (built-in). Test files use the `*.test.ts`
-  naming convention and live co-located with their source module (per
-  Principle II). External test frameworks (vitest, jest, mocha) require a
-  dependency-justification entry per the Dependencies rule and a constitution
-  amendment.
+- **Test framework**: `vitest` with `@vitest/coverage-v8` for the V8 coverage
+  provider. Test files use the `*.test.ts` naming convention and live
+  co-located with their source module (per Principle II). The merge-gating
+  test command is `vitest run` (CI); developers may use `vitest` (watch) and
+  `vitest --ui` locally. Coverage configuration lives in `vitest.config.ts`;
+  the aggregate statements threshold is the **single source of truth** for
+  the merge floor and is ratcheted via a one-line visible edit (no env vars,
+  no CI flags, no separate gate config). Other test frameworks (`node:test`,
+  `jest`, `mocha`) require a dependency-justification entry per the
+  Dependencies rule and a constitution amendment.
 - **Lint & format**: `eslint` (flat config) MUST pass with zero warnings
   before merge. Prettier is the formatter of record; formatting
   disagreements are not resolved in review.
@@ -192,12 +210,21 @@ The following gates apply to every change before it can be merged:
 4. The test suite covering all public surfaces passes (Principle II). Diffs
    that add, rename, or modify a public surface MUST include the corresponding
    test additions in the same change.
-5. The Sync Impact Report at the top of this file is updated whenever the
+5. The aggregate **statements** coverage threshold passes — configured in
+   `vitest.config.ts` under `test.coverage.thresholds.statements`. This is
+   the single source of truth for the merge floor; it ratchets upward (or
+   downward, if intentional) via a one-line visible edit. **Branch /
+   function / per-file thresholds are forbidden without an amendment** —
+   they are reported in the text reporter as advisory information but do
+   NOT block merge. Adding `branches`, `functions`, `lines`, or `perFile`
+   keys to `test.coverage.thresholds` without a constitution amendment is a
+   violation; reviewers MUST flag any PR that does so.
+6. The Sync Impact Report at the top of this file is updated whenever the
    constitution itself is amended.
-6. Spec-driven changes (those produced via `/speckit-plan` and
+7. Spec-driven changes (those produced via `/speckit-plan` and
    `/speckit-tasks`) MUST pass the Constitution Check gate documented in the
    plan template before implementation begins.
-7. Every PR description includes a Constitution Compliance checklist with one
+8. Every PR description includes a Constitution Compliance checklist with one
    Y / N / N/A entry per principle:
 
    - [ ] Principle I (Modular Code Organization): Y / N / N/A
@@ -248,4 +275,4 @@ and in feature-specific plans under `specs/`. Those documents MUST defer to
 this constitution; if they imply a contradiction, treat it as a bug in the
 guidance document and fix it.
 
-**Version**: 1.0.0 | **Ratified**: 2026-05-03 | **Last Amended**: 2026-05-03
+**Version**: 1.1.0 | **Ratified**: 2026-05-03 | **Last Amended**: 2026-05-03
