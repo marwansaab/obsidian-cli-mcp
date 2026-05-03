@@ -87,7 +87,7 @@ Expected response payload (rendered by the MCP client):
   "stdout": "<your running Obsidian version, e.g. 1.7.2>",
   "stderr": "",
   "exitCode": 0,
-  "argv": ["version"]
+  "argv": ["obsidian", "version"]
 }
 ```
 

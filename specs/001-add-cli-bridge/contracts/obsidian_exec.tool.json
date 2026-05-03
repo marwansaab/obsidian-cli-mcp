@@ -59,7 +59,7 @@
       "stdout": { "type": "string", "description": "Full captured stdout (UTF-8 decoded). Capped at 10 MiB; overflow yields CLI_OUTPUT_TOO_LARGE." },
       "stderr": { "type": "string", "description": "Full captured stderr (UTF-8 decoded). May be non-empty even on exitCode 0 (CLI warnings)." },
       "exitCode": { "type": "integer", "const": 0, "description": "Always 0 on the success path. Any non-zero exit raises CLI_NON_ZERO_EXIT instead." },
-      "argv": { "type": "array", "items": { "type": "string" }, "description": "The exact array passed to spawn(binary, argv, ...) — does NOT include the binary itself. Provided for diagnostic and reproducibility purposes." }
+      "argv": { "type": "array", "items": { "type": "string" }, "description": "The fully reproducible argv vector as the spawned process sees it: [binary, ...spawnArgs] — binary INCLUDED as argv[0]. The bridge resolves binary from OBSIDIAN_BIN if set, else 'obsidian'. Matches the spec's acceptance scenarios (e.g., argv: ['obsidian', 'version']). Provided for diagnostic and reproducibility purposes — callers can copy-paste to rerun." }
     }
   }
 }

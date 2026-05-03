@@ -35,7 +35,7 @@ The spawned `obsidian` child exited with a non-zero code. Spec source: FR-014.
 |-------|-------|
 | `code` | `"CLI_NON_ZERO_EXIT"` |
 | `cause` | `{ exitCode: number, signal: string \| null }` |
-| `details.argv` | `string[]` — exact argv passed to `spawn` (excluding binary) |
+| `details.argv` | `string[]` — the fully reproducible argv vector `[binary, ...spawnArgs]` (binary INCLUDED as argv[0]). Matches the published `argv` shape in `ObsidianExecOutput`. |
 | `details.stdout` | `string` — full captured stdout (UTF-8) |
 | `details.stderr` | `string` — full captured stderr (UTF-8) |
 
@@ -58,7 +58,7 @@ The call exceeded its timeout (`timeoutMs` from the input, or the default 30 s).
 |-------|-------|
 | `code` | `"CLI_TIMEOUT"` |
 | `cause` | `null` |
-| `details.argv` | `string[]` |
+| `details.argv` | `string[]` — `[binary, ...spawnArgs]` (binary INCLUDED) |
 | `details.timeoutMs` | `number` — the timeout that was enforced |
 | `details.partialStdout` | `string` — whatever stdout was captured before the kill (UTF-8) |
 | `details.partialStderr` | `string` — whatever stderr was captured before the kill (UTF-8) |
@@ -71,7 +71,7 @@ Either `stdout` or `stderr` capture crossed the 10 MiB hard cap. Bridge sent SIG
 |-------|-------|
 | `code` | `"CLI_OUTPUT_TOO_LARGE"` |
 | `cause` | `null` |
-| `details.argv` | `string[]` |
+| `details.argv` | `string[]` — `[binary, ...spawnArgs]` (binary INCLUDED) |
 | `details.stream` | `"stdout" \| "stderr"` — which stream tripped the cap |
 | `details.limitBytes` | `number` — always `10485760` in v0.1 (`10 * 1024 * 1024`) |
 | `details.capturedBytes` | `number` — bytes counted up to and including the chunk that tripped the cap |

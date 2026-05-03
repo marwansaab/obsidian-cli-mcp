@@ -8,13 +8,19 @@ The spec was fully clarified across two `/speckit-clarify` sessions before this 
 
 ## R1. `child_process.spawn` invocation pattern on Windows
 
-**Decision**: Use `spawn(binary, argv, { shell: false, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })`, where `binary = process.env.OBSIDIAN_BIN ?? "obsidian"` and `argv` is the array assembled per FR-010 (no `binary` in the array — `spawn` handles that).
+**Decision**: Use `spawn(binary, spawnArgs, { shell: false, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })`, where:
+- `binary = process.env.OBSIDIAN_BIN ?? "obsidian"`
+- `spawnArgs` is the array assembled per FR-010 **excluding the binary** (Node's `spawn` API takes argv[0] as the first parameter and the remaining argv tokens as the array — they are not concatenated).
+- The **published `argv` field** (returned in `ObsidianExecOutput`, surfaced in `UpstreamError.details`, and emitted in `call.start` log lines) is `[binary, ...spawnArgs]` — the full reproducible argv vector as the spawned process sees it (argv[0] included). This matches the spec's acceptance-scenario examples (e.g., `argv: ["obsidian", "version"]`).
+
+**Two-name convention** (prevents the binary-included vs binary-excluded conflation): use `spawnArgs` for what gets passed to Node's `spawn(binary, args, opts)`; use `argv` only for the published-to-caller field that includes argv[0]. The handler computes `spawnArgs` first, then derives `const argv = [binary, ...spawnArgs]` once for the response/error/log payloads.
 
 **Rationale**:
 - `shell: false` is non-negotiable. With `shell: true`, every parameter value would be re-interpreted by `cmd.exe`, defeating FR-011 (byte-for-byte argv pass-through) and reintroducing shell-injection risk.
 - `stdio: ['ignore', 'pipe', 'pipe']` discards child stdin (the bridge has nothing to write to it), captures stdout and stderr explicitly. Gives us control over byte counting per FR-027.
 - `windowsHide: true` suppresses the brief console-window flash some Windows binaries cause when launched from a non-console parent. Cosmetic but important for an unattended bridge.
 - `OBSIDIAN_BIN` env override is read once per call (cheap; allows the operator to change it without restarting the bridge for development).
+- Including `binary` in the published `argv` gives callers a fully reproducible command line — they can copy-paste it and rerun, including any `OBSIDIAN_BIN` resolution that happened. Excluding it would force callers to track which binary the bridge resolved.
 
 **Alternatives considered**:
 - `execFile(binary, argv, callback)`: collects stdout/stderr in full before calling back, but loses partial buffers if we kill the child mid-stream — incompatible with the `partialStdout` / `partialStderr` fields required in `UpstreamError.details` for `CLI_TIMEOUT` and `CLI_OUTPUT_TOO_LARGE`. Rejected.

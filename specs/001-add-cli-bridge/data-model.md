@@ -30,7 +30,7 @@ The success response from a single `obsidian_exec` call. Returned only when the 
 | `stdout` | `string` (UTF-8) | Full captured stdout, decoded once at completion. FR-012. |
 | `stderr` | `string` (UTF-8) | Full captured stderr. May be non-empty even on `exitCode: 0` (CLI warnings). |
 | `exitCode` | literal `0` | The success path requires exit code 0. Any non-zero routes through `UpstreamError` instead. |
-| `argv` | `string[]` | The exact array passed to `spawn(binary, argv, opts)` — does NOT include the binary itself (matches FR-010's argv shape: `[binary, vault=<v>?, command, ...params, ...flags, --copy?]` minus the leading binary). For diagnostic and reproducibility purposes. |
+| `argv` | `string[]` | The fully reproducible argv vector as the spawned process sees it: `[binary, ...spawnArgs]` where `binary` is the resolved value of `OBSIDIAN_BIN ?? "obsidian"` and `spawnArgs` is the array passed to `spawn(binary, spawnArgs, opts)`. Matches FR-010's shape exactly: `[binary, (vault=<v>)?, command, ...params, ...flags, (--copy)?]`. Spec acceptance scenarios use this form (e.g., `argv: ["obsidian", "version"]`). For diagnostic and reproducibility purposes — callers can copy-paste to rerun. |
 
 ### `UpstreamError`
 
@@ -49,10 +49,10 @@ class UpstreamError extends Error {
 
 | `code` | Triggered by | `cause` shape | `details` shape |
 |--------|--------------|---------------|-----------------|
-| `CLI_NON_ZERO_EXIT` | Spawned child exited with a non-zero code. FR-014. | `{ exitCode: number, signal: string \| null }` | `{ argv: string[], stdout: string, stderr: string }` |
-| `CLI_BINARY_NOT_FOUND` | `spawn` emitted ENOENT (binary not on PATH and `OBSIDIAN_BIN` did not point to a real file). FR-015. | The Node.js spawn error object (`Error & { code: "ENOENT", syscall: "spawn", ... }`) | `{ binaryAttempted: string, PATH: string \| undefined }` |
-| `CLI_TIMEOUT` | Call exceeded its `timeoutMs` (or default 30 s). Bridge sent SIGTERM, then SIGKILL after 2 s grace. FR-016. | `null` | `{ argv: string[], timeoutMs: number, partialStdout: string, partialStderr: string }` |
-| `CLI_OUTPUT_TOO_LARGE` | Either `stdout` or `stderr` capture crossed 10 MiB. Bridge sent SIGTERM, then SIGKILL after 2 s grace. FR-027. | `null` | `{ argv: string[], stream: "stdout" \| "stderr", limitBytes: 10485760, capturedBytes: number, partial: string }` |
+| `CLI_NON_ZERO_EXIT` | Spawned child exited with a non-zero code. FR-014. | `{ exitCode: number, signal: string \| null }` | `{ argv: string[], stdout: string, stderr: string }` — `argv` is `[binary, ...spawnArgs]` (binary INCLUDED) per ObsidianExecOutput.argv. |
+| `CLI_BINARY_NOT_FOUND` | `spawn` emitted ENOENT (binary not on PATH and `OBSIDIAN_BIN` did not point to a real file). FR-015. | The Node.js spawn error object (`Error & { code: "ENOENT", syscall: "spawn", ... }`) | `{ binaryAttempted: string, PATH: string \| undefined }` — no `argv` field; the spawn never produced one. |
+| `CLI_TIMEOUT` | Call exceeded its `timeoutMs` (or default 30 s). Bridge sent SIGTERM, then SIGKILL after 2 s grace. FR-016. | `null` | `{ argv: string[], timeoutMs: number, partialStdout: string, partialStderr: string }` — `argv` is `[binary, ...spawnArgs]`. |
+| `CLI_OUTPUT_TOO_LARGE` | Either `stdout` or `stderr` capture crossed 10 MiB. Bridge sent SIGTERM, then SIGKILL after 2 s grace. FR-027. | `null` | `{ argv: string[], stream: "stdout" \| "stderr", limitBytes: 10485760, capturedBytes: number, partial: string }` — `argv` is `[binary, ...spawnArgs]`. |
 
 **Invariants**:
 - Plain `throw new Error(...)` is forbidden anywhere in [src/tools/obsidian_exec/handler.ts](../../src/tools/obsidian_exec/handler.ts) and [src/server.ts](../../src/server.ts). FR-017.
@@ -74,7 +74,7 @@ Emitted at the moment the child is spawned (after queue wait, before child outpu
 | `callId` | string (UUID v4 from `crypto.randomUUID()`) | correlates with the matching `call.end` |
 | `command` | string | from input |
 | `vault` | `string \| null` | input value or `null` if omitted |
-| `argv` | `string[]` | the exact spawned argv (excluding binary) |
+| `argv` | `string[]` | the fully reproducible argv vector `[binary, ...spawnArgs]` (binary INCLUDED as argv[0]) — matches the published `argv` in `ObsidianExecOutput` and `UpstreamError.details` |
 | `queueDepth` | integer (>= 0) | number of pending calls behind this one at spawn time |
 
 #### `call.end` (success)

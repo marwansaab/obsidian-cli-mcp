@@ -27,7 +27,7 @@ Emitted at the moment a queued call's child is actually spawned (after queue wai
   "callId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
   "command": "search",
   "vault": "personal",        // null when the input omitted vault
-  "argv": ["vault=personal", "search", "query=meeting", "limit=10"],
+  "argv": ["obsidian", "vault=personal", "search", "query=meeting", "limit=10"],
   "queueDepth": 0
 }
 ```
@@ -41,7 +41,7 @@ Fields:
 | `callId` | string (UUID v4) | correlates with the matching `call.end` |
 | `command` | string | from `ObsidianExecInput.command` |
 | `vault` | `string \| null` | from input; `null` if omitted |
-| `argv` | `string[]` | exact argv passed to `spawn` (excluding the binary) |
+| `argv` | `string[]` | the fully reproducible argv vector `[binary, ...spawnArgs]` (binary INCLUDED as argv[0]) — same shape as `ObsidianExecOutput.argv` and `UpstreamError.details.argv` |
 | `queueDepth` | integer (>= 0) | number of *pending* (not-yet-spawned) calls behind this one at spawn time. `0` means the queue was empty when this call started. |
 
 ### `call.end` (success)
