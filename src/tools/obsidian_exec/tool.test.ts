@@ -1,6 +1,5 @@
 // Original — no upstream. Tests for obsidian_exec MCP tool registration and dispatch.
-import { test } from "node:test";
-import assert from "node:assert/strict";
+import { test, expect } from "vitest";
 import { Writable } from "node:stream";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
@@ -24,10 +23,10 @@ test("registerObsidianExecTool publishes name 'obsidian_exec' via tools/list", a
   const handler = (server as unknown as { _requestHandlers: Map<string, (req: unknown) => Promise<unknown>> })._requestHandlers.get(
     ListToolsRequestSchema.shape.method.value,
   );
-  assert.ok(handler);
-  const result = (await handler({ method: "tools/list", params: {} })) as { tools: { name: string }[] };
-  assert.equal(result.tools.length, 1);
-  assert.equal(result.tools[0]!.name, OBSIDIAN_EXEC_TOOL_NAME);
+  expect(handler).toBeTruthy();
+  const result = (await handler!({ method: "tools/list", params: {} })) as { tools: { name: string }[] };
+  expect(result.tools.length).toBe(1);
+  expect(result.tools[0]!.name).toBe(OBSIDIAN_EXEC_TOOL_NAME);
 });
 
 test("registered tool's inputSchema matches the zod-derived schema (single source of truth)", async () => {
@@ -37,7 +36,7 @@ test("registered tool's inputSchema matches the zod-derived schema (single sourc
     ListToolsRequestSchema.shape.method.value,
   );
   const result = (await handler!({ method: "tools/list", params: {} })) as { tools: { inputSchema: unknown }[] };
-  assert.deepEqual(result.tools[0]!.inputSchema, obsidianExecInputJsonSchema);
+  expect(result.tools[0]!.inputSchema).toEqual(obsidianExecInputJsonSchema);
 });
 
 test("registered tool's description matches the published one", async () => {
@@ -47,7 +46,7 @@ test("registered tool's description matches the published one", async () => {
     ListToolsRequestSchema.shape.method.value,
   );
   const result = (await handler!({ method: "tools/list", params: {} })) as { tools: { description: string }[] };
-  assert.equal(result.tools[0]!.description, OBSIDIAN_EXEC_DESCRIPTION);
+  expect(result.tools[0]!.description).toBe(OBSIDIAN_EXEC_DESCRIPTION);
 });
 
 test("calling unknown tool returns isError with a descriptive message", async () => {
@@ -60,8 +59,8 @@ test("calling unknown tool returns isError with a descriptive message", async ()
     method: "tools/call",
     params: { name: "not_a_real_tool", arguments: {} },
   })) as { isError?: boolean; content: { type: string; text: string }[] };
-  assert.equal(result.isError, true);
-  assert.match(result.content[0]!.text, /not_a_real_tool/);
+  expect(result.isError).toBe(true);
+  expect(result.content[0]!.text).toMatch(/not_a_real_tool/);
 });
 
 test("calling obsidian_exec with invalid arguments returns isError with zod field paths (FR-009)", async () => {
@@ -74,9 +73,9 @@ test("calling obsidian_exec with invalid arguments returns isError with zod fiel
     method: "tools/call",
     params: { name: "obsidian_exec", arguments: { command: "" } },
   })) as { isError?: boolean; content: { type: string; text: string }[] };
-  assert.equal(result.isError, true);
+  expect(result.isError).toBe(true);
   const payload = JSON.parse(result.content[0]!.text);
-  assert.equal(payload.code, "VALIDATION_ERROR");
-  assert.ok(Array.isArray(payload.details.issues));
-  assert.ok(payload.details.issues.some((i: { path: string[] }) => i.path.includes("command")));
+  expect(payload.code).toBe("VALIDATION_ERROR");
+  expect(Array.isArray(payload.details.issues)).toBe(true);
+  expect(payload.details.issues.some((i: { path: string[] }) => i.path.includes("command"))).toBe(true);
 });

@@ -1,22 +1,20 @@
 // Original — no upstream. Tests for the FIFO single-flight queue (FR-023).
-import { test } from "node:test";
-import assert from "node:assert/strict";
+import { test, expect } from "vitest";
 import { createQueue } from "./queue.js";
 
 test("queue.run resolves to the task's return value", async () => {
   const q = createQueue();
   const result = await q.run(async () => 42);
-  assert.equal(result, 42);
+  expect(result).toBe(42);
 });
 
 test("queue.run rejects when the task throws", async () => {
   const q = createQueue();
-  await assert.rejects(
+  await expect(
     q.run(async () => {
       throw new Error("boom");
     }),
-    /boom/,
-  );
+  ).rejects.toThrow(/boom/);
 });
 
 test("queue serializes tasks in arrival order (FIFO)", async () => {
@@ -39,12 +37,12 @@ test("queue serializes tasks in arrival order (FIFO)", async () => {
     return 3;
   });
   await Promise.all([t1, t2, t3]);
-  assert.deepEqual(events, ["t1-start", "t1-end", "t2-start", "t2-end", "t3-start"]);
+  expect(events).toEqual(["t1-start", "t1-end", "t2-start", "t2-end", "t3-start"]);
 });
 
 test("queue.depth reports pending (queued + in-flight) count", async () => {
   const q = createQueue();
-  assert.equal(q.depth(), 0);
+  expect(q.depth()).toBe(0);
   let release: (() => void) | undefined;
   const blocker = new Promise<void>((r) => {
     release = r;
@@ -53,14 +51,10 @@ test("queue.depth reports pending (queued + in-flight) count", async () => {
     await blocker;
     return 1;
   });
-  // After enqueueing one task that's running, depth includes the in-flight task too
-  // (depth == "pending or running"). But we want it to reflect "calls behind me at spawn time"
-  // Per FR-024, queueDepth in call.start is "pending calls behind this one" — i.e., excludes self.
-  // We expose `depth()` as total in-flight + queued; the handler subtracts 1 to get "behind me".
-  assert.ok(q.depth() >= 1);
+  expect(q.depth()).toBeGreaterThanOrEqual(1);
   release!();
   await t1;
-  assert.equal(q.depth(), 0);
+  expect(q.depth()).toBe(0);
 });
 
 test("queue.shutdown drops queued tasks without running them", async () => {
@@ -87,14 +81,13 @@ test("queue.shutdown drops queued tasks without running them", async () => {
       return "dropped2";
     })
     .catch((e: unknown) => e);
-  // Drop the queued ones (the in-flight one keeps running)
   const droppedCount = q.shutdown();
-  assert.equal(droppedCount, 2);
+  expect(droppedCount).toBe(2);
   release!();
   const firstResult = await t1;
-  assert.equal(firstResult, "first");
+  expect(firstResult).toBe("first");
   await droppedPromise1;
   await droppedPromise2;
-  assert.equal(dropped1Started, false);
-  assert.equal(dropped2Started, false);
+  expect(dropped1Started).toBe(false);
+  expect(dropped2Started).toBe(false);
 });
