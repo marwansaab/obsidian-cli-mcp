@@ -17,7 +17,7 @@
     "node": ">=22.11"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -37,8 +37,15 @@
     "@typescript-eslint/parser": "^8.18.0",
     "@vitest/coverage-v8": "^4.1.5",
     "eslint": "^9.17.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-jsonc": "^3.1.2",
+    "eslint-plugin-n": "^17.24.0",
+    "eslint-plugin-promise": "^7.3.0",
+    "jsonc-eslint-parser": "^3.1.0",
     "prettier": "^3.4.2",
     "typescript": "^5.6.3",
+    "typescript-eslint": "^8.59.1",
     "vitest": "^4.1.5"
   }
 }
