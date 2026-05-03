@@ -149,6 +149,25 @@ if (-not $commitMsg) {
     $commitMsg = "[Spec Kit] Auto-commit $phase $commandName"
 }
 
+# Substitute {feature} placeholder with the active feature dir basename
+# (e.g. "specs/002-detect-cli-errors" -> "002-detect-cli-errors").
+# Falls back to "unknown" if .specify/feature.json is missing or unreadable.
+if ($commitMsg -match '\{feature\}') {
+    $featureBasename = 'unknown'
+    $featureJson = Join-Path $repoRoot '.specify/feature.json'
+    if (Test-Path $featureJson) {
+        try {
+            $featureData = Get-Content $featureJson -Raw | ConvertFrom-Json
+            if ($featureData.feature_directory) {
+                $featureBasename = Split-Path $featureData.feature_directory -Leaf
+            }
+        } catch {
+            # Leave as 'unknown' on parse failure
+        }
+    }
+    $commitMsg = $commitMsg -replace '\{feature\}', $featureBasename
+}
+
 # Stage and commit
 # Relax ErrorActionPreference so CRLF warnings on stderr do not terminate,
 # while still allowing redirected error output to be captured for diagnostics.
