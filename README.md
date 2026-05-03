@@ -120,6 +120,73 @@ Full error contract: [specs/001-add-cli-bridge/contracts/errors.contract.md](spe
 - **Output cap is 10 MiB per stream** (stdout and stderr counted independently). Calls returning megabytes of payload (e.g., `eval` over a huge vault) get a `CLI_OUTPUT_TOO_LARGE` with the captured 10 MiB prefix in `details.partial`.
 - **Clean shutdown.** Ctrl+C, `Stop-Process`, `taskkill` (without `/F`), or MCP-client disconnect all run the same cleanup: kill any in-flight `obsidian` child (SIGTERM, then SIGKILL after a 2-second grace), drop queued calls, emit a final `bridge.shutdown` log line, exit with code 0. **Hard kills (`taskkill /F`) bypass cleanup** — that's a host-OS limitation, not a bridge defect.
 
+## Development
+
+### Prerequisites for hacking on the bridge
+
+- Node.js >= 22.11 (matches `package.json#engines.node` and what CI runs)
+- A Bash- or PowerShell-friendly shell. Tests pass on both.
+- Cloning + `npm install` is enough — no native bindings, no codegen step.
+
+### Local commands
+
+| Command | What it does |
+|---------|--------------|
+| `npm test` | Run the full test suite once via Vitest (no coverage instrumentation — fast). |
+| `npm run test:watch` | Vitest in watch mode for TDD. |
+| `npm run test:coverage` | Run tests with V8 coverage; writes `coverage/lcov.info`, `coverage/coverage-summary.json`, and the HTML report under `coverage/lcov-report/`. **This is what gates merges** — see "CI and quality gates" below. |
+| `npm run lint` | ESLint flat config; merge requires zero warnings. |
+| `npm run typecheck` | `tsc --noEmit` against the full `src/` tree (including tests, so the lint's typed rules see them too). |
+| `npm run build` | `tsc -p tsconfig.build.json` — compiles `src/` to `dist/`, excluding `*.test.ts`. |
+| `npm run format:check` / `npm run format:write` | Prettier check / fix. |
+
+### Repo layout
+
+```text
+src/
+├── index.ts                                  # Entrypoint (#!/usr/bin/env node)
+├── server.ts + server.test.ts                # MCP Server bootstrap + lifecycle handlers
+├── errors.ts + errors.test.ts                # UpstreamError class (Principle IV)
+├── logger.ts + logger.test.ts                # JSON-lines stderr logger
+├── queue.ts + queue.test.ts                  # FIFO single-flight queue
+└── tools/obsidian_exec/
+    ├── schema.ts + schema.test.ts            # zod schema (single source of truth)
+    ├── tool.ts + tool.test.ts                # MCP tool registration + dispatch
+    └── handler.ts + handler.test.ts          # spawn + collect + timeout + cap + error mapping
+```
+
+Tests are co-located as `*.test.ts` next to the module they exercise (constitution Principle II).
+
+### CI and quality gates
+
+GitHub Actions runs a single job, `Lint / Typecheck / Test / Build`, on every `push` to `main` and `pull_request` targeting `main`. See [.github/workflows/ci.yml](.github/workflows/ci.yml). Pipeline:
+
+1. `npm ci` (Node 22 with npm cache)
+2. `npm run lint`
+3. `npm run typecheck`
+4. `npm run test:coverage` — runs tests AND enforces the coverage gate
+5. `npm run build`
+
+Fail-fast — a failure in any step surfaces the precise stage and stops the pipeline. Concurrency is set so a new push to a branch cancels the in-flight run for that ref.
+
+### Coverage gate
+
+Coverage is gated on **aggregate statements only**. The threshold lives in [vitest.config.ts](vitest.config.ts) under `test.coverage.thresholds.statements` and is the **single source of truth** for the merge floor:
+
+- Current floor: **84.3** (measured 84.37%, rounded down to 1 dp as a small safety margin against floating-point noise)
+- Ratcheting up (or down, intentionally) is a **one-line visible edit** to that number — no env vars, no CI flags, no separate gate config. The visible diff IS the override.
+- Branch / function / line / per-file thresholds are reported in the text reporter as **advisory** but do **NOT** block merge.
+
+**Forbidden without a constitution amendment** (gate #5): adding `branches`, `functions`, `lines`, or `perFile` keys to `test.coverage.thresholds`. Reviewers MUST flag any PR that does so. This is intentional discipline — the single-statements-floor convention keeps coverage debates from spiraling into per-file negotiation.
+
+To raise the floor after adding tests: run `npm run test:coverage`, look at the new aggregate, edit the number in [vitest.config.ts](vitest.config.ts) (rounded down to 1 dp), commit. The diff history shows the gate ratcheting visibly.
+
+### Constitution and Spec Kit
+
+Day-to-day development is bound by [.specify/memory/constitution.md](.specify/memory/constitution.md) — five non-negotiable principles (modular layout, co-located public-surface tests, zod boundary validation, structured upstream errors, attribution headers) plus the Technical Standards section (TypeScript strict + NodeNext + ES2024, Node 22.11+, `@modelcontextprotocol/sdk`, `zod`, Vitest, ESLint flat config, Prettier) and the Quality Gates the CI pipeline enforces. Changes that touch a public surface MUST ship co-located tests in the same change.
+
+Features larger than a single-file change enter via the Spec Kit workflow: `/speckit-specify` → `/speckit-clarify` → `/speckit-plan` → `/speckit-tasks` → `/speckit-implement`. Outputs land under [specs/](specs/). See "Spec Kit artifacts" at the bottom.
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
