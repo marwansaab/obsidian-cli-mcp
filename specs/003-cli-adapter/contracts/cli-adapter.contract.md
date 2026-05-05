@@ -60,7 +60,7 @@ This satisfies FR-011 / Story 4 AC #1.
 | `input.flags` | `string[]` | Bare-word flags. The adapter passes these through verbatim — no `=`-pair wrapping, no quoting (FR-005). |
 | `input.target_mode` | `"specific" \| "active"` | String literal union (FR-002). Generic `string` is forbidden by the type. |
 | `deps.spawnFn` | `SpawnLike \| undefined` | Test-seam injection (Q1). When omitted, the adapter uses `node:child_process`'s `spawn`. |
-| `deps.env` | `NodeJS.ProcessEnv \| undefined` | Test-seam injection (Q1). When omitted, the adapter uses `process.env`. The binary path resolution chain is `(deps.env ?? process.env).OBSIDIAN_BIN ?? "obsidian"` per the [handler.ts:60-61](../../../src/tools/obsidian_exec/handler.ts#L60-L61) precedent. |
+| `deps.env` | `NodeJS.ProcessEnv \| undefined` | Test-seam injection (Q1). When omitted, the adapter uses `process.env`. The binary path resolution chain is `(deps?.env ?? process.env).OBSIDIAN_BIN ?? "obsidian"` (optional chaining handles the case where the entire `deps` argument is omitted) per the [handler.ts:60-61](../../../src/tools/obsidian_exec/handler.ts#L60-L61) precedent. |
 
 ## Output contract
 
@@ -90,7 +90,7 @@ Non-`ENOENT` native spawn errors are propagated as-is (NOT wrapped in `UpstreamE
 The adapter MUST:
 
 1. Spawn via `child_process.spawn` with `shell: false` and the assembled argv as a literal array (FR-006). Spawn options match [handler.ts:75-79](../../../src/tools/obsidian_exec/handler.ts#L75-L79) verbatim except for the lack of `windowsHide` opinion: `stdio: ["ignore", "pipe", "pipe"]`, `windowsHide: true`.
-2. Resolve the binary path via `(deps.env ?? process.env).OBSIDIAN_BIN ?? "obsidian"` (FR-006 + Q1 precedent). NOTE: the spec's FR-006 lists only `process.env.OBSIDIAN_BIN ?? "obsidian"` as shorthand; the deps-aware form is the implementation contract per Q1.
+2. Resolve the binary path via `(deps?.env ?? process.env).OBSIDIAN_BIN ?? "obsidian"` per FR-006 (deps-aware form) and the [handler.ts:60-61](../../../src/tools/obsidian_exec/handler.ts#L60-L61) precedent. The optional chaining handles the case where the entire `deps` argument is omitted by production callers; the `?? process.env` fallback handles the case where `deps` is supplied but `deps.env` is not.
 3. Assemble argv as `[command, ...vaultPrefix, ...remainingKvParams, ...flags]` per FR-005. `vaultPrefix` is `["vault=<String(value)>"]` if and only if (post-strip) `parameters.vault !== undefined`. `remainingKvParams` is the entries of (post-strip parameters minus the vault key) in insertion order, each emitted as `"<key>=<String(value)>"`, skipping entries whose value is `undefined`.
 4. Strip the keys `vault`, `file`, and `path` from a copy of `parameters` when `target_mode === "active"` (FR-003). The strip is keyed on exact case-sensitive match at the top level — substring matches like `"vault_id"` are NOT stripped (Edge Cases).
 5. Collect full stdout/stderr via `Buffer.concat(...).toString("utf8")` on the `close` event (FR-007). The adapter MUST NOT classify the outcome until `close` has fired — `exit` is fired earlier and does not guarantee the streams have flushed.

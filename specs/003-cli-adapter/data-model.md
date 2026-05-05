@@ -101,7 +101,7 @@ invokeCli(input, deps?)
   │   └─ if parameters.vault !== undefined: hoist vault=<value> as first kv token
   │   └─ append flags as bare-word tokens
   │
-  ├─ spawn (binary = (deps.env ?? process.env).OBSIDIAN_BIN ?? "obsidian", argv, { shell: false, stdio: ["ignore", "pipe", "pipe"], windowsHide: true })
+  ├─ spawn (binary = (deps?.env ?? process.env).OBSIDIAN_BIN ?? "obsidian", argv, { shell: false, stdio: ["ignore", "pipe", "pipe"], windowsHide: true })
   │   ├─ on ENOENT (sync throw)  → reject(CLI_BINARY_NOT_FOUND)
   │   └─ on other native error    → propagate as-is (NOT wrapped — FR-010)
   │
@@ -147,7 +147,7 @@ The four priorities are mutually exclusive and exhaustive over the close-event s
 | (i) boundary-path priority (a) beats (b) | Story 3 AC #5, Edge Cases | Boundary |
 | (j) boundary-path signal-only termination | Q3 clarification, Edge Cases | Boundary |
 
-Ten total. Story 1 AC #2 (flags appended after key=value pairs) and AC #4 (vault-hoisting regardless of insertion order) and Story 2 AC #4 (active mode + non-target-locator key + flag) are not strict FR-016 requirements but SHOULD be added as supplementary cases by the implementer to keep the AC-to-test ratio at 100%. Story 4 AC #1 (re-export validation) is a typecheck-only assertion and lives in the import line of the test file itself — no runtime test case is needed.
+Ten total. Story 1 AC #2 (flags appended after key=value pairs) and AC #4 (vault-hoisting regardless of insertion order) and Story 2 AC #4 (active mode + non-target-locator key + flag) are not strict FR-016 requirements but SHOULD be added as supplementary cases by the implementer to keep the AC-to-test ratio at 100%. Story 4 AC #1 (re-export validation) is satisfied at typecheck time by the import line at the top of the test file (`import { invokeCli, UpstreamError } from "./cli-adapter.js"`). [tasks.md](./tasks.md) T020 adds one supplementary runtime sentinel on top of the typecheck — `expect(UpstreamError).toBeDefined(); expect(UpstreamError.name).toBe("UpstreamError")` — as defence-in-depth against a future regression where someone replaces the `export { UpstreamError } from "../errors.js"` re-export with a locally-defined `class UpstreamError extends Error { ... }` (which would still typecheck but break `instanceof` chains across module boundaries because the two classes would be distinct identities). The runtime sentinel costs one assertion line and hardens the contract against that specific failure mode.
 
 ## Logger.ErrorCode union — NOT extended this feature
 
