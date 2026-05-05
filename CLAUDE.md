@@ -20,3 +20,12 @@ Predecessor feature: **001-add-cli-bridge** (the bridge itself). See:
 - [contracts/](specs/001-add-cli-bridge/contracts/) — canonical MCP tool, errors, logging, server contracts (002 edits `errors.contract.md` in place per Q5 clarification)
 - [.specify/memory/constitution.md](.specify/memory/constitution.md) — Principles I–V (modular layout, co-located tests, zod validation, structured errors, attribution headers) bind every implementation decision
 <!-- SPECKIT END -->
+
+## Architecture & Decision References
+
+Two reference folders document the project's design rationale. Consult them **before** proposing or making design decisions, and cite the relevant ADR/architecture section when justifying choices:
+
+- [.architecture/](.architecture/) — high-level architecture notes describing the system's structure, module boundaries, and design principles. Start with [Obsidian CLI MCP - Architecture.md](.architecture/Obsidian%20CLI%20MCP%20-%20Architecture.md).
+- [.decisions/](.decisions/) — Architecture Decision Records (ADRs). [Decision Log.md](.decisions/Decision%20Log.md) is the index; each ADR-NNN file contains the full decision text.
+
+When a design choice conflicts with an existing ADR, surface the conflict to the user rather than silently overriding it — superseding an ADR is a deliberate act that should produce a new ADR, not an undocumented drift.

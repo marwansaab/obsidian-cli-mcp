@@ -144,3 +144,9 @@ vite.config.ts.timestamp-*
 
 # Claude Code local state
 .claude/
+
+# Architecture local reference
+.architecture/
+
+# Decisions local reference
+.decisions/
