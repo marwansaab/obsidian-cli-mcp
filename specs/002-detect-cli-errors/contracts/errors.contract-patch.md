@@ -39,8 +39,8 @@ The current table at lines 30-40:
 Append two rows:
 
 ```markdown
-| `details.exitCode` | `number` — mirrors `cause.exitCode`. The non-zero exit code the child reported. (Mirrored into `details` because MCP serialization drops `cause` per the prose at line 106 — without this row, MCP clients cannot observe the exit code.) |
-| `details.signal` | `string \| null` — mirrors `cause.signal`. The terminating signal name (e.g., `"SIGTERM"`), or `null` if the child exited normally with a non-zero code. |
+| `details.exitCode` | `number` — mirrors `cause.exitCode`. The non-zero exit code the child reported, OR the sentinel `-1` when the child terminated via signal without producing an exit code (the bridge's `code ?? -1` normalization at [handler.ts:221](../../../src/tools/obsidian_exec/handler.ts#L221)). Mirrored into `details` because MCP serialization drops `cause` per the prose at line 106 — without this row, MCP clients cannot observe the exit code. |
+| `details.signal` | `NodeJS.Signals \| null` (a string subtype — concretely `"SIGTERM"`, `"SIGKILL"`, etc.) — mirrors `cause.signal`. The terminating signal name when the child was signal-killed, or `null` when the child exited with a non-zero code rather than being signal-terminated. |
 ```
 
 > **Implementation gate**: This contract patch is only truthful if the handler is also updated to emit `exitCode` and `signal` inside `details` (currently they live only in `cause`). The handler tweak is a one-line edit at [handler.ts:227](../../../src/tools/obsidian_exec/handler.ts#L227) — add `exitCode` and `signal` to the `details` object literal. Both source-of-truth (handler) and documentation (this contract) MUST land in the same change set.

@@ -7,7 +7,7 @@ description: "Task list for feature 002-detect-cli-errors"
 **Input**: Design documents from [specs/002-detect-cli-errors/](./)
 **Prerequisites**: [plan.md](./plan.md), [spec.md](./spec.md), [research.md](./research.md), [data-model.md](./data-model.md), [contracts/](./contracts/), [quickstart.md](./quickstart.md)
 
-**Tests**: REQUIRED for this feature. FR-010 mandates five co-located vitest cases (one happy-path, three failure-path, one boundary). Coverage floor of 84.3% statements per FR-012 enforces the merge gate.
+**Tests**: REQUIRED for this feature. FR-010 mandates seven co-located vitest cases (one happy-path, three failure-path, three boundary). Coverage floor of 84.3% statements per FR-012 enforces the merge gate.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
@@ -81,9 +81,11 @@ This is a single-library MCP server (per [plan.md](./plan.md#project-structure))
 
 - [ ] T009 [US2] Add a co-located vitest case to [src/tools/obsidian_exec/handler.test.ts](../../src/tools/obsidian_exec/handler.test.ts) for FR-010 case (e) / Story 2 AC #1: `obsidian_exec({ command: "search", parameters: { query: "Error:" } })` with a mocked spawn whose stdout is a JSON matches array (e.g., `'[{"path":"note.md","excerpt":"... Error: foo ..."}]\n'`) and exit `0` MUST resolve with the success shape — no false positive even though `Error:` appears inside the body. Sequential with T008 (same file).
 
-- [ ] T010 [P] [US2] Add a co-located vitest case to [src/tools/obsidian_exec/handler.test.ts](../../src/tools/obsidian_exec/handler.test.ts) verifying the case-sensitivity invariant (Story 2 AC #4 / FR-006): a mocked spawn whose stdout starts with `"error: ..."` (lowercase) MUST resolve with the success shape — the detection is case-sensitive on the exact six-character prefix `Error:`. Sequential with T008/T009 (same file).
+- [ ] T009b [US2] Add a co-located vitest case to [src/tools/obsidian_exec/handler.test.ts](../../src/tools/obsidian_exec/handler.test.ts) for FR-010 case (f) / Story 2 AC #3: a mocked spawn whose stdout is multi-line and `Error:` appears at the start of a non-first line (e.g., `"OK\nError: foo\n"`) and exit `0` MUST resolve with the success shape — anchored detection rejects body-internal occurrences regardless of line position, even when a subsequent line literally begins with the prefix. Sequential with T008/T009 (same file). Added per /speckit-analyze finding C1.
 
-**Checkpoint**: US1 + US2 both work independently. The detection is provably symmetric: it fires on the documented prefix and only on the documented prefix. Together with US1's tests, all five FR-010 cases (a)(b)(c)(d)(e) are covered.
+- [ ] T010 [US2] Add a co-located vitest case to [src/tools/obsidian_exec/handler.test.ts](../../src/tools/obsidian_exec/handler.test.ts) for FR-010 case (g) / Story 2 AC #4 / FR-006 case-sensitivity: a mocked spawn whose stdout starts with `"error: ..."` (lowercase) and exit `0` MUST resolve with the success shape — the detection is case-sensitive on the exact six-character prefix `Error:`. Sequential with T008/T009/T009b (same file).
+
+**Checkpoint**: US1 + US2 both work independently. The detection is provably symmetric: it fires on the documented prefix and only on the documented prefix. Together with US1's tests, all seven FR-010 cases (a)(b)(c)(d)(e)(f)(g) are covered, and all four Story 2 acceptance scenarios are exercised by at least one test.
 
 ---
 
@@ -113,7 +115,7 @@ This is a single-library MCP server (per [plan.md](./plan.md#project-structure))
 
 - [ ] T014 [P] Apply the seven edits from [contracts/errors.contract-patch.md](./contracts/errors.contract-patch.md) in-place against [specs/001-add-cli-bridge/contracts/errors.contract.md](../001-add-cli-bridge/contracts/errors.contract.md) per the Q5 clarification. Edits in order: (1) drop the `(v0.1)` version pin from the section header at line 28; (2) append `details.exitCode` and `details.signal` rows to the `CLI_NON_ZERO_EXIT` table for FR-014; (3) insert a new `### CLI_REPORTED_ERROR` section for FR-008; (4) insert a new `### VALIDATION_ERROR` section for FR-015; (5) insert a new `### TOOL_NOT_FOUND` section for FR-015; (6) patch the prose at line 106 to cover the new codes' cause-mirroring; (7) patch the test-coverage list at lines 110-111 to cite both `handler.test.ts` (five codes) and `tool.test.ts` (two codes). Verifies FR-008, FR-014 (documentation half), FR-015. After applying, validate against the seven acceptance criteria in the patch document's "Validation" section.
 
-- [ ] T015 [P] Add a `CLI_REPORTED_ERROR` row to the README error-codes table in [README.md](../../README.md) (currently lines 107-114) with the trigger condition (`CLI exits 0 with stdout that, after leading-whitespace trim, starts with Error:`) and the key `details` fields (`argv`, `stdout`, `stderr`, `exitCode`, `message`). Verifies FR-011. Parallel with T014 (different file).
+- [ ] T015 [P] Update the README error-codes table in [README.md](../../README.md) (currently lines 107-114) per FR-011: (a) add a new `CLI_REPORTED_ERROR` row with the trigger condition (`CLI exits 0 with stdout that, after leading-whitespace trim, starts with Error:`) and the key `details` fields (`argv`, `stdout`, `stderr`, `exitCode`, `message`); (b) update the existing `CLI_NON_ZERO_EXIT` row's "Key `details` fields" column to list the new fields added by FR-014 (`argv`, `stdout`, `stderr`, `exitCode`, `signal`) so the README does not diverge from the post-T014 canonical contract. Parallel with T014 (different file). Both edits land in the same `git add README.md` per /speckit-analyze finding I1.
 
 - [ ] T016 Run the full quality-gate suite: `npm run lint && npm run typecheck && npm run build && npm test`. Confirm zero lint warnings, zero typecheck errors, build success, and all tests green (including T005, T006, T007, T008, T009, T010, T012). Confirm aggregate statements coverage is at or above the FR-012 floor (84.3%, captured as the baseline in T001). Report the post-implementation coverage number alongside the baseline. If any gate fails, fix and re-run before marking T016 complete. Final task — must be the last one.
 
@@ -126,13 +128,13 @@ This is a single-library MCP server (per [plan.md](./plan.md#project-structure))
 - **Setup (T001)**: No dependencies — runs first to establish baseline.
 - **Foundational (T002)**: Depends on Setup. **BLOCKS US1 (T003).**
 - **US1 (T003-T007)**: T003 depends on T002. T004 is parallel with T003 (different file). T005/T006/T007 depend on T003 (need the impl to assert against) and are sequential with each other (same file).
-- **US2 (T008-T010)**: All three tests depend on T003 (need the impl); sequential with each other (same file). May land in parallel with US3 implementation tasks (different concerns) but the same-file constraint means they queue with US1 tests.
+- **US2 (T008-T010)**: All four tests (T008, T009, T009b, T010) depend on T003 (need the impl); sequential with each other (same file). May land in parallel with US3 implementation tasks (different concerns) but the same-file constraint means they queue with US1 tests.
 - **US3 (T011-T013)**: T011 depends on T003 (same file). T012/T013 depend on T011 and are sequential (same file).
 - **Polish (T014-T016)**: T014 and T015 are parallel (different files) and independent of US1/US2/US3 implementation tasks (they only consume the implementation, they don't depend on it). T016 is the last task and depends on everything else.
 
 ### Critical path
 
-`T001 → T002 → T003 → T005 → T006 → T007 → T008 → T009 → T010 → T011 → T012 → T013 → T016`
+`T001 → T002 → T003 → T005 → T006 → T007 → T008 → T009 → T009b → T010 → T011 → T012 → T013 → T016`
 
 T004, T014, T015 hang off the side as parallel branches.
 
@@ -185,7 +187,7 @@ Task: "Add CLI_REPORTED_ERROR row to README.md error-codes table (T015)"
 
 ### Sequential strategy (single-developer)
 
-The same-file constraint on `handler.ts` and `handler.test.ts` makes parallel execution within a phase impractical for a single developer. The recommended order is the critical path above: `T001 → T002 → T003 → T004 → T005 → T006 → T007 → T008 → T009 → T010 → T011 → T012 → T013 → T014 → T015 → T016`. T004, T014, T015 can be batched at any point after their dependencies (T003 for T004; nothing for T014/T015) — landing them earlier reduces context-switch cost.
+The same-file constraint on `handler.ts` and `handler.test.ts` makes parallel execution within a phase impractical for a single developer. The recommended order is the critical path above: `T001 → T002 → T003 → T004 → T005 → T006 → T007 → T008 → T009 → T009b → T010 → T011 → T012 → T013 → T014 → T015 → T016`. T004, T014, T015 can be batched at any point after their dependencies (T003 for T004; nothing for T014/T015) — landing them earlier reduces context-switch cost.
 
 ---
 

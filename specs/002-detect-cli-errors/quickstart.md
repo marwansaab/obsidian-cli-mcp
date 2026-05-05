@@ -111,7 +111,7 @@ npm run build
 npm test
 ```
 
-All four MUST pass. The vitest run MUST report ≥ 84.3% statements coverage (per FR-012) and the five new test cases under [src/tools/obsidian_exec/handler.test.ts](../../src/tools/obsidian_exec/handler.test.ts) MUST appear in the green list.
+All four MUST pass. The vitest run MUST report ≥ 84.3% statements coverage (per FR-012) and the eight new test cases under [src/tools/obsidian_exec/handler.test.ts](../../src/tools/obsidian_exec/handler.test.ts) (FR-010 cases (a)-(g) plus the US3 precedence test from T012) MUST appear in the green list.
 
 ## Rollback
 
