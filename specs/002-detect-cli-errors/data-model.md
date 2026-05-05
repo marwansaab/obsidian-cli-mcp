@@ -60,7 +60,7 @@ Both codes are emitted live by [src/tools/obsidian_exec/tool.ts:50,61](../../src
 | `code` | `string` (literal) | `"TOOL_NOT_FOUND"` |
 | `cause` | `null` | No upstream throw; the dispatch table simply lacked the requested name. |
 | `details.requestedName` | `string` | The `req.params.name` value the MCP client supplied. |
-| `details.knownTools` | `string[]` | The list of tool names the bridge currently registers. In v0.1/v0.2 this is `["obsidian_exec"]`. |
+| `details.knownTools` | `string[]` | The list of tool names the bridge currently registers. In v0.1/v0.1.1 this is `["obsidian_exec"]`. |
 
 ## Logger.ErrorCode union (extended)
 

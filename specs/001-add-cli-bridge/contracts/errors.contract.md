@@ -112,7 +112,7 @@ The MCP tool dispatch received a `CallToolRequest` whose `params.name` is not th
 | `code` | `"TOOL_NOT_FOUND"` |
 | `cause` | `null` — no upstream throw; the dispatch table simply lacked the requested name. |
 | `details.requestedName` | `string` — the `req.params.name` value the MCP client supplied. |
-| `details.knownTools` | `string[]` — the list of tool names the bridge currently registers. In v0.1/v0.2 this is `["obsidian_exec"]`. |
+| `details.knownTools` | `string[]` — the list of tool names the bridge currently registers. In v0.1/v0.1.1 this is `["obsidian_exec"]`. |
 
 ## Serialization to MCP
 

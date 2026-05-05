@@ -175,7 +175,7 @@ Task: "Add CLI_REPORTED_ERROR row to README.md error-codes table (T015)"
 
 1. T001 (baseline) → T002 (Logger union) → T003 (detection logic) → T004 (description text) → T005, T006, T007 (US1 tests).
 2. **STOP and VALIDATE**: run `npm test` — the three new test cases should be green; existing 001 tests should still pass; coverage should not regress below 84.3%. If yes, this is a shippable MVP — the spec's primary defect is closed.
-3. Optional: ship the MVP as 0.2.0-alpha if downstream timing demands it. Otherwise continue to US2/US3.
+3. Optional: ship the MVP as 0.1.1-alpha if downstream timing demands it. Otherwise continue to US2/US3.
 
 ### Incremental delivery
 

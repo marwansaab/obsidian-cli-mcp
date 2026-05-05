@@ -20,7 +20,7 @@ Update to:
 ## Codes registered by `obsidian_exec`
 ```
 
-The version pin is dropped because the registered set now spans v0.1 + v0.2 contributions.
+The version pin is dropped because the registered set now spans v0.1 + v0.1.1 contributions.
 
 ### 2. Patch the existing `### CLI_NON_ZERO_EXIT` table (FR-014)
 
@@ -95,7 +95,7 @@ The MCP tool dispatch received a `CallToolRequest` whose `params.name` is not th
 | `code` | `"TOOL_NOT_FOUND"` |
 | `cause` | `null` — no upstream throw; the dispatch table simply lacked the requested name. |
 | `details.requestedName` | `string` — the `req.params.name` value the MCP client supplied. |
-| `details.knownTools` | `string[]` — the list of tool names the bridge currently registers. In v0.1/v0.2 this is `["obsidian_exec"]`. |
+| `details.knownTools` | `string[]` — the list of tool names the bridge currently registers. In v0.1/v0.1.1 this is `["obsidian_exec"]`. |
 ```
 
 ### 6. Patch the prose at line 106
