@@ -106,10 +106,11 @@ Errors are returned via the MCP SDK's `isError: true` shape with a JSON-encoded 
 
 | `code` | When | Key `details` fields |
 |--------|------|----------------------|
-| `CLI_NON_ZERO_EXIT` | Spawned `obsidian` exited non-zero | `argv`, `stdout`, `stderr` |
+| `CLI_NON_ZERO_EXIT` | Spawned `obsidian` exited non-zero | `argv`, `stdout`, `stderr`, `exitCode`, `signal` |
 | `CLI_BINARY_NOT_FOUND` | `obsidian` not on PATH and `OBSIDIAN_BIN` unset/wrong | `binaryAttempted`, `PATH` |
 | `CLI_TIMEOUT` | Call exceeded `timeoutMs` (default 30 s) | `argv`, `timeoutMs`, `partialStdout`, `partialStderr` |
 | `CLI_OUTPUT_TOO_LARGE` | Either stream crossed the 10 MiB cap | `argv`, `stream`, `limitBytes`, `capturedBytes`, `partial` |
+| `CLI_REPORTED_ERROR` | CLI exits 0 with stdout that, after leading-whitespace trim, starts with `Error:` | `argv`, `stdout`, `stderr`, `exitCode`, `message` |
 | `VALIDATION_ERROR` | Input failed zod validation | `issues[]` (path, message, code) |
 | `TOOL_NOT_FOUND` | Caller named a tool other than `obsidian_exec` | `requestedName`, `knownTools` |
 
