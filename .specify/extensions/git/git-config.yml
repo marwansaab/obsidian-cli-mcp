@@ -5,58 +5,75 @@
 branch_numbering: sequential
 
 # Commit message used by `git commit` during repository initialization
-init_commit_message: "[Spec Kit] Initial commit"
+init_commit_message: "chore(repo): initial commit"
 
 # Auto-commit before/after core commands.
-# Set "default" to enable for all commands, then override per-command.
-# Each key can be true/false. Message is customizable per-command.
+#
+# In this project, /speckit-git-commit operates as a REVIEW-THEN-COMMIT
+# flow (see .claude/skills/speckit-git-commit/SKILL.md). The skill never
+# calls auto-commit.{sh,ps1}, so the `enabled` flags below have no effect
+# under the normal flow. They are kept as `false` so that if anyone runs
+# the script directly (e.g. for forensic reasons), it no-ops rather than
+# silently committing.
+#
+# The `message` values below ARE used: the review-then-commit skill reads
+# them as SUBJECT-LINE SEEDS, substitutes the `{feature}` placeholder
+# with the active feature directory basename from .specify/feature.json
+# (e.g. "002-detect-cli-errors"), and adds a body per CONTRIBUTING.md
+# before showing the result to the user for approval.
+#
+# Templates follow CONTRIBUTING.md's `type(scope): description` form.
+# `before_*` events are checkpoint commits and use `chore`. `after_*`
+# events seed `feat`/`docs` subjects whose bodies the assistant fills in
+# per CONTRIBUTING.md (so the static template alone is never sufficient
+# — it's the seed, not the final message).
 auto_commit:
   default: false
   before_clarify:
     enabled: false
-    message: "[Spec Kit] Save progress before clarification"
+    message: "chore({feature}): pre-clarify checkpoint"
   before_plan:
     enabled: false
-    message: "[Spec Kit] Save progress before planning"
+    message: "chore({feature}): pre-plan checkpoint"
   before_tasks:
     enabled: false
-    message: "[Spec Kit] Save progress before task generation"
+    message: "chore({feature}): pre-tasks checkpoint"
   before_implement:
     enabled: false
-    message: "[Spec Kit] Save progress before implementation"
+    message: "chore({feature}): pre-implement checkpoint"
   before_checklist:
     enabled: false
-    message: "[Spec Kit] Save progress before checklist"
+    message: "chore({feature}): pre-checklist checkpoint"
   before_analyze:
     enabled: false
-    message: "[Spec Kit] Save progress before analysis"
+    message: "chore({feature}): pre-analyze checkpoint"
   before_taskstoissues:
     enabled: false
-    message: "[Spec Kit] Save progress before issue sync"
+    message: "chore({feature}): pre-issue-sync checkpoint"
   after_constitution:
     enabled: false
-    message: "[Spec Kit] Add project constitution"
+    message: "docs(constitution): update project constitution"
   after_specify:
     enabled: false
-    message: "[Spec Kit] Add specification"
+    message: "feat({feature}): scaffold specification"
   after_clarify:
     enabled: false
-    message: "[Spec Kit] Clarify specification"
+    message: "docs({feature}): clarify specification"
   after_plan:
     enabled: false
-    message: "[Spec Kit] Add implementation plan"
+    message: "docs({feature}): generate implementation plan"
   after_tasks:
     enabled: false
-    message: "[Spec Kit] Add tasks"
+    message: "docs({feature}): generate task breakdown"
   after_implement:
     enabled: false
-    message: "[Spec Kit] Implementation progress"
+    message: "feat({feature}): implement"
   after_checklist:
     enabled: false
-    message: "[Spec Kit] Add checklist"
+    message: "docs({feature}): add quality checklist"
   after_analyze:
     enabled: false
-    message: "[Spec Kit] Add analysis report"
+    message: "docs({feature}): record cross-artifact analysis"
   after_taskstoissues:
     enabled: false
-    message: "[Spec Kit] Sync tasks to issues"
+    message: "chore({feature}): sync tasks to GitHub issues"

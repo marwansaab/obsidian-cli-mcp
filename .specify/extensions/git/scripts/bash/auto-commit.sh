@@ -133,6 +133,22 @@ if [ -z "$_commit_msg" ]; then
     _commit_msg="[Spec Kit] Auto-commit ${_phase} ${_command_name}"
 fi
 
+# Substitute {feature} placeholder with the active feature dir basename
+# (e.g. "specs/002-detect-cli-errors" -> "002-detect-cli-errors").
+# Falls back to "unknown" if .specify/feature.json is missing or unparsable.
+if echo "$_commit_msg" | grep -q '{feature}'; then
+    _feature_basename="unknown"
+    _feature_json="$REPO_ROOT/.specify/feature.json"
+    if [ -f "$_feature_json" ]; then
+        _feature_dir=$(grep -E '"feature_directory"[[:space:]]*:' "$_feature_json" \
+            | sed -E 's/.*"feature_directory"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+        if [ -n "$_feature_dir" ]; then
+            _feature_basename=$(basename "$_feature_dir")
+        fi
+    fi
+    _commit_msg=$(echo "$_commit_msg" | sed "s|{feature}|${_feature_basename}|g")
+fi
+
 # Stage and commit
 _git_out=$(git add . 2>&1) || { echo "[specify] Error: git add failed: $_git_out" >&2; exit 1; }
 _git_out=$(git commit -q -m "$_commit_msg" 2>&1) || { echo "[specify] Error: git commit failed: $_git_out" >&2; exit 1; }
