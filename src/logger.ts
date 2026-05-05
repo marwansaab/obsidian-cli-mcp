@@ -1,7 +1,12 @@
 // Original — no upstream. JSON-lines stderr logger for call lifecycle events (FR-024, FR-025, FR-026).
 import type { Writable } from "node:stream";
 
-export type ErrorCode = "CLI_NON_ZERO_EXIT" | "CLI_BINARY_NOT_FOUND" | "CLI_TIMEOUT" | "CLI_OUTPUT_TOO_LARGE";
+export type ErrorCode =
+  | "CLI_NON_ZERO_EXIT"
+  | "CLI_BINARY_NOT_FOUND"
+  | "CLI_TIMEOUT"
+  | "CLI_OUTPUT_TOO_LARGE"
+  | "CLI_REPORTED_ERROR";
 export type ShutdownReason = "transport_closed" | "signal:SIGINT" | "signal:SIGTERM";
 
 export interface CallStartEvent {

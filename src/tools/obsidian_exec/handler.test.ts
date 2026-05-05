@@ -122,6 +122,9 @@ test("US1 failure path: nonexistent_command_xyz raises UpstreamError(CLI_NON_ZER
   expect(err.details.argv).toEqual(["obsidian", "nonexistent_command_xyz"]);
   expect(err.details.stdout).toBe("");
   expect(err.details.stderr).toBe("unknown command\n");
+  // FR-014 reconciliation: details now mirrors cause.exitCode/signal so MCP clients can observe them.
+  expect(err.details.exitCode).toBe(2);
+  expect(err.details.signal).toBeNull();
 });
 
 test("US1 boundary path (vault-omitted): produces argv ['obsidian','search','query=fixture'] with no vault= token", async () => {
@@ -198,6 +201,66 @@ test("US1 OBSIDIAN_BIN override: spawn receives the overridden binary and publis
   );
   expect(recorded[0]!.binary).toBe("C:\\custom\\obsidian.exe");
   expect(result.argv).toEqual(["C:\\custom\\obsidian.exe", "version"]);
+});
+
+// --- US1 cases (002 — CLI_REPORTED_ERROR detection) ---
+
+test("US1 002 CLI_REPORTED_ERROR: nonexistent command exits 0 with leading 'Error:' raises CLI_REPORTED_ERROR (FR-010 b, Story 1 AC #1)", async () => {
+  const stdoutText = `Error: Command "nonexistent_command_xyz" not found.\n`;
+  const { spawnFn } = makeMockSpawn({
+    stdoutChunks: [Buffer.from(stdoutText, "utf8")],
+    exitCode: 0,
+  });
+  const err = (await captureRejection(
+    executeObsidianExec(
+      { command: "nonexistent_command_xyz" },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    ),
+  )) as UpstreamError;
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.cause).toBeNull();
+  expect(err.details.argv).toEqual(["obsidian", "nonexistent_command_xyz"]);
+  expect(err.details.stdout).toBe(stdoutText);
+  expect(err.details.stderr).toBe("");
+  expect(err.details.exitCode).toBe(0);
+  expect(err.details.message).toBe(`Error: Command "nonexistent_command_xyz" not found.`);
+});
+
+test("US1 002 CLI_REPORTED_ERROR: read of missing file exits 0 with 'Error: File ...' raises CLI_REPORTED_ERROR (FR-010 c, Story 1 AC #2)", async () => {
+  const stdoutText = `Error: File "this/does/not/exist.md" does not exist.\n`;
+  const { spawnFn } = makeMockSpawn({
+    stdoutChunks: [Buffer.from(stdoutText, "utf8")],
+    exitCode: 0,
+  });
+  const err = (await captureRejection(
+    executeObsidianExec(
+      { command: "read", parameters: { path: "this/does/not/exist.md" } },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    ),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details.message).toBe(`Error: File "this/does/not/exist.md" does not exist.`);
+  expect(err.details.stdout).toBe(stdoutText);
+  expect(err.details.exitCode).toBe(0);
+});
+
+test("US1 002 CLI_REPORTED_ERROR: eval-throws exits 0 with multi-line 'Error: ...' yields first-line message + full stdout (FR-010 d, Story 1 AC #3)", async () => {
+  const stdoutText = "Error: test\n    at eval (<anonymous>:1:7)\n    at runEval (obsidian:42)\n";
+  const { spawnFn } = makeMockSpawn({
+    stdoutChunks: [Buffer.from(stdoutText, "utf8")],
+    exitCode: 0,
+  });
+  const err = (await captureRejection(
+    executeObsidianExec(
+      { command: "eval", parameters: { code: "throw new Error('test')" } },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    ),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details.message).toBe("Error: test");
+  expect(err.details.stdout).toBe(stdoutText);
+  expect(err.details.stderr).toBe("");
 });
 
 // --- US2 cases ---
@@ -281,6 +344,64 @@ test("US2 call.start log line carries vault when present and null when omitted",
   const startB = JSON.parse(Buffer.concat(chunksB).toString("utf8").split("\n").filter(Boolean)[0]!);
   expect(startA.vault).toBe("v");
   expect(startB.vault).toBeNull();
+});
+
+// --- US2 cases (002 — false-positive guards for CLI_REPORTED_ERROR detection) ---
+
+test("US2 002 false-positive guard: 'version' returns success shape (no false positive on non-Error: stdout) (FR-010 a, Story 2 AC #2)", async () => {
+  const { spawnFn } = makeMockSpawn({
+    stdoutChunks: [Buffer.from("1.7.2\n", "utf8")],
+    exitCode: 0,
+  });
+  const result = await executeObsidianExec(
+    { command: "version" },
+    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+  );
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout).toBe("1.7.2\n");
+  expect(result.stderr).toBe("");
+});
+
+test("US2 002 false-positive guard: search-results JSON containing 'Error:' inside body returns success (FR-010 e, Story 2 AC #1)", async () => {
+  const stdoutText = `[{"path":"note.md","excerpt":"... Error: foo ..."}]\n`;
+  const { spawnFn } = makeMockSpawn({
+    stdoutChunks: [Buffer.from(stdoutText, "utf8")],
+    exitCode: 0,
+  });
+  const result = await executeObsidianExec(
+    { command: "search", parameters: { query: "Error:" } },
+    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+  );
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout).toBe(stdoutText);
+});
+
+test("US2 002 false-positive guard: 'Error:' at start of non-first line returns success (FR-010 f, Story 2 AC #3)", async () => {
+  const stdoutText = "OK\nError: foo\n";
+  const { spawnFn } = makeMockSpawn({
+    stdoutChunks: [Buffer.from(stdoutText, "utf8")],
+    exitCode: 0,
+  });
+  const result = await executeObsidianExec(
+    { command: "version" },
+    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+  );
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout).toBe(stdoutText);
+});
+
+test("US2 002 false-positive guard: lowercase 'error:' prefix returns success — case-sensitive on exact 'Error:' (FR-010 g, Story 2 AC #4 / FR-006)", async () => {
+  const stdoutText = "error: lowercase prefix should not fire detection\n";
+  const { spawnFn } = makeMockSpawn({
+    stdoutChunks: [Buffer.from(stdoutText, "utf8")],
+    exitCode: 0,
+  });
+  const result = await executeObsidianExec(
+    { command: "version" },
+    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+  );
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout).toBe(stdoutText);
 });
 
 // --- US3 cases ---
@@ -407,4 +528,23 @@ test("US3 killActiveChild kills the in-flight child and returns true", async () 
   expect(result).toBe(true);
   await captureRejection(promise);
   expect(recorded[0]!.killsReceived).toContain("SIGTERM");
+});
+
+test("US3 002 precedence: non-zero exit + stdout starting 'Error:' raises CLI_NON_ZERO_EXIT (NOT CLI_REPORTED_ERROR) (FR-007, Story 3 AC #2)", async () => {
+  const stdoutText = "Error: foo\n";
+  const { spawnFn } = makeMockSpawn({
+    stdoutChunks: [Buffer.from(stdoutText, "utf8")],
+    exitCode: 1,
+  });
+  const err = (await captureRejection(
+    executeObsidianExec(
+      { command: "version" },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    ),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_NON_ZERO_EXIT");
+  expect(err.code).not.toBe("CLI_REPORTED_ERROR");
+  expect(err.details.exitCode).toBe(1);
+  expect(err.details.signal).toBeNull();
+  expect(err.details.stdout).toBe(stdoutText);
 });

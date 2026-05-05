@@ -214,6 +214,23 @@ function runOnce(input: ObsidianExecInput, deps: ExecuteDeps): Promise<ObsidianE
       }
 
       if (code === 0) {
+        if (stdoutFull.trimStart().startsWith("Error:")) {
+          deps.logger.callEndFailure({ callId, errorCode: "CLI_REPORTED_ERROR", durationMs });
+          reject(
+            new UpstreamError({
+              code: "CLI_REPORTED_ERROR",
+              cause: null,
+              details: {
+                argv,
+                stdout: stdoutFull,
+                stderr: stderrFull,
+                exitCode: 0,
+                message: stdoutFull.split("\n", 1)[0]!.trim(),
+              },
+            }),
+          );
+          return;
+        }
         deps.logger.callEndSuccess({ callId, durationMs, stdoutBytes, stderrBytes });
         resolve({ stdout: stdoutFull, stderr: stderrFull, exitCode: 0, argv });
         return;
@@ -224,7 +241,7 @@ function runOnce(input: ObsidianExecInput, deps: ExecuteDeps): Promise<ObsidianE
         new UpstreamError({
           code: "CLI_NON_ZERO_EXIT",
           cause: { exitCode, signal },
-          details: { argv, stdout: stdoutFull, stderr: stderrFull },
+          details: { argv, stdout: stdoutFull, stderr: stderrFull, exitCode, signal },
         }),
       );
     });
