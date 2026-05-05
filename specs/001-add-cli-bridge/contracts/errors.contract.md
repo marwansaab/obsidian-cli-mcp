@@ -114,6 +114,23 @@ The MCP tool dispatch received a `CallToolRequest` whose `params.name` is not th
 | `details.requestedName` | `string` — the `req.params.name` value the MCP client supplied. |
 | `details.knownTools` | `string[]` — the list of tool names the bridge currently registers. In v0.1/v0.1.1 this is `["obsidian_exec"]`. |
 
+### `ERR_NO_ACTIVE_FILE`
+
+The spawned `obsidian` child exited cleanly with code `0`, but its `stdout` — after trimming leading whitespace — begins with the literal twenty-one-character ASCII prefix `Error: no active file` (case-sensitive). The CLI uses this in-band format for the focused-note-missing failure mode that arises when a tool call requests an "active" target but no note is open in the editor. Spec source: 003-cli-adapter FR-008(b). Triggered exclusively by the centralised CLI adapter at [src/cli-adapter/cli-adapter.ts](../../../src/cli-adapter/cli-adapter.ts); the legacy `obsidian_exec` handler continues to surface this case as `CLI_REPORTED_ERROR` because it does not implement the priority-(b)/priority-(c) split (Out-of-Scope per 003 spec).
+
+| Field | Value |
+|-------|-------|
+| `code` | `"ERR_NO_ACTIVE_FILE"` |
+| `cause` | `null` — no thrown value exists; the adapter is re-routing an exit-zero response, not catching a throw |
+| `Error.message` | `"No active file in Obsidian. Open a note in the editor, or call this tool with target_mode: \"specific\" and an explicit vault/file."` — the recovery-instruction string. Explicitly overrides the `UpstreamError` constructor's synthesized default. |
+| `details.command` | `string` — the input `command` string verbatim (the adapter's first argument). Distinct from `obsidian_exec`'s `details.argv` shape: the adapter records only the command string because the calling typed-tool handler reconstructs argv from its own zod-validated input if needed. |
+| `details.stdout` | `string` — full captured stdout (UTF-8). Byte-identical to what the resolve path would have returned. Always starts (after `.trimStart()`) with `Error: no active file`. |
+| `details.stderr` | `string` — full captured stderr (UTF-8). Typically empty for the focused-note-missing case. |
+| `details.exitCode` | `0` (literal `number`) — the truthful exit code the child exited with. Discoverable from the error alone for callers distinguishing this code from `CLI_NON_ZERO_EXIT`. |
+| `details.message` | `string` — convenience one-line summary, computed as `stdout.split('\n', 1)[0].trim()` (LF-only split, full whitespace trim — same algorithm as `CLI_REPORTED_ERROR.details.message` per 003 FR-009). Always starts with `Error: no active file`. |
+
+> **Priority discrimination**: `ERR_NO_ACTIVE_FILE` and `CLI_REPORTED_ERROR` share the `Error:` family of in-band detection prefixes. The adapter's classification machine evaluates `ERR_NO_ACTIVE_FILE` (priority b) before `CLI_REPORTED_ERROR` (priority c) so that stdout starting with the longer literal `Error: no active file. Open one.` always classifies as `ERR_NO_ACTIVE_FILE` — never as `CLI_REPORTED_ERROR`. The legacy `obsidian_exec` handler does not split these and surfaces both as `CLI_REPORTED_ERROR`.
+
 ## Serialization to MCP
 
 When an `UpstreamError` is thrown from inside the MCP tool handler, the SDK serializes it via the `CallToolResult` `isError: true` shape:
@@ -140,10 +157,11 @@ The text payload is the JSON serialization of:
 }
 ```
 
-`cause` is omitted from the serialized payload because Node `Error` objects don't serialize cleanly to JSON; the relevant context from `cause` is duplicated into `details` for the codes above where applicable (e.g., `details.exitCode` and `details.signal` mirror `cause.exitCode`/`cause.signal` for `CLI_NON_ZERO_EXIT`). For `CLI_REPORTED_ERROR`, `VALIDATION_ERROR`, and `TOOL_NOT_FOUND`, no cause-mirroring is needed: `CLI_REPORTED_ERROR` and `TOOL_NOT_FOUND` have `cause: null`, and `VALIDATION_ERROR`'s `details.issues` already projects the relevant `ZodError` content. MCP clients should match on `code` first and consult `details` per the table above.
+`cause` is omitted from the serialized payload because Node `Error` objects don't serialize cleanly to JSON; the relevant context from `cause` is duplicated into `details` for the codes above where applicable (e.g., `details.exitCode` and `details.signal` mirror `cause.exitCode`/`cause.signal` for `CLI_NON_ZERO_EXIT`). For `CLI_REPORTED_ERROR`, `ERR_NO_ACTIVE_FILE`, `VALIDATION_ERROR`, and `TOOL_NOT_FOUND`, no cause-mirroring is needed: `CLI_REPORTED_ERROR`, `ERR_NO_ACTIVE_FILE`, and `TOOL_NOT_FOUND` have `cause: null`, and `VALIDATION_ERROR`'s `details.issues` already projects the relevant `ZodError` content. MCP clients should match on `code` first and consult `details` per the table above.
 
 ## Test coverage requirements (Principle II)
 
 - [src/errors.test.ts](../../../src/errors.test.ts) — class construction, `code/cause/details` preservation, `instanceof UpstreamError`, `message` synthesis when omitted.
-- [src/tools/obsidian_exec/handler.test.ts](../../../src/tools/obsidian_exec/handler.test.ts) — each of the five handler-layer `code` paths is asserted (`CLI_NON_ZERO_EXIT`, `CLI_BINARY_NOT_FOUND`, `CLI_TIMEOUT`, `CLI_OUTPUT_TOO_LARGE`, `CLI_REPORTED_ERROR`); each path corresponds to an FR.
+- [src/tools/obsidian_exec/handler.test.ts](../../../src/tools/obsidian_exec/handler.test.ts) — each of the five legacy-handler `code` paths is asserted (`CLI_NON_ZERO_EXIT`, `CLI_BINARY_NOT_FOUND`, `CLI_TIMEOUT`, `CLI_OUTPUT_TOO_LARGE`, `CLI_REPORTED_ERROR`); each path corresponds to an FR.
 - [src/tools/obsidian_exec/tool.test.ts](../../../src/tools/obsidian_exec/tool.test.ts) — the two dispatch-layer codes (`VALIDATION_ERROR`, `TOOL_NOT_FOUND`) are each asserted.
+- [src/cli-adapter/cli-adapter.test.ts](../../../src/cli-adapter/cli-adapter.test.ts) — each of the four adapter-layer `code` paths is asserted (`CLI_NON_ZERO_EXIT`, `ERR_NO_ACTIVE_FILE`, `CLI_REPORTED_ERROR`, `CLI_BINARY_NOT_FOUND`) along with priority-discrimination boundaries (FR-016 a–j).
