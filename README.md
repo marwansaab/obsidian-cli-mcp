@@ -1,6 +1,6 @@
 # obsidian-cli-mcp
 
-A minimal Windows-host MCP server that bridges any MCP client (running locally or in a sandboxed container like Claude Cowork's Linux environment) to the Obsidian Integrated CLI binary on the operator's Windows desktop. Exposes a single generic tool, `obsidian_exec`, that lets the caller invoke any Obsidian CLI subcommand with structured parameters, bare-word flags, optional vault scoping, and a per-call timeout. All failure modes (non-zero exit, missing binary, timeout, output too large) surface as structured `UpstreamError` responses with full diagnostic detail.
+A minimal Windows-host MCP server that bridges any MCP client (running locally or in a sandboxed container like Claude Cowork's Linux environment) to the Obsidian Integrated CLI binary on the operator's Windows desktop. Exposes a single generic tool, `obsidian_exec`, that lets the caller invoke any Obsidian CLI subcommand with structured parameters, bare-word flags, optional vault scoping, and a per-call timeout. All failure modes (non-zero exit, CLI exits 0 with `Error:` stdout prefix, missing binary, timeout, output too large) surface as structured `UpstreamError` responses with full diagnostic detail.
 
 ## Installation
 
@@ -8,7 +8,7 @@ A minimal Windows-host MCP server that bridges any MCP client (running locally o
 
 ### Prerequisites
 
-- **Windows 10 / 11** host. macOS and Linux are out of scope for v0.1.
+- **Windows 10 / 11** host. macOS and Linux are out of scope for the 0.x release line.
 - **Node.js >= 22.11** (LTS). Verify: `node --version`.
 - **Obsidian 1.12+** desktop app installed and running. The bridge can boot without Obsidian running, but every `obsidian_exec` call will fail with `CLI_NON_ZERO_EXIT` until Obsidian is up.
 - **Obsidian Integrated CLI** binary discoverable on `PATH`. Verify from a fresh PowerShell prompt: `obsidian version`. If `obsidian` isn't on `PATH`, set `OBSIDIAN_BIN` in your MCP-client configuration to the absolute path.
@@ -72,7 +72,7 @@ Cowork's container can't exec the Windows `obsidian` binary directly — that's 
 
 ## Tool reference
 
-`obsidian_exec` — the single tool registered by this bridge in v0.1.
+`obsidian_exec` — the single tool registered by this bridge.
 
 ### Input
 
@@ -175,7 +175,7 @@ Fail-fast — a failure in any step surfaces the precise stage and stops the pip
 
 Coverage is gated on **aggregate statements only**. The threshold lives in [vitest.config.ts](vitest.config.ts) under `test.coverage.thresholds.statements` and is the **single source of truth** for the merge floor:
 
-- Current floor: **84.3** (measured 84.37%, rounded down to 1 dp as a small safety margin against floating-point noise)
+- Current floor: **84.3** (measured 84.64% post-002, rounded down to 1 dp as a small safety margin against floating-point noise)
 - Ratcheting up (or down, intentionally) is a **one-line visible edit** to that number — no env vars, no CI flags, no separate gate config. The visible diff IS the override.
 - Branch / function / line / per-file thresholds are reported in the text reporter as **advisory** but do **NOT** block merge.
 
@@ -202,7 +202,7 @@ Features larger than a single-file change enter via the Spec Kit workflow: `/spe
 
 ## Attributions
 
-**v0.1 — no upstream lifts.** All code under `src/` is original. Future composed code will be enumerated here per constitution Principle V (Attribution & Layered Composition Transparency).
+**v0.1, v0.1.1 — no upstream lifts.** All code under `src/` is original. Future composed code will be enumerated here per constitution Principle V (Attribution & Layered Composition Transparency).
 
 The implementation depends on these third-party packages (declared in `package.json`):
 
@@ -216,12 +216,27 @@ See [LICENSE](LICENSE).
 
 ## Spec Kit artifacts
 
-This feature was developed via the Spec Kit workflow. Full design documents live under [specs/001-add-cli-bridge/](specs/001-add-cli-bridge/):
+This project is developed via the Spec Kit workflow.
+
+### v0.1 — [specs/001-add-cli-bridge/](specs/001-add-cli-bridge/) — initial bridge
 
 - [spec.md](specs/001-add-cli-bridge/spec.md) — feature specification with 5 clarifications
 - [plan.md](specs/001-add-cli-bridge/plan.md) — implementation plan with constitution-check
 - [research.md](specs/001-add-cli-bridge/research.md) — phase 0 implementation-pattern decisions
 - [data-model.md](specs/001-add-cli-bridge/data-model.md) — entity shapes and lifecycles
-- [contracts/](specs/001-add-cli-bridge/contracts/) — MCP tool, errors, logging, server contracts
+- [contracts/](specs/001-add-cli-bridge/contracts/) — MCP tool, errors, logging, server contracts (the canonical errors contract is edited in place by 002)
 - [tasks.md](specs/001-add-cli-bridge/tasks.md) — dependency-ordered task list
+
+### v0.1.1 — [specs/002-detect-cli-errors/](specs/002-detect-cli-errors/) — `CLI_REPORTED_ERROR` detection
+
+- [spec.md](specs/002-detect-cli-errors/spec.md) — closes the spec-vs-reality gap on 001 AC#6 (CLI exits 0 with `Error:` stdout prefix now surfaces as a structured error). 6 clarifications across 2 sessions.
+- [plan.md](specs/002-detect-cli-errors/plan.md) — implementation plan with constitution-check (all five principles still Y)
+- [research.md](specs/002-detect-cli-errors/research.md) — empirical observations + decision provenance
+- [data-model.md](specs/002-detect-cli-errors/data-model.md) — `CLI_REPORTED_ERROR` shape; reconciled `CLI_NON_ZERO_EXIT`; newly-registered `VALIDATION_ERROR` + `TOOL_NOT_FOUND`
+- [contracts/](specs/002-detect-cli-errors/contracts/) — patches applied to 001's canonical contracts
+- [tasks.md](specs/002-detect-cli-errors/tasks.md) — 17-task dependency-ordered list (all complete)
+- [quickstart.md](specs/002-detect-cli-errors/quickstart.md) — six end-to-end verification scenarios
+
+### Project-wide
+
 - [.specify/memory/constitution.md](.specify/memory/constitution.md) — project constitution (Principles I–V)
