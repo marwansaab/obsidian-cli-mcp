@@ -111,6 +111,7 @@ Errors are returned via the MCP SDK's `isError: true` shape with a JSON-encoded 
 | `CLI_TIMEOUT` | Call exceeded `timeoutMs` (default 30 s) | `argv`, `timeoutMs`, `partialStdout`, `partialStderr` |
 | `CLI_OUTPUT_TOO_LARGE` | Either stream crossed the 10 MiB cap | `argv`, `stream`, `limitBytes`, `capturedBytes`, `partial` |
 | `CLI_REPORTED_ERROR` | CLI exits 0 with stdout that, after leading-whitespace trim, starts with `Error:` | `argv`, `stdout`, `stderr`, `exitCode`, `message` |
+| `ERR_NO_ACTIVE_FILE` | CLI exits 0 with stdout that, after leading-whitespace trim, starts with `Error: no active file` (focused-note-missing failure mode; raised by the typed-tool adapter, not the legacy `obsidian_exec` handler) | `command`, `stdout`, `stderr`, `exitCode`, `message` |
 | `VALIDATION_ERROR` | Input failed zod validation | `issues[]` (path, message, code) |
 | `TOOL_NOT_FOUND` | Caller named a tool other than `obsidian_exec` | `requestedName`, `knownTools` |
 
@@ -175,7 +176,7 @@ Fail-fast — a failure in any step surfaces the precise stage and stops the pip
 
 Coverage is gated on **aggregate statements only**. The threshold lives in [vitest.config.ts](vitest.config.ts) under `test.coverage.thresholds.statements` and is the **single source of truth** for the merge floor:
 
-- Current floor: **84.3** (measured 84.64% post-002, rounded down to 1 dp as a small safety margin against floating-point noise)
+- Current floor: **84.3** (measured 85.19% post-003, rounded down to 1 dp as a small safety margin against floating-point noise; the floor itself stays put — see ratcheting note below)
 - Ratcheting up (or down, intentionally) is a **one-line visible edit** to that number — no env vars, no CI flags, no separate gate config. The visible diff IS the override.
 - Branch / function / line / per-file thresholds are reported in the text reporter as **advisory** but do **NOT** block merge.
 
@@ -202,7 +203,7 @@ Features larger than a single-file change enter via the Spec Kit workflow: `/spe
 
 ## Attributions
 
-**v0.1, v0.1.1 — no upstream lifts.** All code under `src/` is original. Future composed code will be enumerated here per constitution Principle V (Attribution & Layered Composition Transparency).
+**v0.1, v0.1.1, v0.1.2 — no upstream lifts.** All code under `src/` is original. Future composed code will be enumerated here per constitution Principle V (Attribution & Layered Composition Transparency).
 
 The implementation depends on these third-party packages (declared in `package.json`):
 
@@ -236,6 +237,17 @@ This project is developed via the Spec Kit workflow.
 - [contracts/](specs/002-detect-cli-errors/contracts/) — patches applied to 001's canonical contracts
 - [tasks.md](specs/002-detect-cli-errors/tasks.md) — 17-task dependency-ordered list (all complete)
 - [quickstart.md](specs/002-detect-cli-errors/quickstart.md) — six end-to-end verification scenarios
+
+### v0.1.2 — [specs/003-cli-adapter/](specs/003-cli-adapter/) — internal CLI adapter scaffolding
+
+- [spec.md](specs/003-cli-adapter/spec.md) — introduces a centralised internal CLI adapter at `src/cli-adapter/cli-adapter.ts` that future typed-tool MCP handlers will route through. Adds the new stable error code `ERR_NO_ACTIVE_FILE` for the focused-note-missing failure mode. The adapter is **internal** — not registered as an MCP tool, no zod schema, no public surface. v0.1.2 ships the adapter but no typed-tool consumer; the first typed tool lands in a future BI. 3 clarifications in 1 session (Q2 reversed during /speckit-plan to align with ADR-004).
+- [plan.md](specs/003-cli-adapter/plan.md) — implementation plan with constitution-check (all five principles still Y, no Complexity Tracking entries)
+- [research.md](specs/003-cli-adapter/research.md) — Q1/Q2/Q3 clarification provenance, plan-stage decisions (`invokeCli` export name, recovery-message wording verbatim, coverage floor unchanged), v0.1.x baselines reaffirmed, ADR-004 alignment
+- [data-model.md](specs/003-cli-adapter/data-model.md) — `ERR_NO_ACTIVE_FILE` shape; adapter input/deps/success types; eight-code surface enumeration; FR-016 → spec-AC test coverage map; explicit note that `Logger.ErrorCode` is **not** extended this feature
+- [contracts/cli-adapter.contract.md](specs/003-cli-adapter/contracts/cli-adapter.contract.md) — adapter's interface contract (signature, behavioural rules, ten test cases)
+- [contracts/errors.contract-patch.md](specs/003-cli-adapter/contracts/errors.contract-patch.md) — diff applied in-place to specs/001's canonical errors contract
+- [tasks.md](specs/003-cli-adapter/tasks.md) — 23-task dependency-ordered list (all complete)
+- [quickstart.md](specs/003-cli-adapter/quickstart.md) — six unit-test verification scenarios + deferred consumer-side smoke
 
 ### Project-wide
 
