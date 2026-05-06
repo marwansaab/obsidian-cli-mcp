@@ -1,9 +1,7 @@
-// Original — no upstream. Tests for obsidian_exec MCP tool registration and dispatch.
+// Original — no upstream. Tests for obsidian_exec tool registration (post-P8 aggregator refactor: tests the descriptor + handler shape directly).
 import { EventEmitter } from "node:events";
 import { Writable, Readable } from "node:stream";
 
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { test, expect } from "vitest";
 
 import { type SpawnLike } from "./handler.js";
@@ -13,59 +11,75 @@ import { UpstreamError } from "../../errors.js";
 import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
 
-function makeServer(): Server {
-  return new Server({ name: "test", version: "0.0.0" }, { capabilities: { tools: {} } });
-}
-
 function silentLogger() {
   const stream = new Writable({ write(_c, _e, cb) { cb(); } });
   return createLogger({ stream });
 }
 
-test("registerObsidianExecTool publishes name 'obsidian_exec' via tools/list", async () => {
-  const server = makeServer();
-  registerObsidianExecTool(server, { logger: silentLogger(), queue: createQueue() });
-  const handler = (server as unknown as { _requestHandlers: Map<string, (req: unknown) => Promise<unknown>> })._requestHandlers.get(
-    ListToolsRequestSchema.shape.method.value,
-  );
-  expect(handler).toBeTruthy();
-  const result = (await handler!({ method: "tools/list", params: {} })) as { tools: { name: string }[] };
-  expect(result.tools.length).toBe(1);
-  expect(result.tools[0]!.name).toBe(OBSIDIAN_EXEC_TOOL_NAME);
+test("registerObsidianExecTool returns descriptor with name 'obsidian_exec'", () => {
+  const tool = registerObsidianExecTool({ logger: silentLogger(), queue: createQueue() });
+  expect(tool.descriptor.name).toBe(OBSIDIAN_EXEC_TOOL_NAME);
 });
 
-test("registered tool's inputSchema matches the zod-derived schema (single source of truth)", async () => {
-  const server = makeServer();
-  registerObsidianExecTool(server, { logger: silentLogger(), queue: createQueue() });
-  const handler = (server as unknown as { _requestHandlers: Map<string, (req: unknown) => Promise<unknown>> })._requestHandlers.get(
-    ListToolsRequestSchema.shape.method.value,
-  );
-  const result = (await handler!({ method: "tools/list", params: {} })) as { tools: { inputSchema: unknown }[] };
-  expect(result.tools[0]!.inputSchema).toEqual(obsidianExecInputJsonSchema);
+test("registered tool's inputSchema matches the zod-derived schema (single source of truth)", () => {
+  const tool = registerObsidianExecTool({ logger: silentLogger(), queue: createQueue() });
+  // The published inputSchema is the strip-utility-applied deep copy of obsidianExecInputJsonSchema.
+  // Because the obsidian_exec zod schema carries no `.describe()` annotations on its fields, the
+  // strip is a structural no-op for now and the published schema deep-equals the raw one. If a
+  // future change adds field-level descriptions, those would be stripped automatically.
+  expect(tool.descriptor.inputSchema).toEqual(obsidianExecInputJsonSchema);
 });
 
-test("registered tool's description matches the published one", async () => {
-  const server = makeServer();
-  registerObsidianExecTool(server, { logger: silentLogger(), queue: createQueue() });
-  const handler = (server as unknown as { _requestHandlers: Map<string, (req: unknown) => Promise<unknown>> })._requestHandlers.get(
-    ListToolsRequestSchema.shape.method.value,
-  );
-  const result = (await handler!({ method: "tools/list", params: {} })) as { tools: { description: string }[] };
-  expect(result.tools[0]!.description).toBe(OBSIDIAN_EXEC_DESCRIPTION);
+test("registered tool's inputSchema has no description keys at any depth (Story 1 AC#5, FR-006, SC-002, SC-010)", () => {
+  const tool = registerObsidianExecTool({ logger: silentLogger(), queue: createQueue() });
+  expect(hasNestedDescription(tool.descriptor.inputSchema)).toBe(false);
 });
 
-test("calling unknown tool returns isError with a descriptive message", async () => {
-  const server = makeServer();
-  registerObsidianExecTool(server, { logger: silentLogger(), queue: createQueue() });
-  const handler = (server as unknown as { _requestHandlers: Map<string, (req: unknown) => Promise<unknown>> })._requestHandlers.get(
-    CallToolRequestSchema.shape.method.value,
-  );
-  const result = (await handler!({
-    method: "tools/call",
-    params: { name: "not_a_real_tool", arguments: {} },
-  })) as { isError?: boolean; content: { type: string; text: string }[] };
-  expect(result.isError).toBe(true);
-  expect(result.content[0]!.text).toMatch(/not_a_real_tool/);
+function hasNestedDescription(node: unknown): boolean {
+  if (typeof node !== "object" || node === null) return false;
+  const obj = node as Record<string, unknown>;
+  for (const child of Object.values(obj.properties ?? {}) as unknown[]) {
+    if (typeof child === "object" && child !== null && "description" in (child as object)) return true;
+    if (hasNestedDescription(child)) return true;
+  }
+  for (const key of ["anyOf", "oneOf"] as const) {
+    const branches = obj[key];
+    if (Array.isArray(branches)) {
+      for (const branch of branches) {
+        if (typeof branch === "object" && branch !== null && "description" in (branch as object)) return true;
+        if (hasNestedDescription(branch)) return true;
+      }
+    }
+  }
+  if (obj.items) {
+    const items = Array.isArray(obj.items) ? obj.items : [obj.items];
+    for (const item of items) {
+      if (typeof item === "object" && item !== null && "description" in (item as object)) return true;
+      if (hasNestedDescription(item)) return true;
+    }
+  }
+  if (obj.additionalProperties && typeof obj.additionalProperties === "object") {
+    if ("description" in (obj.additionalProperties as object)) return true;
+    if (hasNestedDescription(obj.additionalProperties)) return true;
+  }
+  return false;
+}
+
+test("registered tool's description matches the published one", () => {
+  const tool = registerObsidianExecTool({ logger: silentLogger(), queue: createQueue() });
+  expect(tool.descriptor.description).toBe(OBSIDIAN_EXEC_DESCRIPTION);
+});
+
+test("top-level description is concise verb-led and mentions help() with this tool's name (Story 3 AC#1+#2, FR-015, SC-003, SC-010)", () => {
+  // Structural assertions per T022 — robust against future minor wording tweaks while
+  // still verifying the P5-pinned shape: verb-led summary + help() mention naming this tool.
+  expect(OBSIDIAN_EXEC_DESCRIPTION.length).toBeGreaterThan(0);
+  expect(OBSIDIAN_EXEC_DESCRIPTION).toContain("help(");
+  expect(OBSIDIAN_EXEC_DESCRIPTION).toContain("obsidian_exec");
+  // Verb-led: starts with an imperative verb (not "The tool ..." or "This tool ...").
+  expect(OBSIDIAN_EXEC_DESCRIPTION).toMatch(/^(Invoke|Run|Execute)/);
+  // Concise — well under the verbose ~1100-char baseline that motivated ADR-005.
+  expect(OBSIDIAN_EXEC_DESCRIPTION.length).toBeLessThan(500);
 });
 
 function makeMockSpawn(stdout: string, exitCode: number): SpawnLike {
@@ -89,20 +103,13 @@ function makeMockSpawn(stdout: string, exitCode: number): SpawnLike {
 }
 
 test("calling obsidian_exec with valid arguments returns success-shape JSON in content text", async () => {
-  const server = makeServer();
-  registerObsidianExecTool(server, {
+  const tool = registerObsidianExecTool({
     logger: silentLogger(),
     queue: createQueue(),
     spawnFn: makeMockSpawn("1.7.2\n", 0),
     env: {},
   });
-  const handler = (server as unknown as { _requestHandlers: Map<string, (req: unknown) => Promise<unknown>> })._requestHandlers.get(
-    CallToolRequestSchema.shape.method.value,
-  );
-  const result = (await handler!({
-    method: "tools/call",
-    params: { name: "obsidian_exec", arguments: { command: "version" } },
-  })) as { isError?: boolean; content: { type: string; text: string }[] };
+  const result = (await tool.handler({ command: "version" })) as { isError?: boolean; content: { type: string; text: string }[] };
   expect(result.isError).toBeFalsy();
   expect(result.content[0]!.type).toBe("text");
   const payload = JSON.parse(result.content[0]!.text);
@@ -112,20 +119,13 @@ test("calling obsidian_exec with valid arguments returns success-shape JSON in c
 });
 
 test("calling obsidian_exec when the handler throws UpstreamError returns isError with code/message/details", async () => {
-  const server = makeServer();
-  registerObsidianExecTool(server, {
+  const tool = registerObsidianExecTool({
     logger: silentLogger(),
     queue: createQueue(),
     spawnFn: makeMockSpawn("", 2),
     env: {},
   });
-  const handler = (server as unknown as { _requestHandlers: Map<string, (req: unknown) => Promise<unknown>> })._requestHandlers.get(
-    CallToolRequestSchema.shape.method.value,
-  );
-  const result = (await handler!({
-    method: "tools/call",
-    params: { name: "obsidian_exec", arguments: { command: "x" } },
-  })) as { isError?: boolean; content: { type: string; text: string }[] };
+  const result = (await tool.handler({ command: "x" })) as { isError?: boolean; content: { type: string; text: string }[] };
   expect(result.isError).toBe(true);
   const payload = JSON.parse(result.content[0]!.text);
   expect(payload.code).toBe("CLI_NON_ZERO_EXIT");
@@ -139,15 +139,8 @@ test("UpstreamError export is the same class the handler throws (single source p
 });
 
 test("calling obsidian_exec with invalid arguments returns isError with zod field paths (FR-009)", async () => {
-  const server = makeServer();
-  registerObsidianExecTool(server, { logger: silentLogger(), queue: createQueue() });
-  const handler = (server as unknown as { _requestHandlers: Map<string, (req: unknown) => Promise<unknown>> })._requestHandlers.get(
-    CallToolRequestSchema.shape.method.value,
-  );
-  const result = (await handler!({
-    method: "tools/call",
-    params: { name: "obsidian_exec", arguments: { command: "" } },
-  })) as { isError?: boolean; content: { type: string; text: string }[] };
+  const tool = registerObsidianExecTool({ logger: silentLogger(), queue: createQueue() });
+  const result = (await tool.handler({ command: "" })) as { isError?: boolean; content: { type: string; text: string }[] };
   expect(result.isError).toBe(true);
   const payload = JSON.parse(result.content[0]!.text);
   expect(payload.code).toBe("VALIDATION_ERROR");

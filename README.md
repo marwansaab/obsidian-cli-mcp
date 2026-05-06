@@ -1,6 +1,6 @@
 # obsidian-cli-mcp
 
-A minimal Windows-host MCP server that bridges any MCP client (running locally or in a sandboxed container like Claude Cowork's Linux environment) to the Obsidian Integrated CLI binary on the operator's Windows desktop. Exposes a single generic tool, `obsidian_exec`, that lets the caller invoke any Obsidian CLI subcommand with structured parameters, bare-word flags, optional vault scoping, and a per-call timeout. All failure modes (non-zero exit, CLI exits 0 with `Error:` stdout prefix, missing binary, timeout, output too large) surface as structured `UpstreamError` responses with full diagnostic detail.
+A minimal Windows-host MCP server that bridges any MCP client (running locally or in a sandboxed container like Claude Cowork's Linux environment) to the Obsidian Integrated CLI binary on the operator's Windows desktop. Exposes two tools: `obsidian_exec` (a generic CLI bridge that lets the caller invoke any Obsidian CLI subcommand with structured parameters, bare-word flags, optional vault scoping, and a per-call timeout) and `help` (a progressive-disclosure tool that serves full Markdown documentation for any registered tool on demand, per [ADR-005](.decisions/ADR-005%20-%20Token-Optimized%20Tool%20Definitions%20via%20Progressive%20Disclosure.md) — parameter-level descriptions are stripped from the JSON Schema at registration time to save context-window tokens, and recovered via `help({ tool_name: "<name>" })` when the agent needs them). All failure modes (non-zero exit, CLI exits 0 with `Error:` stdout prefix, missing binary, timeout, output too large, missing-doc lookup, missing-docs-directory) surface as structured `UpstreamError` responses with full diagnostic detail.
 
 ## Installation
 
@@ -53,7 +53,7 @@ Edit `%APPDATA%\Claude\claude_desktop_config.json`:
 }
 ```
 
-Restart Claude Desktop. The `obsidian_exec` tool will appear in the tools list.
+Restart Claude Desktop. The `obsidian_exec` and `help` tools will appear in the tools list.
 
 ### Claude Cowork (sandboxed Linux container) → Windows host
 
@@ -72,9 +72,11 @@ Cowork's container can't exec the Windows `obsidian` binary directly — that's 
 
 ## Tool reference
 
-`obsidian_exec` — the single tool registered by this bridge.
+The bridge registers two tools: `obsidian_exec` (the generic CLI bridge) and `help` (the progressive-disclosure docs tool). At session start the agent sees both via `tools/list` with parameter-level descriptions stripped from each tool's JSON Schema; full per-parameter documentation is reachable via `help({ tool_name: "<name>" })`.
 
-### Input
+### `obsidian_exec`
+
+#### Input
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
@@ -85,9 +87,9 @@ Cowork's container can't exec the Windows `obsidian` binary directly — that's 
 | `copy` | `boolean` | no | When `true`, appends `--copy` as the final argv token. |
 | `timeoutMs` | `integer` (1..120000) | no | Per-call timeout (default `30000`). Counts from spawn, not from enqueue. |
 
-Full JSON Schema: [specs/001-add-cli-bridge/contracts/obsidian_exec.tool.json](specs/001-add-cli-bridge/contracts/obsidian_exec.tool.json).
+Full JSON Schema: [specs/001-add-cli-bridge/contracts/obsidian_exec.tool.json](specs/001-add-cli-bridge/contracts/obsidian_exec.tool.json). Full Markdown documentation reachable via `help({ tool_name: "obsidian_exec" })`.
 
-### Output (success)
+#### Output (success)
 
 ```jsonc
 {
@@ -99,6 +101,26 @@ Full JSON Schema: [specs/001-add-cli-bridge/contracts/obsidian_exec.tool.json](s
 ```
 
 `argv` is the fully reproducible argv vector as the spawned process sees it, including the binary as `argv[0]`.
+
+### `help`
+
+Progressive-disclosure docs tool. Returns the full Markdown documentation for any registered tool on demand. Implements [ADR-005](.decisions/ADR-005%20-%20Token-Optimized%20Tool%20Definitions%20via%20Progressive%20Disclosure.md).
+
+#### Input
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `tool_name` | `string` (non-empty) | no | When omitted, returns the index of all available tool docs. When provided, returns the contents of `docs/tools/<tool_name>.md`. |
+
+#### Output (success)
+
+A single text block whose `text` field is the full UTF-8 contents of the bundled Markdown file. No transformation, no transcoding. An empty doc file returns `text: ""`.
+
+#### Errors
+
+`HELP_TOOL_NOT_FOUND` (named tool's `.md` file missing, OR the path-traversal defense fired, OR the reserved `"index"` name was requested) — `details.availableTools` lists the names the agent can self-correct with. `HELP_DOCS_MISSING` (the bundled `docs/tools/` directory itself is missing — operator-side packaging/install fix, not agent-recoverable). `VALIDATION_ERROR` (empty-string `tool_name`, non-string value, or unknown keys per the input schema's `.strict()` modifier).
+
+Full Markdown documentation reachable via `help({ tool_name: "help" })`.
 
 ### Output (failure — `isError: true`)
 
@@ -113,7 +135,9 @@ Errors are returned via the MCP SDK's `isError: true` shape with a JSON-encoded 
 | `CLI_REPORTED_ERROR` | CLI exits 0 with stdout that, after leading-whitespace trim, starts with `Error:` | `argv`, `stdout`, `stderr`, `exitCode`, `message` |
 | `ERR_NO_ACTIVE_FILE` | CLI exits 0 with stdout that, after leading-whitespace trim, starts with `Error: no active file` (focused-note-missing failure mode; raised by the typed-tool adapter, not the legacy `obsidian_exec` handler) | `command`, `stdout`, `stderr`, `exitCode`, `message` |
 | `VALIDATION_ERROR` | Input failed zod validation | `issues[]` (path, message, code) |
-| `TOOL_NOT_FOUND` | Caller named a tool other than `obsidian_exec` | `requestedName`, `knownTools` |
+| `TOOL_NOT_FOUND` | Caller named a tool not in the registered set | `requestedName`, `knownTools` |
+| `HELP_TOOL_NOT_FOUND` | `help` was called with a `tool_name` that has no `<name>.md` in `docs/tools/` (or hits the path-traversal defense, or the reserved `"index"` name) | `requestedName`, `availableTools` |
+| `HELP_DOCS_MISSING` | The bundled `docs/tools/` directory is missing or unreadable (packaging/install integrity failure — operator-side fix, not agent-recoverable) | `resolvedDocsDir`, `ioCode` |
 
 Full error contract: [specs/001-add-cli-bridge/contracts/errors.contract.md](specs/001-add-cli-bridge/contracts/errors.contract.md).
 
@@ -148,7 +172,7 @@ Full error contract: [specs/001-add-cli-bridge/contracts/errors.contract.md](spe
 ```text
 src/
 ├── index.ts                                  # Entrypoint (#!/usr/bin/env node)
-├── server.ts + server.test.ts                # MCP Server bootstrap + lifecycle handlers
+├── server.ts + server.test.ts                # MCP Server bootstrap, P8 aggregator dispatch, lifecycle handlers; registry-consistency block
 ├── errors.ts + errors.test.ts                # UpstreamError class (Principle IV)
 ├── logger.ts + logger.test.ts                # JSON-lines stderr logger
 ├── queue.ts + queue.test.ts                  # FIFO single-flight queue
@@ -156,10 +180,24 @@ src/
 │   └── target-mode.ts + target-mode.test.ts  # Shared zod discriminated-union primitive (ADR-003 / BI-029) — internal, no MCP registration
 ├── cli-adapter/
 │   └── cli-adapter.ts + cli-adapter.test.ts  # Centralised CLI invocation primitive (ADR-004) — internal, no MCP registration
-└── tools/obsidian_exec/
-    ├── schema.ts + schema.test.ts            # zod schema (single source of truth)
-    ├── tool.ts + tool.test.ts                # MCP tool registration + dispatch
-    └── handler.ts + handler.test.ts          # spawn + collect + timeout + cap + error mapping
+├── help/
+│   └── strip-schema.ts + strip-schema.test.ts # Pure schema-stripping utility (ADR-005 / BI-030) — consumed by every tool registration site
+└── tools/
+    ├── _shared.ts                            # RegisteredTool type + asToolError helper (P8 aggregator pattern)
+    ├── obsidian_exec/
+    │   ├── schema.ts + schema.test.ts        # zod schema (single source of truth)
+    │   ├── tool.ts + tool.test.ts            # MCP tool registration + dispatch (returns RegisteredTool)
+    │   └── handler.ts + handler.test.ts      # spawn + collect + timeout + cap + error mapping
+    └── help/                                 # Progressive-disclosure help tool (ADR-005 / BI-030)
+        ├── schema.ts + schema.test.ts        # zod schema for { tool_name?: string }
+        ├── handler.ts + handler.test.ts      # path resolution, traversal defense, file read
+        └── tool.ts + tool.test.ts            # MCP tool registration (returns RegisteredTool)
+
+docs/tools/                                   # Bundled Markdown docs (ADR-005 / BI-030); package.json files array includes "docs/tools/**/*.md"
+├── index.md                                  # Listing of available tools — response to help({})
+├── help.md                                   # The help tool's own docs — response to help({ tool_name: "help" })
+├── obsidian_exec.md                          # Full doc for the obsidian_exec tool
+└── <future-tool>.md                          # One file per registered tool; future BIs (BI-003+) populate the 6 stubs that ship today
 ```
 
 Tests are co-located as `*.test.ts` next to the module they exercise (constitution Principle II).
@@ -180,7 +218,7 @@ Fail-fast — a failure in any step surfaces the precise stage and stops the pip
 
 Coverage is gated on **aggregate statements only**. The threshold lives in [vitest.config.ts](vitest.config.ts) under `test.coverage.thresholds.statements` and is the **single source of truth** for the merge floor:
 
-- Current floor: **84.3** (measured 85.19% post-003, rounded down to 1 dp as a small safety margin against floating-point noise; the floor itself stays put — see ratcheting note below)
+- Current floor: **84.3** (measured 85.86% post-005 — slightly below the 86.37% post-004 baseline because some of the help tool's registration-handler error-path lines are not exercised; still ~1.5pp above the floor with comfortable headroom — see ratcheting note below)
 - Ratcheting up (or down, intentionally) is a **one-line visible edit** to that number — no env vars, no CI flags, no separate gate config. The visible diff IS the override.
 - Branch / function / line / per-file thresholds are reported in the text reporter as **advisory** but do **NOT** block merge.
 
@@ -207,7 +245,7 @@ Features larger than a single-file change enter via the Spec Kit workflow: `/spe
 
 ## Attributions
 
-**v0.1, v0.1.1, v0.1.2, v0.1.3 — no upstream lifts.** All code under `src/` is original. Future composed code will be enumerated here per constitution Principle V (Attribution & Layered Composition Transparency).
+**v0.1, v0.1.1, v0.1.2, v0.1.3, v0.1.4 — no upstream lifts.** All code under `src/` is original. Future composed code will be enumerated here per constitution Principle V (Attribution & Layered Composition Transparency).
 
 The implementation depends on these third-party packages (declared in `package.json`):
 
@@ -263,6 +301,20 @@ This project is developed via the Spec Kit workflow.
 - [tasks.md](specs/004-target-mode-schema/tasks.md) — 24-task dependency-ordered list (all complete)
 - [quickstart.md](specs/004-target-mode-schema/quickstart.md) — eight unit-test verification scenarios + deferred consumer-side smoke
 - **Implementation deviations** (recorded in the v0.1.3 commit): `targetModeSchema` is `ZodEffects<ZodDiscriminatedUnion<…>>`, not bare `ZodDiscriminatedUnion<…>` as data-model.md claimed — zod 3.25.x's `discriminatedUnion` rejects `ZodEffects` branches at both type and runtime levels; refactored to union over BASE schemas + a union-level `superRefine` dispatcher (inferred `TargetMode` type and consumer semantics unchanged). Edge case #8 (`{active, vault: undefined}`) succeeds rather than fails: zod's `mergeObjectSync` strips passthrough keys whose value is `undefined` before refinements run; `.strict()` would catch this but would reject Pattern (a) intersections (FR-005), so passthrough is binding.
+
+### v0.1.4 — [specs/005-help-tool/](specs/005-help-tool/) — progressive-disclosure help tool (BI-030)
+
+- [spec.md](specs/005-help-tool/spec.md) — implements [ADR-005](.decisions/ADR-005%20-%20Token-Optimized%20Tool%20Definitions%20via%20Progressive%20Disclosure.md) by shipping two co-located components plus a bundled `docs/tools/` directory: (1) a pure schema-stripping utility `stripSchemaDescriptions` at `src/help/strip-schema.ts` consumed by every tool registration site (parameter-level descriptions removed from the `tools/list` response — ~70% per-tool token reduction at the description level), (2) a new public `help` MCP tool at `src/tools/help/` that serves Markdown documentation for any registered tool on demand. Two new `UpstreamError` codes: `HELP_TOOL_NOT_FOUND` (named tool's `.md` file missing OR path-traversal probe OR reserved `"index"` name) and `HELP_DOCS_MISSING` (bundled docs directory missing — operator-side fix). 5 clarifications in 1 session; 1 `/speckit-analyze` remediation pass that surfaced (and fixed) a latent correctness bug in the original handler sketch (the reserved-name guard for `"index"` was missing — would have erroneously returned `index.md` content; remediation L1a added the guard).
+- [plan.md](specs/005-help-tool/plan.md) — implementation plan with constitution-check (all five principles `Y`, no Complexity Tracking entries)
+- [research.md](specs/005-help-tool/research.md) — Q1–Q5 clarification provenance + eight plan-stage decisions (P1 strip utility module path + verb-led name, P2 hand-rolled recursive walker over JSON Schema constructs, P3 no `.describe()` on `tool_name`, P4 three-layer path-traversal defense, P5 pinned top-level descriptions for both tools, P6 single registry-consistency block in `server.test.ts`, P7 SC-006 one-off PR-description measurement, P8 SDK-dispatch aggregator pattern — added by `/speckit-analyze` remediation finding I2)
+- [data-model.md](specs/005-help-tool/data-model.md) — strip utility I/O shape; help tool input schema + 8 reachable response branches (B1 named-tool, B2 omitted, B3 not-found, B4 traversal, B4a reserved-`index`, B5 docs-missing, B6 empty-string, B7 non-string); `docs/tools/` directory inventory (9 files: 3 real + 6 stubs per Q3 hybrid roster); two new error code rows; 27-case test coverage map
+- [contracts/strip-schema.contract.md](specs/005-help-tool/contracts/strip-schema.contract.md) — strip utility's interface contract (signature, R1–R7 behavioural rules, 6+1 test requirements)
+- [contracts/help.contract.md](specs/005-help-tool/contracts/help.contract.md) — help tool's interface contract (SDK registration, B1–B8 + B4a behavioural branches, path resolution from `import.meta.url`, 4 schema + 11 handler + 3 tool test requirements)
+- [contracts/errors.contract-patch.md](specs/005-help-tool/contracts/errors.contract-patch.md) — diff applied in-place to specs/001's canonical errors contract
+- [tasks.md](specs/005-help-tool/tasks.md) — 31-task dependency-ordered list (all complete) — Phase 1 setup, Phase 2 foundational (docs/tools + package.json), Phase 3 US1 MVP (strip utility + obsidian_exec wiring + registry-consistency), Phase 4 US2 (help tool + P8 aggregator refactor), Phase 5 US3 (description condensing), Phase 6 US4 (npm pack + cwd-independence), Phase 7 polish (errors patch + README + SC-006 measurement + final gates + review)
+- [quickstart.md](specs/005-help-tool/quickstart.md) — 8 verification scenarios (component + server + integration) plus the SC-006 token-economy measurement procedure
+- **SC-006 measurement** (recorded in [requirements.md](specs/005-help-tool/checklists/requirements.md) and the v0.1.4 commit): `obsidian_exec` description condensed from ~1100 chars (P5 baseline) to 339 chars — ~70% reduction at the description alone, validating ADR-005's directional claim. `tools/list` response 1365 bytes for 2 tools post-this-BI; the full surface-level reduction will materialize as typed-tool BIs (BI-003+) ship with `.describe()` annotations the strip utility can remove.
+- **Implementation deviations** (recorded in the v0.1.4 commit): T020 ended up not adding a new `it` block in `src/server.test.ts` (per remediation L3 — augmented the existing tools/list test inline AND added a `TOOL_NOT_FOUND` aggregator-fallback test instead of a redundant length-check). The `obsidian_exec/tool.test.ts` lost the previous "calling unknown tool returns isError" test (moved to `server.test.ts` where the aggregator dispatch lives post-P8) — net test-count change for that file is +1 (description-shape assertion added per T022).
 
 ### Project-wide
 
