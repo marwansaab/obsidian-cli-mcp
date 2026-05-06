@@ -26,7 +26,7 @@
 - [x] Success criteria are technology-agnostic (no implementation details)
   - The technology references that exist (zod, zod-to-json-schema) are surface contract per the Content Quality note above. SC-002, SC-006 are framed in user-author terms ("typed-tool author can declare X in Y lines").
 - [x] All acceptance scenarios are defined
-  - 15 scenarios across Stories 1–3 (6 + 5 + 4) plus 3 type-system scenarios in Story 4. Edge Cases section adds 12 more behavioral specifications for boundary inputs.
+  - 16 scenarios across Stories 1–3 (6 + 5 + 5; Story 3 AC#5 was added in /speckit-clarify session 2026-05-06 to cover Composition Pattern (b)) plus 3 type-system scenarios in Story 4. Edge Cases section adds 13 more behavioral specifications for boundary inputs.
 - [x] Edge cases are identified
   - Edge Cases section enumerates 13 boundary scenarios: extra unknown keys at base level (specific & active), missing/non-string discriminator, undefined/whitespace/empty-string vault, empty-string locators, undefined-valued forbidden keys in active mode, discriminator typo, null discriminator, empty input object, non-object input, composed-schema name collision.
 - [x] Scope is clearly bounded
@@ -37,11 +37,11 @@
 ## Feature Readiness
 
 - [x] All functional requirements have clear acceptance criteria
-  - FR-002 ↔ Story 1 AC#1, Story 2 AC#5, Edge Case "discriminator absent". FR-003 ↔ Story 1 AC#1–6. FR-004 ↔ Story 2 AC#1–4 + Edge Case "active+undefined forbidden key". FR-005, FR-006 ↔ Story 3 AC#1–4. FR-010 ↔ Story 4 AC#1–3 + SC-003. Each FR maps to at least one acceptance scenario or success criterion.
+  - FR-002 ↔ Story 1 AC#1, Story 2 AC#5, Edge Case "discriminator absent". FR-003 ↔ Story 1 AC#1–6. FR-004 ↔ Story 2 AC#1–4 + Edge Case "active+undefined forbidden key". FR-005, FR-006 ↔ Story 3 AC#1–5. FR-010 ↔ Story 4 AC#1–3 + SC-003. Each FR maps to at least one acceptance scenario or success criterion.
 - [x] User scenarios cover primary flows
-  - Story 1 (specific-mode happy + failures), Story 2 (active-mode happy + failures), Story 3 (composability — the only reason this primitive exists), Story 4 (typed-API correctness). Each is independently testable per its Independent Test paragraph.
+  - Story 1 (specific-mode happy + failures), Story 2 (active-mode happy + failures), Story 3 (composability — both Patterns (a) and (b) per Clarification 2026-05-06), Story 4 (typed-API correctness). Each is independently testable per its Independent Test paragraph.
 - [x] Feature meets measurable outcomes defined in Success Criteria
-  - SC-001 directly enumerates the test count (15). SC-003, SC-007, SC-008 are grep-mechanical. SC-005 is the constitutional coverage gate. SC-002, SC-006 become measurable as the typed-tool BIs that consume this primitive land.
+  - SC-001 directly enumerates the test count (16, updated from 15 by Clarification 2026-05-06 Q1 → Story 3 AC#5). SC-003, SC-007, SC-008 are grep-mechanical. SC-005 is the constitutional coverage gate. SC-002, SC-006 become measurable as the typed-tool BIs that consume this primitive land.
 - [x] No implementation details leak into specification
   - Same reasoning as Content Quality item 1: zod/zod-to-json-schema/z.infer are surface contract, not implementation. The spec is silent on internal helper functions, the exact names of the exported types, the file/folder choice (it offers a default and defers to plan), and the exact composition operator (.and() vs .merge() vs .extend()).
 
@@ -49,5 +49,6 @@
 
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`.
 - All checklist items pass on first pass — the user input was unusually well-specified (14 explicit MUST items in the framework section + 12 acceptance criteria + 3 out-of-scope items + 4 derived constraints from ADR-003), leaving little spec-stage interpretation surface and zero `[NEEDS CLARIFICATION]` markers needed. This is the same posture as spec 003 (also a follow-on to a binding ADR with detailed user input).
-- Plan-stage decisions deferred from this spec (per FR-001, FR-004, FR-010, FR-012): module path (`src/target-mode/target-mode.ts` vs. `src/schemas/target-mode.ts`), exact zod API for the active-mode forbidden-key rule (`.refine()` vs `.never().optional()` vs `.superRefine()`), exact composition operator the primitive documents (`.and()` vs `.merge()` vs `.extend()`), exact export names for the schema and inferred types, type-system test mechanism (`expectTypeOf` vs `tsc --noEmit` only).
-- Recommended next step: proceed directly to `/speckit-plan` (no `/speckit-clarify` needed). The spec contains zero `[NEEDS CLARIFICATION]` markers and the deferred plan-stage decisions are explicitly enumerated in the bullet above.
+- /speckit-clarify session 2026-05-06 pinned two further decisions that were nominally plan-stage but materially affected the public API and test design: (Q1) **composition export shape** = three exports (per-branch object schemas + discriminated union); (Q2) **active-mode forbidden-key error message** = custom prose naming the key + the active mode, with NO recovery instruction. Both are recorded in the spec's Clarifications section and propagated into FR-001, FR-004, FR-005, FR-010, FR-012, Story 2 ACs #2–4, Story 3 (Independent Test + AC#5), Out of Scope, Key Entities, SC-001, SC-004, and Assumptions.
+- Plan-stage decisions still deferred from this spec (per FR-001, FR-004, FR-010, FR-012): module path (`src/target-mode/target-mode.ts` vs. `src/schemas/target-mode.ts`), exact zod API for the active-mode forbidden-key rejection (`.refine()` vs `.never().optional()` with custom errorMap vs `.superRefine()` — Clarification 2026-05-06 Q2 pinned the message contract but not the API), exact export names for the three schemas and inferred types, type-system test mechanism (`expectTypeOf` vs `tsc --noEmit` only).
+- Recommended next step: proceed to `/speckit-plan`. The two highest-impact ambiguities are now resolved; remaining deferrals are genuine plan-stage concerns.
