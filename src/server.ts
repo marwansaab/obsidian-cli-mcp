@@ -1,8 +1,11 @@
-// Original — no upstream. MCP Server bootstrap, tool registration, and lifecycle handlers (FR-001, FR-028, FR-029).
+// Original — no upstream. MCP Server bootstrap, tool registration, and lifecycle handlers (FR-001, FR-028, FR-029, plan-stage P8 aggregator).
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 
 import { createLogger, type Logger, type ShutdownReason } from "./logger.js";
 import { createQueue, type Queue } from "./queue.js";
+import { asToolError, type RegisteredTool } from "./tools/_shared.js";
+import { registerHelpTool } from "./tools/help/tool.js";
 import { killActiveChild as defaultKillActiveChild } from "./tools/obsidian_exec/handler.js";
 import { registerObsidianExecTool } from "./tools/obsidian_exec/tool.js";
 
@@ -39,7 +42,34 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     },
   );
 
-  registerObsidianExecTool(server, { logger, queue });
+  // Aggregate every registered tool into a single dispatch surface (P8). The MCP
+  // SDK's setRequestHandler allows exactly one handler per request type, so each
+  // per-tool register*Tool factory returns a RegisteredTool (descriptor + handler)
+  // and this function aggregates them into the single ListTools / CallTool routes.
+  const tools: RegisteredTool[] = [
+    registerObsidianExecTool({ logger, queue }),
+    registerHelpTool(),
+  ];
+  const toolByName = new Map(tools.map((t) => [t.descriptor.name, t]));
+
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: tools.map((t) => t.descriptor),
+  }));
+
+  server.setRequestHandler(CallToolRequestSchema, async (req) => {
+    const tool = toolByName.get(req.params.name);
+    if (!tool) {
+      return asToolError({
+        code: "TOOL_NOT_FOUND",
+        message: `Unknown tool: ${req.params.name}`,
+        details: {
+          requestedName: req.params.name,
+          knownTools: tools.map((t) => t.descriptor.name),
+        },
+      });
+    }
+    return tool.handler(req.params.arguments);
+  });
 
   const killActiveChild = ctx.killActiveChild ?? defaultKillActiveChild;
 

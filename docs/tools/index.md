@@ -1,0 +1,12 @@
+# Available Tools
+
+Call `help({ tool_name: "<name>" })` to read the full Markdown documentation for any tool below. Calling `help()` with no arguments returns this index.
+
+- **append_note** — _(documentation pending — owned by a future BI)_.
+- **help** — Look up full Markdown documentation for any registered MCP tool.
+- **list_notes** — _(documentation pending — owned by a future BI)_.
+- **list_vaults** — _(documentation pending — owned by a future BI)_.
+- **obsidian_exec** — Invoke any Obsidian Integrated CLI subcommand.
+- **read_note** — _(documentation pending — owned by a future BI)_.
+- **search_vault** — _(documentation pending — owned by a future BI)_.
+- **write_note** — _(documentation pending — owned by a future BI)_.
