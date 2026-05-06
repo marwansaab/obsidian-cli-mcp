@@ -59,3 +59,17 @@
 All checklist items pass on first iteration. Spec is ready for `/speckit-clarify` or `/speckit-plan`.
 
 The deliberate plan-stage deferrals are recorded as such in the spec rather than left as [NEEDS CLARIFICATION] markers, because each carries a binding behavioral contract plus a documented reasonable default — which is the pattern this project established in 003-cli-adapter and 004-target-mode-schema for tactical implementation choices that benefit from research at plan stage rather than upfront speculation.
+
+### Post-/speckit-clarify update — 2026-05-06
+
+Five clarification questions were lifted from plan-stage deferrals to spec-stage clarifications and integrated into the spec:
+
+- **Q1** — empty-string `tool_name` failure surface: zod boundary rejection (`VALIDATION_ERROR`); FR-007 schema upgraded to `z.string().min(1).optional()`. Edge Case + FR-008 last-bullet updated.
+- **Q2** — `obsidian_exec.md` content: full doc authored in this BI, derived from 001's contracts; FR-012 + Out of Scope updated.
+- **Q3** — stub roster: hybrid (FR-012's canonical 5 ∪ architecture-committed names) → six stub files today (`read_note`, `write_note`, `append_note`, `search_vault`, `list_notes`, `list_vaults`). FR-012 updated.
+- **Q4** — missing-`docs/tools/`-directory error code: distinct `HELP_DOCS_MISSING` code (separate from `HELP_TOOL_NOT_FOUND`). FR-008, FR-011, Edge Cases, Key Entities, two Assumptions updated.
+- **Q5** — registry-consistency test: include in this BI; FR-017 + new SC-011 added; Edge Cases + Out of Scope refined to clarify the inverse direction (orphan docs) is still tolerated.
+
+Remaining plan-stage deferrals are limited to genuinely tactical choices: exact module path/function name for the strip utility, exact wording of top-level descriptions (FR-015/16), bypass-detection assertion location (Edge Cases line 119), and SC-006 measurement mechanism (benchmark vs one-off). All are bounded by binding behavioral contracts.
+
+Spec is now ready for `/speckit-plan`.
