@@ -1,92 +1,100 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-[specs/008-refactor/plan.md](specs/008-refactor/plan.md)
+[specs/009-fix-inputschema-publication/plan.md](specs/009-fix-inputschema-publication/plan.md)
 
-Active feature: **008-refactor** (Two architectural deepenings shipped
-together because they touch overlapping seams — the register / publish
-/ dispatch chain — per ADR-006 and ADR-007 (both filed 2026-05-07 in
-`.decisions/`).
+Active feature: **009-fix-inputschema-publication** — a `0.2.0 → 0.2.1`
+patch fix to a release-blocking bug. `read_note` is uncallable from
+**strict-naive MCP clients** (e.g. Cowork) whose hand-rolled `Tool`
+schema validator strips unknown top-level keys (`oneOf`,
+`additionalProperties`) and surfaces the published `inputSchema` as
+`{ "$schema": "...", "type": "object", "properties": {} }`. The client
+then strips every outgoing argument against that hollow `properties: {}`,
+the runtime zod receives `{}`, and `read_note` returns
+`VALIDATION_ERROR`. The control case (`obsidian_exec`, flat `z.object`)
+works end-to-end through the same clients.
 
-**Part 1 — `registerTool` factory.** A new
-[src/tools/_register.ts](src/tools/_register.ts) introduces
-`registerTool(spec)` that owns the full publication pipeline:
-`toMcpInputSchema` envelope → `stripSchemaDescriptions` → `ZodError` →
-`VALIDATION_ERROR` marshalling → `UpstreamError` → structured-error
-envelope → response-format dispatch (`"json"` default; `"raw"` for
-help). A companion `assertToolDocsExist(tools[])` aggregator walks
-every registered tool's `docs/tools/{name}.md` file at server boot,
-collects every miss, and raises a single error listing all of them
-(per Clarifications 2026-05-07 Q4 / FR-005 — fail-fast on first miss
-is forbidden). Each tool collapses to `schema.ts` (zod only — no
-`*InputJsonSchema` export) + `handler.ts` + `index.ts` (a thin
-`registerTool({...})` call replacing today's `tool.ts`).
+**Important — corrects the spec's working hypothesis.** The spec's
+Background section attributed the bug to a `_shared.ts:102` predicate
+gap (`raw.type === "object"` early-returning on a hollow output).
+[research.md](specs/009-fix-inputschema-publication/research.md) R1
+captures the empirical evidence that this hypothesis is **false** at
+every dependency version reachable from `package.json`'s `^3.23.5`
+semver: `zodToJsonSchema` emits `{ anyOf: [...] }` for
+`ZodEffects<ZodDiscriminatedUnion>` at both 3.23.5 and 3.25.2,
+`toMcpInputSchema`'s wrap branch fires correctly, and the SDK
+preserves the envelope through wire serialization. The strip happens
+**inside the strict-naive client's own `Tool` validator**. The fix is
+therefore a shape WIDENING in the wrap branch, not a predicate
+refinement.
 
-**Part 2 — `dispatchCli` primitive.** A new private
-[src/cli-adapter/_dispatch.ts](src/cli-adapter/_dispatch.ts) owns
-spawn-and-collect, argv assembly (using the documented
-`[binary, vault=..., command, kvs..., flags..., --copy]` order from
-`obsidian_exec.md:27`), the four-priority error classification
-(non-zero exit > `Error: no active file` > `Error:` prefix >
-success), the in-flight child registry, and always-on bounds. Two
-thin facades sit on top: `invokeCli(input)` (typed-tool surface,
-fixed 10 s / 10 MiB per `TYPED_TOOL_TIMEOUT_MS` /
-`TYPED_TOOL_OUTPUT_CAP_BYTES`; no override knob), and
-`invokeBoundedCli(input, overrides)` (escape-hatch surface, default
-30 s / 10 MiB, `timeoutMs` overridable up to a 120 s ceiling —
-silently clamped per Clarifications 2026-05-07 Q1 / FR-011, no
-`VALIDATION_ERROR`, no warning). The active-child slot moves from
-[src/tools/obsidian_exec/handler.ts:31](src/tools/obsidian_exec/handler.ts#L31)
-to `_dispatch.ts`, the exported function renames `killActiveChild` →
-`killInFlightChildren` (FR-016), and
-[src/server.ts:9](src/server.ts#L9) re-points to import it from the
-cli-adapter layer (FR-017, fixing the Principle-I downward-flow
-violation as a side effect).
+**Fix surface** — modify
+[src/tools/_shared.ts](src/tools/_shared.ts)'s `toMcpInputSchema` wrap
+branch to additionally emit a top-level `properties` map (union of
+every branch's top-level property names, leaf-`{}` widened, with the
+`target_mode` discriminator widened to `{ type: "string" }`) and a
+top-level `required` array (intersection of branch `required` arrays).
+The existing `oneOf` and `additionalProperties: true` are preserved.
+Pattern (a) inputs (`targetModeSchema.and(z.object({...}))`) extend
+the algorithm to walk both `allOf` arms (the inner `anyOf` arm AND
+the extras arm). Helper-only fix; no `target-mode.ts` edits, no new
+modules, no new public signatures, no companion JSON Schema export.
 
-**Cross-cutting** — Failure-only stderr logging discipline per
-Clarifications 2026-05-07 Q3 / FR-018a. The dispatch primitive emits
-ONE stderr JSON line each for `CLI_TIMEOUT`, `CLI_OUTPUT_TOO_LARGE`,
-and SIGINT/SIGTERM-driven kill; ZERO log lines on success path or on
-`CLI_NON_ZERO_EXIT` / `ERR_NO_ACTIVE_FILE` / `CLI_REPORTED_ERROR` /
-`CLI_BINARY_NOT_FOUND` (those flow through the response envelope
-only). Today's `obsidian_exec`-only `call.start` / `call.end*`
-lifecycle logging is REMOVED as a deliberate operator-observable
-signal change (research R3). Atomic registry insertion per
-Clarifications 2026-05-07 Q5 / FR-015a — after `spawn()` returns,
-`_dispatch.ts` inserts the child into the registry SYNCHRONOUSLY,
-before any `await` or microtask boundary.
+**Drift detector** — new co-located test file at
+[src/tools/_register.test.ts](src/tools/_register.test.ts) runs a
+parameterised registry walk over the live tools from
+`createServer({ registerSignalHandlers: false })`. Per-tool invariant
+case-table asserts: `read_note` exposes `target_mode`, `vault`,
+`file`, `path` in top-level `properties` with `required: ["target_mode"]`
+and `additionalProperties: true`; `obsidian_exec` is byte-stable from
+`0.2.0` (6 properties, `required: ["command"]`,
+`additionalProperties: false` — strict regression guard); `help`
+exposes `tool_name`. A second test group runs the same assertions
+through a full `InMemoryTransport` SDK round-trip. A third group
+covers synthetic Pattern (a) and Pattern (b) fixtures (FR-003).
 
-**Compatibility / release** — MCP wire surface unchanged for the
-three currently registered tools (FR-019); the `obsidian_exec`
-reachable error code set expands to include `ERR_NO_ACTIVE_FILE` per
-FR-021, called out in CHANGELOG.md and added to
-`docs/tools/obsidian_exec.md`'s error roster. `obsidianExecSchema`'s
-existing `.max(120000)` zod constraint stays at the MCP surface
-(research R2 — silent clamp is defense-in-depth, unreachable from
-MCP today). Version bumps `0.1.7 → 0.2.0` (minor — research R9)).
+**Cross-cutting** — zero changes to `targetModeSchema`'s zod runtime
+(FR-004); the 31 existing cases pass without modification. Zero new
+error codes (FR-010). Zero new ADRs (SC-008). Zero changes to the
+008-refactor surface beyond `_shared.ts` (FR-016): `dispatchCli`,
+`invokeCli`, `invokeBoundedCli`, the in-flight registry, the
+four-priority error classification, the always-on bounds, and the
+`obsidian_exec` argv-assembly contract are all frozen. The fix is
+structurally additive to `_shared.ts` — existing wrap-branch keys
+(`type`, `oneOf`, `additionalProperties`, `$schema`) survive
+unchanged; new keys (`properties`, `required`) are added.
+
+**Compatibility / release** — MCP wire surface unchanged for
+strict-rich clients (the SDK-shape consumers — Claude Desktop,
+Claude Code via SDK — already work under `0.2.0`'s pure `oneOf`
+envelope and continue to work under the widened envelope).
+Strict-naive clients (Cowork) gain the property names they need
+to preserve through their internal stripping pass. Version bumps
+`0.2.0 → 0.2.1` (patch — bugfix only, no public-signature changes,
+research R10).
+
 See also:
-- [spec.md](specs/008-refactor/spec.md) — feature spec + 6 clarifications across 2 sessions (Q1: 120s clamp; Q2: ERR_NO_ACTIVE_FILE wire-shift; Q3: failure-only stderr logging; Q4: doc-file aggregation; Q5: atomic registry insertion; Q6: SC-008 vs FR-021 reconciliation)
-- [research.md](specs/008-refactor/research.md) — Phase 0 decisions (R1 dispatch module location; R2 clamp-vs-zod-max; R3 logger lifecycle event removal; R4 locator-strip placement; R5 --copy routing; R6 queue wrapping for both facades; R7 registry data shape; R8 agent context; R9 version bump 0.2.0; R10 targetModeJsonSchema removal; R11 docs/tools/obsidian_exec.md addition; R12 CHANGELOG introduction)
-- [data-model.md](specs/008-refactor/data-model.md) — type-level shapes (ToolSpec, RegisteredTool, DispatchInput, DispatchOutput, InvokeCliInput, InvokeBoundedCliInput/Overrides, in-flight registry, modified Logger interface) + test-coverage map
-- [contracts/register-tool.contract.md](specs/008-refactor/contracts/register-tool.contract.md) — `registerTool` + `assertToolDocsExist` interface contract
-- [contracts/dispatch-cli.contract.md](specs/008-refactor/contracts/dispatch-cli.contract.md) — `dispatchCli` interface contract — argv, classification, bounds, registry, log emissions
-- [contracts/invoke-cli.contract.md](specs/008-refactor/contracts/invoke-cli.contract.md) — `invokeCli` typed-tool facade (fixed 10 s / 10 MiB; queue-wrapped)
-- [contracts/invoke-bounded-cli.contract.md](specs/008-refactor/contracts/invoke-bounded-cli.contract.md) — `invokeBoundedCli` escape-hatch facade (default 30 s / 10 MiB; `timeoutMs` overridable, silently clamped at 120 s)
-- [quickstart.md](specs/008-refactor/quickstart.md) — twelve verification scenarios mapped to SC-001..SC-011 + the doc-aggregation drill
+- [spec.md](specs/009-fix-inputschema-publication/spec.md) — feature spec + checklist (16/16 quality criteria pass; no clarifications needed)
+- [research.md](specs/009-fix-inputschema-publication/research.md) — Phase 0 decisions R1–R13 (R1 corrects the spec's working hypothesis with empirical evidence; R2/R4/R5 the widening algorithm; R3 keep `additionalProperties: true`; R6 helper-only fix surface; R7 parameterised drift detector; R8 SDK round-trip integration layer; R9 Cowork + Claude Desktop manual verification; R10 patch bump; R11 keep `zod-to-json-schema` pin; R12 four new `_shared.test.ts` cases; R13 Phase 1 outputs)
+- [data-model.md](specs/009-fix-inputschema-publication/data-model.md) — widened envelope shape, no-op shape, top-level `properties` widening algorithm, Pattern (a) `allOf` handling, per-tool invariant case-table, test-coverage map
+- [contracts/envelope-helper.contract.md](specs/009-fix-inputschema-publication/contracts/envelope-helper.contract.md) — widened `toMcpInputSchema` interface contract — five input kinds (A–E) with worked examples; SUPERSEDES feature 007's same-named contract
+- [contracts/drift-detector.contract.md](specs/009-fix-inputschema-publication/contracts/drift-detector.contract.md) — parameterised drift-detector contract — three test groups (unit / integration / synthetic Pattern (a)/(b))
+- [quickstart.md](specs/009-fix-inputschema-publication/quickstart.md) — thirteen verification scenarios mapped to SC-001..SC-010 (S-1..S-10 in CI; S-11/S-12 manual against Cowork + Claude Desktop; S-13 once-per-release implementer revert check)
 
 Predecessor features:
-- **007-fix-list-tools-schema**: [spec.md](specs/007-fix-list-tools-schema/spec.md), [plan.md](specs/007-fix-list-tools-schema/plan.md) — added the `toMcpInputSchema` envelope helper at `src/tools/_shared.ts`. THIS feature graduates the helper from "polite suggestion" (only `target-mode.ts` pipes through it) to "the only path from zod to published JSON Schema" via `registerTool`. The companion `targetModeJsonSchema` band-aid added in 007 is REMOVED here as redundant (per research R10).
-- **006-read-note**: [spec.md](specs/006-read-note/spec.md), [plan.md](specs/006-read-note/plan.md) — the BI-003 typed tool. THIS feature collapses its `tool.ts` boilerplate into a thin `index.ts` calling `registerTool`; runtime contract preserved.
-- **005-help-tool**: [spec.md](specs/005-help-tool/spec.md), [plan.md](specs/005-help-tool/plan.md) — registry-consistency block in `src/server.test.ts` (three invariants); preserved as defense-in-depth (FR-007). The schema-stripping utility at `src/help/strip-schema.ts` is now applied INSIDE `registerTool` (the per-tool factories no longer call it directly).
-- **004-target-mode-schema**: [spec.md](specs/004-target-mode-schema/spec.md), [plan.md](specs/004-target-mode-schema/plan.md) — the `targetModeSchema` primitive. THIS feature drops the `targetModeJsonSchema` companion (R10) and re-points `read_note/schema.ts` to re-export only the zod schema.
-- **003-cli-adapter**, **002-detect-cli-errors**, **001-add-cli-bridge**: foundational. THIS feature consolidates their split work — `cli-adapter.ts`'s four-priority classification + `obsidian_exec/handler.ts`'s timeout/cap/active-child slot — into the unified `dispatchCli` primitive.
+- **008-refactor**: [spec.md](specs/008-refactor/spec.md), [plan.md](specs/008-refactor/plan.md) — introduced `registerTool` and `dispatchCli`; removed feature 007's `targetModeJsonSchema` companion per research R10 on the assumption that the registry path produced equivalent output. The wire-output assertion that would have caught this regression was not part of 008's contract; THIS feature adds it. The 008-refactor surface is otherwise frozen by FR-016.
+- **007-fix-list-tools-schema**: [spec.md](specs/007-fix-list-tools-schema/spec.md), [plan.md](specs/007-fix-list-tools-schema/plan.md) — introduced `toMcpInputSchema` (the helper THIS feature widens); promised but never shipped the `targetModeJsonSchema` companion (T004) and the drift detector (tasks.md:78-81). THIS feature is the missing finisher.
+- **006-read-note**: [spec.md](specs/006-read-note/spec.md), [plan.md](specs/006-read-note/plan.md) — the BI-003 typed tool whose published descriptor is the proximate symptom. Its acceptance criteria assert handler behaviour and zod runtime; they do not assert published-`inputSchema` validity. THIS feature closes that gap.
+- **005-help-tool**: [spec.md](specs/005-help-tool/spec.md), [plan.md](specs/005-help-tool/plan.md) — registry-consistency block in `src/server.test.ts`. Preserved as defense-in-depth; the new drift detector at `src/tools/_register.test.ts` is additive.
+- **004-target-mode-schema**: [spec.md](specs/004-target-mode-schema/spec.md), [plan.md](specs/004-target-mode-schema/plan.md) — the `targetModeSchema` primitive whose `ZodEffects<ZodDiscriminatedUnion>` shape is the canonical input the publication pipeline must handle. UNTOUCHED by this feature (FR-004 / Principle I).
+- **003-cli-adapter**, **002-detect-cli-errors**, **001-add-cli-bridge**: foundational; not touched.
 
 References:
-- [.specify/memory/constitution.md](.specify/memory/constitution.md) — Principles I–V bind every decision. Principle I (downward flow) is restored by FR-017 (server imports `killInFlightChildren` from cli-adapter, not from tool internals). Principle III (single source of truth) is enforced by `registerTool` consuming the zod schema directly via `spec.schema`.
-- [.decisions/ADR-006 - Centralized Tool Registration.md](.decisions/) — the registration deepening this feature lands.
-- [.decisions/ADR-007 - Centralized CLI Bounds with Selective Override.md](.decisions/) — the dispatch deepening this feature lands.
-- [.decisions/ADR-004 - Centralized Obsidian CLI Adapter.md](.decisions/) — the centralization mandate ADR-007 fully realizes.
-- [.architecture/Obsidian CLI MCP - Architecture.md](.architecture/Obsidian%20CLI%20MCP%20-%20Architecture.md) — the architecture this deepening serves.
+- [.specify/memory/constitution.md](.specify/memory/constitution.md) — Principle III (single source of truth — published JSON Schema mechanically derived from zod) is the load-bearing reason `toMcpInputSchema` exists; this feature reaffirms it. Principle II (co-located tests) shipped at `_shared.test.ts` and `_register.test.ts`. Principle I (downward flow) preserved — `target-mode/` does not gain a dependency on `tools/`.
+- [.decisions/ADR-006 - Centralized Tool Registration.md](.decisions/) — the registration deepening 008 landed; this feature reaffirms it without supersession.
+- [.decisions/ADR-005 - Token-Optimized Tool Definitions.md](.decisions/) — `stripSchemaDescriptions` runs unchanged; the widening happens BEFORE description-stripping in `registerTool`.
+- [.decisions/ADR-003 - Enforce Target Mode in Typed Tools.md](.decisions/) — the target-mode primitive's role in typed tools; reaffirmed without supersession.
+- [.architecture/Obsidian CLI MCP - Architecture.md](.architecture/Obsidian%20CLI%20MCP%20-%20Architecture.md) — the architecture this fix preserves.
 <!-- SPECKIT END -->
 
 ## Architecture & Decision References
