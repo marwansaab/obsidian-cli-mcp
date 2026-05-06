@@ -152,6 +152,10 @@ src/
 ├── errors.ts + errors.test.ts                # UpstreamError class (Principle IV)
 ├── logger.ts + logger.test.ts                # JSON-lines stderr logger
 ├── queue.ts + queue.test.ts                  # FIFO single-flight queue
+├── target-mode/
+│   └── target-mode.ts + target-mode.test.ts  # Shared zod discriminated-union primitive (ADR-003 / BI-029) — internal, no MCP registration
+├── cli-adapter/
+│   └── cli-adapter.ts + cli-adapter.test.ts  # Centralised CLI invocation primitive (ADR-004) — internal, no MCP registration
 └── tools/obsidian_exec/
     ├── schema.ts + schema.test.ts            # zod schema (single source of truth)
     ├── tool.ts + tool.test.ts                # MCP tool registration + dispatch
@@ -203,7 +207,7 @@ Features larger than a single-file change enter via the Spec Kit workflow: `/spe
 
 ## Attributions
 
-**v0.1, v0.1.1, v0.1.2 — no upstream lifts.** All code under `src/` is original. Future composed code will be enumerated here per constitution Principle V (Attribution & Layered Composition Transparency).
+**v0.1, v0.1.1, v0.1.2, v0.1.3 — no upstream lifts.** All code under `src/` is original. Future composed code will be enumerated here per constitution Principle V (Attribution & Layered Composition Transparency).
 
 The implementation depends on these third-party packages (declared in `package.json`):
 
@@ -248,6 +252,17 @@ This project is developed via the Spec Kit workflow.
 - [contracts/errors.contract-patch.md](specs/003-cli-adapter/contracts/errors.contract-patch.md) — diff applied in-place to specs/001's canonical errors contract
 - [tasks.md](specs/003-cli-adapter/tasks.md) — 23-task dependency-ordered list (all complete)
 - [quickstart.md](specs/003-cli-adapter/quickstart.md) — six unit-test verification scenarios + deferred consumer-side smoke
+
+### v0.1.3 — [specs/004-target-mode-schema/](specs/004-target-mode-schema/) — target-mode schema primitive (BI-029)
+
+- [spec.md](specs/004-target-mode-schema/spec.md) — introduces the shared zod discriminated-union primitive at `src/target-mode/target-mode.ts` that future typed-tool MCP handlers will compose against to enforce ADR-003's intent-declaration contract. Two-branch discriminator: `"specific"` (vault required + exactly one of file/path) and `"active"` (vault/file/path forbidden). The primitive is **internal** — no MCP tool registration, no CLI calls, no filesystem access. Active-mode forbidden-key error messages name the offending key + `"active mode"` with NO recovery directives; recovery guidance lives in per-tool docs (BI-030). 2 clarifications in 1 session + 1 plan-stage amendment expanding the export surface to ten items for Pattern (b) compatibility.
+- [plan.md](specs/004-target-mode-schema/plan.md) — implementation plan with constitution-check (Principles I/II/III/V `Y`; Principle IV `N/A` since the primitive makes no upstream calls)
+- [research.md](specs/004-target-mode-schema/research.md) — Q1/Q2 clarification provenance + five plan-stage decisions (P1 module path, P2/P3 `.superRefine()` for both refinements, P4 ten-export surface for Pattern (b) compatibility, P5 vitest's `expectTypeOf` for type-system tests), v0.1.x baselines reaffirmed, ADR-003 alignment
+- [data-model.md](specs/004-target-mode-schema/data-model.md) — ten module exports (5 schemas, 2 helpers, 3 inferred types); refinement signatures; inferred type shapes; FR-012 → spec-AC test coverage map (32-case target — implementation lands 31 cases via `it.each` consolidation); explicit note that `Logger.ErrorCode` is **not** extended this feature
+- [contracts/target-mode.contract.md](specs/004-target-mode-schema/contracts/target-mode.contract.md) — primitive's canonical interface contract (export inventory, behavioural rules, composition patterns)
+- [tasks.md](specs/004-target-mode-schema/tasks.md) — 24-task dependency-ordered list (all complete)
+- [quickstart.md](specs/004-target-mode-schema/quickstart.md) — eight unit-test verification scenarios + deferred consumer-side smoke
+- **Implementation deviations** (recorded in the v0.1.3 commit): `targetModeSchema` is `ZodEffects<ZodDiscriminatedUnion<…>>`, not bare `ZodDiscriminatedUnion<…>` as data-model.md claimed — zod 3.25.x's `discriminatedUnion` rejects `ZodEffects` branches at both type and runtime levels; refactored to union over BASE schemas + a union-level `superRefine` dispatcher (inferred `TargetMode` type and consumer semantics unchanged). Edge case #8 (`{active, vault: undefined}`) succeeds rather than fails: zod's `mergeObjectSync` strips passthrough keys whose value is `undefined` before refinements run; `.strict()` would catch this but would reject Pattern (a) intersections (FR-005), so passthrough is binding.
 
 ### Project-wide
 
