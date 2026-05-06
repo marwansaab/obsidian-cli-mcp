@@ -1,52 +1,48 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-[specs/006-read-note/plan.md](specs/006-read-note/plan.md)
+[specs/007-fix-list-tools-schema/plan.md](specs/007-fix-list-tools-schema/plan.md)
 
-Active feature: **006-read-note** (BI-003 — Add Read Note. The first
-typed-tool MCP surface, composed on top of the three foundation
-features that landed before it (BI-029 target-mode primitive, BI-028
-cli-adapter, BI-030 help tool + schema-strip). Ships a new per-surface
-module at `src/tools/read_note/` with `schema.ts` + `handler.ts` +
-`tool.ts` and co-located tests. Schema is a re-export of
-`targetModeSchema` (P1 — zero tool-specific fields, so the primitive
-IS the schema; deviates from spec FR-002's literal Pattern (b) wording
-because z.discriminatedUnion rejects ZodEffects branches). Handler
-routes exclusively through `invokeCli({command: "read", parameters,
-flags: [], target_mode}, deps)` from the cli-adapter — zero direct
-`child_process.spawn` use (SC-003). Per Clarifications 2026-05-06 Q1
-(FR-016), the handler wraps every CLI call in `deps.queue.run(...)`
-sharing the SAME Queue instance with `obsidian_exec` so reads
-serialize behind execs (single-channel safety for the stateful
-Obsidian IPC). Per Q2 (FR-017), the handler accepts a `Logger` and
-emits `callStart`/`callEndSuccess`/`callEndFailure` events around the
-adapter call, parity with obsidian_exec's logging. Per Q3, the
-schema does NOT add `.min(1)` to `file`/`path` at the read_note
-layer — empty-string locators forward to the CLI verbatim. Output is
-`{ content: <stdout> }` mapped to the existing text-envelope JSON
-shape. Zero new error codes — the entire failure surface
-(`VALIDATION_ERROR`, `CLI_NON_ZERO_EXIT`, `CLI_REPORTED_ERROR`,
-`ERR_NO_ACTIVE_FILE`, `CLI_BINARY_NOT_FOUND`) is already covered by
-existing codes. Replaces the existing `docs/tools/read_note.md` stub
-(BI-030 FR-012) with a populated body covering input schema, output
-shape, error codes, and one example per branch.). See also:
-- [spec.md](specs/006-read-note/spec.md) — feature spec + 3 clarifications in 1 session (queue, logger, empty-string)
-- [research.md](specs/006-read-note/research.md) — Phase 0 decisions (P1–P8: schema composition tactic / FR-002 deviation, top-level description wording, server registration order, log-event payload extras, doc body structure, test-injection pattern, TODO-marker test placement, BI-029 amendment deferral)
-- [data-model.md](specs/006-read-note/data-model.md) — input schema + handler I/O + RegisterDeps + log-event payload shapes + test coverage map (22 new bodies + 2 picked up by existing tests)
-- [contracts/read-note.contract.md](specs/006-read-note/contracts/read-note.contract.md) — the read_note tool's interface contract (no errors-contract patch — zero new codes)
-- [quickstart.md](specs/006-read-note/quickstart.md) — 12 verification scenarios (schema, handler, registration, server, end-to-end via help tool)
+Active feature: **007-fix-list-tools-schema** (Bug fix — the published
+0.1.6 package fails MCP `tools/list` validation because
+`read_note`'s `inputSchema` lacks `"type": "object"` at the top
+level. Root cause: [src/tools/read_note/schema.ts:8-10](src/tools/read_note/schema.ts#L8-L10)
+feeds a `z.discriminatedUnion` straight into `zodToJsonSchema`,
+which renders top-level `{ "anyOf": [...] }` — valid JSON Schema but
+not a valid MCP `Tool.inputSchema`. Per Clarifications 2026-05-06 Q1
+(FR-002a), the published descriptor must expose the two-branch shape
+via a nested `oneOf`/`anyOf` *inside* a top-level object envelope —
+but does NOT need to encode the runtime XOR / forbidden-keys rules
+(runtime validator stays the single source of truth). Fix: add a
+generic envelope helper `toMcpInputSchema(zodSchema)` at
+[src/tools/_shared.ts](src/tools/_shared.ts) that wraps non-object
+top-level outputs into `{ type: "object", additionalProperties: true,
+oneOf: [...] }`. Apply it at the target-mode primitive
+([src/target-mode/target-mode.ts](src/target-mode/target-mode.ts)) as
+`targetModeJsonSchema` so every consumer inherits automatically.
+Re-point [src/tools/read_note/schema.ts](src/tools/read_note/schema.ts)
+to import that companion. Add Invariant (c) to the
+`registry consistency` block in
+[src/server.test.ts:166](src/server.test.ts#L166) — every registered
+tool's `inputSchema.type === "object"`. Bump 0.1.6 → 0.1.7. Zero new
+error codes; zero changes to `targetModeSchema`'s zod runtime API
+(FR-004); zero wire-level changes (FR-005).). See also:
+- [spec.md](specs/007-fix-list-tools-schema/spec.md) — bug spec + 1 clarification (Q1: descriptor exposes branches but not cross-field rules)
+- [research.md](specs/007-fix-list-tools-schema/research.md) — Phase 0 decisions (P1 fix-location, P2 oneOf-vs-anyOf, P3 additionalProperties, P4 helper signature, P5 registry-test placement, P6 doc impact, P7 version bump, P8 retroactive `_shared.ts` test coverage)
+- [data-model.md](specs/007-fix-list-tools-schema/data-model.md) — four schema shapes (`targetModeJsonSchema`, helper output, `read_note` published, registry assertion) + test-coverage map
+- [contracts/envelope-helper.contract.md](specs/007-fix-list-tools-schema/contracts/envelope-helper.contract.md) — the `toMcpInputSchema(zodSchema)` interface contract with input/output guarantees and worked examples
+- [quickstart.md](specs/007-fix-list-tools-schema/quickstart.md) — 9 verification scenarios (helper unit tests, primitive companion, registry invariant, runtime regression, full suite, manual e2e, smoke calls, deliberate-malformation drill, version bump)
 
 Predecessor features:
-- **005-help-tool**: [spec.md](specs/005-help-tool/spec.md), [plan.md](specs/005-help-tool/plan.md), [contracts/](specs/005-help-tool/contracts/) — the schema-stripping utility at `src/help/strip-schema.ts` and the `help` MCP tool serving `docs/tools/*.md`. THIS feature consumes both: read_note's registration applies `stripSchemaDescriptions` to its `inputSchema`, and `docs/tools/read_note.md` is replaced from stub to full body. The registry-consistency block in `src/server.test.ts` automatically picks up read_note.
-- **004-target-mode-schema**: [spec.md](specs/004-target-mode-schema/spec.md), [plan.md](specs/004-target-mode-schema/plan.md), [contracts/](specs/004-target-mode-schema/contracts/) — the shared zod target-mode primitive at `src/target-mode/target-mode.ts`. Read_note re-exports `targetModeSchema` as `readNoteInputSchema` (P1). Future typed-tool BIs (BI-004 read_heading, etc.) that add tool-specific fields will need a BI-029 amendment exposing the refinement bodies (P8 — deferred to first consumer).
-- **003-cli-adapter**: [spec.md](specs/003-cli-adapter/spec.md), [plan.md](specs/003-cli-adapter/plan.md), [contracts/](specs/003-cli-adapter/contracts/) — the centralised CLI adapter at `src/cli-adapter/cli-adapter.ts` (`invokeCli`). Read_note's handler routes exclusively through it; tests inject the stub via `deps.spawnFn` per the adapter's canonical test seam (P6).
-- **002-detect-cli-errors**: [spec.md](specs/002-detect-cli-errors/spec.md), [plan.md](specs/002-detect-cli-errors/plan.md) — `CLI_REPORTED_ERROR`. Propagated by read_note when the CLI exits 0 with `Error:` prefix on stdout.
-- **001-add-cli-bridge**: [spec.md](specs/001-add-cli-bridge/spec.md), [plan.md](specs/001-add-cli-bridge/plan.md), [contracts/](specs/001-add-cli-bridge/contracts/) — the original `obsidian_exec` bridge tool. Its registration shape (`{logger, queue}` deps, `RegisteredTool` aggregator pattern) is the structural template read_note mirrors. Its errors contract is the canonical roster — UNCHANGED by THIS BI (zero new codes).
+- **006-read-note**: [spec.md](specs/006-read-note/spec.md), [plan.md](specs/006-read-note/plan.md) — the BI-003 typed tool whose published descriptor surfaced the bug. THIS fix preserves every part of its runtime contract (FR-003 / FR-004 / FR-005); only the published JSON Schema changes.
+- **005-help-tool**: [spec.md](specs/005-help-tool/spec.md), [plan.md](specs/005-help-tool/plan.md) — registry-consistency block in `src/server.test.ts` that THIS fix extends with a third invariant. The schema-stripping utility at `src/help/strip-schema.ts` runs AFTER the envelope helper in the registration pipeline; their concerns are orthogonal (envelope = `type: "object"` shape; strip = description-free at every depth).
+- **004-target-mode-schema**: [spec.md](specs/004-target-mode-schema/spec.md), [plan.md](specs/004-target-mode-schema/plan.md) — the `targetModeSchema` primitive whose `zodToJsonSchema` rendering exposed the regression. THIS fix adds a `targetModeJsonSchema` companion export next to it without changing the zod runtime surface.
+- **003-cli-adapter**, **002-detect-cli-errors**, **001-add-cli-bridge**: untouched by this fix — the bug is purely at the published-descriptor boundary.
 
 References:
-- [.specify/memory/constitution.md](.specify/memory/constitution.md) — Principles I–V (modular layout, co-located tests, zod validation, structured errors, attribution headers) bind every implementation decision. Principle III (single source of truth for schema → type) is the constitutional anchor for the P1 re-export decision.
-- [.decisions/ADR-003 - Discriminated-union target_mode schema.md](.decisions/) (and ADR-004, ADR-005) — this feature implements all three ADRs simultaneously: ADR-003 via the target-mode re-export, ADR-004 via exclusive cli-adapter routing, ADR-005 via the schema strip + caveman description + populated doc.
-- [.architecture/Obsidian CLI MCP - Architecture.md](.architecture/Obsidian%20CLI%20MCP%20-%20Architecture.md) — names BI-003 as this feature's implementation; the empirical validator for the BI-028/029/030 foundations.
+- [.specify/memory/constitution.md](.specify/memory/constitution.md) — Principles I–V bind every decision. Principle III (single source of truth for schema → type) is the constitutional anchor for the helper-based approach (rules out hand-writing a parallel JSON Schema).
+- [.decisions/ADR-003 - Discriminated-union target_mode schema.md](.decisions/) — the discriminated-union design THIS fix patches around at the publication boundary, without altering the runtime decision.
+- [.architecture/Obsidian CLI MCP - Architecture.md](.architecture/Obsidian%20CLI%20MCP%20-%20Architecture.md) — the empirical validation that loadable typed tools are required for the architecture to function.
 <!-- SPECKIT END -->
 
 ## Architecture & Decision References
