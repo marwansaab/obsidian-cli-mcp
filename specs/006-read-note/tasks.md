@@ -7,7 +7,7 @@ description: "Task list for feature 006-read-note"
 **Input**: Design documents from [specs/006-read-note/](./)
 **Prerequisites**: [plan.md](./plan.md), [spec.md](./spec.md), [research.md](./research.md), [data-model.md](./data-model.md), [contracts/read-note.contract.md](./contracts/read-note.contract.md), [quickstart.md](./quickstart.md)
 
-**Tests**: REQUIRED for this feature. FR-013 mandates co-located vitest cases for the schema, handler, and tool surfaces. Total: **22 new test bodies** distributed across `src/tools/read_note/{schema,handler,tool}.test.ts` (9 + 8 + 5 per [data-model.md §5](./data-model.md#5-test-coverage-map)) plus **2 existing assertions in `src/server.test.ts`** that automatically pick up `read_note` once it's registered (no edits to that file required). The aggregate statements coverage floor (per [vitest.config.ts](../../vitest.config.ts), pinned by feature 002 and reaffirmed by 003 + 004 + 005) MUST not regress per FR-014; pre-implementation projection is +0.3 pp.
+**Tests**: REQUIRED for this feature. FR-013 mandates co-located vitest cases for the schema, handler, and tool surfaces. Total: **23 new test bodies** distributed across `src/tools/read_note/{schema,handler,tool}.test.ts` (9 schema + 9 handler + 5 tool per [data-model.md §5](./data-model.md#5-test-coverage-map)) plus **2 existing assertions in `src/server.test.ts`** that automatically pick up `read_note` once it's registered (no edits to that file required). The aggregate statements coverage floor (per [vitest.config.ts](../../vitest.config.ts), pinned by feature 002 and reaffirmed by 003 + 004 + 005) MUST not regress per FR-014; pre-implementation projection is +0.3 pp.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
@@ -151,11 +151,12 @@ This phase lands first among the user stories because it has zero handler depend
 
 ### Tests + verification for User Story 5
 
-- [ ] T009 [US5] Add handler tests #4 (CLI_NON_ZERO_EXIT, Story 5 AC#1), #5 (CLI_REPORTED_ERROR, Story 5 AC#2), and #7 (CLI_BINARY_NOT_FOUND, Story 5 AC#3) to [src/tools/read_note/handler.test.ts](../../src/tools/read_note/handler.test.ts). Three tests, each with a different stub-spawn behaviour:
+- [ ] T009 [US5] Add handler tests #4 (CLI_NON_ZERO_EXIT, Story 5 AC#1), #5 (CLI_REPORTED_ERROR, Story 5 AC#2), #7 (CLI_BINARY_NOT_FOUND, Story 5 AC#3), and **#9 (non-`UpstreamError` re-throw, Story 5 AC#4)** to [src/tools/read_note/handler.test.ts](../../src/tools/read_note/handler.test.ts). Four tests, each with a different stub-spawn behaviour:
     - **Test #4**: stub child exits `1` with stderr `"file not found"`; the call rejects with `UpstreamError` carrying `code: "CLI_NON_ZERO_EXIT"`, `details.exitCode: 1`, `details.argv` containing the read+vault+file tokens; `callEndFailure({ errorCode: "CLI_NON_ZERO_EXIT" })` fired.
     - **Test #5**: stub child exits `0` with stdout `"Error: File not found\n"`; rejects with `code: "CLI_REPORTED_ERROR"`, `details.message: "Error: File not found"` (trim/first-line-only per the cli-adapter's classification per [003 contract](../003-cli-adapter/contracts/cli-adapter.contract.md)); `callEndFailure({ errorCode: "CLI_REPORTED_ERROR" })` fired.
     - **Test #7**: stub `spawnFn` throws `Object.assign(new Error("ENOENT"), { code: "ENOENT" })` (matches the obsidian_exec / cli-adapter ENOENT-classification path); rejects with `code: "CLI_BINARY_NOT_FOUND"`, `details.binaryAttempted` defined; `callEndFailure({ errorCode: "CLI_BINARY_NOT_FOUND" })` fired.
-  Each test asserts the handler does NOT swallow / mask / rewrite — `details` carries the adapter's structured fields verbatim, NOT a read_note-rewritten message. Run `npx vitest run src/tools/read_note/handler.test.ts -t "CLI"` and confirm all three pass. **Total handler.test.ts cases now: 8 — phase complete.**
+    - **Test #9** (Story 5 AC#4 — re-throw of unclassified exceptions, per FR-013 (i)): construct a stub `spawnFn` that throws a plain `new Error("synthetic non-UpstreamError")` (NOT an `UpstreamError` subclass; NOT an ENOENT-shaped object). Call the handler and assert the rejection is the SAME `Error` instance verbatim (`expect(rejection).toBe(syntheticError)` — reference-equality on the thrown object), NOT an `UpstreamError`, NOT an `asToolError` envelope. Additionally assert `stubLogger.callEndFailure` was NOT called and `stubLogger.callEndSuccess` was NOT called (re-throw is reserved for unclassified exceptions and intentionally bypasses the structured-error log per the obsidian_exec precedent at [src/tools/obsidian_exec/tool.ts:59](../../src/tools/obsidian_exec/tool.ts#L59)). This test exists specifically to prevent a regression where a future refactor adds `catch (err) { logger.callEndFailure(...); throw err; }` and accidentally widens the failure-event contract.
+  Each test asserts the handler does NOT swallow / mask / rewrite — for tests #4/#5/#7, `details` carries the adapter's structured fields verbatim; for test #9, the original exception is propagated verbatim. Run `npx vitest run src/tools/read_note/handler.test.ts -t "CLI|re-throw"` and confirm all four pass. **Total handler.test.ts cases now: 9 — phase complete.**
 
 **Checkpoint**: User Story 5 complete. Constitution Principle IV (every boundary failure flows through `UpstreamError` with a stable code) verified by behaviour. Zero new error codes were introduced (per spec Assumptions) — the canonical errors contract at [specs/001-add-cli-bridge/contracts/errors.contract.md](../001-add-cli-bridge/contracts/errors.contract.md) is unchanged.
 
@@ -181,6 +182,8 @@ This phase lands first among the user stories because it has zero handler depend
     ```
     Note the alphabetical order per P3 (`help`, `obsidian_exec`, `read_note`) — the existing order is `obsidian_exec` then `help` (registration-of-introduction); this BI reorders to alphabetical so future typed-tool BIs slot in deterministically. Both `obsidian_exec` and `read_note` receive the SAME `logger` and `queue` instances per FR-016 + FR-017 (Clarifications 2026-05-06 Q1 + Q2). Run `npm run typecheck` and `npm run build` to confirm the wiring typechecks. Run `npx vitest run src/server.test.ts` to confirm the registry-consistency block (which now iterates all three tools) finds the doc-file mapping for `read_note` (the stub at `docs/tools/read_note.md` exists from BI-030, so this passes even before T012's content replacement).
 
+- [ ] T011a [P] [US6] Update [docs/tools/index.md](../../docs/tools/index.md)'s entry for `read_note` per FR-012. The existing index file (created by BI-030) carries a stub placeholder line for `read_note` with the literal `_(documentation pending — owned by a future BI)_` summary (per BI-030 T003). Replace that line with a real one-line summary derived from `READ_NOTE_DESCRIPTION`'s intent: e.g., `- **read_note** — Read a note's raw text from an Obsidian vault by file (wikilink), path, or active focus.` Keep the alphabetical ordering of the bullet list intact. Verifies FR-012 by inspection. The file is Markdown; no source-code header required.
+
 - [ ] T011 [P] [US6] Replace [docs/tools/read_note.md](../../docs/tools/read_note.md) from BI-030 stub to populated body per FR-011 + P5. The new body follows the section ordering pinned in [research.md §P5](./research.md#p5--docstoolsread_notemd-body-structure):
     1. **Overview** — opens with "Read a note's raw text from an Obsidian vault." Names both target modes.
     2. **Input Schema** — fields enumerated by branch:
@@ -198,7 +201,14 @@ This phase lands first among the user stories because it has zero handler depend
     2. **Case #2** (Story 6 AC#1, BI-030 FR-017 generalized): a recursive walk over `descriptor.inputSchema` visiting `properties` / `oneOf` / `anyOf` / `items` / `additionalProperties` finds zero `description` keys at any depth. Implementation: a small inline helper function `findDescriptionKeys(node)` that returns an array of every `description` key it finds — assert the result has length 0.
     3. **Case #3** (Story 6 AC#2): `descriptor.description` is non-empty, contains `"help"` (case-insensitive — `descriptor.description.toLowerCase().includes("help")`), and contains `"read_note"` (case-sensitive). Optionally a sanity-range length check (between 100 and 500 chars to catch accidental over/under-shooting in a future amendment).
     4. **Case #4** (end-to-end Story 4 through SDK envelope): `await registeredTool.handler({})` (empty input — `target_mode` missing) returns `{ isError: true, content: [{ type: "text", text: <jsonString> }] }` whose `JSON.parse(jsonString)` produces `{ code: "VALIDATION_ERROR", message: <string>, details: { issues: [<array>] } }`; the issues array contains an entry with path including `"target_mode"`.
-    5. **Case #5** (FR-011 + FR-013(e) + P7): TODO-marker absence in `docs/tools/read_note.md`. Implementation: resolve the path from `import.meta.url` (NOT `process.cwd()`) — `const here = dirname(fileURLToPath(import.meta.url)); const docPath = resolve(here, "../../../docs/tools/read_note.md"); const body = readFileSync(docPath, "utf8");` — then assert `expect(body).not.toContain("<!-- TODO(BI-003)")` AND `expect(body.length).toBeGreaterThan(500)` (sanity floor) AND `expect(body).toContain("Read a note")` (Overview header sanity) AND `expect(body).toContain('read_note({ target_mode: "specific"')` (Examples section sanity).
+    5. **Case #5** (FR-011 + FR-013 (e) + P7 + Story 6 AC#3 full content list): doc-content assertions on `docs/tools/read_note.md`. Implementation: resolve the path from `import.meta.url` (NOT `process.cwd()`) — `const here = dirname(fileURLToPath(import.meta.url)); const docPath = resolve(here, "../../../docs/tools/read_note.md"); const body = readFileSync(docPath, "utf8");`. Then assert ALL of:
+       - `expect(body).not.toContain("<!-- TODO(BI-003)")` — TODO marker absence (FR-011 last paragraph).
+       - `expect(body.length).toBeGreaterThan(500)` — sanity floor against accidental truncation.
+       - `expect(body).toContain("Read a note")` — Overview section anchor.
+       - `expect(body).toContain('read_note({ target_mode: "specific"')` — at least one specific-mode example.
+       - `expect(body).toContain('read_note({ target_mode: "active"')` — active-mode example (Story 6 AC#3 "≥1 example per branch").
+       - `expect(body).toContain("file=")` AND `expect(body).toContain("path=")` — both specific-branch locator forms documented (Story 6 AC#3).
+       - For each error code in `["VALIDATION_ERROR", "CLI_NON_ZERO_EXIT", "CLI_REPORTED_ERROR", "ERR_NO_ACTIVE_FILE", "CLI_BINARY_NOT_FOUND"]`: `expect(body).toContain(code)` — the full propagated-codes roster (Story 6 AC#3 "the propagated error codes"). Iterate via `forEach` to keep the test compact.
   Run `npx vitest run src/tools/read_note/tool.test.ts` and confirm all 5 cases pass.
 
 **Checkpoint**: User Story 6 complete. The `tools/list` MCP response now includes `read_note` with a stripped `inputSchema` and a verb-led top-level description; `help({ tool_name: "read_note" })` returns the populated doc body; the existing registry-consistency block in `server.test.ts` picks up `read_note` automatically (no edits to that file required); SC-002 + SC-009 verified.
@@ -215,7 +225,7 @@ This phase lands first among the user stories because it has zero handler depend
 
 - [ ] T015 [P] Verify SC-005 (zero `.describe()` calls in `src/tools/read_note/schema.ts`) by `grep -F ".describe(" src/tools/read_note/schema.ts` — output MUST be empty.
 
-- [ ] T016 [P] Verify SC-007 (handler ≲50 lines) by `wc -l src/tools/read_note/handler.ts` — output ≤ 60 (the spec says ≲50 with some leeway for headers + imports). If the handler exceeds, factor out helpers OR re-evaluate whether the design ballooned.
+- [ ] T016 [P] Verify SC-007 (handler ≲50 LOC executable body, ≤ 60 total file lines per the spec's clarification) by `wc -l src/tools/read_note/handler.ts` — output ≤ 60. The 60-line ceiling is the per-spec total-file-LOC bound covering the executable body (≲50) plus the conventional `// Original — no upstream.` header + import block + interface declarations on top. If the handler exceeds, factor out helpers OR re-evaluate whether the design ballooned.
 
 - [ ] T017 [P] Verify SC-010 (obsidian_exec untouched) by `git diff main..HEAD -- src/tools/obsidian_exec/` — output MUST be empty (no changes to obsidian_exec's source or tests). The only acceptable diff in the obsidian_exec area would be a registration-list reorder in `src/server.ts`, which is not under `src/tools/obsidian_exec/`.
 
@@ -242,7 +252,8 @@ This phase lands first among the user stories because it has zero handler depend
 - T003 (handler.ts complete) → T006, T007, T008, T009, T010, T012 (every handler test + tool.test.ts case #4 + server.ts wiring).
 - T004 (tool.ts complete) → T010, T012 (server wiring + tool tests).
 - T010 (server.ts wiring) → T019 (manual verification reads from the running server).
-- T011 (docs/tools/read_note.md replacement) → T012 case #5 (TODO-marker absence test reads the populated file).
+- T011 (docs/tools/read_note.md replacement) → T012 case #5 (doc-content assertions read the populated file).
+- T011a (docs/tools/index.md update) is independent of T011 (different file) — both [P] with each other and with T010.
 
 **Phase ordering**:
 
@@ -273,9 +284,9 @@ T003 (handler.ts) ∥ T004 (tool.ts) — both can run in parallel; both depend o
 
 Within Phase 8:
 ```
-T010 (server.ts wiring) ∥ T011 (docs/tools/read_note.md) — different files, no shared state.
+T010 (server.ts wiring) ∥ T011 (docs/tools/read_note.md) ∥ T011a (docs/tools/index.md) — three different files, no shared state, all parallelizable.
 ↓
-T012 (tool.test.ts) — depends on T010 (registered handler must work end-to-end for case #4) AND T011 (case #5 reads the populated file).
+T012 (tool.test.ts) — depends on T010 (registered handler must work end-to-end for case #4) AND T011 (case #5 reads the populated file). T011a is independent (no test depends on its content).
 ```
 
 Within Phase 9:
@@ -299,7 +310,7 @@ T020 (PR description) — depends on T018 (coverage numbers) and T019 (manual ve
 | US1 | Handler tests #1 + #8 pass; recorded argv `["read", "vault=…", "file=…"]`; logger captures the three FR-017 events | `npx vitest run src/tools/read_note/handler.test.ts -t "specific\\+file\|empty"` |
 | US2 | Handler test #2 passes; recorded argv `["read", "vault=…", "path=…"]`; `locator: "path"` | `npx vitest run src/tools/read_note/handler.test.ts -t "specific\\+path"` |
 | US3 | Handler tests #3 + #6 pass; recorded argv `["read"]` (active mode); ERR_NO_ACTIVE_FILE propagates verbatim | `npx vitest run src/tools/read_note/handler.test.ts -t "active"` |
-| US5 | Handler tests #4 + #5 + #7 pass; CLI_NON_ZERO_EXIT + CLI_REPORTED_ERROR + CLI_BINARY_NOT_FOUND all propagate via `UpstreamError` | `npx vitest run src/tools/read_note/handler.test.ts -t "CLI"` |
+| US5 | Handler tests #4 + #5 + #7 + #9 pass; CLI_NON_ZERO_EXIT + CLI_REPORTED_ERROR + CLI_BINARY_NOT_FOUND all propagate via `UpstreamError`; non-`UpstreamError` exceptions re-throw verbatim WITHOUT `callEndFailure` emission | `npx vitest run src/tools/read_note/handler.test.ts -t "CLI\|re-throw"` |
 | US6 | All 5 tool-registration tests pass; the existing registry-consistency block in `server.test.ts` picks up `read_note` automatically | `npx vitest run src/tools/read_note/tool.test.ts && npx vitest run src/server.test.ts` |
 
 ---
@@ -314,10 +325,11 @@ T020 (PR description) — depends on T018 (coverage numbers) and T019 (manual ve
 - T006 (US1 handler tests + impl wiring)
 - T010 (US6 server wiring — the tool must be registered for an MCP client to call it)
 - T011 (US6 docs/tools/read_note.md — the help tool's response is part of US6's contract)
+- T011a (US6 docs/tools/index.md update — FR-012 listing entry)
 - T012 (US6 tool-registration tests — confirms the registration is correct)
 - T013–T020 (Polish — quality gates + PR description)
 
-That's 12 tasks. The remaining 8 (US2, US3, US5 — i.e., T007, T008, T009 + the "additional handler tests" they bundle) extend the read_note tool to cover all input branches and all failure surfaces but are not strictly required for the MVP slice. Recommend landing them ALL in one PR (the spec is a coherent BI; splitting US1 from US2/US3/US5 would create two PRs that share the same handler — unnecessary friction). The MVP framing matters mainly for incremental verification while implementing.
+That's 13 tasks. The remaining 8 (US2, US3, US5 — i.e., T007, T008, T009 + the "additional handler tests" they bundle) extend the read_note tool to cover all input branches and all failure surfaces but are not strictly required for the MVP slice. Recommend landing them ALL in one PR (the spec is a coherent BI; splitting US1 from US2/US3/US5 would create two PRs that share the same handler — unnecessary friction). The MVP framing matters mainly for incremental verification while implementing.
 
 ---
 
@@ -330,17 +342,16 @@ That's 12 tasks. The remaining 8 (US2, US3, US5 — i.e., T007, T008, T009 + the
 3. T003 ∥ T004 — handler + tool factories in parallel; both are mechanical from the contract.
 4. T005 — schema tests; quick win, all should pass against T002 immediately.
 5. T006 — first handler test + first integration through the adapter; this is where real bugs surface (argv assembly, log-event payloads, queue.run wrapping).
-6. T007, T008, T009 — three more sets of handler tests; each ~10–20 minutes since the handler implementation is already in place from T003 and tests are parameterized.
-7. T010 — server wiring; one-line edit + a build.
-8. T011 — docs/tools/read_note.md replacement; pure documentation authoring.
-9. T012 — five tool-registration tests; each is a small, focused assertion.
-10. T013–T017 — five inspection tasks; each is a single grep / wc / git diff.
-11. T018 — full quality gate; expected to pass.
-12. T019 — manual server check; spot-check.
-13. T020 — PR description.
+6. T007, T008, T009 — three more sets of handler tests; each ~10–20 minutes since the handler implementation is already in place from T003 and tests are parameterized. T009 includes the new test #9 (non-`UpstreamError` re-throw, Story 5 AC#4).
+7. T010 ∥ T011 ∥ T011a — server wiring + standalone doc replacement + index.md entry update; three independent files, all parallelizable.
+8. T012 — five tool-registration tests; each is a small, focused assertion (case #5 now asserts the full Story 6 AC#3 doc-content list).
+9. T013–T017 — five inspection tasks; each is a single grep / wc / git diff.
+10. T018 — full quality gate; expected to pass.
+11. T019 — manual server check; spot-check.
+12. T020 — PR description.
 
-**Iteration tip**: when implementing T003 (the handler), keep it under the SC-007 50-line ceiling by aggressively delegating to the cli-adapter. The handler should look like: parse-narrowing → derive log fields → callStart → queue.run(invokeCli) → success-or-failure path with log emit → return-or-throw. If it grows past 50 lines, the most likely culprit is over-complete error handling — let `UpstreamError` flow through naturally; let unclassified throws re-throw without wrapping.
+**Iteration tip**: when implementing T003 (the handler), keep it under the SC-007 ≲50-LOC executable-body ceiling (≤ 60 total file lines including header + imports) by aggressively delegating to the cli-adapter. The handler should look like: parse-narrowing → derive log fields → callStart → queue.run(invokeCli) → success-or-failure path with log emit → return-or-throw. If it grows past 50 lines of executable body, the most likely culprit is over-complete error handling — let `UpstreamError` flow through naturally; let unclassified throws re-throw without wrapping (and without emitting `callEndFailure` — see T009 test #9 for why that's part of the contract).
 
-**Total task count**: 20 tasks. Per-phase distribution: Setup 1, Foundational 3, US1 1, US2 1, US3 1, US4 1, US5 1, US6 3, Polish 8.
+**Total task count**: 21 tasks. Per-phase distribution: Setup 1, Foundational 3, US4 1, US1 1, US2 1, US3 1, US5 1, US6 4 (T010, T011, T011a, T012), Polish 8.
 
-**Format validation**: All 20 tasks follow the strict checklist format `- [ ] [TaskID] [P?] [Story?] Description with file path`. Story labels appear on T005–T012 (the per-story phase tasks); omitted on T001–T004 (Setup + Foundational) and T013–T020 (Polish). The `[P]` marker appears where parallelism is genuinely possible (T003, T004, T011, T013–T017) and is absent where shared file state forces sequencing.
+**Format validation**: All 21 tasks follow the strict checklist format `- [ ] [TaskID] [P?] [Story?] Description with file path`. Story labels appear on T005–T012 (the per-story phase tasks, including T011a); omitted on T001–T004 (Setup + Foundational) and T013–T020 (Polish). The `[P]` marker appears where parallelism is genuinely possible (T003, T004, T011, T011a, T013–T017) and is absent where shared file state forces sequencing.

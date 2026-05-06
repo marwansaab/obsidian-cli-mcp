@@ -200,7 +200,7 @@ The `Logger` type from [src/logger.ts](../../src/logger.ts) defines the methods 
 
 ## 5. Test coverage map
 
-22 new test bodies distributed across three co-located files. Maps each test to the spec's User Story / Acceptance Scenario / Edge Case it validates.
+23 new test bodies distributed across three co-located files. Maps each test to the spec's User Story / Acceptance Scenario / Edge Case it validates.
 
 ### `src/tools/read_note/schema.test.ts` (9 cases)
 
@@ -216,7 +216,7 @@ The `Logger` type from [src/logger.ts](../../src/logger.ts) defines the methods 
 | 8 | rejects forbidden key in active | Story 3 AC#2 | `{ target_mode: "active", vault: "V" }` | `success: false`, issue path includes `"vault"`, message contains `"vault"` and `"active mode"` |
 | 9 | rejects invalid discriminator | Story 4 AC#5 | `{ target_mode: "unknown", vault: "V", file: "F" }` | `success: false`, issue path includes `"target_mode"` with invalid-discriminator-value error |
 
-### `src/tools/read_note/handler.test.ts` (8 cases)
+### `src/tools/read_note/handler.test.ts` (9 cases)
 
 All inject `deps = { logger: stubLogger, queue: createQueue(), spawnFn: stubSpawn }` per P6.
 
@@ -230,6 +230,7 @@ All inject `deps = { logger: stubLogger, queue: createQueue(), spawnFn: stubSpaw
 | 6 | propagates ERR_NO_ACTIVE_FILE | Story 3 AC#3 | exit 0, stdout `"Error: no active file\n"` | throws `UpstreamError` with `code: "ERR_NO_ACTIVE_FILE"` (per cli-adapter's classification — see [003-cli-adapter spec FR-008(b)](../003-cli-adapter/spec.md)); `callEndFailure` fired |
 | 7 | propagates CLI_BINARY_NOT_FOUND | Story 5 AC#3 | spawn raises `ENOENT` | throws `UpstreamError` with `code: "CLI_BINARY_NOT_FOUND"`; `callEndFailure` fired |
 | 8 | empty stdout → `{ content: "" }` | Story 1 AC#2 | exit 0, stdout `""` | `{ content: "" }`; `callEndSuccess({ stdoutBytes: 0 })` fired |
+| 9 | non-`UpstreamError` re-throw verbatim | Story 5 AC#4 | spawn throws plain `new Error("synthetic")` (NOT ENOENT, NOT UpstreamError) | rejection is the SAME `Error` instance verbatim (reference-equality); NOT `UpstreamError`-wrapped, NOT `asToolError`-wrapped; **`callEndFailure` was NOT called** AND `callEndSuccess` was NOT called (re-throw bypasses the structured failure-event contract — matches obsidian_exec precedent at [src/tools/obsidian_exec/tool.ts:59](../../src/tools/obsidian_exec/tool.ts#L59)) |
 
 ### `src/tools/read_note/tool.test.ts` (5 cases)
 
@@ -239,7 +240,7 @@ All inject `deps = { logger: stubLogger, queue: createQueue(), spawnFn: stubSpaw
 | 2 | descriptor.inputSchema has zero description keys at any depth | Story 6 AC#1 | recursive walk over `inputSchema.properties` / `oneOf` / `anyOf` / `items` / `additionalProperties` finds zero `description` keys |
 | 3 | descriptor.description contains "help" and "read_note" | Story 6 AC#2 | `description.toLowerCase().includes("help")` AND `description.includes("read_note")` |
 | 4 | registered handler returns VALIDATION_ERROR for malformed input | end-to-end Story 4 | `await registeredTool.handler({})` returns `{ isError: true, content: [...] }` whose JSON-parsed body has `code: "VALIDATION_ERROR"` |
-| 5 | docs/tools/read_note.md has no stub TODO marker | FR-011 / FR-013 (e) / P7 | `readFileSync(...).toContain("<!-- TODO(BI-003)")` is false |
+| 5 | docs/tools/read_note.md is non-stub AND lists all error codes + all examples | FR-011 / FR-013 (e) / Story 6 AC#3 / P7 | `readFileSync(<path-via-import.meta.url>)`: `.not.toContain("<!-- TODO(BI-003)")`; `.length > 500`; `.toContain("Read a note")`; both example shapes present (`'read_note({ target_mode: "specific"'`, `'read_note({ target_mode: "active"'`); both locator forms (`"file="`, `"path="`); all 5 error codes present (`VALIDATION_ERROR`, `CLI_NON_ZERO_EXIT`, `CLI_REPORTED_ERROR`, `ERR_NO_ACTIVE_FILE`, `CLI_BINARY_NOT_FOUND`) |
 
 ### Pickup by existing tests (no edits required)
 
@@ -297,11 +298,12 @@ The queue (per FR-016 / P1) ensures only one `invokeCli` call is in flight at an
 |----------|----------|------------------|------------|
 | `src/tools/read_note/schema.ts` | ~30 | yes (Original) | — |
 | `src/tools/read_note/schema.test.ts` | ~140 | yes (Original) | 9 |
-| `src/tools/read_note/handler.ts` | ~50 | yes (Original) | — |
-| `src/tools/read_note/handler.test.ts` | ~150 | yes (Original) | 8 |
+| `src/tools/read_note/handler.ts` | ~50 (≤60 file LOC per SC-007) | yes (Original) | — |
+| `src/tools/read_note/handler.test.ts` | ~170 | yes (Original) | 9 |
 | `src/tools/read_note/tool.ts` | ~70 | yes (Original) | — |
-| `src/tools/read_note/tool.test.ts` | ~70 | yes (Original) | 5 |
+| `src/tools/read_note/tool.test.ts` | ~90 | yes (Original) | 5 |
 | `docs/tools/read_note.md` | ~120 | NO (Markdown exempt) | — |
+| `docs/tools/index.md` (modified) | 1-line edit | (existing) | — |
 | `src/server.ts` (modified) | +1 line | (existing header) | (existing test pickup) |
 
-Total new TS source: ~270 LOC. Total new tests: ~360 LOC. Total new Markdown: ~120 LOC.
+Total new TS source: ~270 LOC. Total new tests: ~400 LOC (revised from ~360 by the C2 + L5 remediation). Total new Markdown: ~120 LOC + 1-line index edit.

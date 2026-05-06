@@ -181,6 +181,32 @@ await expect(executeReadNote(input, depsWithStub))
 
 ---
 
+## Scenario 6b — Non-`UpstreamError` exceptions re-throw verbatim WITHOUT `callEndFailure`
+
+**Maps to**: Story 5 AC#4 (added by /speckit-analyze C2 remediation)
+
+**Setup**: stub `spawnFn` that throws a plain `new Error("synthetic non-UpstreamError")` — NOT an `UpstreamError` subclass, NOT an ENOENT-shaped object that the adapter would classify.
+
+**Steps**:
+
+```typescript
+const synthetic = new Error("synthetic non-UpstreamError");
+const stubSpawn: SpawnLike = () => { throw synthetic; };
+let rejection: unknown;
+try { await executeReadNote(input, depsWith(stubSpawn)); }
+catch (e) { rejection = e; }
+```
+
+**Expected**:
+- `rejection === synthetic` (reference equality — the SAME `Error` instance, not a copy or wrapped version).
+- `stubLogger.callEndFailure` was NOT called (re-throw is reserved for unclassified exceptions and intentionally bypasses the structured failure-event contract — matches obsidian_exec at tool.ts:59).
+- `stubLogger.callEndSuccess` was NOT called.
+- `stubLogger.callStart` WAS called (the start event fires before the adapter throws — that's an honest record).
+
+**Automated by**: `handler.test.ts` case #9.
+
+---
+
 ## Scenario 7 — Boundary: empty stdout returns `{ content: "" }`
 
 **Maps to**: Story 1 AC#2
@@ -250,9 +276,9 @@ const errResult = await handler({});  // empty input — target_mode missing
 
 ---
 
-## Scenario 10 — Documentation: stub TODO marker is gone
+## Scenario 10 — Documentation: stub TODO marker is gone AND full content list is present
 
-**Maps to**: FR-011, FR-013 (e), P7
+**Maps to**: FR-011, FR-013 (e), Story 6 AC#3, P7 (strengthened by /speckit-analyze L5 remediation to assert all error codes + all examples per Story 6 AC#3)
 
 **Setup**: file read via `node:fs.readFileSync` with path resolved from `import.meta.url`.
 
@@ -269,10 +295,12 @@ const body = readFileSync(docPath, "utf8");
 ```
 
 **Expected**:
-- `body.includes("<!-- TODO(BI-003)")` is false.
-- `body.length > 500` (sanity — a fully populated doc is ≳ 1500 bytes; this is a floor against accidentally truncating to a one-line file).
-- `body.includes("Read a note")` is true (Overview header / first paragraph match).
-- `body.includes("read_note({ target_mode: \"specific\"")` is true (Examples section sanity).
+- `body.includes("<!-- TODO(BI-003)")` is false (TODO marker absent per FR-011 last paragraph).
+- `body.length > 500` (sanity — a fully populated doc is ≳ 1500 bytes; this is a floor against accidentally truncating).
+- `body.includes("Read a note")` is true (Overview anchor).
+- Both example shapes present: `body.includes('read_note({ target_mode: "specific"')` AND `body.includes('read_note({ target_mode: "active"')`.
+- Both specific-branch locator forms documented: `body.includes("file=")` AND `body.includes("path=")`.
+- Each of the 5 propagated error codes appears in the body: `["VALIDATION_ERROR", "CLI_NON_ZERO_EXIT", "CLI_REPORTED_ERROR", "ERR_NO_ACTIVE_FILE", "CLI_BINARY_NOT_FOUND"].forEach(code => expect(body).toContain(code))`.
 
 **Automated by**: `tool.test.ts` case #5.
 
@@ -334,12 +362,13 @@ Before starting Phase 2 (tasks) and implementation:
 
 ## Post-implementation verification (run before opening PR)
 
-- [ ] `npm run test` — all 22 new test bodies pass; the registry-consistency block at `src/server.test.ts` picks up `read_note`; total test count grew by exactly 22.
+- [ ] `npm run test` — all 23 new test bodies pass; the registry-consistency block at `src/server.test.ts` picks up `read_note`; total test count grew by exactly 23.
 - [ ] `npm run typecheck` passes.
 - [ ] `npm run lint` passes with zero warnings.
 - [ ] `npm run build` succeeds.
 - [ ] Aggregate statements coverage ≥ floor in `vitest.config.ts` (no regression; expected slight uptick).
-- [ ] Manual: open `docs/tools/read_note.md` — section headers present per P5; no stub marker; one example per branch.
+- [ ] Manual: open `docs/tools/read_note.md` — section headers present per P5; no stub marker; one example per branch; all 5 error codes named.
+- [ ] Manual: open `docs/tools/index.md` — read_note's bullet line is no longer the BI-030 stub-placeholder summary; reads as a real one-line summary (FR-012 verification).
 - [ ] Manual: run the server, `tools/list` — `read_note` appears alongside `obsidian_exec` and `help`; its `description` mentions `help({ tool_name: "read_note" })`; its `inputSchema.properties.*` tree is description-free.
 - [ ] Manual: `help({ tool_name: "read_note" })` returns the populated body.
-- [ ] PR description: Constitution Compliance checklist all `Y`; FR-014's coverage-floor mention; explicit reference to Clarifications 2026-05-06 Q1/Q2/Q3 and the FR-002 deviation per P1.
+- [ ] PR description: Constitution Compliance checklist all `Y`; FR-014's coverage-floor mention; explicit reference to Clarifications 2026-05-06 Q1/Q2/Q3 and the FR-002 deviation per P1; mention the /speckit-analyze remediation that landed in this PR (C1 + C2 + I1 + I2 + L1–L6).

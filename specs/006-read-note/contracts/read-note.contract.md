@@ -141,7 +141,7 @@ For every failure surface (zod parse, adapter classification), the handler retur
 
 Codes propagated from the cli-adapter (`CLI_NON_ZERO_EXIT`, `CLI_REPORTED_ERROR`, `ERR_NO_ACTIVE_FILE`, `CLI_BINARY_NOT_FOUND`, `CLI_TIMEOUT`, `CLI_OUTPUT_TOO_LARGE`) carry their original `message` and `details` from the adapter — **read_note does NOT rewrite them.** See `errors.contract.md` for the canonical `details` shapes per code.
 
-For non-`UpstreamError` exceptions (e.g., a programmer error in the handler), the handler re-throws WITHOUT wrapping (mirrors [obsidian_exec tool.ts:59](../../../src/tools/obsidian_exec/tool.ts#L59)). The MCP SDK's outer error envelope handles the unhandled throw.
+For non-`UpstreamError` exceptions (e.g., a programmer error in the handler), the handler re-throws WITHOUT wrapping AND WITHOUT emitting `callEndFailure` (mirrors [obsidian_exec tool.ts:59](../../../src/tools/obsidian_exec/tool.ts#L59)). The MCP SDK's outer error envelope handles the unhandled throw. This contract is verified by handler test #9 (Story 5 AC#4) — reference-equality on the rethrown exception plus negative assertions that no log event was emitted.
 
 ---
 
@@ -227,13 +227,13 @@ Non-`UpstreamError` exceptions DO NOT emit a log event — they re-throw and the
 
 ## 7. Test requirements
 
-The contract is verified by 22 new test bodies + 2 picked up by existing tests, distributed per the [data-model.md test coverage map](../data-model.md#5-test-coverage-map). Summary:
+The contract is verified by 23 new test bodies + 2 picked up by existing tests, distributed per the [data-model.md test coverage map](../data-model.md#5-test-coverage-map). Summary:
 
 | File | New cases |
 |------|-----------|
 | `src/tools/read_note/schema.test.ts` | 9 |
-| `src/tools/read_note/handler.test.ts` | 8 |
-| `src/tools/read_note/tool.test.ts` | 5 |
+| `src/tools/read_note/handler.test.ts` | 9 (includes the Story 5 AC#4 non-`UpstreamError` re-throw test added by /speckit-analyze C2 remediation) |
+| `src/tools/read_note/tool.test.ts` | 5 (case #5 strengthened per /speckit-analyze L5 to assert the full Story 6 AC#3 doc-content list) |
 | `src/server.test.ts` | 0 (existing registry-consistency block picks up `read_note` automatically) |
 
 The existing registry-consistency block at [src/server.test.ts](../../../src/server.test.ts) (per BI-030 FR-017 / SC-011) asserts:
