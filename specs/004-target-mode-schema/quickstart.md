@@ -214,11 +214,20 @@ expectTypeOf<Extract<TargetMode, { target_mode: "specific" }>>().toMatchTypeOf<{
   path?: string;
 }>();
 
-// AC #2 — active branch carries no locator fields
+// AC #2 — active branch's REQUIRED-property set is exactly { target_mode: "active" }
 const activeOnly: TargetMode = { target_mode: "active" };
 expectTypeOf(activeOnly).toMatchTypeOf<TargetMode>();
-// The following would NOT compile (Story 4 AC #2 negative case):
-// const bad: TargetMode = { target_mode: "active", vault: "V" };  // type error
+expectTypeOf<Extract<TargetMode, { target_mode: "active" }>>().toMatchTypeOf<{
+  target_mode: "active";
+}>();
+
+// Note: active-branch forbidden-key rule is RUNTIME-only. The line
+//   const bad: TargetMode = { target_mode: "active", vault: "V" };
+// WILL compile because the active branch's underlying schema uses
+// .passthrough() (FR-005 composition tolerance), which widens the
+// inferred type with `& { [key: string]: unknown }`. The runtime
+// refinement at FR-004 (verified by Scenario 4 above) is what rejects
+// vault/file/path keys, not the type system.
 ```
 
 ### Scenario 9 — Consumer-side smoke (deferred to first typed-tool BI)
