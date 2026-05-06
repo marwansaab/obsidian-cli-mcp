@@ -104,10 +104,12 @@ The schema uses `.strict()` (matching the `obsidianExecSchema` precedent at [src
 ```
 
 There are exactly two success branches per FR-008:
-- `tool_name` provided + matching file exists → contents of `docs/tools/<tool_name>.md`.
+- `tool_name` provided + matching file exists + name is NOT the reserved literal `"index"` → contents of `docs/tools/<tool_name>.md`.
 - `tool_name` omitted (or input is `{}`) → contents of `docs/tools/index.md`.
 
 The `text` field is the file's contents verbatim — no transformation, no transcoding, no summarisation. An empty file (zero bytes) returns `text: ""` (Edge Case "doc file exists but is empty").
+
+**Reserved-name guard** (added by /speckit-analyze remediation L1a): `tool_name === "index"` is rejected with `HELP_TOOL_NOT_FOUND` BEFORE the filesystem read, even though `index.md` exists in the directory — the spec edge case binds this disambiguation. Without the guard, the implementation would erroneously return `index.md`'s content for the named-tool branch. The `notFound` helper's `availableTools` list already excludes `index.md` from the agent-facing message, so the failure surface is consistent with any other unknown name.
 
 ### Output shape (failure — the SDK's tool-error-response envelope)
 
@@ -270,6 +272,8 @@ Both codes are added to:
 
 This table maps every test body to the FR / Story / Edge-Case / Clarification it exercises:
 
+Counts revised by /speckit-analyze remediation 2026-05-06 (findings C1, C2, L1a/b/c) — totals went from 22 to **27** with five additions for explicit Story 2 AC#6 coverage, root-description preservation, and three Edge Case scenarios.
+
 | Test file | Test body | Covers |
 |-----------|-----------|--------|
 | `src/help/strip-schema.test.ts` | flat-schema strip | Story 1 AC#1, FR-002, SC-002 |
@@ -278,21 +282,26 @@ This table maps every test body to the FR / Story / Edge-Case / Clarification it
 | `src/help/strip-schema.test.ts` | mutation safety (input deep-equal pre/post) | Story 1 AC#4, FR-005, SC-004 |
 | `src/help/strip-schema.test.ts` | structural-key preservation (type, required, enum, anyOf, oneOf, items, $ref absence, additionalProperties) | Story 1 AC#6, FR-004 |
 | `src/help/strip-schema.test.ts` | non-string description value (`description: { foo: "bar" }`) | Edge Case "non-string description value", FR-002 |
+| `src/help/strip-schema.test.ts` | **root-description preservation (`.describe()` at outer z.object) — added by remediation C2** | FR-003, Edge Case "Top-level (root) description on the JSON Schema input" |
 | `src/tools/help/schema.test.ts` | omitted tool_name parses successfully | Story 2 AC#2, FR-007 |
 | `src/tools/help/schema.test.ts` | non-empty tool_name parses successfully | Story 2 AC#1, FR-007 |
 | `src/tools/help/schema.test.ts` | empty-string tool_name fails with path: ["tool_name"] | Clarification Q1, Edge Case `help({ tool_name: "" })`, FR-007 |
+| `src/tools/help/schema.test.ts` | **non-string tool_name (e.g., 42) → invalid_type with path: ["tool_name"] — added by remediation C1** | Story 2 AC#6, FR-007 |
 | `src/tools/help/handler.test.ts` | named tool returns file contents | Story 2 AC#1, FR-008 first bullet |
 | `src/tools/help/handler.test.ts` | omitted tool_name returns index | Story 2 AC#2, FR-008 second bullet |
 | `src/tools/help/handler.test.ts` | unknown tool → HELP_TOOL_NOT_FOUND with availableTools | Story 2 AC#3, FR-008 third bullet |
 | `src/tools/help/handler.test.ts` | cwd-independence (chdir before invoke) | Story 2 AC#4 / Story 4 AC#2, FR-009, SC-005, SC-008 |
 | `src/tools/help/handler.test.ts` | obsidian_exec.md returns its real content | Story 2 AC#5, FR-012 third bullet, Q2 |
-| `src/tools/help/handler.test.ts` | non-string tool_name → VALIDATION_ERROR | Story 2 AC#6, FR-007 |
+| `src/tools/help/handler.test.ts` | non-string tool_name → VALIDATION_ERROR (defensive — schema-level coverage at C1) | Story 2 AC#6, FR-007 |
 | `src/tools/help/handler.test.ts` | missing docs/tools/ → HELP_DOCS_MISSING | Clarification Q4, Edge Case "docs/tools/ directory missing", FR-008 fourth bullet |
 | `src/tools/help/handler.test.ts` | path-traversal probe (`../../etc/passwd`) → HELP_TOOL_NOT_FOUND, no file read outside docs/tools/ | Edge Case "path traversal", FR-010 |
+| `src/tools/help/handler.test.ts` | **`help({ tool_name: "index" })` → HELP_TOOL_NOT_FOUND with availableTools excluding index — added by remediation L1a** | Edge Case `help({ tool_name: "index" })`, reserved-name guard |
+| `src/tools/help/handler.test.ts` | **empty doc file (zero bytes) → success with empty-string text — added by remediation L1b** | Edge Case "A doc file exists but is empty" |
+| `src/tools/help/handler.test.ts` | **orphaned doc file (no registered tool) → success with file content — added by remediation L1c** | Edge Case "A doc file exists but no tool with that name is registered" |
 | `src/tools/help/tool.test.ts` | top-level description mentions `help("help")` | Story 3 AC#3, FR-016, SC-003 |
 | `src/tools/help/tool.test.ts` | stripped inputSchema has no descriptions in properties tree | Story 1 AC#5, FR-006, SC-002 |
 | `src/tools/help/tool.test.ts` | HELP_TOOL_NOT_FOUND round-trips through SDK error-response shape | FR-011 |
 | `src/server.test.ts` (additions) | every registered tool has a `docs/tools/<name>.md` file | Clarification Q5, FR-017 third bullet, SC-011 |
 | `src/server.test.ts` (additions) | every registered tool's stripped inputSchema is description-free at every depth | Story 1 AC#5, FR-006, SC-002, Edge Case "registration bypass" |
 
-22 test bodies total. The minimum FR-017 set (4 strip + 3 help + 1 registry-consistency = 8 cases) is exceeded by 14 recommended-or-clarification-driven additions; reviewers may consolidate adjacent assertions but every scenario in the table MUST be exercised.
+**27 test bodies total** (revised from 22 by remediation pass). The minimum FR-017 set (4 strip + 3 help + 1 registry-consistency = 8 cases) is exceeded by 19 recommended-or-clarification-driven additions; reviewers may consolidate adjacent assertions but every scenario in the table MUST be exercised.

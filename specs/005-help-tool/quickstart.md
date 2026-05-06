@@ -135,6 +135,14 @@ The agent self-corrects by retrying with one of the names from `availableTools`.
 
 **Expected**: `isError: true`, `code: "HELP_TOOL_NOT_FOUND"`, `availableTools` is the same list as 4a. The `message` does NOT echo `"../../etc/passwd"` — the probe is invisible to anyone reading the agent-facing message. NO file outside `docs/tools/` is read (verifiable by strace / a filesystem-spying test in unit tests).
 
+### 4c'. Reserved-name `help({ tool_name: "index" })` → `HELP_TOOL_NOT_FOUND` (Edge Case, remediation L1a)
+
+```json
+{ "method": "tools/call", "params": { "name": "help", "arguments": { "tool_name": "index" } } }
+```
+
+**Expected**: `isError: true`, `code: "HELP_TOOL_NOT_FOUND"`, `availableTools` does NOT include `"index"` (the reserved-name guard rejects this BEFORE the filesystem read; without the guard the implementation would erroneously return `index.md`'s content). This case validates the remediation L1a fix to the handler implementation.
+
 ### 4d. Missing `docs/tools/` directory → `HELP_DOCS_MISSING` (Q4)
 
 This case requires a deliberate corruption of the install — temporarily rename or delete `docs/tools/` and re-issue any `help` call:

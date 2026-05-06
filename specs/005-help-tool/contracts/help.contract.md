@@ -104,6 +104,14 @@ Implementation per P4:
 3. `rel = path.relative(docsDir, candidate)`.
 4. Reject if `rel.startsWith("..")` OR `rel.includes(path.sep)`.
 
+### B4a — Reserved-name guard for `tool_name === "index"` (Edge Case, added by /speckit-analyze remediation L1a)
+
+**Trigger**: `tool_name` is provided and equals the literal string `"index"`.
+
+**Outcome**: Same as B3 — throw `HELP_TOOL_NOT_FOUND` with the same shape. The `availableTools` list (which already excludes `index.md`) is what the agent sees in the message; the structured `details.requestedName` is `"index"`.
+
+**Why a dedicated guard**: `path.resolve(docsDir, "index.md")` resolves to a real file (the index page) but `index.md` is NOT a tool's documentation — the spec edge case binds this disambiguation. Without an explicit `if (tool_name === "index") throw notFound(...)` guard BEFORE the path-traversal check, the implementation would fall through to the filesystem read and erroneously return `index.md`'s contents. The guard fires AFTER the NUL-byte check (B4 step 1) and BEFORE the path-resolve step (B4 step 2).
+
 ### B5 — `docs/tools/` directory missing (FR-008 fourth bullet, Clarification Q4)
 
 **Trigger**: The `docs/tools/` directory itself is missing, unreadable, or is not a directory. Detected by an `access()` call (or equivalent stat) at the start of the handler, BEFORE per-tool resolution.
@@ -182,15 +190,16 @@ Both new codes are added to [specs/001-add-cli-bridge/contracts/errors.contract.
 
 Per the [data-model test coverage map](../data-model.md#test-coverage-map):
 
-### `src/tools/help/schema.test.ts` (~3 cases)
+### `src/tools/help/schema.test.ts` (4 cases — was 3, post-remediation C1)
 
 | ID | Case | Mapping |
 |----|------|---------|
 | 1 | Omitted `tool_name` parses successfully | Story 2 AC#2, FR-007 |
 | 2 | Non-empty `tool_name` parses successfully | Story 2 AC#1, FR-007 |
 | 3 | Empty-string `tool_name` fails with `path: ["tool_name"]` | Q1, Edge Case `help({ tool_name: "" })`, FR-007 |
+| 4 | **Non-string `tool_name` (e.g., 42) fails with `code: "invalid_type"` and `path: ["tool_name"]` — added by remediation C1** | Story 2 AC#6, FR-007 |
 
-### `src/tools/help/handler.test.ts` (~8 cases)
+### `src/tools/help/handler.test.ts` (11 cases — was 8, post-remediation L1)
 
 | ID | Case | Mapping |
 |----|------|---------|
@@ -199,9 +208,12 @@ Per the [data-model test coverage map](../data-model.md#test-coverage-map):
 | 3 | Unknown tool → `HELP_TOOL_NOT_FOUND` with `availableTools` | Story 2 AC#3, B3 |
 | 4 | cwd-independence (chdir before invoke) | Story 2 AC#4 / Story 4 AC#2, FR-009, SC-005, SC-008 |
 | 5 | `obsidian_exec.md` returns its real content (NOT a stub) | Story 2 AC#5, FR-012, Q2 |
-| 6 | Non-string `tool_name` → `VALIDATION_ERROR` | Story 2 AC#6, B7 |
+| 6 | Non-string `tool_name` → `VALIDATION_ERROR` (defensive — schema-level coverage at schema.test #4) | Story 2 AC#6, B7 |
 | 7 | Missing `docs/tools/` directory → `HELP_DOCS_MISSING` | Q4, Edge Case "docs/tools/ directory missing", B5 |
 | 8 | Path-traversal probe (`../../etc/passwd`) → `HELP_TOOL_NOT_FOUND` | Edge Case "path traversal", B4, FR-010 |
+| 9 | **`help({ tool_name: "index" })` → `HELP_TOOL_NOT_FOUND` with `availableTools` excluding index — added by remediation L1a** | Edge Case `help({ tool_name: "index" })`, B4a |
+| 10 | **Empty doc file (zero bytes) → success with `text: ""` — added by remediation L1b** | Edge Case "doc file exists but is empty", B1 |
+| 11 | **Orphaned doc file (file present, tool not registered) → success with file content — added by remediation L1c** | Edge Case "doc file exists but no tool with that name is registered", B1 |
 
 ### `src/tools/help/tool.test.ts` (~3 cases)
 

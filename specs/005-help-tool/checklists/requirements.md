@@ -73,3 +73,27 @@ Five clarification questions were lifted from plan-stage deferrals to spec-stage
 Remaining plan-stage deferrals are limited to genuinely tactical choices: exact module path/function name for the strip utility, exact wording of top-level descriptions (FR-015/16), bypass-detection assertion location (Edge Cases line 119), and SC-006 measurement mechanism (benchmark vs one-off). All are bounded by binding behavioral contracts.
 
 Spec is now ready for `/speckit-plan`.
+
+### Post-/speckit-analyze remediation — 2026-05-06
+
+`/speckit-analyze` flagged 7 cross-artifact findings (0 CRITICAL, 0 HIGH, 3 MEDIUM, 4 LOW). All 7 were remediated in a single pass before `/speckit-implement`. One LOW finding (L1a — `help({ tool_name: "index" })` Edge Case) was upgraded internally to a real correctness issue: the original handler implementation sketch in research.md would erroneously return `index.md`'s content for `help({ tool_name: "index" })` because `index.md` exists as a real file in the directory; the spec edge case binds the call to fail with `HELP_TOOL_NOT_FOUND`. The remediation added an explicit reserved-name guard to the handler.
+
+**Findings remediated**:
+
+- **I1** (MEDIUM, spec.md Key Entities): Updated row 2's `tool_name` shape from `z.string().optional()` to `z.string().min(1).optional()` to match FR-007 + Clarification Q1.
+- **I2** (LOW, plan.md / research.md): Added **P8** plan-stage decision — the SDK-dispatch aggregator pattern (refactor `registerObsidianExecTool` to return descriptor + handler instead of calling `setRequestHandler` directly; aggregate both tools' registrations in `server.ts`). The MCP SDK constraint (one handler per request type) makes this required for two-tool registration; T017 + T019 land the refactor.
+- **L1a** (upgraded LOW → correctness): Added reserved-name guard to the handler sketch in research.md, the handler implementation in T015, the help.contract.md (new B4a branch), and a dedicated test case (T016 case 9). The guard fires `HELP_TOOL_NOT_FOUND` for `tool_name === "index"` before the filesystem read.
+- **L1b** (LOW, Edge Case "doc file exists but is empty"): Added T016 case 10 + data-model entry. Verifies an empty doc file returns `text: ""` per the spec.
+- **L1c** (LOW, Edge Case "doc file exists but no tool with that name is registered"): Added T016 case 11 + data-model entry. Verifies orphan doc files are tolerated (filesystem-as-source-of-truth per FR-008).
+- **L2** (LOW, plan.md Scale/Scope): Updated source-LOC estimate from "≲ 160 LOC" to "≲ 200 LOC" to reflect the P8 aggregator-pattern refactor (~30 LOC redistribution) plus the post-remediation test cases (~50 LOC additional tests).
+- **L3** (LOW, T020 ambiguity): Disambiguated T020 — it now augments the existing tools/list test inline (no new `it`), keeping the test-count accounting consistent with the post-remediation 27 figure.
+- **C1** (MEDIUM, Story 2 AC#6 coverage gap): Added T014 case 4 — non-string `tool_name` rejected with `code: "invalid_type"` and `path: ["tool_name"]`. Closes the explicit AC coverage gap.
+- **C2** (MEDIUM, FR-003 coverage gap): Added T009 case 7 — root-description preservation. Verifies the rule that the strip utility leaves the schema's root `description` intact while removing all nested ones. Closes the explicit FR-003 coverage gap.
+
+**Test count delta**: 22 → 27 new test bodies. Per-file: strip-schema.test.ts 6 → 7, schema.test.ts 3 → 4, handler.test.ts 8 → 11, tool.test.ts unchanged at 3, server.test.ts unchanged at 2.
+
+**Files touched by remediation**: spec.md (I1), plan.md (I2 P8, L2, test counts), research.md (I2 P8, L1a handler sketch, test counts), data-model.md (L1a B-branch update, test coverage map), contracts/help.contract.md (L1a B4a branch, test list updates), tasks.md (L3 T020, C1 T014, C2 T009, L1a T015 + T016, preamble), quickstart.md (Scenario 4c' added), this checklist file.
+
+**Source code unchanged so far** — all remediation is in planning artifacts. The implementation phase (T007 onward) consumes the corrected sketches and test specs.
+
+**Final disposition**: Spec + plan + tasks now mutually consistent. 0 CRITICAL, 0 HIGH, 0 MEDIUM, 0 LOW outstanding. Ready for `/speckit-implement`.
