@@ -55,7 +55,7 @@ toMcpInputSchema(baseUnion);
 
 1. Takes `branches = raw.anyOf`.
 2. Computes `oneOfBranches = branches.map(stripInnerObjectType)` (strip inner `type: "object"` since the outer envelope's `type: "object"` suffices).
-3. Computes `properties = unionTopLevelProperties(branches)` — union of every branch's `properties` keys, leaf-`{}` widened (with discriminator special case for keys that appear with `type: "string"` in every branch).
+3. Computes `properties = unionTopLevelProperties(branches)` — union of every branch's `properties` keys, leaf-`{}` widened. **Discriminator-shape special case**: any property name that appears in EVERY branch with `value.type === "string"` (canonical phrasing — same as research R2 and data-model §3) gets widened to `{ type: "string" }` instead of `{}`. The check is name-agnostic (covers `target_mode` today, and any future cross-branch string discriminator like `mode` / `kind` / `output_format`); it does NOT require `const` to be present (per-branch literals stay inside `oneOf`).
 4. Computes `required = intersectionTopLevelRequired(branches)` — intersection of every branch's `required` array.
 5. Returns:
 

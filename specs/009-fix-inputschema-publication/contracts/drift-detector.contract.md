@@ -1,7 +1,7 @@
 # Contract: Parameterised drift detector + integration round-trip
 
 **Feature**: 009-fix-inputschema-publication
-**Surface**: [src/tools/_register.test.ts](../../../src/tools/_register.test.ts) (NEW file)
+**Surface**: [src/tools/_register.test.ts](../../../src/tools/_register.test.ts) (EXTENDED file — pre-exists from feature 008 with `registerTool` + `assertToolDocsExist` tests; this feature appends three new `describe` blocks for the drift detector)
 **Status**: Original. Closes feature 007's deferred T004 detector and feature 008's missing wire-level assertion in one move.
 
 This contract specifies what the drift detector MUST observe and assert. It is the durable forcing function (FR-006 / FR-007 / FR-008) that prevents recurrence of the publication-pipeline bug fixed in 009 — and that catches every analogous regression in any future typed tool.

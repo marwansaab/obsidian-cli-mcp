@@ -97,7 +97,7 @@ function intersectionTopLevelRequired(branches):
   return Array.from(result)
 ```
 
-The discriminator gets a special widening: if every branch's top-level `properties.target_mode` exists with `type === "string"` (regardless of `const`), the unioned entry's value becomes `{ type: "string" }`. This is the only special case; all other unioned entries are `{}`.
+**Discriminator special case** (canonical phrasing — used identically in [data-model.md](data-model.md) §3 and [contracts/envelope-helper.contract.md](contracts/envelope-helper.contract.md)): if a property name appears in EVERY branch's top-level `properties` with `value.type === "string"`, the unioned entry's value becomes `{ type: "string" }` instead of `{}`. This is intentionally NOT keyed on the literal name `target_mode` so it covers any future tool that uses a different discriminator name (e.g. a hypothetical `mode` or `kind` discriminator). It is intentionally NOT keyed on the presence of `const` either — the "every branch types this key as `string`" predicate is sufficient (and more permissive). Value-level constraints (`const`, `enum`, `minLength`, …) stay inside the per-branch `oneOf` arms; the top-level entry only declares the loosest common type. All other unioned entries are `{}`.
 
 **Rejected alternative**:
 

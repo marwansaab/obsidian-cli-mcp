@@ -81,13 +81,13 @@ function intersectionTopLevelRequired(
 **Algorithm** (`unionTopLevelProperties`):
 
 1. Start with an empty record `union: Record<string, JsonSchemaObject> = {}`.
-2. For each `branch` in `branches`:
-   - If `branch.properties` is a record, for each `[key, value]` pair:
-     - **Discriminator special case**: if `key === "target_mode"` AND `value.type === "string"` (regardless of whether `const` is present), set `union[key] = { type: "string" }` (idempotent across branches — every branch has the same widened shape).
-     - **Default case**: set `union[key] = {}` (leaf widening — see R2 rationale; per-branch typed shape lives inside the `oneOf`).
-3. Return `union`.
+2. Compute the cross-branch type signature: for each property name `key`, collect the set of `value.type` strings across every branch's `properties[key]` (treating "absent in this branch" as a distinct sentinel).
+3. For each branch in `branches`, for each `[key, value]` in `branch.properties`:
+   - **Discriminator-shape special case**: if `key` appears in EVERY branch's `properties` with `value.type === "string"`, set `union[key] = { type: "string" }`.
+   - **Default case**: set `union[key] = {}` (leaf widening — see R2 rationale; per-branch typed shape lives inside the `oneOf`).
+4. Return `union`.
 
-**Generalised discriminator detection** (forward-looking — applies if any future tool uses a non-`target_mode` discriminator): if a property name appears in EVERY branch with `type === "string"` AND with a `const` value (different per branch), widen its top-level published shape to `{ type: "string" }`. The check is "every branch has it as `{ type: "string", const: <something> }`", and the widened shape strips the `const` since the branches disagree on the value. For non-discriminator properties, `{}` is always the correct widening because branches can disagree on whether the property is present, optional, or typed.
+**Why the special case is not keyed on the literal name `target_mode`**: the predicate "every branch types this key as `string`" is name-agnostic. `target_mode` is today's only discriminator, but `write_note` / `append_note` (and any future Pattern (a)/(b) consumer) might introduce additional cross-branch keys with the same shape (e.g. an `output_format` enum across branches). The name-agnostic predicate covers all of them without per-tool tuning. **Why the special case does not require `const` to be present**: the discriminator literals are PER-BRANCH (different `const` value in each branch), so checking `const`-presence is irrelevant — the key invariant is that all branches AGREE on `type === "string"`. Value-level constraints (`const`, `enum`, `minLength`, …) stay inside the per-branch `oneOf` arms and apply at validation time for strict-rich clients. For non-discriminator properties (where branches disagree on `type` or where the property is absent in some branches), `{}` is always the correct widening because the published top-level entry must NOT contradict any valid branch.
 
 **Algorithm** (`intersectionTopLevelRequired`):
 
@@ -229,7 +229,7 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
 | Source change | Co-located test | Cases covered |
 |---|---|---|
 | `src/tools/_shared.ts` wrap-branch widening (~60 new LOC) | `src/tools/_shared.test.ts` | 4 new cases (R12): simple union, ZodEffects union, Pattern (a) intersection, no-op branch regression guard |
-| Drift-detector contract (R7 / FR-006 / FR-007 / FR-008) | `src/tools/_register.test.ts` (NEW) | 1 parameterised case-set over the registry × 5 assertions per tool, plus 1 integration round-trip case |
+| Drift-detector contract (R7 / FR-006 / FR-007 / FR-008) | `src/tools/_register.test.ts` (EXTENDED — file pre-exists from feature 008 with `registerTool` + `assertToolDocsExist` cases; this feature appends three new `describe` blocks) | 1 parameterised case-set over the registry × 5 assertions per tool, plus 1 integration round-trip case, plus 2 synthetic Pattern (a)/(b) fixtures |
 | `src/target-mode/target-mode.ts` | (UNCHANGED) | The 31 existing cases pass without modification (FR-004 / SC-005) |
 | `package.json` version bump | (none — manifest, not a public surface) | — |
 | `CHANGELOG.md` 0.2.1 entry | (none — docs, not a public surface) | — |
