@@ -1,6 +1,6 @@
 # obsidian-cli-mcp
 
-A minimal Windows-host MCP server that bridges any MCP client (running locally or in a sandboxed container like Claude Cowork's Linux environment) to the Obsidian Integrated CLI binary on the operator's Windows desktop. Exposes two tools: `obsidian_exec` (a generic CLI bridge that lets the caller invoke any Obsidian CLI subcommand with structured parameters, bare-word flags, optional vault scoping, and a per-call timeout) and `help` (a progressive-disclosure tool that serves full Markdown documentation for any registered tool on demand, per [ADR-005](.decisions/ADR-005%20-%20Token-Optimized%20Tool%20Definitions%20via%20Progressive%20Disclosure.md) — parameter-level descriptions are stripped from the JSON Schema at registration time to save context-window tokens, and recovered via `help({ tool_name: "<name>" })` when the agent needs them). All failure modes (non-zero exit, CLI exits 0 with `Error:` stdout prefix, missing binary, timeout, output too large, missing-doc lookup, missing-docs-directory) surface as structured `UpstreamError` responses with full diagnostic detail.
+A minimal Windows-host MCP server that bridges any MCP client (running locally or in a sandboxed container like Claude Cowork's Linux environment) to the Obsidian Integrated CLI binary on the operator's Windows desktop. Exposes three tools: `obsidian_exec` (a generic CLI bridge that lets the caller invoke any Obsidian CLI subcommand with structured parameters, bare-word flags, optional vault scoping, and a per-call timeout), `help` (a progressive-disclosure tool that serves full Markdown documentation for any registered tool on demand, per [ADR-005](.decisions/ADR-005%20-%20Token-Optimized%20Tool%20Definitions%20via%20Progressive%20Disclosure.md) — parameter-level descriptions are stripped from the JSON Schema at registration time to save context-window tokens, and recovered via `help({ tool_name: "<name>" })` when the agent needs them), and `read_note` (the first typed-tool surface — reads a note's raw UTF-8 text from a vault by file/path locator or from the focused editor in active mode, routing through the centralised cli-adapter per [ADR-004](.decisions/ADR-004%20-%20Centralised%20Internal%20CLI%20Adapter.md)). All failure modes (non-zero exit, CLI exits 0 with `Error:` stdout prefix, no active file in active mode, missing binary, timeout, output too large, missing-doc lookup, missing-docs-directory) surface as structured `UpstreamError` responses with full diagnostic detail.
 
 ## Installation
 
@@ -53,7 +53,7 @@ Edit `%APPDATA%\Claude\claude_desktop_config.json`:
 }
 ```
 
-Restart Claude Desktop. The `obsidian_exec` and `help` tools will appear in the tools list.
+Restart Claude Desktop. The `obsidian_exec`, `help`, and `read_note` tools will appear in the tools list.
 
 ### Claude Cowork (sandboxed Linux container) → Windows host
 
@@ -72,7 +72,7 @@ Cowork's container can't exec the Windows `obsidian` binary directly — that's 
 
 ## Tool reference
 
-The bridge registers two tools: `obsidian_exec` (the generic CLI bridge) and `help` (the progressive-disclosure docs tool). At session start the agent sees both via `tools/list` with parameter-level descriptions stripped from each tool's JSON Schema; full per-parameter documentation is reachable via `help({ tool_name: "<name>" })`.
+The bridge registers three tools: `obsidian_exec` (the generic CLI bridge), `help` (the progressive-disclosure docs tool), and `read_note` (the typed read primitive). At session start the agent sees all three via `tools/list` with parameter-level descriptions stripped from each tool's JSON Schema; full per-parameter documentation is reachable via `help({ tool_name: "<name>" })`.
 
 ### `obsidian_exec`
 
@@ -121,6 +121,37 @@ A single text block whose `text` field is the full UTF-8 contents of the bundled
 `HELP_TOOL_NOT_FOUND` (named tool's `.md` file missing, OR the path-traversal defense fired, OR the reserved `"index"` name was requested) — `details.availableTools` lists the names the agent can self-correct with. `HELP_DOCS_MISSING` (the bundled `docs/tools/` directory itself is missing — operator-side packaging/install fix, not agent-recoverable). `VALIDATION_ERROR` (empty-string `tool_name`, non-string value, or unknown keys per the input schema's `.strict()` modifier).
 
 Full Markdown documentation reachable via `help({ tool_name: "help" })`.
+
+### `read_note`
+
+The first typed-tool surface — reads a note's raw UTF-8 text from an Obsidian vault. Composes the target-mode primitive ([004](specs/004-target-mode-schema/spec.md)), the cli-adapter ([003](specs/003-cli-adapter/spec.md)), and the help tool's schema-strip ([005](specs/005-help-tool/spec.md)). Implements [ADR-003](.decisions/) (target-mode discriminated union) and [ADR-004](.decisions/) (centralised cli-adapter routing).
+
+#### Input
+
+The schema is a `target_mode`-discriminated union with two branches:
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `target_mode` | `"specific" \| "active"` | yes | Discriminator. Selects the branch. |
+| `vault` | `string` (non-empty) | specific only | Required in specific mode; FORBIDDEN in active mode. |
+| `file` | `string` | specific only | Wikilink form (e.g., `"Recipe"`). Exactly ONE of `file`/`path` MUST be provided in specific mode. FORBIDDEN in active mode. |
+| `path` | `string` | specific only | Vault-relative path (e.g., `"Templates/Recipe.md"`). Exactly ONE of `file`/`path` MUST be provided in specific mode. FORBIDDEN in active mode. |
+
+In active mode the tool reads whatever note is currently focused in Obsidian's editor; no vault/file/path is forwarded to the CLI. Empty-string locators (`file: ""` or `path: ""`) are accepted at the schema layer and forward to the CLI verbatim — failures surface as `CLI_NON_ZERO_EXIT` or `CLI_REPORTED_ERROR`.
+
+Full Markdown documentation reachable via `help({ tool_name: "read_note" })`.
+
+#### Output (success)
+
+```jsonc
+{ "content": "<raw UTF-8 text from CLI stdout>" }
+```
+
+The bridge does not trim, transform, normalize line endings, strip BOMs, or post-process the body. Whatever the Obsidian CLI emits to stdout is what the agent receives. Empty stdout returns `{ "content": "" }` (empty notes are valid successful reads).
+
+#### Errors
+
+Read_note introduces zero new error codes — its full failure surface is covered by `VALIDATION_ERROR`, `CLI_NON_ZERO_EXIT`, `CLI_REPORTED_ERROR`, `ERR_NO_ACTIVE_FILE` (active mode + no focused note), and `CLI_BINARY_NOT_FOUND`. See the global error table below.
 
 ### Output (failure — `isError: true`)
 
@@ -188,9 +219,13 @@ src/
     │   ├── schema.ts + schema.test.ts        # zod schema (single source of truth)
     │   ├── tool.ts + tool.test.ts            # MCP tool registration + dispatch (returns RegisteredTool)
     │   └── handler.ts + handler.test.ts      # spawn + collect + timeout + cap + error mapping
-    └── help/                                 # Progressive-disclosure help tool (ADR-005 / BI-030)
-        ├── schema.ts + schema.test.ts        # zod schema for { tool_name?: string }
-        ├── handler.ts + handler.test.ts      # path resolution, traversal defense, file read
+    ├── help/                                 # Progressive-disclosure help tool (ADR-005 / BI-030)
+    │   ├── schema.ts + schema.test.ts        # zod schema for { tool_name?: string }
+    │   ├── handler.ts + handler.test.ts      # path resolution, traversal defense, file read
+    │   └── tool.ts + tool.test.ts            # MCP tool registration (returns RegisteredTool)
+    └── read_note/                            # First typed-tool surface (ADR-003 + ADR-004 / BI-003)
+        ├── schema.ts + schema.test.ts        # re-export of targetModeSchema as readNoteInputSchema
+        ├── handler.ts + handler.test.ts      # routes through invokeCli inside deps.queue.run; emits FR-017 log events
         └── tool.ts + tool.test.ts            # MCP tool registration (returns RegisteredTool)
 
 docs/tools/                                   # Bundled Markdown docs (ADR-005 / BI-030); package.json files array includes "docs/tools/**/*.md"
@@ -218,7 +253,7 @@ Fail-fast — a failure in any step surfaces the precise stage and stops the pip
 
 Coverage is gated on **aggregate statements only**. The threshold lives in [vitest.config.ts](vitest.config.ts) under `test.coverage.thresholds.statements` and is the **single source of truth** for the merge floor:
 
-- Current floor: **84.3** (measured 85.86% post-005 — slightly below the 86.37% post-004 baseline because some of the help tool's registration-handler error-path lines are not exercised; still ~1.5pp above the floor with comfortable headroom — see ratcheting note below)
+- Current floor: **84.3** (measured 86.82% post-006 — up ~1pp from 85.86% post-005 because read_note's schema/handler tests added denser per-line coverage than they removed via the registry surface; ~2.5pp above the floor with comfortable headroom — see ratcheting note below)
 - Ratcheting up (or down, intentionally) is a **one-line visible edit** to that number — no env vars, no CI flags, no separate gate config. The visible diff IS the override.
 - Branch / function / line / per-file thresholds are reported in the text reporter as **advisory** but do **NOT** block merge.
 
@@ -245,7 +280,7 @@ Features larger than a single-file change enter via the Spec Kit workflow: `/spe
 
 ## Attributions
 
-**v0.1, v0.1.1, v0.1.2, v0.1.3, v0.1.4 — no upstream lifts.** All code under `src/` is original. Future composed code will be enumerated here per constitution Principle V (Attribution & Layered Composition Transparency).
+**v0.1, v0.1.1, v0.1.2, v0.1.3, v0.1.4, v0.1.5 — no upstream lifts.** All code under `src/` is original. Future composed code will be enumerated here per constitution Principle V (Attribution & Layered Composition Transparency).
 
 The implementation depends on these third-party packages (declared in `package.json`):
 
@@ -315,6 +350,18 @@ This project is developed via the Spec Kit workflow.
 - [quickstart.md](specs/005-help-tool/quickstart.md) — 8 verification scenarios (component + server + integration) plus the SC-006 token-economy measurement procedure
 - **SC-006 measurement** (recorded in [requirements.md](specs/005-help-tool/checklists/requirements.md) and the v0.1.4 commit): `obsidian_exec` description condensed from ~1100 chars (P5 baseline) to 339 chars — ~70% reduction at the description alone, validating ADR-005's directional claim. `tools/list` response 1365 bytes for 2 tools post-this-BI; the full surface-level reduction will materialize as typed-tool BIs (BI-003+) ship with `.describe()` annotations the strip utility can remove.
 - **Implementation deviations** (recorded in the v0.1.4 commit): T020 ended up not adding a new `it` block in `src/server.test.ts` (per remediation L3 — augmented the existing tools/list test inline AND added a `TOOL_NOT_FOUND` aggregator-fallback test instead of a redundant length-check). The `obsidian_exec/tool.test.ts` lost the previous "calling unknown tool returns isError" test (moved to `server.test.ts` where the aggregator dispatch lives post-P8) — net test-count change for that file is +1 (description-shape assertion added per T022).
+
+### v0.1.5 — [specs/006-read-note/](specs/006-read-note/) — first typed-tool MCP surface (BI-003)
+
+- [spec.md](specs/006-read-note/spec.md) — implements [BI-003](.architecture/Obsidian%20CLI%20MCP%20-%20Architecture.md) by shipping the first typed-tool MCP surface composed on top of the three foundation features that landed before it (BI-029 target-mode primitive, BI-028 cli-adapter, BI-030 help tool + schema-strip). The new tool at `src/tools/read_note/` reads a note's raw UTF-8 text from an Obsidian vault by file/path locator (specific mode) or from the focused editor (active mode). 6 user stories, 21 functional requirements, 11 success criteria. 3 clarifications in 1 session (Q1 queue sharing → FR-016, Q2 logger dep → FR-017, Q3 empty-string deferral → updated Edge Case). Zero new error codes — entire failure surface (`VALIDATION_ERROR`, `CLI_NON_ZERO_EXIT`, `CLI_REPORTED_ERROR`, `ERR_NO_ACTIVE_FILE`, `CLI_BINARY_NOT_FOUND`) is covered by codes already defined by 001/002/003. 1 `/speckit-analyze` remediation pass (C1+C2+I1+I2+L1-L6) which added handler test #9 (Story 5 AC#4 non-`UpstreamError` re-throw with reference-equality + negative log assertion), strengthened tool test #5 (full Story 6 AC#3 doc-content roster), corrected FR-017's `stdoutBytes` formula to `Buffer.byteLength(stdout, "utf8")`, and added the `docs/tools/index.md` entry update task (T011a).
+- [plan.md](specs/006-read-note/plan.md) — implementation plan with constitution-check (all five principles `Y`, no Complexity Tracking entries)
+- [research.md](specs/006-read-note/research.md) — Q1/Q2/Q3 clarification provenance + eight plan-stage decisions (P1 schema composition tactic / FR-002 deviation, P2 top-level description wording, P3 server registration order, P4 log-event payload extras, P5 doc body structure, P6 test-injection pattern, P7 TODO-marker test placement, P8 BI-029 amendment deferral)
+- [data-model.md](specs/006-read-note/data-model.md) — input schema (re-exported from the target-mode primitive per P1) + handler I/O + RegisterDeps + log-event payload shapes + 23-case test coverage map (9 schema + 9 handler + 5 tool — revised from 22 by `/speckit-analyze` C2 remediation that added handler test #9)
+- [contracts/read-note.contract.md](specs/006-read-note/contracts/read-note.contract.md) — read_note tool's interface contract (no errors-contract patch — zero new codes; the canonical errors contract at specs/001 is unchanged)
+- [tasks.md](specs/006-read-note/tasks.md) — 21-task dependency-ordered list (all complete) — Phase 1 setup, Phase 2 foundational (schema/handler/tool skeletons), Phases 3–7 per-user-story tests (US4 schema, US1/US2/US3/US5 handler), Phase 8 US6 wiring + docs + tool registration tests, Phase 9 polish (5 grep/wc verifications + full quality gate + manual server check + PR checklist)
+- [quickstart.md](specs/006-read-note/quickstart.md) — 12 verification scenarios (schema, handler, registration, server, end-to-end via help tool)
+- **FR-002 deviation** (recorded in the v0.1.5 commit): re-export of `targetModeSchema` as `readNoteInputSchema` instead of the literal Pattern (b) the spec mandates — `z.discriminatedUnion` requires `ZodObject` branches and the primitive's refinements return `ZodEffects`, making literal Pattern (b) infeasible. Re-export is structurally equivalent for the zero-extra-fields case. Future typed-tool BIs that DO add tool-specific fields (BI-004 `read_heading`, etc.) will need a BI-029 amendment exposing the refinement bodies — deferred per P8 to the first consumer.
+- **Logger amendment**: small additive surgery to `src/logger.ts` made `argv?`/`locator?` optional on `CallStartEvent`, `stderrBytes?` optional on `CallEndSuccessEvent`, and added `ERR_NO_ACTIVE_FILE` to the `ErrorCode` union — sanctioned by plan §P4 fallback ("if typecheck rejects locator extra…"). Existing `obsidian_exec` callsites unchanged; existing `logger.test.ts` unchanged.
 
 ### Project-wide
 

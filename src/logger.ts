@@ -6,22 +6,24 @@ export type ErrorCode =
   | "CLI_BINARY_NOT_FOUND"
   | "CLI_TIMEOUT"
   | "CLI_OUTPUT_TOO_LARGE"
-  | "CLI_REPORTED_ERROR";
+  | "CLI_REPORTED_ERROR"
+  | "ERR_NO_ACTIVE_FILE";
 export type ShutdownReason = "transport_closed" | "signal:SIGINT" | "signal:SIGTERM";
 
 export interface CallStartEvent {
   callId: string;
   command: string;
   vault: string | null;
-  argv: string[];
+  argv?: string[];
   queueDepth: number;
+  locator?: "file" | "path" | "active";
 }
 
 export interface CallEndSuccessEvent {
   callId: string;
   durationMs: number;
   stdoutBytes: number;
-  stderrBytes: number;
+  stderrBytes?: number;
 }
 
 export interface CallEndFailureEvent {
@@ -58,26 +60,29 @@ export function createLogger(options: LoggerOptions = {}): Logger {
 
   return {
     callStart(event: CallStartEvent): void {
-      emit({
+      const payload: Record<string, unknown> = {
         event: "call.start",
         ts: new Date().toISOString(),
         callId: event.callId,
         command: event.command,
         vault: event.vault,
-        argv: event.argv,
         queueDepth: event.queueDepth,
-      });
+      };
+      if (event.argv !== undefined) payload.argv = event.argv;
+      if (event.locator !== undefined) payload.locator = event.locator;
+      emit(payload);
     },
     callEndSuccess(event: CallEndSuccessEvent): void {
-      emit({
+      const payload: Record<string, unknown> = {
         event: "call.end",
         ts: new Date().toISOString(),
         callId: event.callId,
         exitCode: 0,
         durationMs: event.durationMs,
         stdoutBytes: event.stdoutBytes,
-        stderrBytes: event.stderrBytes,
-      });
+      };
+      if (event.stderrBytes !== undefined) payload.stderrBytes = event.stderrBytes;
+      emit(payload);
     },
     callEndFailure(event: CallEndFailureEvent): void {
       const payload: Record<string, unknown> = {

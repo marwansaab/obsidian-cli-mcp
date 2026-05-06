@@ -7,6 +7,6 @@ Call `help({ tool_name: "<name>" })` to read the full Markdown documentation for
 - **list_notes** — _(documentation pending — owned by a future BI)_.
 - **list_vaults** — _(documentation pending — owned by a future BI)_.
 - **obsidian_exec** — Invoke any Obsidian Integrated CLI subcommand.
-- **read_note** — _(documentation pending — owned by a future BI)_.
+- **read_note** — Read a note's raw text from an Obsidian vault by file (wikilink), path, or active focus.
 - **search_vault** — _(documentation pending — owned by a future BI)_.
 - **write_note** — _(documentation pending — owned by a future BI)_.

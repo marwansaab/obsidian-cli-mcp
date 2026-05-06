@@ -8,6 +8,7 @@ import { asToolError, type RegisteredTool } from "./tools/_shared.js";
 import { registerHelpTool } from "./tools/help/tool.js";
 import { killActiveChild as defaultKillActiveChild } from "./tools/obsidian_exec/handler.js";
 import { registerObsidianExecTool } from "./tools/obsidian_exec/tool.js";
+import { registerReadNoteTool } from "./tools/read_note/tool.js";
 
 import type { Writable } from "node:stream";
 
@@ -47,8 +48,9 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
   // per-tool register*Tool factory returns a RegisteredTool (descriptor + handler)
   // and this function aggregates them into the single ListTools / CallTool routes.
   const tools: RegisteredTool[] = [
-    registerObsidianExecTool({ logger, queue }),
     registerHelpTool(),
+    registerObsidianExecTool({ logger, queue }),
+    registerReadNoteTool({ logger, queue }),
   ];
   const toolByName = new Map(tools.map((t) => [t.descriptor.name, t]));
 
