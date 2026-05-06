@@ -1,14 +1,12 @@
 // Original — no upstream. Co-located vitest cases for the target-mode primitive (FR-012: 16 AC + 13 edge + 3 type assertions).
 import { describe, it, expect, expectTypeOf } from "vitest";
 import { z } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
 
 import {
   applyTargetModeActiveRefinement,
   applyTargetModeSpecificRefinement,
   targetModeActiveBaseSchema,
   targetModeActiveSchema,
-  targetModeJsonSchema,
   targetModeSchema,
   targetModeSpecificBaseSchema,
   targetModeSpecificSchema,
@@ -187,12 +185,13 @@ describe("target-mode primitive", () => {
       }
     });
 
-    it("Story 3 AC #4 — survives zod-to-json-schema round-trip", () => {
-      expect(() => zodToJsonSchema(writeNoteSchemaA)).not.toThrow();
-      const json = zodToJsonSchema(writeNoteSchemaA);
-      expect(json).toBeTypeOf("object");
-      expect(json).not.toBeNull();
-    });
+    // Note: feature-008 SC-002 binding — the publication path (zod → JSON
+    // Schema) is now owned solely by `registerTool`. The "round-trip survival"
+    // smoke test that previously lived here is covered by `registerTool`'s
+    // co-located tests, which exercise the actual publication path against
+    // composed schemas (including discriminated unions). Calling zod-to-json-
+    // schema directly from this primitive's tests would re-introduce the
+    // bypass that SC-002 forbids.
   });
 
   it("Story 3 AC #5 — Pattern (b) per-branch divergent extension", () => {
@@ -423,51 +422,3 @@ describe("target-mode primitive", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Companion published-JSON-Schema export — feature 007 (T005).
-// Asserts the SHAPE of `targetModeJsonSchema` so future BIs that re-export the
-// primitive inherit a known-good envelope. The runtime tests above assert the
-// PARSE behavior of `targetModeSchema`; this block asserts the PUBLISHED shape.
-// ---------------------------------------------------------------------------
-
-describe("targetModeJsonSchema (companion published export)", () => {
-  it("declares type === 'object' at the top level (FR-002)", () => {
-    expect((targetModeJsonSchema as { type?: unknown }).type).toBe("object");
-  });
-
-  it("sets additionalProperties: true to mirror runtime passthrough() (research P3)", () => {
-    expect((targetModeJsonSchema as { additionalProperties?: unknown }).additionalProperties).toBe(true);
-  });
-
-  it("exposes a two-element oneOf for the discriminated branches (FR-002a, Q1)", () => {
-    const oneOf = (targetModeJsonSchema as { oneOf?: unknown }).oneOf;
-    expect(Array.isArray(oneOf)).toBe(true);
-    expect((oneOf as unknown[]).length).toBe(2);
-  });
-
-  it("branch 0 declares target_mode const 'specific' and requires vault (data-model Shape 1)", () => {
-    const oneOf = (targetModeJsonSchema as unknown as { oneOf: Array<Record<string, unknown>> }).oneOf;
-    const branch = oneOf[0]!;
-    const props = branch.properties as Record<string, Record<string, unknown>>;
-    expect(props.target_mode!.const).toBe("specific");
-    expect(branch.required).toContain("target_mode");
-    expect(branch.required).toContain("vault");
-  });
-
-  it("branch 1 declares target_mode const 'active' with required === ['target_mode']", () => {
-    const oneOf = (targetModeJsonSchema as unknown as { oneOf: Array<Record<string, unknown>> }).oneOf;
-    const branch = oneOf[1]!;
-    const props = branch.properties as Record<string, Record<string, unknown>>;
-    expect(props.target_mode!.const).toBe("active");
-    expect(branch.required).toEqual(["target_mode"]);
-  });
-
-  it("union of branch property keys equals the runtime property set ['target_mode','vault','file','path'] (Principle III anti-drift)", () => {
-    const oneOf = (targetModeJsonSchema as unknown as { oneOf: Array<Record<string, unknown>> }).oneOf;
-    const keys = new Set<string>();
-    for (const branch of oneOf) {
-      for (const k of Object.keys(branch.properties as Record<string, unknown>)) keys.add(k);
-    }
-    expect([...keys].sort()).toEqual(["file", "path", "target_mode", "vault"]);
-  });
-});

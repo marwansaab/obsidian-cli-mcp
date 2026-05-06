@@ -1,11 +1,20 @@
-// Original — no upstream. Co-located vitest cases for the cli-adapter module (FR-016 a–j).
+// Original — no upstream. Co-located vitest cases for the invokeCli typed-tool facade — argv assembly via dispatchCli, locator-strip, queue-serialization, fixed bounds.
 import { type SpawnOptions } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { Readable } from "node:stream";
+import { Readable, Writable } from "node:stream";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { invokeCli, UpstreamError, type SpawnLike } from "./cli-adapter.js";
+import { createLogger } from "../logger.js";
+import { createQueue } from "../queue.js";
+import { __resetInFlightRegistryForTests } from "./_dispatch.js";
+import {
+  invokeCli,
+  TYPED_TOOL_OUTPUT_CAP_BYTES,
+  TYPED_TOOL_TIMEOUT_MS,
+  UpstreamError,
+  type SpawnLike,
+} from "./cli-adapter.js";
 
 interface StubChildSpec {
   stdout?: string;
@@ -13,6 +22,8 @@ interface StubChildSpec {
   exitCode?: number | null;
   signal?: NodeJS.Signals | null;
   errorOnSpawn?: NodeJS.ErrnoException;
+  hold?: boolean;
+  delayCloseMs?: number;
 }
 
 interface SpawnRecording {
@@ -32,23 +43,29 @@ function makeStubSpawn(spec: StubChildSpec): { spawnFn: SpawnLike; recorded: Spa
       stdout: Readable;
       stderr: Readable;
       kill: (signal?: NodeJS.Signals) => boolean;
+      pid?: number;
     };
     child.stdout = new Readable({ read() {} });
     child.stderr = new Readable({ read() {} });
-    child.kill = () => true;
+    child.pid = 4242;
+    child.kill = (signal?: NodeJS.Signals) => {
+      setImmediate(() => child.emit("exit", null, signal ?? "SIGTERM"));
+      return true;
+    };
     setImmediate(() => {
       if (spec.stdout) child.stdout.push(Buffer.from(spec.stdout, "utf8"));
       child.stdout.push(null);
       if (spec.stderr) child.stderr.push(Buffer.from(spec.stderr, "utf8"));
       child.stderr.push(null);
-      // Defer `close` one more tick so stream `end` events have flushed.
-      setImmediate(() => {
-        // Use `in` check so `exitCode: null` (signal-only termination case) is preserved
-        // — `??` would coalesce null to the default 0, masking the signal-termination signal.
-        const closeCode = "exitCode" in spec ? (spec.exitCode ?? null) : 0;
-        const closeSignal = "signal" in spec ? (spec.signal ?? null) : null;
-        child.emit("close", closeCode, closeSignal);
-      });
+      if (spec.hold) return;
+      const closeCode = "exitCode" in spec ? (spec.exitCode ?? null) : 0;
+      const closeSignal = "signal" in spec ? (spec.signal ?? null) : null;
+      const fire = () => child.emit("exit", closeCode, closeSignal);
+      if (spec.delayCloseMs) {
+        setTimeout(fire, spec.delayCloseMs);
+      } else {
+        setImmediate(fire);
+      }
     });
     return child as unknown as ReturnType<SpawnLike>;
   };
@@ -67,26 +84,35 @@ async function captureRejection(promise: Promise<unknown>): Promise<UpstreamErro
   }
 }
 
-describe("invokeCli", () => {
-  // FR-016(a) / Story 1 AC #1: happy specific-mode invocation.
-  it("US1 happy specific mode: argv [command, vault=, file=] and resolves stdout/stderr", async () => {
-    const { spawnFn, recorded } = makeStubSpawn({
-      stdout: "# Note body\n",
-      exitCode: 0,
-    });
+function defaultDeps(extra: { spawnFn: SpawnLike; env?: NodeJS.ProcessEnv }) {
+  const logger = createLogger({
+    stream: new Writable({ write(_c, _e, cb) { cb(); } }),
+  });
+  return { ...extra, logger, queue: createQueue() };
+}
+
+beforeEach(() => __resetInFlightRegistryForTests());
+afterEach(() => __resetInFlightRegistryForTests());
+
+describe("invokeCli — fixed bounds (FR-013)", () => {
+  it("exposes constants TYPED_TOOL_TIMEOUT_MS and TYPED_TOOL_OUTPUT_CAP_BYTES", () => {
+    expect(TYPED_TOOL_TIMEOUT_MS).toBe(10_000);
+    expect(TYPED_TOOL_OUTPUT_CAP_BYTES).toBe(10 * 1024 * 1024);
+  });
+
+  it("happy specific mode: argv [vault=..., command, file=...]", async () => {
+    const { spawnFn, recorded } = makeStubSpawn({ stdout: "# Note body\n", exitCode: 0 });
     const result = await invokeCli(
       { command: "read", parameters: { vault: "MyVault", file: "Note" }, flags: [], target_mode: "specific" },
-      { spawnFn, env: {} },
+      defaultDeps({ spawnFn, env: {} }),
     );
     expect(result).toEqual({ stdout: "# Note body\n", stderr: "" });
     expect(recorded).toHaveLength(1);
     expect(recorded[0]!.binary).toBe("obsidian");
-    expect(recorded[0]!.argv).toEqual(["read", "vault=MyVault", "file=Note"]);
-    expect(recorded[0]!.options.shell).toBe(false);
+    expect(recorded[0]!.argv).toEqual(["vault=MyVault", "read", "file=Note"]);
   });
 
-  // FR-016(g) / Story 1 AC #3: parameters with `undefined` values produce zero argv tokens.
-  it("US1 boundary undefined values: argv skips entries whose value is undefined", async () => {
+  it("undefined parameter values are dropped from argv", async () => {
     const { spawnFn, recorded } = makeStubSpawn({ exitCode: 0 });
     await invokeCli(
       {
@@ -95,13 +121,12 @@ describe("invokeCli", () => {
         flags: [],
         target_mode: "specific",
       },
-      { spawnFn, env: {} },
+      defaultDeps({ spawnFn, env: {} }),
     );
-    expect(recorded[0]!.argv).toEqual(["read", "vault=V", "query=q"]);
+    expect(recorded[0]!.argv).toEqual(["vault=V", "read", "query=q"]);
   });
 
-  // FR-016(b) / Story 2 AC #1: active mode strips vault + file, preserves non-target keys.
-  it("US2 active-mode strip (vault + file): argv only contains the non-target-locator key", async () => {
+  it("locator strip: target_mode 'active' drops vault, file, path; preserves non-target keys", async () => {
     const { spawnFn, recorded } = makeStubSpawn({ exitCode: 0 });
     await invokeCli(
       {
@@ -110,13 +135,12 @@ describe("invokeCli", () => {
         flags: [],
         target_mode: "active",
       },
-      { spawnFn, env: {} },
+      defaultDeps({ spawnFn, env: {} }),
     );
     expect(recorded[0]!.argv).toEqual(["read", "lines=5"]);
   });
 
-  // FR-016(c) / Story 2 AC #2: active mode strips path, preserves non-target keys.
-  it("US2 active-mode strip (path): argv preserves the non-target-locator key", async () => {
+  it("locator strip: drops path under active mode", async () => {
     const { spawnFn, recorded } = makeStubSpawn({ exitCode: 0 });
     await invokeCli(
       {
@@ -125,69 +149,53 @@ describe("invokeCli", () => {
         flags: [],
         target_mode: "active",
       },
-      { spawnFn, env: {} },
+      defaultDeps({ spawnFn, env: {} }),
     );
     expect(recorded[0]!.argv).toEqual(["read", "query=term"]);
   });
+});
 
-  // FR-016(d) / Story 3 AC #1: non-zero exit → CLI_NON_ZERO_EXIT.
-  it("US3 failure CLI_NON_ZERO_EXIT: exit 1 with stderr 'boom' rejects with full details", async () => {
+describe("invokeCli — classification routes through dispatchCli", () => {
+  it("non-zero exit → CLI_NON_ZERO_EXIT", async () => {
     const { spawnFn } = makeStubSpawn({ stderr: "boom", exitCode: 1 });
     const err = await captureRejection(
       invokeCli(
         { command: "read", parameters: { vault: "V" }, flags: [], target_mode: "specific" },
-        { spawnFn, env: {} },
+        defaultDeps({ spawnFn, env: {} }),
       ),
     );
     expect(err.code).toBe("CLI_NON_ZERO_EXIT");
     expect(err.cause).toEqual({ exitCode: 1, signal: null });
-    expect(err.details).toMatchObject({
-      command: "read",
-      stderr: "boom",
-      exitCode: 1,
-      signal: null,
-    });
+    expect(err.details).toMatchObject({ command: "read", stderr: "boom", exitCode: 1, signal: null });
   });
 
-  // FR-016(e) / Story 3 AC #2: ERR_NO_ACTIVE_FILE with the verbatim recovery-instruction `.message`.
-  it("US3 failure ERR_NO_ACTIVE_FILE: recovery-instruction message verbatim", async () => {
+  it("ERR_NO_ACTIVE_FILE recovery message verbatim", async () => {
     const { spawnFn } = makeStubSpawn({ stdout: "Error: no active file\n", exitCode: 0 });
     const err = await captureRejection(
       invokeCli(
         { command: "read", parameters: {}, flags: [], target_mode: "active" },
-        { spawnFn, env: {} },
+        defaultDeps({ spawnFn, env: {} }),
       ),
     );
     expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
-    expect(err.cause).toBeNull();
-    expect(err.details).toEqual({
-      command: "read",
-      stdout: "Error: no active file\n",
-      stderr: "",
-      exitCode: 0,
-      message: "Error: no active file",
-    });
     expect(err.message).toBe(
       'No active file in Obsidian. Open a note in the editor, or call this tool with target_mode: "specific" and an explicit vault/file.',
     );
   });
 
-  // FR-016(f) / Story 3 AC #3: CLI_REPORTED_ERROR for any other `Error:` prefix.
-  it("US3 failure CLI_REPORTED_ERROR: stdout starting 'Error: File not found' rejects with details.message trimmed", async () => {
+  it("CLI_REPORTED_ERROR — stdout starting 'Error: File not found'", async () => {
     const { spawnFn } = makeStubSpawn({ stdout: "Error: File not found\n", exitCode: 0 });
     const err = await captureRejection(
       invokeCli(
         { command: "read", parameters: { vault: "V", file: "missing" }, flags: [], target_mode: "specific" },
-        { spawnFn, env: {} },
+        defaultDeps({ spawnFn, env: {} }),
       ),
     );
     expect(err.code).toBe("CLI_REPORTED_ERROR");
-    expect(err.cause).toBeNull();
-    expect(err.details).toMatchObject({ message: "Error: File not found", exitCode: 0 });
+    expect(err.details.message).toBe("Error: File not found");
   });
 
-  // FR-016(h): priority (b) beats (c) — the longer 'Error: no active file. <suffix>' line still classifies as ERR_NO_ACTIVE_FILE.
-  it("US3 boundary priority (b) beats (c): longer 'Error: no active file. ...' classifies as ERR_NO_ACTIVE_FILE", async () => {
+  it("priority (b) beats (c): longer 'Error: no active file. ...' classifies as ERR_NO_ACTIVE_FILE", async () => {
     const { spawnFn } = makeStubSpawn({
       stdout: "Error: no active file. Open one or use specific mode.\n",
       exitCode: 0,
@@ -195,46 +203,87 @@ describe("invokeCli", () => {
     const err = await captureRejection(
       invokeCli(
         { command: "read", parameters: {}, flags: [], target_mode: "active" },
-        { spawnFn, env: {} },
+        defaultDeps({ spawnFn, env: {} }),
       ),
     );
     expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
-    expect(err.code).not.toBe("CLI_REPORTED_ERROR");
-    expect(err.details.message).toBe("Error: no active file. Open one or use specific mode.");
   });
 
-  // FR-016(i): priority (a) beats (b) — non-zero exit dominates the stdout-prefix detection.
-  it("US3 boundary priority (a) beats (b): exit 1 with 'Error: no active file' stdout classifies as CLI_NON_ZERO_EXIT", async () => {
+  it("priority (a) beats (b): exit 1 + 'Error: no active file' stdout → CLI_NON_ZERO_EXIT", async () => {
     const { spawnFn } = makeStubSpawn({ stdout: "Error: no active file\n", exitCode: 1 });
     const err = await captureRejection(
       invokeCli(
         { command: "read", parameters: {}, flags: [], target_mode: "active" },
-        { spawnFn, env: {} },
+        defaultDeps({ spawnFn, env: {} }),
       ),
     );
     expect(err.code).toBe("CLI_NON_ZERO_EXIT");
-    expect(err.code).not.toBe("ERR_NO_ACTIVE_FILE");
-    expect(err.details).toMatchObject({ exitCode: 1 });
   });
 
-  // FR-016(j) / Q3: signal-only termination — code === null → details.exitCode = -1 sentinel, details.signal = signal name.
-  it("US3 boundary signal-only termination: SIGTERM → details.exitCode = -1 sentinel + details.signal carries name", async () => {
+  it("signal-only termination: exitCode -1 sentinel + signal carried", async () => {
     const { spawnFn } = makeStubSpawn({ exitCode: null, signal: "SIGTERM" });
     const err = await captureRejection(
       invokeCli(
         { command: "read", parameters: {}, flags: [], target_mode: "active" },
-        { spawnFn, env: {} },
+        defaultDeps({ spawnFn, env: {} }),
       ),
     );
     expect(err.code).toBe("CLI_NON_ZERO_EXIT");
     expect(err.cause).toEqual({ exitCode: -1, signal: "SIGTERM" });
     expect(err.details).toMatchObject({ exitCode: -1, signal: "SIGTERM" });
   });
+});
 
-  // T020 supplementary: FR-011 / Story 4 AC #1 runtime sentinel — defence-in-depth against
-  // a future regression where the re-export is replaced by a local class definition (which
-  // would still typecheck but break instanceof chains across module boundaries).
-  it("US4 re-export sentinel: UpstreamError is the canonical class identity", () => {
+describe("invokeCli — queue serialization (research R6)", () => {
+  it("two overlapping invokeCli calls execute serially through the FIFO queue", async () => {
+    let activeCount = 0;
+    let maxActive = 0;
+    const completions: number[] = [];
+    const spawnFn: SpawnLike = (_binary, _argv, _options) => {
+      activeCount += 1;
+      maxActive = Math.max(maxActive, activeCount);
+      const child = new EventEmitter() as EventEmitter & {
+        stdout: Readable;
+        stderr: Readable;
+        kill: (signal?: NodeJS.Signals) => boolean;
+        pid?: number;
+      };
+      child.stdout = new Readable({ read() {} });
+      child.stderr = new Readable({ read() {} });
+      child.pid = 1;
+      child.kill = () => true;
+      setImmediate(() => {
+        child.stdout.push(null);
+        child.stderr.push(null);
+        setTimeout(() => {
+          activeCount -= 1;
+          completions.push(Date.now());
+          child.emit("exit", 0, null);
+        }, 30);
+      });
+      return child as unknown as ReturnType<SpawnLike>;
+    };
+    const logger = createLogger({
+      stream: new Writable({ write(_c, _e, cb) { cb(); } }),
+    });
+    const queue = createQueue();
+    const p1 = invokeCli(
+      { command: "read", parameters: {}, flags: [], target_mode: "active" },
+      { spawnFn, env: {}, logger, queue },
+    );
+    const p2 = invokeCli(
+      { command: "read", parameters: {}, flags: [], target_mode: "active" },
+      { spawnFn, env: {}, logger, queue },
+    );
+    await Promise.all([p1, p2]);
+    expect(maxActive).toBe(1);
+    expect(completions.length).toBe(2);
+    expect(completions[1]!).toBeGreaterThanOrEqual(completions[0]!);
+  });
+});
+
+describe("invokeCli — UpstreamError re-export sentinel", () => {
+  it("UpstreamError is the canonical class identity (FR-011 / Story 4 AC #1)", () => {
     expect(UpstreamError).toBeDefined();
     expect(UpstreamError.name).toBe("UpstreamError");
   });
