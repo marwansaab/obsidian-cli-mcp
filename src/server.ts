@@ -1,22 +1,29 @@
-// Original — no upstream. MCP Server bootstrap, tool registration, and lifecycle handlers (FR-001, FR-028, FR-029, plan-stage P8 aggregator).
+// Original — no upstream. MCP Server bootstrap, tool registration via createTool factories, and lifecycle handlers (FR-001, FR-005, FR-017, FR-028, FR-029).
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 
+import { killInFlightChildren as defaultKillInFlightChildren } from "./cli-adapter/cli-adapter.js";
 import { createLogger, type Logger, type ShutdownReason } from "./logger.js";
 import { createQueue, type Queue } from "./queue.js";
+import { assertToolDocsExist } from "./tools/_register.js";
 import { asToolError, type RegisteredTool } from "./tools/_shared.js";
-import { registerHelpTool } from "./tools/help/tool.js";
-import { killActiveChild as defaultKillActiveChild } from "./tools/obsidian_exec/handler.js";
-import { registerObsidianExecTool } from "./tools/obsidian_exec/tool.js";
-import { registerReadNoteTool } from "./tools/read_note/tool.js";
+import { createHelpTool } from "./tools/help/index.js";
+import { createObsidianExecTool } from "./tools/obsidian_exec/index.js";
+import { createReadNoteTool } from "./tools/read_note/index.js";
 
 import type { Writable } from "node:stream";
+
+export const DEFAULT_DOCS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..", "docs", "tools");
 
 export interface ShutdownContext {
   loggerStream?: Writable;
   exit?: (code: number) => void;
   registerSignalHandlers?: boolean;
-  killActiveChild?: () => boolean;
+  killInFlightChildren?: () => boolean;
+  docsDir?: string;
 }
 
 export interface CreatedServer {
@@ -43,15 +50,17 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     },
   );
 
-  // Aggregate every registered tool into a single dispatch surface (P8). The MCP
-  // SDK's setRequestHandler allows exactly one handler per request type, so each
-  // per-tool register*Tool factory returns a RegisteredTool (descriptor + handler)
-  // and this function aggregates them into the single ListTools / CallTool routes.
   const tools: RegisteredTool[] = [
-    registerHelpTool(),
-    registerObsidianExecTool({ logger, queue }),
-    registerReadNoteTool({ logger, queue }),
+    createHelpTool(),
+    createObsidianExecTool({ logger, queue }),
+    createReadNoteTool({ logger, queue }),
   ];
+
+  // Boot-time aggregated doc-file presence check (FR-005 / Q4 — fail-fast on
+  // first miss is forbidden; the aggregator collects ALL misses and raises a
+  // single error listing every missing file).
+  assertToolDocsExist(tools, ctx.docsDir ?? DEFAULT_DOCS_DIR);
+
   const toolByName = new Map(tools.map((t) => [t.descriptor.name, t]));
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -73,14 +82,14 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     return tool.handler(req.params.arguments);
   });
 
-  const killActiveChild = ctx.killActiveChild ?? defaultKillActiveChild;
+  const killInFlight = ctx.killInFlightChildren ?? defaultKillInFlightChildren;
 
   let shuttingDown = false;
   function triggerShutdown(reason: ShutdownReason): void {
     if (shuttingDown) return;
     shuttingDown = true;
     const queuedDropped = queue.shutdown();
-    const inFlightKilled = killActiveChild();
+    const inFlightKilled = killInFlight();
     logger.shutdown({ reason, inFlightKilled, queuedDropped });
     exit(0);
   }

@@ -1,6 +1,5 @@
 // Original — no upstream. Canonical zod schema for obsidian_exec — single source of truth (Principle III, FR-002).
 import { z } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
 
 export const obsidianExecSchema = z
   .object({
@@ -14,7 +13,3 @@ export const obsidianExecSchema = z
   .strict();
 
 export type ObsidianExecInput = z.infer<typeof obsidianExecSchema>;
-
-export const obsidianExecInputJsonSchema = zodToJsonSchema(obsidianExecSchema, {
-  $refStrategy: "none",
-}) as Record<string, unknown>;

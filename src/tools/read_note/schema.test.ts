@@ -1,8 +1,7 @@
 // Original — no upstream. Tests for the read_note input schema (re-export of the target-mode primitive).
 import { test, expect } from "vitest";
 
-import { readNoteInputSchema, readNoteInputJsonSchema } from "./schema.js";
-import { targetModeJsonSchema } from "../../target-mode/target-mode.js";
+import { readNoteInputSchema } from "./schema.js";
 
 test("parses specific+file happy path (Story 1 AC#1)", () => {
   const result = readNoteInputSchema.safeParse({ target_mode: "specific", vault: "MyVault", file: "Recipe" });
@@ -104,7 +103,3 @@ test("rejects invalid discriminator value (Story 4 AC#5)", () => {
   }
 });
 
-test("readNoteInputJsonSchema is the target-mode companion export (FR-002, FR-002a — feature 007 / M1)", () => {
-  expect(readNoteInputJsonSchema).toBe(targetModeJsonSchema);
-  expect((readNoteInputJsonSchema as { type?: unknown }).type).toBe("object");
-});

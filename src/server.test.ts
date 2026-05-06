@@ -1,12 +1,13 @@
-// Original — no upstream. Tests for the MCP Server bootstrap and lifecycle handlers (FR-001, FR-028, FR-029).
-import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+// Original — no upstream. Tests for the MCP Server bootstrap and lifecycle handlers (FR-001, FR-005, FR-017, FR-028, FR-029, registry consistency block, doc-aggregation drill).
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 import { describe, it, test, expect } from "vitest";
 
-import { createServer, type ShutdownContext } from "./server.js";
+import { createServer, DEFAULT_DOCS_DIR, type ShutdownContext } from "./server.js";
 
 function captureStream(): { stream: Writable; lines: () => string[] } {
   const chunks: Buffer[] = [];
@@ -110,10 +111,10 @@ test("shutdown is idempotent — second call is a no-op", () => {
   expect(getExitCode()).toBe(0);
 });
 
-test("shutdown calls killActiveChild and reports inFlightKilled in the bridge.shutdown log", () => {
+test("shutdown calls killInFlightChildren and reports inFlightKilled in the bridge.shutdown log (FR-016, FR-017)", () => {
   const { cap, ctx, getExitCode } = makeContext();
   let killCalled = false;
-  ctx.killActiveChild = () => {
+  ctx.killInFlightChildren = () => {
     killCalled = true;
     return true;
   };
@@ -125,9 +126,18 @@ test("shutdown calls killActiveChild and reports inFlightKilled in the bridge.sh
   expect(getExitCode()).toBe(0);
 });
 
+test("shutdown reports inFlightKilled: false when no child was in flight", () => {
+  const { cap, ctx } = makeContext();
+  ctx.killInFlightChildren = () => false;
+  const { triggerShutdown } = createServer(ctx);
+  triggerShutdown("transport_closed");
+  const event = JSON.parse(cap.lines()[0]!);
+  expect(event.inFlightKilled).toBe(false);
+});
+
 test("shutdown reports queuedDropped from queue.shutdown's return value (FR-029)", () => {
   const { cap, ctx } = makeContext();
-  ctx.killActiveChild = () => false;
+  ctx.killInFlightChildren = () => false;
   const { triggerShutdown, queue } = createServer(ctx);
   let release: (() => void) | undefined;
   const blocker = new Promise<void>((r) => { release = r; });
@@ -145,20 +155,92 @@ test("shutdown reports queuedDropped from queue.shutdown's return value (FR-029)
 });
 
 // ---------------------------------------------------------------------------
+// Principle-I import-direction sentinel (FR-017 / SC-009): server.ts MUST NOT
+// import from src/tools/*/handler.ts. The kill function must come from the
+// cli-adapter layer. Asserted via string-grep against the source file so a
+// future regression is caught at unit-test time without having to construct an
+// import-graph analyzer.
+// ---------------------------------------------------------------------------
+
+describe("Principle-I downward-flow sentinel (FR-017 / SC-009)", () => {
+  const SERVER_PATH = resolve(dirname(fileURLToPath(import.meta.url)), "server.ts");
+
+  it("imports killInFlightChildren from ./cli-adapter/cli-adapter.js (NOT from a tool handler)", () => {
+    const source = readFileSync(SERVER_PATH, "utf8");
+    expect(source).toContain('killInFlightChildren');
+    expect(source).toContain('"./cli-adapter/cli-adapter.js"');
+  });
+
+  it("does NOT import from any ./tools/*/handler.js path", () => {
+    const source = readFileSync(SERVER_PATH, "utf8");
+    expect(source).not.toMatch(/from "\.\/tools\/[^"]+\/handler\.js"/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// FR-005 / Q4 doc-aggregation drill: rename a docs/tools/<name>.md away (or
+// point the server at an empty fixture directory) and assert the boot-time
+// error message LISTS ALL missing files. Fail-fast on the first miss is
+// forbidden by the clarification.
+// ---------------------------------------------------------------------------
+
+describe("assertToolDocsExist boot-time aggregation (FR-005 / Q4)", () => {
+  it("aggregates ALL missing doc files into a single error listing every miss", () => {
+    const empty = mkdtempSync(join(tmpdir(), "boot-docs-"));
+    try {
+      const cap = captureStream();
+      const ctx: ShutdownContext = {
+        loggerStream: cap.stream,
+        registerSignalHandlers: false,
+        docsDir: empty,
+      };
+      let caught: Error | null = null;
+      try {
+        createServer(ctx);
+      } catch (err) {
+        caught = err as Error;
+      }
+      expect(caught).not.toBeNull();
+      expect(caught!.message).toContain("Missing tool documentation files");
+      expect(caught!.message).toContain("docs/tools/help.md");
+      expect(caught!.message).toContain("docs/tools/obsidian_exec.md");
+      expect(caught!.message).toContain("docs/tools/read_note.md");
+    } finally {
+      rmSync(empty, { recursive: true, force: true });
+    }
+  });
+
+  it("partial directory: missing files surface in the aggregated message; present file does NOT appear", () => {
+    const partial = mkdtempSync(join(tmpdir(), "boot-docs-"));
+    try {
+      mkdirSync(partial, { recursive: true });
+      writeFileSync(join(partial, "help.md"), "# help");
+      const cap = captureStream();
+      let caught: Error | null = null;
+      try {
+        createServer({ loggerStream: cap.stream, registerSignalHandlers: false, docsDir: partial });
+      } catch (err) {
+        caught = err as Error;
+      }
+      expect(caught).not.toBeNull();
+      expect(caught!.message).toContain("docs/tools/obsidian_exec.md");
+      expect(caught!.message).toContain("docs/tools/read_note.md");
+      expect(caught!.message).not.toContain("docs/tools/help.md");
+    } finally {
+      rmSync(partial, { recursive: true, force: true });
+    }
+  });
+
+  it("real DEFAULT_DOCS_DIR resolves to the bundled docs/tools directory", () => {
+    expect(existsSync(DEFAULT_DOCS_DIR)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Registry consistency block (per Clarification 2026-05-06 Q5 + plan-stage P6).
-//
-// Asserts two invariants over the live server registry, exercised against the
-// real `docs/tools/` directory bundled with this BI. The block is intentionally
-// at the bottom of the file so future-tool BIs can extend it without touching
-// the per-tool tests above.
-//
-// Invariant (a): every registered MCP tool has a corresponding `docs/tools/<name>.md`
-// file. Catches the registration-without-doc regression at PR review (per Q5 + SC-011).
-//
-// Invariant (b): every registered tool's stripped `inputSchema.properties` tree
-// contains zero `description` keys at any depth. Catches the bypass-of-strip-utility
-// regression (per Story 1 AC#5 + SC-002 + Edge Case "Tool registration via the SDK
-// that bypasses the stripping utility").
+// Preserved as defense-in-depth (FR-007). The boot-time aggregator is now the
+// authoritative path; this block keeps three structural invariants enforced
+// even when the aggregator is bypassed in custom embeddings.
 // ---------------------------------------------------------------------------
 
 const DOCS_DIR_FROM_TEST = resolve(dirname(fileURLToPath(import.meta.url)), "..", "docs", "tools");
@@ -187,12 +269,6 @@ describe("registry consistency", () => {
     }
   });
 
-  // Invariant (c) — feature 007: every registered tool's published inputSchema
-  // declares `type: "object"` at the top level. The MCP `Tool` definition
-  // requires this, and 0.1.6 shipped without the guarantee — read_note's
-  // discriminated-union zod rendered as top-level `anyOf`, breaking
-  // `tools/list` for compliant clients. The block iterates over the live
-  // registry so future tool BIs are covered automatically.
   it("every registered tool's inputSchema declares type === 'object' at the top level (Story 1 AC#2, FR-002, FR-006, SC-001)", async () => {
     const { ctx } = makeContext();
     const { server } = createServer(ctx);
@@ -206,6 +282,63 @@ describe("registry consistency", () => {
         `Tool '${tool.name}' has inputSchema.type === ${JSON.stringify(actualType)}, expected "object"`,
       ).toBe("object");
     }
+  });
+
+  // FR-019 / SC-006 binding — the published descriptor shape for the three
+  // existing tools is structurally pinned. Each tool's inputSchema is asserted
+  // to have the documented top-level keys + property structure from 0.1.7.
+  // A future pipeline change that breaks the wire shape (e.g., dropping
+  // additionalProperties, renaming properties, swapping oneOf for anyOf)
+  // surfaces here.
+  describe("FR-019 wire-shape pinning vs 0.1.7", () => {
+    async function listTools() {
+      const { ctx } = makeContext();
+      const { server } = createServer(ctx);
+      const handlers = (server as unknown as { _requestHandlers: Map<string, (req: unknown) => Promise<unknown>> })._requestHandlers;
+      const result = (await handlers.get("tools/list")!({ method: "tools/list", params: {} })) as {
+        tools: { name: string; description: string; inputSchema: Record<string, unknown> }[];
+      };
+      return new Map(result.tools.map((t) => [t.name, t]));
+    }
+
+    it("MCP Tool envelope: each tool has { name: string, description: string, inputSchema: object }", async () => {
+      const tools = await listTools();
+      for (const t of tools.values()) {
+        expect(typeof t.name).toBe("string");
+        expect(typeof t.description).toBe("string");
+        expect(t.description.length).toBeGreaterThan(0);
+        expect(typeof t.inputSchema).toBe("object");
+        expect(t.inputSchema.type).toBe("object");
+      }
+    });
+
+    it("help: properties contains exactly { tool_name } at the top level", async () => {
+      const tools = await listTools();
+      const help = tools.get("help")!;
+      const props = (help.inputSchema.properties ?? {}) as Record<string, unknown>;
+      expect(Object.keys(props).sort()).toEqual(["tool_name"]);
+    });
+
+    it("obsidian_exec: properties contains the documented field set { command, parameters, vault, flags, copy, timeoutMs }", async () => {
+      const tools = await listTools();
+      const exec = tools.get("obsidian_exec")!;
+      const props = (exec.inputSchema.properties ?? {}) as Record<string, unknown>;
+      expect(Object.keys(props).sort()).toEqual(
+        ["command", "copy", "flags", "parameters", "timeoutMs", "vault"],
+      );
+    });
+
+    it("read_note: top-level oneOf with two branches discriminated by target_mode (specific|active)", async () => {
+      const tools = await listTools();
+      const read = tools.get("read_note")!;
+      expect(Array.isArray(read.inputSchema.oneOf)).toBe(true);
+      const oneOf = read.inputSchema.oneOf as Array<Record<string, unknown>>;
+      expect(oneOf.length).toBe(2);
+      const discriminators = oneOf
+        .map((b) => ((b.properties as Record<string, Record<string, unknown>>).target_mode?.const as string) ?? "")
+        .sort();
+      expect(discriminators).toEqual(["active", "specific"]);
+    });
   });
 });
 

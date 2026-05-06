@@ -1,22 +1,21 @@
-// Original — no upstream. Centralised CLI invocation primitive: argv assembly, active-mode target-locator strip, four-priority error classification.
-import { spawn as nodeSpawn, type ChildProcess, type SpawnOptions } from "node:child_process";
-
+// Original — no upstream. invokeCli typed-tool facade: target-mode locator strip + queue-wrapped routing through dispatchCli with fixed 10 s / 10 MiB bounds (ADR-007, FR-013).
+import { dispatchCli, killInFlightChildren, type DispatchInput, type SpawnLike } from "./_dispatch.js";
 import { UpstreamError } from "../errors.js";
 
+import type { Logger } from "../logger.js";
+import type { Queue } from "../queue.js";
+
 export type TargetMode = "specific" | "active";
+
+export const TYPED_TOOL_TIMEOUT_MS = 10_000;
+export const TYPED_TOOL_OUTPUT_CAP_BYTES = 10 * 1024 * 1024;
 
 export interface InvokeCliInput {
   command: string;
   parameters: Record<string, string | number | boolean | undefined>;
   flags: string[];
   target_mode: TargetMode;
-}
-
-export type SpawnLike = (binary: string, args: string[], options: SpawnOptions) => ChildProcess;
-
-export interface InvokeCliDeps {
-  spawnFn?: SpawnLike;
-  env?: NodeJS.ProcessEnv;
+  copy?: boolean;
 }
 
 export interface InvokeCliSuccess {
@@ -24,97 +23,15 @@ export interface InvokeCliSuccess {
   stderr: string;
 }
 
-export { UpstreamError };
-
-export function invokeCli(input: InvokeCliInput, deps?: InvokeCliDeps): Promise<InvokeCliSuccess> {
-  const env = deps?.env ?? process.env;
-  const binary = env.OBSIDIAN_BIN ?? "obsidian";
-  const spawnFn = deps?.spawnFn ?? nodeSpawn;
-  const stripped = input.target_mode === "active" ? stripTargetLocators(input.parameters) : input.parameters;
-  const argv = assembleArgv(input.command, stripped, input.flags);
-
-  return new Promise<InvokeCliSuccess>((resolve, reject) => {
-    let child: ChildProcess;
-    try {
-      child = spawnFn(binary, argv, {
-        shell: false,
-        stdio: ["ignore", "pipe", "pipe"],
-        windowsHide: true,
-      });
-    } catch (err: unknown) {
-      const errnoCode = (err as NodeJS.ErrnoException).code;
-      if (errnoCode === "ENOENT") {
-        reject(
-          new UpstreamError({
-            code: "CLI_BINARY_NOT_FOUND",
-            cause: err,
-            details: { binaryAttempted: binary, PATH: env.PATH },
-          }),
-        );
-        return;
-      }
-      reject(err);
-      return;
-    }
-
-    const stdoutChunks: Buffer[] = [];
-    const stderrChunks: Buffer[] = [];
-    child.stdout?.on("data", (chunk: Buffer) => stdoutChunks.push(chunk));
-    child.stderr?.on("data", (chunk: Buffer) => stderrChunks.push(chunk));
-
-    child.on("close", (code: number | null, signal: NodeJS.Signals | null) => {
-      const stdout = Buffer.concat(stdoutChunks).toString("utf8");
-      const stderr = Buffer.concat(stderrChunks).toString("utf8");
-      const exitCode = code ?? -1;
-
-      // Priority (a): non-zero exit (or signal-only termination via code === null → exitCode -1 sentinel).
-      if (code !== 0) {
-        reject(
-          new UpstreamError({
-            code: "CLI_NON_ZERO_EXIT",
-            cause: { exitCode, signal },
-            details: { command: input.command, stdout, stderr, exitCode, signal },
-          }),
-        );
-        return;
-      }
-
-      const trimmedHead = stdout.trimStart();
-
-      // Priority (b): ERR_NO_ACTIVE_FILE — exit 0 with stdout starting with the full literal prefix.
-      // MUST be checked before priority (c) so the longer prefix wins.
-      if (trimmedHead.startsWith("Error: no active file")) {
-        const message = stdout.split("\n", 1)[0]!.trim();
-        reject(
-          new UpstreamError({
-            code: "ERR_NO_ACTIVE_FILE",
-            cause: null,
-            details: { command: input.command, stdout, stderr, exitCode: 0, message },
-            message:
-              'No active file in Obsidian. Open a note in the editor, or call this tool with target_mode: "specific" and an explicit vault/file.',
-          }),
-        );
-        return;
-      }
-
-      // Priority (c): CLI_REPORTED_ERROR — exit 0 with stdout starting with `Error:` (any other suffix).
-      if (trimmedHead.startsWith("Error:")) {
-        const message = stdout.split("\n", 1)[0]!.trim();
-        reject(
-          new UpstreamError({
-            code: "CLI_REPORTED_ERROR",
-            cause: null,
-            details: { command: input.command, stdout, stderr, exitCode: 0, message },
-          }),
-        );
-        return;
-      }
-
-      // Priority (d): success.
-      resolve({ stdout, stderr });
-    });
-  });
+export interface InvokeCliDeps {
+  spawnFn?: SpawnLike;
+  env?: NodeJS.ProcessEnv;
+  logger: Logger;
+  queue: Queue;
 }
+
+export { UpstreamError, killInFlightChildren };
+export type { SpawnLike };
 
 const TARGET_LOCATOR_KEYS = new Set(["vault", "file", "path"]);
 
@@ -128,15 +45,28 @@ function stripTargetLocators(
   return stripped;
 }
 
-function assembleArgv(
-  command: string,
-  parameters: Record<string, string | number | boolean | undefined>,
-  flags: string[],
-): string[] {
-  const { vault, ...rest } = parameters;
-  const vaultPrefix = vault !== undefined ? [`vault=${String(vault)}`] : [];
-  const remainingKvParams = Object.entries(rest)
-    .filter(([, v]) => v !== undefined)
-    .map(([k, v]) => `${k}=${String(v)}`);
-  return [command, ...vaultPrefix, ...remainingKvParams, ...flags];
+export function invokeCli(input: InvokeCliInput, deps: InvokeCliDeps): Promise<InvokeCliSuccess> {
+  const params = input.target_mode === "active" ? stripTargetLocators(input.parameters) : input.parameters;
+  // Extract vault from parameters into DispatchInput.vault so dispatchCli's
+  // argv assembly produces the documented [binary, vault=..., command, kvs...]
+  // order (FR-012). Typed tools receive vault as a parameter today, not as a
+  // separate field.
+  const { vault, ...rest } = params as { vault?: unknown } & Record<string, string | number | boolean | undefined>;
+  const dispatchInput: DispatchInput = {
+    command: input.command,
+    vault: typeof vault === "string" ? vault : undefined,
+    parameters: rest,
+    flags: input.flags,
+    copy: input.copy ?? false,
+    timeoutMs: TYPED_TOOL_TIMEOUT_MS,
+    outputCapBytes: TYPED_TOOL_OUTPUT_CAP_BYTES,
+  };
+  return deps.queue.run(async () => {
+    const out = await dispatchCli(dispatchInput, {
+      spawnFn: deps.spawnFn,
+      env: deps.env,
+      logger: deps.logger,
+    });
+    return { stdout: out.stdout, stderr: out.stderr };
+  });
 }

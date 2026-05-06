@@ -1,13 +1,16 @@
-// Original — no upstream. Tests for the obsidian_exec spawn handler. US1/US2/US3 cases.
+// Original — no upstream. Integration tests for the obsidian_exec handler — exercises the response envelope through the invokeBoundedCli → dispatchCli pipeline.
+import { type SpawnOptions } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { Writable, Readable } from "node:stream";
 
-import { test, expect } from "vitest";
+import { afterEach, beforeEach, expect, test } from "vitest";
 
-import { executeObsidianExec, killActiveChild, DEFAULT_TIMEOUT_MS, OUTPUT_CAP_BYTES, type SpawnLike } from "./handler.js";
+import { executeObsidianExec } from "./handler.js";
+import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
+
 
 interface MockChildSpec {
   stdoutChunks?: Buffer[];
@@ -15,55 +18,39 @@ interface MockChildSpec {
   exitCode?: number;
   signal?: NodeJS.Signals | null;
   errorOnSpawn?: NodeJS.ErrnoException;
-  delayMs?: number;
-  neverExit?: boolean;
-  exitOnKill?: boolean;
-  exitOnSignals?: NodeJS.Signals[];
 }
 
 interface SpawnRecording {
   binary: string;
   spawnArgs: string[];
-  killsReceived: NodeJS.Signals[];
 }
 
 function makeMockSpawn(spec: MockChildSpec): { spawnFn: SpawnLike; recorded: SpawnRecording[] } {
   const recorded: SpawnRecording[] = [];
-  const spawnFn: SpawnLike = (binary, spawnArgs, _opts) => {
-    const recording: SpawnRecording = { binary, spawnArgs: [...spawnArgs], killsReceived: [] };
-    recorded.push(recording);
+  const spawnFn: SpawnLike = (binary, spawnArgs, _opts: SpawnOptions) => {
+    if (spec.errorOnSpawn) {
+      throw spec.errorOnSpawn;
+    }
+    recorded.push({ binary, spawnArgs: [...spawnArgs] });
     const child = new EventEmitter() as EventEmitter & {
       stdout: Readable;
       stderr: Readable;
       kill: (signal?: NodeJS.Signals) => boolean;
+      pid?: number;
     };
-    const stdout = new Readable({ read() {} });
-    const stderr = new Readable({ read() {} });
-    child.stdout = stdout;
-    child.stderr = stderr;
+    child.stdout = new Readable({ read() {} });
+    child.stderr = new Readable({ read() {} });
+    child.pid = 1234;
     child.kill = (signal?: NodeJS.Signals) => {
-      const sig = signal ?? "SIGTERM";
-      recording.killsReceived.push(sig);
-      const exitOnAny = spec.exitOnKill === true;
-      const exitOnThisSig = spec.exitOnSignals?.includes(sig) ?? false;
-      if (exitOnAny || exitOnThisSig) {
-        setImmediate(() => child.emit("exit", null, sig));
-      }
+      setImmediate(() => child.emit("exit", null, signal ?? "SIGTERM"));
       return true;
     };
     setImmediate(() => {
-      if (spec.errorOnSpawn) {
-        child.emit("error", spec.errorOnSpawn);
-        return;
-      }
-      for (const c of spec.stdoutChunks ?? []) stdout.push(c);
-      stdout.push(null);
-      for (const c of spec.stderrChunks ?? []) stderr.push(c);
-      stderr.push(null);
-      if (spec.neverExit) return;
-      const fire = () => child.emit("exit", spec.exitCode ?? 0, spec.signal ?? null);
-      if (spec.delayMs) setTimeout(fire, spec.delayMs);
-      else setImmediate(fire);
+      for (const c of spec.stdoutChunks ?? []) child.stdout.push(c);
+      child.stdout.push(null);
+      for (const c of spec.stderrChunks ?? []) child.stderr.push(c);
+      child.stderr.push(null);
+      setImmediate(() => child.emit("exit", spec.exitCode ?? 0, spec.signal ?? null));
     });
     return child as unknown as ReturnType<SpawnLike>;
   };
@@ -84,9 +71,10 @@ async function captureRejection(promise: Promise<unknown>): Promise<unknown> {
   }
 }
 
-// --- US1 cases ---
+beforeEach(() => __resetInFlightRegistryForTests());
+afterEach(() => __resetInFlightRegistryForTests());
 
-test("US1 happy path: command 'version' returns success shape with published argv [binary, ...spawnArgs]", async () => {
+test("happy path: 'version' returns success envelope with argv [obsidian, version]", async () => {
   const { spawnFn, recorded } = makeMockSpawn({
     stdoutChunks: [Buffer.from("1.7.2\n", "utf8")],
     exitCode: 0,
@@ -99,14 +87,12 @@ test("US1 happy path: command 'version' returns success shape with published arg
   expect(result.stderr).toBe("");
   expect(result.exitCode).toBe(0);
   expect(result.argv).toEqual(["obsidian", "version"]);
-  expect(recorded.length).toBe(1);
   expect(recorded[0]!.binary).toBe("obsidian");
   expect(recorded[0]!.spawnArgs).toEqual(["version"]);
 });
 
-test("US1 failure path: nonexistent_command_xyz raises UpstreamError(CLI_NON_ZERO_EXIT)", async () => {
+test("CLI_NON_ZERO_EXIT integration: stderr + exit 2 surfaces with full details", async () => {
   const { spawnFn } = makeMockSpawn({
-    stdoutChunks: [],
     stderrChunks: [Buffer.from("unknown command\n", "utf8")],
     exitCode: 2,
   });
@@ -118,31 +104,13 @@ test("US1 failure path: nonexistent_command_xyz raises UpstreamError(CLI_NON_ZER
   )) as UpstreamError;
   expect(err).toBeInstanceOf(UpstreamError);
   expect(err.code).toBe("CLI_NON_ZERO_EXIT");
-  expect(err.cause).toEqual({ exitCode: 2, signal: null });
   expect(err.details.argv).toEqual(["obsidian", "nonexistent_command_xyz"]);
-  expect(err.details.stdout).toBe("");
-  expect(err.details.stderr).toBe("unknown command\n");
-  // FR-014 reconciliation: details now mirrors cause.exitCode/signal so MCP clients can observe them.
   expect(err.details.exitCode).toBe(2);
-  expect(err.details.signal).toBeNull();
 });
 
-test("US1 boundary path (vault-omitted): produces argv ['obsidian','search','query=fixture'] with no vault= token", async () => {
-  const { spawnFn, recorded } = makeMockSpawn({ exitCode: 0 });
-  const result = await executeObsidianExec(
-    { command: "search", parameters: { query: "fixture" } },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
-  );
-  expect(result.argv).toEqual(["obsidian", "search", "query=fixture"]);
-  expect(recorded[0]!.spawnArgs).toEqual(["search", "query=fixture"]);
-  expect(result.argv.some((t) => t.startsWith("vault="))).toBe(false);
-});
-
-test("US1 spawn ENOENT raises UpstreamError(CLI_BINARY_NOT_FOUND) with binaryAttempted and PATH", async () => {
+test("CLI_BINARY_NOT_FOUND integration: ENOENT-on-spawn surfaces with binaryAttempted+PATH", async () => {
   const enoent: NodeJS.ErrnoException = new Error("spawn obsidian ENOENT") as NodeJS.ErrnoException;
   enoent.code = "ENOENT";
-  enoent.syscall = "spawn obsidian";
-  enoent.path = "obsidian";
   const { spawnFn } = makeMockSpawn({ errorOnSpawn: enoent });
   const err = (await captureRejection(
     executeObsidianExec(
@@ -150,62 +118,12 @@ test("US1 spawn ENOENT raises UpstreamError(CLI_BINARY_NOT_FOUND) with binaryAtt
       { logger: silentLogger(), queue: createQueue(), spawnFn, env: { PATH: "C:\\Windows;C:\\Tools" } },
     ),
   )) as UpstreamError;
-  expect(err).toBeInstanceOf(UpstreamError);
   expect(err.code).toBe("CLI_BINARY_NOT_FOUND");
   expect(err.details.binaryAttempted).toBe("obsidian");
   expect(err.details.PATH).toBe("C:\\Windows;C:\\Tools");
 });
 
-test("US1 numeric and boolean parameter values stringify into key=value tokens", async () => {
-  const { spawnFn, recorded } = makeMockSpawn({ exitCode: 0 });
-  await executeObsidianExec(
-    { command: "search", parameters: { limit: 10, silent: true } },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
-  );
-  expect(recorded[0]!.spawnArgs).toEqual(["search", "limit=10", "silent=true"]);
-});
-
-test("US1 handler emits matching call.start / call.end log lines via injected logger", async () => {
-  const chunks: Buffer[] = [];
-  const stream = new Writable({ write(c, _e, cb) { chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)); cb(); } });
-  const logger = createLogger({ stream });
-  const { spawnFn } = makeMockSpawn({ stdoutChunks: [Buffer.from("ok", "utf8")], exitCode: 0 });
-  await executeObsidianExec(
-    { command: "version" },
-    { logger, queue: createQueue(), spawnFn, env: {} },
-  );
-  const lines = Buffer.concat(chunks).toString("utf8").split("\n").filter(Boolean);
-  expect(lines.length).toBe(2);
-  const start = JSON.parse(lines[0]!);
-  const end = JSON.parse(lines[1]!);
-  expect(start.event).toBe("call.start");
-  expect(end.event).toBe("call.end");
-  expect(start.callId).toBe(end.callId);
-  expect(start.argv).toEqual(["obsidian", "version"]);
-  expect(end.exitCode).toBe(0);
-});
-
-test("US1 OBSIDIAN_BIN override: spawn receives the overridden binary and published argv reflects it (FR-013)", async () => {
-  const { spawnFn, recorded } = makeMockSpawn({
-    stdoutChunks: [Buffer.from("1.7.2\n", "utf8")],
-    exitCode: 0,
-  });
-  const result = await executeObsidianExec(
-    { command: "version" },
-    {
-      logger: silentLogger(),
-      queue: createQueue(),
-      spawnFn,
-      env: { OBSIDIAN_BIN: "C:\\custom\\obsidian.exe", PATH: "C:\\Windows" },
-    },
-  );
-  expect(recorded[0]!.binary).toBe("C:\\custom\\obsidian.exe");
-  expect(result.argv).toEqual(["C:\\custom\\obsidian.exe", "version"]);
-});
-
-// --- US1 cases (002 — CLI_REPORTED_ERROR detection) ---
-
-test("US1 002 CLI_REPORTED_ERROR: nonexistent command exits 0 with leading 'Error:' raises CLI_REPORTED_ERROR (FR-010 b, Story 1 AC #1)", async () => {
+test("CLI_REPORTED_ERROR integration: exit 0 + leading 'Error:' produces CLI_REPORTED_ERROR with first-line message", async () => {
   const stdoutText = `Error: Command "nonexistent_command_xyz" not found.\n`;
   const { spawnFn } = makeMockSpawn({
     stdoutChunks: [Buffer.from(stdoutText, "utf8")],
@@ -217,55 +135,39 @@ test("US1 002 CLI_REPORTED_ERROR: nonexistent command exits 0 with leading 'Erro
       { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
     ),
   )) as UpstreamError;
-  expect(err).toBeInstanceOf(UpstreamError);
   expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.cause).toBeNull();
-  expect(err.details.argv).toEqual(["obsidian", "nonexistent_command_xyz"]);
-  expect(err.details.stdout).toBe(stdoutText);
-  expect(err.details.stderr).toBe("");
-  expect(err.details.exitCode).toBe(0);
   expect(err.details.message).toBe(`Error: Command "nonexistent_command_xyz" not found.`);
-});
-
-test("US1 002 CLI_REPORTED_ERROR: read of missing file exits 0 with 'Error: File ...' raises CLI_REPORTED_ERROR (FR-010 c, Story 1 AC #2)", async () => {
-  const stdoutText = `Error: File "this/does/not/exist.md" does not exist.\n`;
-  const { spawnFn } = makeMockSpawn({
-    stdoutChunks: [Buffer.from(stdoutText, "utf8")],
-    exitCode: 0,
-  });
-  const err = (await captureRejection(
-    executeObsidianExec(
-      { command: "read", parameters: { path: "this/does/not/exist.md" } },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
-    ),
-  )) as UpstreamError;
-  expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details.message).toBe(`Error: File "this/does/not/exist.md" does not exist.`);
-  expect(err.details.stdout).toBe(stdoutText);
   expect(err.details.exitCode).toBe(0);
 });
 
-test("US1 002 CLI_REPORTED_ERROR: eval-throws exits 0 with multi-line 'Error: ...' yields first-line message + full stdout (FR-010 d, Story 1 AC #3)", async () => {
-  const stdoutText = "Error: test\n    at eval (<anonymous>:1:7)\n    at runEval (obsidian:42)\n";
+test("ERR_NO_ACTIVE_FILE integration (FR-021 — newly reachable through obsidian_exec)", async () => {
   const { spawnFn } = makeMockSpawn({
-    stdoutChunks: [Buffer.from(stdoutText, "utf8")],
+    stdoutChunks: [Buffer.from("Error: no active file\n", "utf8")],
     exitCode: 0,
   });
   const err = (await captureRejection(
     executeObsidianExec(
-      { command: "eval", parameters: { code: "throw new Error('test')" } },
+      { command: "read" },
       { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
     ),
   )) as UpstreamError;
-  expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details.message).toBe("Error: test");
-  expect(err.details.stdout).toBe(stdoutText);
-  expect(err.details.stderr).toBe("");
+  expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
+  expect(err.message).toBe(
+    'No active file in Obsidian. Open a note in the editor, or call this tool with target_mode: "specific" and an explicit vault/file.',
+  );
 });
 
-// --- US2 cases ---
+test("argv: vault-omitted produces ['obsidian','search','query=fixture'] with no vault= token", async () => {
+  const { spawnFn, recorded } = makeMockSpawn({ exitCode: 0 });
+  const result = await executeObsidianExec(
+    { command: "search", parameters: { query: "fixture" } },
+    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+  );
+  expect(result.argv).toEqual(["obsidian", "search", "query=fixture"]);
+  expect(recorded[0]!.spawnArgs).toEqual(["search", "query=fixture"]);
+});
 
-test("US2 vault prepends 'vault=<value>' as the first POST-BINARY argv element", async () => {
+test("argv: vault prepends 'vault=<value>' as the first POST-BINARY token (FR-012)", async () => {
   const { spawnFn, recorded } = makeMockSpawn({ exitCode: 0 });
   const result = await executeObsidianExec(
     { vault: "test-vault", command: "search", parameters: { query: "fixture" } },
@@ -275,16 +177,7 @@ test("US2 vault prepends 'vault=<value>' as the first POST-BINARY argv element",
   expect(recorded[0]!.spawnArgs).toEqual(["vault=test-vault", "search", "query=fixture"]);
 });
 
-test("US2 flags appended verbatim after parameters in declaration order", async () => {
-  const { spawnFn, recorded } = makeMockSpawn({ exitCode: 0 });
-  await executeObsidianExec(
-    { command: "x", parameters: { k: "v" }, flags: ["silent", "overwrite"] },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
-  );
-  expect(recorded[0]!.spawnArgs).toEqual(["x", "k=v", "silent", "overwrite"]);
-});
-
-test("US2 copy:true appends '--copy' as the FINAL argv token", async () => {
+test("argv: copy:true appends '--copy' as the FINAL argv token", async () => {
   const { spawnFn, recorded } = makeMockSpawn({ exitCode: 0 });
   const result = await executeObsidianExec(
     { command: "read", parameters: { path: "n.md" }, copy: true },
@@ -294,7 +187,7 @@ test("US2 copy:true appends '--copy' as the FINAL argv token", async () => {
   expect(recorded[0]!.spawnArgs[recorded[0]!.spawnArgs.length - 1]).toBe("--copy");
 });
 
-test("US2 all-fields-together produces argv in FR-010 order [binary, vault=v, command, ...params, ...flags, --copy]", async () => {
+test("argv: all-fields-together produces the documented order [binary, vault=v, command, kvs..., flags..., --copy] (FR-012)", async () => {
   const { spawnFn, recorded } = makeMockSpawn({ exitCode: 0 });
   const result = await executeObsidianExec(
     {
@@ -325,226 +218,33 @@ test("US2 all-fields-together produces argv in FR-010 order [binary, vault=v, co
   ]);
 });
 
-test("US2 call.start log line carries vault when present and null when omitted", async () => {
-  const chunksA: Buffer[] = [];
-  const chunksB: Buffer[] = [];
-  const sA = new Writable({ write(c, _e, cb) { chunksA.push(Buffer.isBuffer(c) ? c : Buffer.from(c)); cb(); } });
-  const sB = new Writable({ write(c, _e, cb) { chunksB.push(Buffer.isBuffer(c) ? c : Buffer.from(c)); cb(); } });
-  const { spawnFn: sf1 } = makeMockSpawn({ exitCode: 0 });
-  await executeObsidianExec(
-    { vault: "v", command: "x" },
-    { logger: createLogger({ stream: sA }), queue: createQueue(), spawnFn: sf1, env: {} },
-  );
-  const { spawnFn: sf2 } = makeMockSpawn({ exitCode: 0 });
-  await executeObsidianExec(
-    { command: "x" },
-    { logger: createLogger({ stream: sB }), queue: createQueue(), spawnFn: sf2, env: {} },
-  );
-  const startA = JSON.parse(Buffer.concat(chunksA).toString("utf8").split("\n").filter(Boolean)[0]!);
-  const startB = JSON.parse(Buffer.concat(chunksB).toString("utf8").split("\n").filter(Boolean)[0]!);
-  expect(startA.vault).toBe("v");
-  expect(startB.vault).toBeNull();
-});
-
-// --- US2 cases (002 — false-positive guards for CLI_REPORTED_ERROR detection) ---
-
-test("US2 002 false-positive guard: 'version' returns success shape (no false positive on non-Error: stdout) (FR-010 a, Story 2 AC #2)", async () => {
-  const { spawnFn } = makeMockSpawn({
+test("OBSIDIAN_BIN override: spawn receives the overridden binary; argv reflects it", async () => {
+  const { spawnFn, recorded } = makeMockSpawn({
     stdoutChunks: [Buffer.from("1.7.2\n", "utf8")],
     exitCode: 0,
   });
   const result = await executeObsidianExec(
     { command: "version" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    {
+      logger: silentLogger(),
+      queue: createQueue(),
+      spawnFn,
+      env: { OBSIDIAN_BIN: "C:\\custom\\obsidian.exe", PATH: "C:\\Windows" },
+    },
   );
-  expect(result.exitCode).toBe(0);
-  expect(result.stdout).toBe("1.7.2\n");
-  expect(result.stderr).toBe("");
+  expect(recorded[0]!.binary).toBe("C:\\custom\\obsidian.exe");
+  expect(result.argv).toEqual(["C:\\custom\\obsidian.exe", "version"]);
 });
 
-test("US2 002 false-positive guard: search-results JSON containing 'Error:' inside body returns success (FR-010 e, Story 2 AC #1)", async () => {
-  const stdoutText = `[{"path":"note.md","excerpt":"... Error: foo ..."}]\n`;
-  const { spawnFn } = makeMockSpawn({
-    stdoutChunks: [Buffer.from(stdoutText, "utf8")],
-    exitCode: 0,
-  });
-  const result = await executeObsidianExec(
-    { command: "search", parameters: { query: "Error:" } },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
-  );
-  expect(result.exitCode).toBe(0);
-  expect(result.stdout).toBe(stdoutText);
-});
-
-test("US2 002 false-positive guard: 'Error:' at start of non-first line returns success (FR-010 f, Story 2 AC #3)", async () => {
-  const stdoutText = "OK\nError: foo\n";
-  const { spawnFn } = makeMockSpawn({
-    stdoutChunks: [Buffer.from(stdoutText, "utf8")],
-    exitCode: 0,
-  });
-  const result = await executeObsidianExec(
-    { command: "version" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
-  );
-  expect(result.exitCode).toBe(0);
-  expect(result.stdout).toBe(stdoutText);
-});
-
-test("US2 002 false-positive guard: lowercase 'error:' prefix returns success — case-sensitive on exact 'Error:' (FR-010 g, Story 2 AC #4 / FR-006)", async () => {
-  const stdoutText = "error: lowercase prefix should not fire detection\n";
-  const { spawnFn } = makeMockSpawn({
-    stdoutChunks: [Buffer.from(stdoutText, "utf8")],
-    exitCode: 0,
-  });
-  const result = await executeObsidianExec(
-    { command: "version" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
-  );
-  expect(result.exitCode).toBe(0);
-  expect(result.stdout).toBe(stdoutText);
-});
-
-// --- US3 cases ---
-
-test("US3 default timeout constant is 30000 ms (FR-008 default)", () => {
-  expect(DEFAULT_TIMEOUT_MS).toBe(30_000);
-});
-
-test("US3 output cap constant is 10 MiB (FR-027)", () => {
-  expect(OUTPUT_CAP_BYTES).toBe(10 * 1024 * 1024);
-});
-
-test("US3 CLI_TIMEOUT: short timeout + non-responsive child raises CLI_TIMEOUT and sends SIGTERM", async () => {
-  const { spawnFn, recorded } = makeMockSpawn({ neverExit: true, exitOnSignals: ["SIGTERM"] });
-  const err = (await captureRejection(
-    executeObsidianExec(
-      { command: "version", timeoutMs: 1 },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
-    ),
-  )) as UpstreamError;
-  expect(err).toBeInstanceOf(UpstreamError);
-  expect(err.code).toBe("CLI_TIMEOUT");
-  expect(err.details.argv).toEqual(["obsidian", "version"]);
-  expect(err.details.timeoutMs).toBe(1);
-  expect(typeof err.details.partialStdout).toBe("string");
-  expect(typeof err.details.partialStderr).toBe("string");
-  expect(recorded[0]!.killsReceived).toContain("SIGTERM");
-});
-
-test("US3 CLI_TIMEOUT: SIGKILL fires after 2-second grace if child ignores SIGTERM", async () => {
-  const { spawnFn, recorded } = makeMockSpawn({ neverExit: true, exitOnSignals: ["SIGKILL"] });
-  const err = (await captureRejection(
-    executeObsidianExec(
-      { command: "version", timeoutMs: 10 },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
-    ),
-  )) as UpstreamError;
-  expect(err).toBeInstanceOf(UpstreamError);
-  expect(err.code).toBe("CLI_TIMEOUT");
-  expect(recorded[0]!.killsReceived).toContain("SIGTERM");
-  expect(recorded[0]!.killsReceived).toContain("SIGKILL");
-  expect(recorded[0]!.killsReceived[0]).toBe("SIGTERM");
-});
-
-test("US3 CLI_OUTPUT_TOO_LARGE on stdout: 11 MiB ASCII trips cap, raises with truncated partial", async () => {
-  const oneMiB = Buffer.alloc(1024 * 1024, 0x41);
-  const elevenMiBChunks = Array.from({ length: 11 }, () => oneMiB);
-  const { spawnFn, recorded } = makeMockSpawn({
-    stdoutChunks: elevenMiBChunks,
-    exitOnSignals: ["SIGTERM"],
-  });
-  const err = (await captureRejection(
-    executeObsidianExec(
-      { command: "eval", parameters: { code: "x" } },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
-    ),
-  )) as UpstreamError;
-  expect(err).toBeInstanceOf(UpstreamError);
-  expect(err.code).toBe("CLI_OUTPUT_TOO_LARGE");
-  expect(err.details.stream).toBe("stdout");
-  expect(err.details.limitBytes).toBe(10 * 1024 * 1024);
-  expect(err.details.capturedBytes as number).toBeGreaterThan(10 * 1024 * 1024);
-  expect((err.details.partial as string).length).toBe(10 * 1024 * 1024);
-  expect(Buffer.byteLength(err.details.partial as string, "utf8")).toBe(10 * 1024 * 1024);
-  expect(recorded[0]!.killsReceived).toContain("SIGTERM");
-});
-
-test("US3 CLI_OUTPUT_TOO_LARGE on stderr: same cap behavior on stderr stream", async () => {
-  const oneMiB = Buffer.alloc(1024 * 1024, 0x41);
-  const elevenMiBChunks = Array.from({ length: 11 }, () => oneMiB);
-  const { spawnFn } = makeMockSpawn({
-    stderrChunks: elevenMiBChunks,
-    exitOnSignals: ["SIGTERM"],
-  });
-  const err = (await captureRejection(
-    executeObsidianExec(
-      { command: "x" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
-    ),
-  )) as UpstreamError;
-  expect(err).toBeInstanceOf(UpstreamError);
-  expect(err.code).toBe("CLI_OUTPUT_TOO_LARGE");
-  expect(err.details.stream).toBe("stderr");
-  expect((err.details.partial as string).length).toBe(10 * 1024 * 1024);
-});
-
-test("US3 timeout starts at spawn, not at enqueue (FR-023): short call after a slow one does not timeout from queue wait", async () => {
-  const queue = createQueue();
-  const { spawnFn: slowSpawn } = makeMockSpawn({ delayMs: 200, exitCode: 0 });
-  const { spawnFn: fastSpawn, recorded: fastRecorded } = makeMockSpawn({ delayMs: 5, exitCode: 0 });
-  const slow = executeObsidianExec({ command: "slow" }, { logger: silentLogger(), queue, spawnFn: slowSpawn, env: {} });
-  const fast = executeObsidianExec(
-    { command: "fast", timeoutMs: 100 },
-    { logger: silentLogger(), queue, spawnFn: fastSpawn, env: {} },
-  );
-  const [, fastResult] = await Promise.all([slow, fast]);
-  expect(fastResult.exitCode).toBe(0);
-  expect(fastRecorded.length).toBe(1);
-});
-
-test("US3 SC-004 round-trip: parameter values with shell metacharacters reach the mock argv byte-for-byte", async () => {
-  const { spawnFn, recorded } = makeMockSpawn({ exitCode: 0 });
-  const trickyValue = `with spaces, quotes "x", $vars, ;& backticks \`y\``;
+test("handler emits ZERO call.start/call.end log lines (R3 — failure-only logging discipline)", async () => {
+  const chunks: Buffer[] = [];
+  const stream = new Writable({ write(c, _e, cb) { chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)); cb(); } });
+  const logger = createLogger({ stream });
+  const { spawnFn } = makeMockSpawn({ stdoutChunks: [Buffer.from("ok", "utf8")], exitCode: 0 });
   await executeObsidianExec(
-    { command: "eval", parameters: { code: trickyValue } },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { command: "version" },
+    { logger, queue: createQueue(), spawnFn, env: {} },
   );
-  expect(recorded[0]!.spawnArgs).toEqual(["eval", `code=${trickyValue}`]);
-});
-
-test("US3 killActiveChild returns false when no call is in flight", () => {
-  expect(killActiveChild()).toBe(false);
-});
-
-test("US3 killActiveChild kills the in-flight child and returns true", async () => {
-  const { spawnFn, recorded } = makeMockSpawn({ neverExit: true, exitOnSignals: ["SIGTERM"] });
-  const promise = executeObsidianExec(
-    { command: "long" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
-  );
-  await new Promise((r) => setImmediate(r));
-  await new Promise((r) => setImmediate(r));
-  const result = killActiveChild();
-  expect(result).toBe(true);
-  await captureRejection(promise);
-  expect(recorded[0]!.killsReceived).toContain("SIGTERM");
-});
-
-test("US3 002 precedence: non-zero exit + stdout starting 'Error:' raises CLI_NON_ZERO_EXIT (NOT CLI_REPORTED_ERROR) (FR-007, Story 3 AC #2)", async () => {
-  const stdoutText = "Error: foo\n";
-  const { spawnFn } = makeMockSpawn({
-    stdoutChunks: [Buffer.from(stdoutText, "utf8")],
-    exitCode: 1,
-  });
-  const err = (await captureRejection(
-    executeObsidianExec(
-      { command: "version" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
-    ),
-  )) as UpstreamError;
-  expect(err.code).toBe("CLI_NON_ZERO_EXIT");
-  expect(err.code).not.toBe("CLI_REPORTED_ERROR");
-  expect(err.details.exitCode).toBe(1);
-  expect(err.details.signal).toBeNull();
-  expect(err.details.stdout).toBe(stdoutText);
+  const lines = Buffer.concat(chunks).toString("utf8").split("\n").filter(Boolean);
+  expect(lines.length).toBe(0);
 });
