@@ -146,6 +146,7 @@ export type ReadNoteInput = TargetMode;
 | `targetModeJsonSchema` has top-level `type: "object"` AND a two-branch `oneOf`                                                     | `src/target-mode/target-mode.test.ts`                                               | Happy          | FR-002, FR-002a, SC-001 |
 | `targetModeJsonSchema`'s branch shapes match the runtime branches' field sets (drift detector)                                     | `src/target-mode/target-mode.test.ts`                                               | Boundary       | Principle III (anti-drift) |
 | Every registered tool's `inputSchema.type === "object"` (registry-iterating)                                                       | `src/server.test.ts` (Invariant (c) added to existing block)                        | Happy + future | FR-002, FR-006, SC-001  |
+| `readNoteInputJsonSchema` is identity-equal to `targetModeJsonSchema` AND has `type: "object"` (closes M1 from /speckit-analyze)   | `src/tools/read_note/schema.test.ts` (1 NEW test body added by T006)                | Happy          | FR-002, FR-002a, Principle II co-location |
 | Existing `read_note` happy/failure tests continue to pass unchanged                                                                | `src/tools/read_note/schema.test.ts`, `handler.test.ts`, `tool.test.ts`             | (already exist) | FR-003, FR-004          |
 
 **No new error codes**, **no new entities**, **no state transitions**. The data model is exhausted by the four shapes above.

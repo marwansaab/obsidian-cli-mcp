@@ -81,50 +81,63 @@ npx vitest run src/server.test.ts -t "registry consistency"
 npx vitest run src/tools/read_note/
 ```
 
-**Expected**: All existing `read_note` tests pass without modification:
+**Expected**: All existing `read_note` tests pass without modification, AND the one new assertion added by T006/6b passes:
 
-- `schema.test.ts`: parser accepts both branches; rejects XOR violations and forbidden-keys-in-active.
+- `schema.test.ts`: parser accepts both branches; rejects XOR violations and forbidden-keys-in-active. **Plus** the new `readNoteInputJsonSchema is the target-mode companion export` body (added by T006 per /speckit-analyze finding M1 — closes Principle II co-location for the modified export).
 - `handler.test.ts`: handler routes through `invokeCli`, queues correctly, emits log events.
 - `tool.test.ts`: registration descriptor + handler envelope.
 
-**Why it matters**: Confirms FR-003 / FR-004 / FR-005 — the fix touches only the *published* schema; the runtime contract is frozen.
+**Why it matters**: Confirms FR-003 / FR-004 / FR-005 — the fix touches only the *published* schema; the runtime contract is frozen. The single new assertion in `schema.test.ts` is additive (one happy-path body) and does not modify any existing assertion.
 
 ---
 
-## Scenario 5 — Full test suite, full coverage (Constitution Gates #4, #5)
+## Scenario 5 — Full test suite, full coverage, no new error codes (Constitution Gates #4, #5; FR-009)
 
 ```powershell
 npm test
+git diff main..HEAD -- src/errors.ts
 ```
 
 **Expected**:
 
 - Every test in the repo passes (zero failing assertions).
 - Aggregate **statements** coverage in the V8 reporter meets the threshold in `vitest.config.ts`. The threshold MUST NOT be lowered as part of this fix (Constitution gate #5 — ratchet upward only).
+- **`git diff` against `src/errors.ts` is empty** (per /speckit-analyze finding L2 — closes FR-009 verification gap). The fix MUST NOT introduce a single new error code; if the diff is non-empty, the change has overshot scope.
 
-**Why it matters**: Constitution gate #4 (test suite passes) + gate #5 (coverage threshold passes) — both must pass before merge.
+**Why it matters**: Constitution gate #4 (test suite passes) + gate #5 (coverage threshold passes) + FR-009 (no new error codes) — all three must pass before merge.
 
 ---
 
-## Scenario 6 — End-to-end: server boots and `tools/list` is loadable by a real client (SC-002)
+## Scenario 6 — End-to-end: server boots and `tools/list` is loadable by real clients (SC-002, FR-008)
 
-This scenario is **manual** and is the user-visible acceptance check. Run the built server against a compliant MCP client:
+This scenario is **manual** and is the user-visible acceptance check. Run the built server against TWO pinned compliant MCP clients (per /speckit-analyze finding L3 — pinned for deterministic verification records):
+
+1. **MCP Inspector** (the official protocol-validation client).
+2. **Claude Code** (this project's primary developer-side client). Substitute **Claude Desktop** only if Claude Code is unavailable in the verifier's environment.
 
 ```powershell
 npm run build
 node dist/index.js
-# In another terminal, point an MCP client (MCP Inspector or Claude Desktop / Claude Code) at the running server.
-# Issue tools/list. Confirm the response has all 3 tools and no validation error.
+# In another terminal, point each of MCP Inspector and Claude Code at the running server.
+# Issue tools/list from each. Confirm the response has all 3 tools and no validation error.
 ```
 
-**Expected**:
+**Also verify the published-package install path** (per /speckit-analyze finding L1 — closing the FR-008 verification gap). Without this step, the verification only proves the local `dist/` artefact works, not the path users actually install through. Run the equivalent check via `npx @marwansaab/obsidian-cli-mcp@<candidate>` against a local pack tarball (`npm pack` → `npm install -g <tarball>`), or against the published `0.1.7-rc.<n>` candidate:
+
+```powershell
+npm pack
+npm install -g .\marwansaab-obsidian-cli-mcp-0.1.7.tgz
+obsidian-cli-mcp   # equivalent to dist/index.js but via the npm bin path
+```
+
+**Expected** (for both clients AND for both run modes — local `dist/` + npm install):
 
 - The client connects without complaint.
 - `tools/list` returns three tools: `help`, `obsidian_exec`, `read_note`.
 - Each tool's `inputSchema` field, as displayed by the client, has `"type": "object"` at the top level.
 - The `read_note` tool's `inputSchema.oneOf` is rendered as two distinct invocation shapes in the client's UI (where the client supports that — e.g., MCP Inspector's schema preview).
 
-**Why it matters**: This is the SC-002 verification — confirming the fix works against real clients, not just against the in-process registry test.
+**Why it matters**: This is the SC-002 + FR-008 verification — confirming the fix works against real clients (not just the in-process registry test) AND through the install path users actually take (not just the local build artefact).
 
 ---
 

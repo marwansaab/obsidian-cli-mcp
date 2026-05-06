@@ -84,7 +84,9 @@ Single-project TypeScript repo per [plan.md](plan.md) Project Structure: `src/` 
 
   **Dependency**: T004.
 
-- [ ] T006 [P] [US1] Re-point [src/tools/read_note/schema.ts](../../src/tools/read_note/schema.ts) to consume the primitive's companion export. Replace the file body with:
+- [ ] T006 [P] [US1] Re-point [src/tools/read_note/schema.ts](../../src/tools/read_note/schema.ts) to consume the primitive's companion export AND add a co-located happy-path assertion for the modified export to [src/tools/read_note/schema.test.ts](../../src/tools/read_note/schema.test.ts). Two file edits, both inside `src/tools/read_note/`.
+
+  **6a.** Replace the body of `schema.ts` with:
   ```ts
   // Original — no upstream. read_note input schema: re-export of the target-mode primitive (BI-029) — read_note adds zero tool-specific fields, so the primitive IS the schema. JSON Schema is the primitive's companion export, which goes through the envelope helper to satisfy MCP `Tool.inputSchema` (feature 007 / FR-002).
   import { targetModeSchema, targetModeJsonSchema, type TargetMode } from "../../target-mode/target-mode.js";
@@ -95,7 +97,22 @@ Single-project TypeScript repo per [plan.md](plan.md) Project Structure: `src/` 
   ```
   Remove the `import { zodToJsonSchema } from "zod-to-json-schema";` line — it is no longer used in this file. The downstream import at [src/tools/read_note/tool.ts:8](../../src/tools/read_note/tool.ts#L8) (`import { readNoteInputSchema, readNoteInputJsonSchema } from "./schema.js"`) continues to work without edit because both names are preserved.
 
-  **Dependency**: T004. (Independent of T005 — different file, no shared mutable state, hence [P].)
+  **6b.** Extend `schema.test.ts` (per /speckit-analyze finding M1 — closing the co-location gap for the modified `readNoteInputJsonSchema` export):
+  - Widen the existing import at line 4 to include `readNoteInputJsonSchema`:
+    ```ts
+    import { readNoteInputSchema, readNoteInputJsonSchema } from "./schema.js";
+    ```
+  - Add a new top-level import: `import { targetModeJsonSchema } from "../../target-mode/target-mode.js";`
+  - Append a new test body at the end of the file:
+    ```ts
+    test("readNoteInputJsonSchema is the target-mode companion export (FR-002, FR-002a)", () => {
+      expect(readNoteInputJsonSchema).toBe(targetModeJsonSchema);
+      expect((readNoteInputJsonSchema as { type?: unknown }).type).toBe("object");
+    });
+    ```
+  This brings co-located test coverage flush with the modified export, mirroring T003's retroactive coverage discipline for `_shared.ts` and T005's extension of `target-mode.test.ts`.
+
+  **Dependency**: T004. (Independent of T005 — different files, no shared mutable state, hence [P].)
 
 **Checkpoint**: User Story 1 is functionally delivered. The in-process `tools/list` response now returns valid descriptors. Acceptance can be verified ad-hoc; formal regression test arrives in Phase 5.
 
@@ -145,13 +162,17 @@ Single-project TypeScript repo per [plan.md](plan.md) Project Structure: `src/` 
 
 - [ ] T011 Run the full test suite with coverage: `npm test`. Confirm (a) zero failing tests, (b) the aggregate **statements** coverage threshold in [vitest.config.ts](../../vitest.config.ts) passes, (c) the threshold value itself is unchanged from the T001 baseline (Constitution Gate #5 — ratchet upward only). If coverage dropped below the threshold despite all new tests landing, investigate before proceeding — do NOT lower the threshold.
 
+  **Also confirm FR-009 (no new error codes)** — per /speckit-analyze finding L2: run `git diff main..HEAD -- src/errors.ts` and confirm the output is empty. The fix MUST NOT introduce a single new error code; if the diff is non-empty, the change has overshot scope. Record the empty diff in the PR description as evidence for FR-009.
+
   **Dependency**: All implementation tasks (T002–T010) complete.
 
 - [ ] T012 Run the constitution gates: `npm run typecheck && npm run lint && npm run build`. Confirm zero warnings, zero type errors, and a successful build artefact in `dist/`. (Gates #1, #2, #3.)
 
   **Dependency**: T011 (run after the test pass to fail-fast on test issues first).
 
-- [ ] T013 Manual end-to-end verification per [quickstart.md](quickstart.md) Scenarios 6 and 7: boot `node dist/index.js`, connect from a compliant MCP client (MCP Inspector + one other), confirm `tools/list` validates and returns all three tools, then call `read_note` with each branch (`{target_mode:"specific", vault, file}`, `{target_mode:"specific", vault, path}`, `{target_mode:"active"}`) plus the two error cases (XOR violation, forbidden vault in active). Record outcomes in the PR description.
+- [ ] T013 Manual end-to-end verification per [quickstart.md](quickstart.md) Scenarios 6 and 7: boot `node dist/index.js`, connect from **MCP Inspector** AND **Claude Code** (the two pinned clients per /speckit-analyze finding L3 — both are accessible to this project's developer; substitute Claude Desktop only if Claude Code is unavailable), confirm `tools/list` validates and returns all three tools, then call `read_note` with each branch (`{target_mode:"specific", vault, file}`, `{target_mode:"specific", vault, path}`, `{target_mode:"active"}`) plus the two error cases (XOR violation, forbidden vault in active). Record outcomes in the PR description.
+
+  **Also exercise the published-package install path explicitly** (per /speckit-analyze finding L1 — closing the FR-008 verification gap): in addition to running the local build, install the published 0.1.7 candidate via `npm install -g @marwansaab/obsidian-cli-mcp@<candidate-version>` (or use `npx @marwansaab/obsidian-cli-mcp@<candidate-version>` against an unpublished local pack via `npm pack`) and confirm the same `tools/list` validation and smoke-call results hold. This proves the fix is reachable through the npm install path users actually take, not only through the local `dist/`.
 
   **Dependency**: T012 (built artefact required).
 
