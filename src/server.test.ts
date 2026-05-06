@@ -186,6 +186,27 @@ describe("registry consistency", () => {
       expect(hasNestedDescription(tool.inputSchema), `Tool '${tool.name}' has a nested description in inputSchema`).toBe(false);
     }
   });
+
+  // Invariant (c) — feature 007: every registered tool's published inputSchema
+  // declares `type: "object"` at the top level. The MCP `Tool` definition
+  // requires this, and 0.1.6 shipped without the guarantee — read_note's
+  // discriminated-union zod rendered as top-level `anyOf`, breaking
+  // `tools/list` for compliant clients. The block iterates over the live
+  // registry so future tool BIs are covered automatically.
+  it("every registered tool's inputSchema declares type === 'object' at the top level (Story 1 AC#2, FR-002, FR-006, SC-001)", async () => {
+    const { ctx } = makeContext();
+    const { server } = createServer(ctx);
+    const handlers = (server as unknown as { _requestHandlers: Map<string, (req: unknown) => Promise<unknown>> })._requestHandlers;
+    const listHandler = handlers.get("tools/list");
+    const result = (await listHandler!({ method: "tools/list", params: {} })) as { tools: { name: string; inputSchema: unknown }[] };
+    for (const tool of result.tools) {
+      const actualType = (tool.inputSchema as { type?: unknown } | null | undefined)?.type;
+      expect(
+        actualType,
+        `Tool '${tool.name}' has inputSchema.type === ${JSON.stringify(actualType)}, expected "object"`,
+      ).toBe("object");
+    }
+  });
 });
 
 function hasNestedDescription(node: unknown): boolean {
