@@ -160,6 +160,14 @@ Bounds defaults: `OBSIDIAN_EXEC_DEFAULT_TIMEOUT_MS = 30_000`, `OBSIDIAN_EXEC_OUT
 
 ## 8. In-flight child registry — `_dispatch.ts` module-level state
 
+**Terminology glossary** — three terms appear across spec / plan / data-model for the same module-level concept; all map to the single mutable cell below:
+
+- *active-child slot* — spec.md uses this when describing today's pre-feature state at [src/tools/obsidian_exec/handler.ts:31](../../src/tools/obsidian_exec/handler.ts#L31). Historical name; do not introduce in new code.
+- *in-flight child registry* — spec.md / plan.md / contracts use this for the post-feature naming. Conceptual term — what the cell represents.
+- *in-flight child cell* — data-model uses this when describing the implementation choice (single mutable cell vs `Set`). Implementation term — how the registry is realized today.
+
+The exported function name `killInFlightChildren` (plural) anticipates a future `Set`-based realization without requiring a rename (FR-016). Today's single-cell realization is sound because the FIFO single-flight queue ([src/queue.ts](../../src/queue.ts)) guarantees at-most-one CLI child in flight at any moment.
+
 ```ts
 // src/cli-adapter/_dispatch.ts (module-private)
 let inFlightChild: ChildProcess | null = null;
