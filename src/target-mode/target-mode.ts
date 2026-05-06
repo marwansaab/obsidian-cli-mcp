@@ -1,5 +1,7 @@
-// Original — no upstream. Shared zod discriminated-union schema primitives for target_mode (ADR-003 / BI-029).
+// Original — no upstream. Shared zod discriminated-union schema primitives for target_mode (ADR-003 / BI-029) plus the companion published-JSON-Schema export (feature 007 / FR-002).
 import { z } from "zod";
+
+import { toMcpInputSchema } from "../tools/_shared.js";
 
 const FORBIDDEN_KEYS_IN_ACTIVE = ["vault", "file", "path"] as const;
 
@@ -95,3 +97,12 @@ export const targetModeSchema = targetModeBaseUnion.superRefine((input, ctx) => 
 });
 
 export type TargetMode = z.infer<typeof targetModeSchema>;
+
+// Companion JSON Schema export — feature 007 / FR-002. Renders targetModeSchema
+// through the envelope helper so the published descriptor has top-level
+// `type: "object"` (the MCP `Tool` definition's binding constraint) while still
+// exposing the two-branch shape via nested `oneOf` per Clarifications 2026-05-06
+// Q1 / FR-002a. Every consumer that re-exports targetModeSchema as its tool's
+// input schema (today: read_note; tomorrow: read_heading et al.) imports this
+// companion instead of running zodToJsonSchema themselves.
+export const targetModeJsonSchema = toMcpInputSchema(targetModeSchema);
