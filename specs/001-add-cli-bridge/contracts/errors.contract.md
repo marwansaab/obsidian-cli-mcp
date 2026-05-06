@@ -131,6 +131,30 @@ The spawned `obsidian` child exited cleanly with code `0`, but its `stdout` — 
 
 > **Priority discrimination**: `ERR_NO_ACTIVE_FILE` and `CLI_REPORTED_ERROR` share the `Error:` family of in-band detection prefixes. The adapter's classification machine evaluates `ERR_NO_ACTIVE_FILE` (priority b) before `CLI_REPORTED_ERROR` (priority c) so that stdout starting with the longer literal `Error: no active file. Open one.` always classifies as `ERR_NO_ACTIVE_FILE` — never as `CLI_REPORTED_ERROR`. The legacy `obsidian_exec` handler does not split these and surfaces both as `CLI_REPORTED_ERROR`.
 
+### `HELP_TOOL_NOT_FOUND`
+
+The `help` MCP tool received a `tool_name` that does not resolve to a `<tool_name>.md` file inside the bundled `docs/tools/` directory — either because the file genuinely does not exist OR because the resolved path escapes `docs/tools/` (a path-traversal probe) OR because the literal name `"index"` was requested (the index page is reached via the no-argument call, so this name is reserved). Per 005 FR-010 and the path-traversal defense (P4 in [005's research.md](../../005-help-tool/research.md#plan-stage-decisions-resolved-during-this-phase-0)), all three cases surface as the same code so a probe cannot distinguish "wrong name" from "tried to escape." Spec source: 005 FR-008 (third bullet), 005 Clarification Q4. Triggered exclusively by [src/tools/help/handler.ts](../../../src/tools/help/handler.ts).
+
+| Field | Value |
+|-------|-------|
+| `code` | `"HELP_TOOL_NOT_FOUND"` |
+| `cause` | `NodeJS.ErrnoException` (the underlying `ENOENT` from `readFile`) — OR `null` when the failure is path-traversal-defense (no I/O attempted), NUL-byte rejection, or the reserved `"index"` name (no I/O attempted). |
+| `Error.message` | `"No documentation file for the requested tool. Available tools: <comma-separated list>."` — does NOT echo `requestedName` (FR-010 anti-injection). The available-tools list is constructed by `readdir(docsDir)` filtered to `.md` files, excluding `index.md`, sorted alphabetically. |
+| `details.requestedName` | `string` — the original `tool_name` value the agent supplied. Preserved for operator-side debugging (operators read structured logs; the agent-facing message is sanitized). |
+| `details.availableTools` | `string[]` — the `.md` filenames in `docs/tools/`, with the `.md` extension stripped, excluding `index.md`, sorted alphabetically. The same list that appears (comma-joined) in `Error.message`. |
+
+### `HELP_DOCS_MISSING`
+
+The `help` MCP tool resolved its docs directory path but the directory itself is missing, unreadable, or is not a directory. Detected by an `access()` (or equivalent stat) call at the start of the handler, BEFORE per-tool resolution — so this branch fires regardless of whether `tool_name` was provided in the input. Indicates a packaging or install integrity failure: the `docs/tools/` directory should ship with the npm release (per 005 FR-014 — `package.json` `files` array includes `"docs/tools/**/*.md"`). Recovery is operator-side (publish/install fix), NOT agent-side. Spec source: 005 FR-008 (fourth bullet), 005 Clarification Q4. Triggered exclusively by [src/tools/help/handler.ts](../../../src/tools/help/handler.ts).
+
+| Field | Value |
+|-------|-------|
+| `code` | `"HELP_DOCS_MISSING"` |
+| `cause` | `NodeJS.ErrnoException` — the underlying I/O error from `access()` / `stat()`. |
+| `Error.message` | `"docs/tools/ directory missing or unreadable at <resolvedDocsDir>"` — the resolved absolute path is included in the message so operators can see immediately what location the help tool was looking at. |
+| `details.resolvedDocsDir` | `string` — the absolute path the help tool resolved (from `import.meta.url`). |
+| `details.ioCode` | `string \| undefined` — the underlying I/O error code where available (`"ENOENT"`, `"ENOTDIR"`, `"EACCES"`, …). Undefined if the cause does not carry a `code` property. |
+
 ## Serialization to MCP
 
 When an `UpstreamError` is thrown from inside the MCP tool handler, the SDK serializes it via the `CallToolResult` `isError: true` shape:
@@ -157,7 +181,7 @@ The text payload is the JSON serialization of:
 }
 ```
 
-`cause` is omitted from the serialized payload because Node `Error` objects don't serialize cleanly to JSON; the relevant context from `cause` is duplicated into `details` for the codes above where applicable (e.g., `details.exitCode` and `details.signal` mirror `cause.exitCode`/`cause.signal` for `CLI_NON_ZERO_EXIT`). For `CLI_REPORTED_ERROR`, `ERR_NO_ACTIVE_FILE`, `VALIDATION_ERROR`, and `TOOL_NOT_FOUND`, no cause-mirroring is needed: `CLI_REPORTED_ERROR`, `ERR_NO_ACTIVE_FILE`, and `TOOL_NOT_FOUND` have `cause: null`, and `VALIDATION_ERROR`'s `details.issues` already projects the relevant `ZodError` content. MCP clients should match on `code` first and consult `details` per the table above.
+`cause` is omitted from the serialized payload because Node `Error` objects don't serialize cleanly to JSON; the relevant context from `cause` is duplicated into `details` for the codes above where applicable (e.g., `details.exitCode` and `details.signal` mirror `cause.exitCode`/`cause.signal` for `CLI_NON_ZERO_EXIT`). For `CLI_REPORTED_ERROR`, `ERR_NO_ACTIVE_FILE`, `VALIDATION_ERROR`, `TOOL_NOT_FOUND`, `HELP_TOOL_NOT_FOUND`, and `HELP_DOCS_MISSING`, no cause-mirroring is needed: `CLI_REPORTED_ERROR`, `ERR_NO_ACTIVE_FILE`, `TOOL_NOT_FOUND`, and `HELP_TOOL_NOT_FOUND` have `cause: null` (or `cause: NodeJS.ErrnoException` whose relevant fields are duplicated into `details.requestedName`/`availableTools`); `VALIDATION_ERROR`'s `details.issues` already projects the relevant `ZodError` content; and `HELP_DOCS_MISSING.details.{resolvedDocsDir, ioCode}` mirrors the underlying I/O error's relevant fields. MCP clients should match on `code` first and consult `details` per the table above.
 
 ## Test coverage requirements (Principle II)
 
@@ -165,3 +189,8 @@ The text payload is the JSON serialization of:
 - [src/tools/obsidian_exec/handler.test.ts](../../../src/tools/obsidian_exec/handler.test.ts) — each of the five legacy-handler `code` paths is asserted (`CLI_NON_ZERO_EXIT`, `CLI_BINARY_NOT_FOUND`, `CLI_TIMEOUT`, `CLI_OUTPUT_TOO_LARGE`, `CLI_REPORTED_ERROR`); each path corresponds to an FR.
 - [src/tools/obsidian_exec/tool.test.ts](../../../src/tools/obsidian_exec/tool.test.ts) — the two dispatch-layer codes (`VALIDATION_ERROR`, `TOOL_NOT_FOUND`) are each asserted.
 - [src/cli-adapter/cli-adapter.test.ts](../../../src/cli-adapter/cli-adapter.test.ts) — each of the four adapter-layer `code` paths is asserted (`CLI_NON_ZERO_EXIT`, `ERR_NO_ACTIVE_FILE`, `CLI_REPORTED_ERROR`, `CLI_BINARY_NOT_FOUND`) along with priority-discrimination boundaries (FR-016 a–j).
+- [src/help/strip-schema.test.ts](../../../src/help/strip-schema.test.ts) — does NOT exercise an `UpstreamError` code (the strip utility is a pure function that raises no errors); included for completeness — the strip utility is consumed by every tool registration site, including the ones that emit the codes above and the new `HELP_*` codes.
+- [src/tools/help/schema.test.ts](../../../src/tools/help/schema.test.ts) — the `VALIDATION_ERROR` path for the help tool (empty-string `tool_name`, non-string `tool_name`, unknown keys via `.strict()`).
+- [src/tools/help/handler.test.ts](../../../src/tools/help/handler.test.ts) — both new help-tool codes are exercised: `HELP_TOOL_NOT_FOUND` (unknown tool, path-traversal probe, NUL-byte probe, reserved `"index"` name per the 005 L1a remediation) and `HELP_DOCS_MISSING` (missing directory). Plus the two success branches (named tool, omitted name) and the three Edge Case scenarios from 005's L1 remediation (reserved-name guard, empty file, orphan).
+- [src/tools/help/tool.test.ts](../../../src/tools/help/tool.test.ts) — `HELP_TOOL_NOT_FOUND` round-trip through the SDK error-response shape.
+- [src/server.test.ts](../../../src/server.test.ts) — the `describe("registry consistency", ...)` block per [005's plan §P6](../../005-help-tool/plan.md#plan-stage-decisions-resolved-during-this-phase-0) asserts (a) every registered tool has a corresponding `docs/tools/<tool_name>.md` file, AND (b) every registered tool's `inputSchema.properties` tree is description-free at every depth (the bypass-detection assertion). The block does not exercise a `code` directly, but it is the ratchet that prevents a future regression where `HELP_TOOL_NOT_FOUND` would fire at runtime for a registered-but-undoc'd tool.

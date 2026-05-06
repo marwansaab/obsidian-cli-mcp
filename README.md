@@ -113,7 +113,9 @@ Errors are returned via the MCP SDK's `isError: true` shape with a JSON-encoded 
 | `CLI_REPORTED_ERROR` | CLI exits 0 with stdout that, after leading-whitespace trim, starts with `Error:` | `argv`, `stdout`, `stderr`, `exitCode`, `message` |
 | `ERR_NO_ACTIVE_FILE` | CLI exits 0 with stdout that, after leading-whitespace trim, starts with `Error: no active file` (focused-note-missing failure mode; raised by the typed-tool adapter, not the legacy `obsidian_exec` handler) | `command`, `stdout`, `stderr`, `exitCode`, `message` |
 | `VALIDATION_ERROR` | Input failed zod validation | `issues[]` (path, message, code) |
-| `TOOL_NOT_FOUND` | Caller named a tool other than `obsidian_exec` | `requestedName`, `knownTools` |
+| `TOOL_NOT_FOUND` | Caller named a tool not in the registered set | `requestedName`, `knownTools` |
+| `HELP_TOOL_NOT_FOUND` | `help` was called with a `tool_name` that has no `<name>.md` in `docs/tools/` (or hits the path-traversal defense, or the reserved `"index"` name) | `requestedName`, `availableTools` |
+| `HELP_DOCS_MISSING` | The bundled `docs/tools/` directory is missing or unreadable (packaging/install integrity failure — operator-side fix, not agent-recoverable) | `resolvedDocsDir`, `ioCode` |
 
 Full error contract: [specs/001-add-cli-bridge/contracts/errors.contract.md](specs/001-add-cli-bridge/contracts/errors.contract.md).
 

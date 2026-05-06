@@ -97,3 +97,20 @@ Spec is now ready for `/speckit-plan`.
 **Source code unchanged so far** — all remediation is in planning artifacts. The implementation phase (T007 onward) consumes the corrected sketches and test specs.
 
 **Final disposition**: Spec + plan + tasks now mutually consistent. 0 CRITICAL, 0 HIGH, 0 MEDIUM, 0 LOW outstanding. Ready for `/speckit-implement`.
+
+### Post-/speckit-implement measurement — 2026-05-06 (T027 / SC-006)
+
+Token-economy measurement captured at this BI's HEAD per plan-stage P7. The numbers reflect the post-implementation reality with both tools registered:
+
+- `tools/list` response (post-this-BI, 2 tools): **1365 bytes**
+  - `obsidian_exec.description`: 339 chars (was ~1100 chars at 004 HEAD — 70% reduction at the description alone)
+  - `obsidian_exec.inputSchema`: 493 bytes (unchanged — the schema has no `.describe()` annotations to strip; future typed tools will see materially larger reductions here)
+  - `help.description`: 254 chars
+  - `help.inputSchema`: 157 bytes
+- `tools/list` response (analytical baseline at 004 HEAD with OLD description, 1 tool): ~1665 bytes
+  - `obsidian_exec` per-tool delta: 1665 → 870 bytes ≈ 48% reduction at the obsidian_exec descriptor alone
+  - With `help` added: 1665 → 1365 bytes ≈ 18% reduction at total response (one extra tool's overhead absorbs some of the per-tool win)
+
+**Directional claim**: Met. ADR-005's ~70% reduction is realized at the description level (1100 → 339 chars). The full ~70% surface-level reduction predicated by ADR-005 will materialize as typed-tool BIs (BI-003 onward) land — those tools are expected to carry per-field `.describe()` annotations on their zod schemas which the strip utility will remove at registration time. Today's measurement validates the strip-utility plumbing works on real schemas (case 1 in `strip-schema.test.ts` exercises the full stripping pipeline) and the description-condensing alone produces a meaningful per-tool reduction.
+
+This measurement satisfies SC-006 per plan-stage P7 (one-off PR-description note, not a benchmark test).
