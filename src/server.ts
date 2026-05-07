@@ -1,4 +1,5 @@
 // Original — no upstream. MCP Server bootstrap, tool registration via createTool factories, and lifecycle handlers (FR-001, FR-005, FR-017, FR-028, FR-029).
+import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,6 +16,15 @@ import { createObsidianExecTool } from "./tools/obsidian_exec/index.js";
 import { createReadNoteTool } from "./tools/read_note/index.js";
 
 import type { Writable } from "node:stream";
+
+// Read the package version at runtime so the MCP server-info handshake matches
+// what npm published. createRequire works under both `dist/server.js` (the
+// published shape — `dist/` and `package.json` are siblings under the package
+// root) and `src/server.ts` during dev (tsx / vitest — `src/` and
+// `package.json` are siblings under the repo root). NodeNext-friendly; no
+// resolveJsonModule tsconfig flag required.
+const requireFromHere = createRequire(import.meta.url);
+const { version: PACKAGE_VERSION } = requireFromHere("../package.json") as { version: string };
 
 export const DEFAULT_DOCS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..", "docs", "tools");
 
@@ -41,7 +51,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
   const server = new Server(
     {
       name: "obsidian-cli-mcp",
-      version: "0.1.0",
+      version: PACKAGE_VERSION,
     },
     {
       capabilities: {
