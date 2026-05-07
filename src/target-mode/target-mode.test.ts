@@ -1,25 +1,21 @@
-// Original — no upstream. Co-located vitest cases for the target-mode primitive (FR-012: 16 AC + 13 edge + 3 type assertions).
+// Original — no upstream. Co-located vitest cases for the target-mode primitive (post-010 flat encoding).
 import { describe, it, expect, expectTypeOf } from "vitest";
 import { z } from "zod";
 
 import {
-  applyTargetModeActiveRefinement,
-  applyTargetModeSpecificRefinement,
-  targetModeActiveBaseSchema,
-  targetModeActiveSchema,
+  applyTargetModeRefinement,
+  targetModeBaseSchema,
   targetModeSchema,
-  targetModeSpecificBaseSchema,
-  targetModeSpecificSchema,
   type TargetMode,
 } from "./target-mode.js";
 
 describe("target-mode primitive", () => {
   // -----------------------------------------------------------------------------------------------
-  // Story 1 — specific-mode validation (T007 happy path, T008 failure paths)
+  // Story 1 — specific-mode validation (six cases migrated from per-mode export to flat schema)
   // -----------------------------------------------------------------------------------------------
 
   it("Story 1 AC #1 — accepts {specific, vault, file}", () => {
-    const r = targetModeSpecificSchema.safeParse({
+    const r = targetModeSchema.safeParse({
       target_mode: "specific",
       vault: "MyVault",
       file: "Note",
@@ -27,25 +23,25 @@ describe("target-mode primitive", () => {
     expect(r.success).toBe(true);
     if (r.success) {
       expect(r.data.target_mode).toBe("specific");
-      expect((r.data as { vault: string }).vault).toBe("MyVault");
-      expect((r.data as { file?: string }).file).toBe("Note");
+      expect(r.data.vault).toBe("MyVault");
+      expect(r.data.file).toBe("Note");
     }
   });
 
   it("Story 1 AC #2 — accepts {specific, vault, path}", () => {
-    const r = targetModeSpecificSchema.safeParse({
+    const r = targetModeSchema.safeParse({
       target_mode: "specific",
       vault: "MyVault",
       path: "Notes/Note.md",
     });
     expect(r.success).toBe(true);
     if (r.success) {
-      expect((r.data as { path?: string }).path).toBe("Notes/Note.md");
+      expect(r.data.path).toBe("Notes/Note.md");
     }
   });
 
   it("Story 1 AC #3 — rejects {specific, vault} with no locator", () => {
-    const r = targetModeSpecificSchema.safeParse({
+    const r = targetModeSchema.safeParse({
       target_mode: "specific",
       vault: "MyVault",
     });
@@ -56,7 +52,7 @@ describe("target-mode primitive", () => {
   });
 
   it("Story 1 AC #4 — rejects {specific, vault, file, path} (both locators)", () => {
-    const r = targetModeSpecificSchema.safeParse({
+    const r = targetModeSchema.safeParse({
       target_mode: "specific",
       vault: "MyVault",
       file: "Note",
@@ -69,7 +65,7 @@ describe("target-mode primitive", () => {
   });
 
   it("Story 1 AC #5 — rejects {specific, file} (vault missing)", () => {
-    const r = targetModeSpecificSchema.safeParse({
+    const r = targetModeSchema.safeParse({
       target_mode: "specific",
       file: "Note",
     });
@@ -80,7 +76,7 @@ describe("target-mode primitive", () => {
   });
 
   it("Story 1 AC #6 — rejects {specific, vault: '', file} (vault empty)", () => {
-    const r = targetModeSpecificSchema.safeParse({
+    const r = targetModeSchema.safeParse({
       target_mode: "specific",
       vault: "",
       file: "Note",
@@ -94,11 +90,11 @@ describe("target-mode primitive", () => {
   });
 
   // -----------------------------------------------------------------------------------------------
-  // Story 2 — active-mode validation (T013 happy path, T014 forbidden-key failures)
+  // Story 2 — active-mode validation (four cases migrated from per-mode export to flat schema)
   // -----------------------------------------------------------------------------------------------
 
   it("Story 2 AC #1 — accepts {active}", () => {
-    const r = targetModeActiveSchema.safeParse({ target_mode: "active" });
+    const r = targetModeSchema.safeParse({ target_mode: "active" });
     expect(r.success).toBe(true);
     if (r.success) {
       expect(r.data.target_mode).toBe("active");
@@ -112,7 +108,7 @@ describe("target-mode primitive", () => {
   ] as const)(
     "Story 2 AC #2-#4 — rejects {active, %s} with key-named, recovery-free message",
     (key, value) => {
-      const r = targetModeActiveSchema.safeParse({
+      const r = targetModeSchema.safeParse({
         target_mode: "active",
         [key]: value,
       });
@@ -129,24 +125,26 @@ describe("target-mode primitive", () => {
     },
   );
 
-  // -----------------------------------------------------------------------------------------------
-  // Story 3 — composability (T017 invalid discriminator, T018-T020 patterns)
-  // -----------------------------------------------------------------------------------------------
-
   it("Story 2 AC #5 — rejects unknown target_mode discriminator", () => {
     const r = targetModeSchema.safeParse({ target_mode: "unknown" });
     expect(r.success).toBe(false);
     if (!r.success) {
       const issue = r.error.issues.find((i) => i.path.includes("target_mode"));
       expect(issue).toBeDefined();
-      expect(issue!.code).toMatch(/invalid_union_discriminator|invalid_literal/);
+      expect(issue!.code).toMatch(/invalid_enum_value|invalid_union_discriminator|invalid_literal/);
       expect(issue!.message).toContain("specific");
       expect(issue!.message).toContain("active");
     }
   });
 
-  describe("Story 3 — Pattern (a) uniform extension via .and()", () => {
-    const writeNoteSchemaA = targetModeSchema.and(z.object({ content: z.string() }));
+  // -----------------------------------------------------------------------------------------------
+  // Story 3 — Pattern (a) extension via applyTargetModeRefinement(base.extend({...})) (R2)
+  // -----------------------------------------------------------------------------------------------
+
+  describe("Story 3 — Pattern (a) extension via applyTargetModeRefinement(base.extend(...))", () => {
+    const writeNoteSchemaA = applyTargetModeRefinement(
+      targetModeBaseSchema.extend({ content: z.string() }),
+    );
 
     it("Story 3 AC #1 — well-formed specific input parses with content", () => {
       const r = writeNoteSchemaA.safeParse({
@@ -157,11 +155,11 @@ describe("target-mode primitive", () => {
       });
       expect(r.success).toBe(true);
       if (r.success) {
-        expect((r.data as { content: string }).content).toBe("Hello");
+        expect(r.data.content).toBe("Hello");
       }
     });
 
-    it("Story 3 AC #2 — active-mode forbidden-key rule survives intersection", () => {
+    it("Story 3 AC #2 — active-mode forbidden-key rule survives extension", () => {
       const r = writeNoteSchemaA.safeParse({
         target_mode: "active",
         vault: "V",
@@ -184,120 +182,59 @@ describe("target-mode primitive", () => {
         expect(r.error.issues.some((i) => i.path.includes("content"))).toBe(true);
       }
     });
-
-    // Note: feature-008 SC-002 binding — the publication path (zod → JSON
-    // Schema) is now owned solely by `registerTool`. The "round-trip survival"
-    // smoke test that previously lived here is covered by `registerTool`'s
-    // co-located tests, which exercise the actual publication path against
-    // composed schemas (including discriminated unions). Calling zod-to-json-
-    // schema directly from this primitive's tests would re-introduce the
-    // bypass that SC-002 forbids.
-  });
-
-  it("Story 3 AC #5 — Pattern (b) per-branch divergent extension", () => {
-    // Pattern (b) workaround for zod 3.x's discriminator-must-be-ZodObject
-    // constraint: extend the BASE schemas, build the discriminated union from the
-    // extended bases, then dispatch to the per-branch refinement helpers from a
-    // union-level superRefine. The helpers (applyTargetMode*Refinement) are
-    // exported for direct standalone validation; here we re-parse the input
-    // through them and propagate the resulting issues into the union's context
-    // so per-branch refinements still fire end-to-end.
-    const specificExtended = targetModeSpecificBaseSchema.extend({
-      contentForSpecific: z.string(),
-    });
-    const activeExtended = targetModeActiveBaseSchema.extend({
-      contentForActive: z.string(),
-    });
-    const writeNoteSchemaB = z
-      .discriminatedUnion("target_mode", [specificExtended, activeExtended])
-      .superRefine((input, ctx) => {
-        const refined =
-          input.target_mode === "specific"
-            ? applyTargetModeSpecificRefinement(specificExtended)
-            : applyTargetModeActiveRefinement(activeExtended);
-        const r = refined.safeParse(input);
-        if (!r.success) {
-          for (const issue of r.error.issues) {
-            ctx.addIssue(issue);
-          }
-        }
-      });
-
-    const r1 = writeNoteSchemaB.safeParse({
-      target_mode: "specific",
-      vault: "V",
-      file: "F",
-      contentForSpecific: "S",
-    });
-    expect(r1.success).toBe(true);
-    if (r1.success) {
-      expect((r1.data as { contentForSpecific: string }).contentForSpecific).toBe("S");
-    }
-
-    const r2 = writeNoteSchemaB.safeParse({
-      target_mode: "active",
-      contentForActive: "A",
-    });
-    expect(r2.success).toBe(true);
-    if (r2.success) {
-      expect((r2.data as { contentForActive: string }).contentForActive).toBe("A");
-    }
-
-    const r3 = writeNoteSchemaB.safeParse({
-      target_mode: "active",
-      contentForSpecific: "S",
-    });
-    expect(r3.success).toBe(false);
-    if (!r3.success) {
-      expect(r3.error.issues.some((i) => i.path.includes("contentForActive"))).toBe(true);
-    }
   });
 
   // -----------------------------------------------------------------------------------------------
-  // Story 4 — type-system assertions (T021)
+  // Story 4 — type-system assertions (post-010 flat shape)
   // -----------------------------------------------------------------------------------------------
 
-  it("Story 4 AC #1 — TargetMode narrows to specific shape on discriminator", () => {
-    expectTypeOf<Extract<TargetMode, { target_mode: "specific" }>>().toExtend<{
-      target_mode: "specific";
-      vault: string;
+  it("Story 4 AC #1 — TargetMode is a flat object type with optional locators (no index signature)", () => {
+    expectTypeOf<TargetMode>().toEqualTypeOf<{
+      target_mode: "specific" | "active";
+      vault?: string;
       file?: string;
       path?: string;
     }>();
   });
 
-  it("Story 4 AC #2 — TargetMode narrows to active shape on discriminator", () => {
-    // Note: active-branch forbidden-key rule is runtime-only; passthrough
-    // catchall admits {[k]: unknown} at the type level (FR-005). Runtime
-    // enforcement is covered by the Story 2 AC #2-#4 cases above.
+  it("Story 4 AC #2 — active-only TargetMode value is structurally valid", () => {
     const activeOnly: TargetMode = { target_mode: "active" };
     expectTypeOf(activeOnly).toExtend<TargetMode>();
-    expectTypeOf<Extract<TargetMode, { target_mode: "active" }>>().toExtend<{
-      target_mode: "active";
-    }>();
   });
 
   // -----------------------------------------------------------------------------------------------
-  // Edge cases (T022) — 13 boundary scenarios from the spec's Edge Cases section
+  // Edge cases — boundary scenarios. Edge cases #1 and #2 flip from pre-010 passthrough behaviour
+  // to the post-010 strict-mode carve-out (FR-002 / clarification C3): unknown top-level keys now
+  // produce VALIDATION_ERROR with code "unrecognized_keys" instead of being silently passed through.
   // -----------------------------------------------------------------------------------------------
 
   describe("edge cases", () => {
-    it("1. specific + extra unknown key passes (passthrough at base)", () => {
+    it("1. specific + extra unknown key → rejected (strict-mode carve-out)", () => {
       const r = targetModeSchema.safeParse({
         target_mode: "specific",
         vault: "V",
         file: "F",
         unrelated: "x",
       });
-      expect(r.success).toBe(true);
+      expect(r.success).toBe(false);
+      if (!r.success) {
+        const issue = r.error.issues.find((i) => i.code === "unrecognized_keys");
+        expect(issue).toBeDefined();
+        expect((issue as { keys: string[] }).keys).toContain("unrelated");
+      }
     });
 
-    it("2. active + extra non-locator key passes (only the three locator keys are forbidden)", () => {
+    it("2. active + extra non-locator key → rejected (strict-mode carve-out)", () => {
       const r = targetModeSchema.safeParse({
         target_mode: "active",
         lines: 5,
       });
-      expect(r.success).toBe(true);
+      expect(r.success).toBe(false);
+      if (!r.success) {
+        const issue = r.error.issues.find((i) => i.code === "unrecognized_keys");
+        expect(issue).toBeDefined();
+        expect((issue as { keys: string[] }).keys).toContain("lines");
+      }
     });
 
     it("3. target_mode field absent → discriminator-required", () => {
@@ -346,19 +283,12 @@ describe("target-mode primitive", () => {
       expect(r.success).toBe(true);
     });
 
-    it("8. active + explicit-undefined forbidden key → succeeds (zod strips undefined-valued passthrough keys before refinement runs)", () => {
-      // Spec Edge Case #8 was authored assuming Object.hasOwn would catch
-      // undefined-valued forbidden keys. In practice, zod's mergeObjectSync
-      // (parseUtil.js: `typeof value.value !== "undefined" || pair.alwaysSet`)
-      // drops passthrough keys whose value is undefined, so by the time the
-      // union-level superRefine dispatcher runs the `vault: undefined` entry
-      // has been stripped. The semantic outcome — the key contributes nothing
-      // to the parsed output — matches the absent-key case (Edge Case #11).
-      // Switching the active base from .passthrough() to .strict() would catch
-      // undefined-valued extras but would break Pattern (a) composition
-      // (FR-005), so passthrough is the binding constraint and this test
-      // documents the resulting zod behavior. A future regression in zod's
-      // strip logic would surface here.
+    it("8. active + explicit-undefined known optional key → succeeds (zod strips undefined-valued optional keys before refinement runs)", () => {
+      // vault is a known optional key — `.strict()` does not reject it.
+      // zod strips optional-keyed undefined values from the parsed output, so by
+      // the time the superRefine dispatcher runs, Object.hasOwn(input, "vault")
+      // is false and the active-mode forbidden-key rule does not fire. Semantic
+      // outcome — the key contributes nothing — matches the absent-key case.
       const r = targetModeSchema.safeParse({
         target_mode: "active",
         vault: undefined,
@@ -366,7 +296,7 @@ describe("target-mode primitive", () => {
       expect(r.success).toBe(true);
     });
 
-    it("9. discriminator typo 'Specific' (capital S) → fails (case-sensitive literal)", () => {
+    it("9. discriminator typo 'Specific' (capital S) → fails (case-sensitive enum)", () => {
       const r = targetModeSchema.safeParse({ target_mode: "Specific" });
       expect(r.success).toBe(false);
     });
@@ -388,37 +318,72 @@ describe("target-mode primitive", () => {
       const r = targetModeSchema.safeParse("specific");
       expect(r.success).toBe(false);
     });
+  });
 
-    it("13. composed schema with name-collision is the consuming tool's responsibility", () => {
-      // The primitive does not police downstream extensions that re-declare
-      // `vault` on the active branch — that's a self-contradictory composition
-      // the consuming tool MUST avoid. Demonstrated here via runtime parse: the
-      // active-branch forbidden-key rule still fires (vault is forbidden in
-      // active mode), so the collision is detected at parse time even though
-      // the type system would allow the extension declaration.
-      const collision = z
-        .discriminatedUnion("target_mode", [
-          targetModeSpecificBaseSchema,
-          targetModeActiveBaseSchema.extend({ vault: z.string() }),
-        ])
-        .superRefine((input, ctx) => {
-          if (input.target_mode === "active") {
-            // Re-apply the active refinement; vault will trip the forbidden-key check.
-            const refined = applyTargetModeActiveRefinement(
-              targetModeActiveBaseSchema.extend({ vault: z.string() }),
-            );
-            const rr = refined.safeParse(input);
-            if (!rr.success) {
-              for (const issue of rr.error.issues) ctx.addIssue(issue);
-            }
-          }
-        });
-      const r = collision.safeParse({ target_mode: "active", vault: "V" });
+  // -----------------------------------------------------------------------------------------------
+  // N1 — strict-mode boundary (R4 / FR-002 carve-out): unknown top-level keys produce
+  // VALIDATION_ERROR with code "unrecognized_keys", path: [], keys: ["<offending>"].
+  // -----------------------------------------------------------------------------------------------
+
+  it("N1 — strict-mode rejection of unknown top-level key surfaces zod's unrecognized_keys issue shape", () => {
+    const r = targetModeSchema.safeParse({ target_mode: "active", random: "x" });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      const issues = r.error.issues;
+      expect(issues).toHaveLength(1);
+      const issue = issues[0]!;
+      expect(issue.code).toBe("unrecognized_keys");
+      expect((issue as unknown as { keys: string[] }).keys).toEqual(["random"]);
+      expect(issue.path).toEqual([]);
+    }
+  });
+
+  // -----------------------------------------------------------------------------------------------
+  // N2 — extension happy-path (R2): applyTargetModeRefinement preserves .strict() through .extend().
+  // -----------------------------------------------------------------------------------------------
+
+  describe("N2 — applyTargetModeRefinement preserves .strict() through .extend()", () => {
+    const extended = applyTargetModeRefinement(
+      targetModeBaseSchema.extend({ note_text: z.string() }),
+    );
+
+    it("accepts {specific, vault, file, note_text}", () => {
+      const r = extended.safeParse({
+        target_mode: "specific",
+        vault: "V",
+        file: "F",
+        note_text: "x",
+      });
+      expect(r.success).toBe(true);
+      if (r.success) {
+        expect(r.data.note_text).toBe("x");
+      }
+    });
+
+    it("rejects unknown top-level key on extended schema (.extend() preserved .strict())", () => {
+      const r = extended.safeParse({
+        target_mode: "specific",
+        vault: "V",
+        file: "F",
+        note_text: "x",
+        typo: "y",
+      });
       expect(r.success).toBe(false);
       if (!r.success) {
-        expect(r.error.issues.some((i) => i.path.includes("vault"))).toBe(true);
+        const issue = r.error.issues.find((i) => i.code === "unrecognized_keys");
+        expect(issue).toBeDefined();
+        expect((issue as unknown as { keys: string[] }).keys).toContain("typo");
       }
     });
   });
-});
 
+  // -----------------------------------------------------------------------------------------------
+  // Invariant — targetModeSchema is ZodEffects<ZodObject> per FR-001 (data-model §7).
+  // -----------------------------------------------------------------------------------------------
+
+  it("Invariant — targetModeSchema._def.schema is a ZodObject (post-010 encoding marker)", () => {
+    const inner = (targetModeSchema as unknown as { _def: { schema: { constructor: { name: string } } } })._def
+      .schema;
+    expect(inner.constructor.name).toBe("ZodObject");
+  });
+});
