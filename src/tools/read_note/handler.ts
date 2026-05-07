@@ -18,16 +18,22 @@ export interface ReadNoteOutput {
 
 export async function executeReadNote(input: ReadNoteInput, deps: ExecuteDeps): Promise<ReadNoteOutput> {
   // Post-010: vault is optional at the type level; the targetModeSchema superRefine guarantees vault !== undefined whenever target_mode === "specific".
+  // Post-Code-5 (2026-05-08): vault flows through invokeCli as a top-level field — symmetric with invokeBoundedCli — rather than being smuggled inside `parameters`.
   const parameters: Record<string, string> =
     input.target_mode === "specific"
       ? {
-          vault: input.vault!,
           ...(input.file !== undefined ? { file: input.file } : {}),
           ...(input.path !== undefined ? { path: input.path } : {}),
         }
       : {};
   const { stdout } = await invokeCli(
-    { command: "read", parameters, flags: [], target_mode: input.target_mode },
+    {
+      command: "read",
+      vault: input.target_mode === "specific" ? input.vault! : undefined,
+      parameters,
+      flags: [],
+      target_mode: input.target_mode,
+    },
     { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
   );
   return { content: stdout };

@@ -103,7 +103,7 @@ describe("invokeCli — fixed bounds (FR-013)", () => {
   it("happy specific mode: argv [vault=..., command, file=...]", async () => {
     const { spawnFn, recorded } = makeStubSpawn({ stdout: "# Note body\n", exitCode: 0 });
     const result = await invokeCli(
-      { command: "read", parameters: { vault: "MyVault", file: "Note" }, flags: [], target_mode: "specific" },
+      { command: "read", vault: "MyVault", parameters: { file: "Note" }, flags: [], target_mode: "specific" },
       defaultDeps({ spawnFn, env: {} }),
     );
     expect(result).toEqual({ stdout: "# Note body\n", stderr: "" });
@@ -117,7 +117,8 @@ describe("invokeCli — fixed bounds (FR-013)", () => {
     await invokeCli(
       {
         command: "read",
-        parameters: { vault: "V", file: undefined, query: "q" },
+        vault: "V",
+        parameters: { file: undefined, query: "q" },
         flags: [],
         target_mode: "specific",
       },
@@ -153,6 +154,24 @@ describe("invokeCli — fixed bounds (FR-013)", () => {
     );
     expect(recorded[0]!.argv).toEqual(["read", "query=term"]);
   });
+
+  it("active mode ignores top-level vault: argv has no vault prefix even if vault is set", async () => {
+    // Symmetric-shape contract (Code-5, 2026-05-08): vault is a top-level
+    // input field, but in active mode it MUST be ignored — the typed-tool
+    // schema rejects it, and the adapter is the second line of defence.
+    const { spawnFn, recorded } = makeStubSpawn({ exitCode: 0 });
+    await invokeCli(
+      {
+        command: "read",
+        vault: "ShouldBeIgnored",
+        parameters: {},
+        flags: [],
+        target_mode: "active",
+      },
+      defaultDeps({ spawnFn, env: {} }),
+    );
+    expect(recorded[0]!.argv).toEqual(["read"]);
+  });
 });
 
 describe("invokeCli — classification routes through dispatchCli", () => {
@@ -160,7 +179,7 @@ describe("invokeCli — classification routes through dispatchCli", () => {
     const { spawnFn } = makeStubSpawn({ stderr: "boom", exitCode: 1 });
     const err = await captureRejection(
       invokeCli(
-        { command: "read", parameters: { vault: "V" }, flags: [], target_mode: "specific" },
+        { command: "read", vault: "V", parameters: {}, flags: [], target_mode: "specific" },
         defaultDeps({ spawnFn, env: {} }),
       ),
     );
@@ -187,7 +206,7 @@ describe("invokeCli — classification routes through dispatchCli", () => {
     const { spawnFn } = makeStubSpawn({ stdout: "Error: File not found\n", exitCode: 0 });
     const err = await captureRejection(
       invokeCli(
-        { command: "read", parameters: { vault: "V", file: "missing" }, flags: [], target_mode: "specific" },
+        { command: "read", vault: "V", parameters: { file: "missing" }, flags: [], target_mode: "specific" },
         defaultDeps({ spawnFn, env: {} }),
       ),
     );

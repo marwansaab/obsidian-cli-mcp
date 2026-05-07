@@ -1,135 +1,161 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 1.0.0 → 1.1.0 (MINOR — Test framework standard switched from
-node:test to Vitest; new automated coverage gate added to Development Workflow.)
+Version change: 1.1.0 → 1.2.0 (MINOR — CLI surface descoped from project
+scope. The project is now MCP-server-only as of v0.2.2; the CLI surface
+envisaged at v1.0.0 ratification was never built.)
 
 Modified sections:
-  - Technical Standards & Stack Constraints → Test framework paragraph rewritten:
-    Vitest with @vitest/coverage-v8 is now the mandated framework (replaces
-    node:test). node:test, jest, and mocha are now the "requires amendment"
-    list.
-  - Development Workflow & Quality Gates → Inserted a new gate (#5) for the
-    aggregate statements coverage threshold. Subsequent gates renumbered
-    (5→6, 6→7, 7→8). The discipline rule that branch / function / per-file
-    thresholds are forbidden without amendment is also captured here.
+  - Project preamble: project-description sentence rewritten — drops the
+    "command-line interface and" clause; the project now exposes "an MCP
+    server surface" only.
+  - Principle I (Modular Code Organization): per-surface enumeration and
+    flow node updated — drops "CLI command", drops the "command/tool"
+    fork in the downward-flow chain, drops the
+    "{schema, command, handler}.ts" template variant. The
+    {schema, tool, handler}.ts shape remains the canonical
+    per-MCP-tool layout. Rationale paragraph updated to drop "CLI surface"
+    reference.
+  - Principle II (Public Surface Test Coverage): drops "every CLI command"
+    from the test-coverage enumeration. The MCP-tool and published-API
+    coverage requirements are unchanged. Rationale paragraph updated.
+  - Principle III (Boundary Input Validation with Zod): drops "Every CLI
+    command parser" and the parenthetical "(CLI help text generation,
+    ...)". Zod-as-source-of-truth and per-issue-error rules are
+    unchanged. Rationale updated.
+  - Principle IV (Explicit Upstream Error Propagation): drops the CLI
+    surface stanza ("the CLI surface MUST surface them as non-zero exit
+    codes..."). UpstreamError shape and SDK serialization rules are
+    unchanged.
+  - Technical Standards & Stack Constraints: deletes the CLI / citty
+    bullet wholesale. The remaining stack constraints are unchanged.
 
 Added sections: none.
-Removed sections: none.
-Modified principles: none — all five principles unchanged.
+Removed sections: the CLI / citty bullet under Technical Standards.
+Modified principles: I, II, III, IV — references to a CLI surface
+removed; principle substance unchanged. Principle V unchanged.
 
-Driver: bringing the repo's CI gating in line with the project's actual
-implementation needs (V8 coverage with reporter ecosystem, threshold gating,
-single-source-of-truth floor that ratchets via visible diff). Vitest's V8
-coverage provider gives this off the shelf; node:test's experimental coverage
-flag does not.
+Driver: aligning the constitution with what the project IS as of v0.2.2.
+The CLI surface envisaged at v1.0.0 ratification (2026-05-03) was never
+built. Eleven months of work later, only the MCP server surface exists
+in src/. Keeping the CLI clauses in the constitution produces a
+recurring N/A pattern in PR Constitution Compliance checklists for
+Principles I-IV and risks future maintainers adding citty as a
+dependency thinking the design demands it. If a CLI surface is later
+wanted, it lands as a future amendment.
 
 Templates requiring updates:
-  - .specify/templates/plan-template.md: ✅ compatible — its Constitution Check
-    section already delegates to this file; no edits required.
-  - .specify/templates/spec-template.md: ✅ no constitution-specific references.
-  - .specify/templates/tasks-template.md: ✅ no constitution-specific references.
-  - .specify/templates/checklist-template.md: ✅ no constitution-specific references.
+  - .specify/templates/plan-template.md: ✅ no CLI-specific references.
+  - .specify/templates/spec-template.md: ✅ no CLI-specific references.
+  - .specify/templates/tasks-template.md: ✅ no CLI-specific references.
+  - .specify/templates/checklist-template.md: ✅ no CLI-specific references.
   - CLAUDE.md: ✅ already defers to plan/constitution; no edits required.
 
 Follow-up TODOs:
-  - README.md: add an "Attributions" section per Principle V before any module
-    with upstream lineage is merged. (Currently the repo has no source-derived
-    code to attribute, but the section MUST exist before any lifted code lands.)
-  - 001-add-cli-bridge: existing tests must migrate from node:test to Vitest
-    in the same change set that lands this amendment.
+  - README.md: confirm it does not describe a user-facing CLI command
+    set or `citty`-based parser. The `bin` entry in package.json
+    (`obsidian-cli-mcp` → `dist/index.js`) is the MCP server's
+    executable for `npx -y` invocation by MCP clients, NOT a CLI
+    surface in the constitution's sense — that field stays.
+  - package.json: confirm `dependencies` does not list `citty`. The
+    `bin` field stays per the note above. (Verified at amendment
+    time: dependencies = @modelcontextprotocol/sdk, zod,
+    zod-to-json-schema — no citty present.)
 -->
 
 # obsidian-cli-mcp Constitution
 
-A TypeScript project that exposes a command-line interface and an MCP server
-surface for working with Obsidian vaults.
+A TypeScript project that exposes an MCP server surface for working with
+Obsidian vaults.
 
 ## Core Principles
 
 ### I. Modular Code Organization
 
 Code MUST be organized into small, single-purpose modules with explicit
-boundaries. Each CLI command, MCP tool, vault-access helper, and
-external-service adapter lives in its own module and exposes a narrow, typed
-interface. Cross-module imports MUST flow in one direction (command/tool →
-service → adapter → external SDK); no upward or cyclic dependencies. A module
+boundaries. Each MCP tool, vault-access helper, and external-service
+adapter lives in its own module and exposes a narrow, typed interface.
+Cross-module imports MUST flow in one direction (tool → service →
+adapter → external SDK); no upward or cyclic dependencies. A module
 that grows beyond a single clear responsibility MUST be split before new
-functionality is added to it. Prefer a `{schema, command, handler}.ts` (or
-`{schema, tool, handler}.ts`) layout per surface.
+functionality is added to it. Prefer a `{schema, tool, handler}.ts`
+layout per surface.
 
-**Rationale**: Clean module boundaries keep the CLI surface, the MCP surface,
-and the underlying vault logic from contaminating each other, and make every
+**Rationale**: Clean module boundaries keep the MCP surface and the
+underlying vault logic from contaminating each other, and make every
 piece independently testable.
 
 ### II. Public Surface Test Coverage (NON-NEGOTIABLE)
 
-Every externally callable surface — every CLI command, every MCP tool
-registered with the server, every published API entry point — MUST ship with
-at least one happy-path test AND at least one failure-or-boundary test (input
-validation failure, upstream error, boundary violation, or empty/edge input)
-in the same change that adds, renames, or modifies it. A surface MUST NOT be
-merged, exposed, or renamed without its tests. Tests MUST be co-located with
-the source module they cover — a module at `src/foo.ts` has its tests at
-`src/foo.test.ts`, not under a parallel `tests/` tree. The co-located
-convention keeps tests discoverable from the source they exercise and matches
-the per-surface module layout in Principle I.
+Every externally callable surface — every MCP tool registered with the
+server, every published API entry point — MUST ship with at least one
+happy-path test AND at least one failure-or-boundary test (input
+validation failure, upstream error, boundary violation, or empty/edge
+input) in the same change that adds, renames, or modifies it. A surface
+MUST NOT be merged, exposed, or renamed without its tests. Tests MUST
+be co-located with the source module they cover — a module at
+`src/foo.ts` has its tests at `src/foo.test.ts`, not under a parallel
+`tests/` tree. The co-located convention keeps tests discoverable from
+the source they exercise and matches the per-surface module layout in
+Principle I.
 
-**Rationale**: CLI commands and MCP tools are the contract this project offers
-to humans and to LLM agents respectively. A regression in either is observable
-to every downstream caller immediately and silently — there is no UI layer to
-catch it. Tests are the only enforcement.
+**Rationale**: MCP tools are the contract this project offers to LLM
+agents. A regression is observable to every downstream caller
+immediately and silently — there is no UI layer to catch it. Tests are
+the only enforcement.
 
 ### III. Boundary Input Validation with Zod
 
-Every CLI command parser and every MCP tool wrapper MUST validate its incoming
-arguments through a `zod` schema before any business logic, network call, or
-filesystem access runs. The schema MUST be the single source of truth for both
-the surface's published shape (CLI help text generation, MCP `inputSchema` via
-`zod-to-json-schema` or equivalent) and the runtime parse. Validation failures
-MUST return a structured error with the field paths reported by zod; validated
-values MUST be passed to inner functions as already-typed objects, not
-re-validated downstream. Internal helpers MAY trust their inputs.
+Every MCP tool wrapper MUST validate its incoming arguments through a
+`zod` schema before any business logic, network call, or filesystem
+access runs. The schema MUST be the single source of truth for both
+the surface's published shape (MCP `inputSchema` via
+`zod-to-json-schema` or equivalent) and the runtime parse. Validation
+failures MUST return a structured error with the field paths reported
+by zod; validated values MUST be passed to inner functions as
+already-typed objects, not re-validated downstream. Internal helpers
+MAY trust their inputs.
 
-The zod-inferred type (`z.infer<typeof schema>`) MUST be the canonical type
-used downstream; redefining the same shape as a TypeScript interface or
-hand-written type elsewhere is a violation. Types and schemas MUST NOT drift
-apart — there is one source of truth per surface, and it is the zod schema.
+The zod-inferred type (`z.infer<typeof schema>`) MUST be the canonical
+type used downstream; redefining the same shape as a TypeScript
+interface or hand-written type elsewhere is a violation. Types and
+schemas MUST NOT drift apart — there is one source of truth per
+surface, and it is the zod schema.
 
-**Rationale**: A single validation point at the boundary keeps internal code
-free of defensive checks, ensures the published schema and runtime behavior
-cannot drift apart, and produces precise, actionable error messages for both
-human users and LLM clients.
+**Rationale**: A single validation point at the boundary keeps internal
+code free of defensive checks, ensures the published schema and runtime
+behavior cannot drift apart, and produces precise, actionable error
+messages for LLM clients.
 
 ### IV. Explicit Upstream Error Propagation
 
-Errors raised by upstream systems (the Obsidian Integrated CLI binary, the
-filesystem, any embedding or LLM provider, any HTTP client) MUST be either
-(a) handled with a documented recovery path or (b) surfaced to the caller as a
-structured error that preserves the upstream status code, message, and — where
-safe — the underlying cause. `catch` blocks MUST NOT return empty results,
-default values, or `null` to mask a failure. Logging an error and continuing
-is NOT handling it. If a partial-success or best-effort-continue path is
-intentional, it MUST cite the explicit user/spec decision that authorized it
-(a Clarifications entry, an ADR, or a referenced issue), and the response
+Errors raised by upstream systems (the Obsidian Integrated CLI binary,
+the filesystem, any embedding or LLM provider, any HTTP client) MUST be
+either (a) handled with a documented recovery path or (b) surfaced to
+the caller as a structured error that preserves the upstream status
+code, message, and — where safe — the underlying cause. `catch` blocks
+MUST NOT return empty results, default values, or `null` to mask a
+failure. Logging an error and continuing is NOT handling it. If a
+partial-success or best-effort-continue path is intentional, it MUST
+cite the explicit user/spec decision that authorized it (a
+Clarifications entry, an ADR, or a referenced issue), and the response
 payload MUST report what succeeded AND what failed.
 
 Errors propagated to callers MUST be instances of a project-defined
-`class UpstreamError extends Error` (or a discriminated subclass thereof)
-carrying at minimum: `code` (a stable string identifier), `cause` (the
-original thrown value where available), and `details` (a structured record
-with the upstream status / context / field paths). The MCP SDK MUST serialize
-these errors via the SDK's error-response shape; the CLI surface MUST surface
-them as non-zero exit codes with the structured payload printed to stderr in
-the parser-selected format. Plain `throw new Error("…")` at any boundary
-surface is a violation.
+`class UpstreamError extends Error` (or a discriminated subclass
+thereof) carrying at minimum: `code` (a stable string identifier),
+`cause` (the original thrown value where available), and `details` (a
+structured record with the upstream status / context / field paths).
+The MCP SDK MUST serialize these errors via the SDK's error-response
+shape. Plain `throw new Error("…")` at any boundary surface is a
+violation.
 
-**Rationale**: Silent failures present as "the caller got an empty or wrong
-answer" — indistinguishable from a legitimate result and impossible to debug
-from the outside. Explicit propagation preserves the chain of custody for
-failures all the way to the human or agent that invoked the surface; a typed
-error class lets reviewers grep for `UpstreamError` to audit every place
-failures cross a boundary.
+**Rationale**: Silent failures present as "the caller got an empty or
+wrong answer" — indistinguishable from a legitimate result and
+impossible to debug from the outside. Explicit propagation preserves
+the chain of custody for failures all the way to the agent that invoked
+the surface; a typed error class lets reviewers grep for `UpstreamError`
+to audit every place failures cross a boundary.
 
 ### V. Attribution & Layered Composition Transparency
 
@@ -177,11 +203,6 @@ to its source.
 - **MCP**: `@modelcontextprotocol/sdk` is the sole MCP transport. Tool
   registration MUST go through the SDK's `Server` API; ad-hoc JSON-RPC
   handling is forbidden.
-- **CLI**: `citty` is the sole CLI parsing library. Argument and option specs
-  MUST be derived from the same zod schemas that drive the MCP `inputSchema`
-  (per Principle III); ad-hoc `citty` definitions that diverge from the zod
-  schema are a constitution violation. The shared schema lives in the
-  `schema.ts` of the per-surface module.
 - **Test framework**: `vitest` with `@vitest/coverage-v8` for the V8 coverage
   provider. Test files use the `*.test.ts` naming convention and live
   co-located with their source module (per Principle II). The merge-gating
@@ -266,7 +287,8 @@ MUST be reviewed in a dedicated PR — not bundled with feature work.
 - **MAJOR**: A principle is removed, redefined in a backward-incompatible
   way, or a governance rule is reversed.
 - **MINOR**: A new principle or normative section is added, or existing
-  guidance is materially expanded.
+  guidance is materially expanded or contracted in scope (e.g., a stack
+  surface is descoped from the project, or a new surface is added).
 - **PATCH**: Wording clarifications, typo fixes, rationale rewrites that do
   not change the rule.
 
@@ -275,4 +297,4 @@ and in feature-specific plans under `specs/`. Those documents MUST defer to
 this constitution; if they imply a contradiction, treat it as a bug in the
 guidance document and fix it.
 
-**Version**: 1.1.0 | **Ratified**: 2026-05-03 | **Last Amended**: 2026-05-03
+**Version**: 1.2.0 | **Ratified**: 2026-05-03 | **Last Amended**: 2026-05-07
