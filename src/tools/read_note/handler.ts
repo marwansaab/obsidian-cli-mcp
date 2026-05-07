@@ -17,10 +17,11 @@ export interface ReadNoteOutput {
 }
 
 export async function executeReadNote(input: ReadNoteInput, deps: ExecuteDeps): Promise<ReadNoteOutput> {
+  // Post-010: vault is optional at the type level; the targetModeSchema superRefine guarantees vault !== undefined whenever target_mode === "specific".
   const parameters: Record<string, string> =
     input.target_mode === "specific"
       ? {
-          vault: input.vault,
+          vault: input.vault!,
           ...(input.file !== undefined ? { file: input.file } : {}),
           ...(input.path !== undefined ? { path: input.path } : {}),
         }

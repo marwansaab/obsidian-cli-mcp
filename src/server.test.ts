@@ -328,16 +328,17 @@ describe("registry consistency", () => {
       );
     });
 
-    it("read_note: top-level oneOf with two branches discriminated by target_mode (specific|active)", async () => {
+    it("read_note: post-010 flat object — properties include {target_mode, vault, file, path}, target_mode is the enum discriminator, additionalProperties: false", async () => {
       const tools = await listTools();
       const read = tools.get("read_note")!;
-      expect(Array.isArray(read.inputSchema.oneOf)).toBe(true);
-      const oneOf = read.inputSchema.oneOf as Array<Record<string, unknown>>;
-      expect(oneOf.length).toBe(2);
-      const discriminators = oneOf
-        .map((b) => ((b.properties as Record<string, Record<string, unknown>>).target_mode?.const as string) ?? "")
-        .sort();
-      expect(discriminators).toEqual(["active", "specific"]);
+      expect(read.inputSchema.oneOf).toBeUndefined();
+      expect(read.inputSchema.allOf).toBeUndefined();
+      expect(read.inputSchema.anyOf).toBeUndefined();
+      const props = (read.inputSchema.properties ?? {}) as Record<string, Record<string, unknown>>;
+      expect(Object.keys(props).sort()).toEqual(["file", "path", "target_mode", "vault"]);
+      expect(props.target_mode?.enum).toEqual(["specific", "active"]);
+      expect(read.inputSchema.required).toEqual(["target_mode"]);
+      expect(read.inputSchema.additionalProperties).toBe(false);
     });
   });
 });

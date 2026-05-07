@@ -46,12 +46,17 @@ describe("createReadNoteTool — descriptor", () => {
     expect(tool.descriptor.description).toBe(READ_NOTE_DESCRIPTION);
   });
 
-  it("publishes inputSchema with type === 'object' AND a two-branch oneOf for the discriminated target_mode (FR-002 / FR-002a)", () => {
+  it("publishes inputSchema as a post-010 flat object with target_mode/vault/file/path properties and additionalProperties: false", () => {
     const tool = createReadNoteTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
     expect(schema.type).toBe("object");
-    expect(Array.isArray(schema.oneOf)).toBe(true);
-    expect((schema.oneOf as unknown[]).length).toBe(2);
+    expect(schema.oneOf).toBeUndefined();
+    expect(schema.allOf).toBeUndefined();
+    expect(schema.anyOf).toBeUndefined();
+    const props = schema.properties as Record<string, unknown>;
+    expect(Object.keys(props).sort()).toEqual(["file", "path", "target_mode", "vault"]);
+    expect(schema.required).toEqual(["target_mode"]);
+    expect(schema.additionalProperties).toBe(false);
   });
 });
 
