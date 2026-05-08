@@ -1,4 +1,4 @@
-// Original — no upstream. invokeCli typed-tool facade: top-level vault field (symmetric with invokeBoundedCli per Code-5 / 2026-05-08), target-mode locator strip on parameters, queue-wrapped routing through dispatchCli with fixed 10 s / 10 MiB bounds (ADR-007, FR-013).
+// Original — no upstream. invokeCli typed-tool facade: top-level vault field (symmetric with invokeBoundedCli per Code-5 / 2026-05-08), target-mode locator strip on parameters, queue-wrapped routing through dispatchCli with fixed 10 s / 10 MiB bounds (ADR-007, FR-013), success-path stdout inspection re-classifying unknown-vault responses to CLI_REPORTED_ERROR (BI 011-write-note R5 / T002 — verbatim CLI wording captured at T0.4: "Vault not found." on stdout, exit 0).
 import { dispatchCli, killInFlightChildren, type DispatchInput, type SpawnLike } from "./_dispatch.js";
 import { UpstreamError } from "../errors.js";
 
@@ -52,6 +52,8 @@ function stripTargetLocators(
   return stripped;
 }
 
+const UNKNOWN_VAULT_PREFIX = "Vault not found.";
+
 export function invokeCli(input: InvokeCliInput, deps: InvokeCliDeps): Promise<InvokeCliSuccess> {
   // Defence-in-depth strip in active mode: the typed-tool target_mode schema
   // already rejects vault/file/path at the boundary, but a hypothetical future
@@ -75,6 +77,21 @@ export function invokeCli(input: InvokeCliInput, deps: InvokeCliDeps): Promise<I
       env: deps.env,
       logger: deps.logger,
     });
+    // R5 / T002: success-path stdout inspection. The CLI returns exit 0 with
+    // stdout `Vault not found.` for unknown vault display names, so the
+    // dispatch-layer four-priority classification (which only inspects
+    // `Error:` prefixes on stdout) does NOT catch it. Re-classify here so all
+    // typed tools inherit the structured failure surface.
+    const trimmed = out.stdout.trimStart();
+    if (trimmed.startsWith(UNKNOWN_VAULT_PREFIX)) {
+      const message = trimmed.split("\n", 1)[0]!.trim();
+      throw new UpstreamError({
+        code: "CLI_REPORTED_ERROR",
+        cause: null,
+        details: { command: input.command, stdout: out.stdout, stderr: out.stderr, exitCode: 0, message },
+        message,
+      });
+    }
     return { stdout: out.stdout, stderr: out.stderr };
   });
 }

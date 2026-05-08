@@ -5,6 +5,38 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] - 2026-05-08
+
+Patch release — adds the second typed-tool surface, `write_note`. Symmetric counterpart of `read_note`: where `read_note` retired `obsidian_exec` for reads, `write_note` retires it for create/overwrite operations. Pure addition — no existing tool changes, no new error codes, no ADR amendments. `obsidian_exec` remains the freeform escape hatch for the `newtab` flag and any unwrapped subcommands.
+
+### Added
+
+- **`write_note` typed MCP tool**, wrapping the Obsidian CLI's `create` subcommand. Direct one-to-one wrap with the same input shape as `read_note` plus `content`, `template`, `overwrite`, `open`. Discriminated by `target_mode: "specific" | "active"`. Returns `{ created: boolean, path: string }`: `created: true` for fresh creations (CLI emits `Created: <path>`), `created: false` for overwrites (CLI emits `Overwrote: <path>`).
+- Per-mode validation enforced at the schema layer:
+  - Specific mode requires `vault` and exactly one of `file` / `path`; `overwrite` defaults to `false`.
+  - Active mode requires `overwrite: true` (active mode is treated as destructive — the explicit-opt-in posture binds uniformly per Clarifications 2026-05-08 Q1) and forbids `template` and `open` (Clarifications 2026-05-08 Q3).
+  - Unknown top-level keys are rejected (`additionalProperties: false`, post-010 strict-mode).
+- Adapter-layer R5 / T002 unknown-vault inspection clause in `src/cli-adapter/cli-adapter.ts`. The Obsidian CLI returns exit 0 with stdout `Vault not found.` for unknown vault display names; the adapter now re-classifies that response as `CLI_REPORTED_ERROR` so all typed tools (current and future) inherit the structured failure surface.
+- Documentation at [docs/tools/write_note.md](docs/tools/write_note.md) — input/output schema, error roster (5 codes), 5 worked examples, CLI behavioural notes captured during live characterisation (silent auto-rename on collision, active-mode auto-naming, path-traversal CLI defect, empty `etc/` directory side-effect, unknown-vault wording, no-template-folder wording).
+- 32 co-located tests in `src/tools/write_note/{schema,handler,index}.test.ts` (15 schema + 12 handler + 5 registration), plus 1 new cli-adapter test for the R5 / T002 clause.
+
+### Documentation
+
+- `docs/tools/index.md` — write_note entry replaces the prior placeholder.
+- `docs/tools/obsidian_exec.md` — adds a "When to use a typed tool instead" section pointing agents at `read_note` / `write_note` and reserving `obsidian_exec` for the `newtab` flag and unwrapped subcommands.
+
+### Behavioural notes for callers
+
+- **Silent auto-rename on collision when `overwrite=false`**: if the target path already exists and `overwrite` is omitted or `false`, the CLI does NOT raise an error — it auto-renames the new file (e.g. `Existing.md` → `Existing 1.md`) and returns `created: true` with the renamed path. Callers requiring strict-fail-on-collision MUST pass `overwrite: true` AND inspect the returned `path` against the input.
+- **Active-mode auto-naming**: `target_mode: "active"` produces `Untitled.md` (or an auto-incremented sibling) at the active vault's default location. Active mode does NOT rewrite the focused note's content; this is a deviation from the spec's pre-T0 description, reconciled per "spec follows the code that exists".
+- **Path-traversal**: vault-relative paths containing `../` segments are rejected by the CLI with an unstructured `TypeError` (exit 0, no file written). The bridge does not add a tool-layer reject; sanitize paths upstream if you need a structured rejection.
+
+### References
+
+- Spec: [specs/011-write-note/spec.md](specs/011-write-note/spec.md)
+- Plan: [specs/011-write-note/plan.md](specs/011-write-note/plan.md)
+- Research (incl. T0 Live-CLI Capture 2026-05-08): [specs/011-write-note/research.md](specs/011-write-note/research.md)
+
 ## [0.2.2] - 2026-05-07
 
 Patch release — structural simplification of the typed-tool publication pipeline introduced across features 007/008/009. `0.2.1` shipped a working compatibility shim (~140 LOC of envelope synthesis in `src/tools/_shared.ts` plus a three-group drift detector at `src/tools/_register.test.ts`) to bridge `targetModeSchema`'s `ZodEffects<ZodDiscriminatedUnion>` shape through the zod → JSON Schema → MCP `inputSchema` pipeline. `0.2.2` deletes the bridge by changing the input shape: `targetModeSchema` is re-encoded as a flat `z.object({...}).strict().superRefine(...)`, and `zodToJsonSchema` emits the natural single-flat-object descriptor directly. Same per-mode rules. Same accepted/rejected inputs, modulo the strict-mode carve-out documented below. NET ~400 LOC deletion.
