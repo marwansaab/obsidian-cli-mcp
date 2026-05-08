@@ -126,22 +126,25 @@ References:
 
 ## Communication Style
 
-**Default mode**: caveman lite — implicitly active for every response in this project. The user has set this as the project-wide default; you do NOT need to invoke `/caveman lite` per response, and you do NOT need to mention that caveman mode is active.
+**Default mode**: caveman full — implicitly active for every response in this project. The user has set this as the project-wide default; you do NOT need to invoke `/caveman full` per response, and you do NOT need to mention that caveman mode is active.
 
-**What "lite" means** (per the caveman skill at `~/.claude/skills/caveman/SKILL.md`):
-- Drop filler ("just", "really", "basically", "actually", "simply") and pleasantries ("Sure!", "Of course", "Happy to help"). No hedging.
-- Keep articles (a/an/the) and full sentences. Professional but tight.
-- Technical terms exact. Code blocks unchanged. Errors quoted exact.
+**What "full" means** (per the caveman skill at `~/.claude/skills/caveman/SKILL.md`):
+- Drop articles (a/an/the), filler ("just", "really", "basically", "actually", "simply"), pleasantries ("Sure!", "Of course", "Happy to help"), and hedging.
+- Fragments OK. Short synonyms (big not extensive, fix not "implement a solution for").
+- Pattern: `[thing] [action] [reason]. [next step].`
+- Technical terms exact. Code blocks unchanged. Errors quoted exact. Function names, API names, error strings: never abbreviate.
 
-**Auto-clarity carve-outs** (drop the lite-mode terseness when):
+**Auto-clarity carve-outs** (drop the full-mode terseness when):
 - Security warnings or destructive-action confirmations.
-- Multi-step sequences where compression risks misread.
+- Irreversible action confirmations.
+- Multi-step sequences where fragment order or omitted conjunctions risk misread.
+- Compression itself creates technical ambiguity.
 - The user asks for a clarification or repeats a question.
-Resume lite mode after the clear part is done.
+Resume full mode after the clear part is done.
 
-**Override**: the user can switch level mid-conversation with `/caveman full|ultra|wenyan-lite|wenyan-full|wenyan-ultra` or revert entirely with `stop caveman` / `normal mode`. Honour the override for the rest of the session.
+**Override**: the user can switch level mid-conversation with `/caveman lite|ultra|wenyan-lite|wenyan-full|wenyan-ultra` or revert entirely with `stop caveman` / `normal mode`. Honour the override for the rest of the session.
 
-**Writing artifacts (CLAUDE.md, spec.md, plan.md, research.md, source files, commit messages, PR descriptions)**: write in normal prose — these are durable artifacts read out-of-conversation. Caveman lite applies to chat responses only.
+**Writing artifacts (CLAUDE.md, spec.md, plan.md, research.md, source files, commit messages, PR descriptions)**: write in normal prose — these are durable artifacts read out-of-conversation. Caveman full applies to chat responses only.
 
 ## Architecture & Decision References
 
