@@ -251,6 +251,28 @@ describe("invokeCli — classification routes through dispatchCli", () => {
     expect(err.cause).toEqual({ exitCode: -1, signal: "SIGTERM" });
     expect(err.details).toMatchObject({ exitCode: -1, signal: "SIGTERM" });
   });
+
+  it("R5 / T002: stdout 'Vault not found.' on exit 0 → CLI_REPORTED_ERROR with verbatim wording", async () => {
+    // BI 011-write-note R5 — the CLI returns exit 0 with stdout `Vault not
+    // found.` for unknown vault display names (T0.4 verified). The
+    // dispatch-layer four-priority classification only catches `Error:`
+    // prefixes; the cli-adapter's success-path inspection must re-classify.
+    const { spawnFn } = makeStubSpawn({ stdout: "\nVault not found.\n", exitCode: 0 });
+    const err = await captureRejection(
+      invokeCli(
+        { command: "create", vault: "NoSuchVault", parameters: { path: "x.md", content: "x" }, flags: [], target_mode: "specific" },
+        defaultDeps({ spawnFn, env: {} }),
+      ),
+    );
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.message).toBe("Vault not found.");
+    expect(err.details).toMatchObject({
+      command: "create",
+      stdout: "\nVault not found.\n",
+      exitCode: 0,
+      message: "Vault not found.",
+    });
+  });
 });
 
 describe("invokeCli — queue serialization (research R6)", () => {
