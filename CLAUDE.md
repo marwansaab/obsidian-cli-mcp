@@ -124,6 +124,25 @@ References:
 - [.architecture/Obsidian CLI MCP - Architecture.md](.architecture/Obsidian%20CLI%20MCP%20-%20Architecture.md) — the architecture this BI continues to implement.
 <!-- SPECKIT END -->
 
+## Communication Style
+
+**Default mode**: caveman lite — implicitly active for every response in this project. The user has set this as the project-wide default; you do NOT need to invoke `/caveman lite` per response, and you do NOT need to mention that caveman mode is active.
+
+**What "lite" means** (per the caveman skill at `~/.claude/skills/caveman/SKILL.md`):
+- Drop filler ("just", "really", "basically", "actually", "simply") and pleasantries ("Sure!", "Of course", "Happy to help"). No hedging.
+- Keep articles (a/an/the) and full sentences. Professional but tight.
+- Technical terms exact. Code blocks unchanged. Errors quoted exact.
+
+**Auto-clarity carve-outs** (drop the lite-mode terseness when):
+- Security warnings or destructive-action confirmations.
+- Multi-step sequences where compression risks misread.
+- The user asks for a clarification or repeats a question.
+Resume lite mode after the clear part is done.
+
+**Override**: the user can switch level mid-conversation with `/caveman full|ultra|wenyan-lite|wenyan-full|wenyan-ultra` or revert entirely with `stop caveman` / `normal mode`. Honour the override for the rest of the session.
+
+**Writing artifacts (CLAUDE.md, spec.md, plan.md, research.md, source files, commit messages, PR descriptions)**: write in normal prose — these are durable artifacts read out-of-conversation. Caveman lite applies to chat responses only.
+
 ## Architecture & Decision References
 
 Two reference folders document the project's design rationale. Consult them **before** proposing or making design decisions, and cite the relevant ADR/architecture section when justifying choices:
