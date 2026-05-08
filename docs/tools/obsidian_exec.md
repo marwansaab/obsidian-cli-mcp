@@ -4,12 +4,13 @@ Invoke any Obsidian Integrated CLI subcommand on the host where the bridge is ru
 
 ## When to use a typed tool instead
 
-Two of the most common Obsidian CLI subcommands have dedicated typed wrappers — prefer them over `obsidian_exec` whenever they fit:
+Three of the most common Obsidian CLI subcommands have dedicated typed wrappers — prefer them over `obsidian_exec` whenever they fit:
 
 - **`read_note`** wraps `obsidian read` (see [read_note.md](./read_note.md)).
 - **`write_note`** wraps `obsidian create` (see [write_note.md](./write_note.md)) — use it for creating new notes and overwriting existing ones (`overwrite: true`).
+- **`delete_note`** wraps `obsidian delete` (see [delete_note.md](./delete_note.md)) — use it for destructive single-file removal. Default sends the file to the OS trash (recoverable); `permanent: true` is irreversible. The typed surface owns the `toTrash` audit signal — operators filter logs on `toTrash === false` to surface every irreversible deletion.
 
-Reserve `obsidian_exec` for: (a) the `newtab` flag on `create` (not exposed by `write_note`), (b) any other CLI subcommand without a dedicated typed wrapper, and (c) experimental or one-off invocations where typing the input is overkill. The typed tools enforce per-mode validation, structured error propagation, and clean output shapes that `obsidian_exec` cannot.
+Reserve `obsidian_exec` for: (a) the `newtab` flag on `create` (not exposed by `write_note`), (b) any other CLI subcommand without a dedicated typed wrapper, and (c) experimental or one-off invocations where typing the input is overkill. The `delete` subcommand is now FULLY covered by `delete_note`; `obsidian_exec` is no longer the right fallback for delete operations. The typed tools enforce per-mode validation, structured error propagation, and clean output shapes that `obsidian_exec` cannot.
 
 ## Input
 
