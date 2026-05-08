@@ -5,12 +5,12 @@ import { Readable, Writable } from "node:stream";
 
 import { afterEach, beforeEach, expect, test } from "vitest";
 
+import { executeWriteNote } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createLogger, type Logger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
 
-import { executeWriteNote } from "./handler.js";
 
 interface StubChildSpec {
   stdout?: string;

@@ -8,11 +8,11 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { createWriteNoteTool, WRITE_NOTE_DESCRIPTION, WRITE_NOTE_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
 
-import { createWriteNoteTool, WRITE_NOTE_DESCRIPTION, WRITE_NOTE_TOOL_NAME } from "./index.js";
 
 function makeStubSpawn(opts: { stdout?: string; exitCode?: number } = {}): SpawnLike {
   return (binary, _argv, _options: SpawnOptions) => {
