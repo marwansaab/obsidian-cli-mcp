@@ -244,3 +244,140 @@ The docs-existence assertion AND the non-stub-marker assertion (per FR-016 case 
 4. After capture, the scratch subdirectory is deleted via `obsidian delete path=_speckit-011-write-note-research/...`. No residual vault pollution.
 
 The eight T0 cases collectively satisfy SC-011 (research.md captures all eight live-CLI cases) and SC-012 (path-traversal precondition gate verified).
+
+---
+
+## T0 Live-CLI Capture (2026-05-08)
+
+Captured at the start of `/speckit-implement` against the user's "The Setup" vault using the user-authorised scratch subdir `_speckit-011-write-note-research/`. Each case lists the verbatim command, stdout, and exit code. Findings that differ from the provisional decisions are flagged.
+
+### T0.1 — Specific-mode create at new path (verifies R4 / case (i))
+
+```text
+$ obsidian vault="The Setup" create path="_speckit-011-write-note-research/case1.md" content="hello"
+Created: _speckit-011-write-note-research/case1.md
+EXIT_CODE=0
+```
+
+**R4 lock**: success-fresh-creation prefix is exactly `Created: <path>`. No amendment to provisional R4.
+
+### T0.2 — Specific-mode create via wikilink (verifies case (ii))
+
+```text
+$ obsidian vault="The Setup" create name="ScratchNote-T0-2" content="hello"
+Created: ScratchNote-T0-2.md
+EXIT_CODE=0
+```
+
+**Canonical-path resolution rule**: wikilink-form (`name=`) lands at the **vault root** by default (no folder prefix added). The CLI auto-appends `.md`. Output `path` is verbatim what the CLI reports — agents using the wikilink form should expect a vault-root location unless their vault has Obsidian's "default location for new notes" configured otherwise.
+
+### T0.3 — Specific-mode overwrite (verifies R4 / case (iii))
+
+```text
+$ obsidian vault="The Setup" create path="_speckit-011-write-note-research/case1.md" content="rewritten" overwrite
+Overwrote: _speckit-011-write-note-research/case1.md
+EXIT_CODE=0
+```
+
+**R4 residual fully resolved**: overwrite-success prefix is `Overwrote: <path>` — DISTINGUISHABLE from `Created:`. The handler's `parseCreateResponse` matches `^(Created|Overwrote):\s+(.+?)\s*$` and maps `Created` → `created: true`, `Overwrote` → `created: false`. **No R4 amendment needed.** R4's "alternatives" branches (pre-call existence check, post-call file-stat, always-true caveat) are NOT triggered.
+
+### T0.4 — Unknown vault (verifies R5 / case (v))
+
+```text
+$ obsidian vault="NoSuchVault" create path="x.md" content="x"
+Vault not found.
+EXIT_CODE=0
+```
+
+**R5 ratified**: exit code is `0`, NOT `1`. The cli-adapter's existing `CLI_NON_ZERO_EXIT` classification does NOT cover this case. **T002 lives** — the cli-adapter gains a stdout-prefix inspection clause that re-classifies stdout `Vault not found.` (verbatim) as `CLI_REPORTED_ERROR`.
+
+### T0.5 — Overwrite=false against existing path (verifies case (iv)) — **SPEC DEVIATION**
+
+```text
+$ obsidian vault="The Setup" create path="_speckit-011-write-note-research/case1.md" content="should fail"
+Created: _speckit-011-write-note-research/case1 1.md
+EXIT_CODE=0
+```
+
+**Spec-deviation finding**: the CLI does NOT reject overwrite=false-on-existing. Instead, it **silently auto-renames** the new file by appending ` 1` (Obsidian's duplicate-rename convention) and reports the auto-renamed path as a fresh `Created:`. Story 3's stated semantic ("the CLI rejects when overwrite=false against an existing path, propagating CLI_REPORTED_ERROR") does NOT match CLI behaviour.
+
+**Reconciliation per "spec follows the code that exists"**: `write_note` accepts the CLI's silent-auto-rename behaviour. The handler returns `{ created: true, path: "<auto-renamed path>" }` — the caller observes that the returned `path` differs from the input `path` and infers the collision. Documented in [docs/tools/write_note.md](../../docs/tools/write_note.md) per FR-014.
+
+**Handler test impact**: T004 case (d) reframes — instead of asserting `UpstreamError({ code: "CLI_REPORTED_ERROR" })` for the no-overwrite-on-existing scenario, the test asserts `{ created: true, path: "<input path with ' 1' suffix>" }` AND argv does NOT contain `"overwrite"` token. The CLI_REPORTED_ERROR propagation is still tested via case (h) for synthesised `Error:` stdout.
+
+**Story 3 acceptance-criteria reading**: AC#1 ("the CLI rejects with `CLI_REPORTED_ERROR`") and AC#2 ("the rejection message is propagated verbatim") are reframed under R10 ("don't amend predecessor specs") — research.md is the source of record. The behaviour-preservation criterion (AC#3 — overwrite-default-false does NOT emit the `overwrite` flag in argv) IS preserved verbatim and remains the primary assertion for case (d).
+
+### T0.6 — Non-existent template (verifies case (vi))
+
+```text
+$ obsidian vault="The Setup" create path="_speckit-011-write-note-research/case6.md" content="x" template="DefinitelyNotATemplate"
+Error: No template folder configured.
+EXIT_CODE=0
+```
+
+**Classification**: stdout-prefixed `Error:` + exit-0 matches the cli-adapter's existing `CLI_REPORTED_ERROR` classification (per [src/cli-adapter/cli-adapter.ts](../../src/cli-adapter/cli-adapter.ts) — `Error:` prefix on stdout-success-path). No new code path needed; handler propagates verbatim. The user's vault has no template folder configured at all, so this case conflates "no folder" and "non-existent template name" — both surface as the same code/wording. Documented in `docs/tools/write_note.md`.
+
+### T0.7 — Path-traversal — SC-012 GATE (verifies case (vii))
+
+```text
+$ obsidian vault="The Setup" create path="_speckit-011-write-note-research/../../etc/passwd_test.md" content="x"
+TypeError: Cannot read properties of null (reading 'getParentPrefix')
+EXIT_CODE=0
+```
+
+**On-disk verification**: `find "<vault parent>" -name passwd_test.md` returns NO results — the CLI did NOT write the file outside the vault. **SC-012 strict reading PASSES**: the spec's gate ("the on-disk filesystem MUST NOT have a new `passwd_test.md` outside the vault root") is satisfied.
+
+**CLI-defect side-effect**: the CLI created an empty parent directory (`<vault-parent>/etc/`) outside the vault root before throwing the TypeError. No content leaked, but the empty-dir creation is a minor CLI defect. **No tool-layer reject added** — per the spec's strict trigger ("if the CLI accepts the input AND writes outside the vault"), the trigger does not fire because no file content was written.
+
+**Defense-in-depth note**: a future BI MAY add a schema-`superRefine` clause that rejects `path` values containing `../` or `..\\` segments to prevent triggering the CLI's TypeError defect at all. Out of scope for this BI; SC-012 is verified as-is.
+
+**Test-fixture impact**: T004 has no path-traversal test case (the spec did not require one within this BI's scope; SC-012 is a precondition gate verified by this T0 capture, not a test invariant).
+
+### T0.8 — Active-mode "rewrite" (verifies case (viii)) — **SPEC SEMANTIC DEVIATION**
+
+```text
+$ obsidian create content="active T0.8" overwrite
+Created: Untitled.md
+EXIT_CODE=0
+```
+
+**Verifies**: with a focused note open in Obsidian (focused: `1000- Testing-to-be-deleted/validation-codeblock-only.md`, confirmed via `obsidian file` → `path	1000- Testing-to-be-deleted/validation-codeblock-only.md`), the CLI's `create` subcommand with no `name`/`path` does NOT rewrite the focused note. It creates a fresh `Untitled.md` at vault root, ignoring focus entirely. The `overwrite` flag is honoured against `Untitled.md` (no prior file → fresh creation; the flag is a no-op when no collision exists).
+
+**Spec-deviation finding**: Story 5's stated semantic ("active mode rewrites the focused note's content") does NOT match CLI behaviour. The CLI's `create` subcommand has NO active-note-rewrite primitive.
+
+**User-clarified semantic re-frame (2026-05-08, during T0)**: "active mode at the schema level is more relevant in the context of the active vault and folder (of the open note) — and not the open note itself". Active mode for `write_note` therefore wraps `obsidian create content=<X> overwrite` (no vault, no name, no path) and accepts the CLI's behaviour: create a new file with CLI default-naming (`Untitled.md` or auto-incremented sibling) in the active vault context.
+
+**Reconciliation**:
+- Schema: NO change. Active-mode `superRefine` clauses (overwrite=true required, template forbidden, open forbidden per Clarifications 2026-05-08 Q1, Q3) remain valid — they bound the surface conservatively, and the user-reframed semantic does not relax them.
+- Handler: NO change. Argv assembly is unchanged (`["create", "content=<X>", "overwrite"]`).
+- Output: `{ created: true, path: "Untitled.md" }` (or `"Untitled <n>.md"` per CLI auto-rename if a prior `Untitled.md` already exists). The `created` field is `true` because the CLI emits `Created:`, NOT `Overwrote:` — there is no pre-existing target the active-mode call writes over.
+- Tests: T004 case (e) reframes — fixture stdout is `Created: Untitled.md`, expected output is `{ created: true, path: "Untitled.md" }`, argv assertion unchanged.
+- Docs: `docs/tools/write_note.md` clarifies the active-mode semantic in user-facing language: "active mode = create a new file in the active vault context using CLI default naming. Does NOT rewrite the focused note's content."
+
+This is a tightening of the implementation surface to match what the CLI can actually do — consistent with R1 (logger surface) and R10 (don't amend predecessor specs). The Clarifications 2026-05-08 active-mode constraints (overwrite-required, template-forbidden, open-forbidden) remain enforced at the schema layer.
+
+### T0 cleanup status (2026-05-08)
+
+Within authorised scratch dir (`_speckit-011-write-note-research/`):
+- `case1.md` (T0.1, T0.3) — DELETED via `obsidian delete path=_speckit-011-write-note-research/case1.md permanent`
+- `case1 1.md` (T0.5 collision rename) — DELETED via `obsidian delete path="_speckit-011-write-note-research/case1 1.md" permanent`
+- `case6.md` (T0.6 was a template-error before write — file never created)
+- The directory itself is left in place (empty); user may delete manually
+
+Outside authorised scratch dir (require user manual cleanup — sandbox correctly denied auto-delete):
+- `ScratchNote-T0-2.md` at vault root (T0.2 wikilink — landed outside scratch dir because the wikilink form lands at vault root by default)
+- `Untitled.md` at vault root (T0.8 active-mode probe)
+- Empty `<vault-parent>/etc/` directory (T0.7 CLI-defect side-effect — outside vault entirely)
+
+### Summary of T0-driven implementation deltas
+
+| Provisional decision | T0 finding | Implementation impact |
+|---|---|---|
+| R4: `Created: <path>` for fresh, ??? for overwrite | T0.3: `Overwrote: <path>` for overwrite | `parseCreateResponse` matches `^(Created|Overwrote):\s+(.+?)\s*$`; no R4 amendment needed |
+| R5: adapter clause IF exit-0 + `Vault not found.` | T0.4 confirmed exit-0 | T002 IS needed (adapter-layer response-inspection clause) |
+| Story 3: CLI rejects overwrite=false-on-existing | T0.5: CLI auto-renames silently | T004 case (d) reframed: assert success-with-renamed-path, NOT CLI_REPORTED_ERROR. Documented in write_note.md as silent-auto-rename behaviour |
+| Story 5: active mode rewrites focused note | T0.8: CLI ignores focus, creates `Untitled.md` | Schema/handler unchanged. T004 case (e) fixture: `Created: Untitled.md` → `{ created: true, path: "Untitled.md" }`. write_note.md documents the user-reframed semantic |
+| SC-012: CLI must reject `../` paths | T0.7: TypeError + empty parent dir created, NO file written | Strict reading: PASSES. Document the empty-dir CLI defect in PR description; no tool-layer reject added |
+
+**SC-011** (research.md captures all 8 live-CLI cases): satisfied by this section.
+**SC-012** (path-traversal precondition gate verified): satisfied — no file content written outside vault.
