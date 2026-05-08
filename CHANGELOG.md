@@ -5,6 +5,40 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5] - 2026-05-08
+
+Patch release — adds the third typed-tool surface, `delete_note`. Symmetric counterpart of `read_note` and `write_note`: where `read_note` retired `obsidian_exec` for reads and `write_note` retired it for create/overwrite, `delete_note` retires it for destructive single-file removal. Pure addition — no existing tool changes, no new error codes, no ADR amendments. `obsidian_exec` remains the freeform escape hatch for the `create` subcommand's `newtab` flag and any unwrapped subcommands; the `delete` subcommand is now FULLY covered by `delete_note`.
+
+### Added
+
+- **`delete_note` typed MCP tool**, wrapping the Obsidian CLI's `delete` subcommand. Direct one-to-one wrap with the target-mode primitive's input shape plus the `permanent` boolean flag. Discriminated by `target_mode: "specific" | "active"`. Returns `{ deleted: true, path: string, toTrash: boolean }`: `deleted` is always literal `true` on success (failures throw `UpstreamError`); `path` is the CLI-canonical vault-relative path at the moment of deletion; `toTrash` is the audit signal — `true` for recoverable trash, `false` for permanent deletion.
+- **Safety default**: `permanent: false` (omitted or explicit) sends the file to the OS trash, where it is recoverable until the trash is emptied. **`permanent: true` skips trash and is irreversible** — the file is removed from both the vault and the OS trash with no undo. The irreversibility warning is surfaced in the tool's top-level description AND in [docs/tools/delete_note.md](docs/tools/delete_note.md).
+- **Audit-trail invariant** (SC-014): every successful response satisfies `toTrash === !permanent`. The `toTrash` field is derived structurally from input, NOT parsed from CLI response — so the typed surface owns the safety-default contract regardless of CLI response wording. Operators auditing logs filter on `toTrash === false` to surface every irreversible deletion.
+- Per-mode validation enforced at the schema layer:
+  - Specific mode requires `vault` and exactly one of `file` / `path`; `permanent` defaults to `false`.
+  - Active mode forbids `vault` / `file` / `path`; `permanent` is permitted in both modes (departure from `write_note` — `permanent` has well-defined semantics in active mode).
+  - Unknown top-level keys are rejected (`additionalProperties: false`, post-010 strict-mode).
+- Documentation at [docs/tools/delete_note.md](docs/tools/delete_note.md) — input/output schema, error roster (5 codes), 4+ worked examples (specific path, specific file, specific permanent, failure recovery, active mode), CLI behavioural notes captured during T0 live characterisation (`Moved to trash:` / `Deleted permanently:` response wording, path-traversal NOT normalised by the CLI, file-not-found wording, OS-reserved names on Windows, file-locked-by-external-editor caveat, trash-volume-full known limitation, active-mode TOCTOU caveat for irreversible operations).
+- 30 co-located tests in `src/tools/delete_note/{schema,handler,index}.test.ts` (13 schema + 12 handler + 5 registration), plus 1 new cli-adapter test for the R5 / T002 inheritance lock (delete subcommand inherits unknown-vault re-classification).
+
+### Documentation
+
+- `docs/tools/index.md` — `delete_note` entry added with the safety-default phrasing.
+- `docs/tools/obsidian_exec.md` — the "When to use a typed tool instead" section now lists three typed tools (read/write/delete) and clarifies that the `delete` subcommand is fully covered by `delete_note`; `obsidian_exec` is no longer the right fallback for delete operations.
+
+### Behavioural notes for callers
+
+- **`Moved to trash:` vs `Deleted permanently:` response wording**: the CLI distinguishes the two outcomes in stdout. The handler's regex captures both prefixes; `toTrash` is derived structurally from input, NOT from the response wording, so future CLI wording changes do not affect the audit invariant.
+- **Path-traversal is NOT normalised by the CLI**: `subdir/../foo.md` is treated as a literal multi-component path, not resolved to `foo.md`. There is no vault-escape vector via path-traversal on the CLI's side; the bridge does not add a tool-layer reject (T0.7 verified, SC-012 PASS).
+- **Trash-volume-full on Windows**: NOT probed during T0 (best-effort case per FR-019). On a full Windows recycle bin, the CLI's behaviour is unverified — it may surface a structured error, OR it may silently fall back to permanent delete. Until field-verified, callers requiring audit-grade confidence in the to-trash signal SHOULD verify the file's presence in the OS trash out-of-band when handling notes on volumes with constrained recycle-bin capacity. A future BI may add an on-disk verification step if this case surfaces in field reports.
+- **Active-mode TOCTOU caveat**: the focused note may shift between parse and execution. For an irreversible operation, agents that need certainty about which file is deleted MUST use specific mode with an explicit locator.
+
+### References
+
+- Spec: [specs/012-delete-note/spec.md](specs/012-delete-note/spec.md)
+- Plan: [specs/012-delete-note/plan.md](specs/012-delete-note/plan.md)
+- Research (incl. T0 Live-CLI Capture 2026-05-08): [specs/012-delete-note/research.md](specs/012-delete-note/research.md)
+
 ## [0.2.4] - 2026-05-08
 
 Patch release — adds the second typed-tool surface, `write_note`. Symmetric counterpart of `read_note`: where `read_note` retired `obsidian_exec` for reads, `write_note` retires it for create/overwrite operations. Pure addition — no existing tool changes, no new error codes, no ADR amendments. `obsidian_exec` remains the freeform escape hatch for the `newtab` flag and any unwrapped subcommands.
