@@ -39,7 +39,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
 **⚠️ CRITICAL — SC-013 GATE**: T001 case (viii) probes Windows trash-volume-full behaviour (or, if not feasible to simulate, captures the documented platform behaviour and the typed surface's response). If the CLI silently falls back from to-trash to permanent without `permanent: true` — i.e., the `toTrash: true` audit signal would lie about an irreversible deletion — this BI is amended pre-ship to detect the fall-back and surface it as a structured error. Per [research.md FR-019](research.md) + [spec.md SC-013](spec.md).
 
-- [ ] T001 Live-CLI characterisation (T0 protocol per [research.md](research.md#findings-deferred-to-t0-destructive-cases-require-user-authorised-scratch-vault-subdirectory)). Run live probes against a USER-AUTHORISED scratch subdirectory in the active vault (e.g., `_speckit-012-delete-note-research/`); capture stdout / stderr / exit code; append results to [research.md](research.md) under a new `## T0 Live-CLI Capture (yyyy-mm-dd)` section. Update R4 / handler logic / schema clauses if any T0 result differs from the provisional decisions. Cleanup the scratch subdir via `obsidian delete path=_speckit-012-delete-note-research/...` (using the to-trash default, recoverable) after capture. Cases:
+- [X] T001 Live-CLI characterisation (T0 protocol per [research.md](research.md#findings-deferred-to-t0-destructive-cases-require-user-authorised-scratch-vault-subdirectory)). Run live probes against a USER-AUTHORISED scratch subdirectory in the active vault (e.g., `_speckit-012-delete-note-research/`); capture stdout / stderr / exit code; append results to [research.md](research.md) under a new `## T0 Live-CLI Capture (yyyy-mm-dd)` section. Update R4 / handler logic / schema clauses if any T0 result differs from the provisional decisions. Cleanup the scratch subdir via `obsidian delete path=_speckit-012-delete-note-research/...` (using the to-trash default, recoverable) after capture. Cases:
 
   > **Sub-task numbering note**: the T0.X numbers below mirror the FR-019 case letters (i)–(ix). **T0.5 and T0.9 are intentionally absent** — case (v) (unknown vault) and case (ix) (subcommand discovery + argv shape) were already verified during plan stage (see [research.md Live CLI Findings](research.md#live-cli-findings)) and require no T0 work. T0.1, T0.2, T0.3, T0.4, T0.6, T0.7, T0.8 cover the seven destructive cases that need a scratch subdirectory.
 
@@ -61,7 +61,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: Principle IV (the captured wording becomes the source-of-truth for handler error classification — preserves chain-of-custody from CLI to MCP client). FR-019 / SC-011 / SC-012 / SC-013.
 
-- [ ] T002 [P after T001] **VERIFICATION + ADDITIVE TEST** — confirm the existing 011-R5 cli-adapter unknown-vault response-inspection clause at [src/cli-adapter/cli-adapter.ts:55-89](../../src/cli-adapter/cli-adapter.ts#L55-L89) works for the `delete` subcommand without source-code modification, and add one cross-subcommand test case to lock the inheritance. Two sub-tasks:
+- [X] T002 [P after T001] **VERIFICATION + ADDITIVE TEST** — confirm the existing 011-R5 cli-adapter unknown-vault response-inspection clause at [src/cli-adapter/cli-adapter.ts:55-89](../../src/cli-adapter/cli-adapter.ts#L55-L89) works for the `delete` subcommand without source-code modification, and add one cross-subcommand test case to lock the inheritance. Two sub-tasks:
 
   - **(2a) Live verification** (already completed during plan stage — see [research.md Finding 2](research.md#finding-2-unknown-vault-response-identical-to-create)): `obsidian vault=NoSuchVault delete path=nonexistent.md` returns `Vault not found.` on stdout, exit 0 — byte-identical to the create subcommand. The existing `UNKNOWN_VAULT_PREFIX = "Vault not found."` constant and re-classifier handle delete identically. **No source-code changes to `src/cli-adapter/cli-adapter.ts` needed.**
   - **(2b) Adapter-test inheritance lock**: add a new test case to [src/cli-adapter/cli-adapter.test.ts](../../src/cli-adapter/cli-adapter.test.ts) that exercises the unknown-vault re-classification for `command: "delete"`. **Preferred shape** (if the existing 011-R5 / T002 unknown-vault test is structured as a parameterised suite or is easy to extend with a `it.each`-style fixture row): add `command: "delete"` alongside the existing `command: "create"` row — typically a 1–5 line additive change. **Fallback shape** (if the existing test is a single `it("...")` block hard-coded to `command: "create"`): add a sibling `it("re-classifies unknown vault for delete subcommand", ...)` block that constructs the same stub-spawn fixture with `command: "delete"` and asserts the same `UpstreamError({ code: "CLI_REPORTED_ERROR" })` shape. Either way, the existing test continues to pass for `create` (no regression). Header comment at [src/cli-adapter/cli-adapter.ts:1](../../src/cli-adapter/cli-adapter.ts#L1) already cites BI 011-write-note R5 / T002; no header update needed.
@@ -82,7 +82,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
 ### Implementation for User Story 1
 
-- [ ] T003 [US1] Create [src/tools/delete_note/schema.ts](../../src/tools/delete_note/schema.ts) and [src/tools/delete_note/schema.test.ts](../../src/tools/delete_note/schema.test.ts). Per [data-model.md §Input Schema](data-model.md#input-schema-deletenoteinputschema), [contracts/delete-note-input.contract.md](contracts/delete-note-input.contract.md), and [research.md R6](research.md#r6--no-active-mode-superrefine-clauses-departure-from-011-write-note-r6). Depends on: nothing in this list (truly first source-code task).
+- [X] T003 [US1] Create [src/tools/delete_note/schema.ts](../../src/tools/delete_note/schema.ts) and [src/tools/delete_note/schema.test.ts](../../src/tools/delete_note/schema.test.ts). Per [data-model.md §Input Schema](data-model.md#input-schema-deletenoteinputschema), [contracts/delete-note-input.contract.md](contracts/delete-note-input.contract.md), and [research.md R6](research.md#r6--no-active-mode-superrefine-clauses-departure-from-011-write-note-r6). Depends on: nothing in this list (truly first source-code task).
 
   - **(3a) Author [src/tools/delete_note/schema.ts](../../src/tools/delete_note/schema.ts)** with the `// Original — no upstream. delete_note input/output schemas — flat target-mode primitive extension; permanent default false; deleted z.literal(true) success-only output shape.` header (Principle V). Define:
     - `deleteNoteInputSchema = applyTargetModeRefinement(targetModeBaseSchema.extend({ permanent: z.boolean().optional().default(false) }))` — exactly per [data-model.md §Input Schema](data-model.md#input-schema-deletenoteinputschema). **NO `.superRefine(...)` chain** (R6 — `permanent` has well-defined semantics in both modes; departure from `write_note`'s three active-mode clauses).
@@ -106,7 +106,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: Principle II (13 cases co-located); Principle III (single source of truth — schema is the only typed surface for input shape, `z.literal(true)` is the only typed surface for the success-return shape). FR-001 / FR-002 / FR-003 / FR-004 / FR-005 / FR-016 / SC-004 / SC-005.
 
-- [ ] T004 [US1] Create [src/tools/delete_note/handler.ts](../../src/tools/delete_note/handler.ts) and [src/tools/delete_note/handler.test.ts](../../src/tools/delete_note/handler.test.ts). Per [data-model.md §CLI Invocation Shape](data-model.md#cli-invocation-shape) + [§Response Parsing](data-model.md#response-parsing), [contracts/delete-note-handler.contract.md](contracts/delete-note-handler.contract.md), and [research.md R1, R2, R3, R4](research.md). Depends on: T001 (response-parsing wording locked at T0.1, T0.3, T0.4, T0.6), T003 (`DeleteNoteInput` / `DeleteNoteOutput` types).
+- [X] T004 [US1] Create [src/tools/delete_note/handler.ts](../../src/tools/delete_note/handler.ts) and [src/tools/delete_note/handler.test.ts](../../src/tools/delete_note/handler.test.ts). Per [data-model.md §CLI Invocation Shape](data-model.md#cli-invocation-shape) + [§Response Parsing](data-model.md#response-parsing), [contracts/delete-note-handler.contract.md](contracts/delete-note-handler.contract.md), and [research.md R1, R2, R3, R4](research.md). Depends on: T001 (response-parsing wording locked at T0.1, T0.3, T0.4, T0.6), T003 (`DeleteNoteInput` / `DeleteNoteOutput` types).
 
   - **(4a) Author [src/tools/delete_note/handler.ts](../../src/tools/delete_note/handler.ts)** with the `// Original — no upstream. delete_note handler: thin transformer routing parsed input through invokeCli — argv assembly (NO file→name rename per R3), flag-form permanent per R2, structural toTrash derivation per R4 (toTrash = !parsed.permanent), response parsing locked against T0-captured wording.` header (Principle V). Implement per [contracts/delete-note-handler.contract.md §invariants](contracts/delete-note-handler.contract.md):
     - `executeDeleteNote(input: DeleteNoteInput, deps: ExecuteDeps): Promise<DeleteNoteOutput>`.
@@ -135,7 +135,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: Principle I (handler is a thin transformer; no `child_process.spawn` direct invocation per SC-003); Principle II (12 cases co-located, including the SC-014 audit invariant); Principle IV (every `UpstreamError` propagated verbatim; non-`UpstreamError` re-thrown). FR-001 / FR-007 / FR-008 / FR-010 / FR-016 / SC-003 / SC-007 / SC-014.
 
-- [ ] T005 [US1] Create [src/tools/delete_note/index.ts](../../src/tools/delete_note/index.ts) and [src/tools/delete_note/index.test.ts](../../src/tools/delete_note/index.test.ts). Per [contracts/delete-note-handler.contract.md](contracts/delete-note-handler.contract.md), [contracts/delete-note-input.contract.md](contracts/delete-note-input.contract.md), and the existing [src/tools/write_note/index.ts](../../src/tools/write_note/index.ts) precedent. Depends on: T003, T004.
+- [X] T005 [US1] Create [src/tools/delete_note/index.ts](../../src/tools/delete_note/index.ts) and [src/tools/delete_note/index.test.ts](../../src/tools/delete_note/index.test.ts). Per [contracts/delete-note-handler.contract.md](contracts/delete-note-handler.contract.md), [contracts/delete-note-input.contract.md](contracts/delete-note-input.contract.md), and the existing [src/tools/write_note/index.ts](../../src/tools/write_note/index.ts) precedent. Depends on: T003, T004.
 
   - **(5a) Author [src/tools/delete_note/index.ts](../../src/tools/delete_note/index.ts)** with the `// Original — no upstream. delete_note tool registration via registerTool — responseFormat: "json" wraps the { deleted, path, toTrash } envelope for the MCP wire.` header (Principle V). Mirror `write_note/index.ts` structure exactly:
     - Import `registerTool` from `../_register.js`, `executeDeleteNote, type ExecuteDeps` from `./handler.js`, `deleteNoteInputSchema` from `./schema.js`.
@@ -152,7 +152,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: Principle I (per-surface module entry point); Principle II (5 registration tests co-located); Principle III (the `inputSchema` is derived from the schema via `registerTool`'s `toMcpInputSchema` + `stripSchemaDescriptions` — no manual descriptor construction). FR-001 / FR-011 / FR-012 / FR-016 / SC-002 / SC-007.
 
-- [ ] T006 [US1] Wire `delete_note` into the MCP server. Edit [src/server.ts](../../src/server.ts):
+- [X] T006 [US1] Wire `delete_note` into the MCP server. Edit [src/server.ts](../../src/server.ts):
 
   - **(6a)** Add the import at the top of the imports block (alphabetical alongside `createReadNoteTool` / `createWriteNoteTool`): `import { createDeleteNoteTool } from "./tools/delete_note/index.js";` — placed FIRST in the alphabetical sequence (`delete` < `help` < `obsidian_exec` < `read_note` < `write_note`).
   - **(6b)** Add `createDeleteNoteTool({ logger, queue })` to the tools array at [src/server.ts:64](../../src/server.ts#L64) — the alphabetical position is FIRST in the array (before `createHelpTool()`). Or, alternatively, use registration-of-introduction order (append at end after `createWriteNoteTool({ logger, queue })`). Both acceptable per FR-013; alphabetical is the cleaner convention.
@@ -173,7 +173,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
 **Independent Test**: per [spec.md Story 7 IT](spec.md) — `help({ tool_name: "delete_note" })` returns the populated body (no TODO stub, all 5 error codes named, ≥4 example shapes, irreversibility warning present). Verifiable by file inspection (T007 + T008 + T009 outputs) and by the index.test.ts case (e) added in T005.
 
-- [ ] T007 [P] [US7] Author [docs/tools/delete_note.md](../../docs/tools/delete_note.md) (NEW file — the `assertToolDocsExist` aggregator does NOT pre-populate stubs; T006's registry-consistency test will fail until this lands). Per FR-014 + Story 7 AC#4. Different file from src/, fully parallelisable with T003-T006.
+- [X] T007 [P] [US7] Author [docs/tools/delete_note.md](../../docs/tools/delete_note.md) (NEW file — the `assertToolDocsExist` aggregator does NOT pre-populate stubs; T006's registry-consistency test will fail until this lands). Per FR-014 + Story 7 AC#4. Different file from src/, fully parallelisable with T003-T006.
 
   **Document content** (sections required):
   - **Header**: title (`# Delete Note (delete_note)`), one-paragraph summary mentioning typed surface + safety defaults + the irreversibility warning for `permanent: true` prominently.
@@ -201,11 +201,11 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: Principle V (Markdown exempt from source-header convention per existing precedent); ADR-005 (progressive-disclosure documentation lives in docs/, not in schema). FR-014 / SC-006.
 
-- [ ] T008 [P] [US7] Update [docs/tools/index.md](../../docs/tools/index.md) — add a one-line summary for `delete_note` per FR-015. Match the established style for existing entries (typically `- [<tool_name>](<tool_name>.md): <one-sentence summary>`). The summary MUST surface the safety-default phrasing (e.g., `- [delete_note](delete_note.md): Delete a vault note (to OS trash by default; permanent: true is irreversible).`). Different file from T007; can run in parallel.
+- [X] T008 [P] [US7] Update [docs/tools/index.md](../../docs/tools/index.md) — add a one-line summary for `delete_note` per FR-015. Match the established style for existing entries (typically `- [<tool_name>](<tool_name>.md): <one-sentence summary>`). The summary MUST surface the safety-default phrasing (e.g., `- [delete_note](delete_note.md): Delete a vault note (to OS trash by default; permanent: true is irreversible).`). Different file from T007; can run in parallel.
 
   **Constitution**: Principle V (Markdown exempt). FR-015.
 
-- [ ] T009 [P] [US7] Update [docs/tools/obsidian_exec.md](../../docs/tools/obsidian_exec.md) — add a paragraph noting `delete_note` as the typed surface for delete operations and clarifying when `obsidian_exec` is the right fallback (the create subcommand's `newtab` flag, future unwrapped subcommands; NOT the delete subcommand which is now fully covered by `delete_note`). Per SC-015. Different file from T007 / T008; can run in parallel.
+- [X] T009 [P] [US7] Update [docs/tools/obsidian_exec.md](../../docs/tools/obsidian_exec.md) — add a paragraph noting `delete_note` as the typed surface for delete operations and clarifying when `obsidian_exec` is the right fallback (the create subcommand's `newtab` flag, future unwrapped subcommands; NOT the delete subcommand which is now fully covered by `delete_note`). Per SC-015. Different file from T007 / T008; can run in parallel.
 
   **Constitution**: Principle V (Markdown exempt). SC-015.
 
@@ -217,11 +217,11 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
 **Purpose**: Release artifacts (CHANGELOG, package.json), end-to-end verification (quickstart S-1..S-15), and PR Constitution Compliance.
 
-- [ ] T010 [P] Update [package.json](../../package.json) `description` field to mention `delete_note` alongside `read_note` / `write_note`. Current text (post-011): `"... ships obsidian_exec (generic CLI bridge), help (progressive-disclosure docs), read_note (typed read tool), and write_note (typed create/overwrite tool)."`. Update to: `"... ships obsidian_exec (generic CLI bridge), help (progressive-disclosure docs), read_note (typed read tool), write_note (typed create/overwrite tool), and delete_note (typed delete tool with safety defaults)."`. No other package.json changes (engines.node, dependencies, etc., all unchanged).
+- [X] T010 [P] Update [package.json](../../package.json) `description` field to mention `delete_note` alongside `read_note` / `write_note`. Current text (post-011): `"... ships obsidian_exec (generic CLI bridge), help (progressive-disclosure docs), read_note (typed read tool), and write_note (typed create/overwrite tool)."`. Update to: `"... ships obsidian_exec (generic CLI bridge), help (progressive-disclosure docs), read_note (typed read tool), write_note (typed create/overwrite tool), and delete_note (typed delete tool with safety defaults)."`. No other package.json changes (engines.node, dependencies, etc., all unchanged).
 
   **Constitution**: N/A (release-metadata only). Per project release convention.
 
-- [ ] T011 Add a [CHANGELOG.md](../../CHANGELOG.md) release entry for `0.2.5` per the project's release convention. Bump `package.json:version` from `0.2.4` to `0.2.5` (PATCH bump per plan — purely additive surface; no breaking changes; the new typed surface for delete operations is a new tool-surface addition, not a behaviour change to existing tools). The CHANGELOG entry should:
+- [X] T011 Add a [CHANGELOG.md](../../CHANGELOG.md) release entry for `0.2.5` per the project's release convention. Bump `package.json:version` from `0.2.4` to `0.2.5` (PATCH bump per plan — purely additive surface; no breaking changes; the new typed surface for delete operations is a new tool-surface addition, not a behaviour change to existing tools). The CHANGELOG entry should:
   - **Add**: `delete_note` typed MCP tool wrapping the Obsidian CLI's `delete` subcommand. Per-mode validation, safety-defaulted to OS trash (recoverable); explicit `permanent: true` opt-in for irreversible deletion. Output includes `toTrash: boolean` audit-trail signal (operators filter logs by `toTrash === false` to surface every irreversible deletion). Replaces `obsidian_exec` for delete operations.
   - **Note**: `permanent: true` is unrecoverable — explicit irreversibility warning highlighted in the tool's top-level description AND in `docs/tools/delete_note.md`.
   - **Note**: `obsidian_exec` remains the freeform escape hatch for the create subcommand's `newtab` flag and unwrapped subcommands (the `delete` subcommand is now fully covered by `delete_note`).
@@ -231,7 +231,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: N/A (release-metadata). Per project release convention.
 
-- [ ] T012 Run [quickstart.md](quickstart.md) S-1..S-10 + S-14 verification (CI-runnable scenarios). Specifically:
+- [X] T012 Run [quickstart.md](quickstart.md) S-1..S-10 + S-14 verification (CI-runnable scenarios). Specifically:
   - **S-1**: `npm run test` — assert 0 failures across the new test files; 28 acceptance scenarios pass.
   - **S-2 / S-7**: drift detector + registry-consistency test pass for `delete_note`.
   - **S-3**: `wc -l src/tools/delete_note/handler.ts` ≤ 50; `grep -nE "child_process\.spawn|spawn\(|Error:" src/tools/delete_note/handler.ts` returns no matches.

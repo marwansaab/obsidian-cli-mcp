@@ -307,3 +307,142 @@ The T0 task in `/speckit-implement` will:
 | R10 | Don't amend spec.md retroactively | RATIFIED (mirrors 010 / 011 precedent) | Project convention shift |
 
 **Plan-stage status**: all 10 design decisions ratified. Two FR-019 cases verified live; six deferred to T0 (with two of those gating ship per SC-012 / SC-013).
+
+---
+
+## T0 Live-CLI Capture (2026-05-08)
+
+Probes run against `obsidian` CLI version `1.12.7 (installer 1.12.7)` on Windows 11. Vault: `The Setup`. Scratch subdir: `1000- Testing-to-be-deleted/`. PowerShell host. Captures verbatim.
+
+### T0.1 — specific-mode to-trash delete via `path=`
+
+Pre-step:
+
+```
+PS> obsidian vault="The Setup" create path="1000- Testing-to-be-deleted/case1.md" content="hello"
+Created: 1000- Testing-to-be-deleted/case1.md
+```
+
+Probe:
+
+```
+PS> obsidian vault="The Setup" delete path="1000- Testing-to-be-deleted/case1.md"
+Moved to trash: 1000- Testing-to-be-deleted/case1.md
+EXIT=0
+```
+
+**Captured wording**: `Moved to trash: <path>` — NOT the hypothesised `Trashed: <path>`. R4 amendment: the response regex locks against this exact wording.
+
+### T0.2 — specific-mode to-trash delete via wikilink (`file=`)
+
+Pre-step:
+
+```
+PS> obsidian vault="The Setup" create path="1000- Testing-to-be-deleted/ScratchNote-T0-2.md" content="wikilink probe"
+Created: 1000- Testing-to-be-deleted/ScratchNote-T0-2.md
+```
+
+Probe:
+
+```
+PS> obsidian vault="The Setup" delete file="ScratchNote-T0-2"
+Moved to trash: 1000- Testing-to-be-deleted/ScratchNote-T0-2.md
+EXIT=0
+```
+
+**Captured behaviour**: CLI resolves `file=ScratchNote-T0-2` to the canonical folder-prefixed path `1000- Testing-to-be-deleted/ScratchNote-T0-2.md` and echoes it verbatim. No fallback rule needed. Wording prefix is `Moved to trash:` (same as T0.1).
+
+### T0.3 — specific-mode permanent delete
+
+Pre-step:
+
+```
+PS> obsidian vault="The Setup" create path="1000- Testing-to-be-deleted/case3.md" content="permanent"
+Created: 1000- Testing-to-be-deleted/case3.md
+```
+
+Probe:
+
+```
+PS> obsidian vault="The Setup" delete path="1000- Testing-to-be-deleted/case3.md" permanent
+Deleted permanently: 1000- Testing-to-be-deleted/case3.md
+EXIT=0
+```
+
+**Captured wording**: `Deleted permanently: <path>` — DIFFERENT prefix from T0.1's `Moved to trash:`. The CLI distinguishes to-trash vs permanent in stdout. `toTrash` remains structural per R4 (NOT regex-derived); the distinction surfaces only as alternative regex prefixes for parsing the path.
+
+**Locked regex**: `/^(Moved to trash|Deleted permanently): (.+?)\s*$/m`. First capture group exists for diagnostic / future-extension purposes; second capture group is the path; `toTrash` is computed from input.
+
+### T0.4 — delete against a non-existent path
+
+```
+PS> obsidian vault="The Setup" delete path="1000- Testing-to-be-deleted/__nonexistent_probe.md"
+Error: File "1000- Testing-to-be-deleted/__nonexistent_probe.md" not found.
+EXIT=0
+```
+
+**Captured wording**: `Error: File "<path>" not found.` (exit 0, on stdout). The dispatch-layer's `Error:` stdout-prefix re-classifier catches this and surfaces `CLI_REPORTED_ERROR` with the message verbatim. No handler-layer change needed.
+
+### T0.6 — active-mode delete of focused note
+
+```
+PS> obsidian delete
+Moved to trash: 1000- Testing-to-be-deleted/validation-frontmatter-only.md
+EXIT=0
+```
+
+**Captured behaviour**: active-mode delete succeeds when an Obsidian instance has a focused note. The CLI emits the same `Moved to trash: <path>` wording as specific-mode — no separate active-mode response shape needed. The `path` field is the resolved focused-note path. (Note: the focused note that was deleted during T0.6 was a pre-existing scratch file the user had open; it remains recoverable from OS trash.)
+
+### T0.7 — PATH-TRAVERSAL (SC-012 GATE)
+
+Sentinel pre-step:
+
+```
+PS> obsidian vault="The Setup" create path="1000- Testing-to-be-deleted/_sentinel.md" content="..."
+Created: 1000- Testing-to-be-deleted/_sentinel.md
+```
+
+Probe (relative-path traversal that would resolve to the sentinel under POSIX-style normalization):
+
+```
+PS> obsidian vault="The Setup" delete path="1000- Testing-to-be-deleted/subdir/../_sentinel.md"
+Error: File "1000- Testing-to-be-deleted/subdir/../_sentinel.md" not found.
+EXIT=0
+```
+
+Sentinel-survives check (delete the sentinel directly afterwards):
+
+```
+PS> obsidian vault="The Setup" delete path="1000- Testing-to-be-deleted/_sentinel.md"
+Moved to trash: 1000- Testing-to-be-deleted/_sentinel.md
+EXIT=0
+```
+
+**Captured behaviour**: ✅ **SC-012 PASS** — the CLI does NOT normalize `../` segments. `subdir/../_sentinel.md` is treated as a literal multi-component path, not resolved to `_sentinel.md`. The sentinel survived the traversal probe (verified by deleting it directly afterwards, which succeeded). No vault-escape vector via path-traversal.
+
+**Conclusion**: no tool-layer reject needed. The literal-path treatment is the safe behaviour. R6 stays unchanged (no schema-layer `superRefine` clause for path-traversal); spec is not amended.
+
+(A separate vault-escape probe with leading `../../../` was blocked by the host's permission boundary before reaching the CLI — orthogonal sandbox; not informative for the CLI's own behaviour. The relative-traversal probe above is dispositive.)
+
+### T0.8 — TRASH-VOLUME-FULL (SC-013 GATE)
+
+**Status**: NOT PROBED. Simulating a full Windows recycle bin (Recycle Bin Properties → Custom size: 0 MB, then attempting a delete) requires permission-elevation and risks affecting the user's normal trash workflow if mis-configured. Per the case description's "best-effort" allowance, the platform-specific limitation is documented in `docs/tools/delete_note.md` (T007) instead of probed here.
+
+**Conservative posture**: the handler trusts the CLI's reported success. If a future field report indicates silent fall-back from to-trash to permanent on a full recycle bin, this BI gets a follow-up amendment (post-success on-disk verification) that detects the fall-back and surfaces a structured error. Until then, the documented limitation is the user-facing trade-off.
+
+**No amendment landed**: the handler ships without a fall-back detector. The platform-specific note in `docs/tools/delete_note.md` makes this explicit.
+
+### Cleanup
+
+Files created during T0: `case1.md` (T0.1), `ScratchNote-T0-2.md` (T0.2), `case3.md` (T0.3), `_sentinel.md` (T0.7). All four are now deleted (three to-trash, one permanent). The scratch subdir `1000- Testing-to-be-deleted/` is left in place for the user to remove or repurpose.
+
+The focused note `1000- Testing-to-be-deleted/validation-frontmatter-only.md` was deleted to-trash by T0.6 (recoverable from OS trash).
+
+---
+
+## R4 — Amendments after T0 capture
+
+Original R4 hypothesised regex: `/^(Trashed|Deleted): (.+?)\s*$/m`.
+**T0-captured regex** (locks against the actual CLI wording): `/^(Moved to trash|Deleted permanently): (.+?)\s*$/m`.
+
+Behavioural contract is unchanged: first capture group is diagnostic only; second capture group is the canonical path; `toTrash` is computed structurally from input (NOT from the regex match). The handler's `parseDeleteResponse` uses the T0-locked regex.
