@@ -1,133 +1,127 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-[specs/010-flatten-target-mode/plan.md](specs/010-flatten-target-mode/plan.md)
+[specs/011-write-note/plan.md](specs/011-write-note/plan.md)
 
-Active feature: **010-flatten-target-mode** — a `0.2.1 → 0.2.2`
-structural simplification of the publication pipeline introduced
-across features 007/008/009. `0.2.1` (feature 009) shipped a working
-compatibility shim — ~140 LOC of envelope synthesis in
-[src/tools/_shared.ts](src/tools/_shared.ts) (wrap branch, `oneOf`
-rewrite, top-level `properties` union, `required` intersection,
-Pattern (a) `allOf` walking, leaf widening with cross-branch string-
-discriminator surfacing) plus a three-group drift detector at
-[src/tools/_register.test.ts](src/tools/_register.test.ts) — to bridge
-`targetModeSchema`'s `ZodEffects<ZodDiscriminatedUnion>` shape through
-the zod → JSON Schema → MCP `inputSchema` pipeline. **THIS feature
-deletes the bridge by changing the input shape**: `targetModeSchema`
-is re-encoded as a flat `z.object({...}).strict().superRefine(...)`,
-and `zodToJsonSchema` emits the natural single-flat-object descriptor
-directly. Same per-mode rules. Same accepted/rejected inputs (modulo
-the strict-mode carve-out below). NET ~400 LOC deletion.
+Active feature: **011-write-note** — adds `write_note`, the second
+typed-tool wrap on top of the foundation completed by features 003–010.
+Symmetric counterpart of [006-read-note](specs/006-read-note/spec.md):
+where `read_note` retired `obsidian_exec` for reads, `write_note`
+retires it for create/overwrite operations. Direct one-to-one wrap of
+the Obsidian CLI's `create` subcommand. The user-facing tool surface:
+`write_note({ target_mode, vault?, file? | path?, content, template?,
+overwrite?, open? })` returning `{ created: boolean, path: string }`.
+`obsidian_exec` remains as the freeform escape hatch for the `newtab`
+flag and unwrapped subcommands.
 
-**Encoding split** (clarification C7 + research R2). Three exports
-survive in [src/target-mode/target-mode.ts](src/target-mode/target-mode.ts):
-(a) `targetModeBaseSchema` — the bare `z.object({ target_mode, vault?,
-file?, path? }).strict()` *before* `.superRefine`, exposed for
-Pattern (a) consumers to extend; (b) `applyTargetModeRefinement<T
-extends ZodObject>(s: T): ZodEffects<T>` — single dispatcher helper
-attaching the per-mode rules (XOR `file`/`path`, vault required when
-specific, locator-keys forbidden when active); (c) `targetModeSchema =
-applyTargetModeRefinement(targetModeBaseSchema)` — the canonical
-no-extension export. Six pre-010 exports DELETE per FR-017:
-`targetModeSpecificBaseSchema`, `targetModeActiveBaseSchema`,
-`targetModeSpecificSchema`, `targetModeActiveSchema`,
-`applyTargetModeSpecificRefinement`, `applyTargetModeActiveRefinement`.
+**Schema** (post-010 Pattern (a) flat-extension idiom + three
+write_note-specific active-mode `superRefine` clauses per
+Clarifications 2026-05-08):
+`applyTargetModeRefinement(targetModeBaseSchema.extend({ content,
+template, overwrite, open })).superRefine(<active-mode rules>)`.
+The active-mode rules: (i) `overwrite: true` REQUIRED (the
+safety-default rule applies uniformly across both modes; active mode
+is destructive by definition, so the explicit-opt-in posture binds);
+(ii) `template` FORBIDDEN (templates apply at creation; active-mode
+rewrites the content of a note that already exists); (iii) `open`
+FORBIDDEN (focused = already open). Asymmetry vs. `overwrite`'s
+field declaration: per research R6, the `open` field is declared
+`z.boolean().optional()` WITHOUT `.default(false)` so the
+`superRefine` can distinguish "key absent" (specific-mode acceptable)
+from "key present" (active-mode rejected); the handler reads
+`parsed.open ?? false`. The `overwrite` field keeps its
+`.default(false)` because the active-mode rule is "must be exactly
+true" — `false` (the default) fails that check naturally.
 
-**Pattern (a) idiom** — `applyTargetModeRefinement(targetModeBaseSchema.extend({
-<fields> }))`. NOT `.merge()` — research R2 verified empirically that
-`.merge()` resets `unknownKeys` to `"strip"` (silently drops unknown
-keys at parse time), while `.extend()` preserves the parent's
-`.strict()` mode. Both calls produce identical JSON Schema descriptors,
-but only `.extend()` honours the FR-002 strict-mode carve-out at runtime.
+**Live-CLI surface** (verified during plan via `obsidian help create`):
+- argv: `name=<name>` (NOT `file=<name>` like `read`), `path=<path>`,
+  `content=<text>`, `template=<name>`; flag form (no `=true`) for
+  `overwrite`, `open`, `newtab`. Per research R3, the user-facing
+  schema field stays `file` (parity with `read_note`); the handler
+  maps `file` → `name=<value>` for the create subcommand at argv
+  assembly.
+- success response (R4 provisional): `Created: <path>` on stdout;
+  `created: true`/`false` derivation locks against this prefix.
+  Overwrite-success wording (R4 residual) captured at T0.
+- unknown-vault response (R5): `Vault not found.` on stdout —
+  structured enough for adapter-layer response-inspection. R5 ratified;
+  inspection clause added to cli-adapter (NOT to write_note) so all
+  typed tools benefit.
 
-**Strict-mode carve-out (FR-002 / clarification C3)**. The post-010
-`.strict()` mode produces a deliberate, narrow runtime-behaviour
-change vs. `0.2.1`: unknown top-level keys produce `VALIDATION_ERROR`
-with `code: "unrecognized_keys"`, `keys: ["<offending>"]`, `path: []`
-at parse time, instead of being silently passed through `.passthrough()`.
-For documented inputs (using only `target_mode`, `vault`, `file`,
-`path`), behaviour is preserved exactly. The change is disclosed in
-`CHANGELOG.md` per FR-012.
+**Logger surface (R1 — spec FR-009 reconciliation)**: the spec's
+FR-009 mandated handler-emitted `logger.callStart` /
+`logger.callEndSuccess` / `logger.callEndFailure` events "in parity
+with read_note". Live verification: read_note's actual handler does
+NOT emit those events; the `Logger` interface at
+[src/logger.ts](src/logger.ts) does NOT define those methods. Per
+"spec follows the code that exists" (CLAUDE.md / 006-read-note
+background), `write_note` mirrors the actual sibling implementation:
+thin `invokeCli` wrapper, no per-call logger events fire from the
+tool layer. The cli-adapter's existing `dispatchTimeout` /
+`dispatchCap` / `dispatchKill` events preserve observability
+end-to-end. Spec FR-009 superseded by research R1; spec.md NOT
+amended per R10 (don't amend predecessor specs).
 
-**Pattern (b) deletion (clarification C4 / FR-009 / FR-013)**. Pattern
-(b) (fresh discriminated union with union-level `superRefine`) is
-removed from the canonical reuse roster. Zero in-repo consumers.
-The synthetic Pattern (b) fixture at
-[_register.test.ts:436-472](src/tools/_register.test.ts#L436-L472)
-deletes; the wrap branch in `_shared.ts` (whose only justification was
-to handle Pattern (b)'s shape) deletes entirely. A future consumer
-that genuinely needs a fresh discriminated union re-adds a narrower
-wrap branch in its own feature.
+**Module layout** (per research, verified against sibling read_note):
+`src/tools/write_note/{schema,handler,index}.ts` (NOT `tool.ts`);
+factory `createWriteNoteTool(deps)` (NOT `registerWriteNoteTool`);
+all three new source files carry the `// Original — no upstream.`
+header per Constitution V. Tests co-located:
+`src/tools/write_note/{schema,handler,index}.test.ts` — 32 cases
+total (15 schema / 12 handler / 5 registration per FR-016).
 
-**Drift detector consolidation (FR-008)**. The three-group structure
-in [_register.test.ts](src/tools/_register.test.ts) collapses to one
-group with two layers: (1) registry walk + per-tool invariants
-(`it.each` over the live `tools/list` registry); (2) SDK round-trip
-via `InMemoryTransport` (defence-in-depth against future SDK
-behaviour changes). The Pattern (a) fixture is folded into Layer 1's
-invariant table as a fourth row (`synthetic_pattern_a` —
-`applyTargetModeRefinement(targetModeBaseSchema.extend({ note_text }))`).
-Pattern (b) fixture deleted outright. Per-tool invariants pin
-`additionalProperties: false` for `read_note` (vs. `true` in 009 —
-the Cowork accommodation flips back). Target post-feature: ~270 LOC
-(SC-008, down from 473).
+**Cross-cutting**: zero new error codes (FR-018 + Constitution IV);
+zero new ADRs; 008-refactor surface frozen — `dispatchCli`,
+`invokeCli`, `invokeBoundedCli`, `assertToolDocsExist`,
+`obsidian_exec` argv contract all preserved. `read_note` and
+`obsidian_exec` byte-stable (SC-009; only `src/server.ts` registration
+list grows by one entry). The post-010 consolidated drift detector
+at [src/tools/_register.test.ts](src/tools/_register.test.ts)
+auto-covers `write_note` via its `it.each` registry walk — no
+test-file modifications required.
 
-**ADR-003 amendment (FR-013 / R7)**. Line 20's "discriminated union"
-wording amends in place to "flat `z.object` with `superRefine`". The
-rationale (force explicit intent on every call, validate at the
-boundary, separate co-pilot from orchestrator context) preserved
-verbatim. `updated:` frontmatter bumps to `2026-05-07`; an
-"Amendment 2026-05-07" stanza appended at the bottom records why the
-encoding changed. NO new ADR (clarification C5).
+**FR-019 plan-stage characterisation**: 8 live-CLI cases captured.
+Cases (i), (ii), (v) verified during plan (`Created: <path>` for
+fresh creations; `Vault not found.` for unknown-vault) — see
+[research.md](specs/011-write-note/research.md). Cases (iii) overwrite
+signal, (iv) overwrite=false-on-existing, (vi) non-existent template,
+(vii) PATH-TRAVERSAL (gates SC-012 — silent vault-escape blocks
+ship), (viii) active-mode focused-path return are deferred to T0
+(runs at start of /speckit-implement against a user-authorised
+scratch subdir; results appended to research.md). The handler's
+response-parsing logic locks against captured wording.
 
-**Cross-cutting**: zero new error codes (FR-010); zero new ADRs
-(SC-013); 008-refactor surface frozen outside of `target-mode.ts` and
-`_shared.ts` (FR-016) — `dispatchCli`, `invokeCli`,
-`invokeBoundedCli`, the in-flight registry, the four-priority error
-classification, the always-on bounds, `assertToolDocsExist`, and the
-`obsidian_exec` argv-assembly contract are all frozen.
-`obsidian_exec`'s published `inputSchema` is byte-stable from `0.2.0`
-(FR-007). `help`'s schema is byte-stable. `read_note`'s
-[handler.ts:21-27](src/tools/read_note/handler.ts#L21-L27) gains
-`input.vault!` non-null assertion + single-line comment naming the
-`superRefine` runtime invariant (clarification C1).
-
-**Compatibility / release** — `read_note`'s wire descriptor flips
-from `0.2.1`'s `{ type, oneOf, properties: {<unioned>}, required,
-additionalProperties: true, $schema }` to `0.2.2`'s flat `{ type,
-properties: {<typed>}, required, additionalProperties: false,
-$schema }`. Both strict-rich (Claude Desktop, MCP Inspector) and
-strict-naive (Cowork) clients accept the new shape — `additionalProperties:
-false` is strictly more conservative than `true`; any client that
-accepted the latter accepts the former. Version bumps `0.2.1 → 0.2.2`
-(patch; clarification C6 — `TargetMode` is not publicly re-exported
-from `src/index.ts`, so the type flatten is internal-only). The
-strict-mode behaviour change is the only user-visible delta and is
-documented in `CHANGELOG.md` per FR-012.
+**Compatibility / release**: this BI is additive — no existing tool
+changes, no error codes added, no ADRs amended. Public surface gains
+one new typed tool. Version bump `0.2.3 → 0.2.4` (patch — purely
+additive surface; type system unchanged from external view per the
+post-010 internal-only `TargetMode` precedent). The new strict-mode
+posture (active mode requires overwrite=true; active mode forbids
+template/open) is disclosed in `CHANGELOG.md` per the project's
+release convention.
 
 See also:
-- [spec.md](specs/010-flatten-target-mode/spec.md) — feature spec + 7 resolved clarifications (C1–C7)
-- [research.md](specs/010-flatten-target-mode/research.md) — Phase 0 decisions R1–R10 (R1 zodToJsonSchema emit verified; R2 `.extend()` over `.merge()` for strict-preservation; R3 helper signature; R4 `unrecognized_keys` issue shape; R5 drift-detector consolidation; R6 test migration map; R7 ADR-003 amendment text; R8 CHANGELOG entry; R9 coverage threshold ratchet; R10 don't amend historical specs)
-- [data-model.md](specs/010-flatten-target-mode/data-model.md) — pre-010 → post-010 export inventory diff, flat schema shape, JSON Schema emit shape, per-tool invariants, test-case migration map
-- [contracts/flat-target-mode.contract.md](specs/010-flatten-target-mode/contracts/flat-target-mode.contract.md) — public export contract for `targetModeBaseSchema` / `applyTargetModeRefinement` / `targetModeSchema` (SUPERSEDES feature 004's contract)
-- [contracts/drift-detector.contract.md](specs/010-flatten-target-mode/contracts/drift-detector.contract.md) — post-010 consolidated drift-detector contract (SUPERSEDES feature 009's contract)
-- [quickstart.md](specs/010-flatten-target-mode/quickstart.md) — 13 verification scenarios mapped to SC-001..SC-013 (S-1..S-10 in CI; S-11/S-12 manual against Cowork + Claude Desktop; S-13 deliberate-revert sanity check)
+- [spec.md](specs/011-write-note/spec.md) — feature spec + 3 resolved clarifications (C1–C3, Session 2026-05-08)
+- [research.md](specs/011-write-note/research.md) — Phase 0 decisions R1–R10 + 8 FR-019 cases (R1 logger surface reconciliation; R2 argv flag form vs key=value verified; R3 file → name argv rename; R4 created true/false signal — `Created: <path>` provisional, T0 verifies; R5 unknown-vault response-inspection ratified; R6 active-mode superRefine packaging + open-field asymmetry; R7 test seams; R8 import.meta.url path resolution; R9 coverage preservation; R10 don't amend historical specs)
+- [data-model.md](specs/011-write-note/data-model.md) — input/output schema diagrams, the three new active-mode superRefine clauses with issue shapes, the user-field → CLI-argv mapping table, response-parsing decision tree, per-tool invariants, module layout LOC budget
+- [contracts/write-note-input.contract.md](specs/011-write-note/contracts/write-note-input.contract.md) — public input contract: zod schema, emitted JSON Schema shape, per-mode field policy, failure-mode roster
+- [contracts/write-note-handler.contract.md](specs/011-write-note/contracts/write-note-handler.contract.md) — handler invariants: deps shape, invokeCli call shape, argv-mapping rules, success-response parsing, failure propagation chain
+- [quickstart.md](specs/011-write-note/quickstart.md) — 13 verification scenarios mapped to SC-001..SC-013 (S-1..S-10 in CI; S-11/S-12 manual against Claude Desktop + Cowork; S-13 deliberate-revert sanity check)
 
 Predecessor features:
-- **009-fix-inputschema-publication**: [spec.md](specs/009-fix-inputschema-publication/spec.md), [plan.md](specs/009-fix-inputschema-publication/plan.md) — shipped the working compatibility shim THIS feature replaces. The widened envelope helper, the three-group drift detector, and the `additionalProperties: true` accommodation all delete; `read_note` continues to work end-to-end through every observed client class (S-11 / S-12).
-- **008-refactor**: [spec.md](specs/008-refactor/spec.md), [plan.md](specs/008-refactor/plan.md) — introduced `registerTool` and the registry pipeline. THIS feature's `_shared.ts` shrink + flat schema work alongside `registerTool`'s existing `zodToJsonSchema` call site (one-line edit if the helper is inlined).
-- **007-fix-list-tools-schema**: [spec.md](specs/007-fix-list-tools-schema/spec.md), [plan.md](specs/007-fix-list-tools-schema/plan.md) — introduced `toMcpInputSchema` and the wrap branch. THIS feature retires the wrap branch entirely.
-- **006-read-note**: [spec.md](specs/006-read-note/spec.md), [plan.md](specs/006-read-note/plan.md) — the typed `read_note` tool. Wire behaviour preserved (modulo the strict-mode carve-out for documented inputs); error roster and parameter contract unchanged.
-- **004-target-mode-schema**: [spec.md](specs/004-target-mode-schema/spec.md), [plan.md](specs/004-target-mode-schema/plan.md) — defined the discriminated-union encoding and the Pattern (a)/(b) reuse framework. Encoding flattens (FR-001); reuse framework loses Pattern (b) (FR-013); Pattern (a) survives as the flat extension idiom. Historical specs/contracts NOT amended (R10).
-- **003-cli-adapter**, **002-detect-cli-errors**, **001-add-cli-bridge**: foundational; not touched.
+- **010-flatten-target-mode**: [spec.md](specs/010-flatten-target-mode/spec.md), [plan.md](specs/010-flatten-target-mode/plan.md) — flattened `targetModeSchema` to a single z.object().strict().superRefine(...) and consolidated the drift detector. THIS feature consumes the post-010 Pattern (a) flat-extension idiom directly + the strict-mode `additionalProperties: false` posture; no further changes to target-mode primitive needed.
+- **006-read-note**: [spec.md](specs/006-read-note/spec.md), [plan.md](specs/006-read-note/plan.md) — the first typed tool. THIS feature mirrors its module layout, RegisterDeps shape, and handler-thinness ceiling. Per R1, the actual read_note handler does NOT emit per-call logger events (despite the spec's FR-017 wording); write_note matches the actual shape.
+- **005-help-tool**: [spec.md](specs/005-help-tool/spec.md), [plan.md](specs/005-help-tool/plan.md) — help tool, schema-stripping utility, registry-consistency test. THIS feature populates `docs/tools/write_note.md` (new file per FR-014); the existing registry-consistency test at [src/server.test.ts](src/server.test.ts) auto-asserts the file's existence once write_note is registered.
+- **003-cli-adapter**: [spec.md](specs/003-cli-adapter/spec.md), [plan.md](specs/003-cli-adapter/spec.md) — `invokeCli` adapter. THIS feature routes through it; R5 adds an unknown-vault response-inspection clause (additive — does NOT break existing callers).
+- **004-target-mode-schema**: [spec.md](specs/004-target-mode-schema/spec.md), [plan.md](specs/004-target-mode-schema/plan.md) — defined the target_mode primitive. THIS feature composes via post-010's `targetModeBaseSchema` + `applyTargetModeRefinement` exports.
+- **008-refactor**, **007-fix-list-tools-schema**, **009-fix-inputschema-publication**, **002-detect-cli-errors**, **001-add-cli-bridge**: foundational; not touched.
 
 References:
-- [.specify/memory/constitution.md](.specify/memory/constitution.md) — Principle III (zod is the single source of truth) reaffirmed with a TRIVIAL derivation (one `zodToJsonSchema` call, no envelope synthesis layer). Principle II (co-located tests) reaffirmed. Principle I (downward flow) preserved.
-- [.decisions/ADR-003 - Enforce Target Mode in Typed Tools.md](.decisions/) — line-20 wording amends in place; rationale preserved. THIS feature is the only post-ratification amendment (R7).
-- [.decisions/ADR-006 - Centralized Tool Registration.md](.decisions/) — `registerTool` factory reaffirmed; structural change only.
-- [.decisions/ADR-005 - Token-Optimized Tool Definitions.md](.decisions/) — `stripSchemaDescriptions` runs unchanged downstream of the trivial `zodToJsonSchema` call.
-- [.architecture/Obsidian CLI MCP - Architecture.md](.architecture/Obsidian%20CLI%20MCP%20-%20Architecture.md) — the architecture this simplification reaffirms.
+- [.specify/memory/constitution.md](.specify/memory/constitution.md) — All five principles satisfied (no Complexity Tracking entries needed). Principle I (per-surface module under `src/tools/write_note/`); Principle II (32 co-located tests); Principle III (zod is the single source of truth for both input AND output, types via z.infer, no hand-rolled types); Principle IV (zero new error codes; failures flow through VALIDATION_ERROR + adapter's four codes); Principle V (Original-no-upstream headers on every new source file).
+- [.decisions/ADR-003 - Enforce Target Mode in Typed Tools.md](.decisions/) — reaffirmed; write_note enforces target_mode via the post-010 primitive, no amendment.
+- [.decisions/ADR-005 - Token-Optimized Tool Definitions.md](.decisions/) — reaffirmed; `stripSchemaDescriptions` applied at registration via `registerTool` (auto).
+- [.decisions/ADR-006 - Centralized Tool Registration.md](.decisions/) — reaffirmed; `registerTool` factory wraps schema parse + UpstreamError propagation + JSON serialisation.
+- [.architecture/Obsidian CLI MCP - Architecture.md](.architecture/Obsidian%20CLI%20MCP%20-%20Architecture.md) — the architecture this BI continues to implement.
 <!-- SPECKIT END -->
 
 ## Architecture & Decision References
