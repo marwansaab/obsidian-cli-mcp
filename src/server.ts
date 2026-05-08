@@ -14,6 +14,7 @@ import { asToolError, type RegisteredTool } from "./tools/_shared.js";
 import { createHelpTool } from "./tools/help/index.js";
 import { createObsidianExecTool } from "./tools/obsidian_exec/index.js";
 import { createReadNoteTool } from "./tools/read_note/index.js";
+import { createWriteNoteTool } from "./tools/write_note/index.js";
 
 import type { Writable } from "node:stream";
 
@@ -64,6 +65,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     createHelpTool(),
     createObsidianExecTool({ logger, queue }),
     createReadNoteTool({ logger, queue }),
+    createWriteNoteTool({ logger, queue }),
   ];
 
   // Boot-time aggregated doc-file presence check (FR-005 / Q4 — fail-fast on
