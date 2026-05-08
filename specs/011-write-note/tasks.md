@@ -37,7 +37,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
 **⚠️ CRITICAL — SC-012 GATE**: T001 case (vii) verifies the live CLI rejects path-traversal-shaped paths (`../../etc/passwd.md`). If the CLI does NOT reject, this BI is amended pre-ship to add a tool-layer reject (one schema test case + one schema-`superRefine` clause); the merge gate does not clear without verification. Per [research.md FR-019](research.md#fr-019-case-capture-status) + [spec.md SC-012](spec.md).
 
-- [ ] T001 Live-CLI characterisation (T0 protocol per [research.md](research.md#fr-019-case-capture-status)). Run live probes against a USER-AUTHORISED scratch subdirectory in the active vault (e.g., `_speckit-011-write-note-research/`); capture stdout / stderr / exit code; append results to [research.md](research.md) under a new `## T0 Live-CLI Capture (yyyy-mm-dd)` section. Update R4 / R5 / handler logic / schema clauses if any T0 result differs from the provisional decisions. Cleanup the scratch subdir via `obsidian delete path=_speckit-011-write-note-research/...` after capture. Cases:
+- [X] T001 Live-CLI characterisation (T0 protocol per [research.md](research.md#fr-019-case-capture-status)). Run live probes against a USER-AUTHORISED scratch subdirectory in the active vault (e.g., `_speckit-011-write-note-research/`); capture stdout / stderr / exit code; append results to [research.md](research.md) under a new `## T0 Live-CLI Capture (yyyy-mm-dd)` section. Update R4 / R5 / handler logic / schema clauses if any T0 result differs from the provisional decisions. Cleanup the scratch subdir via `obsidian delete path=_speckit-011-write-note-research/...` after capture. Cases:
 
     - **(T0.1) Specific-mode create at new path**: `obsidian vault="<vault>" create path="_speckit-011-write-note-research/case1.md" content="hello"`. Capture stdout (provisional R4: `Created: <path>`) and exit code. Lock the parser's expected substring.
     - **(T0.2) Specific-mode create via wikilink**: `obsidian vault="<vault>" create name="ScratchNote-T0-2" content="hello"`. Capture stdout (expected `Created: <CLI-resolved canonical path>`) and the canonical-path resolution rule (which folder does the wikilink land in by default?).
@@ -52,7 +52,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: Principle IV (the captured wording becomes the source-of-truth for handler error classification — preserves chain-of-custody from CLI to MCP client). FR-019 / SC-011 / SC-012.
 
-- [ ] T002 [P after T001] **CONDITIONAL** — R5 adapter-layer response-inspection clause for unknown-vault, IF AND ONLY IF T0.4 confirms the CLI returns exit code `0` with stdout `Vault not found.`. Add to [src/cli-adapter/cli-adapter.ts](../../src/cli-adapter/cli-adapter.ts) a stdout-pattern check inside `invokeCli`'s success path: after the `dispatchCli` call returns success, if `out.stdout.trimStart()` matches the captured T0.4 prefix, throw `UpstreamError({ code: "CLI_REPORTED_ERROR", message: "<verbatim CLI wording>", details: { stdout: out.stdout, stderr: out.stderr } })` instead of returning the success envelope. Co-located test in [src/cli-adapter/cli-adapter.test.ts](../../src/cli-adapter/cli-adapter.test.ts) — feed a stub `spawnFn` that returns exit-0 + the verbatim T0.4 stdout; assert the call rejects with `UpstreamError({ code: "CLI_REPORTED_ERROR" })` AND the message preserves the CLI wording verbatim. Update [src/cli-adapter/cli-adapter.ts:1](../../src/cli-adapter/cli-adapter.ts#L1) header comment to note the response-inspection clause and cite the BI / research note.
+- [X] T002 [P after T001] **CONDITIONAL** — R5 adapter-layer response-inspection clause for unknown-vault, IF AND ONLY IF T0.4 confirms the CLI returns exit code `0` with stdout `Vault not found.`. Add to [src/cli-adapter/cli-adapter.ts](../../src/cli-adapter/cli-adapter.ts) a stdout-pattern check inside `invokeCli`'s success path: after the `dispatchCli` call returns success, if `out.stdout.trimStart()` matches the captured T0.4 prefix, throw `UpstreamError({ code: "CLI_REPORTED_ERROR", message: "<verbatim CLI wording>", details: { stdout: out.stdout, stderr: out.stderr } })` instead of returning the success envelope. Co-located test in [src/cli-adapter/cli-adapter.test.ts](../../src/cli-adapter/cli-adapter.test.ts) — feed a stub `spawnFn` that returns exit-0 + the verbatim T0.4 stdout; assert the call rejects with `UpstreamError({ code: "CLI_REPORTED_ERROR" })` AND the message preserves the CLI wording verbatim. Update [src/cli-adapter/cli-adapter.ts:1](../../src/cli-adapter/cli-adapter.ts#L1) header comment to note the response-inspection clause and cite the BI / research note.
 
   **If T0.4 confirms exit code is `1` (not `0`)**: T002 collapses to a single-line update to the [research.md](research.md) R5 entry noting "T0.4 verified exit-1; CLI_NON_ZERO_EXIT covers without inspection" and a brief note in `docs/tools/write_note.md` (in T007). No code changes.
 
@@ -70,7 +70,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
 ### Implementation for User Story 1
 
-- [ ] T003 [US1] Create [src/tools/write_note/schema.ts](../../src/tools/write_note/schema.ts) and [src/tools/write_note/schema.test.ts](../../src/tools/write_note/schema.test.ts). Per [data-model.md §1](data-model.md), [contracts/write-note-input.contract.md](contracts/write-note-input.contract.md), and [research.md R6](research.md). Depends on: nothing in this list (truly first source-code task).
+- [X] T003 [US1] Create [src/tools/write_note/schema.ts](../../src/tools/write_note/schema.ts) and [src/tools/write_note/schema.test.ts](../../src/tools/write_note/schema.test.ts). Per [data-model.md §1](data-model.md), [contracts/write-note-input.contract.md](contracts/write-note-input.contract.md), and [research.md R6](research.md). Depends on: nothing in this list (truly first source-code task).
 
   - **(3a) Author [src/tools/write_note/schema.ts](../../src/tools/write_note/schema.ts)** with the `// Original — no upstream. write_note input/output schemas — flat target-mode primitive extension + active-mode superRefine clauses (Clarifications 2026-05-08).` header (Principle V). Define:
     - `writeNoteInputSchema = applyTargetModeRefinement(targetModeBaseSchema.extend({ content: z.string(), template: z.string().optional(), overwrite: z.boolean().optional().default(false), open: z.boolean().optional() })).superRefine(<active-mode rules>)` — exactly per [data-model.md §1 / R6](data-model.md). The three active-mode clauses (overwrite-required, template-forbidden, open-forbidden) bundled into a single chained `.superRefine` callback.
@@ -96,7 +96,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: Principle II (15 cases co-located); Principle III (single source of truth — schema is the only typed surface for input shape). FR-001 / FR-002 / FR-003 / FR-004 / FR-005 / FR-016 / SC-004 / SC-005.
 
-- [ ] T004 [US1] Create [src/tools/write_note/handler.ts](../../src/tools/write_note/handler.ts) and [src/tools/write_note/handler.test.ts](../../src/tools/write_note/handler.test.ts). Per [data-model.md §3-§5](data-model.md), [contracts/write-note-handler.contract.md](contracts/write-note-handler.contract.md), and [research.md R1, R2, R3, R4](research.md). Depends on: T001 (response-parsing wording locked), T003 (`WriteNoteInput` / `WriteNoteOutput` types).
+- [X] T004 [US1] Create [src/tools/write_note/handler.ts](../../src/tools/write_note/handler.ts) and [src/tools/write_note/handler.test.ts](../../src/tools/write_note/handler.test.ts). Per [data-model.md §3-§5](data-model.md), [contracts/write-note-handler.contract.md](contracts/write-note-handler.contract.md), and [research.md R1, R2, R3, R4](research.md). Depends on: T001 (response-parsing wording locked), T003 (`WriteNoteInput` / `WriteNoteOutput` types).
 
   - **(4a) Author [src/tools/write_note/handler.ts](../../src/tools/write_note/handler.ts)** with the `// Original — no upstream. write_note handler: thin transformer routing parsed input through invokeCli — argv assembly (file→name rename per R3), flag-form overwrite/open per R2, response parsing per R4.` header (Principle V). Implement per [contracts/write-note-handler.contract.md §invariants](contracts/write-note-handler.contract.md):
     - `executeWriteNote(input: WriteNoteInput, deps: ExecuteDeps): Promise<WriteNoteOutput>`.
@@ -123,7 +123,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: Principle I (handler is a thin transformer; no `child_process.spawn` direct invocation per SC-003); Principle II (12 cases co-located); Principle IV (every `UpstreamError` propagated verbatim; non-`UpstreamError` re-thrown). FR-001 / FR-007 / FR-008 / FR-010 / FR-016 / SC-003 / SC-007.
 
-- [ ] T005 [US1] Create [src/tools/write_note/index.ts](../../src/tools/write_note/index.ts) and [src/tools/write_note/index.test.ts](../../src/tools/write_note/index.test.ts). Per [contracts/write-note-handler.contract.md](contracts/write-note-handler.contract.md), [contracts/write-note-input.contract.md](contracts/write-note-input.contract.md), and the existing [src/tools/read_note/index.ts](../../src/tools/read_note/index.ts) precedent. Depends on: T003, T004.
+- [X] T005 [US1] Create [src/tools/write_note/index.ts](../../src/tools/write_note/index.ts) and [src/tools/write_note/index.test.ts](../../src/tools/write_note/index.test.ts). Per [contracts/write-note-handler.contract.md](contracts/write-note-handler.contract.md), [contracts/write-note-input.contract.md](contracts/write-note-input.contract.md), and the existing [src/tools/read_note/index.ts](../../src/tools/read_note/index.ts) precedent. Depends on: T003, T004.
 
   - **(5a) Author [src/tools/write_note/index.ts](../../src/tools/write_note/index.ts)** with the `// Original — no upstream. write_note tool registration via registerTool — responseFormat: "json" wraps the { created, path } envelope for the MCP wire.` header (Principle V). Mirror `read_note/index.ts` structure exactly:
     - Import `registerTool` from `../_register.js`, `executeWriteNote, type ExecuteDeps` from `./handler.js`, `writeNoteInputSchema` from `./schema.js`.
@@ -140,7 +140,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: Principle I (per-surface module entry point); Principle II (5 registration tests co-located); Principle III (the `inputSchema` is derived from the schema via `registerTool`'s `toMcpInputSchema` + `stripSchemaDescriptions` — no manual descriptor construction). FR-001 / FR-011 / FR-012 / FR-016 / SC-002 / SC-007.
 
-- [ ] T006 [US1] Wire `write_note` into the MCP server. Edit [src/server.ts](../../src/server.ts):
+- [X] T006 [US1] Wire `write_note` into the MCP server. Edit [src/server.ts](../../src/server.ts):
 
   - **(6a)** Add the import at the top of the imports block (alphabetical alongside `createReadNoteTool`): `import { createWriteNoteTool } from "./tools/write_note/index.js";`
   - **(6b)** Add `createWriteNoteTool({ logger, queue })` to the tools array at [src/server.ts:65](../../src/server.ts#L65) — append after `createReadNoteTool({ logger, queue })` (alphabetical / introduction-order — both acceptable per FR-013; alphabetical is cleaner).
@@ -161,7 +161,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
 **Independent Test**: per [spec.md Story 8 IT](spec.md) — `help({ tool_name: "write_note" })` returns the populated body (no TODO stub, all 5 error codes named, ≥4 example shapes). Verifiable by file inspection (T007 + T008 + T009 outputs) and by the index.test.ts case (e) added in T005.
 
-- [ ] T007 [P] [US8] Author [docs/tools/write_note.md](../../docs/tools/write_note.md) (NEW file — the `assertToolDocsExist` aggregator does NOT pre-populate stubs; T006's registry-consistency test will fail until this lands). Per FR-014 + Story 8 AC#4. Different file from src/, fully parallelisable with T003-T006.
+- [X] T007 [P] [US8] Author [docs/tools/write_note.md](../../docs/tools/write_note.md) (NEW file — the `assertToolDocsExist` aggregator does NOT pre-populate stubs; T006's registry-consistency test will fail until this lands). Per FR-014 + Story 8 AC#4. Different file from src/, fully parallelisable with T003-T006.
 
   **Document content** (sections required):
   - **Header**: title (`# Write Note (write_note)`), one-paragraph summary mentioning typed surface + safety defaults.
@@ -187,11 +187,11 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: Principle V (Markdown exempt from source-header convention per existing precedent); ADR-005 (progressive-disclosure documentation lives in docs/, not in schema). FR-014 / SC-006.
 
-- [ ] T008 [P] [US8] Update [docs/tools/index.md](../../docs/tools/index.md) — add a one-line summary for `write_note` per FR-015. Match the established style for existing entries (typically `- [<tool_name>](<tool_name>.md): <one-sentence summary>`). Different file from T007; can run in parallel.
+- [X] T008 [P] [US8] Update [docs/tools/index.md](../../docs/tools/index.md) — add a one-line summary for `write_note` per FR-015. Match the established style for existing entries (typically `- [<tool_name>](<tool_name>.md): <one-sentence summary>`). Different file from T007; can run in parallel.
 
   **Constitution**: Principle V (Markdown exempt). FR-015.
 
-- [ ] T009 [P] [US8] Update [docs/tools/obsidian_exec.md](../../docs/tools/obsidian_exec.md) — add a paragraph noting `write_note` as the typed surface for create/overwrite operations and clarifying when `obsidian_exec` is the right fallback (the `newtab` flag, future unwrapped subcommands). Per SC-013. Different file from T007 / T008; can run in parallel.
+- [X] T009 [P] [US8] Update [docs/tools/obsidian_exec.md](../../docs/tools/obsidian_exec.md) — add a paragraph noting `write_note` as the typed surface for create/overwrite operations and clarifying when `obsidian_exec` is the right fallback (the `newtab` flag, future unwrapped subcommands). Per SC-013. Different file from T007 / T008; can run in parallel.
 
   **Constitution**: Principle V (Markdown exempt). SC-013.
 
@@ -203,11 +203,11 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
 **Purpose**: Release artifacts (CHANGELOG, package.json), end-to-end verification (quickstart S-1..S-13), and PR Constitution Compliance.
 
-- [ ] T010 [P] Update [package.json](../../package.json) `description` field to mention `write_note` alongside `read_note`. Current text: `"... ships obsidian_exec (generic CLI bridge), help (progressive-disclosure docs), and read_note (typed read tool)."`. Update to: `"... ships obsidian_exec (generic CLI bridge), help (progressive-disclosure docs), read_note (typed read tool), and write_note (typed create/overwrite tool)."`. No other package.json changes (engines.node, dependencies, etc., all unchanged).
+- [X] T010 [P] Update [package.json](../../package.json) `description` field to mention `write_note` alongside `read_note`. Current text: `"... ships obsidian_exec (generic CLI bridge), help (progressive-disclosure docs), and read_note (typed read tool)."`. Update to: `"... ships obsidian_exec (generic CLI bridge), help (progressive-disclosure docs), read_note (typed read tool), and write_note (typed create/overwrite tool)."`. No other package.json changes (engines.node, dependencies, etc., all unchanged).
 
   **Constitution**: N/A (release-metadata only). Per project release convention.
 
-- [ ] T011 Add a [CHANGELOG.md](../../CHANGELOG.md) release entry for `0.2.4` per the project's release convention. Bump `package.json:version` from `0.2.3` to `0.2.4` (PATCH bump per plan — purely additive surface; no breaking changes; the post-010 strict-mode posture extension to `write_note`'s active-mode constraints is documented as a new tool-surface addition, not a behaviour change to existing tools). The CHANGELOG entry should:
+- [X] T011 Add a [CHANGELOG.md](../../CHANGELOG.md) release entry for `0.2.4` per the project's release convention. Bump `package.json:version` from `0.2.3` to `0.2.4` (PATCH bump per plan — purely additive surface; no breaking changes; the post-010 strict-mode posture extension to `write_note`'s active-mode constraints is documented as a new tool-surface addition, not a behaviour change to existing tools). The CHANGELOG entry should:
   - **Add**: `write_note` typed MCP tool wrapping the Obsidian CLI's `create` subcommand. Per-mode validation, `overwrite` / `open` flags, structured error propagation. Replaces `obsidian_exec` for create/overwrite operations.
   - **Note**: active-mode constraint (overwrite=true required; template/open forbidden) per Clarifications 2026-05-08.
   - **Note**: `obsidian_exec` remains the freeform escape hatch for the `newtab` flag and unwrapped subcommands.
@@ -217,7 +217,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: N/A (release-metadata). Per project release convention.
 
-- [ ] T012 Run [quickstart.md](quickstart.md) S-1..S-10 verification (CI-runnable scenarios). Specifically:
+- [X] T012 Run [quickstart.md](quickstart.md) S-1..S-10 verification (CI-runnable scenarios). Specifically:
   - **S-1**: `npm run test` — assert 0 failures across the new test files; 33 acceptance scenarios pass.
   - **S-2 / S-7**: drift detector + registry-consistency test pass for `write_note`.
   - **S-3**: `wc -l src/tools/write_note/handler.ts` ≤ 70; `grep -nE "child_process\.spawn|spawn\(|Error:" src/tools/write_note/handler.ts` returns no matches.
