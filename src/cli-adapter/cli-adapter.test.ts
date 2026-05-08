@@ -273,6 +273,28 @@ describe("invokeCli — classification routes through dispatchCli", () => {
       message: "Vault not found.",
     });
   });
+
+  it("R5 / T002 inheritance: stdout 'Vault not found.' for the delete subcommand also re-classifies (BI 012-delete-note T002)", async () => {
+    // BI 012-delete-note plan stage verified the delete subcommand's
+    // unknown-vault response is byte-identical to create (`Vault not found.`,
+    // exit 0). The adapter's success-path re-classifier is subcommand-agnostic
+    // and inherits without modification. This case locks the inheritance.
+    const { spawnFn } = makeStubSpawn({ stdout: "\nVault not found.\n", exitCode: 0 });
+    const err = await captureRejection(
+      invokeCli(
+        { command: "delete", vault: "NoSuchVault", parameters: { path: "x.md" }, flags: [], target_mode: "specific" },
+        defaultDeps({ spawnFn, env: {} }),
+      ),
+    );
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.message).toBe("Vault not found.");
+    expect(err.details).toMatchObject({
+      command: "delete",
+      stdout: "\nVault not found.\n",
+      exitCode: 0,
+      message: "Vault not found.",
+    });
+  });
 });
 
 describe("invokeCli — queue serialization (research R6)", () => {
