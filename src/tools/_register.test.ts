@@ -263,6 +263,12 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
     required_equals: ["target_mode", "content"],
     additionalProperties: false,
   },
+  delete_note: {
+    type: "object",
+    properties_equals_set: ["target_mode", "vault", "file", "path", "permanent"],
+    required_equals: ["target_mode"],
+    additionalProperties: false,
+  },
   obsidian_exec: {
     type: "object",
     properties_equals_set: ["command", "vault", "parameters", "flags", "copy", "timeoutMs"],
