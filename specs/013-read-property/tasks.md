@@ -43,7 +43,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
 **Note on plan-stage coverage**: 9 of 15 FR-024 cases were already verified live during plan stage (see [research.md Live CLI Findings](research.md#live-cli-findings-plan-stage-probes--2026-05-09)) — subcommand argv shape, file-scoped value preservation for all six native types, vault-scoped type metadata, unknown vault, missing file, no-frontmatter, malformed-frontmatter conflation, active-mode no-focused-note, wikilink locator. T001 below covers ONLY the 6 cases deferred to T0.
 
-- [ ] T001 Live-CLI characterisation of the 6 deferred FR-024 cases. Run probes against the authorised test vault `TestVault-Obsidian-CLI-MCP` per [.memory/test-execution-instructions.md](../../.memory/test-execution-instructions.md) (gated by CLAUDE.md `## Test Execution`). Capture stdout / stderr / exit code; append results to [research.md](research.md) under a new `## T0 Live-CLI Capture (yyyy-mm-dd)` section. Cleanup all fixtures from `Sandbox/` after capture. Cases:
+- [X] T001 Live-CLI characterisation of the 6 deferred FR-024 cases. Run probes against the authorised test vault `TestVault-Obsidian-CLI-MCP` per [.memory/test-execution-instructions.md](../../.memory/test-execution-instructions.md) (gated by CLAUDE.md `## Test Execution`). Capture stdout / stderr / exit code; append results to [research.md](research.md) under a new `## T0 Live-CLI Capture (yyyy-mm-dd)` section. Cleanup all fixtures from `Sandbox/` after capture. Cases:
 
   > **Sub-task numbering note**: T0.X numbers below correspond to the 6 deferred FR-024 cases per the deferred-cases table in [research.md](research.md#findings-deferred-to-t0-require-destructive--live-obsidian-probes). The 9 plan-verified cases (subcommand argv, six native types, unknown vault, missing file, no-fm, malformed-fm, active no-focused-note, wikilink locator) need no T0 work.
 
@@ -58,7 +58,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: Principle IV (the captured wording becomes the source-of-truth for handler edge-case logic — preserves chain-of-custody from CLI to MCP client). FR-020 / FR-024 / SC-013.
 
-- [ ] T002 [P after T001] **VERIFICATION + ADDITIVE TEST** — confirm the existing 011-R5 cli-adapter unknown-vault response-inspection clause at [src/cli-adapter/cli-adapter.ts:55-89](../../src/cli-adapter/cli-adapter.ts#L55-L89) works for the `properties` subcommand without source-code modification, and add a cross-subcommand test case to lock the inheritance. Two sub-tasks:
+- [X] T002 [P after T001] **VERIFICATION + ADDITIVE TEST** — confirm the existing 011-R5 cli-adapter unknown-vault response-inspection clause at [src/cli-adapter/cli-adapter.ts:55-89](../../src/cli-adapter/cli-adapter.ts#L55-L89) works for the `properties` subcommand without source-code modification, and add a cross-subcommand test case to lock the inheritance. Two sub-tasks:
 
   - **(2a) Live verification** (already completed during plan stage — see [research.md Finding 4](research.md#finding-4-unknown-vault-response-r5-inheritance)): `obsidian vault=NoSuchVault properties path=Sandbox/013-plan-types.md format=json` returns `Vault not found.` on stdout, exit 0 — byte-identical to the create / delete subcommands. The existing `UNKNOWN_VAULT_PREFIX = "Vault not found."` re-classifier handles `properties` identically. **No source-code changes to `src/cli-adapter/cli-adapter.ts` needed.**
   - **(2b) Adapter-test inheritance lock**: extend the existing 011-R5 / 012-T002 unknown-vault test in [src/cli-adapter/cli-adapter.test.ts](../../src/cli-adapter/cli-adapter.test.ts) to add a `command: "properties"` row alongside the existing `command: "create"` and `command: "delete"` rows (or add a sibling `it()` block following the established pattern). Either way, the existing tests continue to pass for `create` and `delete`. Header comment at [src/cli-adapter/cli-adapter.ts:1](../../src/cli-adapter/cli-adapter.ts#L1) already cites BI 011-write-note R5 / T002 + 012-delete-note T002; no header update needed (the clause is subcommand-agnostic).
@@ -79,7 +79,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
 ### Implementation for User Story 1
 
-- [ ] T003 [US1] Create [src/tools/read_property/schema.ts](../../src/tools/read_property/schema.ts) and [src/tools/read_property/schema.test.ts](../../src/tools/read_property/schema.test.ts). Per [data-model.md §Input Schema](data-model.md#input-schema-readpropertyinputschema) + [§Output Schema](data-model.md#output-schema-readpropertyoutputschema), [contracts/read-property-input.contract.md](contracts/read-property-input.contract.md). Depends on: nothing in this list (truly first source-code task).
+- [X] T003 [US1] Create [src/tools/read_property/schema.ts](../../src/tools/read_property/schema.ts) and [src/tools/read_property/schema.test.ts](../../src/tools/read_property/schema.test.ts). Per [data-model.md §Input Schema](data-model.md#input-schema-readpropertyinputschema) + [§Output Schema](data-model.md#output-schema-readpropertyoutputschema), [contracts/read-property-input.contract.md](contracts/read-property-input.contract.md). Depends on: nothing in this list (truly first source-code task).
 
   - **(3a) Author [src/tools/read_property/schema.ts](../../src/tools/read_property/schema.ts)** with the `// Original — no upstream. read_property input/output schemas — flat target-mode primitive extension; required name field; polymorphic value union for native YAML types; seven-label type enum.` header (Principle V). Define:
     - `readPropertyInputSchema = applyTargetModeRefinement(targetModeBaseSchema.extend({ name: z.string().min(1) }))` — exactly per [data-model.md §Input Schema](data-model.md#input-schema-readpropertyinputschema). **NO `.superRefine(...)` chain** beyond the target-mode primitive's (parity with `delete_note`'s R6).
@@ -107,7 +107,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: Principle II (14 cases co-located); Principle III (single source of truth — schema is the only typed surface for input shape; the polymorphic value union + seven-label enum are the only typed surfaces for the output shape). FR-001 through FR-008, FR-018, FR-023, SC-008.
 
-- [ ] T004 [US1] Create [src/tools/read_property/handler.ts](../../src/tools/read_property/handler.ts) and [src/tools/read_property/handler.test.ts](../../src/tools/read_property/handler.test.ts). Per [data-model.md §CLI Invocation Shape](data-model.md#cli-invocation-shape--two-call-architecture-r3) + [§Response Parsing](data-model.md#response-parsing--decision-tree), [contracts/read-property-handler.contract.md](contracts/read-property-handler.contract.md), and [research.md R1, R2, R3, R4, R6, R7, R11](research.md). Depends on: T001 (response-handling locked at T0.1, T0.6 captures), T003 (`ReadPropertyInput` / `ReadPropertyOutput` types).
+- [X] T004 [US1] Create [src/tools/read_property/handler.ts](../../src/tools/read_property/handler.ts) and [src/tools/read_property/handler.test.ts](../../src/tools/read_property/handler.test.ts). Per [data-model.md §CLI Invocation Shape](data-model.md#cli-invocation-shape--two-call-architecture-r3) + [§Response Parsing](data-model.md#response-parsing--decision-tree), [contracts/read-property-handler.contract.md](contracts/read-property-handler.contract.md), and [research.md R1, R2, R3, R4, R6, R7, R11](research.md). Depends on: T001 (response-handling locked at T0.1, T0.6 captures), T003 (`ReadPropertyInput` / `ReadPropertyOutput` types).
 
   - **(4a) Author [src/tools/read_property/handler.ts](../../src/tools/read_property/handler.ts)** with the `// Original — no upstream. read_property handler: two-call invokeCli wrapper (Call A file-scoped value + Call B vault-scoped type metadata) per R3; type-label translation per R6; No-frontmatter short-circuit per R7; absent-key short-circuit; verbatim name passthrough per FR-018.` header (Principle V). Implement per [contracts/read-property-handler.contract.md §invariants](contracts/read-property-handler.contract.md#invariants):
     - `executeReadProperty(input: ReadPropertyInput, deps: ExecuteDeps): Promise<ReadPropertyOutput>`.
@@ -159,7 +159,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: Principle I (handler is a thin transformer; no `child_process.spawn` direct invocation per SC-008); Principle II (22 cases co-located, including TWO-CALL assertions on every happy path); Principle III (polymorphic value union enforced); Principle IV (every `UpstreamError` propagated verbatim; no new codes per FR-021). FR-007, FR-008, FR-009, FR-010, FR-011, FR-013..FR-021, FR-023, FR-027.
 
-- [ ] T005 [US1] Create [src/tools/read_property/index.ts](../../src/tools/read_property/index.ts) and [src/tools/read_property/index.test.ts](../../src/tools/read_property/index.test.ts). Per [contracts/read-property-handler.contract.md](contracts/read-property-handler.contract.md), [contracts/read-property-input.contract.md](contracts/read-property-input.contract.md), and the existing [src/tools/delete_note/index.ts](../../src/tools/delete_note/index.ts) precedent. Depends on: T003, T004.
+- [X] T005 [US1] Create [src/tools/read_property/index.ts](../../src/tools/read_property/index.ts) and [src/tools/read_property/index.test.ts](../../src/tools/read_property/index.test.ts). Per [contracts/read-property-handler.contract.md](contracts/read-property-handler.contract.md), [contracts/read-property-input.contract.md](contracts/read-property-input.contract.md), and the existing [src/tools/delete_note/index.ts](../../src/tools/delete_note/index.ts) precedent. Depends on: T003, T004.
 
   - **(5a) Author [src/tools/read_property/index.ts](../../src/tools/read_property/index.ts)** with the `// Original — no upstream. read_property tool registration via registerTool — responseFormat: "json" wraps the { value, type } envelope for the MCP wire.` header (Principle V). Mirror `delete_note/index.ts` structure exactly:
     - Import `registerTool` from `../_register.js`, `executeReadProperty, type ExecuteDeps` from `./handler.js`, `readPropertyInputSchema` from `./schema.js`.
@@ -176,7 +176,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: Principle I (per-surface module entry point); Principle II (5 registration tests co-located); Principle III (the `inputSchema` is derived from the schema via `registerTool`'s `toMcpInputSchema` + `stripSchemaDescriptions` — no manual descriptor construction). FR-001, FR-022, FR-023, SC-008, SC-009, SC-010.
 
-- [ ] T006 [US1] Wire `read_property` into the MCP server. Edit [src/server.ts](../../src/server.ts):
+- [X] T006 [US1] Wire `read_property` into the MCP server. Edit [src/server.ts](../../src/server.ts):
 
   - **(6a)** Add the import in alphabetical position: `import { createReadPropertyTool } from "./tools/read_property/index.js";` — placed between `createReadNoteTool` and `createWriteNoteTool` imports (`read_note` < `read_property` < `write_note`).
   - **(6b)** Add `createReadPropertyTool({ logger, queue })` to the tools array between `createReadNoteTool({ logger, queue })` and `createWriteNoteTool({ logger, queue })` at [src/server.ts:69-70](../../src/server.ts#L69-L70).
@@ -197,7 +197,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
 **Independent Test**: per [spec.md Story 5 IT](spec.md) — `help({ tool_name: "read_property" })` returns the populated body (no TODO stub, all 5 error codes named, ≥4 worked examples covering ≥4 distinct YAML types, active-mode multi-vault limitation documented). Verifiable by file inspection (T007 + T008 outputs) and by the index.test.ts case (e) added in T005.
 
-- [ ] T007 [P] [US5] Author [docs/tools/read_property.md](../../docs/tools/read_property.md) (NEW file — the `assertToolDocsExist` aggregator does NOT pre-populate stubs; T006's registry-consistency test will fail until this lands). Per FR-022 + Story 5 AC#1. Different file from src/, fully parallelisable with T003-T006.
+- [X] T007 [P] [US5] Author [docs/tools/read_property.md](../../docs/tools/read_property.md) (NEW file — the `assertToolDocsExist` aggregator does NOT pre-populate stubs; T006's registry-consistency test will fail until this lands). Per FR-022 + Story 5 AC#1. Different file from src/, fully parallelisable with T003-T006.
 
   **Document content** (sections required):
   - **Header**: title (`# Read Property (read_property)`), one-paragraph summary mentioning the typed surface + the token-saving framing (single property read vs full-file fetch) + the `{value, type}` output shape.
@@ -224,7 +224,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: Principle V (Markdown exempt from source-header convention per existing precedent); ADR-005 (progressive-disclosure documentation lives in docs/, not in schema). FR-022, SC-010.
 
-- [ ] T008 [P] [US5] Update [docs/tools/index.md](../../docs/tools/index.md) — add a one-line summary for `read_property` per the existing convention. Match the established style for existing entries (typically `- [<tool_name>](<tool_name>.md): <one-sentence summary>`). The summary MUST surface the surgical-read framing (e.g., `- [read_property](read_property.md): Read a single named frontmatter property from a vault note (returns { value, type } with native YAML types preserved).`). Different file from T007; can run in parallel.
+- [X] T008 [P] [US5] Update [docs/tools/index.md](../../docs/tools/index.md) — add a one-line summary for `read_property` per the existing convention. Match the established style for existing entries (typically `- [<tool_name>](<tool_name>.md): <one-sentence summary>`). The summary MUST surface the surgical-read framing (e.g., `- [read_property](read_property.md): Read a single named frontmatter property from a vault note (returns { value, type } with native YAML types preserved).`). Different file from T007; can run in parallel.
 
   **Constitution**: Principle V (Markdown exempt). FR-022.
 
@@ -236,11 +236,11 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
 **Purpose**: Release artifacts (CHANGELOG, package.json), end-to-end verification (quickstart S-1..S-15), and PR Constitution Compliance.
 
-- [ ] T009 [P] Update [package.json](../../package.json) `description` field to mention `read_property` alongside the existing typed tools. Current text (post-012): `"... ships obsidian_exec (generic CLI bridge), help (progressive-disclosure docs), read_note (typed read tool), write_note (typed create/overwrite tool), and delete_note (typed delete tool with safety defaults)."`. Update to: `"... ships obsidian_exec (generic CLI bridge), help (progressive-disclosure docs), read_note (typed read tool), write_note (typed create/overwrite tool), delete_note (typed delete tool with safety defaults), and read_property (typed surgical frontmatter-property read)."`. No other package.json changes.
+- [X] T009 [P] Update [package.json](../../package.json) `description` field to mention `read_property` alongside the existing typed tools. Current text (post-012): `"... ships obsidian_exec (generic CLI bridge), help (progressive-disclosure docs), read_note (typed read tool), write_note (typed create/overwrite tool), and delete_note (typed delete tool with safety defaults)."`. Update to: `"... ships obsidian_exec (generic CLI bridge), help (progressive-disclosure docs), read_note (typed read tool), write_note (typed create/overwrite tool), delete_note (typed delete tool with safety defaults), and read_property (typed surgical frontmatter-property read)."`. No other package.json changes.
 
   **Constitution**: N/A (release-metadata only).
 
-- [ ] T010 Add a [CHANGELOG.md](../../CHANGELOG.md) release entry for `0.2.6` per the project's release convention. Bump `package.json:version` from `0.2.5` to `0.2.6` (PATCH bump per plan — purely additive surface; no breaking changes; the new typed surface for surgical frontmatter reads is a new tool-surface addition, not a behaviour change to existing tools). The CHANGELOG entry should:
+- [X] T010 Add a [CHANGELOG.md](../../CHANGELOG.md) release entry for `0.2.6` per the project's release convention. Bump `package.json:version` from `0.2.5` to `0.2.6` (PATCH bump per plan — purely additive surface; no breaking changes; the new typed surface for surgical frontmatter reads is a new tool-surface addition, not a behaviour change to existing tools). The CHANGELOG entry should:
   - **Add**: `read_property` typed MCP tool wrapping the Obsidian CLI's `properties` (plural) subcommand with `format=json`. Returns `{ value, type }` with native YAML types preserved (text / list / number / checkbox / date / datetime / unknown). Replaces full-file reads + client-side YAML parsing for the single-property read use case (token-saving win).
   - **Note**: two-call architecture under the hood — Call A file-scoped for value, Call B vault-scoped for type metadata. Latency cost ≈ 2× a single-call typed tool; most callers don't observe the difference.
   - **Note**: active mode in multi-vault setups has a known limitation — type metadata is queried against Obsidian's default vault, not the focused-note's vault. Single-vault correct.
@@ -251,7 +251,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: N/A (release-metadata).
 
-- [ ] T011 Run [quickstart.md](quickstart.md) S-1..S-11 + S-14 verification (CI-runnable + sanity-check scenarios). Specifically:
+- [X] T011 Run [quickstart.md](quickstart.md) S-1..S-11 + S-14 verification (CI-runnable + sanity-check scenarios). Specifically:
   - **S-1**: `npm run test` — assert 0 failures; 25 acceptance scenarios (Story 1 AC#1-11 + Story 2 AC#1-3 + Story 3 AC#1-9 + Story 4 AC#1 + Story 5 AC#1) pass.
   - **S-2 / S-7**: drift detector + registry-consistency test pass for `read_property`.
   - **S-3**: `wc -l src/tools/read_property/handler.ts` ≤ 80; `grep -nE "child_process\.spawn|spawn\(" src/tools/read_property/handler.ts` returns no matches.
