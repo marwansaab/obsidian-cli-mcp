@@ -93,10 +93,13 @@ observability for the underlying CLI invocation.
 `createFindByPropertyTool(deps)`; all three new source files carry the
 `// Original — no upstream.` header per Constitution V. Tests
 co-located: `src/tools/find_by_property/{schema,handler,index}.test.ts`
-— **45 cases total** (18 schema / 22 handler / 5 registration per
-FR-026). Higher than 013's 41 because the matching-logic surface area
-is larger (six axes: scalar/array, contains/exact, case-sensitive/
-insensitive, folder/no-folder, type-faithful, null-vs-absent).
+— **47 cases total** (18 schema / 24 handler / 5 registration per
+FR-026; bumped 45 → 47 by /speckit-analyze C2 remediation closing
+FR-023 / FR-024 coverage gaps — wrapper-non-transformation locks for
+hierarchical-tag rollup and list-of-mappings non-match). Higher than
+013's 41 because the matching-logic surface area is larger (six
+axes: scalar/array, contains/exact, case-sensitive/insensitive,
+folder/no-folder, type-faithful, null-vs-absent).
 
 **Cross-cutting**: zero new error codes (FR-019 + Constitution IV);
 zero new ADRs; 008-refactor surface frozen — `dispatchCli`,
@@ -136,7 +139,7 @@ are called out in `docs/tools/find_by_property.md`.
 See also:
 - [spec.md](specs/014-find-by-property/spec.md) — feature spec; one clarifications session ran 2026-05-09 (Q1 array-exact-equality element order, Q2 folder path-traversal closure, Q3 vault-omitted multi-vault behaviour); all three codified directly in the spec.
 - [research.md](specs/014-find-by-property/research.md) — Phase 0 decisions R1–R14 + live CLI findings F1–F8 (R1 logger surface; R2 `eval` subcommand load-bearing departure; R3 single-call architecture; R4 adapter target_mode mapping; R5 unknown-vault inheritance; R6 base64 anti-injection; R7 in-eval matching logic; R8 folder traversal regex; R9 V8 insertion-order stability; R10 inherited 10 MiB cap; R11 multi-vault default ambiguity; R12 test seams — single spawn per request; R13 import.meta.url + coverage; R14 don't amend historical specs).
-- [data-model.md](specs/014-find-by-property/data-model.md) — schema diagrams (polymorphic value union, count+paths output), JS template body, base64 payload assembly, per-tool invariants, module LOC budget (~110 handler), test inventory (18 / 22 / 5 = 45 cases).
+- [data-model.md](specs/014-find-by-property/data-model.md) — schema diagrams (polymorphic value union, count+paths output), JS template body, base64 payload assembly, per-tool invariants, module LOC budget (~110 handler), test inventory (18 / 24 / 5 = 47 cases; bumped 45 → 47 by /speckit-analyze C2 remediation).
 - [contracts/find-by-property-input.contract.md](specs/014-find-by-property/contracts/find-by-property-input.contract.md) — public input contract: zod schema, emitted JSON Schema shape, field policy, seven worked examples (A-G), order-sensitivity contract, multi-vault ambiguity note, error roster.
 - [contracts/find-by-property-handler.contract.md](specs/014-find-by-property/contracts/find-by-property-handler.contract.md) — handler invariants: deps shape, single invokeCli call shape, JS template assembly + base64 payload renderer, two-stage eval response parse (JSON.parse + schema validate), failure propagation chain, test seam pattern with argv-payload decode assertion.
 - [quickstart.md](specs/014-find-by-property/quickstart.md) — 18 verification scenarios mapped to SC-001..SC-018 (S-1..S-15 in CI; S-16..S-18 manual against MCP Inspector / Claude Desktop).

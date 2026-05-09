@@ -287,7 +287,7 @@ The rendered JS template is asserted to (a) start with the frozen prefix `(()=>{
 
 ## R13 — `import.meta.url` path resolution + coverage threshold preservation
 
-**Decision**: identical to [011-write-note R8](../011-write-note/research.md) and [013-read-property R10](../013-read-property/research.md). The new module's tests use `import.meta.url`-based path resolution where they need the test vault path; the aggregate statements coverage threshold ([vitest.config.ts](../../vitest.config.ts)) stays at the current floor — the new module's high test density (~45 cases for ~150 LOC) keeps the aggregate flat or ratchets up.
+**Decision**: identical to [011-write-note R8](../011-write-note/research.md) and [013-read-property R10](../013-read-property/research.md). The new module's tests use `import.meta.url`-based path resolution where they need the test vault path; the aggregate statements coverage threshold ([vitest.config.ts](../../vitest.config.ts)) stays at the current floor — the new module's high test density (~47 cases for ~190 LOC, post-/speckit-analyze C2 remediation) keeps the aggregate flat or ratchets up.
 
 **Rationale**: parity.
 
@@ -412,6 +412,76 @@ Test vault back to baseline. No residue.
 NONE. All spec contracts hold against the live CLI characterisation pass. The three Clarifications session amendments (Q1 element-order sensitivity, Q2 folder path-traversal closure, Q3 vault-omitted multi-vault semantics) are codified directly in spec.md per the [Clarifications session 2026-05-09](./spec.md#clarifications); plan-stage findings refine the implementation strategy (single-call eval-based, base64 anti-injection, schema-regex traversal closure) but do NOT contradict the spec.
 
 The one structural departure — using `eval` instead of a purpose-built CLI subcommand — is dictated by the CLI surface (no native find-by-property exists) and was anticipated by the user input's "eval composition" clause. R2 makes this explicit.
+
+---
+
+## Plan-stage analyzer remediation (2026-05-09)
+
+`/speckit-analyze` ran post-/speckit-tasks on 2026-05-09 and surfaced 9 findings (1 HIGH, 3 MEDIUM, 5 LOW). The user requested full remediation. This section records the disposition of each finding. C1 + C2 produced concrete edits to `tasks.md` / `data-model.md` / `plan.md` / `CLAUDE.md`; A1 / A2 / I1 / I2 / U1 / C3 / D1 produced the documentation entries below.
+
+### A1 — date / datetime comparison semantics ambiguity (MEDIUM)
+
+**Finding**: spec FR-027 case 4 + Edge Case "CONTENT — date / datetime comparison" mandates "wrapper MUST follow YAML's date semantics rather than naïve string equality". The handler's JS template uses strict `===`. If `app.metadataCache.metadataCache[hash].frontmatter.due` returns a JS `Date` object (not a string), `===` between a query `value: "2026-12-31"` and that Date is `false` — a semantic mismatch with the spec's MUST.
+
+**Disposition**: defer the contract resolution to T0.1 (live CLI capture during `/speckit-implement` Phase 2 Foundational). T0.1 probes whether Obsidian's metadata cache stores YAML dates as strings or as `Date` objects:
+
+- **If stored as strings** (most likely outcome — Obsidian's frontmatter parser emits JSON-serialisable values): the spec MUST is satisfied by `===` because YAML date-shaped strings (`"2026-12-31"`) compare equal to identical-form query strings. No code change needed. Document the captured form in `docs/tools/find_by_property.md` (T007) so callers know to supply the YAML serialised form.
+- **If stored as Date objects**: the JS template needs an additional comparison branch. Recommended branch: extend `eq(x, y)` with `if (x instanceof Date && typeof y === "string") return x.toISOString() === y || x.toISOString().startsWith(y + "T")` — handles both `value: "2026-12-31"` (matches a Date at midnight UTC via prefix) and `value: "2026-05-08T14:30:00"` (matches via full ISO equality). Document the branch in `docs/tools/find_by_property.md` and amend the JS template body in `data-model.md` §3 + `handler.contract.md` §3 to reflect the branch.
+
+**No spec amendment**: the spec contract ("MUST follow YAML's date semantics") is preserved either way; the implementation strategy is locked at T0.1 capture time. If the locked strategy requires a `Date` branch, the change lands as part of T004 (handler implementation) — the contract obligation flows through unchanged.
+
+**Trigger to revisit**: T0.1 capture; surfaces in the T0 Live-CLI Capture section appended by /speckit-implement.
+
+### A2 — Unicode-aware case-fold ambiguity (MEDIUM)
+
+**Finding**: spec FR-015 mandates "string comparisons MUST fold case using a **Unicode-aware** case-fold". The data-model and handler-contract use `String.prototype.toLowerCase()`. ECMAScript `toLowerCase` is locale-insensitive Unicode default case conversion (per Unicode Default Case Conversion, ECMA-262 §22.1.3.27), but it is NOT a strict Unicode case fold (e.g., German `ß` does NOT fold to `ss` via `toLowerCase`; it stays `ß`). Strict Unicode case fold (per [Unicode case-folding standard](https://www.unicode.org/Public/UCD/latest/ucd/CaseFolding.txt)) requires either `String.prototype.toLocaleLowerCase("en-US")` or a dedicated case-fold table.
+
+**Disposition**: weaken the implementation contract to "ECMAScript `toLowerCase` semantics (Unicode default case conversion)" — accurate to the implementation, sufficient for typical agent use, structurally simpler. Document the limitation in `docs/tools/find_by_property.md` (T007):
+
+> **Case-folding scope**: when `caseSensitive: false`, string comparisons use ECMAScript `String.prototype.toLowerCase()` semantics (Unicode default case conversion). This handles ASCII case differences and most common Unicode case mappings (e.g., `É` → `é`, `Σ` → `σ`). It does NOT perform full Unicode case fold — for example, German `ß` does NOT fold to `ss`; Turkish `İ` / `i` mappings follow Unicode default rather than locale-specific Turkish rules. Callers needing strict Unicode case fold should normalise case client-side via `String.prototype.toLocaleLowerCase(...)` or a case-fold polyfill before invoking `find_by_property`.
+
+**No spec amendment**: the spec's "Unicode-aware case-fold" wording is interpreted in the operational sense — Unicode default case conversion (which IS Unicode-aware in the sense that it handles non-ASCII case mappings via the Unicode case-conversion tables) — rather than the strict Unicode-case-fold sense. The interpretation is recorded here and surfaced in T007 docs so future readers understand the boundary.
+
+**Trigger to revisit**: a future BI explicitly requesting strict-fold semantics; alternatively, if T0.2's NFC/NFD probe surfaces a case-fold mismatch alongside the normalisation mismatch, both can be addressed in one follow-up.
+
+### I1 — "output too large" error code framing (LOW)
+
+**Finding**: spec FR-019 references "the existing 'output too large' error code for the large-match-set cap". There is no specifically-named `OUTPUT_TOO_LARGE` code in the cli-adapter's error roster; "output too large" is a colloquial framing. The actual mechanism is `dispatchKill` → `CLI_NON_ZERO_EXIT`.
+
+**Disposition**: clarify the mapping in this section + in `docs/tools/find_by_property.md` (T007's error-roster section). The spec FR-019 wording is preserved per R14; the colloquial "output too large" framing maps to the dispatch-layer kill signal that surfaces as `CLI_NON_ZERO_EXIT` with a `details.signal` or similar discriminator (whichever the dispatch layer assigns). T007 docs name the actual code — `CLI_NON_ZERO_EXIT` — so callers know what to expect on the wire.
+
+**Implementation note for T007**:
+
+> **Output cap behaviour**: when a query matches enough files that the response envelope exceeds 10 MiB, the underlying dispatch layer kills the CLI process and surfaces `CLI_NON_ZERO_EXIT` (with a `details.signal` / `details.killReason` discriminator distinguishing cap-kill from normal exit-non-zero). The wrapper does NOT silently truncate the `paths` array. Callers receiving `CLI_NON_ZERO_EXIT` for a `find_by_property` call should consider narrowing the query (add `folder` to scope, or split by property value).
+
+**No spec amendment**: the spec's framing is preserved; this footnote translates the colloquial wording to the implementation-level code name.
+
+### I2 — acceptance-criteria count discrepancy (LOW)
+
+**Finding**: spec.md Assumptions line 279 references "16 acceptance criteria across [P1] / [P2] / [P3]". After the Clarifications session amendments (US5 picked up scenario 6 — folder traversal rejection), the user-story-level scenario count rose to 27 across 8 stories (US1=6, US2=3, US3=5, US4=3, US5=6, US6=2, US7=1, US8=1). The "16" figure in Assumptions refers to the original user input's numbered P1/P2/P3 acceptance-criteria list (16 numbered items in the original input), NOT the user-story scenarios.
+
+**Disposition**: both readings are valid; the Assumptions line is historical context (user input pre-spec-authoring). No spec amendment per R14 (the spec's user-input historical reference is preserved). This footnote distinguishes the two counts:
+
+- **User-input acceptance criteria (16)**: the numbered list in the original `/speckit-specify` arguments — the P1/P2/P3 buckets enumerated by the user.
+- **User-story acceptance scenarios (27)**: the per-story `**Acceptance Scenarios**` count after the spec was authored and the Clarifications session amended US5.
+
+Both counts are correct in their respective contexts. Readers tracing coverage in tasks.md / quickstart.md should refer to the 27-scenario count (each of which is locked by ≥1 test per FR-026 / SC-013).
+
+### U1 + C3 — in-session ordering automated coverage gap (LOW × 2)
+
+**Finding**: spec FR-022 + SC-018 mandate byte-stable `paths` ordering for the same query within one MCP server session. The contract is the V8 insertion-order property (ECMA-262 §6.1.7.1) for object key iteration; observable only via real CLI invocation across two calls in one process. T012 S-18 manual covers it; no automated test in T004 exercises it (because stub `spawnFn` returns whatever stdout is configured, regardless of the JS template's ordering logic).
+
+**Disposition**: the contract is structural-by-design (JS-engine spec property), not enforceable at the handler-test layer with stub responses. T012 S-18 is the manual lock and is sufficient for a P3 priority story (US8). Document the coverage strategy:
+
+> **In-session ordering enforcement**: FR-022 / SC-018 are enforced structurally by V8's insertion-order property for object key iteration (ECMA-262 §6.1.7.1). The handler-test layer's stub `spawnFn` returns pre-canned stdout strings; it cannot exercise V8's iteration semantics. T012 S-18 manual probe — invoke `find_by_property` twice in a row with identical input AND no intervening vault state change against a real Obsidian instance, assert byte-identical responses — is the lock. The contract is not a code-level invariant within `find_by_property`'s source files; it is a JS-engine-spec property of the runtime the JS template executes in (Obsidian's Electron renderer).
+
+**No additional handler test required**: adding one would test the stub, not the contract. C3 is a documentation finding, not a coverage gap requiring code change.
+
+### D1 — FR-007 / FR-016 mild redundancy (LOW)
+
+**Finding**: FR-007 (array semantics — surface contract: `arrayMatch: true` is contains; `arrayMatch: false` is exact-equal) and FR-016 (post-Q1 amended canonical version — order-sensitive equality, no multiset matching) overlap.
+
+**Disposition**: the redundancy is intentional. FR-007 is the surface-level field contract (what `arrayMatch` does at the input level); FR-016 is the comparison-semantics contract (how the comparison logic implements the field's intent). They are complementary — FR-007 reads as the input-shape rule, FR-016 reads as the implementation rule. Both are referenced from different parts of tasks.md (T003 cases 6, 7 for FR-007; T004 cases 9, 10 for FR-016). No action.
 
 ---
 

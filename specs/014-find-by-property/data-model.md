@@ -225,7 +225,7 @@ If `JSON.parse` fails OR `findByPropertyOutputSchema.parse` rejects, the handler
 | `handler.ts` | ~110 | `executeFindByProperty(input, deps)` + JS template constant + base64 payload renderer + eval response parser + adapter glue. Higher than 013's ~80 because the JS template body adds bulk and the parse step has to strip the `=> ` prefix. |
 | `index.ts` | ~30 | `createFindByPropertyTool({logger, queue})` factory via `registerTool`, doc-presence assertion |
 | `schema.test.ts` | ~150 | ~18 cases — see test inventory below |
-| `handler.test.ts` | ~280 | ~22 cases — see test inventory below |
+| `handler.test.ts` | ~310 | ~24 cases — see test inventory below (post-/speckit-analyze C2 remediation: 22 → 24, adding cases 23 + 24 for FR-023 / FR-024 wrapper-non-transformation locks) |
 | `index.test.ts` | ~70 | ~5 cases — descriptor name, stripped schema, help mention, doc presence + content completeness, drift-detector parameterised lock |
 
 **Total new code**: ~190 LOC implementation + ~500 LOC tests = ~690 LOC. Within the project's existing module-size norms.
@@ -234,7 +234,7 @@ If `JSON.parse` fails OR `findByPropertyOutputSchema.parse` rejects, the handler
 
 ## 8. Test inventory (per FR-026 / SC-013 — ≥ 30 cases total)
 
-Total: **45 cases** (18 schema / 22 handler / 5 registration). Higher than 013's 41 because the matching-logic surface area is larger (six axes: scalar/array, contains/exact, case-sensitive/insensitive, folder/no-folder, type-faithful, null-vs-absent).
+Total: **47 cases** (18 schema / 24 handler / 5 registration; bumped 45 → 47 by /speckit-analyze C2 remediation closing FR-023 / FR-024 coverage gaps). Higher than 013's 41 because the matching-logic surface area is larger (six axes: scalar/array, contains/exact, case-sensitive/insensitive, folder/no-folder, type-faithful, null-vs-absent) and the C2 remediation added two wrapper-non-transformation locks.
 
 ### `schema.test.ts` — 18 cases
 
@@ -259,7 +259,7 @@ Total: **45 cases** (18 schema / 22 handler / 5 registration). Higher than 013's
 | 17 | `folder: ""` accepted (empty = whole-vault) | empty-string OK |
 | 18 | `arrayMatch` / `caseSensitive` defaults applied when omitted | post-parse values are `true`, `true` |
 
-### `handler.test.ts` — 22 cases
+### `handler.test.ts` — 24 cases
 
 Each case asserts: parsed result, ONE spawn invocation, argv shape (binary + optional `vault=`+`eval`+`code=...`), and that the `code=` payload's base64 portion decodes to the expected JSON.
 
@@ -287,6 +287,8 @@ Each case asserts: parsed result, ONE spawn invocation, argv shape (binary + opt
 | 20 | Eval response shape violates output schema → `CLI_REPORTED_ERROR` | `{wrong:"shape"}` |
 | 21 | Anti-injection: `value: "'; alert(1); //"` survives base64 round-trip | argv-payload decode assertion |
 | 22 | Anti-injection: `property: "name'; drop"` survives base64 round-trip | argv-payload decode assertion |
+| 23 | FR-023 — hierarchical-tag-rollup not performed (added by /speckit-analyze C2): `value: "work"` against `tags`; assert no wrapper-side rollup translation | argv-payload decode + `{count:0,paths:[]}` |
+| 24 | FR-024 — list-of-mappings query yields no-match envelope (added by /speckit-analyze C2): scalar query against list-of-mappings property; assert wrapper does NOT inject defensive type-of-property check | argv-payload decode + `{count:0,paths:[]}` |
 
 ### `index.test.ts` — 5 cases
 
