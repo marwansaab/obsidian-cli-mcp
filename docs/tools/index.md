@@ -9,6 +9,7 @@ Call `help({ tool_name: "<name>" })` to read the full Markdown documentation for
 - **list_notes** — _(documentation pending — owned by a future BI)_.
 - **list_vaults** — _(documentation pending — owned by a future BI)_.
 - **obsidian_exec** — Invoke any Obsidian Integrated CLI subcommand.
+- **read_heading** — Read the body of a single named heading from a vault note (returns `{ content: string }` — replaces full-file `read_note` plus client-side Markdown parse for the section-extraction case).
 - **read_note** — Read a note's raw text from an Obsidian vault by file (wikilink), path, or active focus.
 - **read_property** — Read a single named frontmatter property from a vault note (returns `{ value, type }` with native YAML types preserved).
 - **search_vault** — _(documentation pending — owned by a future BI)_.

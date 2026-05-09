@@ -5,6 +5,47 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.8] - 2026-05-09
+
+Patch release — adds the sixth typed-tool surface, `read_heading`, the **first heading-targeted retrieval primitive**. Where `read_note` returns whole files (5–50k tokens for long documents) and `read_property` returns a single frontmatter field, `read_heading` returns just the body of a single named section (typically 100–500 tokens). Pure addition — no existing tool changes, no new error codes, no ADR amendments. `obsidian_exec` remains the freeform escape hatch.
+
+### Added
+
+- **`read_heading` typed MCP tool**, wrapping the Obsidian CLI's developer-section `eval` subcommand with a frozen JS template that walks `app.metadataCache.metadataCache[hash].headings` (Obsidian's pre-parsed heading array) to find a named heading and slice its body via `app.vault.adapter.read(path)`. Returns `{ content: string }` — the body bytes between the matched heading's `position.end.offset` and the next heading marker of any depth (or EOF). Replaces the agent's "full-file `read_note` + client-side Markdown parse" sequence (5–50k tokens for long documents) with a single typed call returning just the named section's body bytes (typically 100–500 tokens).
+- **STANDARD `target_mode` discriminator** (parity with `read_note` / `write_note` / `delete_note` / `read_property`); this is the FIRST eval-composition typed tool to use it (014's `find_by_property` is vault-wide and has no discriminator).
+- **Structural-only heading-path validator** (FR-006 / FR-007): the `heading` field is split on `::` and must yield ≥2 non-empty segments. Single-segment H1-only reads, headings whose text contains `::` literally, and Setext-style headings are out-of-reach (documented fallback: full-file `read_note` plus client-side parse).
+- **Anti-injection via base64-encoded JSON payload** (R6 / parity with 014): user-supplied `path`, `file`, `heading` flow through `JSON.stringify` → `Buffer.from(...).toString("base64")` → frozen JS template's `atob` + `JSON.parse` chain at request time. The JS template itself is a frozen string constant; no user input ever reaches the JS source as text. The base64 alphabet `[A-Za-z0-9+/=]` is structurally safe inside any JS string literal.
+- **Boundary rule**: **first-subsequent-heading-marker-of-any-depth** per the [Q1 clarification](specs/015-read-heading/spec.md#clarifications) — child subtrees are naturally excluded.
+- **ATX-only**: Setext underlines are content, not boundaries — per the [Q2 clarification](specs/015-read-heading/spec.md#clarifications). The JS template applies a defence-in-depth filter (`text.charAt(start.offset) === '#'`) to enforce ATX-only even on Obsidian versions that include Setext entries in the headings array.
+- **Segment matching**: case-sensitive minimal-normalisation byte compare per the [Q3 clarification](specs/015-read-heading/spec.md#clarifications). Closing-ATX (`## Heading ##`) and surrounding whitespace are stripped by Obsidian's pre-parser; inline markdown (`**bold**`, `[link](url)`) and Obsidian anchor markers (`^anchor-id`) survive in the heading text and MUST be supplied verbatim by the caller.
+- **Single-call architecture**: each MCP request fires ONE `invokeCli` invocation. ~200 ms per call. The JS template resolves the file path (active mode `app.workspace.getActiveFile()`, specific+path direct, specific+file via `app.metadataCache.getFirstLinkpathDest`), walks the headings array, finds the first segment-path match, and slices the body via `app.vault.adapter.read`. All matching logic runs inside the Obsidian process.
+- **Structured eval-response error envelope** (R13): discriminated union `{ok: true, content}` | `{ok: false, code: "FILE_NOT_FOUND" | "HEADING_NOT_FOUND" | "NO_ACTIVE_FILE", detail}` strict mode. Handler's two-stage parse (`JSON.parse` + envelope `safeParse`) maps both wire-format failures and envelope `ok: false` onto existing `UpstreamError` codes per FR-022. Heading-not-found, file-not-found, and active-mode-no-focus all surface as structured errors; **zero new error codes**.
+- **Inherited vault-routing limitation**: the CLI's `vault=` parameter is functionally ignored by `eval`; multi-vault users open the target vault before invoking — same limitation as 014 / 013 / 011. Documented in [docs/tools/read_heading.md](docs/tools/read_heading.md).
+- Per-mode validation enforced at the schema layer:
+  - Specific mode requires `vault` and exactly one of `file` / `path` AND `heading`.
+  - Active mode forbids `vault` / `file` / `path`; `heading` is required in both modes.
+  - Unknown top-level keys are rejected (`additionalProperties: false`, post-010 strict-mode).
+- Documentation at [docs/tools/read_heading.md](docs/tools/read_heading.md) — input/output schema, error roster (5 codes), 5 worked examples (specific path 2-segment / specific file 3-segment / active / validation rejection / heading-not-found), behavioural notes (single-call architecture, eval-as-CLI-entry-point stability concern, anti-injection guarantee, multi-vault default ambiguity, boundary rule, ATX-only, segment matching, duplicate first-match, CRLF/LF preservation, body byte-level preservation, 10 MiB ceiling).
+- 55 co-located tests in `src/tools/read_heading/{schema,handler,index}.test.ts` (20 schema + 30 handler + 5 registration); the post-010 consolidated drift detector at [src/tools/_register.test.ts](src/tools/_register.test.ts) auto-covers `read_heading` via its `it.each` registry walk (one-line invariant entry added).
+
+### Documentation
+
+- `docs/tools/index.md` — `read_heading` entry added with the heading-body framing.
+- `package.json` description updated to mention `read_heading` alongside the existing typed tools.
+
+### Known limitations
+
+- **Multi-vault default ambiguity** (R11): the CLI's `vault=` parameter is functionally ignored by `eval`; the eval runs against whichever vault Obsidian's running instance currently has focused. Multi-vault users must open the target vault before invoking. Same limitation as 014 / 013 / 011. Documented in `docs/tools/read_heading.md`.
+- **`eval`-as-CLI-entry-point stability concern** (R2): there is no native heading-body subcommand in the Obsidian CLI; the wrapper reaches into Obsidian's internal `app.metadataCache.metadataCache[hash].headings`, `app.vault.adapter.read`, `app.workspace.getActiveFile`, and `app.metadataCache.getFirstLinkpathDest` APIs. Future Obsidian updates may surface as test failures rather than silent drift; the wrapper's two-stage envelope-parse step is the structural backstop.
+- **Out-of-reach heading shapes**: single-segment H1-only reads (`heading: "Foo"` with no `::`), headings whose text contains `::` literally, and Setext-style headings are not addressable through `read_heading`. Documented fallback: full-file `read_note` plus client-side Markdown parse.
+- **Practical 10 MiB body ceiling** (R10): heading bodies exceeding ~10 MiB after JSON encoding (~7 MiB raw content) trigger the cli-adapter's output cap, surfacing as `CLI_NON_ZERO_EXIT` (output-cap kill), never silent truncation.
+
+### References
+
+- Spec: [specs/015-read-heading/spec.md](specs/015-read-heading/spec.md)
+- Plan: [specs/015-read-heading/plan.md](specs/015-read-heading/plan.md)
+- Research: [specs/015-read-heading/research.md](specs/015-read-heading/research.md)
+
 ## [0.2.7] - 2026-05-09
 
 Patch release — adds the fifth typed-tool surface, `find_by_property`, and the **first retrieval primitive that goes value → file** rather than file → value. Where `read_property` answers "what is the value of this property in this file?", `find_by_property` answers "which files have this value for this property?". Replaces the agent's "guess the path from convention" sequence (1–5 calls per identifier resolution) with a single typed call. Pure addition — no existing tool changes, no new error codes, no ADR amendments. `obsidian_exec` remains the freeform escape hatch.

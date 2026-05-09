@@ -167,7 +167,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
 ### Implementation for User Stories 1, 2, 3
 
-- [ ] T003 [US1] Create [src/tools/read_heading/schema.ts](../../src/tools/read_heading/schema.ts) and [src/tools/read_heading/schema.test.ts](../../src/tools/read_heading/schema.test.ts). Per [data-model.md § Input schema](data-model.md#input-schema) + [§ Output schema](data-model.md#output-schema), [contracts/read-heading-input.contract.md](contracts/read-heading-input.contract.md). Depends on: nothing in this list (truly first source-code task).
+- [X] T003 [US1] Create [src/tools/read_heading/schema.ts](../../src/tools/read_heading/schema.ts) and [src/tools/read_heading/schema.test.ts](../../src/tools/read_heading/schema.test.ts). Per [data-model.md § Input schema](data-model.md#input-schema) + [§ Output schema](data-model.md#output-schema), [contracts/read-heading-input.contract.md](contracts/read-heading-input.contract.md). Depends on: nothing in this list (truly first source-code task).
 
   - **(3a) Author [src/tools/read_heading/schema.ts](../../src/tools/read_heading/schema.ts)** with the `// Original — no upstream. read_heading input/output/eval-envelope schemas — standard target_mode discriminator extension; structural-only heading-path validator (FR-006 / FR-007 — split on ::, require >=2 non-empty segments); paths-only output; discriminated-union eval-envelope wire format.` header (Principle V). Define:
     - `HEADING_PATH_SEPARATOR = "::"` — exported constant for traceability + test reuse.
@@ -202,7 +202,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: Principle II (20 cases co-located); Principle III (single source of truth — schema is the only typed surface for input shape; the output schema is the only typed surface for output shape; the envelope schema is the only typed surface for the eval wire format). FR-001..FR-009, FR-022, FR-024, SC-010, SC-019.
 
-- [ ] T004 [US1] Create [src/tools/read_heading/handler.ts](../../src/tools/read_heading/handler.ts) and [src/tools/read_heading/handler.test.ts](../../src/tools/read_heading/handler.test.ts). Per [data-model.md § JS template body](data-model.md#js-template-body) + [§ Base64 payload assembly](data-model.md#base64-payload-assembly), [contracts/read-heading-handler.contract.md](contracts/read-heading-handler.contract.md), and [research.md R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R13, R14](research.md). Depends on: T003 (`ReadHeadingInput` / `ReadHeadingOutput` / envelope schema imports).
+- [X] T004 [US1] Create [src/tools/read_heading/handler.ts](../../src/tools/read_heading/handler.ts) and [src/tools/read_heading/handler.test.ts](../../src/tools/read_heading/handler.test.ts). Per [data-model.md § JS template body](data-model.md#js-template-body) + [§ Base64 payload assembly](data-model.md#base64-payload-assembly), [contracts/read-heading-handler.contract.md](contracts/read-heading-handler.contract.md), and [research.md R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R13, R14](research.md). Depends on: T003 (`ReadHeadingInput` / `ReadHeadingOutput` / envelope schema imports).
 
   - **(4a) Author [src/tools/read_heading/handler.ts](../../src/tools/read_heading/handler.ts)** with the `// Original — no upstream. read_heading handler: single invokeCli wrapper around the eval subcommand with a frozen JS template + base64 payload (R6 anti-injection); reuses Obsidian's pre-parsed metadataCache headings array (R7); two-stage envelope parse with discriminator-mapped UpstreamError (R13); Setext defence-in-depth filter (R14).` header (Principle V). Implement per [contracts/read-heading-handler.contract.md](contracts/read-heading-handler.contract.md):
     - `executeReadHeading(input: ReadHeadingInput, deps: ExecuteDeps): Promise<ReadHeadingOutput>`.
@@ -290,7 +290,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: Principle I (handler is a thin transformer; no `child_process.spawn` direct invocation per SC-016); Principle II (30 cases co-located, including the R6 anti-injection lock on every payload-bearing test); Principle III (envelope schema is the only typed surface for the eval wire format); Principle IV (every `UpstreamError` propagated verbatim or wrapped per R13's mapping table; no new codes per FR-022). FR-009..FR-022, FR-024.
 
-- [ ] T005 [US1] Create [src/tools/read_heading/index.ts](../../src/tools/read_heading/index.ts) and [src/tools/read_heading/index.test.ts](../../src/tools/read_heading/index.test.ts). Per [contracts/read-heading-handler.contract.md](contracts/read-heading-handler.contract.md), [contracts/read-heading-input.contract.md](contracts/read-heading-input.contract.md), and the existing [src/tools/read_property/index.ts](../../src/tools/read_property/index.ts) precedent. Depends on: T003, T004.
+- [X] T005 [US1] Create [src/tools/read_heading/index.ts](../../src/tools/read_heading/index.ts) and [src/tools/read_heading/index.test.ts](../../src/tools/read_heading/index.test.ts). Per [contracts/read-heading-handler.contract.md](contracts/read-heading-handler.contract.md), [contracts/read-heading-input.contract.md](contracts/read-heading-input.contract.md), and the existing [src/tools/read_property/index.ts](../../src/tools/read_property/index.ts) precedent. Depends on: T003, T004.
 
   - **(5a) Author [src/tools/read_heading/index.ts](../../src/tools/read_heading/index.ts)** with the `// Original — no upstream. read_heading tool registration via registerTool — wraps the { content } envelope for the MCP wire.` header (Principle V). Mirror `read_property/index.ts` structure exactly:
     - Import `registerTool` from `../_register.js`, `executeReadHeading, type ExecuteDeps` from `./handler.js`, `readHeadingInputSchema` from `./schema.js`.
@@ -307,7 +307,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: Principle I (per-surface module entry point); Principle II (5 registration tests co-located); Principle III (the `inputSchema` is derived from the schema via `registerTool`'s `toMcpInputSchema` + `stripSchemaDescriptions` — no manual descriptor construction). FR-001, FR-023, FR-024, SC-016, SC-017.
 
-- [ ] T006 [US1] Wire `read_heading` into the MCP server. Edit [src/server.ts](../../src/server.ts):
+- [X] T006 [US1] Wire `read_heading` into the MCP server. Edit [src/server.ts](../../src/server.ts):
 
   - **(6a)** Add the import in alphabetical position: `import { createReadHeadingTool } from "./tools/read_heading/index.js";` — placed between `createObsidianExecTool` and `createReadNoteTool` imports (`obsidian_exec` < `read_heading` < `read_note`).
   - **(6b)** Add `createReadHeadingTool({logger, queue})` to the tools array between `createObsidianExecTool({logger, queue})` and `createReadNoteTool({logger, queue})` at [src/server.ts:71-72](../../src/server.ts#L71-L72).
@@ -328,7 +328,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
 **Independent Test**: per [spec.md US4 IT](spec.md#user-story-4--documentation-surface-for-the-typed-tool-priority-p2) — `help({tool_name: "read_heading"})` returns the populated body (no TODO stub, all 5 error codes named, ≥4 worked examples covering 2-segment specific-mode / 3+-segment nested / active-mode / heading-not-found error or validation-rejection error, multi-vault default-ambiguity limitation documented, documented fallback for out-of-reach paths named). Verifiable by file inspection (T007 + T008 outputs) and by the index.test.ts case (55) added in T005.
 
-- [ ] T007 [P] [US4] Author [docs/tools/read_heading.md](../../docs/tools/read_heading.md) (NEW file — the `assertToolDocsExist` aggregator does NOT pre-populate stubs; T006's registry-consistency test will fail until this lands). Per FR-023 + US4 AC#1. Different file from src/, fully parallelisable with T003-T006.
+- [X] T007 [P] [US4] Author [docs/tools/read_heading.md](../../docs/tools/read_heading.md) (NEW file — the `assertToolDocsExist` aggregator does NOT pre-populate stubs; T006's registry-consistency test will fail until this lands). Per FR-023 + US4 AC#1. Different file from src/, fully parallelisable with T003-T006.
 
   **Document content** (sections required):
   - **Header**: title (`# Read Heading (read_heading)`), one-paragraph summary mentioning the typed surface + the heading-targeted-body framing + the `{content: string}` output shape + the token-saving framing (replaces 5–50k char full-file `read_note` + parse with 100–500 char structured response).
@@ -359,7 +359,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: Principle V (Markdown exempt from source-header convention per existing precedent); ADR-005 (progressive-disclosure documentation lives in docs/, not in schema). FR-023, SC-017.
 
-- [ ] T008 [P] [US4] Update [docs/tools/index.md](../../docs/tools/index.md) — add a one-line summary for `read_heading` per the existing convention. Match the established style for existing entries (typically `- [<tool_name>](<tool_name>.md): <one-sentence summary>`). The summary MUST surface the heading-targeted-body framing (e.g., `- [read_heading](read_heading.md): Read the body of a single named heading from a vault note (returns { content: string } — replaces full-file read_note plus client-side Markdown parse for the section-extraction case).`). Different file from T007; can run in parallel.
+- [X] T008 [P] [US4] Update [docs/tools/index.md](../../docs/tools/index.md) — add a one-line summary for `read_heading` per the existing convention. Match the established style for existing entries (typically `- [<tool_name>](<tool_name>.md): <one-sentence summary>`). The summary MUST surface the heading-targeted-body framing (e.g., `- [read_heading](read_heading.md): Read the body of a single named heading from a vault note (returns { content: string } — replaces full-file read_note plus client-side Markdown parse for the section-extraction case).`). Different file from T007; can run in parallel.
 
   **Constitution**: Principle V (Markdown exempt). FR-023.
 
@@ -371,11 +371,11 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
 **Purpose**: Release artifacts (CHANGELOG, package.json), end-to-end verification (quickstart S-1..S-19), manual verifications (S-20..S-22), and PR Constitution Compliance.
 
-- [ ] T009 [P] Update [package.json](../../package.json) `description` field to mention `read_heading` alongside the existing typed tools. Current text (post-014): `"... ships obsidian_exec (generic CLI bridge), help (progressive-disclosure docs), read_note (typed read tool), write_note (typed create/overwrite tool), delete_note (typed delete tool with safety defaults), read_property (typed surgical frontmatter-property read), and find_by_property (typed value-to-file lookup over frontmatter)."`. Update to: `"... ships obsidian_exec (generic CLI bridge), help (progressive-disclosure docs), read_note (typed read tool), read_heading (typed heading-body read tool), write_note (typed create/overwrite tool), delete_note (typed delete tool with safety defaults), read_property (typed surgical frontmatter-property read), and find_by_property (typed value-to-file lookup over frontmatter)."`. No other package.json changes here (the version bump is in T010).
+- [X] T009 [P] Update [package.json](../../package.json) `description` field to mention `read_heading` alongside the existing typed tools. Current text (post-014): `"... ships obsidian_exec (generic CLI bridge), help (progressive-disclosure docs), read_note (typed read tool), write_note (typed create/overwrite tool), delete_note (typed delete tool with safety defaults), read_property (typed surgical frontmatter-property read), and find_by_property (typed value-to-file lookup over frontmatter)."`. Update to: `"... ships obsidian_exec (generic CLI bridge), help (progressive-disclosure docs), read_note (typed read tool), read_heading (typed heading-body read tool), write_note (typed create/overwrite tool), delete_note (typed delete tool with safety defaults), read_property (typed surgical frontmatter-property read), and find_by_property (typed value-to-file lookup over frontmatter)."`. No other package.json changes here (the version bump is in T010).
 
   **Constitution**: N/A (release-metadata only).
 
-- [ ] T010 Add a [CHANGELOG.md](../../CHANGELOG.md) release entry for `0.2.8` per the project's release convention. Bump `package.json:version` from `0.2.7` to `0.2.8` (PATCH bump per plan — purely additive surface; no breaking changes; the new typed surface for heading-body reads is a new tool-surface addition, not a behaviour change to existing tools). The CHANGELOG entry should:
+- [X] T010 Add a [CHANGELOG.md](../../CHANGELOG.md) release entry for `0.2.8` per the project's release convention. Bump `package.json:version` from `0.2.7` to `0.2.8` (PATCH bump per plan — purely additive surface; no breaking changes; the new typed surface for heading-body reads is a new tool-surface addition, not a behaviour change to existing tools). The CHANGELOG entry should:
 
   - **Add**: `read_heading` typed MCP tool wrapping the Obsidian CLI's `eval` subcommand with a frozen JS template that walks `app.metadataCache.metadataCache[hash].headings` (Obsidian's pre-parsed heading array) to find a named heading and slice its body via `app.vault.adapter.read(path)`. Returns `{content: string}` — the body bytes between the matched heading's `position.end.offset` and the next heading marker of any depth (or EOF). Replaces the agent's "full-file read_note + client-side Markdown parse" sequence (5-50k tokens for long documents) with a single typed call returning just the named section's body bytes (typically 100-500 tokens).
   - **Note**: the schema uses the STANDARD `target_mode: "specific" | "active"` discriminator (parity with `read_note` / `write_note` / `delete_note` / `read_property`); this is the FIRST eval-composition typed tool to do so (014's `find_by_property` is vault-wide and has no discriminator).
@@ -393,7 +393,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: N/A (release-metadata).
 
-- [ ] T011 Run [quickstart.md](quickstart.md) S-1..S-19 verification (CI-runnable + sanity-check scenarios). Specifically:
+- [X] T011 Run [quickstart.md](quickstart.md) S-1..S-19 verification (CI-runnable + sanity-check scenarios). Specifically:
 
   - **S-1..S-19 from quickstart.md**: `npm run test` — assert 0 failures; the 55 new tests across schema/handler/index pass.
   - **Drift detector + registry-consistency test**: pass for `read_heading`.
