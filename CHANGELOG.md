@@ -5,6 +5,41 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.6] - 2026-05-09
+
+Patch release — adds the fourth typed-tool surface, `read_property`. Symmetric counterpart of the prior typed tools: where `read_note` retired `obsidian_exec` for full-file reads, `write_note` retired it for create/overwrite, and `delete_note` retired it for destructive single-file removal, `read_property` retires it for **surgical frontmatter-property reads**. Agents wanting a single named property no longer pay the token cost of a full-file fetch plus client-side YAML parsing. Pure addition — no existing tool changes, no new error codes, no ADR amendments. `obsidian_exec` remains the freeform escape hatch for unwrapped subcommands.
+
+### Added
+
+- **`read_property` typed MCP tool**, wrapping the Obsidian CLI's `properties` (plural) subcommand with `format=json`. Discriminated by `target_mode: "specific" | "active"`; required `name` field in both modes. Returns `{ value, type }` with native YAML types preserved: `value` is one of string / number / boolean / array / object / null (the polymorphic union covers all six runtime shapes from JSON-decoded frontmatter values), and `type` is one of seven labels — `"text" | "list" | "number" | "checkbox" | "date" | "datetime" | "unknown"`.
+- **Two-call architecture under the hood**: each request fires Call A (file-scoped — `properties path=<p> format=json` or `properties format=json active`) for the value AND Call B (vault-scoped — `properties format=json`) for Obsidian's resolved type label. The wrapper merges the responses. Latency cost ≈ 2× a single-call typed tool; both invocations serialise through the project's single-in-flight queue.
+- **Subcommand selection rationale**: `properties` (plural) with `format=json` was chosen over `property:read` because the latter is structurally lossy — it renders mappings as `[object Object]`, conflates literal-`"null"` with YAML-null at the wire, and emits plain text without type info. The `properties format=json` channel preserves native types via JSON encoding and distinguishes null-vs-`"null"` structurally. Live-verified during plan stage.
+- **No-error semantics for absent properties and frontmatter-less notes**: a missing property name returns `{ "value": null, "type": "unknown" }`. Files with no frontmatter block at all (or malformed frontmatter — Obsidian conflates the two) likewise return `{ "value": null, "type": "unknown" }`. Agents distinguishing absent vs explicit-null can read the `type` field — explicit-null retains a typed label; absent always reports `"unknown"`.
+- **Type label translation table** — Obsidian's internal labels (`multitext`, `aliases`, `tags`) map to the spec's `"list"`; `text` / `number` / `checkbox` / `date` / `datetime` / `unknown` pass through directly; unrecognised future labels fall back to `"unknown"` for forward-compatibility.
+- Per-mode validation enforced at the schema layer:
+  - Specific mode requires `vault` and exactly one of `file` / `path` AND `name`.
+  - Active mode forbids `vault` / `file` / `path`; `name` is required in both modes.
+  - Unknown top-level keys are rejected (`additionalProperties: false`, post-010 strict-mode).
+- Documentation at [docs/tools/read_property.md](docs/tools/read_property.md) — input/output schema, error roster (5 codes), 7 worked examples (specific path / file / date / number / active / absent / mapping), behavioural notes (two-call architecture, active-mode multi-vault limitation, no-frontmatter conflation, type-inference vs explicit-typing, YAML comments / anchors / aliases, CRLF/LF, name verbatim passthrough).
+- 41 co-located tests in `src/tools/read_property/{schema,handler,index}.test.ts` (14 schema + 22 handler + 5 registration), plus 1 new cli-adapter test for the R5 / T002 inheritance lock (`properties` subcommand inherits unknown-vault re-classification).
+
+### Documentation
+
+- `docs/tools/index.md` — `read_property` entry added with the surgical-read framing.
+- `package.json` description updated to mention `read_property` alongside the existing typed tools.
+
+### Known limitations
+
+- **Active-mode multi-vault correctness**: in active mode, Call B is issued without `vault=` — Obsidian returns type metadata for its **default vault**, which may differ from the focused-note's vault. Single-vault setups get correct behaviour. Multi-vault users may see incorrect type labels in active mode (the `value` is always correct; only `type` may mis-resolve). Recommendation: prefer `target_mode: "specific"` with an explicit `vault` argument when multiple vaults are registered and type-correctness matters. Documented in `docs/tools/read_property.md`.
+- **No-frontmatter / malformed-frontmatter conflation**: Obsidian's CLI does not distinguish "no frontmatter block" from "malformed frontmatter (missing closing fence)" — both surface as `No frontmatter found.` on stdout. Spec FR-012's "structured error for malformed frontmatter" is weakened to match Obsidian's actual behaviour; both cases follow FR-011's `{ value: null, type: "unknown" }` semantic. Documented in `docs/tools/read_property.md`.
+- **Type label inference**: Obsidian reports the property's type as stored in `.obsidian/types.json`, NOT a live YAML-parse inference. A property whose type was never explicit-typed (via the Obsidian UI Properties panel or `obsidian property:set type=...`) may report `"text"` even when its YAML value is date-/datetime-/number-shaped. The wrapper reflects Obsidian's authoritative resolution.
+
+### References
+
+- Spec: [specs/013-read-property/spec.md](specs/013-read-property/spec.md)
+- Plan: [specs/013-read-property/plan.md](specs/013-read-property/plan.md)
+- Research (incl. T0 Live-CLI Capture 2026-05-09): [specs/013-read-property/research.md](specs/013-read-property/research.md)
+
 ## [0.2.5] - 2026-05-08
 
 Patch release — adds the third typed-tool surface, `delete_note`. Symmetric counterpart of `read_note` and `write_note`: where `read_note` retired `obsidian_exec` for reads and `write_note` retired it for create/overwrite, `delete_note` retires it for destructive single-file removal. Pure addition — no existing tool changes, no new error codes, no ADR amendments. `obsidian_exec` remains the freeform escape hatch for the `create` subcommand's `newtab` flag and any unwrapped subcommands; the `delete` subcommand is now FULLY covered by `delete_note`.
