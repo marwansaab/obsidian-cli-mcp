@@ -485,6 +485,89 @@ Both counts are correct in their respective contexts. Readers tracing coverage i
 
 ---
 
+## T0 Live-CLI Capture (2026-05-09)
+
+Captures from `/speckit-implement` Phase 2 T001. Probes against `TestVault-Obsidian-CLI-MCP` per [.memory/test-execution-instructions.md](../../.memory/test-execution-instructions.md). Fixtures seeded under `Sandbox/014-T0-*`, all cleaned up after capture; `Welcome.md` untouched. Each probe used `obsidian vault=TestVault-Obsidian-CLI-MCP eval code=<js>` directly (no MCP layer). T0.3 (large match-set cap boundary) deferred — the FR-019 cap-as-structured-error contract is structurally ensured by the cli-adapter's existing 10 MiB cap; empirical confirmation is observability evidence, not a contract gate.
+
+### T0.1 — Date / datetime comparison semantics
+
+**Fixture**: `Sandbox/014-T0-dates.md` with frontmatter `due: 2026-12-31` (YAML date) and `updated: 2026-05-08T14:30:00` (YAML datetime).
+
+**Capture** (verbatim):
+
+```
+=> {"due":{"type":"string","iso":"2026-12-31","isDate":false,"raw":"2026-12-31"},"updated":{"type":"string","iso":"2026-05-08T14:30:00","isDate":false,"raw":"2026-05-08T14:30:00"}}
+```
+
+**Finding**: Obsidian's metadata cache stores YAML date AND datetime values as **plain JS strings** (not `Date` objects). `typeof === "string"`, `instanceof Date === false`. Strict-equality (`===`) comparison against the YAML-format string `"2026-12-31"` matches; the slashed equivalent `"2026/12/31"` would NOT match (different strings).
+
+**Handler implication**: NO Date-object branch needed in the JS template's `eq()`. The existing `===` path covers dates. Documented in `docs/tools/find_by_property.md` as "queries must use the YAML serialisation form (e.g. `2026-12-31`); slashed or alternative date formats do not match" (T007).
+
+### T0.2 — Unicode NFC vs NFD
+
+**Fixtures**:
+- `Sandbox/014-T0-nfc.md` with `tag: café` (NFC — `é` as U+00E9, UTF-8 bytes `c3 a9`).
+- `Sandbox/014-T0-nfd.md` with `tag: café` (NFD — `e` + U+0301 combining acute, UTF-8 bytes `65 cc 81`).
+
+**Capture** (verbatim):
+
+```
+=> [{"path":"Sandbox/014-T0-nfc.md","tag":"café","bytes":"63-61-66-e9","len":4},{"path":"Sandbox/014-T0-nfd.md","tag":"café","bytes":"63-61-66-65-301","len":5}]
+```
+
+**Finding**: Obsidian preserves the on-disk Unicode normalisation form verbatim — NFC bytes round-trip as NFC; NFD bytes round-trip as NFD. JS `===` is byte-equal, not Unicode-aware. A query for `value: "café"` (NFC) matches only the NFC file; the NFD file does NOT match.
+
+**Handler implication**: NO normalisation step in the JS template. Confirms expected behaviour. Documented in `docs/tools/find_by_property.md` as "the wrapper does NOT perform Unicode normalisation; callers needing normalisation should normalise client-side or supply both forms" (T007).
+
+### T0.4 — Index staleness window after external on-disk edit
+
+**Fixture**: `Sandbox/014-T0-staleness.md` with frontmatter `id: BI-stale-original`. Modified on disk via `Set-Content` (bypassing Obsidian) to `id: BI-stale-modified`.
+
+**Capture** (verbatim, three probes after the on-disk edit at T+0s, T+2s, T+5s):
+
+```
+BEFORE=
+=> {"id":"BI-stale-original"}
+
+WRITING modified...
+T+0s=
+=> {"id":"BI-stale-modified"}
+
+T+2s=
+=> {"id":"BI-stale-modified"}
+
+T+5s=
+=> {"id":"BI-stale-modified"}
+```
+
+**Finding**: Each `obsidian eval` invocation in CLI mode reads the vault state fresh. The modified value surfaced at T+0s — staleness window is effectively **zero** for this CLI invocation pattern (one fresh process per call). The "index staleness at startup" Edge Case noted in spec covers a different workflow (long-running Obsidian instance with the file watcher disabled or paused); the typed-tool single-call wrapper does not exhibit the staleness window because every invocation re-loads.
+
+**Handler implication**: NO staleness mitigation needed in the wrapper. Documented in `docs/tools/find_by_property.md` as "external on-disk edits between calls are reflected on the very next invocation" (T007).
+
+### T0.5 — List-of-mappings non-match (FR-024)
+
+**Fixture**: `Sandbox/014-T0-mappings.md` with frontmatter `entries: [{author: "x", source: "a"}, {author: "y", source: "b"}]`.
+
+**Capture** (verbatim):
+
+```
+=> {"entries":[{"author":"x","source":"a"},{"author":"y","source":"b"}],"isArray":true,"arrayMatchScalarHit":false,"exactEqHit":false}
+```
+
+**Finding**: Obsidian preserves the structural shape — `entries` is a JS array whose elements are plain objects. `arrayMatch: true` with scalar `value: "x"` runs `entries.some(item => item === "x")` which returns `false` for every object element (object-vs-string strict equality is always false). `arrayMatch: false` requires `Array.isArray(value)`; a scalar query never reaches the `arrEq` branch.
+
+**Handler implication**: NO defensive type-of-property check needed. The FR-024 contract — "list-valued properties whose elements are themselves YAML mappings MUST surface as `count: 0`, never as errors" — is naturally honoured by `===` semantics. Confirms expected behaviour.
+
+### T0.3 — Large match-set output cap boundary (DEFERRED)
+
+Empirical confirmation deferred per the plan's "OPTIONAL — defer to a future BI if 10 MiB seeding is impractical" allowance. The FR-019 cap-as-structured-error contract is structurally guaranteed by the cli-adapter's existing 10 MiB output cap (`TYPED_TOOL_OUTPUT_CAP_BYTES` at [src/cli-adapter/cli-adapter.ts:11](../../src/cli-adapter/cli-adapter.ts#L11)). The dispatch layer raises `dispatchKill` on cap exceedance, which surfaces as `CLI_NON_ZERO_EXIT` per existing classification — never silent truncation.
+
+### Cleanup
+
+All `014-T0-*` fixtures removed from `Sandbox/` after capture. `Welcome.md` at vault root never touched.
+
+---
+
 ## Decision summary
 
 | Rn | Decision | Status |
