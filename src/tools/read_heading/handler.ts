@@ -1,7 +1,4 @@
 // Original — no upstream. read_heading handler: single invokeCli wrapper around the eval subcommand with a frozen JS template + base64 payload (R6 anti-injection); reuses Obsidian's pre-parsed metadataCache headings array (R7); two-stage envelope parse with discriminator-mapped UpstreamError (R13); Setext defence-in-depth filter (R14).
-import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
-import { UpstreamError } from "../../errors.js";
-
 import { JS_TEMPLATE } from "./_template.js";
 import {
   HEADING_PATH_SEPARATOR,
@@ -9,6 +6,8 @@ import {
   type ReadHeadingInput,
   type ReadHeadingOutput,
 } from "./schema.js";
+import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
+import { UpstreamError } from "../../errors.js";
 
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
