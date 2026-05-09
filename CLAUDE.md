@@ -103,10 +103,13 @@ by research R1; spec.md NOT amended per R12.
 `createReadPropertyTool(deps)`; all three new source files carry the
 `// Original — no upstream.` header per Constitution V. Tests
 co-located: `src/tools/read_property/{schema,handler,index}.test.ts` —
-**36 cases total** (14 schema / 17 handler / 5 registration per
-FR-023). Higher than `delete_note`'s 30 because of the two-call
-architecture (handler tests cover both spawn invocations + short-
-circuit branches) and the polymorphic value union (more schema cases).
+**41 cases total** (14 schema / 22 handler / 5 registration per
+FR-023; bumped 36 → 41 by /speckit-analyze remediation closing
+F2/F3/F5 coverage gaps — null-disambiguation triplet, active+absent,
+CLI_BINARY_NOT_FOUND, CLI_NON_ZERO_EXIT). Higher than `delete_note`'s
+30 because of the two-call architecture (handler tests cover both
+spawn invocations + short-circuit branches) and the polymorphic value
+union (more schema cases).
 
 **Cross-cutting**: zero new error codes (FR-021 + Constitution IV);
 zero new ADRs; 008-refactor surface frozen — `dispatchCli`,

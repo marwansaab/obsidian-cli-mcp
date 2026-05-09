@@ -16,7 +16,7 @@ src/tools/read_property/
 ├── schema.ts             # ~50 LOC — input + output schemas, types via z.infer, type-label enum
 ├── schema.test.ts        # ~200 LOC — 14 cases per FR-023
 ├── handler.ts            # ~80 LOC — two-call invokeCli wrapper + parsePropertiesResponse + type translation
-├── handler.test.ts       # ~350 LOC — 17 cases per FR-023
+├── handler.test.ts       # ~430 LOC — 22 cases per FR-023 (bumped 17 → 22 by /speckit-analyze remediation)
 ├── index.ts              # ~25 LOC — createReadPropertyTool factory via registerTool
 └── index.test.ts         # ~120 LOC — 5 cases per FR-023
 ```

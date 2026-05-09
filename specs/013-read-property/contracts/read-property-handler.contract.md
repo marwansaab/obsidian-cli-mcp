@@ -276,7 +276,7 @@ Argv shape in tests reflects `dispatchCli`'s actual hoisting — `vault=` first,
 
 ## Test inventory (FR-023)
 
-The handler test file (`handler.test.ts`) covers ~17 cases mapped to user stories and SCs:
+The handler test file (`handler.test.ts`) covers ~22 cases mapped to user stories and SCs (bumped 17 → 22 by the /speckit-analyze remediation pass to close F2, F3, F5 coverage gaps — full case list maintained in [tasks.md T004 (4b)](../tasks.md)):
 
 | # | Test description | Maps to |
 |---|------------------|---------|
@@ -297,12 +297,17 @@ The handler test file (`handler.test.ts`) covers ~17 cases mapped to user storie
 | 15 | heterogeneous list → array, type "unknown" (US4) | FR-017, SC-007 |
 | 16 | type translation: multitext → list | R6 |
 | 17 | name with dots/dashes passes through verbatim | FR-018 |
+| 18 | literal-null string round-trip → `{value: "null", type: "text"}` (F2) | FR-009, SC-007 |
+| 19 | explicit-null distinguishability → `{value: null, type: "<typed>"}` distinguishable from absent (F2) | FR-009, SC-007 |
+| 20 | active-mode + absent property → `{value: null, type: "unknown"}` (F3) | US2 AC#2, FR-010 |
+| 21 | CLI_BINARY_NOT_FOUND propagation (F5) | FR-021 |
+| 22 | CLI_NON_ZERO_EXIT propagation (F5) | FR-021 |
 
 Plus the schema test file (`schema.test.ts`) covers ~14 cases (target-mode primitive's existing rules + the `name` field's required + min(1) rules + unknown-key rejection).
 
-Plus the registration test file (`index.test.ts`) covers 5 cases (descriptor name, stripped schema, help mention, doc presence + content completeness, drift-detector parameterised lock).
+Plus the registration test file (`index.test.ts`) covers 5 cases (descriptor name, stripped schema, help mention, doc presence + content completeness, drift-detector parameterised lock + spawn-spy gate per F10).
 
-Total: 14 + 17 + 5 = **36 tests** — exceeds SC-011's floor of 25.
+Total: 14 + 22 + 5 = **41 tests** — exceeds SC-011's floor of 25.
 
 ---
 
