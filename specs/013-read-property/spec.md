@@ -5,6 +5,13 @@
 **Status**: Draft
 **Input**: User description: "Add Read Property — A typed MCP tool that reads a single frontmatter property from a vault note, with the value's native YAML type preserved."
 
+## Clarifications
+
+### Session 2026-05-09
+
+- Q: How should the wrapper distinguish a frontmatter property that is *absent* from one that is *present with an explicit YAML null value*, given both shapes carry `value: null`? → A: Trust Obsidian's resolution — the `type` label is the discriminator (absent surfaces `type: "unknown"`; explicit-null surfaces whichever typed label Obsidian's property-type system has on file for the key). Expand the live-CLI characterisation pass (FR-024) with a 14th case that locks observed labels for both shapes. If the characterisation pass reveals Obsidian conflates the two at a single `{value: null, type: "unknown"}` shape, this contract is amended at planning time before ship.
+- Q: What does `read_property` return when the property's value is a YAML mapping (a nested object) — a shape Obsidian's property-type system does not natively resolve to any of the six type labels? → A: Extend US4's unresolvable-shape principle uniformly. Mappings (and any other shape outside the six native types) return `{value: <raw structural value>, type: "unknown"}`; the wrapper passes the value through without flattening or coercing, never throws. The zod output schema's `value` admits an object branch in addition to string / number / boolean / array / null. Add a new FR-027 codifying the rule, a new Edge Cases bullet (CONTENT — mapping values), and a 15th case to the FR-024 characterisation roster.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 — Specific-mode surgical read returns native-typed value (Priority: P1)
@@ -108,7 +115,7 @@ The implementation MUST handle, document, or explicitly defer each of the follow
 **CONTENT — null disambiguation**
 
 - A property whose value is the literal YAML string `"null"` MUST return `{ value: "null", type: "text" }` — i.e., the string `"null"` is preserved as a four-character string.
-- A property that is present but explicitly empty (YAML null — `key:` with no value) MUST return `{ value: null, type: <whatever Obsidian's property-type system resolves> }`. The two cases MUST be distinguishable by the caller.
+- A property that is present but explicitly empty (YAML null — `key:` with no value) MUST return `{ value: null, type: <whatever Obsidian's property-type system resolves> }`. The caller distinguishes this case from the absent case via the `type` label: an absent property surfaces `type: "unknown"`, an explicit-null property surfaces whichever typed label Obsidian's property-type system has on file for that key. The contract is contingent on the live-CLI characterisation pass (FR-024) confirming the two labels actually differ on the target Obsidian version; if the pass reveals conflation at a single `{value: null, type: "unknown"}` shape, this contract is amended at planning time before ship.
 - A property that is absent from the file MUST return `{ value: null, type: "unknown" }`.
 
 **CONTENT — exotic property names**
@@ -118,6 +125,10 @@ The implementation MUST handle, document, or explicitly defer each of the follow
 **CONTENT — heterogeneous lists**
 
 - A list property whose elements are of mixed YAML types MUST return the heterogeneous array as `value` with `type: "unknown"` (US4). The wrapper does NOT silently coerce or filter elements.
+
+**CONTENT — mapping values**
+
+- A property whose value is a YAML mapping (a nested object, for example `metadata: {author: x, source: y}`) MUST return the structural value as `value` with `type: "unknown"`. The wrapper does NOT throw, flatten, or coerce. This extends US4's unresolvable-shape principle uniformly: any value Obsidian's property-type system cannot resolve to one of the six native types surfaces as `{value: <raw structural value>, type: "unknown"}`. The zod output schema's `value` admits an object branch alongside string, number, boolean, array, and null. Codified by FR-027.
 
 **CONTENT — YAML syntactic features (comments, anchors, aliases)**
 
@@ -154,8 +165,8 @@ The implementation MUST handle, document, or explicitly defer each of the follow
 - **FR-005**: The tool MUST require a `name` field (a non-empty string) in both modes. The empty string and the absence of `name` MUST both produce validation failures.
 - **FR-006**: The tool's input schema MUST forbid unknown top-level keys (`additionalProperties: false`).
 - **FR-007**: The tool MUST return an output object with two fields: `value` (the property's value, native-typed) and `type` (one of `"text" | "list" | "number" | "checkbox" | "date" | "datetime" | "unknown"`).
-- **FR-008**: The tool MUST preserve YAML native types in `value`: text as a string, list as a JSON array of element values, number as a number, boolean as a boolean, date and datetime as their respective string forms.
-- **FR-009**: The tool MUST distinguish the literal YAML string `"null"` from an actual YAML null. The string `"null"` MUST round-trip as `{ value: "null", type: "text" }`. An explicitly null-valued property MUST return `value: null` with whatever `type` Obsidian's property-type system resolves.
+- **FR-008**: The tool MUST preserve YAML native types in `value`: text as a string, list as a JSON array of element values, number as a number, boolean as a boolean, date and datetime as their respective string forms. Values whose YAML shape falls outside this enumeration (most notably YAML mappings) follow the unresolvable-shape fallback per FR-017 and FR-027: structural pass-through with `type: "unknown"`.
+- **FR-009**: The tool MUST distinguish the literal YAML string `"null"` from an actual YAML null. The string `"null"` MUST round-trip as `{ value: "null", type: "text" }`. An explicitly null-valued property MUST return `value: null` with whatever `type` Obsidian's property-type system resolves. The discriminator between the absent-property case (FR-010) and the explicit-null case is the `type` label: absent surfaces `type: "unknown"`; explicit-null surfaces whichever typed label Obsidian's property-type system has on file for the key. The contract is contingent on the live-CLI characterisation pass (FR-024) confirming the labels differ; if the pass shows conflation, this requirement is amended at planning time before ship.
 - **FR-010**: The tool MUST return `{ value: null, type: "unknown" }` (no error) when the requested property is absent from the file's frontmatter.
 - **FR-011**: The tool MUST return `{ value: null, type: "unknown" }` (no error) when the file has no frontmatter block at all.
 - **FR-012**: The tool MUST surface a structured error when the file's frontmatter block is malformed (e.g., missing closing fence). The wrapper MUST NOT silently coerce a malformed frontmatter to a successful read.
@@ -170,14 +181,15 @@ The implementation MUST handle, document, or explicitly defer each of the follow
 - **FR-021**: Errors MUST flow through the project's existing structured error codes — no new error codes MUST be introduced by this feature. Validation failures MUST surface as `VALIDATION_ERROR`; CLI failures MUST surface through the existing four CLI-failure codes.
 - **FR-022**: The tool MUST be registered through the project's existing typed-tool registration factory. The progressive-disclosure help facility's documentation file for `read_property` MUST be authored with the per-field input contract, the output shape, the failure-mode roster, and at least four worked examples covering at least four distinct YAML types.
 - **FR-023**: Each acceptance criterion across US1–US5 (and the heterogeneous-list scenario in US4) MUST be locked by at least one regression test that survives subsequent re-runs unchanged. The test count MUST be sufficient to cover schema validation, handler behaviour, and registration consistency.
-- **FR-024**: The feature MUST run a live-CLI characterisation pass before ship that documents observable CLI behaviour for: each of the six native YAML types; missing property; missing frontmatter block; malformed frontmatter; unresolved locator; unknown vault; YAML comments inside frontmatter; YAML anchors inside frontmatter; YAML aliases inside frontmatter; and CRLF-vs-LF round-tripping. Findings MUST be persisted in the feature's research artefact.
+- **FR-024**: The feature MUST run a live-CLI characterisation pass before ship that documents observable CLI behaviour for: each of the six native YAML types; missing property; missing frontmatter block; malformed frontmatter; unresolved locator; unknown vault; YAML comments inside frontmatter; YAML anchors inside frontmatter; YAML aliases inside frontmatter; CRLF-vs-LF round-tripping; an explicit YAML null property (`key:` with no value) — the resolved `type` label for the explicit-null case is the absent-vs-explicit-null discriminator per the CONTENT — null disambiguation contract and FR-009; and a YAML mapping value (e.g. `metadata: {a: 1, b: 2}`) — the resolved shape locks whether mappings flatten, reject, or pass through unchanged per the CONTENT — mapping values contract and FR-027. Findings MUST be persisted in the feature's research artefact.
 - **FR-025**: The feature MUST NOT change the public surface of any existing typed tool (`read_note`, `write_note`, `delete_note`, `obsidian_exec`, the help tool). The only permitted edit to existing source is the addition of `read_property` to the registration list.
 - **FR-026**: All new source files introduced by this feature MUST carry the project's "Original — no upstream." attribution header per the project Constitution's originality principle.
+- **FR-027**: A property whose value is a YAML mapping (a nested object) MUST return the structural value as `value` with `type: "unknown"`. The wrapper MUST NOT throw, flatten, or coerce. This extends FR-017's unresolvable-shape principle uniformly: any value Obsidian's property-type system cannot resolve to one of the six native types surfaces as `{value: <raw structural value>, type: "unknown"}`. The output `value` schema accordingly admits an object branch in addition to string, number, boolean, array, and null.
 
 ### Key Entities *(include if feature involves data)*
 
 - **Frontmatter property**: A single named key in a note's YAML frontmatter block. Has a `name` (string) and a `value` whose YAML native type is one of: text (string), list (array), number (numeric), checkbox (boolean), date (date-shaped string), or datetime (datetime-shaped string). May be absent entirely (the "no such key" case) or present with a YAML-null value (the "key with no value" case); the two cases MUST be distinguishable.
-- **Property type label**: A string drawn from the set `{ "text", "list", "number", "checkbox", "date", "datetime", "unknown" }` that names how Obsidian's property-type system resolved the property's value. `"unknown"` is the fallback for a missing property, a property with no resolvable type, or a list with heterogeneous element types.
+- **Property type label**: A string drawn from the set `{ "text", "list", "number", "checkbox", "date", "datetime", "unknown" }` that names how Obsidian's property-type system resolved the property's value. `"unknown"` is the fallback for a missing property, a property with no resolvable type, a list with heterogeneous element types, or any other shape Obsidian's property-type system cannot resolve to one of the six native types — most notably YAML mappings (FR-027).
 - **Locator (specific mode)**: An ordered triple of (vault display name, choice of `file`-vs-`path`, locator value). The `file` form names a note by its wikilink (no extension, no folder); the `path` form names a note by its vault-relative path including the `.md` extension. Exactly one of `file` or `path` MUST be provided.
 - **Focused-note reference (active mode)**: An implicit reference to whichever note Obsidian's editor currently has focused. Resolved by the underlying CLI at execution time; not addressable by the caller through any input field.
 
@@ -197,7 +209,7 @@ The implementation MUST handle, document, or explicitly defer each of the follow
 - **SC-010**: The published documentation for `read_property` covers the full per-field input contract, output shape, failure-mode roster, and at least four worked examples covering at least four distinct YAML types.
 - **SC-011**: Every acceptance criterion across US1–US5 is locked by at least one regression test, totalling no fewer than 25 tests across schema, handler, and registration suites.
 - **SC-012**: Zero new error codes are introduced by this feature; every failure flows through existing structured error codes.
-- **SC-013**: The live-CLI characterisation pass documents observable behaviour for all 13 cases enumerated in FR-024, persisted in the feature's research artefact and surfaceable from the published documentation.
+- **SC-013**: The live-CLI characterisation pass documents observable behaviour for all 15 cases enumerated in FR-024 (including the explicit YAML null and YAML mapping cases added by the 2026-05-09 clarification), persisted in the feature's research artefact and surfaceable from the published documentation.
 - **SC-014**: An agent reading a single named frontmatter property can do so in a single tool call returning ≤ ~200 characters of structured response on the success path, replacing what previously required a full-file read plus client-side YAML parsing. Token saving relative to a full-file read is observable from any tracing layer that records request/response payload sizes.
 - **SC-015**: The `name` input cannot reach a shell-evaluated context. The argv-passing contract is structurally enforced by the underlying CLI invocation surface, and is verifiable by inspection of the dispatcher call shape (no shell, no eval, no string interpolation).
 
