@@ -5,6 +5,48 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.7] - 2026-05-09
+
+Patch release — adds the fifth typed-tool surface, `find_by_property`, and the **first retrieval primitive that goes value → file** rather than file → value. Where `read_property` answers "what is the value of this property in this file?", `find_by_property` answers "which files have this value for this property?". Replaces the agent's "guess the path from convention" sequence (1–5 calls per identifier resolution) with a single typed call. Pure addition — no existing tool changes, no new error codes, no ADR amendments. `obsidian_exec` remains the freeform escape hatch.
+
+### Added
+
+- **`find_by_property` typed MCP tool**, wrapping the Obsidian CLI's developer-section `eval` subcommand with a frozen JS template that walks `app.metadataCache.fileCache` + `app.metadataCache.metadataCache`. Inputs: `{ vault?, property, value, folder?, arrayMatch?, caseSensitive? }`. Returns `{ count, paths }` — vault-relative paths of every match (string array) plus the integer count (with `count === paths.length` defensively asserted). Single CLI invocation per request (~200 ms latency, live-probed); all matching logic runs inside the Obsidian process via the JS template.
+- **First typed tool that does NOT use the `target_mode` discriminator** — `find_by_property` is inherently vault-wide; there is no "active file" or "single named file" concept. The schema is a fresh flat `z.object({...}).strict().superRefine(...)` rather than the post-010 flat-extension idiom used by the four prior typed tools. Internal mapping at the cli-adapter call boundary: `vault === undefined ⇒ target_mode: "active"` (no `vault=` in argv); `vault !== undefined ⇒ target_mode: "specific"`. The cli-adapter is unchanged.
+- **Six-axis matching surface**: scalar / array (contains or order-sensitive exact-equal); case-sensitive or case-insensitive; folder-scoped or whole-vault; type-faithful (number `7` distinct from string `"7"`, boolean `true` distinct from string `"true"`); null-vs-absent disambiguation (an explicit YAML `null` matches a query for `null`; a missing property never matches).
+- **Anti-injection via base64-encoded JSON payload**: user inputs (`property`, `value`, `folder`) flow through `JSON.stringify` → `Buffer.from(...).toString("base64")` → the frozen JS template's `atob('<base64>')` + `JSON.parse` chain at request time. The JS template itself is a frozen string constant; the only insertion is a base64 payload whose alphabet (`[A-Za-z0-9+/=]`) is structurally safe inside any JS string literal. No user input ever reaches the JS source as text — verifies the spec's structural anti-injection contract (FR-020 / SC-017).
+- **Order-sensitive array exact-equality** (Q1): `arrayMatch: false` with an array `value` performs **positional** comparison via `every((e, i) => eq(e, y[i]))`. `[α, β]` does NOT equal `[β, α]`. Set-membership semantics use the default `arrayMatch: true` plus a scalar `value`.
+- **Folder path-traversal closure** (Q2 / FR-021): the schema rejects any `folder` value containing a `..` path segment OR starting with `/` `\` via the regex `/(?:^[/\\])|(?:^|[/\\])\.\.(?:[/\\]|$)/`. Defence-in-depth — the JS template's `path.startsWith(prefix)` check operates against in-memory cache keys (vault-relative paths only), so even if a traversal escape slipped past the schema, the cache contains no path outside the vault root.
+- Per-field validation enforced at the schema layer:
+  - `property` is required and length ≥ 1; passed through verbatim.
+  - `value` accepts `string | number | boolean | null | array<scalar>`; the array branch is allowed only when `arrayMatch: false` (cross-field `superRefine`).
+  - `folder` is optional; the path-traversal regex rejects malformed values.
+  - `arrayMatch` and `caseSensitive` default to `true` (post-default the inferred type is `boolean`, not `boolean | undefined`).
+  - Unknown top-level keys are rejected (`additionalProperties: false`).
+- Documentation at [docs/tools/find_by_property.md](docs/tools/find_by_property.md) — input/output schema, error roster (4 codes), 7 worked examples (scalar / folder / array contains / case-insensitive / array exact-equal / type-faithful numeric / vault-omitted), behavioural notes (single-call architecture, eval-as-CLI-entry-point stability concern, anti-injection guarantee, multi-vault default ambiguity, order-sensitivity, hierarchical-tag-rollup non-performance, list-of-mappings non-match, date-as-string semantics, Unicode NFC/NFD non-normalisation, in-session output stability).
+- 47 co-located tests in `src/tools/find_by_property/{schema,handler,index}.test.ts` (18 schema + 24 handler + 5 registration; bumped 45 → 47 by /speckit-analyze C2 remediation closing FR-023 / FR-024 wrapper-non-transformation coverage gaps), plus 1 new cli-adapter test for the R5 / T002 inheritance lock (`eval` subcommand inherits unknown-vault re-classification).
+
+### Documentation
+
+- `docs/tools/index.md` — `find_by_property` entry added with the value→file framing.
+- `package.json` description updated to mention `find_by_property` alongside the existing typed tools.
+
+### Known limitations
+
+- **Multi-vault default ambiguity** (Q3 / R11): when `vault` is omitted in a multi-vault setup the underlying CLI's focused-vault default may resolve ambiguously (no Obsidian instance running, no vault foregrounded, or two vaults equally foregrounded). Multi-vault users requiring deterministic vault scoping must supply `vault` explicitly. Parity with [013-read-property's R4 multi-vault limitation](specs/013-read-property/research.md). Documented in `docs/tools/find_by_property.md`.
+- **`eval`-as-CLI-entry-point stability concern** (R2): there is no native find-by-property subcommand in the Obsidian CLI; the wrapper reaches into Obsidian's internal `app.metadataCache` API. Future Obsidian updates may surface as test failures rather than silent drift; the wrapper's two-stage response parse (`JSON.parse` + output-schema validation) is the structural backstop. Documented in `docs/tools/find_by_property.md`.
+- **Date / datetime comparison** (T0.1): Obsidian stores YAML date and datetime values in the metadata cache as plain JS strings (NOT `Date` objects). Queries must use the YAML serialisation form (`2026-12-31`, `2026-05-08T14:30:00`); slashed or otherwise reformatted equivalents do NOT match — they are different strings. Documented in `docs/tools/find_by_property.md`.
+- **Unicode normalisation** (T0.2): the wrapper does NOT perform Unicode normalisation. A query for `café` (NFC, U+00E9) does not match an otherwise-identical NFD-encoded fixture (`e` + U+0301). Callers needing normalisation-insensitive comparison should normalise client-side or supply both forms.
+- **Hierarchical-tag rollup is NOT performed** (FR-023): a query for `value: "work"` against a `tags` field does NOT match `tags: [work/tasks]`. Tags are matched as opaque values via `===`.
+- **List-of-mappings non-match** (FR-024): a list-valued property whose elements are themselves YAML mappings surfaces as `count: 0` when queried with a scalar value, never as an error.
+- **Output cap** (FR-019): pathologically large match sets may exceed the cli-adapter's 10 MiB stdout cap; the cap fires as `CLI_NON_ZERO_EXIT`, never silent truncation.
+
+### References
+
+- Spec: [specs/014-find-by-property/spec.md](specs/014-find-by-property/spec.md)
+- Plan: [specs/014-find-by-property/plan.md](specs/014-find-by-property/plan.md)
+- Research (incl. T0 Live-CLI Capture 2026-05-09): [specs/014-find-by-property/research.md](specs/014-find-by-property/research.md)
+
 ## [0.2.6] - 2026-05-09
 
 Patch release — adds the fourth typed-tool surface, `read_property`. Symmetric counterpart of the prior typed tools: where `read_note` retired `obsidian_exec` for full-file reads, `write_note` retired it for create/overwrite, and `delete_note` retired it for destructive single-file removal, `read_property` retires it for **surgical frontmatter-property reads**. Agents wanting a single named property no longer pay the token cost of a full-file fetch plus client-side YAML parsing. Pure addition — no existing tool changes, no new error codes, no ADR amendments. `obsidian_exec` remains the freeform escape hatch for unwrapped subcommands.
