@@ -4,6 +4,7 @@ Call `help({ tool_name: "<name>" })` to read the full Markdown documentation for
 
 - **append_note** — _(documentation pending — owned by a future BI)_.
 - **delete_note** — Delete a note from an Obsidian vault. Default sends the file to the OS trash (recoverable); `permanent: true` is irreversible.
+- **find_by_property** — Find notes whose frontmatter property matches a given value (returns `{ count, paths }` — the value→file inverse of `read_property`).
 - **help** — Look up full Markdown documentation for any registered MCP tool.
 - **list_notes** — _(documentation pending — owned by a future BI)_.
 - **list_vaults** — _(documentation pending — owned by a future BI)_.
