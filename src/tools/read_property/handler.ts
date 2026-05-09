@@ -2,7 +2,7 @@
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 
-import { type PropertyTypeLabel, type ReadPropertyInput, type ReadPropertyOutput } from "./schema.js";
+import type { PropertyTypeLabel, ReadPropertyInput, ReadPropertyOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
 
