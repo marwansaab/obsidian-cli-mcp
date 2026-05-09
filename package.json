@@ -1,7 +1,7 @@
 {
   "name": "@marwansaab/obsidian-cli-mcp",
-  "version": "0.2.6",
-  "description": "Windows-host MCP server bridging MCP clients to the Obsidian Integrated CLI binary. Ships obsidian_exec (generic CLI bridge), help (progressive-disclosure docs), read_note (typed read tool), write_note (typed create/overwrite tool), delete_note (typed delete tool with safety defaults), and read_property (typed surgical frontmatter-property read).",
+  "version": "0.2.7",
+  "description": "Windows-host MCP server bridging MCP clients to the Obsidian Integrated CLI binary. Ships obsidian_exec (generic CLI bridge), help (progressive-disclosure docs), read_note (typed read tool), write_note (typed create/overwrite tool), delete_note (typed delete tool with safety defaults), read_property (typed surgical frontmatter-property read), and find_by_property (typed value-to-file lookup over frontmatter).",
   "type": "module",
   "bin": {
     "obsidian-cli-mcp": "dist/index.js"

@@ -39,16 +39,16 @@ test("createServer constructs MCP Server with name and version metadata", () => 
   expect(server).toBeTruthy();
 });
 
-test("createServer registers exactly SIX tools — 'delete_note' + 'help' + 'obsidian_exec' + 'read_note' + 'read_property' + 'write_note' (FR-001 + FR-007 + P8 aggregator + BI-003 + BI-011 + BI-012 + BI-013)", async () => {
+test("createServer registers exactly SEVEN tools — 'delete_note' + 'find_by_property' + 'help' + 'obsidian_exec' + 'read_note' + 'read_property' + 'write_note' (FR-001 + FR-007 + P8 aggregator + BI-003 + BI-011 + BI-012 + BI-013 + BI-014)", async () => {
   const { ctx } = makeContext();
   const { server } = createServer(ctx);
   const handlers = (server as unknown as { _requestHandlers: Map<string, (req: unknown) => Promise<unknown>> })._requestHandlers;
   const listHandler = handlers.get("tools/list");
   expect(listHandler).toBeTruthy();
   const result = (await listHandler!({ method: "tools/list", params: {} })) as { tools: { name: string }[] };
-  expect(result.tools.length).toBe(6);
+  expect(result.tools.length).toBe(7);
   const names = result.tools.map((t) => t.name).sort();
-  expect(names).toEqual(["delete_note", "help", "obsidian_exec", "read_note", "read_property", "write_note"]);
+  expect(names).toEqual(["delete_note", "find_by_property", "help", "obsidian_exec", "read_note", "read_property", "write_note"]);
 });
 
 test("CallToolRequest dispatches by name with TOOL_NOT_FOUND fallback (P8 aggregator)", async () => {

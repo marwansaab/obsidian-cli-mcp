@@ -319,6 +319,30 @@ describe("invokeCli — classification routes through dispatchCli", () => {
       message: "Vault not found.",
     });
   });
+
+  it("R5 / T002 inheritance: stdout 'Vault not found.' for the eval subcommand also re-classifies (BI 014-find-by-property T002)", async () => {
+    // BI 014-find-by-property plan stage verified the eval subcommand's
+    // unknown-vault response is byte-identical to create / delete /
+    // properties (`Vault not found.`, exit 0 — see
+    // specs/014-find-by-property/research.md Finding F7). The adapter's
+    // success-path re-classifier is subcommand-agnostic and inherits without
+    // modification. This case locks the inheritance for the new subcommand.
+    const { spawnFn } = makeStubSpawn({ stdout: "Vault not found.\n", exitCode: 0 });
+    const err = await captureRejection(
+      invokeCli(
+        { command: "eval", vault: "NoSuchVault", parameters: { code: "app.vault.getName()" }, flags: [], target_mode: "specific" },
+        defaultDeps({ spawnFn, env: {} }),
+      ),
+    );
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.message).toBe("Vault not found.");
+    expect(err.details).toMatchObject({
+      command: "eval",
+      stdout: "Vault not found.\n",
+      exitCode: 0,
+      message: "Vault not found.",
+    });
+  });
 });
 
 describe("invokeCli — queue serialization (research R6)", () => {

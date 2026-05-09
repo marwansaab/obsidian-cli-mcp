@@ -275,6 +275,12 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
     required_equals: ["target_mode", "name"],
     additionalProperties: false,
   },
+  find_by_property: {
+    type: "object",
+    properties_equals_set: ["vault", "property", "value", "folder", "arrayMatch", "caseSensitive"],
+    required_equals: ["property", "value"],
+    additionalProperties: false,
+  },
   obsidian_exec: {
     type: "object",
     properties_equals_set: ["command", "vault", "parameters", "flags", "copy", "timeoutMs"],
