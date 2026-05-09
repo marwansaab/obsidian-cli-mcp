@@ -156,7 +156,14 @@ post-010 consolidated drift detector at
 `read_heading` via its `it.each` registry walk — no test-file
 modifications required.
 
-**FR-025 plan-stage characterisation**: 19 cases enumerated in spec.
+**FR-025 plan-stage characterisation**: 23 cases enumerated in spec
+(post-/speckit-analyze A1 remediation: 19 → 23 — SC-020's count was
+out of date with FR-025's actual enumeration; the original 18 cases
+plus Setext (Q2) plus four segment-matching cases (Q3) total 23).
+Of those, 20 are deferred to T0 of `/speckit-implement` (the 4 added
+by /speckit-analyze A2 remediation are empty-body, duplicate-first-
+match, file-not-found-path, file-not-found-wikilink); 3 are plan-
+verified (2-seg happy, 3+-seg nested, unknown-vault).
 Critical architecture-locking findings verified live during plan:
 F1 — no native heading-body subcommand; F2 — eval argv shape;
 F3 — eval `=> ` prefix on stdout; F4 — eval errors as `Error: <msg>`

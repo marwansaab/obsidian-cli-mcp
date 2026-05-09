@@ -46,11 +46,11 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
 **Purpose**: Live-CLI characterisation that locks the handler against verified wording for the cases deferred from plan stage (per [research.md § Plan-stage status](research.md#plan-stage-status)), and verification that the existing 011-R5 cli-adapter unknown-vault response-inspection clause works for the `eval` subcommand (already verified in 014; confirmed for 015 by inheritance).
 
-**Note on plan-stage coverage**: 8 architecture-locking findings (F1–F8) were verified live during plan stage (see [research.md § Live CLI Findings](research.md#live-cli-findings)) — `obsidian help` confirms no native heading-body subcommand; `eval` argv shape; `=> ` prefix on stdout; eval errors as `Error: <msg>` exit 0; `app.vault.adapter.read` async + string return; `app.metadataCache.metadataCache[hash].headings` shape; vault-routing limitation reproduced; sandbox empty cleanup. T001 below covers the 16 cases deferred to T0 because they require fixtures in TestVault and the test vault to be focused at probe time.
+**Note on plan-stage coverage**: 8 architecture-locking findings (F1–F8) were verified live during plan stage (see [research.md § Live CLI Findings](research.md#live-cli-findings)) — `obsidian help` confirms no native heading-body subcommand; `eval` argv shape; `=> ` prefix on stdout; eval errors as `Error: <msg>` exit 0; `app.vault.adapter.read` async + string return; `app.metadataCache.metadataCache[hash].headings` shape; vault-routing limitation reproduced; sandbox empty cleanup. T001 below covers the 20 cases deferred to T0 because they require fixtures in TestVault and the test vault to be focused at probe time (post-/speckit-analyze A2 remediation 2026-05-09: 16 → 20, adding Group E sub-cases T0.17–T0.20).
 
-- [ ] T001 Live-CLI characterisation of the 16 deferred T0 cases. Run probes against the authorised test vault `TestVault-Obsidian-CLI-MCP` per [.memory/test-execution-instructions.md](../../.memory/test-execution-instructions.md) (gated by CLAUDE.md `## Test Execution`). **Open the test vault in Obsidian and confirm focus before running probes** (per the F7 vault-routing limitation — eval runs against the focused vault). Capture stdout / stderr / exit code; append results to [research.md](research.md) under a new `## T0 Live-CLI Capture (yyyy-mm-dd)` section. Cleanup all fixtures from `Sandbox/` after capture. Cases:
+- [ ] T001 Live-CLI characterisation of the 20 deferred T0 cases (post-/speckit-analyze A2 remediation: 16 → 20 — added Group E sub-cases T0.17/T0.18/T0.19/T0.20 to close the empty-body / duplicate-first-match / file-not-found-path / file-not-found-wikilink coverage gaps, which were stub-tested only at handler layer but not live-CLI characterised per FR-025's "live-CLI characterisation pass" wording). Run probes against the authorised test vault `TestVault-Obsidian-CLI-MCP` per [.memory/test-execution-instructions.md](../../.memory/test-execution-instructions.md) (gated by CLAUDE.md `## Test Execution`). **Open the test vault in Obsidian and confirm focus before running probes** (per the F7 vault-routing limitation — eval runs against the focused vault). Capture stdout / stderr / exit code; append results to [research.md](research.md) under a new `## T0 Live-CLI Capture (yyyy-mm-dd)` section. Cleanup all fixtures from `Sandbox/` after capture. Cases:
 
-  > **Sub-task numbering note**: T0.X numbers below correspond to the 16 deferred cases enumerated in [research.md § Plan-stage status](research.md#plan-stage-status). Group A is segment-matching (T0.1–T0.5); Group B is content edge cases (T0.6–T0.9); Group C is body terminators (T0.10–T0.13); Group D is the rest (T0.14–T0.16).
+  > **Sub-task numbering note**: T0.X numbers below correspond to the 20 deferred cases enumerated in [research.md § Plan-stage status](research.md#plan-stage-status). Group A is segment-matching (T0.1–T0.5); Group B is content edge cases (T0.6–T0.9); Group C is body terminators (T0.10–T0.13); Group D is runtime errors and ceiling (T0.14–T0.16); Group E is stub-coverage live-confirmation (T0.17–T0.20 — added by /speckit-analyze A2 remediation 2026-05-09).
 
   ### Group A — segment matching (FR-028 characterisation)
 
@@ -58,7 +58,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
   - **(T0.2) Surrounding whitespace**: same fixture, add heading line `## Heading With Trailing Whitespace   ` (3 trailing spaces). Probe: inspect `heading` field of the matching entry. **Expected**: `heading: "Heading With Trailing Whitespace"` (trimmed).
   - **(T0.3) Inline markdown survives**: same fixture, add heading line `## My **Bold** Heading`. Probe: inspect `heading` field. **Expected**: `heading: "My **Bold** Heading"` (markdown tokens preserved as plain text).
   - **(T0.4) Obsidian anchor survives**: same fixture, add heading line `## Section ^my-anchor-id`. Probe: inspect `heading` field. **Expected**: `heading: "Section ^my-anchor-id"` (anchor preserved as plain text).
-  - **(T0.5) Mis-cased fail**: covered structurally — segment matching is case-sensitive byte equality per FR-028 / R8; tested at the handler-test layer (T004 case 37). T0.5 here is the live confirmation that `read_heading({heading: "Outer::heading"})` against a heading written `## Heading` returns `HEADING_NOT_FOUND` once the wrapper is built. Defer to T011's quickstart S-21 if it's easier to run after the handler exists.
+  - **(T0.5) Mis-cased fail**: covered structurally — segment matching is case-sensitive byte equality per FR-028 / R8; tested at the handler-test layer (T004 case 37). **NOTE (post-/speckit-analyze C1 remediation 2026-05-09)**: T0.5's live confirmation requires the wrapper to exist (depends on T004), which contradicts T001's foundational-phase placement. T0.5 is therefore enumerated here for FR-025 traceability but is **NOT executed during T001** — execution happens in T012's S-21 manual scenario where it sits naturally alongside the other segment-matching live captures. T0.1–T0.4's heading-text-strip behaviour observed against Obsidian's metadataCache (which IS executable in T001) is sufficient to lock the segment-matcher's contract for T004's stub authoring.
 
   ### Group B — content edge cases
 
@@ -104,13 +104,43 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
   - **(T0.12) Child-level terminator**: structurally guaranteed by R7 (next heading at deeper level → terminator; child subtree excluded per Q1).
   - **(T0.13) EOF terminator**: structurally guaranteed by R7's `?? text.length` fallback when `headings[matchIdx + 1]` is undefined.
 
-  T0.10–T0.13 are all derived from the SAME R7 slice formula. They are listed here for FR-025 traceability but T001's empirical work on these reduces to confirming R7 holds against a multi-depth fixture.
+  **(post-/speckit-analyze C2 remediation 2026-05-09)**: T0.10–T0.13 are all derived from the SAME R7 slice formula and require NO new fixtures or probes — they are confirmed by direct inspection of `headings[i+1].position.start.offset` against the multi-depth fixture seeded for T0.6. They are listed individually here for FR-025 traceability (one case per terminator-depth observable), but T001's empirical work for these four cases reduces to a single inspection of T0.6's headings array. Document the four observable confirmations in research.md under T0; do NOT seed four separate fixtures.
 
   ### Group D — runtime errors and ceiling
 
   - **(T0.14) Active-mode happy path**: seed `Sandbox/015-T0-active.md` with a `# Top\n## Section\nProse.` body. **Open the file in Obsidian** so it becomes the active file. Probe: `obsidian eval code="(()=>{const f=app.workspace.getActiveFile();return JSON.stringify({path:f?f.path:null});})()"`. **Expected**: `path: "Sandbox/015-T0-active.md"`. Then probe with `getActiveFile()` returning null (close all tabs) — expected `path: null`.
   - **(T0.15) Active-mode no-focus**: with no file active in Obsidian, `getActiveFile()` returns `null`. The JS template's envelope returns `{ok: false, code: "NO_ACTIVE_FILE"}`. Verified live by replaying T0.14's no-active probe and confirming the envelope shape is what the handler expects.
   - **(T0.16) Very large body cap-boundary**: seed `Sandbox/015-T0-large.md` with a single `## Big Section` heading followed by ~11 MiB of generated body content (`("x".repeat(80) + "\n").repeat(150000)`). Probe `read_heading({path: "Sandbox/015-T0-large.md", heading: "Outer::Big Section"})` after T004 lands. **Expected**: `CLI_NON_ZERO_EXIT` with `details.killReason = {kind: "cap", stream: "stdout", capturedBytes: ~10 MiB}`. **OPTIONAL — defer to a future BI if 10 MiB seeding is impractical**: the FR-020 contract (cap fires as structured error, not silent truncation) is structurally ensured by the cli-adapter's existing 10 MiB cap — T0.16's empirical confirmation is observability evidence, not a contract gate.
+
+  ### Group E — stub-coverage live-confirmation (added by /speckit-analyze A2 remediation 2026-05-09)
+
+  These four cases were originally covered only by T004's stub-driven handler tests (cases 29 / 32 / 40); /speckit-analyze A2 surfaced that FR-025's "live-CLI characterisation pass" wording requires live observation for them. Added here to close the coverage gap. Each is quick to fixture and exercises the wrapper end-to-end after T004 lands (so these run alongside T012 in practice, but are enumerated under T001 for FR-025 traceability — captured in research.md's T0 section).
+
+  - **(T0.17) Empty-body case (FR-011 live confirmation)**: seed `Sandbox/015-T0-empty.md` with content:
+    ```
+    # Outer
+
+    ## Empty Section
+    ## Sibling Section
+
+    Sibling has prose.
+    ```
+    (Note: `## Empty Section` is followed directly by `## Sibling Section` with NO intervening prose — the body of `Empty Section` is the empty string.) Probe `obsidian eval code="(()=>{const fc=app.metadataCache.fileCache['Sandbox/015-T0-empty.md'];return JSON.stringify(app.metadataCache.metadataCache[fc.hash].headings.map(h=>({h:h.heading,start:h.position.start.offset,end:h.position.end.offset})));})()"` to confirm the headings array carries `Empty Section` and `Sibling Section` as adjacent entries with `headings[1].position.start.offset === headings[0].position.end.offset + 1` (or +2 for CRLF — accounts for the line terminator only). Then probe `read_heading({path: "Sandbox/015-T0-empty.md", heading: "Outer::Empty Section"})` after T004 lands. **Expected**: `{content: ""}` (empty string, no error). Confirms FR-011 against the live CLI.
+  - **(T0.18) Duplicate heading first-match (FR-017 live confirmation)**: seed `Sandbox/015-T0-duplicate.md` with content:
+    ```
+    # Outer
+
+    ## Duplicate
+
+    First occurrence body.
+
+    ## Duplicate
+
+    Second occurrence body.
+    ```
+    (Note: TWO headings share the textually-identical full path `Outer::Duplicate`.) Probe `read_heading({path: "Sandbox/015-T0-duplicate.md", heading: "Outer::Duplicate"})`. **Expected**: `{content: "First occurrence body.\n"}` (first-document-order match per FR-017). Confirms the JS template's `for` loop with `break` on match preserves first-match semantics against the live CLI.
+  - **(T0.19) File-not-found (path mode) (FR-014 live confirmation)**: probe `read_heading({target_mode: "specific", vault: "TestVault-Obsidian-CLI-MCP", path: "Sandbox/015-T0-nonexistent.md", heading: "A::B"})` (no fixture seeded — the path deliberately does not exist). **Expected**: `CLI_REPORTED_ERROR` with `details.code = "FILE_NOT_FOUND"` and `details.detail` containing `path: Sandbox/015-T0-nonexistent.md`. Confirms the JS template's `fileCache[resolvedPath]` null check + envelope `ok: false, code: "FILE_NOT_FOUND"` returns surface correctly through the wrapper.
+  - **(T0.20) File-not-found (file/wikilink mode) (FR-014 live confirmation)**: probe `read_heading({target_mode: "specific", vault: "TestVault-Obsidian-CLI-MCP", file: "definitely-not-a-note", heading: "A::B"})` (wikilink resolution should fail). **Expected**: `CLI_REPORTED_ERROR` with `details.code = "FILE_NOT_FOUND"` and `details.detail` containing `wikilink: definitely-not-a-note`. Confirms the JS template's `app.metadataCache.getFirstLinkpathDest` null check + envelope FILE_NOT_FOUND surfaces correctly through the wrapper.
 
   **Cleanup**: after capture, ensure `Sandbox/` contains no `015-T0-*` files. Use `obsidian vault=TestVault-Obsidian-CLI-MCP delete path=Sandbox/015-T0-<name>.md` (to-trash; recoverable) for each fixture. The pre-existing `Welcome.md` at vault root is NEVER touched.
 
@@ -125,7 +155,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: Principle I (clause lives in the `cli-adapter` primitive, NOT in `read_heading`); Principle II (existing parameterised test case verified, no additions). R5 inheritance.
 
-**Checkpoint**: Foundational deliverables complete — handler logic is grounded in plan-stage-verified live-CLI wording (F1-F8) plus the 16 T0-locked cases. The R5 inheritance for `eval` is re-confirmed (test added in 014's T002 still passes). Phase 3 implementation can lock against the captured behaviour.
+**Checkpoint**: Foundational deliverables complete — handler logic is grounded in plan-stage-verified live-CLI wording (F1-F8) plus the 20 T0-locked cases (post-/speckit-analyze A2 remediation: 16 → 20). The R5 inheritance for `eval` is re-confirmed (test added in 014's T002 still passes). Phase 3 implementation can lock against the captured behaviour.
 
 ---
 
@@ -393,7 +423,7 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   **Constitution**: Principle IV (real-CLI failure paths verified through real clients, not just stubs). SC-001, SC-002, SC-005, SC-009, SC-014, SC-022.
 
-- [ ] T013 Fill the PR description's Constitution Compliance checklist (5/5 PASS expected per [plan.md Constitution Check](plan.md#constitution-check)). Also note in the PR description: (a) the T0 capture results from T001 (which 16 deferred cases were verified with their wording — 5 segment-matching + 4 content edge cases + 4 body terminators + 3 runtime), (b) NO plan-stage spec amendments (per [plan.md Reporting](plan.md#reporting) — all spec contracts hold against the live CLI and against Obsidian's metadataCache shape), (c) the resolution of the Q1 / Q2 / Q3 clarifications (codified in spec before plan; reaffirmed by live verification matrix), (d) the **scope-ENFORCED** treatment of ADR-003 (target-mode) — `read_heading` reuses `applyTargetModeRefinement` + `targetModeBaseSchema` from `src/target-mode/target-mode.ts`; the ADR is NOT amended. Include links to the spec / plan / research / data-model / contracts artifacts. Per Constitution v1.2.0 §Development Workflow #8.
+- [ ] T013 Fill the PR description's Constitution Compliance checklist (5/5 PASS expected per [plan.md Constitution Check](plan.md#constitution-check)). Also note in the PR description: (a) the T0 capture results from T001 (which 20 deferred cases were verified with their wording — 5 segment-matching + 4 content edge cases + 4 body terminators + 3 runtime + 4 stub-coverage live-confirmation added by /speckit-analyze A2 remediation), (b) the /speckit-analyze remediation summary (2 MEDIUM A1 + A2 + 3 LOW B1 + C1 + C2 — all dispositioned; A1 reconciled SC-020's case count 19 → 23 to match FR-025's enumeration; A2 added Group E T0.17–T0.20 to T001 to close stub-only coverage gaps; B1 added forward reference from FR-019 to FR-020; C1 explicitly deferred T0.5 to T012 S-21; C2 documented T0.10–T0.13 as derived from T0.6 with no separate fixtures), (c) NO plan-stage spec amendments (per [plan.md Reporting](plan.md#reporting) — all spec contracts hold against the live CLI and against Obsidian's metadataCache shape), (d) the resolution of the Q1 / Q2 / Q3 clarifications (codified in spec before plan; reaffirmed by live verification matrix), (e) the **scope-ENFORCED** treatment of ADR-003 (target-mode) — `read_heading` reuses `applyTargetModeRefinement` + `targetModeBaseSchema` from `src/target-mode/target-mode.ts`; the ADR is NOT amended. Include links to the spec / plan / research / data-model / contracts artifacts. Per Constitution v1.2.0 §Development Workflow #8.
 
   Depends on: T001-T012.
 
@@ -474,7 +504,7 @@ A solo implementer typically lands T003-T008 sequentially in commit order: T003 
 
 ### MVP First (User Stories 1 + 2 + 3 + 5 — the implementation slice)
 
-1. T001 (foundational live-CLI characterisation; 16 deferred cases against the authorised TestVault Sandbox).
+1. T001 (foundational live-CLI characterisation; 20 deferred cases against the authorised TestVault Sandbox — 16 originally enumerated at plan stage + 4 added by /speckit-analyze A2 remediation 2026-05-09).
 2. T002 (verification-only — re-confirms 011-R5 cli-adapter clause works for `eval` subcommand; test inheritance lock already in place from 014).
 3. T003 → T004 → T005 → T007 (out-of-order to satisfy T006's docs-presence test) → T006.
 4. **STOP and VALIDATE**: run `npm run test`; assert 55 new tests pass; assert drift detector + registry-consistency tests pass; assert single-call architecture asserts on every handler test (R3); assert anti-injection round-trip assertion (test 50) passes distinguishably from happy-path tests; assert envelope error mapping (tests 40–42) maps onto the right UpstreamError codes per R13's table.
