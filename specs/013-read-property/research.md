@@ -544,3 +544,166 @@ These FR-024 cases require either a running Obsidian instance with a focused not
 - [quickstart.md](./quickstart.md) — verification scenarios mapped to SCs
 - [012-delete-note research.md](../012-delete-note/research.md) — sibling artifact this one mirrors (with the two-call architecture R3 as the load-bearing departure)
 - [011-write-note research.md](../011-write-note/research.md) — sibling artifact for cli-adapter R5 inheritance + handler-layer thinness conventions
+
+---
+
+## T0 Live-CLI Capture (2026-05-09)
+
+This section captures the 6 cases deferred from plan stage per the deferred-cases table (above). Probes ran against `obsidian` CLI on Windows during T0 of `/speckit-implement`, against the authorised test vault `TestVault-Obsidian-CLI-MCP` (per [.memory/test-execution-instructions.md](../../.memory/test-execution-instructions.md), CLAUDE.md `## Test Execution` gate). All fixtures created under `Sandbox/`; cleaned up post-capture (verified empty: `ls Sandbox/` returned 0 files).
+
+### T0.1 — Active mode happy path / response shape parity
+
+**Probe 1** (focused note in editor with no frontmatter):
+```
+PS> obsidian properties format=json active
+No frontmatter found.
+EXIT=0
+```
+
+**Probe 2** (no focused note):
+```
+PS> obsidian properties format=json active
+Error: No active file. Use file=<name> or path=<path> to specify a file.
+EXIT=0
+```
+
+**Conclusion**: active mode's response shape is structurally identical to specific mode (same `properties` subcommand + `format=json`). Captured paths:
+- Frontmatter present → JSON object on stdout (structural parity locked from specific mode's plan-stage Finding 2; the `active` flag only changes target file resolution, not response shape).
+- No frontmatter → `No frontmatter found.` on stdout (R7 short-circuit applies in active mode identically).
+- No focused note → `Error: No active file. ...` on stdout (caught by dispatch layer's `Error:` prefix → `ERR_NO_ACTIVE_FILE` per cli-adapter classification, plan-stage Finding 7).
+
+**TRIGGER not fired**: response shape did NOT differ from specific mode. No active-mode-specific branch needed in the handler. **Handler test #12 lock**: stub Call A returns a JSON object verbatim (same shape as specific mode); Call B issued without `vault=` per R4.
+
+### T0.2 — YAML comments inside frontmatter
+
+Fixture `Sandbox/013-T0-comments.md`:
+```yaml
+---
+# This is a YAML comment line
+status: in-progress  # inline trailing comment
+# another comment
+tags: [alpha, beta]
+---
+```
+
+```
+PS> obsidian vault=TestVault-Obsidian-CLI-MCP properties path=Sandbox/013-T0-comments.md format=json
+{
+  "status": "in-progress",
+  "tags": [
+    "alpha",
+    "beta"
+  ]
+}
+EXIT=0
+```
+
+**Conclusion**: YAML comments (line and inline) are stripped clean by Obsidian's parser. They do NOT appear in the JSON output. No artefacts. Wrapper handles them transparently.
+
+### T0.3 — YAML anchors (`&name`)
+
+Fixture `Sandbox/013-T0-anchors.md` (combined with T0.4 — anchor + alias in one file):
+```yaml
+---
+project: &proj_anchor "my-project"
+fallback: *proj_anchor
+status: in-progress
+---
+```
+
+```
+PS> obsidian vault=TestVault-Obsidian-CLI-MCP properties path=Sandbox/013-T0-anchors.md format=json
+{
+  "project": "my-project",
+  "fallback": "my-project",
+  "status": "in-progress"
+}
+EXIT=0
+```
+
+**Conclusion**: anchors are dereferenced at parse time per standard YAML semantics. The anchor value is propagated to all alias references. The wrapper sees post-dereference values; no anchor syntax leaks to the JSON output.
+
+### T0.4 — YAML aliases (`*name`)
+
+Same fixture as T0.3 (same probe satisfies both cases). `fallback: *proj_anchor` resolves to `"my-project"` — alias dereferenced verbatim. **Conclusion**: aliases work as standard YAML; wrapper sees the resolved value.
+
+### T0.5 — CRLF-vs-LF round-tripping
+
+Fixtures `Sandbox/013-T0-lf.md` (LF, 49 bytes) and `Sandbox/013-T0-crlf.md` (CRLF, 54 bytes) — byte-distinct line endings, identical content. Verified byte-distinctness via hex dump:
+```
+LF:   2D 2D 2D 0A 73 74 61 74 75 73 ... (0A = LF only)
+CRLF: 2D 2D 2D 0D 0A 73 74 61 74 75 73 ... (0D 0A = CRLF)
+```
+
+```
+PS> obsidian vault=TestVault-Obsidian-CLI-MCP properties path=Sandbox/013-T0-lf.md format=json
+{
+  "status": "in-progress",
+  "tags": [
+    "a",
+    "b"
+  ]
+}
+EXIT=0
+
+PS> obsidian vault=TestVault-Obsidian-CLI-MCP properties path=Sandbox/013-T0-crlf.md format=json
+{
+  "status": "in-progress",
+  "tags": [
+    "a",
+    "b"
+  ]
+}
+EXIT=0
+```
+
+**Conclusion**: byte-identical JSON responses for LF vs CRLF inputs. FR-020's "byte-identical responses regardless of line-ending convention" contract is honoured by Obsidian. No wrapper-side normalisation needed.
+
+### T0.6 — Heterogeneous-list type label (US4 / FR-017)
+
+Fixture `Sandbox/013-T0-mixed.md`:
+```yaml
+---
+mixed: [1, "two", 3]
+---
+```
+
+**Probe A** (file-scoped value):
+```
+PS> obsidian vault=TestVault-Obsidian-CLI-MCP properties path=Sandbox/013-T0-mixed.md format=json
+{
+  "mixed": [
+    1,
+    "two",
+    3
+  ]
+}
+EXIT=0
+```
+
+**Probe B** (vault-scoped type metadata):
+```
+PS> obsidian vault=TestVault-Obsidian-CLI-MCP properties format=json
+[
+  { "name": "aliases",        "type": "aliases",   "count": 0 },
+  { "name": "cssclasses",     "type": "multitext", "count": 0 },
+  { "name": "date_field",     "type": "date",      "count": 0 },
+  { "name": "datetime_field", "type": "datetime",  "count": 0 },
+  { "name": "mixed",          "type": "unknown",   "count": 1 },
+  { "name": "tags",           "type": "tags",      "count": 0 },
+]
+EXIT=0
+```
+
+**Conclusion**: Obsidian labels the heterogeneous list `[1, "two", 3]` as `"unknown"` natively (NOT `"multitext"` as the alternative TRIGGER posited). The R6 translation table maps Obsidian's `"unknown"` → spec's `"unknown"` directly. **TRIGGER not fired** for this fixture: no `multitext` → `list` translation followed by post-processing downgrade. The handler's mixed-runtime-types post-processing rule remains in the implementation as defensive — it fires only if a future Obsidian version (or a property previously typed-as-multitext but later mutated to contain non-string values) reports `multitext` for a heterogeneous list. **Handler test #15 lock**: stub Call B returns `type: "unknown"` natively; expected output is `{value: [1, "two", 3], type: "unknown"}` directly.
+
+### Cleanup verification
+
+```
+PS> ls Sandbox/
+(empty)
+PS> ls .trash/
+ls: cannot access '.trash/': No such file or directory
+```
+
+Five fixtures created, all moved to trash via `obsidian vault=TestVault-Obsidian-CLI-MCP delete path=Sandbox/<file>`; trash recoverable per to-trash-default. `Welcome.md` at vault root untouched. No residue.
