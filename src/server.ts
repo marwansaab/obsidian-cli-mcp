@@ -15,6 +15,7 @@ import { createDeleteNoteTool } from "./tools/delete_note/index.js";
 import { createHelpTool } from "./tools/help/index.js";
 import { createObsidianExecTool } from "./tools/obsidian_exec/index.js";
 import { createReadNoteTool } from "./tools/read_note/index.js";
+import { createReadPropertyTool } from "./tools/read_property/index.js";
 import { createWriteNoteTool } from "./tools/write_note/index.js";
 
 import type { Writable } from "node:stream";
@@ -67,6 +68,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     createHelpTool(),
     createObsidianExecTool({ logger, queue }),
     createReadNoteTool({ logger, queue }),
+    createReadPropertyTool({ logger, queue }),
     createWriteNoteTool({ logger, queue }),
   ];
 
