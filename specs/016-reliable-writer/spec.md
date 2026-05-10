@@ -2,107 +2,135 @@
 
 **Feature Branch**: `016-reliable-writer`
 **Created**: 2026-05-10
-**Status**: Draft
-**Input**: User description: "Add Reliable Writer — a new typed write tool, `write_note_w_eval`, that creates or overwrites notes in an Obsidian vault without crashing the Obsidian application. Its public input contract and output shape mirror the existing `write_note` tool. The existing `write_note` tool is disabled — kept in the codebase but no longer advertised by the MCP server — so that re-enabling it is a single small change for retesting once an upstream Obsidian release lands."
+**Status**: Draft (rewritten 2026-05-10 after the original eval-bypass premise was retracted; see [bug-report-draft.md](bug-report-draft.md) and [ADR-009](../../.decisions/ADR-009%20-%20Direct%20Filesystem%20Write%20Path%20Alongside%20CLI%20Bridge.md) for the design pivot)
+**Input**: Restore reliable writes through this MCP. The existing `write_note` tool deterministically crashes Obsidian's main process for any note whose content exceeds approximately 4 KB on Windows because of an upstream argv→IPC chunk-boundary defect (filed at <https://forum.obsidian.md/t/cli-windows-json-parse-failure-crashes-obsidians-main-process-when-any-single-argv-element-exceeds-4-kb/114119>). The original 016 plan to route writes through Obsidian's `eval` subcommand was empirically refuted on 2026-05-10 — eval suffers the same per-argv-element ceiling and is in fact slightly worse than `create` for writes because of base64 expansion. This rewrite ratifies the design selected after that retraction: replace `write_note` in-place with a direct-filesystem-write implementation that never sends user content across the CLI argv pipe.
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - Reliable specific-mode writes at any practical size (Priority: P1)
+### User Story 1 — Reliable specific-mode writes at any practical size (Priority: P1)
 
-An agent calling this MCP creates or overwrites a note at a named path inside a named vault. The note contains arbitrary text — frontmatter, prose, code blocks, embedded quotes, mixed Markdown — and may range from a few bytes to many kilobytes. The call either succeeds (producing the note byte-for-byte) or fails with a structured error. In no case does the host Obsidian application present a "JavaScript error occurred in the main process" dialog, and in no case is the call's content silently truncated or its target path silently renamed.
+An agent calling this MCP creates or overwrites a note at a named path inside a named vault. The note contains arbitrary text — frontmatter, prose, code blocks, embedded quotes, mixed Markdown — and may range from a few bytes to many kilobytes (and beyond — there is no per-call content-size ceiling baked into the new design). The call either succeeds or fails with a structured error. In no case does the host Obsidian application present a "JavaScript error occurred in the main process" dialog, in no case is content silently truncated, in no case is the target path silently renamed, and the on-disk file is never left in a torn (half-written) state — even on mid-write process crash.
 
-**Why this priority**: This is the entire reason the feature exists. The previous `write_note` tool deterministically crashes the host application for content beyond ~95 bytes, forcing every non-trivial write through a different MCP server. Without a crash-free specific-mode write path, no other story matters — the user has no usable write surface in this MCP at all.
+**Why this priority**: this is the entire reason the feature exists. The previous `write_note` tool deterministically crashed the host application for content beyond ~4 KB on Windows. Without a crash-free, size-unlimited specific-mode write path, this MCP has no usable write surface at all.
 
-**Independent Test**: Can be fully tested by invoking the new tool against a real Obsidian vault with content samples of approximately 60 bytes, 5 KB, and 12 KB (the previous tool's failure thresholds), then verifying that (a) the file exists at the requested path, (b) the file's bytes match the supplied content exactly, and (c) no Obsidian error dialog has appeared during or after the call. Delivers a fully usable specific-mode write capability in isolation.
+**Independent Test**: invoke the new tool against a real Obsidian vault with content samples spanning 60 bytes, 5 KB, 12 KB, and 100 KB. Verify (a) the file exists at the requested path with byte-for-byte matching content, (b) no Obsidian error dialog appeared during or after the call, (c) the call's content delivery did not cross the CLI argv pipe (verifiable by argv-element-length inspection on the bridge's spawn calls), and (d) on a deliberate mid-write SIGTERM the on-disk file is either entirely the old content or entirely the new content — never partial.
 
 **Acceptance Scenarios**:
 
-1. **Given** a fresh path inside an open vault, **When** an agent calls `write_note_w_eval` with approximately 60 bytes of plain ASCII content, **Then** the note is created at the exact path with byte-for-byte matching content and no host-application error dialog appears.
-2. **Given** a fresh path inside an open vault, **When** an agent calls `write_note_w_eval` with approximately 5 KB of plain ASCII content (the size at which the previous tool deterministically crashed), **Then** the note is created successfully and no host-application error dialog appears.
-3. **Given** a fresh path inside an open vault, **When** an agent calls `write_note_w_eval` with approximately 12 KB of mixed Markdown content (the size at which the previous tool returned an empty-response error), **Then** the note is created successfully, no empty-response error is returned, and no host-application error dialog appears.
-4. **Given** content that contains characters previously suspected to break the call path (double quotes, square brackets, trailing commas, embedded JSON-like fragments), **When** an agent calls `write_note_w_eval`, **Then** the content is persisted byte-for-byte in the resulting note.
-5. **Given** an agent passes the same input parameters that the previous `write_note` tool would have accepted for a successful create or overwrite, **When** the agent calls `write_note_w_eval`, **Then** the response shape matches what the previous tool would have returned for the equivalent successful call.
+1. **Given** a fresh path inside an existing registered vault, **when** an agent calls `write_note` with approximately 60 bytes of content, **then** the note is created at the exact path with byte-for-byte matching content and no host-application error dialog appears.
+2. **Given** a fresh path inside an existing registered vault, **when** an agent calls `write_note` with approximately 5 KB of content (the size at which the predecessor deterministically crashed), **then** the note is created successfully with no host crash dialog.
+3. **Given** a fresh path inside an existing registered vault, **when** an agent calls `write_note` with approximately 12 KB of mixed Markdown content (the size at which the predecessor returned an empty-response error), **then** the note is created successfully, no empty-response error is returned, and no host crash dialog appears.
+4. **Given** a fresh path inside an existing registered vault, **when** an agent calls `write_note` with approximately 100 KB of content, **then** the note is created successfully — confirming the new design has no practical content-size ceiling at the same scale as the predecessor's crash threshold.
+5. **Given** content that contains characters previously suspected to break the predecessor's call path (double quotes, square brackets, trailing commas, embedded JSON-like fragments, multi-byte UTF-8, emoji, mixed CRLF/LF line endings), **when** an agent calls `write_note`, **then** the content is persisted byte-for-byte in the resulting note.
+6. **Given** an agent passes the input parameters that the predecessor accepted for a successful create, **when** the agent calls the new `write_note`, **then** the response shape is identical to what the predecessor would have returned (`{ created: boolean, path: string }`) — subject only to the deliberately-improved collision behaviour in User Story 2 and the deliberate parameter changes in User Story 6.
+7. **Given** the bridge is running and the OS forces process termination mid-write (SIGTERM, sudden power loss), **when** the agent's next call reads the same path, **then** the file's content is either entirely the previous version or entirely the new version — never a torn write with partial content.
 
 ---
 
-### User Story 2 - Structured collision behaviour (Priority: P1)
+### User Story 2 — Structured collision behaviour (Priority: P1)
 
-An agent attempts to create a note at a path that is already occupied by another note. The tool's response distinguishes deliberately between "I refuse to overwrite" and "I have overwritten as instructed", based on an explicit caller-supplied flag. The tool never silently produces a renamed copy when the caller asked for a fresh create.
+An agent attempts to create a note at a path already occupied by another note. The tool's response distinguishes deliberately between "I refuse to overwrite" and "I have overwritten as instructed", based on an explicit caller-supplied `overwrite` flag. The tool never silently produces a renamed copy when the caller asked for a fresh create.
 
-**Why this priority**: Silent path renames cause idempotency bugs in agent workflows that retry. The previous tool's behaviour of silently renaming on collision is one of the documented motivations for this BI. Pairing the crash-free write surface with deliberate collision behaviour is what makes the tool safe to use in multi-step agent flows, not just convenient.
+**Why this priority**: silent path renames cause idempotency bugs in agent workflows that retry. The predecessor's behaviour of silently renaming on collision is one of the documented motivations for this BI. Pairing the crash-free write surface with deliberate collision behaviour is what makes the tool safe to use in multi-step agent flows, not just convenient. Atomic collision detection (no race window between exists-check and write) is the load-bearing implementation contract.
 
-**Independent Test**: Can be fully tested by writing a note at path P, then issuing a second `write_note_w_eval` call to path P with the overwrite flag disabled (must return a structured collision error and leave the original content intact), then issuing a third call with the overwrite flag enabled (must replace the content and return success). Verify the on-disk content after each call.
+**Independent Test**: write a note at path P, then issue a second call to path P with `overwrite: false` (must return a structured `FILE_EXISTS` error and leave the original content intact), then a third call with `overwrite: true` (must replace the content and return success). Verify the on-disk content after each call. Bonus: race two concurrent `overwrite: false` calls at the same fresh path; exactly one MUST succeed and the other MUST receive `FILE_EXISTS`.
 
 **Acceptance Scenarios**:
 
-1. **Given** an existing note at the target path, **When** an agent calls `write_note_w_eval` with overwrite disabled, **Then** the call returns a structured error indicating the path is already occupied and the existing note's content is unchanged.
-2. **Given** an existing note at the target path, **When** an agent calls `write_note_w_eval` with overwrite enabled, **Then** the existing note's content is replaced with the new content and the call returns success.
-3. **Given** an existing note at the target path, **When** an agent calls `write_note_w_eval` with overwrite disabled, **Then** the tool does NOT silently produce a renamed copy of the note at any path.
+1. **Given** an existing note at the target path, **when** an agent calls `write_note` with `overwrite: false`, **then** the call returns a structured `FILE_EXISTS` error and the existing note's content is unchanged.
+2. **Given** an existing note at the target path, **when** an agent calls `write_note` with `overwrite: true`, **then** the existing note's content is replaced with the new content and the call returns `{ created: false, path: <path> }`.
+3. **Given** an existing note at the target path, **when** an agent calls `write_note` with `overwrite: false`, **then** the tool does NOT silently produce a renamed copy of the note at any path.
+4. **Given** two concurrent calls to the same fresh path with `overwrite: false`, **when** both race to write, **then** exactly one returns success and the other returns `FILE_EXISTS` — there is no race window in which both can succeed.
 
 ---
 
-### User Story 3 - Active-mode writes to the focused note (Priority: P2)
+### User Story 3 — Active-mode writes to the focused note (Priority: P2)
 
-An agent calling this MCP wants to update whichever note Obsidian currently has focused, without naming a specific path — for example, to act on the user's current editing context. When a note is focused, the call replaces its content and returns success. When no note is focused, the call returns a structured error explaining the situation, so the agent can prompt the user or fall back to a path-specific call.
+An agent calling this MCP wants to update whichever note Obsidian currently has focused — without naming a specific path — for example, to act on the user's current editing context. When a note is focused, the call replaces its content and returns success. When no note is focused, the call returns a structured error explaining the situation, so the agent can prompt the user or fall back to a path-specific call.
 
-**Why this priority**: Active-mode is a documented capability of every typed tool in the project's prior shipped surface. It is part of the input-contract-parity promise with the previous `write_note`. It is P2 rather than P1 because specific-mode covers the dominant agent use case (workflow-driven writes); active-mode primarily supports interactive editor-context writes which are a smaller fraction of calls.
+**Why this priority**: active mode is a documented capability of every file-targeted typed tool in the project's prior shipped surface and is part of the input-contract-parity promise with the predecessor. P2 because specific mode covers the dominant agent use case (workflow-driven writes); active mode primarily supports interactive editor-context writes which are a smaller fraction of calls.
 
-**Independent Test**: Can be fully tested by (a) opening a note in Obsidian, calling `write_note_w_eval` in active-mode with new content, and verifying the focused note's content is replaced, then (b) closing all notes so no file is focused, calling `write_note_w_eval` in active-mode, and verifying the response is a structured no-active-file error rather than a crash or a silent fallback.
+**Independent Test**: (a) open a note in Obsidian, call `write_note` in active mode with new content, verify the focused note's content is replaced and that immediately-following `read_property`/`read_heading` against the focused note return the new value (not stale cache); (b) close all notes so no file is focused, call `write_note` in active mode, verify the response is a structured `ERR_NO_ACTIVE_FILE` rather than a crash or silent fallback.
 
 **Acceptance Scenarios**:
 
-1. **Given** Obsidian has a focused note in its editor, **When** an agent calls `write_note_w_eval` in the focused-note mode, **Then** the focused note's content is replaced with the new content and the call returns success.
-2. **Given** Obsidian has no focused note, **When** an agent calls `write_note_w_eval` in the focused-note mode, **Then** the call returns a structured error stating no active file is available.
+1. **Given** Obsidian has a focused note in its editor, **when** an agent calls `write_note` in active mode with new content, **then** the focused note's content is replaced and the call returns `{ created: false, path: <focused-file-path> }`.
+2. **Given** Obsidian has no focused note, **when** an agent calls `write_note` in active mode, **then** the call returns a structured `ERR_NO_ACTIVE_FILE` error (with the existing project-wide recovery-message convention).
+3. **Given** an agent calls `write_note` in active mode and the call succeeds, **when** the agent immediately calls `read_property` or `read_heading` against the same focused file, **then** the read returns the newly-written value, not stale cache from before the write.
 
 ---
 
-### User Story 4 - Old tool disabled with explanatory replacement pointer (Priority: P2)
+### User Story 4 — Path-safety against vault-escape attempts (Priority: P1)
 
-An MCP client whose configuration still references the legacy `write_note` tool name attempts to invoke it. Rather than receiving a crash, a generic "tool not found" error, or — worst — a successful write that crashes the host application, the client receives a structured error that explains the tool is currently disabled, names `write_note_w_eval` as the replacement, and cites the upstream Obsidian defect that motivated the disable. Listing the MCP server's available tools no longer returns `write_note`. The legacy tool's source, tests, and documentation remain present in the codebase so a maintainer can re-enable it for a one-off retest after a future Obsidian release lands, in a single small change rather than a code-archaeology exercise.
+An agent (or an upstream client crafting requests) attempts to write to a path that escapes the vault root — for example `../../etc/passwd.md`, an absolute path like `/tmp/escape.md` or `C:\\Windows\\evil.md`, or a path that resolves outside the vault via a symlink inside the vault. The tool refuses every such attempt with a structured error before any byte is written. No file outside the vault root is ever touched.
 
-**Why this priority**: Migration-friendliness for existing clients and a low-friction retest path for the maintainer. The maintainer-facing reversibility requirement is non-negotiable per the BI's framing. P2 because the new tool's reliability (Stories 1, 2, 3) is what unblocks users; the disable plumbing is the orderly cleanup of the broken predecessor.
+**Why this priority**: an Obsidian vault is the user's primary knowledge store and an MCP server is a network-reachable surface. Silent vault-escape on a write operation is a critical security defect. The predecessor relied on the CLI's literal-path treatment for safety; the new design owns path interpretation end-to-end and must own the safety guarantee accordingly. P1 because it's a security gate, not a feature — shipping without it is unsafe.
 
-**Independent Test**: Can be fully tested by (a) listing the MCP server's tools and verifying `write_note_w_eval` appears and `write_note` does not, (b) directly invoking `write_note` and verifying the response is a structured error naming `write_note_w_eval` and citing the upstream defect, (c) inspecting the codebase to confirm `write_note`'s source, tests, and help documentation are still present, and (d) demonstrating that re-enabling `write_note` requires a small isolated change without restoring code from version history.
+**Independent Test**: attempt writes to each of `../escape.md`, `subdir/../../escape.md`, `/abs/escape.md`, `C:\\Windows\\escape.md`, and (on a vault containing a symlink `inside-link → /outside/dir`) `inside-link/escape.md`. Each MUST return either `VALIDATION_ERROR` (schema-layer rejection) or `PATH_ESCAPES_VAULT` (runtime symlink-resolution rejection). On the filesystem, no file outside the vault root must be created.
 
 **Acceptance Scenarios**:
 
-1. **Given** the MCP server is running the new bridge version, **When** an MCP client lists available tools, **Then** `write_note_w_eval` appears in the list and `write_note` does not.
-2. **Given** the MCP server is running the new bridge version, **When** an MCP client attempts to invoke `write_note` directly, **Then** the client receives a structured error explaining that the tool is currently disabled, naming `write_note_w_eval` as the replacement, and citing the upstream Obsidian defect that motivated the disable.
-3. **Given** the new bridge version has shipped, **When** a maintainer wants to retest whether the upstream Obsidian defect is fixed by a future release, **Then** re-enabling `write_note` is a small, isolated change that does not require re-implementing tool logic from version history.
-4. **Given** the new bridge version has shipped, **When** a maintainer inspects the codebase, **Then** the legacy `write_note` source, tests, and help documentation are still present.
+1. **Given** a path containing `../` segments, **when** an agent calls `write_note`, **then** the call returns `VALIDATION_ERROR` and no filesystem write occurs.
+2. **Given** a path with a leading `/` (POSIX absolute) or drive-letter prefix (Windows absolute), **when** an agent calls `write_note`, **then** the call returns `VALIDATION_ERROR` and no filesystem write occurs.
+3. **Given** a path that is structurally vault-relative but resolves outside the vault root via a symlink inside the vault, **when** an agent calls `write_note`, **then** the call returns `PATH_ESCAPES_VAULT` and no filesystem write occurs.
+4. **Given** any rejected vault-escape attempt, **when** the bridge inspects the filesystem after the call, **then** no file outside the vault root has been created or modified.
 
 ---
 
-### User Story 5 - Discoverable, self-describing tool (Priority: P3)
+### User Story 5 — Discoverable, self-describing tool (Priority: P3)
 
-An agent calling this MCP requests progressive-disclosure help for `write_note_w_eval`. The returned help is sufficient on its own — without external documentation, without reading the source — to construct a valid invocation, predict the response shape on success, predict the response shape on each documented failure, and understand why this tool exists separately from any other write surface.
+An agent calling this MCP requests progressive-disclosure help for `write_note`. The returned help is sufficient on its own — without external documentation, without reading the source — to construct a valid invocation, predict the response shape on success, predict the response shape on each documented failure, understand the migration story from the predecessor (dropped `template`, preserved `open`, new collision semantics), and understand the upstream defect that motivated the architecture pivot.
 
-**Why this priority**: Project-wide convention; every prior typed tool has shipped with progressive-disclosure help meeting this bar. The new tool inherits the requirement automatically. P3 because the tool is functionally usable without exhaustive help (an agent who knows the shape can invoke it), but discoverability and rationale-transparency are part of the project's quality bar.
+**Why this priority**: project-wide convention; every prior typed tool ships with progressive-disclosure help meeting this bar. The new tool inherits the requirement automatically. P3 because the tool is functionally usable without exhaustive help (an agent who knows the shape can invoke it), but discoverability and rationale-transparency are part of the project's quality bar.
 
-**Independent Test**: Can be fully tested by requesting help for the new tool through the MCP help surface and asserting that the returned text covers each of the six required dimensions (purpose, when-to-use including comparison with other write surfaces, input contract with parameter meanings and defaults, output and error contract with stable error codes, upstream rationale, at least one worked invocation example).
+**Independent Test**: request help for the new tool through the MCP help surface and assert the returned text covers each required dimension: purpose, when to use, full input contract (parameter meanings, types, defaults, the dropped `template` and preserved `open` callouts), full output and error contract (each stable error code), the upstream rationale with the forum URL, the design pivot rationale citing ADR-009, and at least one worked invocation example.
 
 **Acceptance Scenarios**:
 
-1. **Given** an MCP client requests progressive-disclosure help for `write_note_w_eval`, **When** the help is returned, **Then** it explains what the tool does and identifies it as a write-targeted tool that creates or overwrites a single note.
-2. **Given** an MCP client requests progressive-disclosure help for `write_note_w_eval`, **When** the help is returned, **Then** it explains when to use this tool and when not to, including its relationship to other write surfaces.
-3. **Given** an MCP client requests progressive-disclosure help for `write_note_w_eval`, **When** the help is returned, **Then** it documents the full input contract including each parameter's meaning, type, requiredness, and default.
-4. **Given** an MCP client requests progressive-disclosure help for `write_note_w_eval`, **When** the help is returned, **Then** it documents the full output and error contract, including each stable error code the tool may emit.
-5. **Given** an MCP client requests progressive-disclosure help for `write_note_w_eval`, **When** the help is returned, **Then** it explains the upstream Obsidian defect that motivated the tool's existence.
-6. **Given** an MCP client requests progressive-disclosure help for `write_note_w_eval`, **When** the help is returned, **Then** it includes at least one worked invocation example.
+1. **Given** an MCP client requests progressive-disclosure help for `write_note`, **when** the help is returned, **then** it explains what the tool does and identifies it as a write-targeted tool that creates or overwrites a single note via direct filesystem write.
+2. **Given** the same help request, **when** the help is returned, **then** it documents the full input contract — every parameter's meaning, type, requiredness, and default — including the explicit "template no longer accepted; use `obsidian_exec` for template-based creation" callout and the explicit "`open` flag honoured via post-write editor focus" callout.
+3. **Given** the same help request, **when** the help is returned, **then** it documents the full output and error contract, naming each stable error code (`VALIDATION_ERROR`, `ERR_NO_ACTIVE_FILE`, `FILE_EXISTS`, `PATH_ESCAPES_VAULT`, `FS_WRITE_FAILED`) and the conditions that surface each.
+4. **Given** the same help request, **when** the help is returned, **then** it explains the upstream Obsidian defect (with the forum URL) and the architecture pivot to direct-filesystem writes (citing ADR-009).
+5. **Given** the same help request, **when** the help is returned, **then** it includes at least one worked invocation example for specific mode and one for active mode.
+
+---
+
+### User Story 6 — Migration parity from the predecessor (Priority: P2)
+
+An agent or client whose request bodies were authored against the predecessor `write_note` continues to function with the new tool — same tool name, same target-mode discriminator, same `vault`/`file`/`path`/`content`/`overwrite` parameters, same `{ created, path }` success response shape — with two deliberate exceptions documented up front: the `template` parameter is no longer accepted (migration: use `obsidian_exec` directly with the CLI's `create template=...` syntax — argv stays small enough to dodge the upstream defect), and the `open` parameter is preserved with identical meaning but is now implemented via a small post-write editor-focus call rather than the CLI's `--open` flag.
+
+**Why this priority**: P2 because preserving migration ergonomics is project-quality work, not feature work. Most callers will see no change at all; the small fraction using `template` get a clean migration path with one structured `VALIDATION_ERROR` and a documentation pointer.
+
+**Independent Test**: replay every published call shape from the predecessor's `docs/tools/write_note.md` worked examples; each should either succeed (for the un-changed shapes) or return `VALIDATION_ERROR` with a message naming `template` and pointing at `obsidian_exec` (for shapes using `template`). The active-mode `overwrite: true` requirement and the active-mode forbidden-keys rules are unchanged.
+
+**Acceptance Scenarios**:
+
+1. **Given** a request whose only difference from the predecessor's input is that no `template` parameter is supplied, **when** the agent calls the new `write_note`, **then** the call succeeds with response shape identical to what the predecessor would have returned for the equivalent call.
+2. **Given** a request that includes a `template` parameter, **when** the agent calls the new `write_note`, **then** the call returns `VALIDATION_ERROR` whose message names `template` as no-longer-accepted and points the caller at `obsidian_exec` as the migration path.
+3. **Given** a request with `open: true` and a fresh target path, **when** the call succeeds, **then** the new note is opened in the Obsidian editor (same observable outcome as the predecessor's `--open` flag).
+4. **Given** any call that the predecessor would have rejected via the existing target-mode rules (active mode without `overwrite: true`, active mode with `vault`/`file`/`path`, active mode with `template` or `open`, specific mode without `vault`, specific mode with neither/both `file` and `path`), **when** the agent calls the new `write_note`, **then** the call is rejected at the schema layer with the same `VALIDATION_ERROR` shape.
 
 ---
 
 ### Edge Cases
 
-- **Vault name not recognised by Obsidian**: the call returns a structured error consistent with the existing project-wide unknown-vault behaviour, not a crash dialog and not a silent write to a different vault.
-- **Multi-vault Obsidian instance with vault-routing ambiguity**: the call's effect on which vault is targeted matches the project's existing inherited limitation (the vault parameter is functionally ignored by the eval composition surface, so the currently-focused vault is the de facto target). Documented as a known limitation, not a defect of this tool.
-- **Path with directory components that do not yet exist**: behaviour matches the input-contract-parity promise — the same outcome the previous `write_note` would have produced for the same input.
+- **Vault name not in the registry** (typo, vault registered after MCP server start, vault de-registered): returns `VALIDATION_ERROR` with a message naming the offending vault. The bridge surfaces the staleness explicitly so the agent can prompt the operator to restart the MCP server if a vault was added during the session.
+- **Path with directory components that don't yet exist**: parent directories are auto-created via `fs.mkdir({recursive: true})` before the write — parity with the predecessor's behaviour.
 - **Empty content**: the note is created or overwritten with empty content; no special-case error.
-- **Content that includes the literal characters used internally for argument transport** (e.g. characters that previously broke the `write_note` payload): persisted byte-for-byte; this is one of the explicit reliability acceptance scenarios.
-- **Overwriting a note that is currently open in the Obsidian editor**: the on-disk file is replaced; the editor's view of the file refreshes per Obsidian's normal external-edit handling. No host-application crash.
-- **Two concurrent calls to overwrite the same path**: last-write-wins; no atomicity guarantee beyond what the underlying eval composition surface provides. Documented limitation, not a defect.
-- **Content far above the largest tested size (e.g. tens of MiB)**: the call returns a structured size-related error consistent with the project-wide upper-bound handling, never a silent truncation and never a host-application crash.
-- **A direct invocation of the legacy `write_note` arrives during the brief window before a client has refreshed its tool list**: the structured replacement-pointer error fires; the client is not left guessing.
+- **Content containing the literal characters that historically broke the predecessor** (`,]`, `,"Calls.md",]`, `","",` etc.): persisted byte-for-byte. Content never crosses argv, so the upstream chunk-boundary defect is not in the picture.
+- **Overwriting a note that is currently open in the Obsidian editor**: the on-disk file is replaced via temp-then-rename; Obsidian's file watcher detects the rename and refreshes the editor view per its normal external-edit handling. The post-write `metadataCache` invalidation eval ensures `read_property` / `read_heading` against the same path see the new content immediately.
+- **Two concurrent calls to overwrite the same path with `overwrite: true`**: last-write-wins on rename. Atomicity guarantees one or the other complete write lands; never a torn mix of both.
+- **Two concurrent calls to create the same fresh path with `overwrite: false`**: exactly one succeeds; the other receives `FILE_EXISTS`. The `wx` flag eliminates the race window.
+- **Filesystem out of space** (ENOSPC): returns `FS_WRITE_FAILED` with `details.errno: "ENOSPC"`.
+- **Filesystem permission denied** (EACCES, EPERM): returns `FS_WRITE_FAILED` with `details.errno: "EACCES"` (or appropriate).
+- **Filesystem read-only** (EROFS): returns `FS_WRITE_FAILED` with `details.errno: "EROFS"`.
+- **Vault root has been deleted between MCP startup and the call**: returns `FS_WRITE_FAILED` with `details.errno: "ENOENT"` for the vault root itself; the agent should treat as "vault registry stale, restart server".
+- **Path-traversal probe (`../../etc/passwd.md`, `subdir/../../escape.md`)**: rejected at schema layer with `VALIDATION_ERROR`. No filesystem touch.
+- **Symlink-escape probe** (path inside vault that's a symlink to a file outside vault): rejected at runtime with `PATH_ESCAPES_VAULT`. No filesystem touch.
+- **Path containing OS-reserved names on Windows** (`CON.md`, `PRN.md`, `NUL.md`, etc.): passes the bridge's schema/runtime checks; the underlying `fs.writeFile` will fail with an OS-specific error (typically EACCES or EBADF) and surface as `FS_WRITE_FAILED`. The bridge does not pre-validate these (they're vault-config-dependent — Obsidian itself permits some).
+- **Path containing characters Obsidian's UI normally disallows** (`*`, `?`, `:`, `"`, `<`, `>`, `|`): passes the bridge's checks; the file is written. Obsidian's UI may struggle to display it; the file persists on disk regardless. (Out of scope for this BI to pre-validate against Obsidian UI conventions.)
+- **A vault added during the MCP server session**: the new vault is invisible to `write_note` until MCP restart. Documented in `docs/tools/write_note.md`; surfaces as `VALIDATION_ERROR` if the agent tries to use the unknown vault name.
+- **A vault renamed during the MCP server session**: same as above. The old name resolves to the now-stale absolute path (which may or may not still exist); the new name is invisible.
 
 ## Requirements *(mandatory)*
 
@@ -110,71 +138,106 @@ An agent calling this MCP requests progressive-disclosure help for `write_note_w
 
 #### The new tool — public surface
 
-- **FR-001**: The MCP server MUST advertise a typed tool named exactly `write_note_w_eval` in its tool list.
-- **FR-002**: `write_note_w_eval`'s public input contract MUST mirror the previous `write_note` tool's input contract — same parameter names, same parameter meanings, same requiredness, same defaults, same target-mode discriminator semantics — except where the deliberately-improved collision behaviour in FR-009 requires a difference.
-- **FR-003**: `write_note_w_eval`'s success response shape MUST match the shape that the previous `write_note` would have returned for an equivalent successful call.
-- **FR-004**: `write_note_w_eval`'s failure response codes MUST be drawn from the project's existing stable error-code roster, except where this tool's contract requires a code the roster does not yet contain; any new code MUST be documented in the tool's help.
+- **FR-001**: The MCP server MUST advertise a typed tool named exactly `write_note` in its tool list. No other write-tool name (e.g. `write_note_w_eval`, `write_note_v2`) is added or required.
+- **FR-002**: The new `write_note`'s public input contract MUST mirror the predecessor's contract — same `target_mode` discriminator, same `vault`/`file`/`path`/`content`/`overwrite` parameters, same per-mode rules (specific requires `vault` plus exactly one of `file`/`path`; active forbids all three locator keys; active requires `overwrite: true`) — except for the two deliberate parameter changes in FR-016 and FR-017.
+- **FR-003**: The new `write_note`'s success response shape MUST be exactly `{ created: boolean, path: string }`, byte-stable with the predecessor's success envelope.
 
-#### The new tool — reliability and behaviour
+#### The new tool — content reliability
 
-- **FR-005**: `write_note_w_eval` MUST create a note at a caller-supplied path inside a caller-supplied vault when the path is unoccupied, with the caller-supplied content persisted byte-for-byte.
-- **FR-006**: `write_note_w_eval` MUST overwrite a note at a caller-supplied path inside a caller-supplied vault when the caller has explicitly opted in to overwriting, with the caller-supplied content replacing the previous content.
-- **FR-007**: `write_note_w_eval` MUST replace the content of the currently-focused note when the caller invokes it in active (focused-note) mode and a focused note exists.
-- **FR-008**: `write_note_w_eval` MUST return a structured no-active-file error when the caller invokes it in active mode and no note is currently focused.
-- **FR-009**: `write_note_w_eval` MUST return a structured path-collision error when the caller attempts to create a note at an already-occupied path without explicitly opting in to overwriting; it MUST NOT silently produce a renamed copy in this case.
-- **FR-010**: `write_note_w_eval` MUST persist content byte-for-byte regardless of which characters the content contains, including characters previously suspected to break the predecessor's call path (double quotes, square brackets, trailing commas, embedded JSON-like fragments).
-- **FR-011**: `write_note_w_eval` MUST NOT cause the host Obsidian application to display a "JavaScript error occurred in the main process" dialog for any content size up to and including the project's documented per-call output cap.
-- **FR-012**: `write_note_w_eval` MUST NOT return an empty-response error for content sizes that the predecessor returned empty-response errors for (specifically tested up to and including ~12 KB of mixed Markdown).
+- **FR-004**: The new `write_note` MUST persist user-supplied `content` to the target path byte-for-byte, regardless of which characters the content contains, including characters historically suspected of breaking the predecessor's call path (double quotes, square brackets, trailing commas, embedded JSON-like fragments, multi-byte UTF-8, emoji, mixed CRLF/LF line endings).
+- **FR-005**: User-supplied `content` MUST NOT cross the CLI argv pipe at any size. The implementation MUST send content via Node `fs` directly to the vault filesystem.
+- **FR-006**: The new `write_note` MUST NOT cause the host Obsidian application to display a "JavaScript error occurred in the main process" dialog for any value of `content`, including content sizes far above the upstream defect's per-argv-element threshold.
+- **FR-007**: The new `write_note` MUST NOT return an empty-stdout / empty-response failure for any content size that the predecessor returned empty-response failures for.
 
-#### The legacy tool — disable, not remove
+#### The new tool — reliability mechanisms
 
-- **FR-013**: The MCP server MUST NOT advertise `write_note` in its tool list.
-- **FR-014**: The MCP server MUST respond to a direct invocation of `write_note` with a structured error that (a) states the tool is currently disabled, (b) names `write_note_w_eval` as the replacement, and (c) cites the upstream Obsidian defect that motivated the disable.
-- **FR-015**: The legacy `write_note` source files MUST remain present in the codebase.
-- **FR-016**: The legacy `write_note` test files MUST remain present in the codebase and MUST continue to be runnable in isolation, so a maintainer retesting after a future Obsidian release can validate the upstream fix without rebuilding the test surface.
-- **FR-017**: The legacy `write_note` help documentation MUST remain present in the codebase.
-- **FR-018**: Re-enabling `write_note` for a one-off retest after a future Obsidian release MUST require only a small, isolated edit (registration toggle plus help-list adjustment), with no need to restore tool logic, tests, or help text from version history.
+- **FR-008**: The new `write_note` MUST write content atomically — using a temp-file-then-rename pattern (`fs.writeFile` to `<target>.tmp`, then `fs.rename(<target>.tmp, <target>)`) — such that mid-write process termination leaves the on-disk file as either entirely the previous version or entirely the new version, never partial.
+- **FR-009**: The new `write_note` MUST detect path collisions atomically — using `fs.writeFile` with the `wx` flag for the `overwrite: false` case — eliminating the race window between an exists-check and the write itself.
+- **FR-010**: The new `write_note` MUST auto-create parent directories if the target path's directory components don't yet exist (via `fs.mkdir({recursive: true})`) — parity with the predecessor's behaviour.
+- **FR-011**: After every successful write, the new `write_note` MUST invalidate `metadataCache` for the written path via a small `eval` call (template carrying only the path, ~120-byte argv) so that immediately-following `read_property` / `read_heading` calls see the new content rather than stale cache. This preserves the freshness guarantee the predecessor provided synchronously through the CLI's in-process API.
 
-#### Discoverability and contract transparency
+#### The new tool — vault and path safety
 
-- **FR-019**: The progressive-disclosure help for `write_note_w_eval` MUST cover, at minimum: (a) what the tool does, (b) when to use it and when not to versus other write surfaces, (c) the full input contract including parameter meanings, requiredness, and defaults, (d) the full output and error contract including each stable error code the tool may emit, (e) the upstream rationale that motivated this tool's existence, and (f) at least one worked invocation example.
-- **FR-020**: The progressive-disclosure help for the disabled `write_note` MUST NOT appear in the MCP server's advertised help index (consistent with FR-013).
+- **FR-012**: The new `write_note` MUST resolve `vault` names to absolute filesystem paths via a cached vault registry, populated once at MCP-server startup by a single bug-safe call to `obsidian vaults verbose` (~25-byte argv). Subsequent writes use the cached map; no per-write CLI lookup is performed.
+- **FR-013**: The new `write_note` MUST reject path-traversal-shaped inputs at the schema validation boundary (`../` or `..\\` segments, leading `/` or `\\`, drive-letter prefix `[A-Za-z]:`, control characters `[\x00-\x1f]`) → `VALIDATION_ERROR`.
+- **FR-014**: After resolving the absolute filesystem path for a vault-relative input, the new `write_note` MUST verify that the resolved path lies under the vault root (`path.resolve(vaultRoot, input.path).startsWith(vaultRoot + sep)`) before writing — defense-in-depth catch for symlink-escape attacks the schema can't see → `PATH_ESCAPES_VAULT`.
+- **FR-015**: No file outside the resolved vault root MUST be created or modified by the tool under any input.
+
+#### The new tool — parameter changes from the predecessor
+
+- **FR-016**: The new `write_note` MUST NOT accept the `template` parameter. Requests including `template` MUST be rejected at the schema layer with `VALIDATION_ERROR` whose message names `template` as no-longer-accepted and points the caller at `obsidian_exec` as the migration path. (Rationale: replicating Obsidian's template variable expansion via the new path requires either calling Obsidian internals — no clean public API, version-fragile — or implementing our own engine — drift risk forever. Out of scope for V1.)
+- **FR-017**: The new `write_note` MUST preserve the `open` parameter with its predecessor semantics (open the target file in the Obsidian editor after the write). Implementation MUST be via a small post-write `eval` call to `app.workspace.openLinkText(path, "")` (~80-byte argv, bug-safe) rather than the CLI's `--open` flag.
+
+#### The new tool — active mode
+
+- **FR-018**: In active mode, the new `write_note` MUST resolve the focused note's path via a small pre-write `eval` call to `app.workspace.getActiveFile()?.path` (~120-byte argv, bug-safe), then write to the resolved absolute path through the same fs path used in specific mode.
+- **FR-019**: In active mode, when no note is focused, the new `write_note` MUST return `ERR_NO_ACTIVE_FILE` with the existing project-wide recovery-message convention.
+
+#### Error roster additions
+
+- **FR-020**: The new `write_note` introduces three new stable error codes to the project's error roster: `PATH_ESCAPES_VAULT` (FR-014), `FILE_EXISTS` (FR-009 collision), `FS_WRITE_FAILED` (generic fs failures with `details.errno`). Each new code MUST be documented in `docs/tools/write_note.md` per FR-022.
+- **FR-021**: Vault-not-found (the registry lookup miss surfaced by FR-012) MUST surface as `VALIDATION_ERROR` (the offending vault name is invalid input given the registry), not as a new error code.
+
+#### Documentation and discoverability
+
+- **FR-022**: The progressive-disclosure help for the new `write_note` MUST cover, at minimum: (a) what the tool does, (b) when to use it and when not to, (c) the full input contract including each parameter's meaning, type, requiredness, and default — explicitly calling out the dropped `template` and the preserved `open`, (d) the full output and error contract including each of the five stable error codes (`VALIDATION_ERROR`, `ERR_NO_ACTIVE_FILE`, `FILE_EXISTS`, `PATH_ESCAPES_VAULT`, `FS_WRITE_FAILED`), (e) the upstream rationale citing the forum URL and ADR-009, and (f) at least one worked invocation example for specific mode and one for active mode.
 
 #### Cross-cutting non-impact
 
-- **FR-021**: This feature MUST NOT change the public input contract of any other typed tool (`read_note`, `read_property`, `read_heading`, `find_by_property`, `delete_note`, `obsidian_exec`, `help`).
-- **FR-022**: This feature MUST NOT change the MCP server's progressive-disclosure conventions or schema-stripping behaviour beyond what the new tool's contract requires.
-- **FR-023**: This feature MUST NOT add new error codes to the project's stable error-code roster beyond those required to express the new tool's contract and the disabled-tool's structured rejection.
+- **FR-023**: This feature MUST NOT change the public input contract, output shape, or error roster of any other typed tool (`read_note`, `read_property`, `read_heading`, `find_by_property`, `delete_note`, `obsidian_exec`, `help`).
+- **FR-024**: This feature MUST NOT change the MCP server's progressive-disclosure conventions or schema-stripping behaviour beyond what the new tool's contract requires.
+- **FR-025**: The `cli-adapter` (`invokeCli`, `invokeBoundedCli`, `dispatchCli`) MUST remain unchanged. The new tool's small `eval` calls (vault registry probe, focused-file probe, `metadataCache` invalidation, optional editor-open) route through `invokeCli` per ADR-004 / ADR-007 — the asymmetry is content-only.
+
+#### Architectural alignment
+
+- **FR-026**: The implementation introduces two new internal modules: `src/vault-registry/` (cached `vaultName → absolutePath` map; one public function `resolveVaultPath`) and `src/path-safety/` (schema-layer validators + runtime `pathStaysUnderRoot` checker). Both modules co-locate their vitest cases per project convention.
+- **FR-027**: The architectural decision to add a second IO path (direct fs alongside CLI bridge) MUST be ratified by a new ADR — `ADR-009 - Direct Filesystem Write Path Alongside CLI Bridge`. The new `write_note` source files MUST cite ADR-009 in their header comments.
+- **FR-028**: The legacy `src/tools/write_note/` source files MUST be deleted. Git history is the canonical archaeology for the predecessor implementation.
 
 ### Key Entities *(include if feature involves data)*
 
-- **Tool registration**: the set of typed tools the MCP server advertises to clients. Gains `write_note_w_eval`. Loses `write_note`. Other entries unchanged.
-- **Note**: a file at a given path inside a given vault, holding caller-supplied textual content. The unit of work the new tool reads, creates, or replaces.
-- **Disabled-tool stub**: the structured error response returned when a client invokes the legacy `write_note` directly. Carries (a) a human-readable explanation that the tool is disabled, (b) the name of the replacement tool, and (c) a citation of the upstream Obsidian defect.
-- **Progressive-disclosure help entry**: per-tool documentation that a client can fetch on demand. New entry exists for `write_note_w_eval`. The legacy `write_note` entry is retained in the codebase but not advertised.
-- **Upstream defect record**: the BI-038 record in the project's investigation log holding the empirical evidence that the predecessor crashes on writes >~95 bytes. Referenced by FR-014's citation requirement.
+- **Vault registry**: an in-memory `Map<vaultName, absolutePath>` populated once at MCP-server startup from `obsidian vaults verbose` output and held for the lifetime of the server process. Owned by `src/vault-registry/`.
+- **Note**: a file at a given vault-relative path inside a given registered vault, holding caller-supplied textual content. The unit of work the new tool reads, creates, or replaces.
+- **Vault root**: the absolute filesystem path under which all of a vault's notes live. Resolved per call from the vault registry. Defines the sandbox boundary that path-safety enforces.
+- **Progressive-disclosure help entry**: per-tool documentation reachable via `help({ tool_name: "write_note" })`. Replaces the predecessor's entry; same path on disk (`docs/tools/write_note.md`); fully rewritten content reflecting the new mechanism, the dropped `template`, and the preserved `open`.
+- **Upstream defect record**: the BI-038 record in the project's investigation log, plus the upstream forum thread at <https://forum.obsidian.md/t/cli-windows-json-parse-failure-crashes-obsidians-main-process-when-any-single-argv-element-exceeds-4-kb/114119>. Cited from ADR-009 and from the new tool's help.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: 100% of `write_note_w_eval` invocations carrying content of approximately 60 bytes, 5 KB, or 12 KB succeed without producing an Obsidian "JavaScript error occurred in the main process" dialog. (Measured against the predecessor's reliability of 0% above approximately 95 bytes.)
-- **SC-002**: 100% of `write_note_w_eval` invocations that complete successfully persist the caller-supplied content byte-for-byte, including across edge-character cases (double quotes, square brackets, trailing commas, embedded JSON-like fragments).
-- **SC-003**: 0% of `write_note_w_eval` create-without-overwrite invocations against an already-occupied path produce a silent renamed-copy outcome; 100% return a structured path-collision error and leave the existing note unchanged.
-- **SC-004**: 0% of `write_note_w_eval` invocations across the tested content sizes (up to and including approximately 12 KB) return an empty-response error.
-- **SC-005**: 100% of attempts by an MCP client to invoke the legacy `write_note` directly return a structured error response that contains all three required pieces of information (disabled-status statement, replacement-tool name, upstream-defect citation).
-- **SC-006**: The MCP server's tool list contains `write_note_w_eval` and does not contain `write_note` (a binary check on the server's advertised tool inventory).
-- **SC-007**: An agent provided only with the new tool's progressive-disclosure help — and no external documentation — can construct a syntactically valid invocation that the MCP server accepts on first attempt.
-- **SC-008**: Re-enabling the legacy `write_note` for a one-off retest is achievable by editing two surfaces only: the MCP server's tool registration list (one entry added back, one removed) and the help advertisement (one entry added back). No tool-logic source file, no tool-test source file, and no help-documentation source file need to be touched for the re-enable.
-- **SC-009**: The other typed tools' input contracts, output shapes, and error codes are unchanged by this feature (zero observable changes against the prior shipped surface for `read_note`, `read_property`, `read_heading`, `find_by_property`, `delete_note`, `obsidian_exec`, `help`).
-- **SC-010**: The progressive-disclosure help for `write_note_w_eval` covers all six required dimensions enumerated in FR-019 (verifiable by inspection against a checklist).
+- **SC-001**: 100% of `write_note` invocations carrying content of approximately 60 bytes, 5 KB, 12 KB, and 100 KB succeed without producing an Obsidian "A JavaScript error occurred in the main process" dialog. Measured against the predecessor's reliability of 0% above ~95 bytes on Windows.
+- **SC-002**: 100% of `write_note` invocations that complete successfully persist the caller-supplied content byte-for-byte, including across edge-character cases (double quotes, square brackets, trailing commas, embedded JSON-like fragments, multi-byte UTF-8, emoji, mixed CRLF/LF).
+- **SC-003**: 0% of `write_note` create-without-overwrite invocations against an already-occupied path produce a silent renamed-copy outcome; 100% return a structured `FILE_EXISTS` error and leave the existing note unchanged.
+- **SC-004**: 0% of `write_note` invocations return an empty-response failure for any content size up to and including the largest tested size (100 KB).
+- **SC-005**: 100% of vault-escape probes (path-traversal `../`, absolute `/abs`, drive-letter `C:`, symlink-to-outside) are rejected with a structured error before any byte is written. Verified via filesystem inspection: no file outside the resolved vault root has been touched in the test run.
+- **SC-006**: 100% of `write_note → read_property` and `write_note → read_heading` sequences executed back-to-back against the same path return the post-write content from the read tool, not stale cache. Measured by SC-006-instrumented integration testing during the implementation phase.
+- **SC-007**: 100% of `write_note` invocations send zero bytes of user-supplied `content` across the CLI argv pipe. Measurable by argv-length inspection on every CLI spawn the bridge emits during a test run; the only argv crossings are the vault-registry probe, the focused-file probe (active mode only), the post-write `metadataCache` invalidation (template ~120 B), and the optional post-write editor-open (template ~80 B). All measured argv element lengths on the bridge's spawn calls during writes MUST be under 250 bytes.
+- **SC-008**: 100% of mid-write-SIGTERM events leave the on-disk file as either entirely the previous version or entirely the new version. Measured by deliberate-SIGTERM during a write, followed by filesystem hash comparison. (Atomicity SC.)
+- **SC-009**: The other typed tools' input contracts, output shapes, and error rosters are unchanged by this feature (zero observable changes against the prior shipped surface for `read_note`, `read_property`, `read_heading`, `find_by_property`, `delete_note`, `obsidian_exec`, `help`).
+- **SC-010**: The progressive-disclosure help for `write_note` covers all six required dimensions enumerated in FR-022 (verifiable by inspection against a checklist).
+- **SC-011**: The new `src/vault-registry/` and `src/path-safety/` modules each ship co-located vitest cases covering their public surface (per project convention); the new `write_note` ships co-located vitest cases at `src/tools/write_note/{schema,handler,index}.test.ts` covering every FR.
+- **SC-012**: ADR-009 is created and referenced from the new tool's source-file headers, the new tool's help doc, and the architecture page. The Decision Log index includes the ADR-009 row.
 
 ## Assumptions
 
-- The Obsidian eval composition surface that the new tool routes through remains crash-free for write operations in the current Obsidian release line and the near-future releases the project targets — empirical evidence in BI-038 supports this for the tested versions.
-- The previous `write_note` tool's input contract is the parity reference; agents already calling the predecessor should be able to retarget to the new tool by changing only the tool name (subject to the deliberately-improved collision behaviour in FR-009, which is a strictly safer change for callers and therefore not a breaking input-contract change).
-- The project's existing progressive-disclosure conventions and schema-stripping behaviour, as already shipped for prior typed tools, apply to the new tool unchanged.
-- The multi-vault routing limitation inherited from prior typed tools (the vault parameter being functionally ignored by the eval composition surface, with the currently-focused vault being the de facto target) also applies to this tool. This limitation is documented in the new tool's help; it is not a defect of this feature and is not in scope to fix here.
-- The previous `write_note` tool's source, tests, and help documentation are valuable enough to retain for a future retest after an upstream Obsidian fix; the cost of carrying them as quiescent code is lower than the cost of rebuilding them from history.
-- The new tool's per-call latency is acceptable as long as it remains within the same order of magnitude as the predecessor's per-call latency for equivalent inputs (a quality bar, not a performance target with a specific number; the latency cost of the eval composition surface has been observed in prior typed tools without complaint).
-- Filing the upstream Obsidian issue, patching the upstream Obsidian Integrated CLI binary, and any other work targeting the upstream defect's root cause are tracked separately on the BI-038 investigation plan and are not in scope for this feature.
+- **The Obsidian file watcher reliably detects external `fs.rename` events on the vault directory.** This is documented Obsidian behaviour for vaults sync'd via external editors and for the `obsidian-sync` plugin; should not require empirical re-verification.
+- **Same-volume `fs.rename` is atomic on Windows via `MoveFileEx` and on POSIX via `renameat`.** Standard Node `fs` documentation. The temp file is created in the target file's parent directory specifically to guarantee same-volume.
+- **The `obsidian vaults verbose` subcommand returns a stable tab-separated `<name>\t<path>` format.** Verified live during the design grilling on 2026-05-10. Future Obsidian CLI changes here would surface as a vault-registry test failure rather than a silent runtime regression.
+- **The MCP server's lifecycle is short enough that vault-registry staleness is acceptable.** Sessions typically last minutes to hours; vault add/remove during a session is rare; restart cost is negligible. This trade-off is documented in the new tool's help and in ADR-009's Consequences section.
+- **The `template` parameter's removal is a tolerable migration cost.** Most callers don't use `template`; those who do can migrate to `obsidian_exec { argv: ["create", "template=Daily", ...] }` with one source change. Documented in the new tool's help under the migration callout.
+- **The 4 KB per-argv-element ceiling characterised in BI-038 holds across Obsidian versions in the near future.** If a future Obsidian release narrows the ceiling further (e.g. to 1 KB), the new design's small-argv `eval` calls (all ≤ 250 bytes) remain bug-safe with margin to spare. If a future release widens or fixes the ceiling, the new design continues to work — it doesn't depend on the bug existing.
+- **Filing the upstream Obsidian issue, patching the upstream Obsidian Integrated CLI binary, and any other work targeting the upstream defect's root cause are tracked separately** on the BI-038 investigation plan and on the upstream forum thread. They are not in scope for this BI; the new design ships independent of any upstream timeline.
+
+## Migration Notes
+
+The new `write_note` is a drop-in replacement for the predecessor for almost all callers. Two deliberate breaking changes:
+
+1. **`template` parameter removed.** Callers must migrate to `obsidian_exec` for template-based creation:
+   - Before: `write_note { target_mode: "specific", vault: "V", path: "Daily/2026-05-10.md", template: "Daily", content: "..." }`
+   - After:  `obsidian_exec { argv: ["vault=V", "create", "path=Daily/2026-05-10.md", "template=Daily", "content=..."] }` (the `content=` argv stays under the IPC ceiling for typical template-augmented content; for purely template-based creates, omit `content=` entirely)
+2. **Collision behaviour is now `FILE_EXISTS`, not silent rename.** Callers relying on the predecessor's silent-rename-on-collision behaviour must either (a) explicitly pass `overwrite: true` if they want the new content to land, or (b) handle `FILE_EXISTS` and pick a different path themselves. The silent-rename behaviour is gone — this is intentional and documented as a fix, not a regression.
+
+The `open` parameter is preserved with identical observable semantics.
+
+The `vault` parameter now means what it says — `vault=Foo` writes to `Foo`, regardless of which vault Obsidian currently has focused. The predecessor's R11 inherited limitation (vault parameter functionally ignored when targeting Obsidian over IPC) does not apply to the new tool.
