@@ -1,9 +1,118 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-[specs/016-reliable-writer/plan.md](specs/016-reliable-writer/plan.md)
+[specs/017-cross-platform-support/plan.md](specs/017-cross-platform-support/plan.md)
 
-Active feature: **015-read-heading** — adds `read_heading`, the
+Active feature: **017-cross-platform-support** — lifts the bridge's
+Windows-only restriction by extracting binary resolution from a
+one-line `env.OBSIDIAN_BIN ?? "obsidian"` lookup at
+[src/cli-adapter/_dispatch.ts:62](src/cli-adapter/_dispatch.ts#L62)
+into a new `src/binary-resolver/` module. The work is entirely below
+the typed-tool surface — no new MCP tool, no new public API, no
+schema changes, no new error codes (FR-010), no new ADRs. All eight
+currently-shipping tools and every future typed tool inherit
+cross-platform support without per-tool plumbing because the resolver
+lives below `dispatchCli`. Predecessor narrative for 015-read-heading
+follows in skipped bulk.
+
+The legacy 015-read-heading narrative below is retained for downstream
+context but is NOT the active feature description; consult
+[specs/017-cross-platform-support/plan.md](specs/017-cross-platform-support/plan.md)
+for the current planning artifacts.
+
+**017-cross-platform-support tool surface**: the existing
+`obsidian_exec` / typed-tool surface is unchanged. This BI extends the
+binary-resolution layer that sits underneath every tool's CLI dispatch.
+
+**Resolution algorithm** (locked at plan stage R2): an ordered three-tier
+fall-through —
+(1) `OBSIDIAN_BIN` override, fail loudly if set-and-not-executable
+(FR-008 / FR-020 — no fall-through);
+(2) platform-default install path (`/usr/local/bin/obsidian` on macOS,
+`path.join(os.homedir(), ".local/bin/obsidian")` on Linux, no
+platform-default on Windows per FR-005), fall through to PATH on any
+access failure;
+(3) `PATH` (deferred to OS spawn — the resolver returns the bare
+command name `"obsidian"` and `_dispatch.ts` lets the OS resolve
+against `$PATH` natively, per spec Clarifications Q1).
+
+**Executability predicate** (locked at clarify Q2): `fs.access(path,
+fs.constants.X_OK)` — kernel-side check; respects mode AND ownership
+on POSIX in one syscall; succeeds for any existing file on Windows
+(preserves FR-005 byte-for-byte).
+
+**Error envelope** (locked at R6): the existing `CLI_BINARY_NOT_FOUND`
+UpstreamError thrown at
+[src/cli-adapter/_dispatch.ts:84-91](src/cli-adapter/_dispatch.ts#L84-L91)
+and
+[src/cli-adapter/_dispatch.ts:163-170](src/cli-adapter/_dispatch.ts#L163-L170)
+gets enriched `details`: `{platform, attempts: ResolutionAttempt[],
+PATH}`. The legacy `binaryAttempted` field is dropped — strictly
+richer info available via `attempts[N-1].path`. No new `ErrorCode`
+added to the union in `src/logger.ts:4-10`.
+
+**Test seams** (R7): the resolver signature is
+`resolveBinary(deps: {env, platform, homedir, access}): Promise<{path,
+attempts}>`. All four deps are injected by the dispatch layer in
+production; tests inject stubs to fix `platform` to `"darwin"` /
+`"linux"` / `"win32"` and supply an `access` stub per case. No CI
+matrix required — the project's vitest unit-only test scope (per the
+auto-memory feedback entry) is sufficient.
+
+**Module layout**: `src/binary-resolver/binary-resolver.ts` plus
+co-located `binary-resolver.test.ts`. Single-file shape — no
+`index.ts` indirection because the module exposes one function and a
+small accompanying type (no registration surface). Both new files
+carry the `// Original — no upstream.` header per Constitution V.
+
+**Test scope amendment**: only two existing test files need surgical
+edits to consume the new `details` shape —
+[src/cli-adapter/_dispatch.test.ts:185-204](src/cli-adapter/_dispatch.test.ts#L185-L204)
+(3 cases re-targeted) and
+[src/tools/obsidian_exec/handler.test.ts:111-122](src/tools/obsidian_exec/handler.test.ts#L111-L122)
+(1 case re-targeted). Every other tool's CLI_BINARY_NOT_FOUND
+assertion only checks `err.code` — agnostic to `details` shape.
+
+**Cross-cutting**: zero new error codes (FR-010 + Constitution IV);
+zero new ADRs (the BI generalises an existing dispatch-layer behaviour);
+008-refactor surface frozen — `dispatchCli`, `invokeCli`,
+`invokeBoundedCli`, `assertToolDocsExist`, `obsidian_exec` argv contract,
+the 011-R5 cli-adapter unknown-vault response-inspection clause, and
+the four-priority error classifier in `_dispatch.ts:onTerminal` all
+preserved unchanged. `read_note` / `read_heading` / `read_property` /
+`find_by_property` / `write_note` / `delete_note` / `obsidian_exec` /
+`help` byte-stable; `src/server.ts` registration list unchanged.
+
+**External-surface bumps**: README's Installation section gains macOS
+and Linux subsections (FR-012 — Windows subsection preserved
+unchanged); README's opening paragraph + Prerequisites and
+`package.json`'s `description` field are bumped from "Windows-host" to
+tri-platform framing (FR-019).
+
+**Compatibility / release**: this BI is additive — no existing tool
+changes, no error codes added, no ADRs amended, no schema changes.
+Public surface gains zero new typed tools but supports two new host
+platforms (macOS, Linux). Version bump TBD by `/speckit-implement`'s
+release task.
+
+See also:
+- [spec.md](specs/017-cross-platform-support/spec.md) — feature spec; one clarifications session ran 2026-05-10 (Q1 PATH-branch defers to OS spawn, Q2 executability predicate is `fs.access(X_OK)`).
+- [research.md](specs/017-cross-platform-support/research.md) — Phase 0 decisions R1–R13 + live findings F1–F5.
+- [data-model.md](specs/017-cross-platform-support/data-model.md) — TypeScript types, per-platform behaviour table, test inventory (~30 cases for the resolver + 4-5 case edits in existing files), LOC budget.
+- [contracts/binary-resolver.contract.md](specs/017-cross-platform-support/contracts/binary-resolver.contract.md) — function signature, ResolutionAttempt shape, per-FR contract rows, test-seam invariants.
+- [contracts/cli-adapter-integration.contract.md](specs/017-cross-platform-support/contracts/cli-adapter-integration.contract.md) — where `resolveBinary` is called from `_dispatch.ts`, the `settlePathAttempt` helper, preserved invariants from v0.3.0, modified test sites.
+- [quickstart.md](specs/017-cross-platform-support/quickstart.md) — 10 CI-gated scenarios (S-1..S-10) + 8 manual scenarios (M-1..M-8) mapped to SC-001..SC-010.
+
+---
+
+## Predecessor feature narrative (015-read-heading) — RETAINED FOR CONTEXT
+
+The narrative below is from the predecessor `015-read-heading`
+feature; it is retained for downstream cross-references but is NOT the
+active planning context. Resume reading the active 017 narrative
+above.
+
+Adds `read_heading`, the
 **sixth** typed-tool wrap and the first **heading-targeted retrieval
 primitive**. Where `read_note` returns whole files (5–50k tokens for
 long documents) and `read_property` returns a single frontmatter
