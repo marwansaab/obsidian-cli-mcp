@@ -247,7 +247,7 @@ Specific mode (input.target_mode === "specific"):
   2. relPath = input.path ?? input.file!
      check = await checkCanonicalPath(vaultRoot, relPath, { realpath: deps.fs.realpath })
      if !check.ok:
-       deps.logger.warn({ event: "pathEscapeAttempt", vault: input.vault!, attemptedPath: check.attemptedPath })
+       deps.logger.pathEscapeAttempt({ vault: input.vault ?? null, attemptedPath: check.attemptedPath })
        throw UpstreamError({ code: "PATH_ESCAPES_VAULT", details: { vault: input.vault!, attemptedPath: check.attemptedPath } })
      absPath = check.resolvedPath
   3. await deps.fs.mkdir(dirname(absPath), { recursive: true })
@@ -396,7 +396,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
 | All eval argv elements ≤ 250 bytes | R1, R5, R6, R14 | handler.test.ts: per-call eval argv length assertion |
 | Specific mode honours `vault=Foo` end-to-end (no R11 limitation) | F4, ADR-009 | handler.test.ts: vault=Foo writes to Foo's absolute path even when focused vault is Bar |
 | Path-traversal at schema boundary → VALIDATION_ERROR | FR-013, R3 | schema.test.ts: rejection cases for `../`, `/abs`, `C:`, control chars |
-| Symlink-escape at runtime → PATH_ESCAPES_VAULT + pathEscapeAttempt logger.warn | FR-014, FR-029, R3, R6 | canonical.test.ts: symlink rejection; handler.test.ts: logger event assertion |
+| Symlink-escape at runtime → PATH_ESCAPES_VAULT + typed `logger.pathEscapeAttempt({vault, attemptedPath})` event | FR-014, FR-029, R3, R6 (typed Logger method per Analyze C1) | canonical.test.ts: symlink rejection; handler.test.ts: logger event assertion |
 | File exists + overwrite=false → FILE_EXISTS atomically (no race window) | FR-009, R4 | handler.test.ts: wx-flag EEXIST mapping; concurrency test if practical |
 | Atomic write via temp-then-rename for overwrite=true | FR-008, R4 | handler.test.ts: rename-failure cleanup of tmp file; happy-path no orphan tmp |
 | Auto-mkdir parent dirs (parity with predecessor) | FR-010, R4 | handler.test.ts: nested fresh path creates parents |
@@ -493,7 +493,7 @@ Co-located vitest cases per Principle II. All counts target FR-coverage of at-le
 | 5 | Auto-mkdir of nested parent dirs (e.g. `Daily/2026/05/note.md`) on fresh path | FR-010 |
 | 6 | vault=Foo when focused vault is Bar → write lands at Foo's absolute path (resolves R11) | F4, FR-012 |
 | 7 | vault=Unknown → VALIDATION_ERROR (vault not in registry) | FR-021 |
-| 8 | Path-escape attempt (symlink to outside) → PATH_ESCAPES_VAULT + pathEscapeAttempt logger.warn fired | FR-014, FR-029 |
+| 8 | Path-escape attempt (symlink to outside) → PATH_ESCAPES_VAULT + typed `logger.pathEscapeAttempt({vault, attemptedPath})` event fired | FR-014, FR-029 |
 | 9 | Atomic write: tmp file orphaned cleanly when rename fails (best-effort unlink) | FR-008 |
 | 10 | Atomic write: temp file uniqueness via UUID — concurrent writes don't collide on tmp | FR-008 |
 | 11 | metadataCache invalidation eval succeeds; response is success | FR-011 |

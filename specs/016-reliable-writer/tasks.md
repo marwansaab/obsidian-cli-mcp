@@ -43,6 +43,8 @@ description: "Task list for 016-reliable-writer — direct-fs-write replacement 
 
 - [ ] T002 T0 live-CLI characterization against `TestVault-Obsidian-CLI-MCP` per [.memory/test-execution-instructions.md](../../.memory/test-execution-instructions.md). (a) Confirm F1: argv-IPC threshold still ~4 KB on Windows (single content-size probe at 5 KB via `obsidian create` — should crash; do not rerun the full 4-question bisect). (b) Confirm F2: `obsidian vaults verbose` still returns tab-separated `<name>\t<path>`. (c) Confirm F3: `obsidian eval code=<small-payload>` still returns `=> <result>` prefix on stdout. (d) Decide path-safety extended-character regex policy: extend `[\x00-\x1f]` to include DEL `\x7f` (Recommended; one regex char), OR leave as-is. (e) Decide orphan `.tmp` cleanup pattern: best-effort `fs.unlink(tmpPath).catch(() => {})` after `fs.rename` failure (Recommended), OR leave-orphan with manual cleanup. (f) Decide whether to add a deterministic concurrency test for FILE_EXISTS race-freeness (skip recommended; document in test file as "covered by `wx` flag semantics; deterministic test omitted"). (g) Decide whether to add a mid-write SIGTERM test in vitest (skip recommended; defer to manual M-4 in quickstart.md). Record (d), (e), (f), (g) decisions as a header comment in the relevant test file.
 
+- [ ] T002a Extend [src/logger.ts](../../src/logger.ts) per Analyze C1 + M4 (2026-05-10). (a) Define a new typed event interface `PathEscapeAttemptEvent` with shape `{ vault: string | null, attemptedPath: string }`. (b) Add a new method to the `Logger` interface: `pathEscapeAttempt(event: PathEscapeAttemptEvent): void` — follows the existing per-event-type method convention (cf. `dispatchTimeout` / `dispatchCap` / `dispatchKill`). (c) Implement the method in `createLogger`'s returned object — emit `{ event: "pathEscapeAttempt", vault, attemptedPath }` via the same `emit(payload)` helper the existing methods use. (d) Amend the exported `ErrorCode` union type (currently 6 codes) to add the three new codes from FR-020: `"PATH_ESCAPES_VAULT" | "FILE_EXISTS" | "FS_WRITE_FAILED"` (alphabetically interleaved). (e) Update [src/logger.test.ts](../../src/logger.test.ts) co-located test file to add at minimum one happy-path case (call `logger.pathEscapeAttempt({vault: "TestVault", attemptedPath: "subdir/escape.md"})` and assert the JSON-line written to the captured stream contains the expected event/vault/attemptedPath fields) AND one boundary case (vault: null for active-mode rejection); ensure the existing tests for `dispatchTimeout` / `dispatchCap` / `dispatchKill` / `shutdown` continue to pass per Constitution II. **Foundational dependency**: blocks T015 / T016 (US4 handler tests + impl that consume the new method). Pre-emptively unblocks the original FR-029 design that referenced a non-existent `logger.warn` method.
+
 - [ ] T003 [P] Author [src/vault-registry/registry.test.ts](../../src/vault-registry/registry.test.ts) with 10 test cases per data-model.md test inventory: (1) first-call probe + cache hit on second call; (2) tab-separated multi-vault parse; (3) `resolveVaultPath("known")` returns expected path; (4) `resolveVaultPath("unknown")` → `VALIDATION_ERROR`; (5) probe failure (`CLI_BINARY_NOT_FOUND`) propagates + cache stays empty; (6) probe failure → second call retries probe; (7) successful probe after prior failure populates cache; (8) empty stdout → empty registry; (9) malformed row (no `\t`) skipped silently; (10) concurrent first-calls share one probe (deduplicated via `inFlightProbe`).
 
 - [ ] T004 Implement [src/vault-registry/registry.ts](../../src/vault-registry/registry.ts) per [contracts/vault-registry.contract.md](contracts/vault-registry.contract.md). Public surface: `createVaultRegistry(deps).resolveVaultPath(name)`. Internal: lazy probe via `deps.invokeProbe`, cached `ReadonlyMap<string, string>` once successful, retry-on-failure (cache only set on success), `inFlightProbe` deduplication for concurrent first-calls. Parser per F2 spec — split on `\n`, then on first `\t`; tolerate `\r`, BOM, malformed rows. Header per Constitution V (`// Original — no upstream.` + ADR-009 citation).
@@ -71,7 +73,7 @@ description: "Task list for 016-reliable-writer — direct-fs-write replacement 
 
 ### Tests for User Story 1 ⚠️
 
-- [ ] T011 [US1] Add US1-mapped cases to [src/tools/write_note/handler.test.ts](../../src/tools/write_note/handler.test.ts) per data-model.md inventory cases #1, #2, #5, #6, #11, #21-#28: specific-mode happy path (fresh file → `{ created: true, path }`), specific-mode overwrite=true happy path (replace → `{ created: false, path }`), auto-mkdir nested parents, `vault=Foo` resolves to Foo's path even when focused vault is Bar (R11 resolved), metadataCache invalidation eval succeeds, content with quotes/brackets/JSON-fragments byte-faithful, content with CRLF/LF mix preserved, content with emoji + multi-byte UTF-8 preserved, spawn-arg-length assertion (no argv element contains content; all ≤ 250 bytes), 100KB content sanity, vault-registry probe-on-first-call + cache-hit-on-second-call, output envelope shape exactly `{ created, path }`. NOTE: this test file overwrites the legacy `src/tools/write_note/handler.test.ts` per FR-028.
+- [ ] T011 [US1] Add US1-mapped cases to [src/tools/write_note/handler.test.ts](../../src/tools/write_note/handler.test.ts) per data-model.md inventory cases #1, #2, #5-#7, #9-#12, #21-#30 (range expanded per Analyze H1 / M1 / M3): specific-mode happy path (#1 — fresh file → `{ created: true, path }`); specific-mode overwrite=true happy path (#2 — replace → `{ created: false, path }`); auto-mkdir nested parents (#5); `vault=Foo` resolves to Foo's path even when focused vault is Bar (#6 — R11 resolved); vault=Unknown → `VALIDATION_ERROR` propagated from registry (#7 — Analyze M1); atomic write tmp file orphaned cleanly when rename fails (#9 — Analyze H1, FR-008 best-effort cleanup); atomic write temp file UUID uniqueness for concurrent writes (#10 — Analyze H1, FR-008); metadataCache invalidation eval succeeds (#11 — FR-011 happy half); metadataCache invalidation eval fails → response is STILL success (#12 — Analyze H1, FR-011 failure-or-boundary half satisfying Constitution II); content with quotes/brackets/JSON-fragments byte-faithful (#21, #22); content with CRLF/LF mix preserved (#23); content with emoji + multi-byte UTF-8 preserved (#24); spawn-arg-length assertion (#25 — no argv element contains content; #26 — all ≤ 250 bytes); 100KB content sanity (#27); vault-registry probe-on-first-call + cache-hit-on-second-call (#28); probe failure on first write → handler retries on second write (#29 — covers FR-012 retry semantics at handler integration layer; verifies T003 case #6 propagates correctly through the handler); output envelope shape exactly `{ created, path }` (#30 — Analyze M3). NOTE: this test file overwrites the legacy `src/tools/write_note/handler.test.ts` per FR-028.
 
 ### Implementation for User Story 1
 
@@ -191,7 +193,7 @@ description: "Task list for 016-reliable-writer — direct-fs-write replacement 
 
 - [ ] T030 [P] Run `vitest run` with coverage (Constitution Development Workflow gate 4 + 5). Must pass; aggregate statements coverage must meet the threshold in `vitest.config.ts`.
 
-- [ ] T031 Run all CI-gated S-scenarios from [quickstart.md](quickstart.md) (S-1 through S-19). Verify every scenario passes; specifically verify SC-007's spawn-arg-length invariant across content sizes 100B / 5KB / 100KB.
+- [ ] T031 Run all CI-gated S-scenarios from [quickstart.md](quickstart.md) (S-1 through S-19). Verify every scenario passes; specifically verify SC-007's spawn-arg-length invariant across content sizes 100B / 5KB / 100KB. **Known SC coverage gap (Analyze M2)**: SC-008 (mid-write SIGTERM atomicity) has NO CI-gated test — the S-suite does not exercise process-kill scenarios. T002 (g) decided to skip a deterministic vitest test as unreliable in vitest. The SC-008 gate is the manual M-4 scenario in T032, not the CI-gated S-suite here. Document this explicitly in the S-suite run report so reviewers don't expect SC-008 coverage from the CI gate.
 
 - [ ] T032 Run manual M-scenarios from [quickstart.md](quickstart.md) (M-1 through M-5) against `TestVault-Obsidian-CLI-MCP` per [.memory/test-execution-instructions.md](../../.memory/test-execution-instructions.md). Validates SC-001 (no host crash dialog at any size up to 100 KB through MCP Inspector or Claude Desktop), SC-006 freshness (write→read), SC-008 atomicity (mid-write SIGTERM), and SC-007 self-discovery (agent constructs valid invocation from help alone). Clean up all M-scenario fixtures from the vault Sandbox after completion per the test-execution-instructions cleanup rule.
 
@@ -204,7 +206,7 @@ description: "Task list for 016-reliable-writer — direct-fs-write replacement 
 ### Phase Dependencies
 
 - **Phase 1 (Setup)**: T001 has no dependencies; runs immediately.
-- **Phase 2 (Foundational)**: T002 starts after T001. T003-T010 form four module-pairs (vault-registry, path-safety/schema, path-safety/canonical, write_note/schema). Within each pair: test first then impl. Across pairs: parallelizable on different files. **T010 depends on T006** (write_note schema imports `isStructurallySafePath`).
+- **Phase 2 (Foundational)**: T002 starts after T001. **T002a (Logger extension per Analyze C1) starts after T002 — independent of T003-T010 since `src/logger.ts` is file-disjoint from the new modules.** T003-T010 form four module-pairs (vault-registry, path-safety/schema, path-safety/canonical, write_note/schema). Within each pair: test first then impl. Across pairs: parallelizable on different files. **T010 depends on T006** (write_note schema imports `isStructurallySafePath`). **T015/T016 depend on T002a** (US4 handler tests + impl call the new `logger.pathEscapeAttempt` typed method).
 - **Phases 3-8 (User stories)**: ALL depend on Phase 2 completion. **Within Phases 3-7, every implementation task touches `src/tools/write_note/handler.ts`**, so they run sequentially through that file. Tests for each story extend the same `handler.test.ts` file (also sequential). Phase 8 (US5) touches `index.ts` + `docs/tools/write_note.md` — independent of the handler-modifying phases.
 - **Phase 9 (Polish)**: depends on all user-story phases being complete. T024 (server.ts wiring) is the integration glue; T025-T032 are verification.
 
@@ -235,15 +237,19 @@ description: "Task list for 016-reliable-writer — direct-fs-write replacement 
 ## Parallel Example: Phase 2 (Foundational)
 
 ```bash
-# Three module pairs can run in parallel by different developers:
+# Module pairs can run in parallel by different developers:
 Developer A: T003 (registry.test.ts) → T004 (registry.ts)
 Developer B: T005 (path-safety/schema.test.ts) → T006 (path-safety/schema.ts)
 Developer C: T007 (canonical.test.ts) → T008 (canonical.ts)
+Developer D: T002a (extend src/logger.ts + src/logger.test.ts per Analyze C1)
 
 # Once T006 is complete, the write_note schema pair can start:
-Developer D (or whoever is free): T009 (write_note/schema.test.ts) → T010 (write_note/schema.ts)
+Developer E (or whoever is free): T009 (write_note/schema.test.ts) → T010 (write_note/schema.ts)
 
-# Sync point: all of T004, T008, T010 must complete before any user story starts.
+# Sync points:
+#   - T004, T008, T010 must complete before any user story starts.
+#   - T002a must complete before T015 / T016 (US4 handler tests + impl) start.
+#   - All other user-story tasks are independent of T002a.
 ```
 
 ## Parallel Example: Phase 8 (US5) alongside Phase 3-7
@@ -273,7 +279,7 @@ Terminal 4: vitest run --coverage              # T030
 ### MVP First (User Story 1 only)
 
 1. Complete Phase 1 (T001).
-2. Complete Phase 2 (T002-T010) — T0 + foundational modules + write_note schema.
+2. Complete Phase 2 (T002, T002a, T003-T010) — T0 + Logger extension per Analyze C1 + foundational modules + write_note schema.
 3. Complete Phase 3 (T011-T012) — US1 specific-mode happy path.
 4. **STOP and VALIDATE**: Run S-1 (size happy path), S-2 (trigger chars), S-6 (argv-length invariant), S-11 (vault-registry lazy probe), S-14 (auto-mkdir parents) from quickstart.md. Verify the four BI-038 sizes (60B/5KB/12KB/100KB) succeed without crash.
 5. Optional: deploy a pre-release build for early demo. The MVP is "you can write notes without crashing Obsidian" — the dominant user value.

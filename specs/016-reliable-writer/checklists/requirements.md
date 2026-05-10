@@ -2,7 +2,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-05-10
-**Refreshed**: 2026-05-10 (after the eval-bypass premise was retracted and the spec was rewritten against the direct-fs-write design ratified by ADR-009; further refreshed after the `/speckit-clarify` session resolved 4 ambiguities — symlink mechanism, lazy-probe boot behaviour, security logger event, performance bound)
+**Refreshed**: 2026-05-10 (after the eval-bypass premise was retracted and the spec was rewritten against the direct-fs-write design ratified by ADR-009; further refreshed after the `/speckit-clarify` session resolved 4 ambiguities — symlink mechanism, lazy-probe boot behaviour, security logger event, performance bound; further refreshed after the user-led 6-concern review — symlink ordering / FR-011 best-effort / Constitution V attribution / architecture-page lazy-probe / ADR-007 fs-IO carve-out / vault-side TC naming drift; further refreshed after `/speckit-analyze` 2026-05-10 surfaced and remediated 1 CRITICAL finding (C1 — Logger interface mismatch; resolved via new T002a foundational task to extend `Logger` with typed `pathEscapeAttempt` method + amend `ErrorCode` union) plus 1 HIGH coverage gap (H1 — FR-011 failure-or-boundary test cases; resolved via T011 case-range expansion to include #7, #9, #10, #12, #29, #30) plus 4 MEDIUM and 2 LOW findings)
 **Feature**: [spec.md](../spec.md)
 
 ## Content Quality

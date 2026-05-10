@@ -35,7 +35,7 @@ interface ExecuteDeps {
 | H7 | Active mode emits exactly one pre-write eval (focused-file resolution) and one post-write eval (cache invalidation); 2 evals total | R5, R14 |
 | H8 | Specific mode emits exactly one post-write eval (cache invalidation) plus optionally one for `open: true`; 1-2 evals total | R5, R9 |
 | H9 | First call across the MCP-server lifetime triggers the lazy vault-registry probe; subsequent calls hit cache | R2, FR-012 |
-| H10 | `pathEscapeAttempt` logger.warn event fires whenever runtime path-safety check rejects an input | FR-029, R6 |
+| H10 | Typed `logger.pathEscapeAttempt({vault, attemptedPath})` event fires whenever runtime path-safety check rejects an input. The two best-effort failure paths (cache invalidation eval failure per H5; optional editor-open eval failure per H6) emit NO logger event — silent best-effort per Constitution IV's authorised carve-out. | FR-029, R6, Analyze C1 |
 | H11 | No `template` parameter ever reaches the handler (rejected at schema layer) | FR-016 |
 | H12 | Output envelope shape EXACTLY `{ created, path }` — nothing else | FR-003, R10 |
 
@@ -69,7 +69,7 @@ const relPath = input.path ?? input.file ?? <focused-file-relpath>;
 const check = await checkCanonicalPath(vaultRoot, relPath, { realpath: deps.fs.realpath });
 
 if (!check.ok) {
-  deps.logger.warn({ event: "pathEscapeAttempt", vault: input.vault ?? "<active>", attemptedPath: check.attemptedPath });
+  deps.logger.pathEscapeAttempt({ vault: input.vault ?? null, attemptedPath: check.attemptedPath });
   throw new UpstreamError({
     code: "PATH_ESCAPES_VAULT",
     cause: null,
@@ -150,11 +150,15 @@ try {
     { command: "eval", parameters: { code: invalidateTemplate }, target_mode: "active" },
     { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
   );
-} catch (e) {
-  // Best-effort: write succeeded, cache freshness defers to Obsidian's file watcher
-  // (~200-500 ms eventual consistency). Per FR-011 + Edge Cases bullet, the call
-  // still returns success.
-  deps.logger.debug({ event: "metadataCacheInvalidationFailed", absPath, cause: String(e) });
+} catch {
+  // Best-effort: write succeeded; cache freshness defers to Obsidian's file
+  // watcher (~200-500 ms eventual consistency). Per FR-011 + Edge Cases bullet,
+  // the call still returns success. SILENT — no logger event per FR-029 +
+  // Constitution IV's authorised carve-out (the spec FR-011 + Edge Cases bullet
+  // are the citations). The project's typed Logger interface does not have a
+  // generic `warn` / `debug` method per Analyze C1; per-event-type methods only
+  // exist for surfaces the spec deems important enough to lift to the Logger
+  // interface, and best-effort cache freshness does not meet that bar.
 }
 ```
 
@@ -168,9 +172,11 @@ if (input.target_mode === "specific" && input.open === true) {
       { command: "eval", parameters: { code: openTemplate }, target_mode: "active" },
       { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
     );
-  } catch (e) {
+  } catch {
     // Best-effort: open is a UX nicety; write success is the contract.
-    deps.logger.debug({ event: "openInEditorFailed", absPath, cause: String(e) });
+    // SILENT — no logger event per FR-017 + Constitution IV's authorised
+    // carve-out (the spec FR-017 is the citation). Same Logger-surface
+    // rationale as Step 5.
   }
 }
 ```
@@ -219,7 +225,7 @@ schema layer ─→ VALIDATION_ERROR ──────────────�
                   ▼
    handler step 2: canonical path safety check
      │
-     └── escape detected ─→ logger.warn(pathEscapeAttempt) + PATH_ESCAPES_VAULT ─→ caller
+     └── escape detected ─→ logger.pathEscapeAttempt({vault, attemptedPath}) + PATH_ESCAPES_VAULT ─→ caller
                   │
                   ▼
    handler step 3: mkdir
@@ -236,12 +242,12 @@ schema layer ─→ VALIDATION_ERROR ──────────────�
                   ▼
    handler step 5: cache invalidation eval
      │
-     └── eval timeout / IPC failure ─→ logger.debug(metadataCacheInvalidationFailed) ─→ DOES NOT FAIL THE CALL
+     └── eval timeout / IPC failure ─→ silent (no logger event) ─→ DOES NOT FAIL THE CALL
                   │
                   ▼
    handler step 6: optional open eval (specific mode + open: true)
      │
-     └── eval failure ─→ logger.debug(openInEditorFailed) ─→ DOES NOT FAIL THE CALL
+     └── eval failure ─→ silent (no logger event) ─→ DOES NOT FAIL THE CALL
                   │
                   ▼
    handler step 7: return { created, path }
