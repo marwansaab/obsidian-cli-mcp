@@ -2,7 +2,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-05-10
-**Refreshed**: 2026-05-10 (after the eval-bypass premise was retracted and the spec was rewritten against the direct-fs-write design ratified by ADR-009)
+**Refreshed**: 2026-05-10 (after the eval-bypass premise was retracted and the spec was rewritten against the direct-fs-write design ratified by ADR-009; further refreshed after the `/speckit-clarify` session resolved 4 ambiguities — symlink mechanism, lazy-probe boot behaviour, security logger event, performance bound)
 **Feature**: [spec.md](../spec.md)
 
 ## Content Quality
