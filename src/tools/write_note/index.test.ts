@@ -12,6 +12,13 @@ import { createWriteNoteTool, WRITE_NOTE_DESCRIPTION, WRITE_NOTE_TOOL_NAME } fro
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
+import type { VaultRegistry } from "../../vault-registry/registry.js";
+
+// Stub registry for descriptor-shape tests — never invoked because the descriptor tests don't reach
+// the handler. The VALIDATION_ERROR test (d) also doesn't reach the registry (rejected at schema layer).
+const stubRegistry: VaultRegistry = {
+  resolveVaultPath: async () => "C:\\stub-vault",
+};
 
 
 function makeStubSpawn(opts: { stdout?: string; exitCode?: number } = {}): SpawnLike {
@@ -55,7 +62,7 @@ function walkSchema(node: unknown, fn: (n: Record<string, unknown>) => void): vo
 describe("createWriteNoteTool — descriptor", () => {
   // (a) Story 8 AC#1 base — descriptor name
   it("publishes name = 'write_note' and description verbatim (Story 8 AC#1)", () => {
-    const tool = createWriteNoteTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
+    const tool = createWriteNoteTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn(), vaultRegistry: stubRegistry });
     expect(tool.descriptor.name).toBe(WRITE_NOTE_TOOL_NAME);
     expect(tool.descriptor.name).toBe("write_note");
     expect(tool.descriptor.description).toBe(WRITE_NOTE_DESCRIPTION);
@@ -63,7 +70,7 @@ describe("createWriteNoteTool — descriptor", () => {
 
   // (b) Story 8 AC#1 + AC#2 — emitted inputSchema shape
   it("emits a flat post-010 inputSchema with all 8 properties, additionalProperties:false, no description keys (Story 8 AC#2)", () => {
-    const tool = createWriteNoteTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
+    const tool = createWriteNoteTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn(), vaultRegistry: stubRegistry });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
     expect(schema.type).toBe("object");
     expect(schema.oneOf).toBeUndefined();
@@ -76,7 +83,6 @@ describe("createWriteNoteTool — descriptor", () => {
       "overwrite",
       "path",
       "target_mode",
-      "template",
       "vault",
     ]);
     expect(schema.required).toEqual(expect.arrayContaining(["target_mode", "content"]));
@@ -89,7 +95,7 @@ describe("createWriteNoteTool — descriptor", () => {
 
   // (c) Story 8 AC#3 — description mentions help and write_note
   it("description references help() and the tool name 'write_note' (Story 8 AC#3, FR-012)", () => {
-    const tool = createWriteNoteTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
+    const tool = createWriteNoteTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn(), vaultRegistry: stubRegistry });
     const desc = tool.descriptor.description.toLowerCase();
     expect(desc).toContain("help");
     expect(desc).toContain("write_note");
@@ -100,7 +106,7 @@ describe("createWriteNoteTool — descriptor", () => {
 describe("createWriteNoteTool — handler integration via registerTool", () => {
   // (d) End-to-end VALIDATION_ERROR propagation
   it("missing required content surfaces as VALIDATION_ERROR isError envelope (registerTool ZodError wrap)", async () => {
-    const tool = createWriteNoteTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
+    const tool = createWriteNoteTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn(), vaultRegistry: stubRegistry });
     const result = (await tool.handler({ target_mode: "specific" })) as {
       isError?: boolean;
       content: { type: string; text: string }[];
