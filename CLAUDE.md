@@ -1,7 +1,7 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-[specs/015-read-heading/plan.md](specs/015-read-heading/plan.md)
+[specs/016-reliable-writer/plan.md](specs/016-reliable-writer/plan.md)
 
 Active feature: **015-read-heading** — adds `read_heading`, the
 **sixth** typed-tool wrap and the first **heading-targeted retrieval
