@@ -30,10 +30,19 @@ export interface DispatchOutput {
   argv: string[];
 }
 
+export type ResolveBinaryFn = typeof resolveBinary;
+
 export interface DispatchDeps {
   spawnFn?: SpawnLike;
   env?: NodeJS.ProcessEnv;
   logger: Logger;
+  /**
+   * Test seam (per binary-resolver contract): substitute a synchronous-resolving
+   * stub so timing-sensitive tests (`vi.useFakeTimers`, microtask-counting kills,
+   * etc.) don't race against the production resolver's real `fs.access` I/O.
+   * Defaults to the production three-tier resolver in `binary-resolver/`.
+   */
+  resolveBinary?: ResolveBinaryFn;
 }
 
 interface InFlightContext {
@@ -75,7 +84,8 @@ function settlePathAttempt(
 
 export async function dispatchCli(input: DispatchInput, deps: DispatchDeps): Promise<DispatchOutput> {
   const env = deps.env ?? process.env;
-  const resolved = await resolveBinary({
+  const resolveBinaryFn = deps.resolveBinary ?? resolveBinary;
+  const resolved = await resolveBinaryFn({
     env,
     platform: process.platform,
     homedir: os.homedir,

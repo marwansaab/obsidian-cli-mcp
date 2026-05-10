@@ -212,6 +212,14 @@ test("US5 re-throws non-UpstreamError verbatim (Story 5 AC#4)", async () => {
 
 // --- New under 008-refactor: typed-tool bounds reachable through invokeCli (FR-009 / FR-010 / SC-003 / SC-004) ---
 
+// Synchronously-resolving resolver stub — bypasses real fs.access I/O so timing-
+// sensitive tests (fake timers, microtask kills) don't race with the production
+// resolver's libuv access call.
+const stubResolveBinary = async () => ({
+  path: "obsidian",
+  attempts: [{ source: "PATH" as const, path: "obsidian", outcome: "pending" as const }],
+});
+
 test("typed-tool TIMEOUT: synthetic 11 s hang → CLI_TIMEOUT within ~10.5 s (SC-003)", async () => {
   vi.useFakeTimers();
   try {
@@ -219,7 +227,7 @@ test("typed-tool TIMEOUT: synthetic 11 s hang → CLI_TIMEOUT within ~10.5 s (SC
     const rejected = pendingRejection(
       executeReadNote(
         { target_mode: "active" },
-        { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+        { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, resolveBinary: stubResolveBinary },
       ),
     );
     await vi.advanceTimersByTimeAsync(0);
@@ -239,7 +247,7 @@ test("typed-tool CAP: synthetic > 10 MiB → CLI_OUTPUT_TOO_LARGE with partial �
   const err = (await captureRejection(
     executeReadNote(
       { target_mode: "active" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, resolveBinary: stubResolveBinary },
     ),
   )) as UpstreamError;
   expect(err.code).toBe("CLI_OUTPUT_TOO_LARGE");
