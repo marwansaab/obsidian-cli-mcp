@@ -1,7 +1,10 @@
 // Original — no upstream. dispatchCli: the single spawn-and-collect primitive owning argv assembly, four-priority classification, always-on bounds, atomic in-flight registry, and failure-only stderr logging (ADR-007, FR-008..FR-018a).
 import { spawn as nodeSpawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
 
+import { resolveBinary, type ResolutionAttempt } from "../binary-resolver/binary-resolver.js";
 import { UpstreamError } from "../errors.js";
 
 import type { Logger } from "../logger.js";
@@ -27,10 +30,19 @@ export interface DispatchOutput {
   argv: string[];
 }
 
+export type ResolveBinaryFn = typeof resolveBinary;
+
 export interface DispatchDeps {
   spawnFn?: SpawnLike;
   env?: NodeJS.ProcessEnv;
   logger: Logger;
+  /**
+   * Test seam (per binary-resolver contract): substitute a synchronous-resolving
+   * stub so timing-sensitive tests (`vi.useFakeTimers`, microtask-counting kills,
+   * etc.) don't race against the production resolver's real `fs.access` I/O.
+   * Defaults to the production three-tier resolver in `binary-resolver/`.
+   */
+  resolveBinary?: ResolveBinaryFn;
 }
 
 interface InFlightContext {
@@ -57,9 +69,29 @@ export function assembleArgv(input: DispatchInput, binary: string): string[] {
   return [binary, ...vaultPrefix, input.command, ...kvs, ...flags, ...copySuffix];
 }
 
-export function dispatchCli(input: DispatchInput, deps: DispatchDeps): Promise<DispatchOutput> {
+function settlePathAttempt(
+  attempts: ResolutionAttempt[],
+  outcome: "resolved" | "not-found",
+): ResolutionAttempt[] {
+  // Trailing PATH attempt is settled by the dispatch layer once the spawn outcome is known
+  // (resolver returns it as "pending"). Per Q1: PATH lookup is deferred to the OS spawn.
+  const last = attempts[attempts.length - 1];
+  if (last?.source === "PATH" && last.outcome === "pending") {
+    return [...attempts.slice(0, -1), { source: "PATH", path: last.path, outcome }];
+  }
+  return attempts;
+}
+
+export async function dispatchCli(input: DispatchInput, deps: DispatchDeps): Promise<DispatchOutput> {
   const env = deps.env ?? process.env;
-  const binary = env.OBSIDIAN_BIN ?? "obsidian";
+  const resolveBinaryFn = deps.resolveBinary ?? resolveBinary;
+  const resolved = await resolveBinaryFn({
+    env,
+    platform: process.platform,
+    homedir: os.homedir,
+    access: fsPromises.access,
+  });
+  const binary = resolved.path;
   const argv = assembleArgv(input, binary);
   const spawnArgs = argv.slice(1);
   const spawnFn = deps.spawnFn ?? nodeSpawn;
@@ -86,7 +118,11 @@ export function dispatchCli(input: DispatchInput, deps: DispatchDeps): Promise<D
           new UpstreamError({
             code: "CLI_BINARY_NOT_FOUND",
             cause: err,
-            details: { binaryAttempted: binary, PATH: env.PATH },
+            details: {
+              platform: process.platform,
+              attempts: settlePathAttempt(resolved.attempts, "not-found"),
+              PATH: env.PATH,
+            },
           }),
         );
         return;
@@ -165,7 +201,11 @@ export function dispatchCli(input: DispatchInput, deps: DispatchDeps): Promise<D
           new UpstreamError({
             code: "CLI_BINARY_NOT_FOUND",
             cause: err,
-            details: { binaryAttempted: binary, PATH: env.PATH },
+            details: {
+              platform: process.platform,
+              attempts: settlePathAttempt(resolved.attempts, "not-found"),
+              PATH: env.PATH,
+            },
           }),
         );
         return;

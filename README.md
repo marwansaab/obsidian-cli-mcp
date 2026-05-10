@@ -1,6 +1,6 @@
 # obsidian-cli-mcp
 
-A minimal Windows-host MCP server that bridges any MCP client (running locally or in a sandboxed container like Claude Cowork's Linux environment) to the Obsidian Integrated CLI binary on the operator's Windows desktop. Exposes eight tools at v0.3.0:
+A minimal MCP server that bridges any MCP client (running locally or in a sandboxed container like Claude Cowork's Linux environment) to the Obsidian Integrated CLI binary on the operator's macOS, Linux, or Windows desktop. Exposes eight tools at v0.3.0:
 
 - **`obsidian_exec`** — generic CLI bridge that lets the caller invoke any Obsidian CLI subcommand with structured parameters, bare-word flags, optional vault scoping, and a per-call timeout.
 - **`help`** — progressive-disclosure tool that serves full Markdown documentation for any registered tool on demand, per [ADR-005](.decisions/ADR-005%20-%20Token-Optimized%20Tool%20Definitions%20via%20Progressive%20Disclosure.md). Parameter-level descriptions are stripped from the JSON Schema at registration time to save context-window tokens, and recovered via `help({ tool_name: "<name>" })` when the agent needs them.
@@ -15,14 +15,14 @@ All failure modes — non-zero exit, CLI exits 0 with `Error:` stdout prefix, no
 
 ## Installation
 
-> **Important**: The bridge installs on the **Windows host**, NOT inside a sandboxed Linux container (e.g., Claude Cowork). The bridge needs direct access to the `obsidian` binary, which only exists on the host where the Obsidian desktop app is installed. ADR-002 captures the architectural rationale.
+> **Important**: The bridge installs on the **desktop host** (Windows, macOS, or Linux), NOT inside a sandboxed Linux container (e.g., Claude Cowork). The bridge needs direct access to the `obsidian` binary, which only exists on the host where the Obsidian desktop app is installed. ADR-002 captures the architectural rationale.
 
 ### Prerequisites
 
-- **Windows 10 / 11** host. macOS and Linux are out of scope for the 0.x release line.
+- One of: **Windows 10 / 11**, **macOS Sonoma** or later, **Linux Ubuntu 22.04+** (or equivalent — Debian, Fedora, Arch).
 - **Node.js >= 22.11** (LTS). Verify: `node --version`.
 - **Obsidian 1.12+** desktop app installed and running. The bridge can boot without Obsidian running, but every `obsidian_exec` call will fail with `CLI_NON_ZERO_EXIT` until Obsidian is up.
-- **Obsidian Integrated CLI** binary discoverable on `PATH`. Verify from a fresh PowerShell prompt: `obsidian version`. If `obsidian` isn't on `PATH`, set `OBSIDIAN_BIN` in your MCP-client configuration to the absolute path.
+- **Obsidian Integrated CLI** binary discoverable. Verify from a fresh shell prompt: `obsidian version`. If `obsidian` isn't on `PATH`, set `OBSIDIAN_BIN` in your MCP-client configuration to the absolute path. The bridge auto-detects the platform-default install location: macOS `/usr/local/bin/obsidian`, Linux `~/.local/bin/obsidian`, Windows defers to `PATH`.
 
 ### Install
 
@@ -66,16 +66,61 @@ Edit `%APPDATA%\Claude\claude_desktop_config.json`:
 
 Restart Claude Desktop. The `obsidian_exec`, `help`, and `read_note` tools will appear in the tools list.
 
-### Claude Cowork (sandboxed Linux container) → Windows host
+### Claude Desktop (macOS)
 
-Cowork's container can't exec the Windows `obsidian` binary directly — that's exactly the problem this bridge solves. Run the bridge on the **Windows host** and configure Cowork to tunnel its MCP stdio to that host process. The exact `command` depends on your host-to-container tunneling tool; the point is that the configured command's stdio MUST end up wired to a `npx -y @marwansaab/obsidian-cli-mcp` process running on the Windows host.
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```jsonc
+{
+  "mcpServers": {
+    "obsidian-cli-mcp": {
+      "command": "npx",
+      "args": ["-y", "@marwansaab/obsidian-cli-mcp"],
+      "env": {
+        // Optional override for non-default installs (e.g., a Homebrew variant or
+        // an app-bundle-internal binary). The auto-detected platform-default is
+        // /usr/local/bin/obsidian (the official installer's symlink).
+        // "OBSIDIAN_BIN": "/Applications/Obsidian.app/Contents/Resources/.../obsidian"
+      }
+    }
+  }
+}
+```
+
+Restart Claude Desktop. First `obsidian` invocation may surface a Gatekeeper prompt; subsequent calls succeed transparently.
+
+### Claude Desktop (Linux)
+
+Edit `~/.config/Claude/claude_desktop_config.json` (path may differ per distribution and client version — defer to your client's docs):
+
+```jsonc
+{
+  "mcpServers": {
+    "obsidian-cli-mcp": {
+      "command": "npx",
+      "args": ["-y", "@marwansaab/obsidian-cli-mcp"],
+      "env": {
+        // Optional override for non-default install locations such as
+        // /opt/obsidian, ~/bin, or /snap/bin/obsidian.
+        // "OBSIDIAN_BIN": "/opt/obsidian/obsidian"
+      }
+    }
+  }
+}
+```
+
+Some distributions don't include `~/.local/bin` on the default `PATH`. Either add `export PATH="$HOME/.local/bin:$PATH"` to your `~/.bashrc` / `~/.zshrc`, or set `OBSIDIAN_BIN` to the absolute install path. WSL guests with Obsidian installed inside the WSL guest behave as native Linux; WSL guests with Obsidian on the Windows host are out of scope (per FR-016).
+
+### Claude Cowork (sandboxed container) → desktop host
+
+Cowork's container can't exec the host `obsidian` binary directly — that's exactly the problem this bridge solves. Run the bridge on the **operator's desktop host** (Windows, macOS, or Linux) and configure Cowork to tunnel its MCP stdio to that host process. The exact `command` depends on your host-to-container tunneling tool; the point is that the configured command's stdio MUST end up wired to a `npx -y @marwansaab/obsidian-cli-mcp` process running on the desktop host.
 
 ```jsonc
 {
   "mcpServers": {
     "obsidian-cli-mcp": {
       "command": "<your host-stdio bridge command>",
-      "args": ["<args that exec 'npx -y @marwansaab/obsidian-cli-mcp' on the Windows host>"]
+      "args": ["<args that exec 'npx -y @marwansaab/obsidian-cli-mcp' on the desktop host>"]
     }
   }
 }
@@ -171,7 +216,7 @@ Errors are returned via the MCP SDK's `isError: true` shape with a JSON-encoded 
 | `code` | When | Key `details` fields |
 |--------|------|----------------------|
 | `CLI_NON_ZERO_EXIT` | Spawned `obsidian` exited non-zero | `argv`, `stdout`, `stderr`, `exitCode`, `signal` |
-| `CLI_BINARY_NOT_FOUND` | `obsidian` not on PATH and `OBSIDIAN_BIN` unset/wrong | `binaryAttempted`, `PATH` |
+| `CLI_BINARY_NOT_FOUND` | `obsidian` not on PATH and `OBSIDIAN_BIN` unset/wrong | `platform`, `attempts` (ordered `ResolutionAttempt[]` per source/path/outcome), `PATH` |
 | `CLI_TIMEOUT` | Call exceeded `timeoutMs` (default 30 s) | `argv`, `timeoutMs`, `partialStdout`, `partialStderr` |
 | `CLI_OUTPUT_TOO_LARGE` | Either stream crossed the 10 MiB cap | `argv`, `stream`, `limitBytes`, `capturedBytes`, `partial` |
 | `CLI_REPORTED_ERROR` | CLI exits 0 with stdout that, after leading-whitespace trim, starts with `Error:` | `argv`, `stdout`, `stderr`, `exitCode`, `message` |

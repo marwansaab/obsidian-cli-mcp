@@ -108,7 +108,7 @@ test("CLI_NON_ZERO_EXIT integration: stderr + exit 2 surfaces with full details"
   expect(err.details.exitCode).toBe(2);
 });
 
-test("CLI_BINARY_NOT_FOUND integration: ENOENT-on-spawn surfaces with binaryAttempted+PATH", async () => {
+test("CLI_BINARY_NOT_FOUND integration: ENOENT-on-spawn surfaces with platform/attempts/PATH", async () => {
   const enoent: NodeJS.ErrnoException = new Error("spawn obsidian ENOENT") as NodeJS.ErrnoException;
   enoent.code = "ENOENT";
   const { spawnFn } = makeMockSpawn({ errorOnSpawn: enoent });
@@ -119,7 +119,9 @@ test("CLI_BINARY_NOT_FOUND integration: ENOENT-on-spawn surfaces with binaryAtte
     ),
   )) as UpstreamError;
   expect(err.code).toBe("CLI_BINARY_NOT_FOUND");
-  expect(err.details.binaryAttempted).toBe("obsidian");
+  expect(["darwin", "linux", "win32"]).toContain(err.details.platform);
+  const attempts = err.details.attempts as Array<{ source: string; path: string; outcome: string }>;
+  expect(attempts.find((a) => a.source === "PATH")?.path).toBe("obsidian");
   expect(err.details.PATH).toBe("C:\\Windows;C:\\Tools");
 });
 
@@ -223,17 +225,20 @@ test("OBSIDIAN_BIN override: spawn receives the overridden binary; argv reflects
     stdoutChunks: [Buffer.from("1.7.2\n", "utf8")],
     exitCode: 0,
   });
+  // Under FR-008 / FR-020 the resolver fs.access(X_OK)-checks OBSIDIAN_BIN before spawn.
+  // Use process.execPath (the host's running node binary) — definitionally executable.
+  const overridePath = process.execPath;
   const result = await executeObsidianExec(
     { command: "version" },
     {
       logger: silentLogger(),
       queue: createQueue(),
       spawnFn,
-      env: { OBSIDIAN_BIN: "C:\\custom\\obsidian.exe", PATH: "C:\\Windows" },
+      env: { OBSIDIAN_BIN: overridePath, PATH: "C:\\Windows" },
     },
   );
-  expect(recorded[0]!.binary).toBe("C:\\custom\\obsidian.exe");
-  expect(result.argv).toEqual(["C:\\custom\\obsidian.exe", "version"]);
+  expect(recorded[0]!.binary).toBe(overridePath);
+  expect(result.argv).toEqual([overridePath, "version"]);
 });
 
 test("handler emits ZERO call.start/call.end log lines (R3 — failure-only logging discipline)", async () => {
