@@ -1,6 +1,7 @@
 // Original — no upstream. Tests for the write_note handler per ADR-009 / US1 — direct-fs-write specific-mode happy path: vault-registry resolution, canonical-path safety, atomic temp+rename, content fidelity, argv anti-leak, lazy registry probe semantics. T002 decisions header: (d) DEL added to path-safety; (e) best-effort fs.unlink on rename failure; (f) FILE_EXISTS race-freeness covered by `wx` flag semantics — deterministic concurrency test omitted; (g) mid-write SIGTERM atomicity deferred to manual M-4 in quickstart.md.
 import { type SpawnOptions } from "node:child_process";
 import { EventEmitter } from "node:events";
+import { resolve } from "node:path";
 import { Readable, Writable } from "node:stream";
 
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -12,9 +13,12 @@ import { createLogger, type Logger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
 import { createVaultRegistry, type VaultRegistry } from "../../vault-registry/registry.js";
 
-const VAULT_ROOT = "C:\\TestVault";
-const FOO_ROOT = "C:\\Foo";
-const BAR_ROOT = "C:\\Bar";
+// Use path.resolve to make the test roots OS-portable absolute paths — POSIX hosts
+// (CI on Linux) treat Windows-style "C:\..." literals as relative names, so the
+// canonical-path check would resolve them under the cwd and trip PATH_ESCAPES_VAULT.
+const VAULT_ROOT = resolve("/test-vault");
+const FOO_ROOT = resolve("/foo-vault");
+const BAR_ROOT = resolve("/bar-vault");
 
 interface StubResponse {
   stdout?: string;
@@ -697,11 +701,12 @@ test("active-mode focused-file eval argv stays under 250-byte cap (SC-007 / F1)"
 // (#8) Path-escape attempt → PATH_ESCAPES_VAULT + typed pathEscapeAttempt logger event
 test("symlink-escape attempt → PATH_ESCAPES_VAULT + pathEscapeAttempt logger event (#8)", async () => {
   // realpath on the parent directory points OUTSIDE vaultRoot
+  const escapeTarget = resolve("/escape-target");
   const fs = fakeFs({
     realpath: vi.fn(async (p: string) => {
       if (p === VAULT_ROOT) return VAULT_ROOT;
-      // any other path resolves to /etc → outside vault root
-      return "C:\\Windows\\System32";
+      // any other path resolves OUTSIDE the vault root → triggers PATH_ESCAPES_VAULT
+      return escapeTarget;
     }),
   });
   const events: Array<{ event: string; vault: unknown; attemptedPath: unknown }> = [];
