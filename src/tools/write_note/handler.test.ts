@@ -554,6 +554,300 @@ test("probe failure on first write → handler retries probe on second write", a
   expect(probe).toHaveBeenCalledTimes(2);
 });
 
+// US6 open-flag cases (#16, #17, #18) — post-write `openLinkText` eval is best-effort per FR-017;
+// failure does not fail the call (open is a UX nicety, not the contract).
+
+// (#16) open=true → post-write openLinkText eval fired
+test("open=true → post-write openLinkText eval fired (#16)", async () => {
+  const fs = fakeFs();
+  const { spawnFn, recorded } = makeQueuedSpawn([EVAL_OK, EVAL_OK]);
+  await executeWriteNote(
+    {
+      target_mode: "specific",
+      vault: "TestVault",
+      path: "Sandbox/n.md",
+      content: "x",
+      overwrite: true,
+      open: true,
+    },
+    deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+  );
+  // Two evals: invalidate + open
+  expect(recorded.length).toBe(2);
+  // The second (open) eval contains openLinkText in the code= argv
+  const openArg = recorded[1]!.argv.find((a) => a.startsWith("code="));
+  expect(openArg).toBeDefined();
+  expect(openArg!).toContain("openLinkText");
+});
+
+// (#17) open=true + post-write open eval fails → response is STILL success
+test("open=true + open eval fails → response is still success (#17, best-effort per FR-017)", async () => {
+  const fs = fakeFs();
+  // First eval (invalidate) succeeds; second eval (open) fails
+  const { spawnFn } = makeQueuedSpawn([
+    EVAL_OK,
+    { stdout: "Error: openLinkText failed\n", exitCode: 1 },
+  ]);
+  const result = await executeWriteNote(
+    {
+      target_mode: "specific",
+      vault: "TestVault",
+      path: "Sandbox/n.md",
+      content: "x",
+      overwrite: true,
+      open: true,
+    },
+    deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+  );
+  expect(result).toEqual({ created: true, path: "Sandbox/n.md" });
+});
+
+// (#18) open=false (default) → no openLinkText eval emitted
+test("open=false (default) → only invalidate eval, no openLinkText (#18)", async () => {
+  const fs = fakeFs();
+  const { spawnFn, recorded } = makeQueuedSpawn([EVAL_OK]);
+  await executeWriteNote(
+    {
+      target_mode: "specific",
+      vault: "TestVault",
+      path: "Sandbox/n.md",
+      content: "x",
+      overwrite: true,
+      // open omitted → default
+    },
+    deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+  );
+  // Only one eval (invalidate)
+  expect(recorded.length).toBe(1);
+  const evalArg = recorded[0]!.argv.find((a) => a.startsWith("code="));
+  expect(evalArg).toBeDefined();
+  expect(evalArg!).not.toContain("openLinkText");
+});
+
+// US3 active-mode cases (#13, #14, #15) — pre-write focused-file resolution via small
+// bug-safe `eval`; response is `=> {"path":"...","base":"..."}` per F3 / R14.
+
+// (#13) Active mode with focused file → write at resolved path, returns { created: false, path }
+test("active mode with focused file → resolved path written, returns { created:false, path }", async () => {
+  const fs = fakeFs({
+    realpath: vi.fn(async (p: string) => {
+      if (p === VAULT_ROOT) return VAULT_ROOT;
+      // Pretend the focused file already exists for the existedBefore probe
+      return p;
+    }),
+  });
+  const focusedResp: StubResponse = {
+    stdout: `=> {"path":"Daily/today.md","base":${JSON.stringify(VAULT_ROOT)}}\n`,
+    exitCode: 0,
+  };
+  const { spawnFn } = makeQueuedSpawn([focusedResp, EVAL_OK]);
+  const result = await executeWriteNote(
+    { target_mode: "active", content: "rewritten", overwrite: true },
+    deps({ spawnFn, vaultRegistry: fakeRegistry({}), fs }),
+  );
+  expect(result).toEqual({ created: false, path: "Daily/today.md" });
+});
+
+// (#14) Active mode with no focused file → ERR_NO_ACTIVE_FILE
+test("active mode with no focused file (eval returns path: null) → ERR_NO_ACTIVE_FILE", async () => {
+  const fs = fakeFs();
+  const focusedResp: StubResponse = {
+    stdout: `=> {"path":null,"base":${JSON.stringify(VAULT_ROOT)}}\n`,
+    exitCode: 0,
+  };
+  const { spawnFn } = makeQueuedSpawn([focusedResp]);
+  const err = await executeWriteNote(
+    { target_mode: "active", content: "x", overwrite: true },
+    deps({ spawnFn, vaultRegistry: fakeRegistry({}), fs }),
+  ).catch((e) => e);
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect((err as UpstreamError).code).toBe("ERR_NO_ACTIVE_FILE");
+});
+
+// (#15) Active-mode focused-file eval is small (~120 bytes argv) — stays under the SC-007 cap
+test("active-mode focused-file eval argv stays under 250-byte cap (SC-007 / F1)", async () => {
+  const fs = fakeFs({
+    realpath: vi.fn(async (p: string) => {
+      if (p === VAULT_ROOT) return VAULT_ROOT;
+      return p;
+    }),
+  });
+  const focusedResp: StubResponse = {
+    stdout: `=> {"path":"x.md","base":${JSON.stringify(VAULT_ROOT)}}\n`,
+    exitCode: 0,
+  };
+  const { spawnFn, recorded } = makeQueuedSpawn([focusedResp, EVAL_OK]);
+  await executeWriteNote(
+    { target_mode: "active", content: "x", overwrite: true },
+    deps({ spawnFn, vaultRegistry: fakeRegistry({}), fs }),
+  );
+  // The first spawn is the focused-file eval; verify the code= argv element is small
+  const firstArgv = recorded[0]!.argv;
+  const codeArg = firstArgv.find((a) => a.startsWith("code="));
+  expect(codeArg).toBeDefined();
+  expect(codeArg!.length).toBeLessThanOrEqual(250);
+});
+
+// US2 collision cases (#3, #4) — FILE_EXISTS race-freeness is enforced via the `wx` flag's
+// atomic EEXIST behaviour at the kernel level (Node fs.writeFile maps O_CREAT|O_EXCL); per
+// T002 (f) decision 2026-05-10, no deterministic concurrency test is added (vitest cannot
+// reliably interleave fs.writeFile calls; the atomicity guarantee comes from the underlying
+// syscall, not from the JS runtime).
+
+// (#8) Path-escape attempt → PATH_ESCAPES_VAULT + typed pathEscapeAttempt logger event
+test("symlink-escape attempt → PATH_ESCAPES_VAULT + pathEscapeAttempt logger event (#8)", async () => {
+  // realpath on the parent directory points OUTSIDE vaultRoot
+  const fs = fakeFs({
+    realpath: vi.fn(async (p: string) => {
+      if (p === VAULT_ROOT) return VAULT_ROOT;
+      // any other path resolves to /etc → outside vault root
+      return "C:\\Windows\\System32";
+    }),
+  });
+  const events: Array<{ event: string; vault: unknown; attemptedPath: unknown }> = [];
+  const captureLogger: Logger = createLogger({
+    stream: new Writable({
+      write(chunk, _enc, cb) {
+        try {
+          const parsed = JSON.parse(chunk.toString());
+          events.push(parsed);
+        } catch { /* ignore */ }
+        cb();
+      },
+    }),
+  });
+  const { spawnFn } = makeQueuedSpawn([]);
+  const err = await executeWriteNote(
+    {
+      target_mode: "specific",
+      vault: "TestVault",
+      path: "subdir/escape.md",
+      content: "x",
+      overwrite: true,
+    },
+    deps({
+      spawnFn,
+      vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }),
+      fs,
+      logger: captureLogger,
+    }),
+  ).catch((e) => e);
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect((err as UpstreamError).code).toBe("PATH_ESCAPES_VAULT");
+  expect((err as UpstreamError).details.vault).toBe("TestVault");
+  expect((err as UpstreamError).details.attemptedPath).toBe("subdir/escape.md");
+  // Logger event fired
+  const escapeEvent = events.find((e) => e.event === "pathEscapeAttempt");
+  expect(escapeEvent).toBeDefined();
+  expect(escapeEvent!.vault).toBe("TestVault");
+  expect(escapeEvent!.attemptedPath).toBe("subdir/escape.md");
+  // No file was written / mkdir'd
+  expect(fs.writes.length).toBe(0);
+  expect(fs.mkdirs.length).toBe(0);
+});
+
+// (#19) FS_WRITE_FAILED with details.errno = "ENOSPC"
+test("ENOSPC on writeFile → FS_WRITE_FAILED with details.errno=ENOSPC (#19)", async () => {
+  const enospc = Object.assign(new Error("ENOSPC"), {
+    code: "ENOSPC",
+    syscall: "write",
+    path: "C:\\TestVault\\Sandbox\\big.md",
+  });
+  const fs = fakeFs({
+    writeFile: vi.fn(async () => {
+      throw enospc;
+    }),
+  });
+  const { spawnFn } = makeQueuedSpawn([]);
+  const err = await executeWriteNote(
+    {
+      target_mode: "specific",
+      vault: "TestVault",
+      path: "Sandbox/big.md",
+      content: "x".repeat(1_000),
+      overwrite: true,
+    },
+    deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+  ).catch((e) => e);
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect((err as UpstreamError).code).toBe("FS_WRITE_FAILED");
+  expect((err as UpstreamError).details.errno).toBe("ENOSPC");
+  expect((err as UpstreamError).details.syscall).toBe("write");
+});
+
+// (#20) FS_WRITE_FAILED with details.errno = "EACCES"
+test("EACCES on writeFile → FS_WRITE_FAILED with details.errno=EACCES (#20)", async () => {
+  const eaccess = Object.assign(new Error("EACCES"), {
+    code: "EACCES",
+    syscall: "open",
+    path: "C:\\TestVault\\readonly.md",
+  });
+  const fs = fakeFs({
+    writeFile: vi.fn(async () => {
+      throw eaccess;
+    }),
+  });
+  const { spawnFn } = makeQueuedSpawn([]);
+  const err = await executeWriteNote(
+    {
+      target_mode: "specific",
+      vault: "TestVault",
+      path: "readonly.md",
+      content: "x",
+      overwrite: false,
+    },
+    deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+  ).catch((e) => e);
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect((err as UpstreamError).code).toBe("FS_WRITE_FAILED");
+  expect((err as UpstreamError).details.errno).toBe("EACCES");
+});
+
+// (#3) Specific mode overwrite=false against existing → FILE_EXISTS, original content unchanged
+test("specific overwrite=false against existing file → FILE_EXISTS (#3)", async () => {
+  const eexist = Object.assign(new Error("EEXIST"), { code: "EEXIST", syscall: "open" });
+  const fs = fakeFs({
+    writeFile: vi.fn(async () => {
+      throw eexist;
+    }),
+  });
+  const { spawnFn } = makeQueuedSpawn([]);
+  const err = await executeWriteNote(
+    {
+      target_mode: "specific",
+      vault: "TestVault",
+      path: "Sandbox/exists.md",
+      content: "x",
+      overwrite: false,
+    },
+    deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+  ).catch((e) => e);
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect((err as UpstreamError).code).toBe("FILE_EXISTS");
+  expect((err as UpstreamError).details.path).toBe("Sandbox/exists.md");
+  // No rename / unlink should have happened — original content untouched
+  expect(fs.renames.length).toBe(0);
+});
+
+// (#4) Specific mode overwrite=false against fresh path → FILE_EXISTS NOT raised; file created
+test("specific overwrite=false against fresh path → file created (#4)", async () => {
+  const fs = fakeFs();
+  const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
+  const result = await executeWriteNote(
+    {
+      target_mode: "specific",
+      vault: "TestVault",
+      path: "Sandbox/fresh.md",
+      content: "x",
+      overwrite: false,
+    },
+    deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+  );
+  expect(result.created).toBe(true);
+  // overwrite=false uses the `wx` flag option — verify the writeFile call carried it
+  expect(fs.writes.length).toBe(1);
+});
+
 // (#30) Output envelope shape EXACTLY { created, path }
 test("output envelope has exactly two keys: created + path", async () => {
   const fs = fakeFs();

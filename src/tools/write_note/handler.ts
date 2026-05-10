@@ -1,4 +1,4 @@
-// Original — no upstream. write_note handler per ADR-009 — direct-fs-write skeleton (US1 / T012): specific-mode resolveVaultPath → checkCanonicalPath → mkdir → atomic temp+rename (overwrite=true) → best-effort metadataCache invalidation eval → return { created, path }. Active mode + overwrite=false (wx) + open-eval branches added in subsequent stories (US3 / US2 / US6).
+// Original — no upstream. write_note handler per ADR-009 — direct-fs-write: specific-mode resolveVaultPath / active-mode focused-file eval → checkCanonicalPath → mkdir → atomic temp+rename (overwrite=true) or wx-flag write (overwrite=false → FILE_EXISTS) → best-effort metadataCache invalidation eval → optional best-effort openLinkText eval (specific + open=true) → return { created, path }. User content NEVER crosses the CLI argv pipe at any size (FR-005, SC-007).
 import { randomUUID } from "node:crypto";
 import * as nodeFs from "node:fs/promises";
 import { dirname } from "node:path";
@@ -41,6 +41,33 @@ function buildInvalidateTemplate(absPath: string): string {
   return `(async()=>{const f=app.vault.getFileByPath(${JSON.stringify(absPath)});if(f)await app.metadataCache.computeMetadataAsync(f);})()`;
 }
 
+function buildOpenTemplate(absPath: string): string {
+  return `app.workspace.openLinkText(${JSON.stringify(absPath)},"")`;
+}
+
+const FOCUSED_FILE_TEMPLATE =
+  "(async()=>{const f=app.workspace.getActiveFile();return JSON.stringify({path:f?.path??null,base:app.vault.adapter.basePath});})()";
+
+interface FocusedFileResponse {
+  path: string | null;
+  base: string;
+}
+
+function parseEvalResponse(stdout: string): unknown {
+  // F3: eval responses are prefixed with "=> "; the remainder is the JS expression's value as text.
+  const trimmed = stdout.trimStart();
+  const body = trimmed.startsWith("=> ") ? trimmed.slice(3) : trimmed;
+  return JSON.parse(body);
+}
+
+function isFocusedFileResponse(value: unknown): value is FocusedFileResponse {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    (typeof v.path === "string" || v.path === null) && typeof v.base === "string"
+  );
+}
+
 function isErrnoCode(e: unknown, code: string): boolean {
   return (
     typeof e === "object" &&
@@ -74,18 +101,53 @@ export async function executeWriteNote(
 ): Promise<WriteNoteOutput> {
   const fs = deps.fs ?? DEFAULT_FS;
 
-  if (input.target_mode !== "specific") {
-    // Active mode is added by US3 / T018; reject explicitly until then.
-    throw new UpstreamError({
-      code: "ERR_NO_ACTIVE_FILE",
-      cause: null,
-      details: { target_mode: input.target_mode },
-      message: "active mode is not yet supported by the reliable writer",
-    });
-  }
+  let vaultRoot: string;
+  let relPath: string;
 
-  const vaultRoot = await deps.vaultRegistry.resolveVaultPath(input.vault!);
-  const relPath = (input.path ?? input.file)!;
+  if (input.target_mode === "active") {
+    const focused = await invokeCli(
+      {
+        command: "eval",
+        parameters: { code: FOCUSED_FILE_TEMPLATE },
+        flags: [],
+        target_mode: "active",
+      },
+      { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
+    );
+    let parsed: unknown;
+    try {
+      parsed = parseEvalResponse(focused.stdout);
+    } catch (e) {
+      throw new UpstreamError({
+        code: "CLI_REPORTED_ERROR",
+        cause: e,
+        details: { stage: "json-parse", stdout: focused.stdout },
+        message: "active-mode focused-file eval returned unparseable response",
+      });
+    }
+    if (!isFocusedFileResponse(parsed)) {
+      throw new UpstreamError({
+        code: "CLI_REPORTED_ERROR",
+        cause: null,
+        details: { stage: "envelope-parse", parsed },
+        message: "active-mode focused-file eval returned unexpected shape",
+      });
+    }
+    if (parsed.path === null) {
+      throw new UpstreamError({
+        code: "ERR_NO_ACTIVE_FILE",
+        cause: null,
+        details: {},
+        message:
+          "No active file in Obsidian. Open a note in the editor, or call write_note with target_mode=specific + vault + file/path.",
+      });
+    }
+    vaultRoot = parsed.base;
+    relPath = parsed.path;
+  } else {
+    vaultRoot = await deps.vaultRegistry.resolveVaultPath(input.vault!);
+    relPath = (input.path ?? input.file)!;
+  }
 
   const check = await checkCanonicalPath(vaultRoot, relPath, { realpath: fs.realpath });
   if (!check.ok) {
@@ -136,13 +198,23 @@ export async function executeWriteNote(
     }
     created = !existedBefore;
   } else {
-    // overwrite=false branch lands in US2 / T014 (wx-flag + FILE_EXISTS mapping).
-    throw new UpstreamError({
-      code: "FS_WRITE_FAILED",
-      cause: null,
-      details: { reason: "overwrite=false branch not yet implemented" },
-      message: "overwrite=false branch is implemented in US2 (T014)",
-    });
+    // overwrite=false: atomic create-or-fail via O_CREAT|O_EXCL (the `wx` flag).
+    // The kernel guarantees the EEXIST race-freeness; no TOCTOU window exists
+    // between an exists-check and the write because there is no exists-check.
+    try {
+      await fs.writeFile(absPath, input.content, { flag: "wx" });
+    } catch (e) {
+      if (isErrnoCode(e, "EEXIST")) {
+        throw new UpstreamError({
+          code: "FILE_EXISTS",
+          cause: e,
+          details: { path: relPath, vault: input.vault ?? null },
+          message: `File already exists at "${relPath}" and overwrite is false.`,
+        });
+      }
+      throw mapFsError(e);
+    }
+    created = true;
   }
 
   // Best-effort metadataCache invalidation per FR-011 — silent on failure.
@@ -158,6 +230,24 @@ export async function executeWriteNote(
     );
   } catch {
     // Silent: write succeeded; cache freshness defers to Obsidian's file watcher.
+  }
+
+  // Best-effort post-write editor-open per FR-017 — only in specific mode (schema forbids
+  // `open` in active mode). Silent on failure: open is a UX nicety, not the contract.
+  if (input.target_mode === "specific" && input.open === true) {
+    try {
+      await invokeCli(
+        {
+          command: "eval",
+          parameters: { code: buildOpenTemplate(absPath) },
+          flags: [],
+          target_mode: "active",
+        },
+        { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
+      );
+    } catch {
+      // Silent: write succeeded.
+    }
   }
 
   return { created, path: relPath };
