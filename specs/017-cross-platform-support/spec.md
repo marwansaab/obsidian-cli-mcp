@@ -5,6 +5,13 @@
 **Status**: Draft
 **Input**: User description: "Add Cross Platform — Extend the Obsidian CLI Bridge MCP from Windows-only support to macOS and Linux hosts. The bridge's core architecture remains unchanged; this work adds per-platform binary resolution, PATH conventions, and platform-specific test coverage."
 
+## Clarifications
+
+### Session 2026-05-10
+
+- Q: How does the resolver populate the `"PATH"` Resolution-attempt entry in the structured `CLI_BINARY_NOT_FOUND` error — does it enumerate every `PATH` entry itself, or defer to the OS spawn? → A: Defer `PATH` lookup to the OS spawn. The `"PATH"` Resolution-attempt tuple records source `"PATH"`, path = the bare command name (`"obsidian"`), outcome = `"not-found"` if the OS spawn fails ENOENT; the structured error includes `process.env.PATH` verbatim but does NOT enumerate per-entry checks. Rationale: the existing code defers to the OS spawn today; replicating the walk would force the resolver to reimplement Windows `PATHEXT` resolution and POSIX extension behaviour the OS already handles correctly, and the verbatim `PATH` string in the error is sufficient grep-fodder for the user.
+- Q: Which predicate decides "is this file executable by the running user" for the `"OBSIDIAN_BIN"` and `"platform-default"` attempts? → A: `fs.access(path, fs.constants.X_OK)`. It is the kernel's own answer — returns success only when the running process can execute the file (respects mode AND ownership on POSIX in one syscall). On Windows it succeeds for any existing file, which preserves FR-005's byte-for-byte Windows behaviour because Windows defers actual execute-permission enforcement to the spawn. Matches FR-003's "executable by the running user" wording. Rejected alternatives: `fs.statSync().mode & 0o111` (coarser — can succeed for files the process can't actually execute); spawn-probe (conflates permission issue with "binary doesn't accept --version" and adds spawn overhead); manual `getuid` / `getgid` math (POSIX-only; reimplements `fs.access`).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 — macOS users can install and use the bridge (Priority: P1)
@@ -142,12 +149,13 @@ A user has a custom install (e.g., a Homebrew-installed Obsidian variant on macO
   - macOS (`process.platform === "darwin"`): `/usr/local/bin/obsidian`
   - Linux (`process.platform === "linux"`): `~/.local/bin/obsidian` (where `~` expands to the running user's home directory at resolution time)
   - Windows (`process.platform === "win32"`): no separate platform-default — `PATH` lookup only (the official Windows installer registers `obsidian` on `PATH` directly)
-- **FR-003**: The system MUST treat a platform-default path as resolved only when the path exists AND is executable by the running user. A path that exists but is not executable counts as "not resolved" and triggers the `PATH` fallback.
+- **FR-003**: The system MUST treat a platform-default path as resolved only when the path exists AND is executable by the running user, as determined by `fs.access(path, fs.constants.X_OK)` (the kernel-side check that respects mode and ownership in one syscall on POSIX, and succeeds for any existing file on Windows). A path that exists but for which the access check fails counts as "not resolved" and triggers the `PATH` fallback.
 - **FR-004**: When neither the override, the platform-default, nor the `PATH` lookup resolves an executable binary, the system MUST fail with a structured `CLI_BINARY_NOT_FOUND` error whose `details` field includes:
   - the host platform name (the literal value of `process.platform`),
-  - the ordered list of paths the resolver attempted (with each entry labelled by source: `"OBSIDIAN_BIN"`, `"platform-default"`, `"PATH"`),
-  - for each attempted path, an outcome label (`"not-found"`, `"found-but-not-executable"`) sufficient to distinguish "wrong path" from "permission issue",
-  - the current `PATH` environment variable's value.
+  - the ordered list of attempts the resolver made, with each entry labelled by source (`"OBSIDIAN_BIN"`, `"platform-default"`, or `"PATH"`),
+  - for `"OBSIDIAN_BIN"` and `"platform-default"` attempts: the absolute path that was checked AND an outcome label (`"not-found"`, `"found-but-not-executable"`) sufficient to distinguish "wrong path" from "permission issue",
+  - for the `"PATH"` attempt: the bare command name (`"obsidian"`) AND outcome label `"not-found"` if the OS spawn returned ENOENT — the resolver does NOT enumerate individual `PATH` entries (it defers to the OS spawn for `PATH` lookup),
+  - the current `PATH` environment variable's value verbatim.
 - **FR-005**: The system MUST preserve Windows behaviour byte-for-byte from the v0.3.0 baseline when running on Windows: the resolver attempts `OBSIDIAN_BIN` first, then defers to `PATH` lookup via the OS spawn. No platform-default file-existence pre-check fires on Windows.
 - **FR-006**: The cross-platform binary resolution MUST live below every typed tool's CLI dispatch — at the centralised CLI-adapter / dispatch layer (today: [src/cli-adapter/_dispatch.ts](../../src/cli-adapter/_dispatch.ts)) — so that every existing typed tool and every future typed tool inherits the resolution without per-tool changes.
 - **FR-007**: The system MUST follow symbolic links at the platform-default path. A symlink at `/usr/local/bin/obsidian` (or `~/.local/bin/obsidian`) pointing to a real executable MUST resolve as if the binary were directly at the platform-default path — the OS spawn dereferences the symlink at execution time.
@@ -163,12 +171,12 @@ A user has a custom install (e.g., a Homebrew-installed Obsidian variant on macO
 - **FR-017**: The bridge's existing test framework, lint config, type-check config, and dependency surface MUST be sufficient for the cross-platform work — no new runtime dependencies are added solely to satisfy this BI's resolver. Standard-library APIs (`node:os`, `node:fs`, `node:path`, `node:process`) are the resolver's only foundation.
 - **FR-018**: The cross-platform work MUST remain compatible with the project Constitution's Principles I–V. The resolver MUST live in a per-surface module, MUST ship co-located tests covering happy-path and failure-or-boundary cases for each platform branch, MUST surface failures through the existing `UpstreamError` shape, and MUST carry an `Original — no upstream.` header on each new source file (or the appropriate attribution header on any code lifted from another project).
 - **FR-019**: The `package.json` `description` field and the `README.md` opening paragraph MUST be updated to reflect that the bridge supports Windows, macOS, and Linux hosts (today both describe the bridge as "Windows-host"). The description text outside this scope-bump SHOULD be otherwise preserved.
-- **FR-020**: When `OBSIDIAN_BIN` is set to a path that exists but is not executable, resolution MUST fail with the structured error rather than fall through. The override is the user's explicit naming and a permission failure on the named binary is a user-fixable misconfiguration that should be surfaced loudly, not masked by silent fallback.
+- **FR-020**: When `OBSIDIAN_BIN` is set to a path that exists but for which `fs.access(path, fs.constants.X_OK)` fails, resolution MUST fail with the structured `CLI_BINARY_NOT_FOUND` error rather than fall through to the platform-default or `PATH` branches. The override is the user's explicit naming, and a permission failure on the named binary is a user-fixable misconfiguration that should be surfaced loudly, not masked by silent fallback.
 
 ### Key Entities
 
 - **Platform identity**: the canonical name of the host OS for the running MCP-server process. Values: `"darwin"` (macOS), `"linux"` (Linux including WSL guests), `"win32"` (Windows). Drives which platform-default path is attempted. Sourced from Node's `process.platform` at resolution time.
-- **Resolution attempt**: a single ordered tuple `(source, path, outcome)` capturing one branch of the resolver's decision. `source` is one of `"OBSIDIAN_BIN"`, `"platform-default"`, `"PATH"`. `path` is the absolute path checked (or the bare command name in the `PATH` case). `outcome` is one of `"resolved"`, `"not-found"`, `"found-but-not-executable"`. The structured error in FR-004 carries the ordered list of attempts.
+- **Resolution attempt**: a single ordered tuple `(source, path, outcome)` capturing one branch of the resolver's decision. `source` is one of `"OBSIDIAN_BIN"`, `"platform-default"`, `"PATH"`. `path` is the absolute path checked for `"OBSIDIAN_BIN"` and `"platform-default"`; for `"PATH"` it is the bare command name (`"obsidian"`) — the resolver defers to the OS spawn for `PATH` lookup and does not enumerate individual `PATH` entries. `outcome` is one of `"resolved"`, `"not-found"`, `"found-but-not-executable"`. The structured error in FR-004 carries the ordered list of attempts.
 - **Platform-default path**: the per-platform location the official Obsidian installer (or distro-equivalent) registers the binary at. macOS: `/usr/local/bin/obsidian`. Linux: `~/.local/bin/obsidian` (user-local, expanded against the running user's home directory). Windows: not applicable — `PATH` registration is the equivalent.
 
 ## Success Criteria *(mandatory)*
