@@ -259,7 +259,7 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
   },
   write_note: {
     type: "object",
-    properties_equals_set: ["target_mode", "vault", "file", "path", "content", "template", "overwrite", "open"],
+    properties_equals_set: ["target_mode", "vault", "file", "path", "content", "overwrite", "open"],
     required_equals: ["target_mode", "content"],
     additionalProperties: false,
   },

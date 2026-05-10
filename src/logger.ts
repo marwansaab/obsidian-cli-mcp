@@ -7,7 +7,10 @@ export type ErrorCode =
   | "CLI_TIMEOUT"
   | "CLI_OUTPUT_TOO_LARGE"
   | "CLI_REPORTED_ERROR"
-  | "ERR_NO_ACTIVE_FILE";
+  | "ERR_NO_ACTIVE_FILE"
+  | "FILE_EXISTS"
+  | "FS_WRITE_FAILED"
+  | "PATH_ESCAPES_VAULT";
 export type ShutdownReason = "transport_closed" | "signal:SIGINT" | "signal:SIGTERM";
 
 export interface ShutdownEvent {
@@ -40,11 +43,17 @@ export interface DispatchKillEvent {
   durationMs: number;
 }
 
+export interface PathEscapeAttemptEvent {
+  vault: string | null;
+  attemptedPath: string;
+}
+
 export interface Logger {
   shutdown(event: ShutdownEvent): void;
   dispatchTimeout(event: DispatchTimeoutEvent): void;
   dispatchCap(event: DispatchCapEvent): void;
   dispatchKill(event: DispatchKillEvent): void;
+  pathEscapeAttempt(event: PathEscapeAttemptEvent): void;
 }
 
 export interface LoggerOptions {
@@ -99,6 +108,14 @@ export function createLogger(options: LoggerOptions = {}): Logger {
         command: event.command,
         pid: event.pid,
         durationMs: event.durationMs,
+      });
+    },
+    pathEscapeAttempt(event: PathEscapeAttemptEvent): void {
+      emit({
+        event: "pathEscapeAttempt",
+        ts: new Date().toISOString(),
+        vault: event.vault,
+        attemptedPath: event.attemptedPath,
       });
     },
   };

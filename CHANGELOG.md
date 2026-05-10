@@ -5,6 +5,40 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-05-10
+
+**MINOR release** — wholesale-replaces the legacy `write_note` typed tool with a **direct-filesystem-write** implementation per [ADR-009](.decisions/ADR-009%20-%20Direct%20Filesystem%20Write%20Path%20Alongside%20CLI%20Bridge.md). User content no longer crosses the CLI argv pipe at any size, sidestepping the upstream argv→IPC chunk-boundary defect that crashed Obsidian's main process for content above ~4 KB on Windows. Two deliberate breaking changes on the `write_note` surface (the `template` parameter is no longer accepted; collision behaviour is now structured `FILE_EXISTS` instead of silent auto-rename) make MINOR the honest semver signal — existing callers using the legacy input shape will see `VALIDATION_ERROR` or `FILE_EXISTS` instead of silent success on the changed paths. Three new error codes added to the project roster.
+
+### Changed
+
+- **`write_note` redesigned** — replaces the legacy CLI-routed handler with a direct-fs-write implementation. The tool name, the `target_mode` discriminator (per ADR-003), and the output envelope shape `{ created: boolean, path: string }` are byte-stable with the predecessor. Per-write flow: `vaultRegistry.resolveVaultPath(input.vault)` (or focused-file eval in active mode) → `checkCanonicalPath(vaultRoot, relPath)` (two-layer path safety) → `fs.mkdir(parent, { recursive: true })` → atomic `temp+rename` for `overwrite=true` or `fs.writeFile(..., { flag: "wx" })` for `overwrite=false` → best-effort `metadataCache` invalidation eval → optional best-effort `openLinkText` eval (specific mode + `open: true`) → `{ created, path }` envelope. All eval argv elements stay under 250 bytes — orders of magnitude below the upstream IPC ceiling.
+- **Multi-vault routing fixed for `write_note`** — `vault=Foo` now writes to Foo's absolute filesystem path regardless of which vault Obsidian currently has focused. The R11 limitation inherited by 011 / 013 / 014 / 015 (the CLI's `vault=` parameter being functionally ignored by `eval`) is **resolved** for this tool because the bridge owns path resolution end-to-end via the new vault registry. The legacy tool's effective single-vault routing is no longer the surface contract.
+
+### Added
+
+- **`src/vault-registry/`** — internal module: lazy `vaultName → absolutePath` map populated on first call via `obsidian vaults verbose` (FR-012); cached for the MCP-server-process lifetime once the first probe succeeds; retried-on-failure (cache only set on success); `inFlightProbe` deduplicates concurrent first-call races. Future `list_vaults` MCP tool can consume this module unchanged.
+- **`src/path-safety/`** — internal module: two-layer vault-root sandboxing. Layer 1 (`schema.ts`) is a structural validator gated into the `file` / `path` zod schema fields — rejects empty strings, leading `/` or `\`, drive-letter prefix `[A-Za-z]:`, any `..` segment, and control characters `[\x00-\x1f\x7f]`. Layer 2 (`canonical.ts`) is a runtime `fs.realpath`-based symlink-escape check that runs pre-mkdir per FR-014. Reusable by future fs-touching tools.
+- **Three new error codes** added to the project roster (FR-020):
+  - `FILE_EXISTS` — specific mode + `overwrite: false` against an already-occupied path. Atomic via the `wx` flag — no TOCTOU race window.
+  - `PATH_ESCAPES_VAULT` — runtime canonical check rejected an input that's structurally safe but resolves outside vault root via a symlink. Emits a typed `pathEscapeAttempt` logger event for operator audit.
+  - `FS_WRITE_FAILED` — generic fs failure (ENOSPC / EACCES / EPERM / EROFS / EIO / ...). `details.errno` carries the underlying OS errno; `details.syscall` and `details.path` for diagnostic.
+- **Typed `Logger.pathEscapeAttempt(event)` method** + `PathEscapeAttemptEvent` interface — security event emission per FR-029; consumed only by the runtime canonical-path rejection path (the two best-effort failure paths — cache invalidation eval and editor-open eval — are silent per Constitution IV's authorised carve-out).
+- 30 co-located handler tests + 22 schema tests + 5 registration tests for `write_note` (~57 cases total replacing the predecessor's smaller set); 11 vault-registry tests; 13 path-safety/schema tests; 8 path-safety/canonical tests; 2 new logger tests.
+
+### Removed
+
+- **`template` parameter on `write_note`** — strict-mode rejects with `unrecognized_keys`. Migration: use `obsidian_exec` with the `create` subcommand and `template=<name>` argv element (template names are short enough to dodge the upstream defect). The migration is documented in `docs/tools/write_note.md` with a worked example.
+- **Silent auto-rename on collision** — the legacy tool would auto-rename `Existing.md` → `Existing 1.md` and return `created: true` with the renamed path when `overwrite: false` collided. The new tool returns a structured `FILE_EXISTS` error instead. Callers who want create-or-replace semantics MUST pass `overwrite: true`.
+
+### Documentation
+
+- `docs/tools/write_note.md` — rewritten to cover all six FR-022 dimensions (purpose, when-to-use vs not, full input contract with template + open callouts, full output and error contract with each stable code's recovery hint, upstream rationale citing the forum bug + ADR-009, worked examples for specific + active modes plus the `template` migration).
+- `package.json` description updated to mention the direct-fs-write redesign.
+
+### Upstream rationale
+
+The upstream defect filed at <https://forum.obsidian.md/t/cli-windows-json-parse-failure-crashes-obsidians-main-process-when-any-single-argv-element-exceeds-4-kb/114119> is the load-bearing motivation for ADR-009 and this release. An eval-bypass workaround was prototyped during the spec phase and empirically refuted on 2026-05-10 — both `obsidian create` and `obsidian eval` crash equally above the same per-argv-element threshold. The direct-fs-write design is the durable fix; it remains correct regardless of whether the upstream defect is ever resolved.
+
 ## [0.2.8] - 2026-05-09
 
 Patch release — adds the sixth typed-tool surface, `read_heading`, the **first heading-targeted retrieval primitive**. Where `read_note` returns whole files (5–50k tokens for long documents) and `read_property` returns a single frontmatter field, `read_heading` returns just the body of a single named section (typically 100–500 tokens). Pure addition — no existing tool changes, no new error codes, no ADR amendments. `obsidian_exec` remains the freeform escape hatch.

@@ -93,10 +93,34 @@ test("logger dispatchKill emits dispatch.kill shape with PID + duration", () => 
   expect(parsed.durationMs).toBe(1_500);
 });
 
+test("logger pathEscapeAttempt emits pathEscapeAttempt shape with vault + attemptedPath", () => {
+  const cap = captureStream();
+  const logger = createLogger({ stream: cap.stream });
+  logger.pathEscapeAttempt({ vault: "TestVault", attemptedPath: "subdir/escape.md" });
+  const lines = cap.lines();
+  expect(lines.length).toBe(1);
+  const parsed = JSON.parse(lines[0]!);
+  expect(parsed.event).toBe("pathEscapeAttempt");
+  expect(parsed.vault).toBe("TestVault");
+  expect(parsed.attemptedPath).toBe("subdir/escape.md");
+  expect(parsed.ts).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+});
+
+test("logger pathEscapeAttempt accepts vault: null for active-mode rejection", () => {
+  const cap = captureStream();
+  const logger = createLogger({ stream: cap.stream });
+  logger.pathEscapeAttempt({ vault: null, attemptedPath: "../escape.md" });
+  const parsed = JSON.parse(cap.lines()[0]!);
+  expect(parsed.event).toBe("pathEscapeAttempt");
+  expect(parsed.vault).toBeNull();
+  expect(parsed.attemptedPath).toBe("../escape.md");
+});
+
 test("logger defaults to process.stderr when no stream injected (smoke)", () => {
   const logger = createLogger();
   expect(typeof logger.shutdown).toBe("function");
   expect(typeof logger.dispatchTimeout).toBe("function");
   expect(typeof logger.dispatchCap).toBe("function");
   expect(typeof logger.dispatchKill).toBe("function");
+  expect(typeof logger.pathEscapeAttempt).toBe("function");
 });

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 
-import { killInFlightChildren as defaultKillInFlightChildren } from "./cli-adapter/cli-adapter.js";
+import { invokeCli, killInFlightChildren as defaultKillInFlightChildren } from "./cli-adapter/cli-adapter.js";
 import { createLogger, type Logger, type ShutdownReason } from "./logger.js";
 import { createQueue, type Queue } from "./queue.js";
 import { assertToolDocsExist } from "./tools/_register.js";
@@ -19,6 +19,7 @@ import { createReadHeadingTool } from "./tools/read_heading/index.js";
 import { createReadNoteTool } from "./tools/read_note/index.js";
 import { createReadPropertyTool } from "./tools/read_property/index.js";
 import { createWriteNoteTool } from "./tools/write_note/index.js";
+import { createVaultRegistry } from "./vault-registry/registry.js";
 
 import type { Writable } from "node:stream";
 
@@ -65,6 +66,16 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     },
   );
 
+  const vaultRegistry = createVaultRegistry({
+    invokeProbe: async () => {
+      const { stdout } = await invokeCli(
+        { command: "vaults", parameters: {}, flags: ["verbose"], target_mode: "specific" },
+        { logger, queue },
+      );
+      return stdout;
+    },
+  });
+
   const tools: RegisteredTool[] = [
     createDeleteNoteTool({ logger, queue }),
     createFindByPropertyTool({ logger, queue }),
@@ -73,7 +84,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     createReadHeadingTool({ logger, queue }),
     createReadNoteTool({ logger, queue }),
     createReadPropertyTool({ logger, queue }),
-    createWriteNoteTool({ logger, queue }),
+    createWriteNoteTool({ logger, queue, vaultRegistry }),
   ];
 
   // Boot-time aggregated doc-file presence check (FR-005 / Q4 — fail-fast on

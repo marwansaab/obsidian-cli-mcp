@@ -1,55 +1,254 @@
-// Original — no upstream. write_note handler: thin transformer routing parsed input through invokeCli — argv assembly (file→name rename per R3), flag-form overwrite/open per R2, response parsing per R4 (Created→true / Overwrote→false, T0-locked).
+// Original — no upstream. write_note handler per ADR-009 — direct-fs-write: specific-mode resolveVaultPath / active-mode focused-file eval → checkCanonicalPath → mkdir → atomic temp+rename (overwrite=true) or wx-flag write (overwrite=false → FILE_EXISTS) → best-effort metadataCache invalidation eval → optional best-effort openLinkText eval (specific + open=true) → return { created, path }. User content NEVER crosses the CLI argv pipe at any size (FR-005, SC-007).
+import { randomUUID } from "node:crypto";
+import * as nodeFs from "node:fs/promises";
+import { dirname } from "node:path";
+
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
+import { checkCanonicalPath } from "../../path-safety/canonical.js";
 
 import type { WriteNoteInput, WriteNoteOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
+import type { VaultRegistry } from "../../vault-registry/registry.js";
+
+export interface ExecuteFs {
+  mkdir: (p: string, opts: { recursive: true }) => Promise<unknown>;
+  writeFile: (p: string, content: string, opts?: { flag?: "wx" }) => Promise<void>;
+  rename: (from: string, to: string) => Promise<void>;
+  realpath: (p: string) => Promise<string>;
+  unlink: (p: string) => Promise<void>;
+}
 
 export interface ExecuteDeps {
   logger: Logger;
   queue: Queue;
+  vaultRegistry: VaultRegistry;
+  fs?: ExecuteFs;
   spawnFn?: SpawnLike;
   env?: NodeJS.ProcessEnv;
 }
 
-const RESPONSE_RE = /^(Created|Overwrote):\s+(.+?)\s*$/m;
+const DEFAULT_FS: ExecuteFs = {
+  mkdir: (p, opts) => nodeFs.mkdir(p, opts),
+  writeFile: (p, content, opts) => nodeFs.writeFile(p, content, opts),
+  rename: (from, to) => nodeFs.rename(from, to),
+  realpath: (p) => nodeFs.realpath(p),
+  unlink: (p) => nodeFs.unlink(p),
+};
 
-function parseCreateResponse(stdout: string): WriteNoteOutput {
-  const match = stdout.trimStart().match(RESPONSE_RE);
-  if (match) {
-    return { created: match[1] === "Created", path: match[2]! };
+function buildInvalidateTemplate(absPath: string): string {
+  return `(async()=>{const f=app.vault.getFileByPath(${JSON.stringify(absPath)});if(f)await app.metadataCache.computeMetadataAsync(f);})()`;
+}
+
+function buildOpenTemplate(absPath: string): string {
+  return `app.workspace.openLinkText(${JSON.stringify(absPath)},"")`;
+}
+
+const FOCUSED_FILE_TEMPLATE =
+  "(async()=>{const f=app.workspace.getActiveFile();return JSON.stringify({path:f?.path??null,base:app.vault.adapter.basePath});})()";
+
+interface FocusedFileResponse {
+  path: string | null;
+  base: string;
+}
+
+function parseEvalResponse(stdout: string): unknown {
+  // F3: eval responses are prefixed with "=> "; the remainder is the JS expression's value as text.
+  const trimmed = stdout.trimStart();
+  const body = trimmed.startsWith("=> ") ? trimmed.slice(3) : trimmed;
+  return JSON.parse(body);
+}
+
+function isFocusedFileResponse(value: unknown): value is FocusedFileResponse {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    (typeof v.path === "string" || v.path === null) && typeof v.base === "string"
+  );
+}
+
+function isErrnoCode(e: unknown, code: string): boolean {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    (e as NodeJS.ErrnoException).code === code
+  );
+}
+
+function mapFsError(e: unknown): UpstreamError {
+  const errno = (e as NodeJS.ErrnoException | null)?.code ?? "UNKNOWN";
+  if (errno === "EEXIST") {
+    return new UpstreamError({
+      code: "FILE_EXISTS",
+      cause: e,
+      details: { errno },
+    });
   }
-  throw new UpstreamError({
-    code: "CLI_REPORTED_ERROR",
-    cause: null,
-    details: { stdout },
-    message: `write_note could not parse CLI response: ${stdout.trimStart().slice(0, 200)}`,
+  const syscall = (e as NodeJS.ErrnoException | null)?.syscall;
+  const path = (e as NodeJS.ErrnoException | null)?.path;
+  return new UpstreamError({
+    code: "FS_WRITE_FAILED",
+    cause: e,
+    details: { errno, syscall, path },
+    message: `Filesystem write failed: ${errno}${syscall ? ` on ${syscall}` : ""}${path ? ` for ${path}` : ""}`,
   });
 }
 
-export async function executeWriteNote(input: WriteNoteInput, deps: ExecuteDeps): Promise<WriteNoteOutput> {
-  const parameters: Record<string, string> =
-    input.target_mode === "specific"
-      ? {
-          ...(input.file !== undefined ? { name: input.file } : {}),
-          ...(input.path !== undefined ? { path: input.path } : {}),
-          content: input.content,
-          ...(input.template !== undefined ? { template: input.template } : {}),
-        }
-      : { content: input.content };
-  const flags: string[] = [];
-  if (input.overwrite === true) flags.push("overwrite");
-  if ((input.open ?? false) === true) flags.push("open");
-  const { stdout } = await invokeCli(
-    {
-      command: "create",
-      vault: input.target_mode === "specific" ? input.vault! : undefined,
-      parameters,
-      flags,
-      target_mode: input.target_mode,
-    },
-    { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
-  );
-  return parseCreateResponse(stdout);
+export async function executeWriteNote(
+  input: WriteNoteInput,
+  deps: ExecuteDeps,
+): Promise<WriteNoteOutput> {
+  const fs = deps.fs ?? DEFAULT_FS;
+
+  let vaultRoot: string;
+  let relPath: string;
+
+  if (input.target_mode === "active") {
+    const focused = await invokeCli(
+      {
+        command: "eval",
+        parameters: { code: FOCUSED_FILE_TEMPLATE },
+        flags: [],
+        target_mode: "active",
+      },
+      { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
+    );
+    let parsed: unknown;
+    try {
+      parsed = parseEvalResponse(focused.stdout);
+    } catch (e) {
+      throw new UpstreamError({
+        code: "CLI_REPORTED_ERROR",
+        cause: e,
+        details: { stage: "json-parse", stdout: focused.stdout },
+        message: "active-mode focused-file eval returned unparseable response",
+      });
+    }
+    if (!isFocusedFileResponse(parsed)) {
+      throw new UpstreamError({
+        code: "CLI_REPORTED_ERROR",
+        cause: null,
+        details: { stage: "envelope-parse", parsed },
+        message: "active-mode focused-file eval returned unexpected shape",
+      });
+    }
+    if (parsed.path === null) {
+      throw new UpstreamError({
+        code: "ERR_NO_ACTIVE_FILE",
+        cause: null,
+        details: {},
+        message:
+          "No active file in Obsidian. Open a note in the editor, or call write_note with target_mode=specific + vault + file/path.",
+      });
+    }
+    vaultRoot = parsed.base;
+    relPath = parsed.path;
+  } else {
+    vaultRoot = await deps.vaultRegistry.resolveVaultPath(input.vault!);
+    relPath = (input.path ?? input.file)!;
+  }
+
+  const check = await checkCanonicalPath(vaultRoot, relPath, { realpath: fs.realpath });
+  if (!check.ok) {
+    deps.logger.pathEscapeAttempt({
+      vault: input.vault ?? null,
+      attemptedPath: check.attemptedPath,
+    });
+    throw new UpstreamError({
+      code: "PATH_ESCAPES_VAULT",
+      cause: null,
+      details: {
+        vault: input.vault ?? null,
+        attemptedPath: check.attemptedPath,
+        resolvedPath: check.resolvedPath,
+      },
+    });
+  }
+  const absPath = check.resolvedPath;
+
+  try {
+    await fs.mkdir(dirname(absPath), { recursive: true });
+  } catch (e) {
+    throw mapFsError(e);
+  }
+
+  let created: boolean;
+  if (input.overwrite === true) {
+    let existedBefore: boolean;
+    try {
+      await fs.realpath(absPath);
+      existedBefore = true;
+    } catch (e) {
+      if (!isErrnoCode(e, "ENOENT")) throw mapFsError(e);
+      existedBefore = false;
+    }
+
+    const tmpPath = `${absPath}.${randomUUID()}.tmp`;
+    try {
+      await fs.writeFile(tmpPath, input.content);
+    } catch (e) {
+      throw mapFsError(e);
+    }
+    try {
+      await fs.rename(tmpPath, absPath);
+    } catch (e) {
+      await fs.unlink(tmpPath).catch(() => {});
+      throw mapFsError(e);
+    }
+    created = !existedBefore;
+  } else {
+    // overwrite=false: atomic create-or-fail via O_CREAT|O_EXCL (the `wx` flag).
+    // The kernel guarantees the EEXIST race-freeness; no TOCTOU window exists
+    // between an exists-check and the write because there is no exists-check.
+    try {
+      await fs.writeFile(absPath, input.content, { flag: "wx" });
+    } catch (e) {
+      if (isErrnoCode(e, "EEXIST")) {
+        throw new UpstreamError({
+          code: "FILE_EXISTS",
+          cause: e,
+          details: { path: relPath, vault: input.vault ?? null },
+          message: `File already exists at "${relPath}" and overwrite is false.`,
+        });
+      }
+      throw mapFsError(e);
+    }
+    created = true;
+  }
+
+  // Best-effort metadataCache invalidation per FR-011 — silent on failure.
+  try {
+    await invokeCli(
+      {
+        command: "eval",
+        parameters: { code: buildInvalidateTemplate(absPath) },
+        flags: [],
+        target_mode: "active",
+      },
+      { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
+    );
+  } catch {
+    // Silent: write succeeded; cache freshness defers to Obsidian's file watcher.
+  }
+
+  // Best-effort post-write editor-open per FR-017 — only in specific mode (schema forbids
+  // `open` in active mode). Silent on failure: open is a UX nicety, not the contract.
+  if (input.target_mode === "specific" && input.open === true) {
+    try {
+      await invokeCli(
+        {
+          command: "eval",
+          parameters: { code: buildOpenTemplate(absPath) },
+          flags: [],
+          target_mode: "active",
+        },
+        { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
+      );
+    } catch {
+      // Silent: write succeeded.
+    }
+  }
+
+  return { created, path: relPath };
 }

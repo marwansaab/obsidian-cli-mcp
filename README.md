@@ -1,6 +1,17 @@
 # obsidian-cli-mcp
 
-A minimal Windows-host MCP server that bridges any MCP client (running locally or in a sandboxed container like Claude Cowork's Linux environment) to the Obsidian Integrated CLI binary on the operator's Windows desktop. Exposes three tools: `obsidian_exec` (a generic CLI bridge that lets the caller invoke any Obsidian CLI subcommand with structured parameters, bare-word flags, optional vault scoping, and a per-call timeout), `help` (a progressive-disclosure tool that serves full Markdown documentation for any registered tool on demand, per [ADR-005](.decisions/ADR-005%20-%20Token-Optimized%20Tool%20Definitions%20via%20Progressive%20Disclosure.md) — parameter-level descriptions are stripped from the JSON Schema at registration time to save context-window tokens, and recovered via `help({ tool_name: "<name>" })` when the agent needs them), and `read_note` (the first typed-tool surface — reads a note's raw UTF-8 text from a vault by file/path locator or from the focused editor in active mode, routing through the centralised cli-adapter per [ADR-004](.decisions/ADR-004%20-%20Centralised%20Internal%20CLI%20Adapter.md)). All failure modes (non-zero exit, CLI exits 0 with `Error:` stdout prefix, no active file in active mode, missing binary, timeout, output too large, missing-doc lookup, missing-docs-directory) surface as structured `UpstreamError` responses with full diagnostic detail.
+A minimal Windows-host MCP server that bridges any MCP client (running locally or in a sandboxed container like Claude Cowork's Linux environment) to the Obsidian Integrated CLI binary on the operator's Windows desktop. Exposes eight tools at v0.3.0:
+
+- **`obsidian_exec`** — generic CLI bridge that lets the caller invoke any Obsidian CLI subcommand with structured parameters, bare-word flags, optional vault scoping, and a per-call timeout.
+- **`help`** — progressive-disclosure tool that serves full Markdown documentation for any registered tool on demand, per [ADR-005](.decisions/ADR-005%20-%20Token-Optimized%20Tool%20Definitions%20via%20Progressive%20Disclosure.md). Parameter-level descriptions are stripped from the JSON Schema at registration time to save context-window tokens, and recovered via `help({ tool_name: "<name>" })` when the agent needs them.
+- **`read_note`** — typed read primitive: reads a note's raw UTF-8 text by file/path locator or from the focused editor (active mode), routing through the centralised cli-adapter per [ADR-004](.decisions/ADR-004%20-%20Centralised%20Internal%20CLI%20Adapter.md).
+- **`read_heading`** — typed heading-body retrieval: returns just the body bytes between a named heading and its first-subsequent heading marker (typically 100–500 tokens vs. the 5–50k a full `read_note` returns).
+- **`read_property`** — typed surgical frontmatter-property read: returns `{ value, type }` with the property's native YAML type preserved (text / list / number / checkbox / date / datetime / unknown).
+- **`find_by_property`** — typed value-to-file lookup over frontmatter: enumerates the vault for files whose named property equals a given value.
+- **`write_note`** — typed direct-filesystem-write create/overwrite: writes content directly to the vault filesystem (bypassing the upstream argv-IPC defect that crashed Obsidian for large content); see *[Architecture note: `write_note`'s direct-filesystem-write path](#architecture-note-write_notes-direct-filesystem-write-path)* below for the full rationale.
+- **`delete_note`** — typed delete tool with safety defaults (trash-by-default; explicit-opt-in for permanent delete).
+
+All failure modes — non-zero exit, CLI exits 0 with `Error:` stdout prefix, no active file in active mode, missing binary, timeout, output too large, missing-doc lookup, missing-docs-directory, file-exists-on-write, path-escapes-vault, fs-write-failed — surface as structured `UpstreamError` responses with full diagnostic detail.
 
 ## Installation
 
@@ -172,6 +183,33 @@ Errors are returned via the MCP SDK's `isError: true` shape with a JSON-encoded 
 
 Full error contract: [specs/001-add-cli-bridge/contracts/errors.contract.md](specs/001-add-cli-bridge/contracts/errors.contract.md).
 
+## Architecture note: `write_note`'s direct-filesystem-write path
+
+`write_note` is the only tool in the bridge that does **not** route content through the `obsidian` CLI. Its handler writes user content directly to the vault filesystem via Node `fs`. The CLI is still consulted for small control-plane operations (vault registry probe, focused-file resolution in active mode, post-write `metadataCache` invalidation, optional editor-open) — all eval argv elements stay under 250 bytes — but the **note body itself never crosses the CLI argv pipe at any size**.
+
+This is the load-bearing departure from every other tool in the bridge, ratified by [ADR-009 — Direct Filesystem Write Path Alongside CLI Bridge](.decisions/ADR-009%20-%20Direct%20Filesystem%20Write%20Path%20Alongside%20CLI%20Bridge.md). It exists to work around an upstream defect in the Obsidian CLI:
+
+> **The CLI's argv→IPC chunk-boundary parsing crashes Obsidian's main process for any single argv element that exceeds ~4 KB on Windows.** When the parent renderer's JSON parse over the IPC stream fails on a chunked argv element, the entire Obsidian instance dies — taking the user's open vault, unsaved buffers, and any concurrent CLI calls down with it. Filed at <https://forum.obsidian.md/t/cli-windows-json-parse-failure-crashes-obsidians-main-process-when-any-single-argv-element-exceeds-4-kb/114119>.
+
+The legacy v0.2.x `write_note` routed content through the CLI's `create` subcommand. Any payload above the threshold crashed Obsidian. An eval-bypass workaround was prototyped during the spec phase and **empirically refuted on 2026-05-10** — `obsidian eval` crashes equally above the same per-argv-element threshold, because the defect lives in the parent renderer's argv→IPC chunking, not in any specific subcommand's parsing.
+
+The direct-fs-write design is the durable fix: it remains correct regardless of whether the upstream defect is ever resolved. The bridge owns vault-name → absolute-path resolution end-to-end via the new lazy vault registry (`obsidian vaults verbose` consulted once on first write per MCP-server-process lifetime; cached thereafter; retried-on-failure). Two new internal modules cover the new responsibilities the bridge picks up by owning the IO end-to-end:
+
+- **`src/vault-registry/`** — `vaultName → absolutePath` map. Lazy probe; cached for the MCP-process lifetime; concurrent first-call dedupe.
+- **`src/path-safety/`** — two-layer vault-root sandboxing. Layer 1 is a structural validator on `file` / `path` schema fields (rejects empty strings, leading `/` or `\`, drive-letter prefix `[A-Za-z]:`, any `..` segment, control characters `[\x00-\x1f\x7f]`). Layer 2 is a runtime `fs.realpath`-based symlink-escape check that runs **pre-mkdir** so the check sees existing symlinks before the caller creates new directories underneath. Layer-2 rejection emits a typed `pathEscapeAttempt` logger event for operator audit.
+
+### Visible v0.3.0 contract changes vs. v0.2.x
+
+`write_note` keeps the same tool name, the same `target_mode` discriminator, and the same output envelope shape `{ created: boolean, path: string }`. Two deliberate breaking changes vs. the predecessor are surfaced as structured errors rather than as a tool-name change:
+
+- **`template` parameter is no longer accepted.** Strict-mode rejects with `VALIDATION_ERROR` (`unrecognized_keys`). For template-based creation, use `obsidian_exec` with `argv: ["create", "vault=…", "path=…", "template=<name>"]` — template names are short enough to dodge the upstream defect.
+- **Collision behaviour is now structured `FILE_EXISTS`.** The legacy tool silently auto-renamed colliding files (`Existing.md` → `Existing 1.md`) and returned `created: true` with the renamed path. The new tool returns a structured `FILE_EXISTS` error instead. Callers who want create-or-replace semantics MUST pass `overwrite: true`.
+- **Multi-vault routing now works.** `vault=Foo` writes to Foo's absolute filesystem path regardless of which vault Obsidian currently has focused — the R11 limitation inherited by every prior typed tool (the CLI's `vault=` parameter being functionally ignored by `eval`) is **resolved** for `write_note` because the bridge owns path resolution end-to-end via the vault registry.
+
+Three new error codes added to the project roster — `FILE_EXISTS`, `PATH_ESCAPES_VAULT`, `FS_WRITE_FAILED` — covering collision, runtime path-safety rejection, and generic fs-write failures (ENOSPC / EACCES / EROFS / EIO / …).
+
+The MINOR bump (0.2.x → 0.3.0) is the honest semver signal: existing callers using the legacy input shape will see `VALIDATION_ERROR` (for `template`) or `FILE_EXISTS` (for collision) instead of silent success on the changed paths. Migration is mechanical and documented in `help({ tool_name: "write_note" })`.
+
 ## Operating notes
 
 - **Calls serialize.** A FIFO queue runs at most one `obsidian` child at a time. If you fire several `obsidian_exec` calls in parallel, they complete in arrival order. The `queueDepth` field in each `call.start` log line tells you how many calls were waiting when each one started.
@@ -280,7 +318,7 @@ Features larger than a single-file change enter via the Spec Kit workflow: `/spe
 
 ## Attributions
 
-**v0.1, v0.1.1, v0.1.2, v0.1.3, v0.1.4, v0.1.5 — no upstream lifts.** All code under `src/` is original. Future composed code will be enumerated here per constitution Principle V (Attribution & Layered Composition Transparency).
+**v0.1.x through v0.3.0 — no upstream lifts.** All code under `src/` is original. Every new source file added by the typed-tool BIs (006 read_note, 011 write_note, 012 delete_note, 013 read_property, 014 find_by_property, 015 read_heading, 016 reliable-writer's `vault-registry`/`path-safety` modules + write_note rewrite) carries the standard `// Original — no upstream.` header per constitution Principle V (Attribution & Layered Composition Transparency).
 
 The implementation depends on these third-party packages (declared in `package.json`):
 
