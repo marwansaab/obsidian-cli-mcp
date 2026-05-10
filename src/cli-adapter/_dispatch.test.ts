@@ -182,26 +182,76 @@ describe("assembleArgv (FR-012 — documented obsidian_exec.md:27 order)", () =>
 });
 
 describe("dispatchCli — four-priority classification (FR-014)", () => {
-  it("ENOENT on spawn → CLI_BINARY_NOT_FOUND with details {binaryAttempted, PATH}", async () => {
+  it("ENOENT on spawn → CLI_BINARY_NOT_FOUND with details {platform, attempts, PATH}", async () => {
     const cap = captureLines();
     const enoent: NodeJS.ErrnoException = new Error("ENOENT") as NodeJS.ErrnoException;
     enoent.code = "ENOENT";
     const { spawnFn } = makeStubSpawn({ errorOnSpawn: enoent });
-    const err = await captureRejection(
+    const err = (await captureRejection(
       dispatchCli(baseInput({ command: "v" }), { spawnFn, env: { PATH: "/x" }, logger: cap.logger }),
-    );
+    )) as UpstreamError;
     expect(err.code).toBe("CLI_BINARY_NOT_FOUND");
-    expect(err.details).toMatchObject({ binaryAttempted: "obsidian", PATH: "/x" });
+    expect(err.details).toMatchObject({
+      platform: expect.any(String),
+      attempts: expect.any(Array),
+      PATH: "/x",
+    });
+    const attempts = err.details.attempts as Array<{ source: string; path: string; outcome: string }>;
+    expect(attempts.at(-1)).toEqual({ source: "PATH", path: "obsidian", outcome: "not-found" });
     expect(cap.lines()).toEqual([]); // No log emission.
   });
 
-  it("child.error ENOENT → CLI_BINARY_NOT_FOUND", async () => {
+  it("child.error ENOENT → CLI_BINARY_NOT_FOUND with details {platform, attempts, PATH}", async () => {
     const cap = captureLines();
     const { spawnFn } = makeStubSpawn({ emitErrno: "ENOENT" });
-    const err = await captureRejection(
+    const err = (await captureRejection(
       dispatchCli(baseInput({ command: "v" }), { spawnFn, env: { PATH: "/x" }, logger: cap.logger }),
-    );
+    )) as UpstreamError;
     expect(err.code).toBe("CLI_BINARY_NOT_FOUND");
+    expect(err.details).toMatchObject({
+      platform: expect.any(String),
+      attempts: expect.any(Array),
+      PATH: "/x",
+    });
+    const attempts = err.details.attempts as Array<{ source: string; path: string; outcome: string }>;
+    expect(attempts.at(-1)).toEqual({ source: "PATH", path: "obsidian", outcome: "not-found" });
+  });
+
+  it("OBSIDIAN_BIN set and not executable → resolveBinary throws → CLI_BINARY_NOT_FOUND propagates", async () => {
+    const cap = captureLines();
+    // Use a real non-existent path so the production fsPromises.access fires ENOENT —
+    // ESM module namespace prevents vi.spyOn against fs/promises.
+    const missingPath = `/__obsidian_cli_mcp_definitely_missing_${Date.now()}__/obsidian`;
+    const { spawnFn, recorded } = makeStubSpawn({});
+    const err = (await captureRejection(
+      dispatchCli(baseInput({ command: "v" }), {
+        spawnFn,
+        env: { OBSIDIAN_BIN: missingPath, PATH: "/x" },
+        logger: cap.logger,
+      }),
+    )) as UpstreamError;
+    expect(err.code).toBe("CLI_BINARY_NOT_FOUND");
+    expect(err.details).toMatchObject({
+      platform: expect.any(String),
+      PATH: "/x",
+    });
+    const attempts = err.details.attempts as Array<{ source: string; path: string; outcome: string }>;
+    expect(attempts).toEqual([{ source: "OBSIDIAN_BIN", path: missingPath, outcome: "not-found" }]);
+    expect(recorded.length).toBe(0); // spawn never fired — resolver threw first.
+  });
+
+  it("resolver returns successfully → spawn proceeds with the resolved binary", async () => {
+    const cap = captureLines();
+    const { spawnFn, recorded } = makeStubSpawn({ stdout: "ok\n", exitCode: 0 });
+    // OBSIDIAN_BIN unset; on Windows host the resolver skips platform-default and
+    // returns the bare command name "obsidian", which the dispatch stub spawn receives.
+    const result = await dispatchCli(baseInput({ command: "version" }), {
+      spawnFn,
+      env: { PATH: "/x" },
+      logger: cap.logger,
+    });
+    expect(result.exitCode).toBe(0);
+    expect(result.argv[0]).toBe(recorded[0]?.binary);
   });
 
   it("non-zero exit → CLI_NON_ZERO_EXIT with NO log emission", async () => {

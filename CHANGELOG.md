@@ -5,6 +5,31 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-05-10
+
+**MINOR release** — lifts the bridge's Windows-only restriction by extracting binary resolution into a new `src/binary-resolver/` module that performs an ordered three-tier resolution: (1) `OBSIDIAN_BIN` override, (2) platform-default install path, (3) fall-through to OS-spawn `PATH` lookup. Public-surface identity bumps from "Windows-host MCP server" to a tri-platform server (macOS, Linux, Windows). All eight currently-shipping tools and every future typed tool inherit cross-platform support without per-tool plumbing because the resolver lives below `dispatchCli`. Spec-id 017-cross-platform-support, FR-001..FR-020, SC-001..SC-010.
+
+### Added
+
+- **macOS support** — auto-detects `/usr/local/bin/obsidian` (the official installer's symlink) when `OBSIDIAN_BIN` is unset; falls through to `PATH` if the platform-default isn't present.
+- **Linux support** — auto-detects `~/.local/bin/obsidian` (the user-local install location) when `OBSIDIAN_BIN` is unset; falls through to `PATH` if the platform-default isn't present. Some distributions don't include `~/.local/bin` on the default `PATH` — the bridge's platform-default branch sidesteps that gotcha. WSL guests with Obsidian installed inside the WSL guest behave as native Linux (FR-016).
+- **`src/binary-resolver/`** — new internal module owning the three-tier resolution algorithm. Exports `resolveBinary(deps): Promise<{path, attempts}>` and the supporting `BinaryResolverDeps` / `BinaryResolverResult` / `ResolutionAttempt` types. Stateless — no caching (FR-009). Test seams accept injected `env` / `platform` / `homedir` / `access` so platform-specific behaviour can be unit-tested on any host.
+- **README Installation subsections** for macOS and Linux (FR-012). The existing Windows subsection content is preserved unchanged.
+
+### Changed
+
+- **`CLI_BINARY_NOT_FOUND` UpstreamError `details` shape** (FR-004): the legacy `binaryAttempted` field is replaced with a richer `attempts: ResolutionAttempt[]` array recording each branch the resolver consulted (source / path / per-path outcome — `"resolved"` / `"not-found"` / `"found-but-not-executable"` / `"pending"`), plus a new `platform` field carrying the host platform name. The `PATH` field is preserved verbatim. Strictly richer diagnostic info; no new error code added (FR-010 + Constitution IV).
+- **`OBSIDIAN_BIN` failure semantics** (FR-008 / FR-020): when `OBSIDIAN_BIN` is set but the path doesn't exist or isn't executable, the bridge now fails loudly with `CLI_BINARY_NOT_FOUND` instead of silently falling through to `PATH`. The structured error labels the override path as `outcome: "not-found"` (ENOENT) or `outcome: "found-but-not-executable"` (EACCES / EPERM / other errno). Pre-this-release callers who set `OBSIDIAN_BIN` to a typo and relied on the `PATH` fall-through will now see the typo surface immediately.
+- **`package.json` `description`** bumped from "Windows-host MCP server..." to "Cross-platform MCP server bridging MCP clients to the Obsidian Integrated CLI binary on macOS, Linux, and Windows hosts...". README opening paragraph and Prerequisites updated to tri-platform framing.
+
+### Internal
+
+- New `src/binary-resolver/binary-resolver.ts` (~75 LOC) and co-located `binary-resolver.test.ts` (~30 cases covering all three tiers, error envelope shape, and platform-injection invariants).
+- `src/cli-adapter/_dispatch.ts` integration: `dispatchCli` now `await`s `resolveBinary` before spawn. A private `settlePathAttempt` helper rewrites the trailing `pending` PATH attempt to `"resolved"` or `"not-found"` once the spawn outcome is known. Both ENOENT throw sites (spawn-throw catch and `child.error` ENOENT) emit the new `details` shape.
+- `src/cli-adapter/_dispatch.test.ts` — 2 cases re-targeted to the new shape; 2 new cases added (resolver-throw propagation, happy-path resolved-binary spawn).
+- `src/tools/obsidian_exec/handler.test.ts` — 1 integration assertion re-targeted to the new shape; the OBSIDIAN_BIN-override happy-path test swapped to `process.execPath` (definitionally executable on the host) so the new FR-008 / FR-020 executability check sees a real binary.
+- Zero new error codes added; zero new ADRs; zero new MCP tools; no schema changes.
+
 ## [0.3.0] - 2026-05-10
 
 **MINOR release** — wholesale-replaces the legacy `write_note` typed tool with a **direct-filesystem-write** implementation per [ADR-009](.decisions/ADR-009%20-%20Direct%20Filesystem%20Write%20Path%20Alongside%20CLI%20Bridge.md). User content no longer crosses the CLI argv pipe at any size, sidestepping the upstream argv→IPC chunk-boundary defect that crashed Obsidian's main process for content above ~4 KB on Windows. Two deliberate breaking changes on the `write_note` surface (the `template` parameter is no longer accepted; collision behaviour is now structured `FILE_EXISTS` instead of silent auto-rename) make MINOR the honest semver signal — existing callers using the legacy input shape will see `VALIDATION_ERROR` or `FILE_EXISTS` instead of silent success on the changed paths. Three new error codes added to the project roster.
