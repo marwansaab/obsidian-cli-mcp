@@ -17,6 +17,14 @@ import {
   type SpawnLike,
 } from "./invoke-bounded-cli.js";
 
+// Synchronously-resolving resolver stub — bypasses real fs.access I/O so timing-
+// sensitive tests (fake timers, microtask kills) don't race with the production
+// resolver's libuv access call.
+const stubResolveBinary = async () => ({
+  path: "obsidian",
+  attempts: [{ source: "PATH" as const, path: "obsidian", outcome: "pending" as const }],
+});
+
 interface StubChildSpec {
   stdout?: string;
   stderr?: string;
@@ -145,7 +153,7 @@ describe("invokeBoundedCli — timeout default and silent clamp (Q1 / FR-011)", 
         invokeBoundedCli(
           { command: "read" },
           {},
-          { spawnFn, env: {}, logger: cap.logger, queue: createQueue() },
+          { spawnFn, env: {}, logger: cap.logger, queue: createQueue(), resolveBinary: stubResolveBinary },
         ),
       );
       await vi.advanceTimersByTimeAsync(0);
@@ -167,7 +175,7 @@ describe("invokeBoundedCli — timeout default and silent clamp (Q1 / FR-011)", 
         invokeBoundedCli(
           { command: "read" },
           { timeoutMs: 90_000 },
-          { spawnFn, env: {}, logger: cap.logger, queue: createQueue() },
+          { spawnFn, env: {}, logger: cap.logger, queue: createQueue(), resolveBinary: stubResolveBinary },
         ),
       );
       await vi.advanceTimersByTimeAsync(0);
@@ -189,7 +197,7 @@ describe("invokeBoundedCli — timeout default and silent clamp (Q1 / FR-011)", 
         invokeBoundedCli(
           { command: "read" },
           { timeoutMs: 200_000 },
-          { spawnFn, env: {}, logger: cap.logger, queue: createQueue() },
+          { spawnFn, env: {}, logger: cap.logger, queue: createQueue(), resolveBinary: stubResolveBinary },
         ),
       );
       await vi.advanceTimersByTimeAsync(0);

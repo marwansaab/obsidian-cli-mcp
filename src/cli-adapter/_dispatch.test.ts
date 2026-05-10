@@ -131,6 +131,14 @@ function pendingRejection<T>(p: Promise<T>): Promise<UpstreamError> {
   );
 }
 
+// Synchronously-resolving resolver stub — bypasses real fs.access I/O so timing-
+// sensitive tests (fake timers, microtask kills) don't race with the production
+// resolver's libuv access call on Linux/macOS hosts.
+const stubResolveBinary = async () => ({
+  path: "obsidian",
+  attempts: [{ source: "PATH" as const, path: "obsidian", outcome: "pending" as const }],
+});
+
 const baseInput = (over: Partial<DispatchInput> = {}): DispatchInput => ({
   command: "read",
   parameters: {},
@@ -345,7 +353,7 @@ describe("dispatchCli — bounds enforcement (FR-009 / FR-010)", () => {
       const rejected = pendingRejection(
         dispatchCli(
           baseInput({ command: "read", timeoutMs: 1_000 }),
-          { spawnFn, env: {}, logger: cap.logger },
+          { spawnFn, env: {}, logger: cap.logger, resolveBinary: stubResolveBinary },
         ),
       );
       // Let microtasks resolve so spawn happens and listeners attach.
@@ -460,15 +468,9 @@ describe("killInFlightChildren — public surface (FR-016)", () => {
   it("mid-flight: returns true, SIGTERMs the child, emits one dispatch.kill line", async () => {
     const cap = captureLines();
     const { spawnFn } = makeStubSpawn({ hold: true });
-    // Inject a synchronously-resolving resolver stub so the spawn registers without
-    // waiting on real fs.access I/O (which would race with the microtask wait below).
-    const resolveBinary = async () => ({
-      path: "obsidian",
-      attempts: [{ source: "PATH" as const, path: "obsidian", outcome: "pending" as const }],
-    });
     const promise = dispatchCli(
       baseInput({ command: "read", timeoutMs: 60_000 }),
-      { spawnFn, env: {}, logger: cap.logger, resolveBinary },
+      { spawnFn, env: {}, logger: cap.logger, resolveBinary: stubResolveBinary },
     );
     // Wait one microtask to ensure the spawn has executed and the registry is populated.
     await Promise.resolve();
