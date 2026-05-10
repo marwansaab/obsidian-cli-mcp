@@ -12,6 +12,7 @@ import { createWriteNoteTool, WRITE_NOTE_DESCRIPTION, WRITE_NOTE_TOOL_NAME } fro
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
+
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
 // Stub registry for descriptor-shape tests — never invoked because the descriptor tests don't reach

@@ -1,11 +1,11 @@
 // Original — no upstream. write_note input/output schemas per ADR-009 — direct-fs-write redesign: `template` parameter dropped (strict-mode rejects); `file`/`path` fields gated by structural path-safety refinement; active-mode disallows `vault`/`file`/`path`/`open` (via target-mode primitive) and requires `overwrite: true`.
 import { z } from "zod";
 
-import { applyTargetModeRefinement, targetModeBaseSchema } from "../../target-mode/target-mode.js";
 import {
   isStructurallySafePath,
   STRUCTURALLY_UNSAFE_PATH_MESSAGE,
 } from "../../path-safety/schema.js";
+import { applyTargetModeRefinement, targetModeBaseSchema } from "../../target-mode/target-mode.js";
 
 const safePathField = z
   .string()

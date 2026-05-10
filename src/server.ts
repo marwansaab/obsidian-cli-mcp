@@ -9,7 +9,6 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import { invokeCli, killInFlightChildren as defaultKillInFlightChildren } from "./cli-adapter/cli-adapter.js";
 import { createLogger, type Logger, type ShutdownReason } from "./logger.js";
 import { createQueue, type Queue } from "./queue.js";
-import { createVaultRegistry } from "./vault-registry/registry.js";
 import { assertToolDocsExist } from "./tools/_register.js";
 import { asToolError, type RegisteredTool } from "./tools/_shared.js";
 import { createDeleteNoteTool } from "./tools/delete_note/index.js";
@@ -20,6 +19,7 @@ import { createReadHeadingTool } from "./tools/read_heading/index.js";
 import { createReadNoteTool } from "./tools/read_note/index.js";
 import { createReadPropertyTool } from "./tools/read_property/index.js";
 import { createWriteNoteTool } from "./tools/write_note/index.js";
+import { createVaultRegistry } from "./vault-registry/registry.js";
 
 import type { Writable } from "node:stream";
 

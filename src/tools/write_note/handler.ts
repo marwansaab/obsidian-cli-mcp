@@ -7,10 +7,10 @@ import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import { checkCanonicalPath } from "../../path-safety/canonical.js";
 
+import type { WriteNoteInput, WriteNoteOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
 import type { VaultRegistry } from "../../vault-registry/registry.js";
-import type { WriteNoteInput, WriteNoteOutput } from "./schema.js";
 
 export interface ExecuteFs {
   mkdir: (p: string, opts: { recursive: true }) => Promise<unknown>;

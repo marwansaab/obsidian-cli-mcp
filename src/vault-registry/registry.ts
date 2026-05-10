@@ -16,7 +16,7 @@ const BOM = "﻿";
 
 function parseVaultsVerboseOutput(stdout: string): CachedRegistry {
   const map = new Map<string, string>();
-  let body = stdout.startsWith(BOM) ? stdout.slice(1) : stdout;
+  const body = stdout.startsWith(BOM) ? stdout.slice(1) : stdout;
   for (const rawLine of body.split("\n")) {
     const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
     if (line.length === 0) continue;
