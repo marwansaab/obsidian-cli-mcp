@@ -5,9 +5,9 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.9] - 2026-05-10
+## [0.3.0] - 2026-05-10
 
-Patch release — wholesale-replaces the legacy `write_note` typed tool with a **direct-filesystem-write** implementation per [ADR-009](.decisions/ADR-009%20-%20Direct%20Filesystem%20Write%20Path%20Alongside%20CLI%20Bridge.md). User content no longer crosses the CLI argv pipe at any size, sidestepping the upstream argv→IPC chunk-boundary defect that crashed Obsidian's main process for content above ~4 KB on Windows. Two deliberate breaking changes vs. the predecessor: the `template` parameter is no longer accepted (migrate to `obsidian_exec`); collision behaviour is now structured `FILE_EXISTS` instead of silent auto-rename. Three new error codes added to the project roster.
+**MINOR release** — wholesale-replaces the legacy `write_note` typed tool with a **direct-filesystem-write** implementation per [ADR-009](.decisions/ADR-009%20-%20Direct%20Filesystem%20Write%20Path%20Alongside%20CLI%20Bridge.md). User content no longer crosses the CLI argv pipe at any size, sidestepping the upstream argv→IPC chunk-boundary defect that crashed Obsidian's main process for content above ~4 KB on Windows. Two deliberate breaking changes on the `write_note` surface (the `template` parameter is no longer accepted; collision behaviour is now structured `FILE_EXISTS` instead of silent auto-rename) make MINOR the honest semver signal — existing callers using the legacy input shape will see `VALIDATION_ERROR` or `FILE_EXISTS` instead of silent success on the changed paths. Three new error codes added to the project roster.
 
 ### Changed
 
