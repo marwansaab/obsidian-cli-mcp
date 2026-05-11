@@ -5,6 +5,12 @@
 **Status**: Draft
 **Input**: User description: "Add Write Property — A typed MCP tool that sets a single frontmatter property on a vault note, with the value's intended YAML type preserved. Single-key per call; multi-key atomic writes are explicitly out of scope."
 
+## Clarifications
+
+### Session 2026-05-10
+
+- Q: When `write_property` overwrites an existing property whose on-disk type differs from the resolved type (explicit `type` argument, or inferred from `value` shape per FR-008), what's the contract? → A: **Resolved type wins (overwrite)** — the resolved type replaces the existing on-disk type representation. `count: 7` (number) + `write_property({name: "count", value: "abc"})` produces `count: "abc"` (text). The result depends only on the current call's `(name, value, type?)` triple, never on the file's prior state. The wrapper does NOT peek at file state before writing; every write is treated identically. Codified by FR-033, locked into US1 acceptance scenario 12 and US2 acceptance scenario 4, expanded into the FR-030 characterisation roster, and gated by SC-021.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 — Specific-mode surgical write preserves the value's intended YAML type (Priority: P1)
@@ -28,6 +34,7 @@ An agent needs to set a single named frontmatter property (for example `status`,
 9. **Given** a locator (`file` or `path`) that resolves to no file in the named vault, **When** the agent calls `write_property`, **Then** the call fails with a structured error (the tool MUST NOT auto-create the file — that's the `write_note` surface).
 10. **Given** a vault display name that does not match any registered Obsidian vault, **When** the agent calls `write_property`, **Then** the call fails with a structured error (the same reclassified-CLI-response shape that the existing typed tools already use for unknown vaults).
 11. **Given** an explicit `type` that contradicts the `value`'s shape (for example `value: "abc"` with `type: "number"`), **When** the agent calls `write_property`, **Then** the call fails with a structured error AND the file is not modified. The wrapper MUST NOT silently coerce the value to fit the declared type.
+12. **Given** a note that already defines `count: 7` (a number-typed property), **When** the agent calls `write_property({ ..., name: "count", value: "abc" })` (no explicit `type`; inference resolves to `text`), **Then** the file's frontmatter contains `count: "abc"` with the YAML representation Obsidian's property-type system recognises as `text` AND a subsequent `read_property` call against the same property returns `{ value: "abc", type: "text" }` (not `type: "number"`). The resolved type replaces the existing on-disk type; the result depends only on the current call's `(name, value, type?)` triple, never on the file's prior state.
 
 ---
 
@@ -44,6 +51,7 @@ An agent operating in a session where Obsidian's editor has a specific note focu
 1. **Given** Obsidian has note `notes/x.md` focused in vault `Demo`, **When** the agent calls `write_property({ target_mode: "active", name: "status", value: "shipped" })`, **Then** the focused note's frontmatter contains `status: shipped` AND the response is `{ written: true, path: "notes/x.md", name: "status" }`.
 2. **Given** active mode and no note is focused (or no Obsidian instance is reachable), **When** the agent calls `write_property`, **Then** the call fails with a structured error AND no file is modified.
 3. **Given** active mode and a focused note that already defines the property being written, **When** the agent calls `write_property` with a new value, **Then** the focused note's frontmatter overwrites the old value (parity with US1 scenario 7) AND the response carries the focused note's path.
+4. **Given** active mode and a focused note that already defines `count: 7` (a number-typed property), **When** the agent calls `write_property({ target_mode: "active", name: "count", value: "abc" })` (no explicit `type`; inference resolves to `text`), **Then** the focused note's frontmatter contains `count: "abc"` as text AND a subsequent `read_property` call returns `{ value: "abc", type: "text" }` (parity with US1 scenario 12 — the resolved type replaces the existing on-disk type in active mode too).
 
 ---
 
@@ -147,6 +155,10 @@ The implementation MUST handle, document, or explicitly defer each of the follow
 
 - A `value: []` MUST write a valid empty YAML list (e.g. `tags: []`), not interpret the empty array as "remove the property" and not substitute `null` or omit the field. See US5.
 
+**CONTENT — type-conversion-on-overwrite (cross-type retype)**
+
+- Overwriting a property whose existing on-disk type differs from the resolved type (explicit `type` argument, or inferred from `value` shape per FR-008) MUST replace the existing on-disk type with the resolved type. The wrapper does NOT peek at the file's prior state; every write is treated identically, and the result depends only on the current call's `(name, value, type?)` triple. Example: a file containing `count: 7` (number) targeted by `write_property({ name: "count", value: "abc" })` (no explicit `type`; inference → `text`) ends up with `count: "abc"` (text); a subsequent `read_property` returns `{ value: "abc", type: "text" }`. Codified by FR-033 and locked into US1 acceptance scenario 12 plus US2 acceptance scenario 4.
+
 **UNDERLYING CLI — unknown vault**
 
 - An unknown vault display name may produce a CLI response that the existing bridge classifier does not natively treat as an error (the same shape covered for `delete_note` / `write_note` / `read_property` / `find_by_property` / `read_heading` via 011-R5 inheritance). The implementation MUST handle this case explicitly: the response MUST be reclassified to a structured `CLI_REPORTED_ERROR`, not silently returned as a successful write.
@@ -184,7 +196,7 @@ The implementation MUST handle, document, or explicitly defer each of the follow
 - **FR-011**: The tool MUST return an output object with three fields: `written` (the literal `true`), `path` (the vault-relative path of the file that received the write), and `name` (the property name written, echoed for caller verification).
 - **FR-012**: A `value` shape that contradicts the explicit `type` (for example `value: "abc"` with `type: "number"`) MUST surface a structured error. The wrapper MUST NOT silently coerce the value to fit the declared type. Whether the rejection happens at the validation boundary or at the underlying serialiser layer is an implementation choice; either way the response surface is a structured error AND the file is not modified.
 - **FR-013**: Setting a property that does not yet exist on the file MUST add it to the frontmatter block.
-- **FR-014**: Setting a property that already exists MUST overwrite the old value. The contract is a single-key set — never an append-to-list, never a merge.
+- **FR-014**: Setting a property that already exists MUST overwrite the old value. The contract is a single-key set — never an append-to-list, never a merge. "Overwrite" extends to the on-disk type representation per FR-033: the resolved type (explicit, or inferred from `value` shape) replaces the existing on-disk type, not only the value.
 - **FR-015**: Setting a property on a file that has no frontmatter block MUST add a frontmatter block at the top of the file whose only field is the property being written. The markdown body below MUST be preserved byte-stable except for the inserted block.
 - **FR-016**: Setting a property on a non-existent file MUST surface a structured error. The tool MUST NOT auto-create the missing file — auto-creation is the `write_note` surface.
 - **FR-017**: All validation failures MUST occur strictly before any underlying CLI invocation. Tests MUST be able to assert a CLI dispatcher spy was never called for invalid inputs.
@@ -205,6 +217,7 @@ The implementation MUST handle, document, or explicitly defer each of the follow
   - Setting a date property with `type: "date"` and a datetime property with `type: "datetime"` — confirms the date / datetime type label is recognised by Obsidian's property system on round-trip via `read_property`.
   - Setting a property that does not yet exist on the file (US1 scenario 1).
   - Setting a property that already exists (US1 scenario 7).
+  - Cross-type overwrite — overwriting a property whose existing on-disk type differs from the resolved type (US1 scenario 12 / US2 scenario 4; e.g. `count: 7` (number) overwritten by `write_property({ name: "count", value: "abc" })` → confirms the resolved type replaces the existing on-disk type per FR-033 and that a subsequent `read_property` returns the new type).
   - Setting a property on a file with no frontmatter block (US1 scenario 8).
   - Setting an empty list (US5 scenarios 1 and 2).
   - Setting a property with a YAML-control-character value (one case per: contains `#`, contains `:`, leading `!`, leading `&`, leading `*`, leading `?`, leading `|`, leading `>`) — confirms round-trip through a compliant YAML parser.
@@ -219,6 +232,7 @@ The implementation MUST handle, document, or explicitly defer each of the follow
   - `write_property` against a file that an external editor currently has open — confirms reload / rejection / overwrite behaviour.
 - **FR-031**: The feature MUST NOT change the public surface of any existing typed tool (`read_note`, `write_note`, `delete_note`, `read_property`, `find_by_property`, `read_heading`, `obsidian_exec`, the help tool). The only permitted edit to existing source is the addition of `write_property` to the registration list.
 - **FR-032**: All new source files introduced by this feature MUST carry the project's "Original — no upstream." attribution header per the project Constitution's originality principle.
+- **FR-033**: When `write_property` overwrites an existing property whose on-disk type differs from the resolved type (explicit `type` argument, or inferred from `value` shape per FR-008), the resolved type MUST replace the existing on-disk type representation. The result depends only on the current call's `(name, value, type?)` triple, never on the file's prior state. The wrapper MUST NOT peek at file state before writing to "preserve" the existing type; every write is treated identically. Verified at the live-CLI characterisation pass (FR-030) and gated by SC-021.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -252,6 +266,7 @@ The implementation MUST handle, document, or explicitly defer each of the follow
 - **SC-018**: An agent setting a single named frontmatter property can do so in a single tool call returning ≤ ~150 characters of structured response on the success path, replacing what previously required a full-file `read_note` plus a full-file `write_note` round-trip. Token saving relative to the round-trip is observable from any tracing layer that records request/response payload sizes.
 - **SC-019**: The `name` and `value` inputs cannot reach a shell-evaluated context. The argv-passing contract is structurally enforced by the underlying CLI invocation surface, and is verifiable by inspection of the dispatcher call shape (no shell, no eval, no string interpolation).
 - **SC-020**: Path-traversal attempts on the `path` field do not produce on-disk writes outside the named vault in 100% of test runs.
+- **SC-021**: Overwriting an existing property with a write whose resolved type differs from the on-disk type produces a file where a subsequent `read_property` returns the new resolved type (not the prior on-disk type) in 100% of test runs. Verified across at least three cross-type retype pairs: number → text, text → number, list → text.
 
 ## Assumptions
 
