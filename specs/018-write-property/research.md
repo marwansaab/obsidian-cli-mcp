@@ -366,15 +366,20 @@ This research artefact records two plan-stage amendments to the spec that are NO
 1. **FR-023 / SC-012 weakening (CRLF preservation is PARTIAL)** — per R8. Surfaced in `docs/tools/write_property.md` Known Limitations, in the live-CLI characterisation pass log, and in the CLAUDE.md plan reference once registered.
 2. **FR-022 realisation (YAML style normalisation is observable)** — per R7. The contract wording supports the realised behaviour; the limitation is documented for caller awareness rather than amended.
 
-Plan-stage characterisation status:
-- **15 of the 16 FR-030 enumerated cases verified live during plan** (cases noted as F1–F15 above).
-- **One case deferred to T0 of `/speckit-implement`**: two concurrent writes to the same file (FR-030 — "Two concurrent writes to the same file ... confirms the underlying serialiser's atomicity guarantees and any observed interleaving behaviour"). Deferred because concurrent probing requires orchestrated parallel CLI invocations against the same fixture — better handled inside the test suite's own test runner than via ad-hoc plan-stage probes.
+Plan-stage characterisation status (corrected post-/speckit-analyze finding F1 — the original tally of "15 of 16" was off by 2 because two additional FR-030-enumerated cases were silently dropped from the plan-stage sweep):
+- **13 of the 16 FR-030 enumerated cases verified live during plan** (cases noted as F1–F15 above).
+- **Three cases deferred to T0 of `/speckit-implement` and bundled into T022's probe set**:
+  1. Two concurrent writes to the same file (FR-030 — "Two concurrent writes to the same file ... confirms the underlying serialiser's atomicity guarantees and any observed interleaving behaviour"). Deferred because concurrent probing requires orchestrated parallel CLI invocations against the same fixture.
+  2. Anchors / aliases / comments in pre-existing frontmatter (FR-030 — "Setting a property on a file that has YAML anchors / aliases / comments in its frontmatter — confirms whether the underlying serialiser flattens, reorders, or strips comments"). Deferred — surface F11 documented the general flow→block normalisation behaviour but did not exercise the anchor / alias / comment sub-cases specifically.
+  3. External-editor-open behaviour (FR-030 — "write_property against a file that an external editor currently has open — confirms reload / rejection / overwrite behaviour"). Deferred — requires coordinating a second editor process which exceeded the plan-stage timeboxed sweep.
+
+  Findings from the three deferred probes land as F16 (concurrent writes), F18 (anchors/aliases/comments), F19 (external-editor-open) — see T022 in tasks.md.
 
 ## Test inventory summary (motivates SC-015 / FR-029)
 
-Total cases planned: **54** (vs SC-015's floor of 30). Breakdown:
+Total cases planned: **57** (post-/speckit-analyze remediation; bumped 54 → 57 to close E1 — three cross-type retype pairs per SC-021 — and C1 — active-mode cross-type retype per US2#4; vs SC-015's floor of 30). Breakdown:
 - **schema.test.ts** — 17 cases (target-mode primitive interactions + name + value union + type enum + unknown-key rejection).
-- **handler.test.ts** — 32 cases (per-mode happy paths, per-YAML-type assertions, error code propagation, name/value passthrough, cross-type overwrite, CLI argv shape).
+- **handler.test.ts** — 35 cases (per-mode happy paths, per-YAML-type assertions, error code propagation, name/value passthrough, **three cross-type retype pairs (number→text, text→number, list→text) + active-mode cross-type retype**, CLI argv shape).
 - **index.test.ts** — 5 cases (descriptor name, description token presence, stripped schema, help mention, doc-file presence; the drift detector at [src/tools/_register.test.ts](../../src/tools/_register.test.ts) auto-covers via its `it.each` registry walk).
 
 Test inventory is enumerated in [data-model.md](./data-model.md).

@@ -153,8 +153,8 @@ return {
 | Path-traversal handled by CLI | FR-026 | CLI confines (F7); maps to CLI_REPORTED_ERROR. |
 | No new error codes | FR-027 | Confirmed — failures use VALIDATION_ERROR + the four cli-adapter codes + ERR_NO_ACTIVE_FILE. |
 | Registration via registerTool factory | FR-028 | createWritePropertyTool wraps registerTool. |
-| Each AC locked by ≥1 regression test | FR-029 | Test inventory below — 54 cases. |
-| Live-CLI characterisation pass | FR-030 | research.md F1–F15; one case deferred to T0. |
+| Each AC locked by ≥1 regression test | FR-029 | Test inventory below — 57 cases (post-/speckit-analyze remediation; was 54 pre-remediation). |
+| Live-CLI characterisation pass | FR-030 | research.md F1–F15; **three cases deferred to T0** (concurrent writes, anchors/aliases/comments, external-editor-open) bundled into T022 per /speckit-analyze F1 + E2 + E3 remediation. |
 | No existing typed-tool surface changes | FR-031 | Only server.ts grows by 2 lines (import + array entry). |
 | Original-no-upstream headers | FR-032 | All 6 new source files carry the header. |
 | Cross-type overwrite — resolved type wins | FR-033 | CLI native (F3); no wrapper logic. |
@@ -166,14 +166,14 @@ src/tools/write_property/
 ├── schema.ts                    # ~30 LOC — writePropertyInputSchema + output + types + PROPERTY_WRITE_TYPE_LABELS
 ├── schema.test.ts               # ~250 LOC — 17 cases
 ├── handler.ts                   # ~150 LOC — executeWriteProperty + 3 helpers (inferType, serialiseValue, parseFileTSV) + FIXED_TEMPLATE constant
-├── handler.test.ts              # ~750 LOC — 32 cases
+├── handler.test.ts              # ~820 LOC — 35 cases (post-/speckit-analyze remediation; was 32 pre-remediation)
 ├── index.ts                     # ~25 LOC — createWritePropertyTool factory via registerTool
 └── index.test.ts                # ~80 LOC — 5 registration cases
 
 docs/tools/write_property.md     # ~270 lines — input contract, output, error roster, 6 worked examples (each YAML type), known limitations (R7+R8+R9 element-with-comma)
 ```
 
-**Total new source LOC**: ~205. Total new test LOC: ~1,080. Total new doc LOC: ~270.
+**Total new source LOC**: ~205. Total new test LOC: ~1,150 (post-/speckit-analyze remediation: handler.test.ts grew ~70 LOC for the 3 added handler cases). Total new doc LOC: ~270.
 
 **Modified existing files**:
 - `src/server.ts`: +2 lines (import + tools-array entry, alphabetical between `createReadPropertyTool` and `createWriteNoteTool`).
@@ -209,7 +209,7 @@ docs/tools/write_property.md     # ~270 lines — input contract, output, error 
 | 16 | active with file → VALIDATION_ERROR | US3 scenario 10 |
 | 17 | active with path → VALIDATION_ERROR | US3 scenario 11; unknown-top-level key rejected (additionalProperties: false) covered by the strict() mode on targetModeBaseSchema and verified in case 17 via an extraneous-key probe |
 
-### handler.test.ts (32 cases)
+### handler.test.ts (35 cases — post-/speckit-analyze remediation)
 
 | # | Case | Locks |
 |---|---|---|
@@ -228,7 +228,8 @@ docs/tools/write_property.md     # ~270 lines — input contract, output, error 
 | 13 | active mode happy — TWO calls (eval → property:set), resolved path+vault in response | US2#1, SC-013 |
 | 14 | active mode no focused file — ONE call (eval only), ERR_NO_ACTIVE_FILE | US2#2, FR-024 |
 | 15 | active mode TOCTOU — focus shifts between probes; response.path reports the path resolved at step 1 | Edge case CONCURRENCY (active TOCTOU) |
-| 16 | cross-type overwrite — number → text (R10 + FR-033) | US1#12, US2#4, SC-021 |
+| 15a | active mode cross-type retype — pre-state `count: 7` (number) + `write_property({target_mode: "active", name: "count", value: "abc"})` → post-state `count: "abc"` (text) per FR-033 in active mode (TWO calls: eval → property:set with explicit type=text inferred from the string value) | US2#4, FR-033, SC-021 (covered by T013) |
+| 16 | cross-type overwrite (specific+path, **pair 1 of 3**) — number → text: pre-state `count: 7` overwritten by `value: "abc"` (no explicit type) → post-state `count: "abc"` (text) | US1#12, FR-033, SC-021 |
 | 17 | overwrite same type — status queued → shipped | US1#7 |
 | 18 | non-existent file → CLI_REPORTED_ERROR | US1#9, SC-007, FR-016 |
 | 19 | unknown vault → CLI_REPORTED_ERROR (011-R5) | US1#10, FR-025 |
@@ -245,6 +246,8 @@ docs/tools/write_property.md     # ~270 lines — input contract, output, error 
 | 30 | path-traversal `path=../OtherVault/x.md` → CLI_REPORTED_ERROR | SC-020 |
 | 31 | response shape — specific+path echoes input.path | FR-011 |
 | 32 | response shape — `written` is literal `true` | R11 |
+| 33 | cross-type overwrite (specific+path, **pair 2 of 3**) — text → number: pre-state `tag: "hello"` overwritten by `value: 42, type: "number"` → post-state `tag: 42` (number) | US1#12, FR-033, SC-021 |
+| 34 | cross-type overwrite (specific+path, **pair 3 of 3**) — list → text: pre-state `tags: ["a", "b"]` overwritten by `value: "scalar"` (no explicit type) → post-state `tags: "scalar"` (text) | US1#12, FR-033, SC-021 |
 
 ### index.test.ts (5 cases)
 
@@ -256,10 +259,14 @@ docs/tools/write_property.md     # ~270 lines — input contract, output, error 
 | 4 | Help facility references `write_property` |
 | 5 | `docs/tools/write_property.md` exists (asserted via assertToolDocsExist at server boot; verified per the drift detector) |
 
-**Total: 17 + 32 + 5 = 54 cases**, vs SC-015 floor of 30. Drift detector at [src/tools/_register.test.ts](../../src/tools/_register.test.ts) auto-covers via its `it.each` registry walk — no edit required.
+**Total: 17 + 35 + 5 = 57 cases** (post-/speckit-analyze remediation: handler-test count bumped 32 → 35 to close E1 and C1 — added case #15a active-mode cross-type retype per US2#4, and cases #33 + #34 to enumerate the three cross-type retype pairs SC-021 mandates), vs SC-015 floor of 30. Drift detector at [src/tools/_register.test.ts](../../src/tools/_register.test.ts) auto-covers via its `it.each` registry walk — no edit required.
 
-## Deferred work (T0 of /speckit-implement)
+## Deferred work (T0 of /speckit-implement) — bundled into T022
 
-- **Concurrent-write probe** (FR-030 — last enumerated case): two parallel `property:set` invocations against the same fixture. Verifies the underlying serialiser's atomicity guarantees and any observed interleaving behaviour. Plan-stage deferred because orchestrated parallel CLI invocations are better handled inside the test suite's own test runner than via ad-hoc plan-stage probes.
+Three FR-030 cases deferred to T0 of /speckit-implement post-/speckit-analyze remediation (was one pre-remediation; the "15 of 16 verified" plan tally was off by 2 — see /speckit-analyze finding F1):
 
-All other 15 FR-030 enumerated cases verified live (F1–F15 in [research.md](./research.md)).
+- **Concurrent-write probe** (FR-030 — concurrent same-file writes): two parallel `property:set` invocations against the same fixture. Verifies the underlying serialiser's atomicity guarantees and any observed interleaving behaviour. Plan-stage deferred because orchestrated parallel CLI invocations are better handled inside the test suite's own test runner than via ad-hoc plan-stage probes.
+- **Anchors / aliases / comments probe** (FR-030 — "Setting a property on a file that has YAML anchors / aliases / comments in its frontmatter"): seed a fixture with `&anchor` + `*alias` + comment lines, run a property:set against an unrelated key, capture post-write state of the comment / anchor marker / alias reference / neighbouring fields. Plan-stage deferred because F11 only documented the general flow→block normalisation; the anchor / alias / comment sub-cases weren't exercised.
+- **External-editor-open probe** (FR-030 — "write_property against a file that an external editor currently has open"): open the fixture in a second process holding an OS file handle; while open, call property:set; capture exit code / stdout / post-write state. Plan-stage deferred because coordinating a second editor process exceeded the plan-stage timeboxed sweep.
+
+All other 13 FR-030 enumerated cases verified live (F1–F15 in [research.md](./research.md)). Findings from the three deferred probes land as F16 + F18 + F19 — see T022 in [tasks.md](./tasks.md).

@@ -103,7 +103,7 @@ This SC is locked at unit-test level by validating the CLI argv composition; the
 
 **Setup**: count tests in the three new test files.
 
-**Assertion**: `schema.test.ts` ≥ 17 cases, `handler.test.ts` ≥ 32 cases, `index.test.ts` ≥ 5 cases. Total ≥ 54, vs SC-015's floor of 30.
+**Assertion**: `schema.test.ts` ≥ 17 cases, `handler.test.ts` ≥ 35 cases, `index.test.ts` ≥ 5 cases. Total ≥ 57 (post-/speckit-analyze remediation; was 54 pre-remediation), vs SC-015's floor of 30.
 
 ## S-17 — Zero new error codes (SC-016)
 
