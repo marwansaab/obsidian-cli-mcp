@@ -1,170 +1,168 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-[specs/019-list-files/plan.md](specs/019-list-files/plan.md)
+[specs/020-fix-write-gaps/plan.md](specs/020-fix-write-gaps/plan.md)
 
-Active feature: **019-list-files** — adds the eighth typed-tool wrap
-(`list_files`), the project's first FOLDER-scoped typed surface. Where
-the prior seven typed tools (`read_note` / `write_note` / `delete_note`
-/ `read_property` / `find_by_property` / `read_heading` /
-`write_property`) all operate on a single named file or the focused
-file, `list_files` operates on a vault folder. The user-facing
-surface: `list_files({ target_mode, vault?, folder?, ext?, total? })`
-returning `{ count: number, paths: string[] }`. Predecessor narrative
-for 018-write-property, 017-cross-platform-support, and
-015-read-heading retained below in skipped bulk.
+Active feature: **020-fix-write-gaps** — two narrow handler-layer
+contract-restoration fixes to the existing `write_note` operation
+against the 016-reliable-writer surface. Both gaps were caught during
+acceptance testing of the 016 overhaul. (1) Short-form-name target
+resolution: when `input.file` matches the canonical short-form shape
+(no `/` or `\` folder separator AND does not end in `.md`), the
+handler resolves the target to `<input.file>.md` at the vault root
+and the response's `path` field reports the resolved value; any other
+`input.file` shape passes through verbatim per FR-001a. (2) FILE_EXISTS
+additive `details.errno` enrichment: when the `wx`-flag write rejects
+with EEXIST on the hot path, the rejection's `details` object gains
+`errno: "EEXIST"` alongside the existing `path` and `vault` fields —
+field-name parity with `FS_WRITE_FAILED`'s `details.errno`. Predecessor
+narrative for 019-list-files retained below; 018, 017, 015 narratives
+retained in skipped bulk further down.
 
-**019-list-files tool surface**: one new typed MCP tool; `list_files`
-added to the registration list at
-[src/server.ts:80-90](src/server.ts#L80-L90) (alphabetical: inserted
-between `createHelpTool` and `createObsidianExecTool`). No edits to any
-existing typed tool (`obsidian_exec` / `read_note` / `write_note` /
-`delete_note` / `read_property` / `find_by_property` / `read_heading`
-/ `write_property` / `help`). Zero new error codes (FR-020 +
-Constitution IV); zero new ADRs (ADR-003 applies with a folder-scoped
-adaptation — `list_files` operates on a vault folder where prior tools
-operated on a named file; the ADR is NOT amended); 008-refactor
-surface frozen.
+**020-fix-write-gaps touch surface** (LOCKED): ONE source file
+([src/tools/write_note/handler.ts](src/tools/write_note/handler.ts)),
+ONE co-located test file
+([src/tools/write_note/handler.test.ts](src/tools/write_note/handler.test.ts)),
+ONE doc file ([docs/tools/write_note.md](docs/tools/write_note.md)).
+ZERO schema edits (FR-012 freezes the input contract). ZERO new
+modules. ZERO new error codes (FR-011 freezes the top-level roster).
+ZERO new ADRs and ZERO ADR amendments. ZERO changes to other tools
+(FR-014). ZERO changes to the write mechanism (FR-017 — temp+rename
+atomic write, canonical-root path-safety, lazy vault-registry, post-
+write metadataCache invalidation all preserved).
 
-**CLI subcommand** (locked at R2, F1): `files` — native to Obsidian's
-CLI, NOT eval and NOT obsidian_exec. Argv shape: `vault=<v> files
-[folder=<f>] [ext=<e>]`. Stdout success shape: one vault-relative path
-per line, `/`-separated, UTF-8 encoded. The wrapper composes a single
-`files` invocation per request. The spec's "no eval injection vector"
-assertion holds because user inputs (`folder`, `ext`) flow through
-discrete argv parameters to `files`, never into an eval source-text
-template.
+**Short-form rule placement** (R1, locked): inline in `handler.ts` via
+a file-local helper `resolveSpecificModePath(input): string` (~8 LOC)
+that replaces the current `relPath = (input.path ?? input.file)!`
+collapse at [handler.ts:149](src/tools/write_note/handler.ts#L149).
+The helper applies the FR-001 short-form rule when `input.path` is
+absent and `input.file` is canonical; falls through to verbatim
+otherwise (FR-001a passthrough). Active mode is untouched — schema
+forbids `input.file` in active mode; the active-mode branch resolves
+through `parsed.path` from the focused-file eval unchanged.
 
-**Per-mode call architecture** (locked at R3): ONE `invokeCli` call
-per request regardless of `target_mode` or input parameters. No
-two-call branches. Specific mode includes `vault=`; active mode omits.
+**Canonical short-form predicate** (R2, locked): three literal-character
+checks — `!file.includes("/") && !file.includes("\\") && !file.endsWith(".md")`.
+Captures Q2's literal-rule wording from the spec's
+Clarifications-session-2026-05-12. Internal periods are preserved
+(`version_1.2.3` → `version_1.2.3.md` because `endsWith(".md")` is
+`false`); `endsWith` is precise — NOT `path.extname` which would
+incorrectly treat `.3` as the extension boundary.
 
-**CRITICAL ARCHITECTURE — folder filter is recursive at CLI; wrapper
-enforces non-recursive contract post-fetch** (locked at R6, F2): the
-CLI's `files folder=X` subcommand returns the RECURSIVE subtree under
-`X/`, not just the direct children. The wrapper enforces FR-012's
-non-recursive contract by filtering result paths whose component count
-exceeds `folder`'s component count + 1. This is the most consequential
-architectural finding of the plan — the spec's locked non-recursive
-contract is NOT a CLI property; it is a wrapper-imposed filter applied
-post-fetch.
+**FILE_EXISTS details enrichment** (R3, locked): ONE call-site at
+[handler.ts:208-213](src/tools/write_note/handler.ts#L208-L213) — the
+hot-path `wx`-flag collision throw. Change is exactly:
+`details: { path: relPath, vault: input.vault ?? null }` becomes
+`details: { errno: "EEXIST", path: relPath, vault: input.vault ?? null }`.
+The `mapFsError` path's EEXIST handler at
+[handler.ts:79-87](src/tools/write_note/handler.ts#L79-L87) keeps its
+existing `{ errno }`-only details shape (R4 preserved asymmetry — that
+path is rare mkdir/rename race and reconciling would widen `mapFsError`'s
+signature, out of scope for this BI).
 
-**`total: true` architecture** (locked at R7, F12): the wrapper does
-NOT delegate to the CLI's native `total` flag. F12 found the CLI's
-`total` count is RECURSIVE — incompatible with FR-007 + SC-005's
-identical-count-across-modes requirement. The wrapper applies the same
-fetch + filter pipeline in both `total: false` and `total: true`
-modes; on `total: true`, the response's `paths` field is set to `[]`
-after counting. Token saving is realised at the wrapper→MCP-client
-boundary, not at the CLI→wrapper boundary.
+**Cross-failure-type field-name parity** (FR-008 / SC-007): the
+cross-type contract is on the `details.errno` field name and value
+vocabulary (standard POSIX errno names) — NOT on full `details`-object
+shape. Callers reading `response.details?.errno` see one shape across
+all filesystem-level failure types; broader fields differ per code
+(`FILE_EXISTS` hot path: `{ errno, path, vault }`; `FS_WRITE_FAILED`:
+`{ errno, syscall, path }`).
 
-**Filter pipeline** (locked at R9 — observably commutative, ordered
-for engine-friendliness): 1) sub-folder filter per FR-026
-(defence-in-depth — F19 says CLI never emits sub-folder entries from
-`files`); 2) dotfile filter per FR-028 (defence-in-depth — F18 says
-CLI already filters dotfiles natively; direct consequence — `folder:
-".obsidian"` returns `{ count: 0, paths: [] }` because every result
-path's first segment is dot-prefixed, so the filter eats every
-result); 3) non-recursive filter per R6 (load-bearing); 4) lexical
-sort per FR-027 (R8 — UTF-8 byte-compare via `Buffer.compare`, NOT
-JavaScript's default UTF-16 code-unit compare; differs only for
-non-BMP characters).
+**Schema frozen** (R6 + FR-012): the existing zod schema at
+[src/tools/write_note/schema.ts](src/tools/write_note/schema.ts) is
+unchanged. `file` and `path` continue to use the same `safePathField`
+validator (the schema does NOT structurally distinguish them — the
+handler's interpretation of `file` for canonical short-form inputs
+is the behavioural change).
 
-**Schema** (folder-scoped variant of post-010 idiom): either a new
-helper `applyTargetModeRefinementForFolderScoped` lands in
-`src/target-mode/target-mode.ts` (forbids `file` AND `path` in BOTH
-modes; preserves in-specific-requires-vault / in-active-forbids-vault
-rules), OR the refinement is inlined locally in
-`src/tools/list_files/schema.ts` via `superRefine`. Pick is a
-/speckit-tasks decision; both satisfy Constitution III. Recommended:
-the shared helper (folder-scoped pattern may recur).
+**Logger surface frozen** (R7): no new typed logger methods, no
+`ErrorCode` union amendments. FILE_EXISTS does NOT emit per-call
+logger events per 016-FR-029; the new `errno` field doesn't change
+that. PATH_ESCAPES_VAULT continues to emit `logger.pathEscapeAttempt`.
 
-**Output schema**: `z.object({ count: z.number().int().nonnegative(),
-paths: z.array(z.string()) }).strict()`. Two fields, strict mode. Both
-branches of the `total` flag share the same shape.
+**Test surface** (R9, locked): EIGHT new / updated handler test cases
+covering all FR / AC scenarios — canonical short-form happy path,
+internal-period preservation, three FR-001a passthrough cases on `file`
+(ends-in-`.md`, contains-`/`, both), `path`-form regression guard,
+FILE_EXISTS hot-path additive details, `mapFsError` EEXIST asymmetry
+guard, overwrite-true on existing success guard. Schema tests, index
+tests, and registration tests are unchanged (schema unchanged →
+no schema-test change; descriptor unchanged → no index-test change).
 
-**Error envelope**: zero new error codes (FR-020). Failures flow
-through `VALIDATION_ERROR` (zod) and `UpstreamError` codes from the
-cli-adapter — `CLI_BINARY_NOT_FOUND`, `CLI_NON_ZERO_EXIT`,
-`CLI_REPORTED_ERROR`, `ERR_NO_ACTIVE_FILE`. The 011-R5 unknown-vault
-response-inspection clause and the dispatch-layer four-priority
-classifier are inherited unchanged. Path-traversal (F15), within-vault
-`..` segments (F16), and absolute paths (F17) are CLI-confined and
-produce empty stdout — same conflated empty-folder shape as
-missing-folder / empty-folder / folder-names-a-file per FR-010.
+**Path-safety check sequencing** (R5): the short-form rule fires at
+the `relPath` assignment step BEFORE `checkCanonicalPath` runs. The
+canonical-root check validates the RESOLVED path (`<file>.md` for
+canonical short-form inputs), not the raw input — path safety
+validates what's actually written.
 
-**Test seams** (R13): handler tests inject `deps.spawnFn` per the
-existing convention. Per request, the handler emits EXACTLY ONE spawn
-regardless of mode. Defence-in-depth filter coverage (FR-026 / FR-028)
-uses synthetic stdout because the live CLI does NOT currently produce
-shapes that trigger those filters — the unit suite is the contract
-enforcement.
+**Help update** (FR-018 / R14): two short callouts in
+[docs/tools/write_note.md](docs/tools/write_note.md), both under
+existing sections. (a) input contract section gains canonical short-form
+`file` shape definition + worked example (`file: "Daily Note"` →
+`Daily Note.md`) + non-canonical-passthrough note. (b) error roster
+section's FILE_EXISTS row gains the `details.errno: "EEXIST"` field
++ additive-enrichment note.
 
-**Module layout**: `src/tools/list_files/{schema,handler,index}.ts`
-plus co-located `*.test.ts` per the post-011 convention. All six new
-source files carry the `// Original — no upstream.` header per
-Constitution V. Tests co-located: 18 schema cases + 28 handler cases +
-5 registration cases = **51 cases total** (vs SC-015 floor of 30).
+**Plan-stage spec amendments**: NONE. The two /speckit-clarify Q&A
+bullets (Q1 additive details shape, Q2 literal short-form rule) closed
+both ambiguities at spec stage. Research surfaced no further unresolved
+questions. No T0 deferrals.
 
-**Plan-stage spec amendments** (per R12 — documented in
-[research.md](specs/019-list-files/research.md), NOT in spec.md):
-- **Plan-amendment-1 — SC-012 weakening**: `total: true` is NOT a
-  cap-evasion path. Both modes apply the same CLI fetch + filter
-  pipeline and so face the same output-cap threshold. The spec's
-  second sentence in SC-012 ("the same fixture queried with `total:
-  true` succeeds with the full count") is unrealisable under the
-  chosen architecture. Documented in `docs/tools/list_files.md`
-  Known Limitations. Mitigation: callers needing recursive counts on
-  pathological folders use `obsidian_exec files folder=X total` (the
-  CLI's native `total` flag is cap-friendly but produces a recursive
-  count).
-- **Plan-amendment-2 — FR-026 / FR-028 are defence-in-depth, not
-  load-bearing**: F18 confirms the CLI already filters dotfiles
-  natively; F19 confirms it never emits sub-folder entries from
-  `files`. The wrapper's filters protect against CLI version drift
-  but are not currently observable against the live CLI. The
-  unit-test suite uses synthetic stdout to exercise these filters.
-
-**Live-CLI characterisation status** (FR-023): 18 of 21 enumerated
-cases verified live during plan (F1–F20 in research.md). THREE cases
-deferred to T0 of `/speckit-implement` and bundled into a `T0xx` task:
-emoji / non-ASCII / whitespace fixture pass; active-mode-no-focused-vault
-probe; synthetic 200K-file output-cap fixture.
-
-**Plan-stage probe residue**: NONE. All plan-stage probes were
-READ-ONLY against the test vault. No fixtures created; no cleanup
-required.
-
-**Compatibility / release**: this BI is additive — no existing tool
-changes, no error codes added, no ADRs amended, no schema changes to
-existing tools. Public surface gains one new typed tool. Version bump
-TBD by `/speckit-implement`'s release task.
+**Compatibility / release**: this BI is additive on `details.errno`
+and contract-restorative on short-form resolution; downstream callers
+that already depended on the predecessor 011's `<file>.md` behaviour
+get their contract back, and callers branching on `response.details`
+gain a new readable `errno` field without losing any existing field.
+Expected version bump: patch level (`0.4.2` → `0.4.3`); release-task
+decision deferred to /speckit-tasks.
 
 See also:
-- [spec.md](specs/019-list-files/spec.md) — feature spec; one
-  clarifications session ran 2026-05-12 (Q1 sub-folder filter, Q2
-  wrapper-imposed lexical sort, Q3 no vault echo in response, Q4
-  folder-names-a-file conflated with empty, Q5 uniform dotfile filter)
-  + a follow-up no-ambiguities scan that confirmed plan-readiness.
-- [research.md](specs/019-list-files/research.md) — Phase 0 decisions
-  R1–R16 + live findings F1–F20 + Plan-amendment-1 (SC-012 weakening)
-  + Plan-amendment-2 (FR-026 / FR-028 defence-in-depth).
-- [data-model.md](specs/019-list-files/data-model.md) — input/output
-  schema shapes, per-mode CLI argv-mapping table, filter pipeline,
-  per-tool invariants ↔ FR mapping, test inventory (51 cases).
-- [contracts/list-files-input.contract.md](specs/019-list-files/contracts/list-files-input.contract.md)
-  — public input contract: zod schema, emitted JSON Schema shape,
-  field-by-field rules, six worked examples, validation + downstream
-  failure rosters.
-- [contracts/list-files-handler.contract.md](specs/019-list-files/contracts/list-files-handler.contract.md)
-  — handler invariants: deps shape, single-spawn invariant (R13),
-  exhaustive argv shape table, filter pipeline contract, helper-function
-  contracts (parseStdout, isFolderEntry, hasDotPrefixedComponent,
-  isDirectChildOfFolder), failure propagation chain, test-seam pattern
-  with synthetic-stdout fixtures.
-- [quickstart.md](specs/019-list-files/quickstart.md) — 22 verification
-  scenarios (S-1..S-22) mapped 1:1 to SC-001..SC-022 + 3 manual T0
-  scenarios (M-1..M-3) for live-CLI characterisation gaps.
+- [spec.md](specs/020-fix-write-gaps/spec.md) — feature spec; one
+  clarifications session ran 2026-05-12 (Q1 additive FILE_EXISTS
+  details shape — `{ errno, path, vault }`; Q2 literal short-form rule
+  — canonical = no separator AND not ending in `.md`, non-canonical
+  passes through verbatim).
+- [plan.md](specs/020-fix-write-gaps/plan.md) — implementation plan.
+- [research.md](specs/020-fix-write-gaps/research.md) — Phase 0
+  decisions R1–R15 + ground-truth verification table (handler line
+  numbers, current behaviour, change shape) + FR-coverage mapping.
+- [data-model.md](specs/020-fix-write-gaps/data-model.md) — short-form
+  predicate truth table, resolution flowchart, FILE_EXISTS details
+  shape transition diagram, per-FR test inventory (8 cases).
+- [contracts/write-note-handler-delta.contract.md](specs/020-fix-write-gaps/contracts/write-note-handler-delta.contract.md)
+  — handler delta contract: what changes (resolveSpecificModePath
+  helper + FILE_EXISTS additive errno), what stays the same (schema,
+  write mechanism, path-safety, mapFsError, active mode, cache
+  invalidation, editor-open), helper invariant table, cross-failure-
+  type field-name parity, migration / compatibility table.
+- [quickstart.md](specs/020-fix-write-gaps/quickstart.md) — 11
+  verification scenarios (S-1..S-11) mapped 1:1 to SC-001..SC-011
+  + one manual live-Obsidian scenario (S-2 for SC-002).
+
+---
+
+## Predecessor feature narrative (019-list-files) — RETAINED FOR CONTEXT
+
+The 019 narrative below is retained for downstream cross-references
+but is NOT the active planning context. Consult
+[specs/020-fix-write-gaps/plan.md](specs/020-fix-write-gaps/plan.md)
+for the active feature; consult
+[specs/019-list-files/plan.md](specs/019-list-files/plan.md) for the
+019 source. Summary: 019 added the eighth typed-tool wrap (`list_files`),
+the project's first FOLDER-scoped typed surface. Where the prior seven
+typed tools (`read_note` / `write_note` / `delete_note` /
+`read_property` / `find_by_property` / `read_heading` /
+`write_property`) all operate on a single named file or the focused
+file, `list_files` operates on a vault folder. The user-facing surface:
+`list_files({ target_mode, vault?, folder?, ext?, total? })` returning
+`{ count: number, paths: string[] }`. The CLI subcommand is `files`
+(native, NOT eval); the most consequential architectural finding was
+R6 — the CLI's `files folder=X` returns the RECURSIVE subtree, and
+the wrapper enforces FR-012's non-recursive contract by filtering
+post-fetch. Zero new error codes; zero new ADRs. Module at
+`src/tools/list_files/{schema,handler,index}.ts`. See [019
+spec.md](specs/019-list-files/spec.md) and [019
+plan.md](specs/019-list-files/plan.md) for the full detail.
 
 ---
 

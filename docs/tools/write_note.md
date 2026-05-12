@@ -64,11 +64,27 @@ The discriminator is `target_mode`. Per-mode rules are enforced via
 |---|---|---|---|---|
 | `target_mode` | `"specific"` | YES | — | Discriminator. |
 | `vault` | string ≥ 1 char | YES | — | Resolved via the lazy vault registry; `vault=Foo` writes under Foo's filesystem path regardless of which vault Obsidian currently has focused. Unknown vault → `VALIDATION_ERROR`. |
-| `file` | string ≥ 1 char (structurally-safe) | XOR with `path` | — | Vault-root basename (e.g. `"Recipe.md"`). |
-| `path` | string ≥ 1 char (structurally-safe) | XOR with `file` | — | Vault-relative path (e.g. `"Inbox/Idea.md"`). Auto-mkdir of nested parents. |
+| `file` | string ≥ 1 char (structurally-safe) | XOR with `path` | — | Vault-root note name. Canonical short-form (no folder separator AND not ending in `.md`) resolves to `<file>.md` at the vault root; any other shape passes through verbatim. See *Canonical short-form `file` resolution* below. |
+| `path` | string ≥ 1 char (structurally-safe) | XOR with `file` | — | Vault-relative path (e.g. `"Inbox/Idea.md"`). Auto-mkdir of nested parents. Never rewritten by the short-form rule. |
 | `content` | string | YES | — | Any size; UTF-8; preserved byte-for-byte. **Never crosses the CLI argv pipe.** |
 | `overwrite` | boolean | no | `false` | When `false`, collision returns `FILE_EXISTS` (atomic via the `wx` flag — no TOCTOU window). When `true`, atomic temp+rename replaces the file. |
 | `open` | boolean | no | `false` | When `true`, post-write `app.workspace.openLinkText(absPath, "")` opens the file in Obsidian. Best-effort: failure does not fail the call. |
+
+**Canonical short-form `file` resolution**: when `input.file` is supplied
+without `input.path`, the handler applies a literal short-form rule. The
+input is canonical if it contains no folder separator (`/` or `\`) AND
+does not end in `.md`. Canonical inputs resolve to `<file>.md` at the
+vault root and the response's `path` reports the resolved value (e.g.
+`file: "Daily Note"` → on-disk `<vault-root>/Daily Note.md`, response
+`path: "Daily Note.md"`). Non-canonical inputs pass through verbatim:
+`file: "Notes.md"` writes `<vault-root>/Notes.md` and responds with
+`path: "Notes.md"` (NO double-extension); `file: "Folder/Note"` writes
+`<vault-root>/Folder/Note` and responds with `path: "Folder/Note"` (no
+`.md` appended; folder NOT stripped to basename). Internal periods are
+preserved by `endsWith(".md")` precision — `file: "version_1.2.3"`
+resolves to `version_1.2.3.md`. Callers wanting deterministic on-disk
+naming for extension-less inputs supply the canonical shape; callers
+wanting verbatim layout use `path` instead.
 
 **Path safety**: `file` and `path` are gated by a structural validator
 (rejects empty strings, leading `/` or `\`, drive-letter prefix `[A-Za-z]:`,
@@ -150,7 +166,7 @@ Every failure surfaces as an `UpstreamError` instance via the
 |---|---|---|
 | `VALIDATION_ERROR` | Schema rejection: missing `target_mode`, missing `vault` in specific mode, both/neither `file`/`path`, forbidden key in active mode, active without `overwrite: true`, `template` supplied, structurally-unsafe path, vault not in the registry. | Agent retries with corrected input. `details.issues` carries per-issue `path` + `message` + zod code. |
 | `ERR_NO_ACTIVE_FILE` | Active mode with no focused file in Obsidian. | Open a note in editor, or call again with `target_mode: "specific"` + explicit vault + `file`/`path`. |
-| `FILE_EXISTS` | Specific mode, `overwrite: false`, target path already occupied. | Retry with `overwrite: true` if appropriate, or pick a different path. `details.path` carries the offending vault-relative path; `details.vault` carries the vault name. |
+| `FILE_EXISTS` | Specific mode, `overwrite: false`, target path already occupied. | Retry with `overwrite: true` if appropriate, or pick a different path. `details: { errno: "EEXIST", path, vault }` — `errno` is the standard POSIX errno name (field-name parity with `FS_WRITE_FAILED`'s `details.errno`; additive — the existing `path` and `vault` fields are preserved). `details.path` carries the offending vault-relative path; `details.vault` carries the vault name (or `null`). |
 | `PATH_ESCAPES_VAULT` | Runtime canonical check: input is structurally safe but resolves outside vault root via a symlink. | Agent should NOT retry (security gate). `details.vault` and `details.attemptedPath` for diagnostic. Logger emits a typed `pathEscapeAttempt` event for operator audit. |
 | `FS_WRITE_FAILED` | Generic fs failure: ENOSPC (disk full), EACCES / EPERM (permissions), EROFS (read-only filesystem), EIO, etc. | `details.errno` carries the OS errno; `details.syscall` and `details.path` for diagnostic. Agent may retry on transient errors; user action needed for permission/disk. |
 | `CLI_BINARY_NOT_FOUND` | First write triggers the lazy vault-registry probe; the `obsidian` binary is not on `PATH`. | Operator install / `PATH` fix, or set `OBSIDIAN_BIN`. |
