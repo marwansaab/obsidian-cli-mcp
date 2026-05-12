@@ -869,3 +869,207 @@ test("output envelope has exactly two keys: created + path", async () => {
   );
   expect(Object.keys(result).sort()).toEqual(["created", "path"]);
 });
+
+// 020-fix-write-gaps US1 — Short-form-name resolution (FR-001 / FR-001a)
+// =====================================================================
+
+// (#020-1) Canonical short-form happy path: file: "Acceptance Probe" → on-disk
+// "Acceptance Probe.md", response path "Acceptance Probe.md". FR-001 / FR-002 /
+// FR-003 / Story 1 AC#1.
+test("020/US1 canonical short-form file → <file>.md at vault root", async () => {
+  const fs = fakeFs();
+  const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
+  const result = await executeWriteNote(
+    {
+      target_mode: "specific",
+      vault: "TestVault",
+      file: "Acceptance Probe",
+      content: "body",
+      overwrite: false,
+    },
+    deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+  );
+  expect(result).toEqual({ created: true, path: "Acceptance Probe.md" });
+  expect(fs.writes.length).toBe(1);
+  const writtenPath = fs.writes[0]![0];
+  expect(
+    writtenPath.endsWith("Acceptance Probe.md"),
+  ).toBe(true);
+});
+
+// (#020-2) Internal-period preservation: file: "version_1.2.3" →
+// "version_1.2.3.md" (endsWith(".md") is false; not path.extname). FR-001
+// invariant H6 / Story 1 AC#5.
+test("020/US1 canonical short-form preserves internal periods", async () => {
+  const fs = fakeFs();
+  const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
+  const result = await executeWriteNote(
+    {
+      target_mode: "specific",
+      vault: "TestVault",
+      file: "version_1.2.3",
+      content: "x",
+      overwrite: false,
+    },
+    deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+  );
+  expect(result.path).toBe("version_1.2.3.md");
+});
+
+// (#020-3) FR-001a passthrough (already-ends-in-.md): file: "Notes.md" →
+// verbatim, NO double-extension. Story 1 AC#6.
+test("020/US1 file ending in .md passes through verbatim (no double-extension)", async () => {
+  const fs = fakeFs();
+  const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
+  const result = await executeWriteNote(
+    {
+      target_mode: "specific",
+      vault: "TestVault",
+      file: "Notes.md",
+      content: "x",
+      overwrite: false,
+    },
+    deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+  );
+  expect(result.path).toBe("Notes.md");
+  const writtenPath = fs.writes[0]![0];
+  expect(writtenPath.endsWith("Notes.md")).toBe(true);
+  expect(writtenPath.endsWith("Notes.md.md")).toBe(false);
+});
+
+// (#020-4) FR-001a passthrough (contains folder separator): file: "Folder/Note"
+// → verbatim, no .md appended, folder NOT stripped. Story 1 AC#7.
+test("020/US1 file with folder separator passes through verbatim", async () => {
+  const fs = fakeFs();
+  const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
+  const result = await executeWriteNote(
+    {
+      target_mode: "specific",
+      vault: "TestVault",
+      file: "Folder/Note",
+      content: "x",
+      overwrite: false,
+    },
+    deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+  );
+  expect(result.path).toBe("Folder/Note");
+  const writtenPath = fs.writes[0]![0];
+  expect(
+    writtenPath.endsWith("Folder\\Note") || writtenPath.endsWith("Folder/Note"),
+  ).toBe(true);
+  expect(writtenPath.endsWith(".md")).toBe(false);
+});
+
+// (#020-5) Path-form regression guard: path: "Subfolder/Note.md" → verbatim, no
+// double-extension, no .md re-append. FR-004 / Story 1 AC#4 / SC-003.
+test("020/US1 path form unaffected by short-form rule (regression guard)", async () => {
+  const fs = fakeFs();
+  const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
+  const result = await executeWriteNote(
+    {
+      target_mode: "specific",
+      vault: "TestVault",
+      path: "Subfolder/Note.md",
+      content: "x",
+      overwrite: false,
+    },
+    deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+  );
+  expect(result.path).toBe("Subfolder/Note.md");
+  const writtenPath = fs.writes[0]![0];
+  expect(
+    writtenPath.endsWith("Subfolder\\Note.md") || writtenPath.endsWith("Subfolder/Note.md"),
+  ).toBe(true);
+  expect(writtenPath.endsWith("Note.md.md")).toBe(false);
+});
+
+// 020-fix-write-gaps US2 — FILE_EXISTS diagnostic enrichment (FR-007 / FR-008)
+// =============================================================================
+
+// (#020-6) Hot-path FILE_EXISTS additive details: {errno, path, vault}. FR-007 /
+// FR-008 / FR-009 / Story 2 AC#1.
+test("020/US2 hot-path FILE_EXISTS rejection carries additive details.errno", async () => {
+  const eexist = Object.assign(new Error("EEXIST: file already exists"), {
+    code: "EEXIST",
+    syscall: "open",
+  });
+  const fs = fakeFs({
+    writeFile: vi.fn(async () => {
+      throw eexist;
+    }),
+  });
+  const { spawnFn } = makeQueuedSpawn([]);
+  const err = await executeWriteNote(
+    {
+      target_mode: "specific",
+      vault: "V",
+      path: "Existing.md",
+      content: "x",
+      overwrite: false,
+    },
+    deps({ spawnFn, vaultRegistry: fakeRegistry({ V: VAULT_ROOT }), fs }),
+  ).catch((e) => e);
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect((err as UpstreamError).code).toBe("FILE_EXISTS");
+  expect((err as UpstreamError).details).toEqual({
+    errno: "EEXIST",
+    path: "Existing.md",
+    vault: "V",
+  });
+  // No rename / unlink — hot path is wx-flag write, not temp+rename.
+  expect(fs.renames.length).toBe(0);
+  expect(fs.unlinks.length).toBe(0);
+});
+
+// (#020-7) mapFsError asymmetry guard: mkdir EEXIST maps via mapFsError, which
+// keeps its single-field {errno: "EEXIST"} details (no path / vault). Research
+// decision R4 + Constitution Principle II boundary-test side.
+test("020/US2 mapFsError EEXIST keeps single-field details (preserved asymmetry)", async () => {
+  const mkdirEexist = Object.assign(new Error("EEXIST"), {
+    code: "EEXIST",
+    syscall: "mkdir",
+  });
+  const fs = fakeFs({
+    mkdir: vi.fn(async () => {
+      throw mkdirEexist;
+    }),
+  });
+  const { spawnFn } = makeQueuedSpawn([]);
+  const err = await executeWriteNote(
+    {
+      target_mode: "specific",
+      vault: "TestVault",
+      path: "Subdir/n.md",
+      content: "x",
+      overwrite: true,
+    },
+    deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+  ).catch((e) => e);
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect((err as UpstreamError).code).toBe("FILE_EXISTS");
+  expect((err as UpstreamError).details).toEqual({ errno: "EEXIST" });
+});
+
+// (#020-8) Overwrite-true on existing → success envelope, no details.errno in
+// response. FR-010 / Story 2 AC#4 / SC-006.
+test("020/US2 overwrite=true on existing → success envelope carries no errno", async () => {
+  const fs = fakeFs({
+    realpath: vi.fn(async (p: string) => {
+      if (p === VAULT_ROOT) return VAULT_ROOT;
+      return p; // target exists
+    }),
+  });
+  const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
+  const result = await executeWriteNote(
+    {
+      target_mode: "specific",
+      vault: "V",
+      path: "Existing.md",
+      content: "new",
+      overwrite: true,
+    },
+    deps({ spawnFn, vaultRegistry: fakeRegistry({ V: VAULT_ROOT }), fs }),
+  );
+  expect(result).toEqual({ created: false, path: "Existing.md" });
+  expect((result as unknown as { details?: unknown }).details).toBeUndefined();
+});

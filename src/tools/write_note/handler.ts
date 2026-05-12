@@ -76,6 +76,22 @@ function isErrnoCode(e: unknown, code: string): boolean {
   );
 }
 
+// FR-001 / R2 canonical short-form predicate: file is canonical iff it has no
+// folder separator AND does not end in `.md`. Internal periods preserved
+// (`version_1.2.3` → canonical because `endsWith(".md")` is false).
+function isCanonicalShortForm(file: string): boolean {
+  return !file.includes("/") && !file.includes("\\") && !file.endsWith(".md");
+}
+
+// FR-001 / R1 specific-mode path resolution: `input.path` passes through
+// verbatim; `input.file` resolves to `<file>.md` at vault root for canonical
+// short-form inputs and passes through verbatim otherwise (FR-001a).
+function resolveSpecificModePath(input: WriteNoteInput): string {
+  if (input.path !== undefined) return input.path;
+  const file = input.file!;
+  return isCanonicalShortForm(file) ? `${file}.md` : file;
+}
+
 function mapFsError(e: unknown): UpstreamError {
   const errno = (e as NodeJS.ErrnoException | null)?.code ?? "UNKNOWN";
   if (errno === "EEXIST") {
@@ -146,7 +162,7 @@ export async function executeWriteNote(
     relPath = parsed.path;
   } else {
     vaultRoot = await deps.vaultRegistry.resolveVaultPath(input.vault!);
-    relPath = (input.path ?? input.file)!;
+    relPath = resolveSpecificModePath(input);
   }
 
   const check = await checkCanonicalPath(vaultRoot, relPath, { realpath: fs.realpath });
@@ -208,7 +224,7 @@ export async function executeWriteNote(
         throw new UpstreamError({
           code: "FILE_EXISTS",
           cause: e,
-          details: { path: relPath, vault: input.vault ?? null },
+          details: { errno: "EEXIST", path: relPath, vault: input.vault ?? null },
           message: `File already exists at "${relPath}" and overwrite is false.`,
         });
       }
