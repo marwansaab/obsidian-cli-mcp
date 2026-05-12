@@ -1,7 +1,7 @@
 {
   "name": "@marwansaab/obsidian-cli-mcp",
   "version": "0.4.0",
-  "description": "Cross-platform MCP server bridging MCP clients to the Obsidian Integrated CLI binary on macOS, Linux, and Windows hosts. Ships obsidian_exec (generic CLI bridge), help (progressive-disclosure docs), read_note (typed read tool), read_heading (typed heading-body read tool), write_note (typed direct-fs-write create/overwrite tool — bypasses the upstream argv-IPC defect per ADR-009), delete_note (typed delete tool with safety defaults), read_property (typed surgical frontmatter-property read), and find_by_property (typed value-to-file lookup over frontmatter).",
+  "description": "Cross-platform MCP server bridging MCP clients to the Obsidian Integrated CLI binary on macOS, Linux, and Windows hosts. Ships obsidian_exec (generic CLI bridge), help (progressive-disclosure docs), read_note (typed read tool), read_heading (typed heading-body read tool), write_note (typed direct-fs-write create/overwrite tool — bypasses the upstream argv-IPC defect per ADR-009), delete_note (typed delete tool with safety defaults), read_property (typed surgical frontmatter-property read), write_property (typed surgical frontmatter-property write — symmetric write companion of read_property), and find_by_property (typed value-to-file lookup over frontmatter).",
   "type": "module",
   "bin": {
     "obsidian-cli-mcp": "dist/index.js"

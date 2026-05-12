@@ -5,6 +5,28 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+**MINOR (additive surface)** — adds `write_property`, the seventh typed-tool wrap and the symmetric write companion to `read_property`. Surgical single-frontmatter-property writes — agents that want to flip one field no longer pay the cost of a full-file `read_note` plus `write_note` round-trip. Public surface: `write_property({ target_mode, vault?, file? | path?, name, value, type? })` → `{ written: true, path, name }`. Target-mode parity with the other typed tools. Six YAML types supported (text / list / number / checkbox / date / datetime); type inferred from `value`'s JavaScript shape when omitted; date and datetime require explicit type. Cross-type overwrite is native: writing a string to a number-typed property flips both the value and the on-disk type representation (per FR-033 + SC-021). Spec-id 018-write-property, FR-001..FR-033, SC-001..SC-021.
+
+### Added
+
+- **`write_property` typed tool** at `src/tools/write_property/` — schema + handler + index + co-located tests (57 cases: 17 schema / 35 handler / 5 registration). Per-mode call architecture: specific+path is one CLI invocation; specific+file pre-resolves the wikilink to a canonical path via the CLI's `file` subcommand (TSV parse) before the write; active mode pre-resolves the focused file's path and vault via a FIXED eval template before the write. Both two-call branches eliminate any TOCTOU window between path resolution and the write itself.
+- **`docs/tools/write_property.md`** — full progressive-disclosure documentation: per-field input contract, type-inference table, six worked examples (one per YAML type plus active-mode and empty-list variants), error-code roster, Known Limitations section.
+- **`docs/tools/index.md`** entry for `write_property`.
+
+### Changed
+
+- **`package.json` description** updated to mention `write_property` alongside the existing typed tools.
+- **`src/server.ts`** registration list grew by two lines — one import, one tools-array entry, alphabetical between `createWriteNoteTool` and (no later entry). The post-010 consolidated drift detector at `src/tools/_register.test.ts` gained one invariant entry for the new tool's published JSON Schema shape.
+
+### Internal
+
+- Module surface: ~205 LOC across `schema.ts` / `handler.ts` / `index.ts`. Inherits the 011-R5 unknown-vault response-inspection clause from the cli-adapter unchanged. Cross-type overwrite, type-vs-value contradiction handling, and path-traversal confinement are all native CLI behaviours; the wrapper performs no pre-validation beyond zod-boundary input checking.
+- **Known limitations** (documented in `docs/tools/write_property.md`): CRLF line-ending preservation is partial — all-LF files round-trip cleanly, but CRLF files end up with mixed line endings post-write because the CLI emits LF for the modified frontmatter region (per research.md R8). YAML flow-style sequences (`tags: [a, b]`) are re-emitted as block-style on every write (per research.md R7). List elements containing literal `,` characters are split by the CLI's parser; callers needing comma-containing elements fall back to `obsidian_exec`.
+- **Zero new error codes** added to `src/errors.ts`. All failures flow through `VALIDATION_ERROR` (zod boundary) + `UpstreamError` codes from the cli-adapter (`CLI_BINARY_NOT_FOUND`, `CLI_NON_ZERO_EXIT`, `CLI_REPORTED_ERROR`) + `ERR_NO_ACTIVE_FILE` (active-mode no focused file).
+- **No edits to** existing per-tool modules — `obsidian_exec`, `help`, `read_note`, `read_heading`, `write_note`, `delete_note`, `read_property`, `find_by_property` are all byte-stable per SC-013 / FR-031.
+
 ## [0.4.0] - 2026-05-10
 
 **MINOR release** — lifts the bridge's Windows-only restriction by extracting binary resolution into a new `src/binary-resolver/` module that performs an ordered three-tier resolution: (1) `OBSIDIAN_BIN` override, (2) platform-default install path, (3) fall-through to OS-spawn `PATH` lookup. Public-surface identity bumps from "Windows-host MCP server" to a tri-platform server (macOS, Linux, Windows). All eight currently-shipping tools and every future typed tool inherit cross-platform support without per-tool plumbing because the resolver lives below `dispatchCli`. Spec-id 017-cross-platform-support, FR-001..FR-020, SC-001..SC-010.
