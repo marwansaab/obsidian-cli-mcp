@@ -26,7 +26,9 @@ Notes:
 - [x] Dependencies and assumptions identified
 
 Notes:
-- The spec carries two **/speckit-clarify-deferred** decisions (Q1 extension-preservation rule, Q2 folder-separator-rejection rule). These are NOT [NEEDS CLARIFICATION] markers — they are explicit /speckit-clarify deferrals with default resolutions documented in the Assumptions section so the spec binds either way the clarification resolves. This matches the post-016 precedent (016-reliable-writer had a /speckit-clarify-deferred Q1 on the writer's atomicity granularity that resolved during the clarification phase). PASS.
+- /speckit-clarify session 2026-05-12 locked both questions:
+  - Q1 (extension-handling rule) → `.md`-only allowlist with case-sensitive byte equality (`name.endsWith(".md")` → verbatim; else append `.md`). Mirrors 020-fix-write-gaps R2. Non-`.md` filename targets and cross-extension renames are out of scope; callers route through `obsidian_exec`. Story 3 demoted from P1 to P2 and reshaped to cover the "internal periods preserved" corollary rather than the now-out-of-scope "explicit-extension verbatim" contract.
+  - Q2 (folder-separator-rejection rule) → validation-layer reject; `name` MUST NOT contain `/` or `\` (recovery hint points at the future `move_note` tool).
 - "Technology-agnostic" SC notes: SC-001 through SC-016 cite vitest, `wc -l`, grep, npm — the same toolchain the existing 8 typed-tool specs cite. The project's Constitution v1.2.0 names vitest as the merge-gating test framework (Technical Standards & Stack Constraints), so this is project-level grounding, not a leak of implementation detail.
 
 ## Feature Readiness
@@ -43,8 +45,8 @@ User input acceptance criteria mapped to spec stories / FRs:
 | User input AC | Priority | Spec coverage |
 |---------------|----------|---------------|
 | #1 Specific-mode in-place rename with link-rewriting | P1 | Story 1, FR-007, FR-010 |
-| #2 `.md` extension preservation | P1 | Story 1 AC#2, Story 3 AC#2, FR-016 case (b), SC-013, /speckit-clarify Q1 |
-| #3 Explicit extension used (no double-extension) | P1 | Story 3, FR-016 case (c), SC-013, /speckit-clarify Q1 |
+| #2 `.md` extension preservation | P1 | Story 1 AC#2, FR-007 (`appendMdIfMissing` helper), FR-016 cases (b) / (b2), SC-013, /speckit-clarify Q1 (locked 2026-05-12) |
+| #3 Explicit extension used (no double-extension) | P1→narrowed | Story 1 AC#2 covers the no-double-`.md` case verbatim. Cross-extension type conversion (e.g., `.md → .canvas`) is **out of scope** per /speckit-clarify Q1 scope narrowing — callers route through `obsidian_exec`. Story 3 (P2, reshaped) covers the internal-periods preservation corollary and the cross-extension scope-narrowing acceptance scenario. |
 | #4 Source-not-found structured error | P1 | Story 4 AC#1, Story 7 AC#3, FR-016 case (h) |
 | #5 Destination-exists structured error | P1 | Story 4 AC#2, FR-016 case (h) |
 | #6 Specific-mode without locator fails validation | P1 | Story 6 AC#1, FR-016 case (e) |
@@ -78,5 +80,8 @@ User input edge-case categories mapped to spec coverage:
 ## Notes
 
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`.
-- All 16 user-input acceptance criteria are covered; all 5 user-input edge-case categories (CONCURRENCY, FILESYSTEM, LINK-UPDATE, UNDERLYING, CLIENT-CLASS, SECURITY) are covered.
-- The two /speckit-clarify-deferred questions (Q1 extension-preservation rule, Q2 folder-separator-rejection rule) bind the spec via documented defaults so `/speckit-plan` can proceed even if /speckit-clarify is skipped — but the recommended next step is `/speckit-clarify` to lock those decisions before planning.
+- All 16 user-input acceptance criteria are covered; all user-input edge-case categories (CONCURRENCY, FILESYSTEM, LINK-UPDATE, UNDERLYING, CLIENT-CLASS, SECURITY) are covered. User input AC #3 (explicit-extension verbatim) was narrowed by /speckit-clarify Q1 — cross-extension conversions are out of scope for `rename_note` and route through `obsidian_exec`; the no-double-`.md` invariant the user input cares about is preserved (Story 1 AC#2).
+- /speckit-clarify session 2026-05-12 locked both deferred questions:
+  - Q1 (extension-handling rule) → `.md`-only allowlist, case-sensitive byte equality. Cross-extension renames out of scope.
+  - Q2 (folder-separator-rejection rule) → validation-layer reject; `name` MUST NOT contain `/` or `\`.
+- Spec is ready for `/speckit-plan` with no further clarification needed.
