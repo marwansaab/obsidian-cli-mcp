@@ -65,3 +65,47 @@ export function applyTargetModeRefinement<
 export const targetModeSchema = applyTargetModeRefinement(targetModeBaseSchema);
 
 export type TargetMode = z.infer<typeof targetModeSchema>;
+
+// Folder-scoped variant of applyTargetModeRefinement (introduced by feature
+// 019-list-files). The folder-scoped surface forbids the file-scoped locator
+// fields (`file` and `path`) in BOTH modes — they have no meaning for tools
+// that operate on a vault folder. The existing in-specific-requires-vault
+// and in-active-forbids-vault rules are preserved verbatim.
+export function applyTargetModeRefinementForFolderScoped<
+  T extends z.ZodObject<z.ZodRawShape, z.UnknownKeysParam>,
+>(schema: T): z.ZodEffects<T> {
+  return schema.superRefine((input, ctx) => {
+    const record = input as Record<string, unknown>;
+    if (Object.hasOwn(record, "file") && record.file !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["file"],
+        message: "file is not allowed for folder-scoped tools",
+      });
+    }
+    if (Object.hasOwn(record, "path") && record.path !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["path"],
+        message: "path is not allowed for folder-scoped tools",
+      });
+    }
+    if (record.target_mode === "specific") {
+      if (record.vault === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["vault"],
+          message: "vault is required in specific mode",
+        });
+      }
+    } else if (record.target_mode === "active") {
+      if (Object.hasOwn(record, "vault") && record.vault !== undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["vault"],
+          message: "vault is not allowed in active mode",
+        });
+      }
+    }
+  });
+}

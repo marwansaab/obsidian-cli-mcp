@@ -5,6 +5,39 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-05-12
+
+**PATCH release (additive surface)** — adds `list_files`, the eighth typed-tool wrap and the project's first FOLDER-scoped typed surface. Where the prior seven typed tools (`read_note` / `write_note` / `delete_note` / `read_property` / `find_by_property` / `read_heading` / `write_property`) all operate on a single named file or the focused file, `list_files` operates on a vault folder and returns the structured `{ count, paths }` shape. Public surface: `list_files({ target_mode, vault?, folder?, ext?, total? })` → `{ count: number, paths: string[] }`. Agents that want folder enumeration no longer pay the cost of `obsidian_exec` returning plain text plus client-side line parsing. Spec-id 019-list-files, FR-001..FR-028, SC-001..SC-022.
+
+### Added
+
+- **`list_files` typed MCP tool** at `src/tools/list_files/` — schema + handler + index + co-located tests (51 cases: 18 schema / 28 handler / 5 registration). Single-spawn architecture (R13): ONE `invokeCli` call per request regardless of mode or input parameters. Wraps the CLI's native `files` subcommand (NOT eval). User inputs (`folder`, `ext`) flow through discrete argv parameters — no eval source-text concatenation; the spec's "no eval injection vector" assertion holds structurally.
+- **Wrapper-side filter pipeline** (per Plan-amendment-2 + R6 / R9): three filters apply post-CLI-fetch in this order — (1) sub-folder filter per FR-026 (defence-in-depth — F19 confirms the live CLI never emits sub-folder entries from `files`); (2) dotfile filter per FR-028 (defence-in-depth — F18 confirms the CLI already filters dotfiles natively; direct consequence: `folder: ".obsidian"` returns `{ count: 0, paths: [] }`); (3) non-recursive filter per R6 (**load-bearing** — F2 confirms the CLI returns the recursive subtree by default; the wrapper enforces FR-012's non-recursive contract post-fetch by filtering paths whose component count exceeds folder's component count + 1).
+- **UTF-8 byte-compare lexical sort** (R8 / FR-027) via `Buffer.compare`. Byte-for-byte reproducible across platforms. Differs from JavaScript's default UTF-16 code-unit compare only for non-BMP characters.
+- **`total: true` count-only mode** (R7): the wrapper does NOT delegate to the CLI's native `total` flag (which is recursive — incompatible with FR-007's identical-count-across-modes requirement). Both modes apply the same CLI fetch + filter pipeline; on `total: true` the response's `paths` is set to `[]` after counting. Token saving is realised at the wrapper→MCP-client boundary.
+- **Folder-scoped target-mode refinement** at `src/target-mode/target-mode.ts` — a new helper `applyTargetModeRefinementForFolderScoped` (parallel to the existing `applyTargetModeRefinement`) that forbids the file-scoped locator fields (`file` and `path`) in BOTH modes while preserving the in-specific-requires-vault / in-active-forbids-vault rules. The ONE incremental change to the target-mode primitive in this feature.
+- **`docs/tools/list_files.md`** — full progressive-disclosure documentation: per-field input contract, output shape for both branches of `total`, the lexical UTF-8 byte-compare ordering convention, the non-recursive contract (with the wrapper-side filter explanation), the dotfile filter (FR-028 with the `folder: ".obsidian"` consequence worked out), the failure-mode roster, six worked examples, Known Limitations section covering Plan-amendment-1, platform-dependent case-sensitivity, and the active-mode TOCTOU caveat.
+- **`docs/tools/index.md`** entry for `list_files`.
+
+### Changed
+
+- **`package.json` description** updated to mention `list_files` alongside the existing typed tools.
+- **`README.md`** tool list grew from nine to ten entries.
+- **`src/server.ts`** registration list grew by two lines — one import, one tools-array entry, alphabetical between `createHelpTool` and `createObsidianExecTool`. The post-010 consolidated drift detector at `src/tools/_register.test.ts` gained one invariant entry for the new tool's published JSON Schema shape.
+
+### Internal
+
+- Module surface: ~205 LOC across `schema.ts` / `handler.ts` / `index.ts`. Plus ~50 LOC across `applyTargetModeRefinementForFolderScoped` + its co-located tests in `src/target-mode/`. Inherits the 011-R5 unknown-vault response-inspection clause from the cli-adapter unchanged.
+- **Known limitations** (documented in `docs/tools/list_files.md`): per Plan-amendment-1, `total: true` is NOT a cap-evasion path — both modes share the same CLI fetch and so face the same 10 MiB output-cap threshold. Mitigation: callers needing recursive counts on pathological folders fall back to `obsidian_exec` with `files folder=X total` (CLI's native `total` flag is cap-friendly but produces a recursive count). Platform-dependent case-sensitivity on `folder` is preserved verbatim — the wrapper does NOT normalise case. Active-mode multi-vault setups cannot specify which vault to enumerate via active mode; prefer specific mode with explicit `vault`.
+- **Zero new error codes** added to `src/errors.ts`. All failures flow through `VALIDATION_ERROR` (zod boundary) + `UpstreamError` codes from the cli-adapter (`CLI_BINARY_NOT_FOUND`, `CLI_NON_ZERO_EXIT`, `CLI_REPORTED_ERROR`, `CLI_OUTPUT_TOO_LARGE`) + `ERR_NO_ACTIVE_FILE` (active mode with no focused vault, when classifier matches).
+- **No edits to** existing per-tool modules — `obsidian_exec`, `help`, `read_note`, `read_heading`, `write_note`, `delete_note`, `read_property`, `find_by_property`, `write_property` are all byte-stable per SC-013 / FR-024.
+
+### References
+
+- Spec: [specs/019-list-files/spec.md](specs/019-list-files/spec.md)
+- Plan: [specs/019-list-files/plan.md](specs/019-list-files/plan.md)
+- Research (incl. Plan-amendments 1 + 2): [specs/019-list-files/research.md](specs/019-list-files/research.md)
+
 ## [0.4.1] - 2026-05-12
 
 **PATCH release (additive surface)** — adds `write_property`, the seventh typed-tool wrap and the symmetric write companion to `read_property`. Surgical single-frontmatter-property writes — agents that want to flip one field no longer pay the cost of a full-file `read_note` plus `write_note` round-trip. Public surface: `write_property({ target_mode, vault?, file? | path?, name, value, type? })` → `{ written: true, path, name }`. Target-mode parity with the other typed tools. Six YAML types supported (text / list / number / checkbox / date / datetime); type inferred from `value`'s JavaScript shape when omitted; date and datetime require explicit type. Cross-type overwrite is native: writing a string to a number-typed property flips both the value and the on-disk type representation (per FR-033 + SC-021). Spec-id 018-write-property, FR-001..FR-033, SC-001..SC-021.

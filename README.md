@@ -1,6 +1,6 @@
 # obsidian-cli-mcp
 
-A minimal MCP server that bridges any MCP client (running locally or in a sandboxed container like Claude Cowork's Linux environment) to the Obsidian Integrated CLI binary on the operator's macOS, Linux, or Windows desktop. Exposes nine tools:
+A minimal MCP server that bridges any MCP client (running locally or in a sandboxed container like Claude Cowork's Linux environment) to the Obsidian Integrated CLI binary on the operator's macOS, Linux, or Windows desktop. Exposes ten tools:
 
 - **`obsidian_exec`** — generic CLI bridge that lets the caller invoke any Obsidian CLI subcommand with structured parameters, bare-word flags, optional vault scoping, and a per-call timeout.
 - **`help`** — progressive-disclosure tool that serves full Markdown documentation for any registered tool on demand, per [ADR-005](.decisions/ADR-005%20-%20Token-Optimized%20Tool%20Definitions%20via%20Progressive%20Disclosure.md). Parameter-level descriptions are stripped from the JSON Schema at registration time to save context-window tokens, and recovered via `help({ tool_name: "<name>" })` when the agent needs them.
@@ -9,6 +9,7 @@ A minimal MCP server that bridges any MCP client (running locally or in a sandbo
 - **`read_property`** — typed surgical frontmatter-property read: returns `{ value, type }` with the property's native YAML type preserved (text / list / number / checkbox / date / datetime / unknown).
 - **`write_property`** — typed surgical frontmatter-property write: writes one named property to a vault note and returns `{ written: true, path, name }`. Symmetric write companion to `read_property`; six YAML types supported; cross-type overwrite native.
 - **`find_by_property`** — typed value-to-file lookup over frontmatter: enumerates the vault for files whose named property equals a given value.
+- **`list_files`** — typed folder-scoped file enumeration: lists files directly inside a vault folder (non-recursive, sub-folder + dotfile entries dropped, paths sorted by UTF-8 byte order). Supports `total: true` for token-economical count-only queries.
 - **`write_note`** — typed direct-filesystem-write create/overwrite: writes content directly to the vault filesystem (bypassing the upstream argv-IPC defect that crashed Obsidian for large content); see *[Architecture note: `write_note`'s direct-filesystem-write path](#architecture-note-write_notes-direct-filesystem-write-path)* below for the full rationale.
 - **`delete_note`** — typed delete tool with safety defaults (trash-by-default; explicit-opt-in for permanent delete).
 
