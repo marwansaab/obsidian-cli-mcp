@@ -208,7 +208,7 @@ Specific UpstreamError variants relevant to this BI:
 
 ## Test-seam pattern
 
-UNCHANGED from 016-reliable-writer. Handler tests inject `nodeFs.writeFile` (and other fs primitives) via `deps`, plus `spawnFn`, `vaultRegistry.resolveVaultPath`, `env`, `logger`, `queue`. Synthetic stdout / synthetic fs errors exercise each branch. The eight new / updated test cases reuse the existing pattern; no new test-seam introductions.
+UNCHANGED from 016-reliable-writer. Handler tests inject `nodeFs.writeFile` (and other fs primitives) via `deps`, plus `spawnFn`, `vaultRegistry.resolveVaultPath`, `env`, `logger`, `queue`. Synthetic stdout / synthetic fs errors exercise each branch. The eight new test cases reuse the existing pattern; no new test-seam introductions. (Audit-confirmation T005 verified zero existing `file:`-parameter cases — the eight new tests are pure additions.)
 
 ### Specific seam touch points
 

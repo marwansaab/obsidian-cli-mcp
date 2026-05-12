@@ -143,7 +143,7 @@ Constitution Principle II symmetric-coverage requirement satisfied: both Story 1
 | Module | Change | LOC delta |
 |--------|--------|-----------|
 | `src/tools/write_note/handler.ts` | +`resolveSpecificModePath` helper (~8 LOC) + `errno: "EEXIST"` field add (~1 LOC) + call-site rewire (~2 LOC net) | **+~10 LOC** |
-| `src/tools/write_note/handler.test.ts` | 8 new / updated test cases @ ~10 LOC each | **+~80 LOC** |
+| `src/tools/write_note/handler.test.ts` | 8 NEW test cases @ ~10 LOC each (no UPDATED cases — audit-confirmation T005 verified zero existing `file`-parameter cases) | **+~80 LOC** |
 | `src/tools/write_note/schema.ts` | (frozen per FR-012) | 0 |
 | `src/tools/write_note/schema.test.ts` | (frozen) | 0 |
 | `src/tools/write_note/index.ts` | (frozen) | 0 |

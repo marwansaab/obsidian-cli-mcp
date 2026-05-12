@@ -29,6 +29,18 @@
 - [x] Feature meets measurable outcomes defined in Success Criteria
 - [x] No implementation details leak into specification
 
+## Validation Notes (run 3 — 2026-05-12 — post-/speckit-analyze remediation)
+
+`/speckit-analyze` 2026-05-12 surfaced 5 LOW-severity findings (zero CRITICAL / HIGH / MEDIUM). User requested full remediation. All 5 findings closed in-place; the bullets below capture the resolution per finding ID:
+
+- **U1 — FR-005 no-impact contract assertion**: reframed as an explicit no-impact delegation that names FR-001 (resolution rule), 016-FR-011 (cache invalidation), and SC-002 (testability path). The annotation `*(no-impact contract delegation — no testable handler-side rule)*` makes the delegation visible at scan time so future maintainers don't search for a handler-side rule that doesn't exist.
+- **U2 — T005 open-ended audit scope**: the audit was performed at remediation time. `grep -n "file:" src/tools/write_note/handler.test.ts` returned empty on the current branch HEAD — ZERO existing handler.test.ts cases use the `file` parameter; every existing case uses `path: "..."` exclusively. T005 was converted from a "discover failing cases after T004 lands" task to an "audit-confirmation gate" — the implementing agent runs the grep, confirms it's still empty, and T005 is satisfied with no edits. Propagated to: research.md R9, data-model.md module LOC budget, plan.md (three locations: Testing context line, Coverage gate line, Project Structure source-tree line, Phase 0 R9 entry), contracts/write-note-handler-delta.contract.md test-seam pattern section, tasks.md (Tests header + T001 description + T005 wording).
+- **C1 — T010 maps to R4 only**: T010's wording now carries explicit anchors to BOTH research decision R4 (preserved mapFsError asymmetry) AND Constitution Principle II (Public Surface Test Coverage — NON-NEGOTIABLE: happy-path + failure-or-boundary tests in the same change). T010 is the boundary-test side of the symmetric-coverage requirement for US2's surface modification.
+- **I3 — path-anchor convention varies between plan.md and tasks.md**: tasks.md's "Path Conventions" section now explicitly documents that paths in tasks.md are relative-to-this-file (`../../src/tools/...`) while plan.md uses repo-root-relative paths — established project precedent (cf. 019-list-files). The asymmetry is intentional; the note prevents reader confusion.
+- **M5 — SC-002 operator-gated manual verification**: SC-002 and T017 both gained prominent `⚠️ OPERATOR-GATED` / `⚠️ MERGE GATE` flags. SC-002's wording now explicitly states "This is the only SC in this BI that cannot be unit-tested" + "the merging reviewer MUST confirm S-2 was run and passed before approving the PR". T017's wording now requires the verification outcome to be recorded in the PR description with a `S-2: PASS` (or `FAIL` with diagnostics) line.
+
+All 16 checklist items continue to pass after remediation. The post-remediation artifact set is internally consistent across spec.md, plan.md, research.md, data-model.md, contracts/, tasks.md, and quickstart.md (quickstart.md required no edits — its scenarios already correctly reflect the post-remediation reality).
+
 ## Validation Notes (run 2 — 2026-05-12 — post-/speckit-clarify)
 
 Two clarifications integrated after the initial pass (recorded in the spec's `## Clarifications > Session 2026-05-12` section):

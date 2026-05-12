@@ -120,7 +120,7 @@ This is wider scope than the contract-restoration. Documented as a known asymmet
 | `mapFsError` EEXIST path → `details: { errno: "EEXIST" }` only | 2 | (regression) | Boundary guard (asymmetry preserved per R4) |
 | Overwrite-true on existing → success envelope, no `details.errno` | 2 | AC#4 | Boundary guard |
 
-**Rationale**: Eight cases cover all FR / AC scenarios for both stories, plus the R4 asymmetry guard. The existing test suite for `write_note` continues to pass for unaltered behaviour; some prior cases that used `file: "<short-name>"` and expected the broken behaviour need their expectations updated as part of the fix (tracked at `/speckit-tasks` time).
+**Rationale**: Eight cases cover all FR / AC scenarios for both stories, plus the R4 asymmetry guard. The existing test suite for `write_note` continues to pass for unaltered behaviour. **Audit update (post-/speckit-analyze)**: a pre-implementation grep of [src/tools/write_note/handler.test.ts](../../src/tools/write_note/handler.test.ts) confirmed ZERO existing test cases use the `file` parameter — every existing case uses `path: "..."` exclusively. The short-form rule therefore introduces no broken-expectation cases to update; T005 becomes an audit-confirmation gate (`grep -n "file:" handler.test.ts` expected empty) rather than a discover-and-fix task.
 
 ## Decision R10 — Edge cases enumerated
 
