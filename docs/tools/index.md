@@ -14,3 +14,4 @@ Call `help({ tool_name: "<name>" })` to read the full Markdown documentation for
 - **read_property** — Read a single named frontmatter property from a vault note (returns `{ value, type }` with native YAML types preserved).
 - **search_vault** — _(documentation pending — owned by a future BI)_.
 - **write_note** — Create a note in an Obsidian vault, or overwrite an existing one with `overwrite: true`. Wraps the CLI's `create` subcommand.
+- **write_property** — Write a single named frontmatter property to a vault note (returns `{ written: true, path, name }` — surgical single-property write, the symmetric write companion to `read_property`).
