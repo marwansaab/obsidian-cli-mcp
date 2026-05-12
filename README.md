@@ -12,6 +12,7 @@ A minimal MCP server that bridges any MCP client (running locally or in a sandbo
 - **`list_files`** — typed folder-scoped file enumeration: lists files directly inside a vault folder (non-recursive, sub-folder + dotfile entries dropped, paths sorted by UTF-8 byte order). Supports `total: true` for token-economical count-only queries.
 - **`write_note`** — typed direct-filesystem-write create/overwrite: writes content directly to the vault filesystem (bypassing the upstream argv-IPC defect that crashed Obsidian for large content); see *[Architecture note: `write_note`'s direct-filesystem-write path](#architecture-note-write_notes-direct-filesystem-write-path)* below for the full rationale.
 - **`delete_note`** — typed delete tool with safety defaults (trash-by-default; explicit-opt-in for permanent delete).
+- **`rename_note`** — typed in-place rename of `.md` notes: returns `{ renamed: true, fromPath, toPath }`. Honours the vault's "Automatically update internal links" setting; folder relocation is a separate concern reserved for a future `move_note` tool.
 
 All failure modes — non-zero exit, CLI exits 0 with `Error:` stdout prefix, no active file in active mode, missing binary, timeout, output too large, missing-doc lookup, missing-docs-directory, file-exists-on-write, path-escapes-vault, fs-write-failed — surface as structured `UpstreamError` responses with full diagnostic detail.
 

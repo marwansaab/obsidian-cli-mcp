@@ -39,16 +39,16 @@ test("createServer constructs MCP Server with name and version metadata", () => 
   expect(server).toBeTruthy();
 });
 
-test("createServer registers exactly TEN tools — 'delete_note' + 'find_by_property' + 'help' + 'list_files' + 'obsidian_exec' + 'read_heading' + 'read_note' + 'read_property' + 'write_note' + 'write_property' (FR-001 + FR-007 + P8 aggregator + BI-003 + BI-011 + BI-012 + BI-013 + BI-014 + BI-015 + BI-018 + BI-019)", async () => {
+test("createServer registers exactly ELEVEN tools — 'delete_note' + 'find_by_property' + 'help' + 'list_files' + 'obsidian_exec' + 'read_heading' + 'read_note' + 'read_property' + 'rename_note' + 'write_note' + 'write_property' (FR-001 + FR-007 + P8 aggregator + BI-003 + BI-011 + BI-012 + BI-013 + BI-014 + BI-015 + BI-018 + BI-019 + BI-021)", async () => {
   const { ctx } = makeContext();
   const { server } = createServer(ctx);
   const handlers = (server as unknown as { _requestHandlers: Map<string, (req: unknown) => Promise<unknown>> })._requestHandlers;
   const listHandler = handlers.get("tools/list");
   expect(listHandler).toBeTruthy();
   const result = (await listHandler!({ method: "tools/list", params: {} })) as { tools: { name: string }[] };
-  expect(result.tools.length).toBe(10);
+  expect(result.tools.length).toBe(11);
   const names = result.tools.map((t) => t.name).sort();
-  expect(names).toEqual(["delete_note", "find_by_property", "help", "list_files", "obsidian_exec", "read_heading", "read_note", "read_property", "write_note", "write_property"]);
+  expect(names).toEqual(["delete_note", "find_by_property", "help", "list_files", "obsidian_exec", "read_heading", "read_note", "read_property", "rename_note", "write_note", "write_property"]);
 });
 
 test("CallToolRequest dispatches by name with TOOL_NOT_FOUND fallback (P8 aggregator)", async () => {

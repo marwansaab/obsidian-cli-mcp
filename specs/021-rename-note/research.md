@@ -210,6 +210,131 @@ The clause runs at the schema layer (before `applyTargetModeRefinement`); the re
 
 **Bundled task expectation**: /speckit-tasks generates **T001-T0xx live-CLI characterisation pass** as the first task block of /speckit-implement, with one sub-task per case (i)–(xi). Subsequent implementation tasks (T010+) are gated on T0 completion.
 
+## T0 Live-CLI Capture (2026-05-12)
+
+T0 probe pass executed during `/speckit-implement` T005 against
+`TestVault-Obsidian-CLI-MCP` Sandbox/ on Windows 11 host (CLI:
+`C:\Program Files\Obsidian\obsidian.exe`). Probes M-1, M-2, M-3, M-4,
+M-5, M-6, M-7, M-9, M-10 captured; M-8 (active-mode) and M-12
+(external-editor open) deferred — both require interactive Obsidian
+focus state which cannot be safely set up programmatically. See
+"## T0 deferred probes" below.
+
+### F2 — Specific-mode rename success response wording (M-1)
+
+Verbatim stdout: `Renamed: Sandbox/T0-rename-001-source-<ts>.md -> Sandbox/T0-rename-001-renamed-<ts>.md\n`
+
+ASCII arrow `->` (NOT Unicode `→`). Bare paths (not quoted). Single
+trailing newline. Exit code 0. The fromPath is the source's canonical
+vault-relative path; the toPath is the new canonical destination path.
+
+### F3 — Wikilink locator resolves to canonical path (M-2)
+
+Verbatim stdout: `Renamed: Sandbox/T0-rename-002-source-<ts>.md -> Sandbox/T0-rename-002-renamed-<ts>.md\n`
+
+Identical response shape to F2; `file=` is resolved by the CLI to the
+canonical path before emission. The handler's `parseRenameResponse`
+regex applies unchanged across both locator forms.
+
+### F4 — `.md` already in name forwarded verbatim (M-3)
+
+Verbatim stdout: `Renamed: Sandbox/T0-rename-003-source-<ts>.md -> Sandbox/T0-rename-003-renamed-<ts>.md\n`
+
+CLI did NOT double-append `.md`. The wrapper's `appendMdIfMissing` is
+load-bearing for the BARE-name case; the verbatim-`.md` case passes
+through with no transformation.
+
+### F5 — Same-name no-op = accept-with-success (M-4)
+
+Verbatim stdout: `Renamed: Sandbox/T0-rename-004-<ts>.md -> Sandbox/T0-rename-004-<ts>.md\n`
+
+CLI accepts same-name renames with success; fromPath === toPath in
+the response. The wrapper propagates the success envelope with
+`{ renamed: true, fromPath, toPath }` where the two path fields are
+byte-equal — Story 9's audit-trail invariant lands.
+
+### F6 — Source-not-found wording + classification (M-5)
+
+Verbatim stdout: `Error: File "Sandbox/T0-DOES-NOT-EXIST.md" not found.\n`
+
+Exit 0. The adapter's four-priority classification (Error: prefix on
+stdout) re-classifies as `CLI_REPORTED_ERROR` with the verbatim
+message in `details.message`.
+
+### F7 — Destination-collision wording + classification (M-6)
+
+Verbatim stdout: `Error: Destination file already exists!\n`
+
+Exit 0. Adapter classifies as `CLI_REPORTED_ERROR`. Source file is
+untouched (post-state confirmed: both A and B files present after the
+probe).
+
+### F8 — Unknown vault matches 011-R5 signature (M-7)
+
+Verbatim stdout: `Vault not found.\n`
+
+Exit 0. Byte-identical to the 011-R5 signature; the cli-adapter's
+existing unknown-vault response-inspection clause re-classifies
+without modification. No follow-up adapter change needed.
+
+### F10 — Path-traversal CLI behaviour + SC-012 status (M-9)
+
+Verbatim stdout: `Error: File "../../bait/sensitive.md" not found.\n`
+
+Exit 0. The bait file at the sibling-of-vault path was untouched
+post-probe. **SC-012 PASSES** — the CLI's relative-path resolution is
+clearly scoped to the vault root and refuses to escape. No tool-layer
+amendment needed; the BI ships without the SC-012 schema patch. The
+SC-012 amendment-shape sketch above is documented for future
+reference but not applied.
+
+### F11 — Case-only rename observed behaviour (M-10)
+
+Verbatim stdout: `Renamed: Sandbox/T0-Rename-010-<ts>.md -> Sandbox/t0-rename-010-<ts>.md\n`
+
+Exit 0. Post-state shows the file is now lowercase. On Windows NTFS,
+the case-only rename succeeded — the CLI emits the differing-by-case
+from/to in the response. The wrapper propagates the response
+verbatim; callers see the case change through the structured
+`fromPath` / `toPath` fields.
+
+### F12 — Response-parser regex pattern lock
+
+`RESPONSE_RE = /^Renamed: (.+?) -> (.+?)\s*$/m`
+
+Locked at handler.ts. Single-line success shape; the trailing `\s*$`
+tolerates the observed trailing newline. The `m` flag makes `^` and
+`$` match line boundaries inside the trimmed stdout (defence against
+future CLI changes that prepend banner lines).
+
+### F13 — External editor open during rename (M-12, deferred)
+
+Deferred — requires interactive Obsidian state with a specific note
+focused in a buffer. Documented as out-of-scope for the unit-test
+layer; the documentation-only paragraph in
+`docs/tools/rename_note.md`'s adversarial-edge-cases section names the
+case without a captured observation.
+
+## T0 deferred probes
+
+- **M-8** (active-mode focused-note rename): deferred. Probing active
+  mode would rename whichever note is currently focused across ALL
+  Obsidian windows, which is destructive against the user's
+  in-progress work. The handler's active-mode argv shape is
+  structurally identical to the specific-mode shape minus the
+  vault/file/path tokens; the active-mode contract is exercised at
+  the unit-test layer via stubbed `spawnFn` (T011) and end-to-end
+  manually by the user against a focused note when the BI ships.
+- **M-12** (external-editor open during rename): deferred — see F13
+  above.
+
+Both deferred probes are documentation-only — they do not lock any
+load-bearing handler logic that the unit tests cover. The
+`parseRenameResponse` regex pattern (F12) is locked from M-1's
+capture which already exercises the response-parsing code path; M-8
+would emit the same response shape with a different focused-file
+path.
+
 ## Phase 0 amendments to spec.md (per R12 — NOT applied retroactively)
 
 **NONE.** The two /speckit-clarify decisions (Q1 extension-handling rule, Q2 folder-separator-rejection rule) were locked at spec-stage session 2026-05-12 and are already integrated in spec.md. Research phase ratifies the chosen approach without additional Phase-0 amendments.
