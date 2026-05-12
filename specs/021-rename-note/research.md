@@ -1,0 +1,194 @@
+# Phase 0 Research — Rename Note Typed MCP Tool
+
+**Branch**: `021-rename-note` | **Date**: 2026-05-12 | **Spec**: [spec.md](./spec.md) | **Plan**: [plan.md](./plan.md)
+
+This document captures the design decisions ratified at Phase 0 of `/speckit-plan` plus the one live-CLI finding (F1) verified at plan stage and the roster of FR-019 characterisation cases deferred to T0 of `/speckit-implement`.
+
+## Design decisions
+
+### R1 — Logger surface: thin handler, no per-call events
+
+**Decision**: `rename_note`'s handler does NOT emit per-call `logger.callStart` / `logger.callEnd*` events at the tool layer. Observability flows through the cli-adapter's existing `dispatchTimeout` / `dispatchCap` / `dispatchKill` events end-to-end.
+
+**Rationale**: matches the actual implementation of every typed tool from 011-write-note onward (per the 011-write-note PSR-1 / R1 reconciliation). The earlier specs (006-read-note's FR-014 etc.) named per-call logger events as a Phase-0 expectation; in practice every sibling implementation collapsed those to the cli-adapter layer because the handler is too thin to add meaningful per-call observability above what the adapter already emits.
+
+**Alternatives considered**:
+- Add `logger.renameStart` / `logger.renameSuccess` / `logger.renameFailure` events at the tool layer. Rejected: introduces new logger event types for no observable benefit; the adapter's `dispatchTimeout` / `dispatchCap` / `dispatchKill` cover the load-bearing observability cases.
+- Emit a single `logger.toolCallCompleted` event at the registerTool wrapper layer. Rejected: out of scope for this BI (would be an infrastructure change touching every tool, not a rename_note-specific change).
+
+`RegisterDeps` still accepts `logger: Logger` for forwarding to the adapter / queue layer per the existing convention; `src/server.ts` passes the same logger instance to all tool registrations.
+
+### R2 — CLI subcommand selection: `rename` (native)
+
+**Decision**: `rename_note` wraps the Obsidian CLI's native `rename` subcommand. NOT `eval`, NOT `obsidian_exec`.
+
+**Rationale**: **Verified live at plan stage via `obsidian help` output (F1)**. The Obsidian CLI exposes `rename` as a first-class subcommand with the argv shape:
+
+```text
+rename                Rename a file
+  file=<name>         - File name
+  path=<path>         - File path
+  name=<name>         - New file name (required)
+```
+
+This is the exact shape the spec assumes, with parameter names matching the user-facing schema field names. The user-facing `name` field maps to the CLI argv `name=` token directly (no PSR-5-style locator argv-key rename per 011-write-note).
+
+The neighbouring `move` subcommand (parameters `file=` / `path=` / `to=<dest>`) exists alongside `rename` — confirming the spec's scoping assumption that rename (in-place name change) and move (folder-relocation) are structurally separate operations the CLI splits along the same axis the typed-tool layer scopes against. The future `move_note` tool referenced in the spec's Out of Scope section maps to `move`.
+
+**Alternatives considered**:
+- `eval` subcommand (parity with 014/015's eval-composition pattern). Rejected: `rename` exists as a native subcommand; using `eval` would add a load-bearing JS template + base64 anti-injection layer for no functional gain, and would conflict with the "thin wrapper" handler-thinness ceiling per R1.
+- `obsidian_exec` (delegate to the freeform escape hatch). Rejected: the entire point of a typed wrap is to retire the freeform escape hatch for renames; the typed surface inherits per-mode validation, structured errors, the link-rewriting docs caveat, and the extension-handling rule that `obsidian_exec` cannot provide.
+
+### R3 — Per-mode call architecture: ONE invokeCli call per request
+
+**Decision**: Every `rename_note` request fires exactly ONE `invokeCli` call to the cli-adapter, regardless of `target_mode` or input locator shape. No two-call branches (no pre-resolve-then-rename, no two-phase commit).
+
+**Argv mapping**:
+- **Specific + path**: `vault=<v> rename path=<p> name=<n_appended>` (where `n_appended = appendMdIfMissing(name)` per R6).
+- **Specific + file**: `vault=<v> rename file=<f> name=<n_appended>`.
+- **Active**: `rename name=<n_appended>` (no `vault=`, no `file=`, no `path=`).
+
+The CLI's "most commands default to the active file when file/path is omitted" rule (per `obsidian help`'s top-level notes) covers the active-mode case without any handler-side logic — the handler simply omits the locator parameters and the CLI applies the active-file default.
+
+**Rationale**: parity with the existing typed tools (011/012/013/015/018/019 all fire single-spawn requests). Two-call architectures introduce TOCTOU surface area and complicate the queue's serialization invariant.
+
+### R4 — Target-mode mapping: STANDARD
+
+**Decision**: `rename_note`'s schema reuses `applyTargetModeRefinement` + `targetModeBaseSchema` from [src/target-mode/target-mode.ts](../../src/target-mode/target-mode.ts) verbatim — the same primitive that 011/012/013/015/018 use. NO folder-scoped variant (`applyTargetModeRefinementForFolderScoped` from 019 is for folder-scoped tools; `rename_note` is file-scoped).
+
+**Rationale**: `rename_note` is a file-scoped operation (operates on a single named file or the focused file), so it inherits the standard target-mode primitive's contract end-to-end: `vault` required in specific, exactly-one-of `file`/`path` in specific, `vault`/`file`/`path` forbidden in active, `additionalProperties: false` strict-mode. No tool-specific superRefine clauses are added beyond what the `name` field's own `.min(1)` + `.regex(/^[^/\\]+$/)` clauses provide (per R7).
+
+**Alternatives considered**:
+- Add an active-mode-specific superRefine clause restricting `name` in active mode. Rejected: `name` has identical semantics in both modes; mode-specific narrowing would be inventing rules without justification.
+- Use a discriminated union of two zod schemas (one per mode). Rejected: per the 010-flatten-target-mode encoding decision, flat schemas with superRefine are the project's canonical shape.
+
+### R5 — Unknown-vault response inspection: inherited from cli-adapter (011-R5)
+
+**Decision**: `rename_note` does NOT add any unknown-vault handling. The cli-adapter's 011-R5 response-inspection clause (added during 011-write-note's plan stage) re-classifies the CLI's `Vault not found.` response to `CLI_REPORTED_ERROR` with the verbatim message preserved in `details.message`. `rename_note` inherits this verbatim.
+
+**Rationale**: the unknown-vault edge case is identical across every typed write surface that takes a `vault=` argv token. T0 of /speckit-implement verifies the `rename` subcommand's unknown-vault response signature matches the create / delete subcommands' signature; if it does NOT match (unlikely but possible), the adapter's response-inspection logic is extended in a follow-up change to the adapter — NOT to `rename_note`. This preserves the rule that error classification lives at one layer (the adapter), not duplicated across tools.
+
+### R6 — Extension-handling rule: literal `endsWith(".md")` byte equality (per /speckit-clarify Q1, locked 2026-05-12)
+
+**Decision**: file-local helper in `handler.ts`:
+
+```typescript
+function appendMdIfMissing(name: string): string {
+  return name.endsWith(".md") ? name : name + ".md";
+}
+```
+
+The forwarded `name=` argv-token value is `appendMdIfMissing(parsed.name)`. Literal byte-equality, case-sensitive — mirrors the 020-fix-write-gaps R2 lock exactly.
+
+**Worked examples** (locked at /speckit-clarify Q1, session 2026-05-12):
+
+| Input `name` | Forwarded argv-token value | Why |
+|--------------|-----------------------------|-----|
+| `"Fixed"` | `"Fixed.md"` | No `.md` suffix → append |
+| `"Fixed.md"` | `"Fixed.md"` | Verbatim (already `.md`) |
+| `"Doc.v1.draft"` | `"Doc.v1.draft.md"` | `.draft` ≠ `.md`; internal periods preserved |
+| `"Renamed.MD"` | `"Renamed.MD.md"` | Case-sensitive: `.MD` ≠ `.md` → append |
+| `"Sketch.canvas"` | `"Sketch.canvas.md"` | `.canvas` ≠ `.md`; cross-extension renames out of scope per /speckit-clarify Q1 scope narrowing |
+| `"image.png"` | `"image.png.md"` | Same as above — non-`.md` filename targets are out of scope; route through `obsidian_exec` |
+| `"日記"` | `"日記.md"` | UTF-8 bytes forwarded verbatim plus `.md` |
+
+**Rationale**: the user's /speckit-clarify Q1 answer (session 2026-05-12) explicitly chose this approach over the broader allowlist alternative, citing the 020-R2 precedent. A broader allowlist (`.md`, `.canvas`, `.pdf`, image types) would have invented a vault-filetype taxonomy absent from any ADR. Source-introspection (preserve the source's actual extension) would have forced per-call CLI lookups for `file=` and active modes — inconsistent with the wrapper-side determinism that 020 locked.
+
+**Scope narrowing implication**: cross-extension renames and non-`.md` filename targets route through `obsidian_exec rename file=… name=…` directly. This is documented in the spec's Out of Scope section and in `docs/tools/rename_note.md`'s Scope section.
+
+### R7 — Folder-separator rejection: schema layer, regex on `name` (per /speckit-clarify Q2, locked 2026-05-12)
+
+**Decision**: `name: z.string().min(1).regex(/^[^/\\]+$/)`. The handler never sees `name` values containing `/` or `\` — those fail at the zod parse boundary with `VALIDATION_ERROR` whose `details.issues[].path` includes `"name"` and whose message names the rule with the `move_note` recovery hint.
+
+**Implementation note**: the regex `/^[^/\\]+$/` matches "one or more characters, none of which is `/` or `\`". The `.min(1)` is redundant when the regex is present (the regex requires at least one character), but is included for clarity in the schema source and because zod's `too_small` error code (from `.min(1)`) produces a more actionable error message for the empty-string case than the regex's `invalid_string` code does.
+
+**Alternative phrasing**: a `.refine()` or `.superRefine()` with a custom error message naming the `move_note` recovery hint may be preferable to the bare `.regex(...)` in the final implementation. The structural contract (reject `/` or `\` in `name`) binds; the API call shape (regex vs refine) is a /speckit-tasks decision.
+
+**Rationale**: the user's /speckit-clarify Q2 answer (session 2026-05-12) chose validation-layer reject over CLI-forwarded. Forwarding to the CLI would produce platform-dependent behaviour (POSIX errors with "invalid filename"; Windows might interpret `\` as a folder separator and partially-move into a subfolder, conflating with the future `move_note` surface). Validation-layer reject preserves the in-place-rename scope cleanly and produces an actionable error message at the boundary.
+
+### R8 — Response parsing locked at T0
+
+**Decision**: the CLI's `rename` response wording for both successful renames and failure modes is captured during T0 of `/speckit-implement` per FR-019. The handler's `parseRenameResponse(stdout)` helper is locked against the captured wording.
+
+**Anticipated shapes** (to be verified at T0):
+- Single-line success: `Renamed: <fromPath> → <toPath>` or `Renamed: <fromPath> to <toPath>` (parity with 012-delete-note's `Moved to trash: <path>` shape).
+- Two-line success: separate lines for source and destination paths.
+- Single-line failure: `Error: <message>` on stdout (per the cli-adapter's classification rule for `Error:` prefix → `CLI_REPORTED_ERROR`).
+
+**Parser shape**: a single regex against the trimmed stdout. The regex's capture groups extract `fromPath` and `toPath`; failure to match raises `CLI_REPORTED_ERROR` with `stdout` in `details` (parity with 012-delete-note's `RESPONSE_RE` pattern).
+
+**Rationale**: capturing the verbatim wording live at T0 keeps the handler's response-parsing logic locked against ground truth, so future CLI version drift produces test failures rather than silent regressions. Plan stage deliberately defers this capture to keep the BI scope-honest; only the load-bearing argv shape (the input contract) needs to be verified live at plan stage (which F1 already covers).
+
+### R9 — Single-spawn invariant: ONE invokeCli call per request
+
+**Decision**: every `rename_note` request fires exactly ONE `invokeCli` call. Handler tests assert `spawnFn.callCount === 1` per request.
+
+**Rationale**: matches the 011/012/013/015/019 precedent. Composes cleanly with the existing single-in-flight CLI queue (which serializes calls across all CLI-invoking tools per FR-008). Two-call architectures would introduce TOCTOU between the calls and complicate the queue's serialization invariant.
+
+### R10 — `move_note` is a future BI, NOT a precondition for `rename_note`
+
+**Decision**: the spec references `move_note` (e.g., in the folder-separator-rejection rule's error-message recovery hint) as a future BI but does NOT require it to exist before `rename_note` ships.
+
+**Rationale**: F1 confirmed the CLI exposes both `rename` and `move` as first-class subcommands, so the future `move_note` tool wraps `move` analogously. `rename_note` is shippable independently. The error-message recovery hint ("use move_note to relocate") is forward-looking — until `move_note` ships, callers who hit the folder-separator-rejection error route through `obsidian_exec move file=… to=…` directly.
+
+**Concretely**: `docs/tools/rename_note.md` documents the `obsidian_exec move` fallback explicitly for the interim, and adds a note that a future `move_note` tool will replace that fallback when it ships.
+
+## Plan-stage live-CLI findings
+
+### F1 — `rename` subcommand argv shape (verified 2026-05-12)
+
+**Source**: `obsidian help` output captured at plan stage (host: `C:\Program Files\Obsidian\obsidian.exe`).
+
+**Verbatim help output**:
+
+```text
+  rename                Rename a file
+    file=<name>         - File name
+    path=<path>         - File path
+    name=<name>         - New file name (required)
+```
+
+**Findings**:
+- The `rename` subcommand exists as a first-class native command.
+- Accepts three documented parameters: `file=` (wikilink-form source), `path=` (vault-relative-path source), `name=` (new file name; **REQUIRED**).
+- No documented flags (no `--force`, `--no-update-links`, `--newtab`, etc. — the link-update behaviour is the vault's responsibility per the spec's [P1] AC #13).
+- `vault=` is a top-level option per the global options section of `obsidian help`, available to every subcommand including `rename`.
+- The neighbouring `move` subcommand exists with `file=` / `path=` / `to=<dest>` parameters — confirming the spec's scoping assumption that rename and move are structurally separate operations at the CLI layer. `move_note` (future BI) wraps `move`.
+
+**Implications for the handler**:
+- The user-facing schema fields (`file`, `path`, `name`) map directly to CLI argv token keys (`file=`, `path=`, `name=`). NO PSR-5-style locator argv-key rename is needed (unlike 011-write-note where `file` → `name` in the argv).
+- The handler's argv assembly is straightforward: hoist `vault` to the top-level adapter-call field, place `file`/`path`/`name` in the `parameters` record.
+
+## FR-019 deferred T0 case roster
+
+The following nine FR-019 cases are DEFERRED from plan stage to T0 of `/speckit-implement`. Each will be bundled into a `T0xx` task at /speckit-tasks time. The plan-stage findings (F1 above) cover only what's verifiable from `obsidian help` output without seeding fixtures in the authorised TestVault per `.memory/test-execution-instructions.md`.
+
+| FR-019 case | Description | T0 verification target |
+|-------------|-------------|------------------------|
+| (i) | Successful specific-mode rename via `path=` with extension preservation | Verbatim CLI response wording for success; lock `parseRenameResponse` regex |
+| (ii) | Successful specific-mode rename via `file=` (wikilink locator) | Same as (i); confirm canonical fromPath/toPath echo matches |
+| (iii) | Successful specific-mode rename with `.md` already in `name` (verbatim-forwarding case) | Same as (i); confirm no double-`.md` in the CLI's response |
+| (iv) | Same-name rename (no-op case per Story 9) | Confirm one of: accept-with-success / reject-with-error / silent-noop |
+| (v) | Rename against non-existent source path | Verbatim error wording; confirm cli-adapter classifies as `CLI_NON_ZERO_EXIT` or `CLI_REPORTED_ERROR` |
+| (vi) | Rename where destination already exists in same folder | Verbatim error wording; confirm structural-error classification |
+| (vii) | Unknown vault display name | Confirm 011-R5 signature match (`Vault not found.` verbatim) — if differs, follow-up adapter change |
+| (viii) | Successful active-mode rename of focused note | Verbatim response wording; confirm focused-file path echo |
+| (ix) | Path-traversal-shaped `path` (`../../etc/passwd`) | **SC-012 gate**: confirm CLI rejects; if NOT, this BI is amended pre-ship to add a tool-layer reject |
+| (x) | Case-only rename on Windows NTFS-default (`Note.md` → `note.md`) | Capture observed behaviour for docs/tools/rename_note.md |
+| (xi) | CLI's actual response wording for fromPath/toPath extraction | Lock `parseRenameResponse(stdout)` regex against verbatim wording |
+
+**T0 protocol**: per `.memory/test-execution-instructions.md`, all T0 probes run against `TestVault-Obsidian-CLI-MCP` with fixtures seeded under `Sandbox/`. Pre-state captured via `Get-ChildItem`; post-state verified; residue cleaned. Verbatim CLI stdout/stderr captured into research.md as a Phase-1.5 amendment block before /speckit-implement marks T0 complete.
+
+**Bundled task expectation**: /speckit-tasks generates **T001-T0xx live-CLI characterisation pass** as the first task block of /speckit-implement, with one sub-task per case (i)–(xi). Subsequent implementation tasks (T010+) are gated on T0 completion.
+
+## Phase 0 amendments to spec.md (per R12 — NOT applied retroactively)
+
+**NONE.** The two /speckit-clarify decisions (Q1 extension-handling rule, Q2 folder-separator-rejection rule) were locked at spec-stage session 2026-05-12 and are already integrated in spec.md. Research phase ratifies the chosen approach without additional Phase-0 amendments.
+
+If T0 of /speckit-implement surfaces a CLI behaviour that conflicts with one of the spec's load-bearing assumptions (e.g., the `rename` subcommand silently accepts `../`-shaped paths, triggering SC-012's amendment clause), that amendment lands as a separate /speckit-clarify session or a documented pre-ship spec patch.
+
+## Quality-gate status
+
+All five Constitution principles re-evaluated in the plan's post-design check. All pass. Coverage threshold (91.3% statements floor at [vitest.config.ts:20](../../vitest.config.ts#L20)) inherited; the new ~52 co-located test cases plus the registry walks keep the aggregate at-or-above the floor.
+
+Ready for Phase 1.
