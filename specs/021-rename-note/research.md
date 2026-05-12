@@ -161,7 +161,7 @@ The forwarded `name=` argv-token value is `appendMdIfMissing(parsed.name)`. Lite
 
 ## FR-019 deferred T0 case roster
 
-The following nine FR-019 cases are DEFERRED from plan stage to T0 of `/speckit-implement`. Each will be bundled into a `T0xx` task at /speckit-tasks time. The plan-stage findings (F1 above) cover only what's verifiable from `obsidian help` output without seeding fixtures in the authorised TestVault per `.memory/test-execution-instructions.md`.
+The following **twelve** FR-019 cases (eleven gating + one adversarial-documentation per /speckit-analyze U2 remediation 2026-05-12) are DEFERRED from plan stage to T0 of `/speckit-implement`. All twelve are bundled into T005 of [tasks.md](./tasks.md) — the T0 live-CLI probe pass. The plan-stage findings (F1 above) cover only what's verifiable from `obsidian help` output without seeding fixtures in the authorised TestVault per `.memory/test-execution-instructions.md`.
 
 | FR-019 case | Description | T0 verification target |
 |-------------|-------------|------------------------|
@@ -173,11 +173,40 @@ The following nine FR-019 cases are DEFERRED from plan stage to T0 of `/speckit-
 | (vi) | Rename where destination already exists in same folder | Verbatim error wording; confirm structural-error classification |
 | (vii) | Unknown vault display name | Confirm 011-R5 signature match (`Vault not found.` verbatim) — if differs, follow-up adapter change |
 | (viii) | Successful active-mode rename of focused note | Verbatim response wording; confirm focused-file path echo |
-| (ix) | Path-traversal-shaped `path` (`../../etc/passwd`) | **SC-012 gate**: confirm CLI rejects; if NOT, this BI is amended pre-ship to add a tool-layer reject |
+| (ix) | Path-traversal-shaped `path` (`../../etc/passwd`) | **SC-012 gate**: confirm CLI rejects; if NOT, this BI is amended pre-ship to add a tool-layer reject (see "## SC-012 amendment-shape sketch" below for the concrete amendment if the gate fires) |
 | (x) | Case-only rename on Windows NTFS-default (`Note.md` → `note.md`) | Capture observed behaviour for docs/tools/rename_note.md |
 | (xi) | CLI's actual response wording for fromPath/toPath extraction | Lock `parseRenameResponse(stdout)` regex against verbatim wording |
+| (xii) | External editor open during rename (Obsidian tab keeps file handle live) | Capture observed behaviour: rename succeeds (buffer reopens or stales) vs fails (EBUSY-style). Documentation-only — no unit test (Obsidian file-handle behaviour not simulatable at unit-test layer) |
 
 **T0 protocol**: per `.memory/test-execution-instructions.md`, all T0 probes run against `TestVault-Obsidian-CLI-MCP` with fixtures seeded under `Sandbox/`. Pre-state captured via `Get-ChildItem`; post-state verified; residue cleaned. Verbatim CLI stdout/stderr captured into research.md as a Phase-1.5 amendment block before /speckit-implement marks T0 complete.
+
+### SC-012 amendment-shape sketch (if M-9 fires)
+
+If T005's M-9 probe finds the CLI accepts `path: "../../bait/sensitive.md"` and operates on a file outside the vault root (instead of refusing with a structured error), this BI lands the following amendment **before T024 (lint pass)** clears:
+
+**Schema patch** ([src/tools/rename_note/schema.ts](../../src/tools/rename_note/schema.ts)): the `path` field's existing `safePathField` validator (inherited from the target-mode primitive's optional `string` shape) is tightened with a `.refine()` clause that rejects any value where `path.split(/[\\/]/)` contains a `".."` segment. Sketch:
+
+```typescript
+// CONDITIONAL: added only if T005-M9 captures CLI-accepts-traversal behaviour
+path: z.string().refine(
+  (p) => !p.split(/[\\/]/).includes(".."),
+  "path must not contain a '..' segment; rename_note does not allow escaping the vault root",
+).optional(),
+```
+
+The clause runs at the schema layer (before `applyTargetModeRefinement`); the regex check is byte-equality against the `..` token, not a path-resolve walk (which would couple to the OS-specific path-resolution semantics — out of scope per Constitution III's "boundary validation").
+
+**Schema test patch** ([src/tools/rename_note/schema.test.ts](../../src/tools/rename_note/schema.test.ts)): add 2 NEW test cases to T004:
+- `path: "../../etc/passwd.md"` → `VALIDATION_ERROR` with `["path"]` and the new refine message
+- `path: "Folder/../../escape.md"` (mid-path traversal) → `VALIDATION_ERROR` (gates the regex covers internal-segment traversal too)
+
+**No handler.ts change** — the schema reject prevents the handler from ever seeing a traversal-shaped path. The `name` field is unaffected (its existing folder-separator-rejection regex already prevents `name: "../X"` etc.).
+
+**Spec amendment** ([spec.md](./spec.md)): the SC-012 entry is amended to record which branch fired ("CLI rejects" → BI ships without tool-layer reject, OR "CLI accepts; tool-layer reject added" → records the schema patch above with a citation to research.md's T0 capture block). The amendment lands as a spec edit before the merge gate clears, with a one-line entry added to spec.md's `## Clarifications` section (`### Session 2026-05-12` block) documenting the M-9 finding and the chosen branch.
+
+**No new error codes**, no new ADRs. The amendment is additive on the schema layer only; existing behaviour (specific-mode rename of a non-traversal path) is unchanged.
+
+**Decision authority**: this sketch is pre-locked at plan stage. /speckit-implement does NOT need to re-litigate the amendment shape at T005-M9 time; if M-9 fires, the sketch above is the contract. If M-9's findings diverge from the sketch (e.g., the CLI rejects some `..` shapes but not others), the divergence is escalated to a fresh /speckit-clarify session BEFORE the amendment lands.
 
 **Bundled task expectation**: /speckit-tasks generates **T001-T0xx live-CLI characterisation pass** as the first task block of /speckit-implement, with one sub-task per case (i)–(xi). Subsequent implementation tasks (T010+) are gated on T0 completion.
 

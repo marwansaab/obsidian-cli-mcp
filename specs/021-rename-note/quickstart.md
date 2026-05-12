@@ -331,11 +331,28 @@ These scenarios run at the start of `/speckit-implement` against the authorised 
 
 This is a consolidation step. After M-1, M-2, M-3, M-8 complete, lock the `RESPONSE_RE` regex pattern in `handler.ts` and update `data-model.md`'s response-parser anticipated-shapes section with the verified shape.
 
+### M-12 — External editor locks the file during rename (FR-019 case (xii) — adversarial)
+
+**Setup**: open `Sandbox/T0-rename-012-source.md` in Obsidian (focused tab keeps the file open in the editor).
+
+**Probe** (from a SEPARATE terminal — do NOT close the Obsidian tab): `obsidian vault=TestVault-Obsidian-CLI-MCP rename path=Sandbox/T0-rename-012-source.md name=T0-rename-012-renamed.md`
+
+**Capture**: observed behaviour. Three possible outcomes:
+- (a) Rename succeeds; Obsidian's buffer reopens at the new path (typical when the CLI uses the same Obsidian process to mediate the rename — file-handle ambiguity resolved internally).
+- (b) Rename succeeds; Obsidian's buffer becomes stale (shows old path / refuses to save until the user closes-and-reopens). Document the user-visible consequence.
+- (c) Rename fails with `EBUSY` or platform-equivalent stderr; the CLI surfaces non-zero exit; the adapter classifies as `CLI_NON_ZERO_EXIT`.
+
+**Documentation**: add a one-paragraph "External editor open during rename" subsection to `docs/tools/rename_note.md`'s adversarial-edge-cases section, citing the captured behaviour as F13. Note that the wrapper does NOT coordinate with editors; the OS / Obsidian governs the open-file behaviour. Per the user input's CONCURRENCY adversarial bullet.
+
+**No new unit-test case** — the unit suite cannot simulate Obsidian's file-handle behaviour. This M-12 probe is documentation-only.
+
+**Cleanup**: close the Obsidian tab; delete the fixture (and the renamed file if rename succeeded).
+
 ## Reporting
 
 After T0 of /speckit-implement completes, the research.md amendment block documents:
 
-- Verbatim CLI stdout/stderr for each M-1..M-11.
+- Verbatim CLI stdout/stderr for each M-1..M-12.
 - The locked `RESPONSE_RE` regex pattern.
 - Any deviation from the anticipated shapes that triggers a spec / handler amendment.
 - Confirmation that the 011-R5 inherited unknown-vault signature still matches (or, if not, a follow-up issue against the cli-adapter).

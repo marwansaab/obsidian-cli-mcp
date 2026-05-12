@@ -123,9 +123,11 @@ See also:
   inputs, single-spawn invariant (R9), failure propagation chain,
   test-seam pattern.
 - [quickstart.md](specs/021-rename-note/quickstart.md) — 33 vitest
-  verification scenarios (S-1..S-33) mapped to SC-001..SC-016 + 11
-  manual T0 scenarios (M-1..M-11) for live-CLI characterisation
-  during /speckit-implement.
+  verification scenarios (S-1..S-33) mapped to SC-001..SC-016 + 12
+  manual T0 scenarios (M-1..M-12) for live-CLI characterisation
+  during /speckit-implement (M-12 added by /speckit-analyze U2
+  remediation 2026-05-12 as a documentation-only external-editor
+  probe).
 
 ---
 
