@@ -35,12 +35,26 @@ Each dir keeps its `{schema, handler, index}.ts` plus three co-located
 `*.test.ts` files; bodies byte-identical save for factory-function-name
 updates in `index.ts` (`createXxxNoteTool` → `createXxxTool` etc., per
 Q1 lockstep). EDITED: [src/server.ts](src/server.ts) (5 import-name
-updates + factory-name alphabetical tools-array re-sort),
+updates + tools-array re-sort; alphabetical-by-import-path because
+ESLint's `import/order` rule with `alphabetize: asc` constrains
+imports — the only conflict with the data-model's factory-name sort
+is `read/` vs `read_heading/` / `read_property/`, where ASCII `/`
+(47) < `_` (95) puts `read/` first; the tools-array follows the same
+order for internal consistency),
 [src/tools/_register.test.ts](src/tools/_register.test.ts) (5
-invariants-map key renames + new durable baseline test suite). NEW:
-`src/tools/_register-baseline.json` (FR-018 registry-stability
-baseline; SHA-256 fingerprints of every published tool's description
-+ inputSchema). RENAMED docs: `docs/tools/{read_note → read,
+invariants-map key renames + new durable baseline test suite + a
+no-retired-names assertion). NEW: `src/tools/_register-baseline.json`
+(FR-018 registry-stability baseline; SHA-256 fingerprints of every
+published tool's description + inputSchema),
+`src/tools/_register-baseline.ts` (shared canonicalJSON / sha256 /
+fingerprintLiveRegistry helper consumed by both the verifier test
+and the regen script — locked at /speckit-analyze U6 remediation),
+`src/tools/_register-baseline.test.ts` (co-located unit tests for the
+shared helper per Principle II),
+[scripts/write-register-baseline.ts](scripts/write-register-baseline.ts)
+(regen script invoked via `npm run baseline:write`), and the matching
+`baseline:write` entry in [package.json](package.json) `scripts`.
+RENAMED docs: `docs/tools/{read_note → read,
 delete_note → delete, list_files → files, write_property →
 set_property, rename_note → rename}.md` via `git mv`. EDITED:
 [README.md](README.md), this CLAUDE.md active-narrative block,

@@ -153,3 +153,6 @@ vite.config.ts.timestamp-*
 
 # Memory local reference
 .memory/
+
+# Scratch witnesses
+.scratch/

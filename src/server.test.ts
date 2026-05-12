@@ -39,7 +39,7 @@ test("createServer constructs MCP Server with name and version metadata", () => 
   expect(server).toBeTruthy();
 });
 
-test("createServer registers exactly ELEVEN tools — 'delete_note' + 'find_by_property' + 'help' + 'list_files' + 'obsidian_exec' + 'read_heading' + 'read_note' + 'read_property' + 'rename_note' + 'write_note' + 'write_property' (FR-001 + FR-007 + P8 aggregator + BI-003 + BI-011 + BI-012 + BI-013 + BI-014 + BI-015 + BI-018 + BI-019 + BI-021)", async () => {
+test("createServer registers exactly ELEVEN tools — 'delete' + 'files' + 'find_by_property' + 'help' + 'obsidian_exec' + 'read' + 'read_heading' + 'read_property' + 'rename' + 'set_property' + 'write_note' (FR-001 + FR-007 + P8 aggregator + BI-003 + BI-011 + BI-012 + BI-013 + BI-014 + BI-015 + BI-018 + BI-019 + BI-021 + BI-022)", async () => {
   const { ctx } = makeContext();
   const { server } = createServer(ctx);
   const handlers = (server as unknown as { _requestHandlers: Map<string, (req: unknown) => Promise<unknown>> })._requestHandlers;
@@ -48,7 +48,7 @@ test("createServer registers exactly ELEVEN tools — 'delete_note' + 'find_by_p
   const result = (await listHandler!({ method: "tools/list", params: {} })) as { tools: { name: string }[] };
   expect(result.tools.length).toBe(11);
   const names = result.tools.map((t) => t.name).sort();
-  expect(names).toEqual(["delete_note", "find_by_property", "help", "list_files", "obsidian_exec", "read_heading", "read_note", "read_property", "rename_note", "write_note", "write_property"]);
+  expect(names).toEqual(["delete", "files", "find_by_property", "help", "obsidian_exec", "read", "read_heading", "read_property", "rename", "set_property", "write_note"]);
 });
 
 test("CallToolRequest dispatches by name with TOOL_NOT_FOUND fallback (P8 aggregator)", async () => {
@@ -204,7 +204,7 @@ describe("assertToolDocsExist boot-time aggregation (FR-005 / Q4)", () => {
       expect(caught!.message).toContain("Missing tool documentation files");
       expect(caught!.message).toContain("docs/tools/help.md");
       expect(caught!.message).toContain("docs/tools/obsidian_exec.md");
-      expect(caught!.message).toContain("docs/tools/read_note.md");
+      expect(caught!.message).toContain("docs/tools/read.md");
     } finally {
       rmSync(empty, { recursive: true, force: true });
     }
@@ -224,7 +224,7 @@ describe("assertToolDocsExist boot-time aggregation (FR-005 / Q4)", () => {
       }
       expect(caught).not.toBeNull();
       expect(caught!.message).toContain("docs/tools/obsidian_exec.md");
-      expect(caught!.message).toContain("docs/tools/read_note.md");
+      expect(caught!.message).toContain("docs/tools/read.md");
       expect(caught!.message).not.toContain("docs/tools/help.md");
     } finally {
       rmSync(partial, { recursive: true, force: true });
@@ -328,9 +328,9 @@ describe("registry consistency", () => {
       );
     });
 
-    it("read_note: post-010 flat object — properties include {target_mode, vault, file, path}, target_mode is the enum discriminator, additionalProperties: false", async () => {
+    it("read: post-010 flat object — properties include {target_mode, vault, file, path}, target_mode is the enum discriminator, additionalProperties: false", async () => {
       const tools = await listTools();
-      const read = tools.get("read_note")!;
+      const read = tools.get("read")!;
       expect(read.inputSchema.oneOf).toBeUndefined();
       expect(read.inputSchema.allOf).toBeUndefined();
       expect(read.inputSchema.anyOf).toBeUndefined();

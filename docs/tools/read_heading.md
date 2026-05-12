@@ -5,11 +5,11 @@
 Read the body of a single named heading from a vault note. Returns
 `{ content: string }` — the body bytes between the matched heading and
 the next heading marker of any depth (or EOF). Replaces the agent's
-"full-file `read_note` plus client-side Markdown parse" sequence
+"full-file `read` plus client-side Markdown parse" sequence
 (typically 5–50k tokens for long documents) with a single typed call
 returning just the named section's body bytes (typically 100–500
 tokens). Token-saving framing: where
-[`read_note`](./read_note.md) returns whole files and
+[`read`](./read.md) returns whole files and
 [`read_property`](./read_property.md) returns a single frontmatter
 field, `read_heading` is the heading-targeted retrieval primitive — the
 sixth typed-tool wrap and the first heading-body extraction surface.
@@ -50,17 +50,17 @@ resolution happens at execution time and surfaces as a structured error
 The following heading shapes are **out-of-reach** for `read_heading`:
 
 - **Single-segment H1-only reads** (`heading: "Foo"` with no `::`): the
-  validator rejects them. Documented fallback: `read_note` plus
+  validator rejects them. Documented fallback: `read` plus
   client-side parse for the H1's body.
 - **Headings whose text contains `::` literally** (e.g. an H2 titled
   `Best Practices :: Naming` where the `::` is part of the heading
   text): the segment splitter cannot disambiguate the literal `::`
-  from the path separator. Documented fallback: `read_note` plus
+  from the path separator. Documented fallback: `read` plus
   client-side parse.
 - **Setext-style headings** (text underlined with `===` for H1 or
   `---` for H2): per the [Q2 clarification](../../specs/015-read-heading/spec.md#clarifications),
   Setext underlines are content, not heading boundaries. Documented
-  fallback: `read_note` plus client-side parse if the caller needs
+  fallback: `read` plus client-side parse if the caller needs
   Setext addressability.
 
 ## Output
@@ -193,7 +193,7 @@ any literal Setext-underline text. The wrapper does NOT re-format.
 Heading bodies exceeding ~10 MiB after JSON encoding (~7 MiB raw
 content) trigger the cli-adapter's output cap, surfacing as
 `CLI_NON_ZERO_EXIT` (output-cap kill). Recommended fall-back for
-very-large-body cases: full-file `read_note`. No new error code is
+very-large-body cases: full-file `read`. No new error code is
 introduced.
 
 ### Unknown vault
@@ -239,7 +239,7 @@ rewrites. **No new codes** are introduced (FR-022).
 Spawns `obsidian vault=Demo eval code=<rendered-js>`. Returns
 `{ "content": "Use kebab-case.\n" }` for the body of the `## Naming`
 section under `# Best Practices`. Replaces the agent's "full-file
-`read_note` then client-side Markdown parse" sequence.
+`read` then client-side Markdown parse" sequence.
 
 ### Example 2 — Specific mode, 3-segment nested heading by file (wikilink)
 
@@ -295,7 +295,7 @@ slices the body of `## Section A` under `# Top`. Returns
 The schema validator rejects this at the boundary before any CLI
 dispatch occurs. Returns a `VALIDATION_ERROR` envelope with field
 path `["heading"]` and a message about `at least two ::-separated
-segments`. The fallback for an H1-only read is full-file `read_note`
+segments`. The fallback for an H1-only read is full-file `read`
 plus client-side parse.
 
 ### Example 5 — Heading-not-found error
@@ -329,7 +329,7 @@ verbatim eval-envelope `detail` describing the unmatched segment path.
 - [help tool spec](../../specs/005-help-tool/spec.md) — the
   schema-stripping contract and `help({ tool_name })` lookup that
   surfaces this document.
-- [read_note](./read_note.md) — the typed full-file read tool; the
+- [read](./read.md) — the typed full-file read tool; the
   documented fallback for out-of-reach heading paths (single-segment
   H1, `::`-in-text, Setext).
 - [read_property](./read_property.md) — the symmetric file → property

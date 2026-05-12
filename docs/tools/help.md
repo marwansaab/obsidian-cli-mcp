@@ -62,7 +62,7 @@ A call with an unknown tool name fails with `HELP_TOOL_NOT_FOUND`:
   "isError": true,
   "content": [{
     "type": "text",
-    "text": "{\"code\":\"HELP_TOOL_NOT_FOUND\",\"message\":\"No documentation file for the requested tool. Available tools: append_note, help, list_notes, list_vaults, obsidian_exec, read_note, search_vault, write_note.\",\"details\":{\"requestedName\":\"unknown_xyz\",\"availableTools\":[\"append_note\",\"help\",\"list_notes\",\"list_vaults\",\"obsidian_exec\",\"read_note\",\"search_vault\",\"write_note\"]}}"
+    "text": "{\"code\":\"HELP_TOOL_NOT_FOUND\",\"message\":\"No documentation file for the requested tool. Available tools: append_note, help, list_notes, list_vaults, obsidian_exec, read, search_vault, write_note.\",\"details\":{\"requestedName\":\"unknown_xyz\",\"availableTools\":[\"append_note\",\"help\",\"list_notes\",\"list_vaults\",\"obsidian_exec\",\"read\",\"search_vault\",\"write_note\"]}}"
   }]
 }
 ```

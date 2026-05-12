@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "generatedFromBranch": "022-rename-typed-tools",
+  "generatedAt": "2026-05-12",
+  "tools": [
+    {
+      "name": "delete",
+      "descriptionFingerprint": "aabf3f3a85fbff85dd5b1d74d091cb1ebf05e1d84a17863a88337df96660a27b",
+      "schemaFingerprint": "a63ce18d19a040e69466038899501f216b775f8db5a7134aae86428b23dafe24"
+    },
+    {
+      "name": "files",
+      "descriptionFingerprint": "38474bcf0652428f5e232a76135b63c4fa45088402529b131b2c76ae8dfed40a",
+      "schemaFingerprint": "053fa3cb78939dc6e23204250d0bc14727ae9e85fb93c6942a319bee78352908"
+    },
+    {
+      "name": "find_by_property",
+      "descriptionFingerprint": "5b9757c43c745f3de531730d0411eb9901cc83433313c97ac680bf7caebec7ba",
+      "schemaFingerprint": "8e88ec7194ac91142e0bd337fabc926edb1de76cab8c77b654d398c699816835"
+    },
+    {
+      "name": "help",
+      "descriptionFingerprint": "7b3112a84ea0caad54008b5d853d36c698fb877c68715a19d2e9b3dee3a87b72",
+      "schemaFingerprint": "18f8be71427ad98b413fa1b2b5779d4c4aadfef6dd93376f2a62cc224dc4303e"
+    },
+    {
+      "name": "obsidian_exec",
+      "descriptionFingerprint": "70234746fe95397e7f5000dcf25e42b9674d06117fed9279bf059d870af73b7a",
+      "schemaFingerprint": "e6124549cb2a69cddaf74dea058a0c9dba3f1062bdc178decd916e9019ee385d"
+    },
+    {
+      "name": "read",
+      "descriptionFingerprint": "9629db618da8496839941118cf90d77204ef61ef99e850231f78be4059549f89",
+      "schemaFingerprint": "bc8d3bbd1575e18b12a7868dc751ef4e76c3fa03aebe1f87ba28c7e5f79bad60"
+    },
+    {
+      "name": "read_heading",
+      "descriptionFingerprint": "63685ff674f11aaee7447db173c2b817c575a61a7db23e9178a11bc84506e750",
+      "schemaFingerprint": "53809772a0b21e4cc8a5d83aa3126726c5fd5329e41f484283e945b795a1137d"
+    },
+    {
+      "name": "read_property",
+      "descriptionFingerprint": "fe05770107c36752797d55bd9beb9765d2ffdf8ad3ca5e0e8fc6c38b8993b13f",
+      "schemaFingerprint": "c0013d4d9d6a6107f4c12ffa0a0ce9fe9b9ef1f8856e1a948eefc962b443afbd"
+    },
+    {
+      "name": "rename",
+      "descriptionFingerprint": "e0788ce08f122b129430b2bbbbf056cf056722857768e1c9aaa2fbf5acd050bb",
+      "schemaFingerprint": "0d9100afe6f1dba552bf5277f83319b0c2929baf0738e76c20483183327895a5"
+    },
+    {
+      "name": "set_property",
+      "descriptionFingerprint": "24a6da37b421391fca3ac33627904f90b9591c83cced20639f006a58e7cbf510",
+      "schemaFingerprint": "d8308360fc90c594c8ebfd48bc3bec6070855a2241cb024f8e0e65205727f4ed"
+    },
+    {
+      "name": "write_note",
+      "descriptionFingerprint": "8e9eddbd1d9414b447547154c3896b44590e32bead4f797065b0e492305f8640",
+      "schemaFingerprint": "c314ed0eea4a8b9ba10007e1039c7b197af720fe95ce836db74745dd326acbc6"
+    }
+  ]
+}

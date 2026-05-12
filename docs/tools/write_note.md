@@ -4,7 +4,7 @@
 
 `write_note` creates a new note in an Obsidian vault, or replaces an
 existing one when `overwrite: true`. It is the typed write counterpart of
-[`read_note`](./read_note.md): a single-note write surface with a
+[`read`](./read.md): a single-note write surface with a
 discriminated `target_mode` (specific or active) and a structured
 `{ created, path }` envelope.
 
@@ -299,5 +299,5 @@ Rewrite as:
 - [016-reliable-writer spec](../../specs/016-reliable-writer/spec.md) — feature spec, FR-001..FR-029, success criteria.
 - [target-mode primitive spec](../../specs/004-target-mode-schema/spec.md) — the discriminator the input schema reuses.
 - [obsidian_exec](./obsidian_exec.md) — freeform CLI escape hatch retained for `template=` and any other unwrapped subcommand.
-- [read_note](./read_note.md) — symmetric typed read tool.
+- [read](./read.md) — symmetric typed read tool.
 - [help tool](./help.md) — surfaces this document via `help({ tool_name: "write_note" })`.

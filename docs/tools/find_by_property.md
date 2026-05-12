@@ -345,9 +345,9 @@ ambiguity.
   surfaces this document.
 - [read_property](./read_property.md) — the symmetric file → value
   surgical frontmatter read.
-- [read_note](./read_note.md) — the typed full-file read tool.
+- [read](./read.md) — the typed full-file read tool.
 - [write_note](./write_note.md) — the typed create/overwrite tool.
-- [delete_note](./delete_note.md) — the typed delete tool.
+- [delete](./delete.md) — the typed delete tool.
 - [obsidian_exec](./obsidian_exec.md) — the freeform escape hatch
   retained for unwrapped subcommands.
 - [errors contract](../../specs/001-add-cli-bridge/contracts/errors.contract.md)
