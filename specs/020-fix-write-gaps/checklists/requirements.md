@@ -29,6 +29,15 @@
 - [x] Feature meets measurable outcomes defined in Success Criteria
 - [x] No implementation details leak into specification
 
+## Validation Notes (run 2 — 2026-05-12 — post-/speckit-clarify)
+
+Two clarifications integrated after the initial pass (recorded in the spec's `## Clarifications > Session 2026-05-12` section):
+
+- **Q1 — `details` object shape on `FILE_EXISTS` rejection**: additive. The `errno: "EEXIST"` field is added alongside the existing `{ path, vault }` fields rather than replacing them. Field-name parity on `details.errno` (not full `details`-object parity) is the contract across filesystem-level failure responses. Touched: FR-007, FR-008, FR-018 (b), Story 2 description / Independent Test / AC#1-AC#2, Key Entities `Precise filesystem-level diagnostic indicator`, SC-004, SC-007, SC-011 (b).
+- **Q2 — `file` parameter semantics for non-canonical inputs**: literal short-form rule. The Story 1 `.md`-appending resolution fires only when `file` has no folder separator AND does not end in `.md`; any other `file` value passes through verbatim. Asymmetric on input shape by design; help update documents the canonical shape. Touched: Story 1 description / Independent Test / AC#1-AC#7, FR-001 / FR-001a / FR-002 / FR-003 / FR-018 (a), Key Entities `Resolved location`, Edge Cases (file-with-extension, file-with-folder-separator), Assumptions (existing-input-contract bullet), SC-001, SC-011 (a).
+
+All 16 checklist items pass after re-validation. No `[NEEDS CLARIFICATION]` markers remain. No contradictory pre-clarification statements survive (the two Edge Cases bullets that previously deferred to the schema have been replaced with precise FR-001a passthrough statements; the SC and FR wording has been normalised to `<file>.md` / `details.errno` / additive throughout).
+
 ## Validation Notes (run 1 — 2026-05-12)
 
 **Content Quality**:
