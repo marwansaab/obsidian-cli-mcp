@@ -246,6 +246,13 @@ This BI's test changes:
 | `src/tools/write_property/*.test.ts` | existing count | (renamed to `set_property/`; same count) | 0 net |
 | `src/tools/rename_note/*.test.ts` | existing count | (renamed to `rename/`; same count) | 0 net |
 | `src/tools/_register.test.ts` invariants drift detector | existing | existing + 5 key renames | 0 net cases (re-keyed) |
-| `src/tools/_register.test.ts` baseline-stability tests | 0 | 3 new cases (matches, name-tamper-fails, fingerprint-tamper-fails) | +3 cases |
+| `src/tools/_register.test.ts` invariants drift detector — explicit "no retired names" assertion | 0 | 1 new case (`it("does NOT publish any retired tool name", ...)`; covers FR-002 / US1) | +1 case |
+| `src/tools/_register.test.ts` baseline-stability tests | 0 | 3 new cases (matches / schema-conforms / retired-absent per FR-018 contract §4) | +3 cases |
+| `src/tools/_register-baseline.test.ts` (NEW co-located test file for the shared fingerprint module) | 0 | 5 new cases (canonicalJSON deterministic for shuffled keys; canonicalJSON preserves array order; sha256 hex-64; fingerprintLiveRegistry returns 11 entries sorted by name; fingerprints differ by 1-char input change) | +5 cases |
+| `src/tools/help/handler.test.ts` — new-name lookup cases | existing | existing + 5 cases (`it.each` over new names) | +5 cases |
+| `src/tools/help/handler.test.ts` — retired-name reject cases | existing | existing + 5 cases (`it.each` over retired names) | +5 cases |
+| `src/tools/help/handler.test.ts` — catalogue listing (no-args `help()`) | existing | existing + 1 case (covers FR-015 per /speckit-analyze C1 remediation) | +1 case |
 
-**Total net test additions: 3** (the FR-018 baseline-stability cases). All other test counts are unchanged — assertions migrate with their files.
+**Total net test additions: 20** — 3 FR-018 baseline + 1 explicit no-retired-names + 5 shared-module + 5 help-new-name + 5 help-retired-name + 1 help-catalogue. All migrated existing test counts are unchanged.
+
+**Net new source files** (added in this BI): `src/tools/_register-baseline.ts` (the shared fingerprint module per /speckit-analyze U6 remediation), `src/tools/_register-baseline.test.ts` (its co-located test file), `src/tools/_register-baseline.json` (the checked-in baseline), `scripts/write-register-baseline.ts` (the regeneration script).

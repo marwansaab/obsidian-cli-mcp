@@ -87,9 +87,14 @@ EDITED (orchestration / registry / drift detector):
   src/server.ts                           (5 import-name updates + tools-array re-sort)
   src/tools/_register.test.ts             (5 invariants-map key renames; ordered alphabetically)
 
-NEW (per FR-018 durable registry-stability gate):
+NEW (per FR-018 durable registry-stability gate; design refined at /speckit-analyze U6 remediation 2026-05-12):
   src/tools/_register-baseline.json       (checked-in tools[].name + per-tool fingerprint baseline)
-  (assertion added to src/tools/_register.test.ts — same file; no new test file)
+  src/tools/_register-baseline.ts         (shared fingerprint module — sha256, canonicalJSON,
+                                           fingerprintLiveRegistry — consumed by BOTH the test and
+                                           the regeneration script; prevents writer/verifier drift)
+  src/tools/_register-baseline.test.ts    (co-located test for the shared module per Principle II)
+  scripts/write-register-baseline.ts      (regeneration script invoked via `npm run baseline:write`)
+  (FR-018 assertions added to src/tools/_register.test.ts — same file; consumes the shared module)
 
 RENAMED (per FR-019 doc-file migration; git mv):
   docs/tools/read_note.md      → docs/tools/read.md
@@ -109,7 +114,11 @@ EDITED (per FR-012 / FR-020 narrow rewrite scope):
 EDITED (release mechanics):
   CHANGELOG.md                            (new "## [0.5.0]" section atop; single migration block listing
                                            all 5 renames with rationale per FR-010)
-  package.json                            (version: "0.4.4" → "0.5.0")
+  package.json                            (version: "0.4.4" → "0.5.0"; AND scripts.baseline:write
+                                           wiring for `scripts/write-register-baseline.ts` per
+                                           /speckit-analyze U6 remediation)
+  .gitignore                              (one new line `.scratch/` if not already present, for the
+                                           T001 witness file per /speckit-analyze U5 remediation)
 
 NOT TOUCHED (per Q3 narrow scope):
   .decisions/**.md                        (ADR text references old names; left as historical record)
@@ -204,7 +213,7 @@ No violations. No entries.
 
 ## Phase 2 — Task generation outline (for /speckit-tasks)
 
-This section is informational only; `/speckit-tasks` produces the actual `tasks.md`. The expected task shape:
+This section is informational only; `/speckit-tasks` produces the actual `tasks.md`. The task IDs sketched below are **planning placeholders**; tasks.md's authoritative IDs (T001..T036) supersede them (clarified at /speckit-analyze I7 remediation 2026-05-12). The expected task shape:
 
 - **T0**: baseline-capture task. Run `npm test` against pre-rename `main` to capture the registry baseline values (tool names, schema fingerprints) used to seed `src/tools/_register-baseline.json`. Pre-rename state is needed to know what "no behaviour change" means for the registry; the baseline values get rewritten by T001..T005 (registered names change) and re-locked at the end of the branch.
 - **T001..T005**: per-renamed-tool tasks. Each is a `git mv` of `src/tools/<old>/` → `src/tools/<new>/` + factory rename + co-located test-title updates + `src/server.ts` import + `_register.test.ts` invariants-map key. Done one tool at a time; tests passing at each tool's commit boundary.

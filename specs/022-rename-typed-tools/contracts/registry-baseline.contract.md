@@ -147,7 +147,7 @@ When a future BI intentionally adds, removes, or renames a tool:
 
 1. Make the registry change (add tool factory + import + tools-array entry; OR rename per the 022 mechanic; OR remove an entry).
 2. Run the test suite. Assertion 1 fails with a precise diff.
-3. **Regenerate the baseline** by running the existing test suite with a `--update-baseline` flag (proposed mechanism — plan-stage decides whether this is a vitest flag, an `npm run` script, or a one-off script in `scripts/`; default proposal: a separate `npm run baseline:roll-forward` script that writes the file). The regeneration overwrites `src/tools/_register-baseline.json` with the new fingerprints.
+3. **Regenerate the baseline** by running `npm run baseline:write` (mechanism locked at /speckit-analyze U6 remediation 2026-05-12 — see §7). The script invokes `scripts/write-register-baseline.ts` which reuses the shared `src/tools/_register-baseline.ts` fingerprint module so the writer's canonicalisation cannot drift from the verifier's. The regeneration overwrites `src/tools/_register-baseline.json` with the new fingerprints.
 4. Commit the registry change AND the regenerated baseline in the same commit.
 5. Reviewer inspects the baseline diff alongside the registry diff. Any registry change NOT reflected in the baseline change (or vice versa) means the future BI's diff is incomplete.
 
@@ -181,11 +181,12 @@ For Assertion 3 failure, the message is the explicit `${found.join(", ")}` list 
 
 ## 7. Implementation notes for /speckit-implement
 
-- The fingerprint helper functions (`sha256`, `canonicalJSON`, `fingerprintLiveRegistry`) MUST live in the test file — they are not part of the production code surface. Hashing the registry is purely a test-time concern.
+- The fingerprint helper functions (`sha256`, `canonicalJSON`, `fingerprintLiveRegistry`) live in a SHARED module `src/tools/_register-baseline.ts` consumed by BOTH the FR-018 test in `src/tools/_register.test.ts` AND the `scripts/write-register-baseline.ts` regeneration script (locked at /speckit-analyze U6 remediation 2026-05-12 — earlier contract said the helpers should live in the test file only; that was reconsidered when the baseline-roll-forward mechanism was pinned to `npm run baseline:write`). Sharing the canonicalisation logic across the two consumers prevents drift between the writer and the verifier — if the writer's `canonicalJSON` ever diverged from the verifier's, every BI's baseline would silently mismatch. The shared module is itself a "public" surface inside `src/tools/` per Constitution Principle II and has its own co-located test file `src/tools/_register-baseline.test.ts`.
 - Use `node:crypto`'s `createHash("sha256")` — already available without new deps.
 - The baseline file MUST be checked in with `\n` line endings (LF) regardless of host platform; Windows hosts with `core.autocrlf=true` should not produce CRLF in the committed file.
 - The baseline reader MUST tolerate trailing whitespace at EOF (a common formatter outcome) by using `JSON.parse(readFileSync(path, "utf8"))`.
-- The post-rename baseline values for the 11 tools listed in [data-model.md §5](../data-model.md) are computed during /speckit-implement's T0 / baseline-capture phase — they are not pre-computed in this contract because the description strings may be edited in the same BI (e.g. if a renamed tool's description text gets a self-reference update per FR-012, the fingerprint changes accordingly).
+- The post-rename baseline values for the 11 tools listed in [data-model.md §5](../data-model.md) are computed during /speckit-implement's T028 baseline-capture task — they are not pre-computed in this contract because the description strings may be edited in the same BI (e.g. if a renamed tool's description text gets a self-reference update per FR-012, the fingerprint changes accordingly).
+- The baseline-roll-forward mechanism is `npm run baseline:write`, wiring `scripts/write-register-baseline.ts` (TypeScript) via `tsx` (devDependency) or Node 22.6+'s `--experimental-strip-types` flag (no new deps required since `engines.node >= 22.11` per Constitution). Future BIs that intentionally change the registry run this script and commit the regenerated baseline in the same commit as the registry change.
 
 ## 8. Out of scope for this contract
 

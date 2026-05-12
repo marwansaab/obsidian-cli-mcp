@@ -76,7 +76,7 @@ The `schemaVersion: 1` field is a forward-compat hook in case future BIs add a f
 
 **Rationale**: Same as R1 — `git mv` preserves history. The body edits are minimal: most per-tool docs reference the tool's own name in the H1 title and a few prose sentences; everything else (input schema, examples, error roster) is name-agnostic.
 
-The renamed doc files MUST preserve the FR-012 "filetype-scope language" carve-out: phrases like "Reads a Markdown note from the vault" stay byte-identical. BI-060 widens those phrases; this BI only renames.
+The renamed doc files MUST preserve the FR-012 "filetype-scope language" carve-out. **Definition** (pinned at /speckit-analyze A4 remediation 2026-05-12): "filetype-scope language" = phrases whose words narrow the tool's apparent scope to Markdown-specifically — concretely `"Markdown note"`, `"note"` used as a filetype anchor (e.g. "Reads a note from the vault"), `".md"` mentioned as the operating-on-target filetype, and analogous phrasings. Words like "vault", "file", "path", "frontmatter", "heading", which describe positions/components and don't scope filetype, are NOT in the carve-out and may be edited freely if needed. The renamed tools' upstream CLI subcommands operate on any vault file (Markdown, Canvas, Bases, attachments) — the wrapper's filetype-scope language currently understates this; BI-060 widens the prose to match. This BI does the name rename only and leaves the filetype-scope language as it currently reads (e.g. "Reads a Markdown note from the vault" stays byte-identical even after `read_note` → `read`).
 
 **Alternatives considered**:
 
@@ -229,6 +229,28 @@ The post-rename baseline is the durable artifact. The "tamper-test" sub-scenario
 
 - *Capture baseline in T0 and freeze it before T001..T005 run*: rejected — the registry mutates during T001..T005 (new names added, old names removed), so a T0 baseline would intentionally diverge from the live registry mid-branch. The FR-018 test would fail at every intermediate commit. Capturing at branch tip avoids the mid-branch noise.
 - *Generate baseline at test runtime instead of checking it in*: rejected — defeats the entire point of FR-018. A runtime-generated baseline cannot detect accidental renames because it always matches the registry by construction.
+
+---
+
+### R11 — Handler-internal function names are NOT renamed (scope-narrowing for FR-021)
+
+**Decision**: The handler-internal function names exported from each renamed tool's `handler.ts` — `executeReadNote`, `executeDeleteNote`, `executeListFiles`, `executeWriteProperty`, `executeRenameNote` — are **NOT renamed** as part of this BI. They retain their pre-rename identifiers verbatim. FR-021's explicit enumeration covers factory function names (`createXxxNoteTool` → `createXxxTool`) only; handler-internal names are out of FR-021's scope.
+
+**Rationale** (locked at /speckit-analyze C2 remediation 2026-05-12 — earlier this policy lived only in tasks.md T002-T006 task bodies):
+
+1. **Avoids naming collisions with neighbouring handler functions.** If `executeReadNote` were renamed to `executeRead`, it would sit alongside `executeReadHeading` (in `src/tools/read_heading/handler.ts`) and `executeReadProperty` (in `src/tools/read_property/handler.ts`). The three names describe distinct operations (read whole file vs read a heading body vs read a frontmatter property) and the `Note` suffix in the original `executeReadNote` was the disambiguator. Dropping it produces three "read"-prefixed functions whose distinction depends entirely on which file they're imported from — the import-site disambiguation works but reads worse than the explicit-noun convention. The same argument applies for `executeDeleteNote` (the tool that goes with `delete` is the whole-file delete; future BIs may add `executeDeleteProperty` etc.).
+
+2. **Handler internals are not a public surface.** FR-021's rationale ("retaining factory names that name a retired tool would create drift between the registry and the source") is about the visible identifier on the `tools` array. Handler functions are referenced internally by exactly one caller (the factory function in `index.ts`); they are not part of any external contract.
+
+3. **Smaller diff, tighter PR review.** Each renamed dir already has factory + TOOL_NAME + DESCRIPTION + schema export name + three test-file describe-titles updated. Adding handler-name renames would expand the per-rename diff without proportional benefit.
+
+The accepted consequence: a path/identifier mismatch at the rename targets — `src/tools/read/handler.ts` exports `executeReadNote`. A reader skimming the source tree post-rename sees `read/handler.ts` registering as `read`-the-tool while internally calling `executeReadNote`. This is judged acceptable because the only consumer is the factory function in the same dir, and the function name carries the historical semantic ("read whole file, not a fragment").
+
+**Alternatives considered**:
+
+- *Rename handler functions in lockstep* (`executeReadNote` → `executeReadFile`, treating the new word as "file" instead of "read"): rejected — `executeReadFile` would clash with future `executeReadFileBinary` or similar; the original "Note" suffix already encoded the right distinction.
+- *Inline the handler bodies into `index.ts` to eliminate the named export*: rejected — the existing module convention (`schema.ts` + `handler.ts` + `index.ts`) is enshrined in Constitution Principle I; collapsing two files would violate the layout.
+- *Leave the policy implicit*: rejected at /speckit-analyze C2 — implicit decisions in tasks.md aren't traceable; future readers reviewing this BI's diff need to know the rename scope was deliberately narrowed at /speckit-analyze stage.
 
 ---
 
