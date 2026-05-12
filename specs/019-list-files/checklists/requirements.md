@@ -38,7 +38,19 @@
 - Feature Readiness: 6 user stories (4×P1, 1×P2, 1×P3) cover the full surface from the user input's 14 acceptance criteria. The P1 cluster alone delivers a functioning MVP (specific + active + count-only + validation). P2 (docs) and P3 (output-cap fallback) are independently testable.
 - The mandatory `before_specify` git hook ran successfully — branch `019-list-files` exists, `.specify/feature.json` points at `specs/019-list-files`.
 
-**No further iterations required**. All checklist items pass; spec is ready for `/speckit-plan`.
+**Iteration 2 — clarifications session 2026-05-12 (post-`/speckit-clarify`)**:
+
+Five wrapper-side design decisions resolved that the original spec had deferred to characterisation but which materially affect implementation and test design:
+
+- Q1 → A: Sub-folder entries filtered wrapper-side (FR-026); `paths` contains FILE paths only. SC-020 added. US1 scenario 9 added.
+- Q2 → A: Wrapper-imposed lexical ascending sort (FR-027, byte-compare on UTF-8). FR-011 rewritten; SC-006 rewritten. US1 scenario 6 sharpened.
+- Q3 → A: No `vault` echo in the response (cross-tool consistency with `find_by_property` / `read_property` / `read_heading`). Edge Cases > CONCURRENCY active-mode-TOCTOU bullet sharpened; Assumptions out-of-scope list expanded. Response schema unchanged.
+- Q4 → A: `folder` resolving to a file conflated with missing/empty (FR-010 rewritten); SC-021 added; US1 scenario 10 added.
+- Q5 → A: Uniform dotfile filter on any path component beginning with `.` (FR-028); direct consequence — `folder: ".obsidian"` lands on the same empty-folder shape. SC-022 added; US1 scenarios 11+12 added. FR-027 updated to sort AFTER the dotfile filter.
+
+Spec FR count: 25 → 28. SC count: 19 → 22. US1 scenario count: 8 → 12. No new error codes. No ADRs amended. No precedent feature's spec or plan touched.
+
+**No further iterations required**. All checklist items still pass. Spec ready for `/speckit-plan`.
 
 ## Notes
 
