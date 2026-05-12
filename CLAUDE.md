@@ -1,133 +1,139 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-[specs/018-write-property/plan.md](specs/018-write-property/plan.md)
+[specs/019-list-files/plan.md](specs/019-list-files/plan.md)
 
-Active feature: **018-write-property** — adds the seventh typed-tool
-wrap (`write_property`), the symmetric write companion to
-[013-read-property](specs/013-read-property/spec.md). Surgical
-single-frontmatter-property writes — agents that want to flip one
-field no longer pay the cost of a full-file `read_note` plus
-`write_note` round-trip. The user-facing surface:
-`write_property({ target_mode, vault?, file? | path?, name, value, type? })`
-returning `{ written: true, path, name }`. Predecessor narrative for
-017-cross-platform-support and 015-read-heading retained below in
-skipped bulk.
+Active feature: **019-list-files** — adds the eighth typed-tool wrap
+(`list_files`), the project's first FOLDER-scoped typed surface. Where
+the prior seven typed tools (`read_note` / `write_note` / `delete_note`
+/ `read_property` / `find_by_property` / `read_heading` /
+`write_property`) all operate on a single named file or the focused
+file, `list_files` operates on a vault folder. The user-facing
+surface: `list_files({ target_mode, vault?, folder?, ext?, total? })`
+returning `{ count: number, paths: string[] }`. Predecessor narrative
+for 018-write-property, 017-cross-platform-support, and
+015-read-heading retained below in skipped bulk.
 
-The legacy 015-read-heading narrative below is retained for downstream
-context but is NOT the active feature description; consult
-[specs/018-write-property/plan.md](specs/018-write-property/plan.md)
-for the current planning artifacts.
-
-**018-write-property tool surface**: one new typed MCP tool;
-`write_property` added to the registration list at
-[src/server.ts:79-88](src/server.ts#L79-L88) (alphabetical between
-`createReadPropertyTool` and `createWriteNoteTool`). No edits to any
+**019-list-files tool surface**: one new typed MCP tool; `list_files`
+added to the registration list at
+[src/server.ts:80-90](src/server.ts#L80-L90) (alphabetical: inserted
+between `createHelpTool` and `createObsidianExecTool`). No edits to any
 existing typed tool (`obsidian_exec` / `read_note` / `write_note` /
-`delete_note` / `read_property` / `find_by_property` /
-`read_heading` / `help`). Zero new error codes (FR-027 +
-Constitution IV); zero new ADRs (ADR-003 enforced via
-`applyTargetModeRefinement` reuse); 008-refactor surface frozen.
+`delete_note` / `read_property` / `find_by_property` / `read_heading`
+/ `write_property` / `help`). Zero new error codes (FR-020 +
+Constitution IV); zero new ADRs (ADR-003 applies with a folder-scoped
+adaptation — `list_files` operates on a vault folder where prior tools
+operated on a named file; the ADR is NOT amended); 008-refactor
+surface frozen.
 
-**CLI subcommand** (locked at R2, F1): `property:set` — native to
-Obsidian's CLI, NOT eval. Argv shape:
-`property:set vault=<v> name=<n> value=<v> [type=<t>] [file=<f>|path=<p>]`.
-Stdout success shape: `Set <name>: <value>\n`. The wrapper composes a
-single `property:set` invocation per write (plus optional path-resolution
-calls per R3). The spec's "no eval injection vector" assertion holds
-because user inputs (`name`, `value`, `type`) flow through discrete
-argv parameters to `property:set`, never into an eval source-text
+**CLI subcommand** (locked at R2, F1): `files` — native to Obsidian's
+CLI, NOT eval and NOT obsidian_exec. Argv shape: `vault=<v> files
+[folder=<f>] [ext=<e>]`. Stdout success shape: one vault-relative path
+per line, `/`-separated, UTF-8 encoded. The wrapper composes a single
+`files` invocation per request. The spec's "no eval injection vector"
+assertion holds because user inputs (`folder`, `ext`) flow through
+discrete argv parameters to `files`, never into an eval source-text
 template.
 
-**Per-mode call architecture** (locked at R3):
-- **Specific + path**: ONE `invokeCli` call (`property:set` with the
-  input's canonical `path`).
-- **Specific + file** (wikilink): TWO calls — `file file=<wikilink>`
-  (TSV-parse to discover the canonical path), then
-  `property:set path=<canonical>`.
-- **Active**: TWO calls — `eval` with a FIXED template returning
-  `{path, vault}` from `app.workspace.getActiveFile()` +
-  `app.vault.getName()`, then `property:set vault=<resolved>
-  path=<resolved>` (adapter target_mode=specific with the resolved
-  locator).
+**Per-mode call architecture** (locked at R3): ONE `invokeCli` call
+per request regardless of `target_mode` or input parameters. No
+two-call branches. Specific mode includes `vault=`; active mode omits.
 
-The TWO-call branches resolve the canonical path BEFORE the write,
-eliminating any TOCTOU window between path resolution and the actual
-write. The eval template used in active mode is FIXED at handler
-compile time (no user input interpolation); base64 anti-injection
-(per 015-read-heading R6) is NOT needed because user data never
-reaches eval source text.
+**CRITICAL ARCHITECTURE — folder filter is recursive at CLI; wrapper
+enforces non-recursive contract post-fetch** (locked at R6, F2): the
+CLI's `files folder=X` subcommand returns the RECURSIVE subtree under
+`X/`, not just the direct children. The wrapper enforces FR-012's
+non-recursive contract by filtering result paths whose component count
+exceeds `folder`'s component count + 1. This is the most consequential
+architectural finding of the plan — the spec's locked non-recursive
+contract is NOT a CLI property; it is a wrapper-imposed filter applied
+post-fetch.
 
-**Type inference** (locked at FR-008): when `type` is omitted, the
-handler infers from the JavaScript shape of `value` — `boolean` →
-checkbox, `number` → number, `Array.isArray(value)` → list, `string`
-→ text. Inference is NEVER from string-parsing heuristics. Date and
-datetime require explicit `type` because their JavaScript shape
-(string) is indistinguishable from text.
+**`total: true` architecture** (locked at R7, F12): the wrapper does
+NOT delegate to the CLI's native `total` flag. F12 found the CLI's
+`total` count is RECURSIVE — incompatible with FR-007 + SC-005's
+identical-count-across-modes requirement. The wrapper applies the same
+fetch + filter pipeline in both `total: false` and `total: true`
+modes; on `total: true`, the response's `paths` field is set to `[]`
+after counting. Token saving is realised at the wrapper→MCP-client
+boundary, not at the CLI→wrapper boundary.
 
-**Value serialisation** (locked at R9 / R10): `string`/`number`/
-`boolean` pass through via `String(value)`. `string[]` joins with
-`,`. Empty array `[]` sends the literal string `value=[]` (per F2 —
-the CLI recognises `[]` as "empty YAML list"). **Documented
-limitation**: list elements containing literal `,` characters are
-split by the CLI's parser; callers needing comma-containing elements
-fall back to `obsidian_exec`.
+**Filter pipeline** (locked at R9 — observably commutative, ordered
+for engine-friendliness): 1) sub-folder filter per FR-026
+(defence-in-depth — F19 says CLI never emits sub-folder entries from
+`files`); 2) dotfile filter per FR-028 (defence-in-depth — F18 says
+CLI already filters dotfiles natively; direct consequence — `folder:
+".obsidian"` returns `{ count: 0, paths: [] }` because every result
+path's first segment is dot-prefixed, so the filter eats every
+result); 3) non-recursive filter per R6 (load-bearing); 4) lexical
+sort per FR-027 (R8 — UTF-8 byte-compare via `Buffer.compare`, NOT
+JavaScript's default UTF-16 code-unit compare; differs only for
+non-BMP characters).
 
-**Cross-type overwrite** (locked at FR-033 from the 2026-05-10
-clarification, verified F3): the CLI without an explicit `type`
-infers from `value`'s shape AND overwrites both the value AND the
-vault's property-type registry entry. The wrapper requires no special
-logic — every write is treated identically; the result depends only
-on the current call's `(name, value, type?)` triple, never on the
-file's prior state.
+**Schema** (folder-scoped variant of post-010 idiom): either a new
+helper `applyTargetModeRefinementForFolderScoped` lands in
+`src/target-mode/target-mode.ts` (forbids `file` AND `path` in BOTH
+modes; preserves in-specific-requires-vault / in-active-forbids-vault
+rules), OR the refinement is inlined locally in
+`src/tools/list_files/schema.ts` via `superRefine`. Pick is a
+/speckit-tasks decision; both satisfy Constitution III. Recommended:
+the shared helper (folder-scoped pattern may recur).
 
-**Type-vs-value contradiction handling** (R6 / F4): CLI-rejected at
-the underlying layer. `value=abc type=number` → CLI stdout `Error:
-Invalid number: abc`; the dispatch-layer four-priority classifier
-maps to `CLI_REPORTED_ERROR`. No wrapper-side pre-validation needed.
+**Output schema**: `z.object({ count: z.number().int().nonnegative(),
+paths: z.array(z.string()) }).strict()`. Two fields, strict mode. Both
+branches of the `total` flag share the same shape.
 
-**Error envelope**: zero new error codes (FR-027). Failures flow
+**Error envelope**: zero new error codes (FR-020). Failures flow
 through `VALIDATION_ERROR` (zod) and `UpstreamError` codes from the
 cli-adapter — `CLI_BINARY_NOT_FOUND`, `CLI_NON_ZERO_EXIT`,
-`CLI_REPORTED_ERROR`, `ERR_NO_ACTIVE_FILE`. The 011-R5
-unknown-vault response-inspection clause and the dispatch-layer
-four-priority classifier are inherited unchanged.
+`CLI_REPORTED_ERROR`, `ERR_NO_ACTIVE_FILE`. The 011-R5 unknown-vault
+response-inspection clause and the dispatch-layer four-priority
+classifier are inherited unchanged. Path-traversal (F15), within-vault
+`..` segments (F16), and absolute paths (F17) are CLI-confined and
+produce empty stdout — same conflated empty-folder shape as
+missing-folder / empty-folder / folder-names-a-file per FR-010.
 
 **Test seams** (R13): handler tests inject `deps.spawnFn` per the
-existing convention. Per request, the handler emits ONE spawn
-(specific+path) or TWO spawns (specific+file: file → property:set;
-active: eval → property:set). Active-mode no-focused-file emits ONE
-spawn (the eval; property:set short-circuited by ERR_NO_ACTIVE_FILE).
+existing convention. Per request, the handler emits EXACTLY ONE spawn
+regardless of mode. Defence-in-depth filter coverage (FR-026 / FR-028)
+uses synthetic stdout because the live CLI does NOT currently produce
+shapes that trigger those filters — the unit suite is the contract
+enforcement.
 
-**Module layout**: `src/tools/write_property/{schema,handler,index}.ts`
+**Module layout**: `src/tools/list_files/{schema,handler,index}.ts`
 plus co-located `*.test.ts` per the post-011 convention. All six new
 source files carry the `// Original — no upstream.` header per
-Constitution V. Tests co-located: ~17 schema cases + ~32 handler cases
-+ ~5 registration cases = **54 cases total** (vs SC-015 floor of 30).
+Constitution V. Tests co-located: 18 schema cases + 28 handler cases +
+5 registration cases = **51 cases total** (vs SC-015 floor of 30).
 
 **Plan-stage spec amendments** (per R12 — documented in
-[research.md](specs/018-write-property/research.md), NOT in spec.md):
-- **R8 — FR-023 / SC-012 weakening**: CRLF preservation is PARTIAL.
-  All-LF files round-trip cleanly; CRLF files have mixed line endings
-  post-write (the unmodified body region retains CRLF; the modified
-  frontmatter region uses LF). Documented in
-  `docs/tools/write_property.md` Known Limitations.
-- **R7 — FR-022 realisation**: pre-existing flow-style YAML (e.g.
-  `tags: [a, b]`) is re-emitted as block-style on every write. Values
-  byte-stable; style normalised. Contract-compliant per FR-022's
-  "preserved to whatever degree the underlying serialiser supports"
-  wording.
+[research.md](specs/019-list-files/research.md), NOT in spec.md):
+- **Plan-amendment-1 — SC-012 weakening**: `total: true` is NOT a
+  cap-evasion path. Both modes apply the same CLI fetch + filter
+  pipeline and so face the same output-cap threshold. The spec's
+  second sentence in SC-012 ("the same fixture queried with `total:
+  true` succeeds with the full count") is unrealisable under the
+  chosen architecture. Documented in `docs/tools/list_files.md`
+  Known Limitations. Mitigation: callers needing recursive counts on
+  pathological folders use `obsidian_exec files folder=X total` (the
+  CLI's native `total` flag is cap-friendly but produces a recursive
+  count).
+- **Plan-amendment-2 — FR-026 / FR-028 are defence-in-depth, not
+  load-bearing**: F18 confirms the CLI already filters dotfiles
+  natively; F19 confirms it never emits sub-folder entries from
+  `files`. The wrapper's filters protect against CLI version drift
+  but are not currently observable against the live CLI. The
+  unit-test suite uses synthetic stdout to exercise these filters.
 
-**Live-CLI characterisation status** (FR-030): 15 of 16 enumerated
-cases verified live during plan (F1–F15 in research.md). ONE case
-deferred to T0 of `/speckit-implement` — concurrent same-file writes,
-since orchestrated parallel CLI invocations belong inside the test
-suite's concurrency framework rather than ad-hoc plan-stage probes.
+**Live-CLI characterisation status** (FR-023): 18 of 21 enumerated
+cases verified live during plan (F1–F20 in research.md). THREE cases
+deferred to T0 of `/speckit-implement` and bundled into a `T0xx` task:
+emoji / non-ASCII / whitespace fixture pass; active-mode-no-focused-vault
+probe; synthetic 200K-file output-cap fixture.
 
-**Plan-stage probe residue**: the active-mode probe wrote `mode: auto`
-to [TestVault/Fixtures/BI-038/tc-mojibake-fbp.md](C:\Marwan-Saab-ADO\Marwan%20at%20Metcash\Obsidian\TestVault-Obsidian-CLI-MCP\Fixtures\BI-038\tc-mojibake-fbp.md)
-(the file Obsidian had focused at probe time). Auto-classifier blocked
-the `property:remove` cleanup. Manual revert needed by the user.
+**Plan-stage probe residue**: NONE. All plan-stage probes were
+READ-ONLY against the test vault. No fixtures created; no cleanup
+required.
 
 **Compatibility / release**: this BI is additive — no existing tool
 changes, no error codes added, no ADRs amended, no schema changes to
@@ -135,28 +141,54 @@ existing tools. Public surface gains one new typed tool. Version bump
 TBD by `/speckit-implement`'s release task.
 
 See also:
-- [spec.md](specs/018-write-property/spec.md) — feature spec; one
-  clarifications session ran 2026-05-10 (Q1 type-conversion-on-overwrite
-  → resolved-type-wins, codified by FR-033 + SC-021 + Edge Cases bullet
-  CONTENT — type-conversion-on-overwrite).
-- [research.md](specs/018-write-property/research.md) — Phase 0
-  decisions R1–R16 + live findings F1–F15 + R8 / R7 plan-stage spec
-  amendments per R12.
-- [data-model.md](specs/018-write-property/data-model.md) — input/output
-  schema shapes, type-inference table, value-serialisation table,
-  per-mode CLI argv-mapping table, per-tool invariants ↔ FR mapping,
-  test inventory (54 cases).
-- [contracts/write-property-input.contract.md](specs/018-write-property/contracts/write-property-input.contract.md)
+- [spec.md](specs/019-list-files/spec.md) — feature spec; one
+  clarifications session ran 2026-05-12 (Q1 sub-folder filter, Q2
+  wrapper-imposed lexical sort, Q3 no vault echo in response, Q4
+  folder-names-a-file conflated with empty, Q5 uniform dotfile filter)
+  + a follow-up no-ambiguities scan that confirmed plan-readiness.
+- [research.md](specs/019-list-files/research.md) — Phase 0 decisions
+  R1–R16 + live findings F1–F20 + Plan-amendment-1 (SC-012 weakening)
+  + Plan-amendment-2 (FR-026 / FR-028 defence-in-depth).
+- [data-model.md](specs/019-list-files/data-model.md) — input/output
+  schema shapes, per-mode CLI argv-mapping table, filter pipeline,
+  per-tool invariants ↔ FR mapping, test inventory (51 cases).
+- [contracts/list-files-input.contract.md](specs/019-list-files/contracts/list-files-input.contract.md)
   — public input contract: zod schema, emitted JSON Schema shape,
-  field-by-field rules, six worked examples (one per YAML type),
-  validation + downstream failure rosters.
-- [contracts/write-property-handler.contract.md](specs/018-write-property/contracts/write-property-handler.contract.md)
-  — handler invariants: deps shape, per-mode invokeCli call shapes,
-  FIXED eval template, helper-function contracts (inferType,
-  serialiseValue, parseFileTSV, parseEvalResponse), failure
-  propagation chain, test-seam pattern.
-- [quickstart.md](specs/018-write-property/quickstart.md) — 21
-  verification scenarios (S-1..S-21) mapped 1:1 to SC-001..SC-021.
+  field-by-field rules, six worked examples, validation + downstream
+  failure rosters.
+- [contracts/list-files-handler.contract.md](specs/019-list-files/contracts/list-files-handler.contract.md)
+  — handler invariants: deps shape, single-spawn invariant (R13),
+  exhaustive argv shape table, filter pipeline contract, helper-function
+  contracts (parseStdout, isFolderEntry, hasDotPrefixedComponent,
+  isDirectChildOfFolder), failure propagation chain, test-seam pattern
+  with synthetic-stdout fixtures.
+- [quickstart.md](specs/019-list-files/quickstart.md) — 22 verification
+  scenarios (S-1..S-22) mapped 1:1 to SC-001..SC-022 + 3 manual T0
+  scenarios (M-1..M-3) for live-CLI characterisation gaps.
+
+---
+
+## Predecessor feature narrative (018-write-property) — RETAINED FOR CONTEXT
+
+The 018 narrative below is retained for downstream cross-references
+but is NOT the active planning context. Consult
+[specs/019-list-files/plan.md](specs/019-list-files/plan.md) for the
+active feature; consult
+[specs/018-write-property/plan.md](specs/018-write-property/plan.md)
+for the 018 source. Summary: 018 added the seventh typed-tool wrap
+(`write_property`), the symmetric write companion to
+[013-read-property](specs/013-read-property/spec.md). The CLI
+subcommand `property:set` (native, NOT eval) drove the wrapper.
+Per-mode call architecture: ONE spawn for specific+path, TWO spawns
+for specific+file (`file` → `property:set`) and active (`eval` →
+`property:set`). Type inference from JS value shape (FR-008). Empty
+array maps to literal `value=[]` (R10 / F2). Cross-type overwrite
+satisfied by native CLI behaviour (FR-033 / F3). Plan-stage spec
+amendments: R8 CRLF preservation PARTIAL; R7 YAML flow→block
+normalisation observable. Zero new error codes; zero new ADRs. Module
+at `src/tools/write_property/{schema,handler,index}.ts`. See [018
+spec.md](specs/018-write-property/spec.md) and [018 plan.md](specs/018-write-property/plan.md)
+for the full detail.
 
 ---
 
