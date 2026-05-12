@@ -1,107 +1,185 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-[specs/017-cross-platform-support/plan.md](specs/017-cross-platform-support/plan.md)
+[specs/018-write-property/plan.md](specs/018-write-property/plan.md)
 
-Active feature: **017-cross-platform-support** — lifts the bridge's
-Windows-only restriction by extracting binary resolution from a
-one-line `env.OBSIDIAN_BIN ?? "obsidian"` lookup at
-[src/cli-adapter/_dispatch.ts:62](src/cli-adapter/_dispatch.ts#L62)
-into a new `src/binary-resolver/` module. The work is entirely below
-the typed-tool surface — no new MCP tool, no new public API, no
-schema changes, no new error codes (FR-010), no new ADRs. All eight
-currently-shipping tools and every future typed tool inherit
-cross-platform support without per-tool plumbing because the resolver
-lives below `dispatchCli`. Predecessor narrative for 015-read-heading
-follows in skipped bulk.
+Active feature: **018-write-property** — adds the seventh typed-tool
+wrap (`write_property`), the symmetric write companion to
+[013-read-property](specs/013-read-property/spec.md). Surgical
+single-frontmatter-property writes — agents that want to flip one
+field no longer pay the cost of a full-file `read_note` plus
+`write_note` round-trip. The user-facing surface:
+`write_property({ target_mode, vault?, file? | path?, name, value, type? })`
+returning `{ written: true, path, name }`. Predecessor narrative for
+017-cross-platform-support and 015-read-heading retained below in
+skipped bulk.
 
 The legacy 015-read-heading narrative below is retained for downstream
 context but is NOT the active feature description; consult
-[specs/017-cross-platform-support/plan.md](specs/017-cross-platform-support/plan.md)
+[specs/018-write-property/plan.md](specs/018-write-property/plan.md)
 for the current planning artifacts.
 
-**017-cross-platform-support tool surface**: the existing
-`obsidian_exec` / typed-tool surface is unchanged. This BI extends the
-binary-resolution layer that sits underneath every tool's CLI dispatch.
+**018-write-property tool surface**: one new typed MCP tool;
+`write_property` added to the registration list at
+[src/server.ts:79-88](src/server.ts#L79-L88) (alphabetical between
+`createReadPropertyTool` and `createWriteNoteTool`). No edits to any
+existing typed tool (`obsidian_exec` / `read_note` / `write_note` /
+`delete_note` / `read_property` / `find_by_property` /
+`read_heading` / `help`). Zero new error codes (FR-027 +
+Constitution IV); zero new ADRs (ADR-003 enforced via
+`applyTargetModeRefinement` reuse); 008-refactor surface frozen.
 
-**Resolution algorithm** (locked at plan stage R2): an ordered three-tier
-fall-through —
-(1) `OBSIDIAN_BIN` override, fail loudly if set-and-not-executable
-(FR-008 / FR-020 — no fall-through);
-(2) platform-default install path (`/usr/local/bin/obsidian` on macOS,
-`path.join(os.homedir(), ".local/bin/obsidian")` on Linux, no
-platform-default on Windows per FR-005), fall through to PATH on any
-access failure;
-(3) `PATH` (deferred to OS spawn — the resolver returns the bare
-command name `"obsidian"` and `_dispatch.ts` lets the OS resolve
-against `$PATH` natively, per spec Clarifications Q1).
+**CLI subcommand** (locked at R2, F1): `property:set` — native to
+Obsidian's CLI, NOT eval. Argv shape:
+`property:set vault=<v> name=<n> value=<v> [type=<t>] [file=<f>|path=<p>]`.
+Stdout success shape: `Set <name>: <value>\n`. The wrapper composes a
+single `property:set` invocation per write (plus optional path-resolution
+calls per R3). The spec's "no eval injection vector" assertion holds
+because user inputs (`name`, `value`, `type`) flow through discrete
+argv parameters to `property:set`, never into an eval source-text
+template.
 
-**Executability predicate** (locked at clarify Q2): `fs.access(path,
-fs.constants.X_OK)` — kernel-side check; respects mode AND ownership
-on POSIX in one syscall; succeeds for any existing file on Windows
-(preserves FR-005 byte-for-byte).
+**Per-mode call architecture** (locked at R3):
+- **Specific + path**: ONE `invokeCli` call (`property:set` with the
+  input's canonical `path`).
+- **Specific + file** (wikilink): TWO calls — `file file=<wikilink>`
+  (TSV-parse to discover the canonical path), then
+  `property:set path=<canonical>`.
+- **Active**: TWO calls — `eval` with a FIXED template returning
+  `{path, vault}` from `app.workspace.getActiveFile()` +
+  `app.vault.getName()`, then `property:set vault=<resolved>
+  path=<resolved>` (adapter target_mode=specific with the resolved
+  locator).
 
-**Error envelope** (locked at R6): the existing `CLI_BINARY_NOT_FOUND`
-UpstreamError thrown at
-[src/cli-adapter/_dispatch.ts:84-91](src/cli-adapter/_dispatch.ts#L84-L91)
-and
-[src/cli-adapter/_dispatch.ts:163-170](src/cli-adapter/_dispatch.ts#L163-L170)
-gets enriched `details`: `{platform, attempts: ResolutionAttempt[],
-PATH}`. The legacy `binaryAttempted` field is dropped — strictly
-richer info available via `attempts[N-1].path`. No new `ErrorCode`
-added to the union in `src/logger.ts:4-10`.
+The TWO-call branches resolve the canonical path BEFORE the write,
+eliminating any TOCTOU window between path resolution and the actual
+write. The eval template used in active mode is FIXED at handler
+compile time (no user input interpolation); base64 anti-injection
+(per 015-read-heading R6) is NOT needed because user data never
+reaches eval source text.
 
-**Test seams** (R7): the resolver signature is
-`resolveBinary(deps: {env, platform, homedir, access}): Promise<{path,
-attempts}>`. All four deps are injected by the dispatch layer in
-production; tests inject stubs to fix `platform` to `"darwin"` /
-`"linux"` / `"win32"` and supply an `access` stub per case. No CI
-matrix required — the project's vitest unit-only test scope (per the
-auto-memory feedback entry) is sufficient.
+**Type inference** (locked at FR-008): when `type` is omitted, the
+handler infers from the JavaScript shape of `value` — `boolean` →
+checkbox, `number` → number, `Array.isArray(value)` → list, `string`
+→ text. Inference is NEVER from string-parsing heuristics. Date and
+datetime require explicit `type` because their JavaScript shape
+(string) is indistinguishable from text.
 
-**Module layout**: `src/binary-resolver/binary-resolver.ts` plus
-co-located `binary-resolver.test.ts`. Single-file shape — no
-`index.ts` indirection because the module exposes one function and a
-small accompanying type (no registration surface). Both new files
-carry the `// Original — no upstream.` header per Constitution V.
+**Value serialisation** (locked at R9 / R10): `string`/`number`/
+`boolean` pass through via `String(value)`. `string[]` joins with
+`,`. Empty array `[]` sends the literal string `value=[]` (per F2 —
+the CLI recognises `[]` as "empty YAML list"). **Documented
+limitation**: list elements containing literal `,` characters are
+split by the CLI's parser; callers needing comma-containing elements
+fall back to `obsidian_exec`.
 
-**Test scope amendment**: only two existing test files need surgical
-edits to consume the new `details` shape —
-[src/cli-adapter/_dispatch.test.ts:185-204](src/cli-adapter/_dispatch.test.ts#L185-L204)
-(3 cases re-targeted) and
-[src/tools/obsidian_exec/handler.test.ts:111-122](src/tools/obsidian_exec/handler.test.ts#L111-L122)
-(1 case re-targeted). Every other tool's CLI_BINARY_NOT_FOUND
-assertion only checks `err.code` — agnostic to `details` shape.
+**Cross-type overwrite** (locked at FR-033 from the 2026-05-10
+clarification, verified F3): the CLI without an explicit `type`
+infers from `value`'s shape AND overwrites both the value AND the
+vault's property-type registry entry. The wrapper requires no special
+logic — every write is treated identically; the result depends only
+on the current call's `(name, value, type?)` triple, never on the
+file's prior state.
 
-**Cross-cutting**: zero new error codes (FR-010 + Constitution IV);
-zero new ADRs (the BI generalises an existing dispatch-layer behaviour);
-008-refactor surface frozen — `dispatchCli`, `invokeCli`,
-`invokeBoundedCli`, `assertToolDocsExist`, `obsidian_exec` argv contract,
-the 011-R5 cli-adapter unknown-vault response-inspection clause, and
-the four-priority error classifier in `_dispatch.ts:onTerminal` all
-preserved unchanged. `read_note` / `read_heading` / `read_property` /
-`find_by_property` / `write_note` / `delete_note` / `obsidian_exec` /
-`help` byte-stable; `src/server.ts` registration list unchanged.
+**Type-vs-value contradiction handling** (R6 / F4): CLI-rejected at
+the underlying layer. `value=abc type=number` → CLI stdout `Error:
+Invalid number: abc`; the dispatch-layer four-priority classifier
+maps to `CLI_REPORTED_ERROR`. No wrapper-side pre-validation needed.
 
-**External-surface bumps**: README's Installation section gains macOS
-and Linux subsections (FR-012 — Windows subsection preserved
-unchanged); README's opening paragraph + Prerequisites and
-`package.json`'s `description` field are bumped from "Windows-host" to
-tri-platform framing (FR-019).
+**Error envelope**: zero new error codes (FR-027). Failures flow
+through `VALIDATION_ERROR` (zod) and `UpstreamError` codes from the
+cli-adapter — `CLI_BINARY_NOT_FOUND`, `CLI_NON_ZERO_EXIT`,
+`CLI_REPORTED_ERROR`, `ERR_NO_ACTIVE_FILE`. The 011-R5
+unknown-vault response-inspection clause and the dispatch-layer
+four-priority classifier are inherited unchanged.
+
+**Test seams** (R13): handler tests inject `deps.spawnFn` per the
+existing convention. Per request, the handler emits ONE spawn
+(specific+path) or TWO spawns (specific+file: file → property:set;
+active: eval → property:set). Active-mode no-focused-file emits ONE
+spawn (the eval; property:set short-circuited by ERR_NO_ACTIVE_FILE).
+
+**Module layout**: `src/tools/write_property/{schema,handler,index}.ts`
+plus co-located `*.test.ts` per the post-011 convention. All six new
+source files carry the `// Original — no upstream.` header per
+Constitution V. Tests co-located: ~17 schema cases + ~32 handler cases
++ ~5 registration cases = **54 cases total** (vs SC-015 floor of 30).
+
+**Plan-stage spec amendments** (per R12 — documented in
+[research.md](specs/018-write-property/research.md), NOT in spec.md):
+- **R8 — FR-023 / SC-012 weakening**: CRLF preservation is PARTIAL.
+  All-LF files round-trip cleanly; CRLF files have mixed line endings
+  post-write (the unmodified body region retains CRLF; the modified
+  frontmatter region uses LF). Documented in
+  `docs/tools/write_property.md` Known Limitations.
+- **R7 — FR-022 realisation**: pre-existing flow-style YAML (e.g.
+  `tags: [a, b]`) is re-emitted as block-style on every write. Values
+  byte-stable; style normalised. Contract-compliant per FR-022's
+  "preserved to whatever degree the underlying serialiser supports"
+  wording.
+
+**Live-CLI characterisation status** (FR-030): 15 of 16 enumerated
+cases verified live during plan (F1–F15 in research.md). ONE case
+deferred to T0 of `/speckit-implement` — concurrent same-file writes,
+since orchestrated parallel CLI invocations belong inside the test
+suite's concurrency framework rather than ad-hoc plan-stage probes.
+
+**Plan-stage probe residue**: the active-mode probe wrote `mode: auto`
+to [TestVault/Fixtures/BI-038/tc-mojibake-fbp.md](C:\Marwan-Saab-ADO\Marwan%20at%20Metcash\Obsidian\TestVault-Obsidian-CLI-MCP\Fixtures\BI-038\tc-mojibake-fbp.md)
+(the file Obsidian had focused at probe time). Auto-classifier blocked
+the `property:remove` cleanup. Manual revert needed by the user.
 
 **Compatibility / release**: this BI is additive — no existing tool
-changes, no error codes added, no ADRs amended, no schema changes.
-Public surface gains zero new typed tools but supports two new host
-platforms (macOS, Linux). Version bump TBD by `/speckit-implement`'s
-release task.
+changes, no error codes added, no ADRs amended, no schema changes to
+existing tools. Public surface gains one new typed tool. Version bump
+TBD by `/speckit-implement`'s release task.
 
 See also:
-- [spec.md](specs/017-cross-platform-support/spec.md) — feature spec; one clarifications session ran 2026-05-10 (Q1 PATH-branch defers to OS spawn, Q2 executability predicate is `fs.access(X_OK)`).
-- [research.md](specs/017-cross-platform-support/research.md) — Phase 0 decisions R1–R13 + live findings F1–F5.
-- [data-model.md](specs/017-cross-platform-support/data-model.md) — TypeScript types, per-platform behaviour table, test inventory (~30 cases for the resolver + 4-5 case edits in existing files), LOC budget.
-- [contracts/binary-resolver.contract.md](specs/017-cross-platform-support/contracts/binary-resolver.contract.md) — function signature, ResolutionAttempt shape, per-FR contract rows, test-seam invariants.
-- [contracts/cli-adapter-integration.contract.md](specs/017-cross-platform-support/contracts/cli-adapter-integration.contract.md) — where `resolveBinary` is called from `_dispatch.ts`, the `settlePathAttempt` helper, preserved invariants from v0.3.0, modified test sites.
-- [quickstart.md](specs/017-cross-platform-support/quickstart.md) — 10 CI-gated scenarios (S-1..S-10) + 8 manual scenarios (M-1..M-8) mapped to SC-001..SC-010.
+- [spec.md](specs/018-write-property/spec.md) — feature spec; one
+  clarifications session ran 2026-05-10 (Q1 type-conversion-on-overwrite
+  → resolved-type-wins, codified by FR-033 + SC-021 + Edge Cases bullet
+  CONTENT — type-conversion-on-overwrite).
+- [research.md](specs/018-write-property/research.md) — Phase 0
+  decisions R1–R16 + live findings F1–F15 + R8 / R7 plan-stage spec
+  amendments per R12.
+- [data-model.md](specs/018-write-property/data-model.md) — input/output
+  schema shapes, type-inference table, value-serialisation table,
+  per-mode CLI argv-mapping table, per-tool invariants ↔ FR mapping,
+  test inventory (54 cases).
+- [contracts/write-property-input.contract.md](specs/018-write-property/contracts/write-property-input.contract.md)
+  — public input contract: zod schema, emitted JSON Schema shape,
+  field-by-field rules, six worked examples (one per YAML type),
+  validation + downstream failure rosters.
+- [contracts/write-property-handler.contract.md](specs/018-write-property/contracts/write-property-handler.contract.md)
+  — handler invariants: deps shape, per-mode invokeCli call shapes,
+  FIXED eval template, helper-function contracts (inferType,
+  serialiseValue, parseFileTSV, parseEvalResponse), failure
+  propagation chain, test-seam pattern.
+- [quickstart.md](specs/018-write-property/quickstart.md) — 21
+  verification scenarios (S-1..S-21) mapped 1:1 to SC-001..SC-021.
+
+---
+
+## Predecessor feature narrative (017-cross-platform-support) — RETAINED FOR CONTEXT
+
+The 017 narrative below is retained for downstream cross-references
+but is NOT the active planning context. Consult
+[specs/018-write-property/plan.md](specs/018-write-property/plan.md)
+for the active feature; consult
+[specs/017-cross-platform-support/plan.md](specs/017-cross-platform-support/plan.md)
+for the 017 source. Summary: 017 lifted the bridge's Windows-only
+restriction by extracting binary resolution into
+`src/binary-resolver/`, a three-tier fall-through (OBSIDIAN_BIN →
+platform-default → PATH-via-OS-spawn) verified via
+`fs.access(X_OK)` predicate. The error envelope's
+`CLI_BINARY_NOT_FOUND.details` gained `{platform, attempts[], PATH}`
+in place of the legacy `binaryAttempted` field; zero new error codes;
+the 008-refactor surface and the 011-R5 unknown-vault inspection
+clause were preserved unchanged. README and `package.json` description
+bumped from "Windows-host" to tri-platform framing per FR-019.
+See [017 spec.md](specs/017-cross-platform-support/spec.md) and
+[017 plan.md](specs/017-cross-platform-support/plan.md) for the full
+detail.
 
 ---
 
