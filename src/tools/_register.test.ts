@@ -1,13 +1,15 @@
 // Original — no upstream. Co-located tests for the registerTool publication pipeline + assertToolDocsExist aggregator. Drift detector consolidated post-010 from three groups to one (registry walk + SDK round-trip + synthetic Pattern (a) fixture).
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import { z } from "zod";
 
+import { fingerprintLiveRegistry, type RegisterBaseline } from "./_register-baseline.js";
 import { registerTool, assertToolDocsExist } from "./_register.js";
 import { UpstreamError } from "../errors.js";
 import { createServer } from "../server.js";
@@ -17,6 +19,12 @@ import {
 } from "../target-mode/target-mode.js";
 
 import type { RegisteredTool } from "./_shared.js";
+
+const BASELINE_PATH = resolve(dirname(fileURLToPath(import.meta.url)), "_register-baseline.json");
+
+function readBaseline(): RegisterBaseline {
+  return JSON.parse(readFileSync(BASELINE_PATH, "utf8")) as RegisterBaseline;
+}
 
 describe("registerTool — descriptor publication pipeline", () => {
   it("publishes inputSchema with top-level type === 'object' (FR-002)", () => {
@@ -251,7 +259,7 @@ type ToolInvariant = {
 };
 
 const invariants: Readonly<Record<string, ToolInvariant>> = {
-  read_note: {
+  read: {
     type: "object",
     properties_equals_set: ["target_mode", "vault", "file", "path"],
     required_equals: ["target_mode"],
@@ -263,7 +271,7 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
     required_equals: ["target_mode", "content"],
     additionalProperties: false,
   },
-  delete_note: {
+  delete: {
     type: "object",
     properties_equals_set: ["target_mode", "vault", "file", "path", "permanent"],
     required_equals: ["target_mode"],
@@ -281,7 +289,7 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
     required_equals: ["target_mode", "name"],
     additionalProperties: false,
   },
-  rename_note: {
+  rename: {
     type: "object",
     properties_equals_set: ["target_mode", "vault", "file", "path", "name"],
     required_equals: ["target_mode", "name"],
@@ -293,13 +301,13 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
     required_equals: ["property", "value"],
     additionalProperties: false,
   },
-  write_property: {
+  set_property: {
     type: "object",
     properties_equals_set: ["target_mode", "vault", "file", "path", "name", "value", "type"],
     required_equals: ["target_mode", "name", "value"],
     additionalProperties: false,
   },
-  list_files: {
+  files: {
     type: "object",
     properties_equals_set: ["target_mode", "vault", "file", "path", "folder", "ext", "total"],
     required_equals: ["target_mode"],
@@ -403,6 +411,17 @@ describe("registry: published inputSchema invariants (post-010)", () => {
     );
   });
 
+  it("does NOT publish any retired tool name (BI-022)", async () => {
+    const tools = await listToolsViaRegistry();
+    const live = tools.map((t) => t.name);
+    const retired = ["read_note", "delete_note", "list_files", "write_property", "rename_note"];
+    const intersection = retired.filter((r) => live.includes(r));
+    expect(
+      intersection,
+      `retired names re-appeared in tools/list: ${intersection.join(", ")}`,
+    ).toEqual([]);
+  });
+
   it("synthetic Pattern (a) — applyTargetModeRefinement(base.extend({ note_text })) publishes the union of base + extension keys", () => {
     const schema = applyTargetModeRefinement(
       targetModeBaseSchema.extend({ note_text: z.string() }),
@@ -414,5 +433,37 @@ describe("registry: published inputSchema invariants (post-010)", () => {
       handler: async () => ({ content: [{ type: "text" as const, text: "" }] }),
     });
     assertInvariant("synthetic_pattern_a", tool.descriptor.inputSchema as Record<string, unknown>);
+  });
+});
+
+describe("registry: stability baseline (FR-018)", () => {
+  it("live registry fingerprints match the checked-in baseline", async () => {
+    const baseline = readBaseline();
+    const live = await fingerprintLiveRegistry();
+    expect(live).toEqual(baseline.tools);
+  });
+
+  it("baseline file conforms to the documented schema", () => {
+    const baseline = readBaseline();
+    expect(baseline.schemaVersion).toBe(1);
+    expect(Array.isArray(baseline.tools)).toBe(true);
+    for (const entry of baseline.tools) {
+      expect(typeof entry.name).toBe("string");
+      expect(entry.descriptionFingerprint).toMatch(/^[0-9a-f]{64}$/);
+      expect(entry.schemaFingerprint).toMatch(/^[0-9a-f]{64}$/);
+    }
+    const sortedNames = [...baseline.tools].map((t) => t.name);
+    expect(sortedNames).toEqual([...sortedNames].sort());
+  });
+
+  it("baseline does NOT include any retired tool name (BI-022)", () => {
+    const baseline = readBaseline();
+    const names = baseline.tools.map((t) => t.name);
+    const retired = ["read_note", "delete_note", "list_files", "write_property", "rename_note"];
+    const found = retired.filter((r) => names.includes(r));
+    expect(
+      found,
+      `retired names should be absent from baseline: ${found.join(", ")}`,
+    ).toEqual([]);
   });
 });

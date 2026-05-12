@@ -11,17 +11,17 @@ import { createLogger, type Logger, type ShutdownReason } from "./logger.js";
 import { createQueue, type Queue } from "./queue.js";
 import { assertToolDocsExist } from "./tools/_register.js";
 import { asToolError, type RegisteredTool } from "./tools/_shared.js";
-import { createDeleteNoteTool } from "./tools/delete_note/index.js";
+import { createDeleteTool } from "./tools/delete/index.js";
+import { createFilesTool } from "./tools/files/index.js";
 import { createFindByPropertyTool } from "./tools/find_by_property/index.js";
 import { createHelpTool } from "./tools/help/index.js";
-import { createListFilesTool } from "./tools/list_files/index.js";
 import { createObsidianExecTool } from "./tools/obsidian_exec/index.js";
+import { createReadTool } from "./tools/read/index.js";
 import { createReadHeadingTool } from "./tools/read_heading/index.js";
-import { createReadNoteTool } from "./tools/read_note/index.js";
 import { createReadPropertyTool } from "./tools/read_property/index.js";
-import { createRenameNoteTool } from "./tools/rename_note/index.js";
+import { createRenameTool } from "./tools/rename/index.js";
+import { createSetPropertyTool } from "./tools/set_property/index.js";
 import { createWriteNoteTool } from "./tools/write_note/index.js";
-import { createWritePropertyTool } from "./tools/write_property/index.js";
 import { createVaultRegistry } from "./vault-registry/registry.js";
 
 import type { Writable } from "node:stream";
@@ -80,17 +80,17 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
   });
 
   const tools: RegisteredTool[] = [
-    createDeleteNoteTool({ logger, queue }),
+    createDeleteTool({ logger, queue }),
+    createFilesTool({ logger, queue }),
     createFindByPropertyTool({ logger, queue }),
     createHelpTool(),
-    createListFilesTool({ logger, queue }),
     createObsidianExecTool({ logger, queue }),
+    createReadTool({ logger, queue }),
     createReadHeadingTool({ logger, queue }),
-    createReadNoteTool({ logger, queue }),
     createReadPropertyTool({ logger, queue }),
-    createRenameNoteTool({ logger, queue }),
+    createRenameTool({ logger, queue }),
+    createSetPropertyTool({ logger, queue }),
     createWriteNoteTool({ logger, queue, vaultRegistry }),
-    createWritePropertyTool({ logger, queue }),
   ];
 
   // Boot-time aggregated doc-file presence check (FR-005 / Q4 — fail-fast on

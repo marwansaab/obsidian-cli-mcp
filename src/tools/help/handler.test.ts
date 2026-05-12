@@ -123,10 +123,55 @@ describe("executeHelp", () => {
     // Stub doc files (append_note.md, write_note.md, etc.) are present in docs/tools/ but
     // their tools are not registered yet — this is the orphan case in production. The handler
     // must succeed and return the file content (FR-008 filesystem-as-source-of-truth).
-    // (Note: read_note shipped under BI-003; append_note remains an orphan stub at this BI.)
+    // (Note: read shipped under BI-003; append_note remains an orphan stub at this BI.)
     const result = await executeHelp({ tool_name: "append_note" });
     expect(result.content[0]!.text).toContain("<!-- TODO(BI-");
   });
+
+  // ---------------------------------------------------------------------------
+  // BI-022 — renamed tools: help routing for the five new names + tool-not-found
+  // for the five retired names. T025 + T026 of /speckit-tasks.
+  // ---------------------------------------------------------------------------
+
+  it.each(["read", "delete", "files", "set_property", "rename"])(
+    "returns body for renamed tool %s (BI-022 / T025)",
+    async (name) => {
+      const result = await executeHelp({ tool_name: name });
+      expect(result.content[0]!.type).toBe("text");
+      const expected = await readFile(join(DOCS_DIR, `${name}.md`), "utf8");
+      expect(result.content[0]!.text).toBe(expected);
+      expect(result.content[0]!.text.length).toBeGreaterThan(0);
+    },
+  );
+
+  it("catalogue listing reflects the renamed registry (BI-022 / T025 FR-015 closure)", async () => {
+    const result = await executeHelp({});
+    const body = result.content[0]!.text;
+    for (const name of ["read", "delete", "files", "set_property", "rename"]) {
+      expect(body).toContain(`**${name}**`);
+    }
+    for (const retired of ["read_note", "delete_note", "list_files", "write_property", "rename_note"]) {
+      expect(body).not.toContain(`**${retired}**`);
+    }
+  });
+
+  it.each(["read_note", "delete_note", "list_files", "write_property", "rename_note"])(
+    "rejects retired name %s with HELP_TOOL_NOT_FOUND (BI-022 / T026 — no aliasing)",
+    async (retired) => {
+      let caught: unknown;
+      try {
+        await executeHelp({ tool_name: retired });
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(UpstreamError);
+      const err = caught as UpstreamError;
+      expect(err.code).toBe("HELP_TOOL_NOT_FOUND");
+      expect((err.details as { requestedName: string }).requestedName).toBe(retired);
+      const available = (err.details as { availableTools: string[] }).availableTools;
+      expect(available).not.toContain(retired);
+    },
+  );
 });
 
 // Helper to silence vitest's unused-import warning on Node Buffer typing in some mode.

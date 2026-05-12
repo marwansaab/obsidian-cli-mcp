@@ -5,6 +5,51 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-05-12
+
+**MINOR release (breaking — typed tool renames)** — Five typed MCP tools rename to match their upstream Obsidian CLI subcommand names: `read_note` → `read`, `delete_note` → `delete`, `list_files` → `files`, `write_property` → `set_property`, `rename_note` → `rename`. Single-release wholesale cleanup; no deprecation aliases. Pre-v1.0 semver window permits the MINOR-level breaking change. Spec-id 022-rename-typed-tools, FR-001..FR-021, SC-001..SC-010.
+
+### Changed (BREAKING)
+
+**Five typed tools renamed to match upstream Obsidian CLI subcommand names**. The wrapper's typed-tool track had accumulated five names whose `_note` / `list_` / `write_` prefixes diverged from the upstream subcommand. Pre-v1.0 is the bounded-cost window to consolidate before MAJOR-stability obligations take hold.
+
+| Old tool name    | New tool name   | Upstream CLI subcommand | Why                                                                                                      |
+|------------------|-----------------|--------------------------|----------------------------------------------------------------------------------------------------------|
+| `read_note`      | `read`          | `read`                   | wrapper-added `_note` suffix dropped; upstream operates on any vault file, not just notes                |
+| `delete_note`    | `delete`        | `delete`                 | wrapper-added `_note` suffix dropped; same upstream rationale                                            |
+| `list_files`     | `files`         | `files`                  | wrapper-added `list_` prefix dropped (the CLI subcommand omits it)                                       |
+| `write_property` | `set_property`  | `property:set`           | `namespace:action` reversed to `action_namespace`; aligns with `read_property` and `find_by_property`    |
+| `rename_note`    | `rename`        | `rename`                 | wrapper-added `_note` suffix dropped                                                                     |
+
+**Naming convention codified**:
+
+- Single-word upstream subcommand → tool name equals the subcommand verbatim.
+- Composite `namespace:action` upstream subcommand → tool name is the `action_namespace` reversal (lowercase, underscore-joined).
+
+**Migration instructions**: Search-and-replace the five retired names in your stored MCP-client configurations with their new counterparts. The schema fields each tool accepts are unchanged; only the tool name changes. Existing call shapes will work byte-identically under the new names.
+
+**No aliases**: The retired names are removed wholesale. `tools/call` against a retired name returns the standard `TOOL_NOT_FOUND` error. `help({ tool_name: "<retired>" })` returns a tool-not-found error rather than aliasing to the new name. No "did you mean" suggestion is provided — the wrapper does not maintain a soft-deprecation layer.
+
+**`help` routing rule**: `help({ tool_name: "<new>" })` returns the body of `docs/tools/<new>.md`; `help({ tool_name: "<retired>" })` returns the standard tool-not-found error.
+
+**Forward reference**: The renamed tools' top-level `description:` text still uses "Markdown note" / "note" filetype-scope language in places. The handler-layer widening that broadens this to "any vault file" (Markdown, Canvas, Bases, attachments) is tracked separately under BI-060 and ships after this rename. The temporary mismatch is accepted.
+
+### Internal
+
+**`src/tools/_register-baseline.json`** — checked-in JSON snapshot of every registered tool's `(name, descriptionFingerprint, schemaFingerprint)` triple. The accompanying durable test in `src/tools/_register.test.ts` (`describe("registry: stability baseline (FR-018)", ...)`) asserts the live registry matches the baseline. Future BIs that intentionally add, remove, or rename a tool MUST roll the baseline forward in the same commit. Catches accidental registry mutations before merge; complements (does not replace) the existing per-tool invariants drift detector. Spec contract at [specs/022-rename-typed-tools/contracts/registry-baseline.contract.md](specs/022-rename-typed-tools/contracts/registry-baseline.contract.md).
+
+**Frozen surfaces (SC-009 equivalent)**: `obsidian_exec`, `help`, `find_by_property`, `read_heading`, `read_property`, `write_note` and the five-tool punch-list above all preserve their input-schema fields, output shapes, and error codes byte-identically across the rename. Zero new error codes (FR-008); zero new ADRs; zero schema-field changes (FR-016).
+
+### References
+
+- Spec: [specs/022-rename-typed-tools/spec.md](specs/022-rename-typed-tools/spec.md)
+- Plan: [specs/022-rename-typed-tools/plan.md](specs/022-rename-typed-tools/plan.md)
+- Research: [specs/022-rename-typed-tools/research.md](specs/022-rename-typed-tools/research.md)
+- Data model: [specs/022-rename-typed-tools/data-model.md](specs/022-rename-typed-tools/data-model.md)
+- Quickstart: [specs/022-rename-typed-tools/quickstart.md](specs/022-rename-typed-tools/quickstart.md)
+- Baseline contract: [specs/022-rename-typed-tools/contracts/registry-baseline.contract.md](specs/022-rename-typed-tools/contracts/registry-baseline.contract.md)
+- Migration-block contract: [specs/022-rename-typed-tools/contracts/changelog-migration-block.contract.md](specs/022-rename-typed-tools/contracts/changelog-migration-block.contract.md)
+
 ## [0.4.4] - 2026-05-12
 
 **PATCH release (additive surface)** — adds `rename_note`, the ninth typed-tool wrap on top of the foundation completed by features 003–020. In-place rename of `.md` notes via the Obsidian CLI's `rename` subcommand. Public surface: `rename_note({ target_mode, vault?, file?, path?, name })` → `{ renamed: true, fromPath, toPath }`. Agents that want a structured rename surface no longer pay the cost of `obsidian_exec rename` returning plain text plus client-side parsing for the canonical paths. Spec-id 021-rename-note, FR-001..FR-019, SC-001..SC-016.

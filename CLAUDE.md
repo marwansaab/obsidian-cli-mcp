@@ -1,133 +1,172 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-[specs/021-rename-note/plan.md](specs/021-rename-note/plan.md)
+[specs/022-rename-typed-tools/plan.md](specs/022-rename-typed-tools/plan.md)
 
-Active feature: **021-rename-note** — the **ninth** typed-tool wrap
-on top of the foundation completed by features 003–020. Adds
-`rename_note`, the typed in-place rename primitive for `.md` notes.
-The user-facing surface: `rename_note({ target_mode, vault?, file?,
-path?, name })` returns `{ renamed: true, fromPath, toPath }` —
-fromPath is the source's canonical vault-relative path; toPath is the
-new canonical destination path. The CLI's `rename` subcommand wraps
-underneath; the wrapper appends `.md` to `name` upstream of the CLI
-unless `name.endsWith(".md")` (literal, case-sensitive byte equality
-— mirrors 020-fix-write-gaps R2). The vault's "Automatically update
-internal links" setting governs link-rewriting; the wrapper does NOT
-enforce or warn about the setting, it documents the dependency.
-Predecessor narratives for 020-fix-write-gaps, 019-list-files, 018,
-017, 015 retained below.
+Active feature: **022-rename-typed-tools** — surface-rename sweep
+aligning five typed tools to upstream Obsidian CLI subcommand names.
+Single-release MINOR-bump breaking change (`0.4.4` → `0.5.0`); no
+deprecation aliases. The user-facing surface change: an MCP client
+calling `tools/list` sees `read`, `delete`, `files`, `set_property`,
+`rename` where previously they saw `read_note`, `delete_note`,
+`list_files`, `write_property`, `rename_note`. Schema fields, output
+shapes, and error codes are byte-identical pre vs post rename — only
+the names change. Predecessor narratives for 021-rename-note,
+020-fix-write-gaps, 019-list-files, 018, 017, 015 retained below.
 
-**021-rename-note touch surface** (LOCKED): NEW module
-[src/tools/rename_note/](src/tools/rename_note/) with three source
-files (`schema.ts`, `handler.ts`, `index.ts`) and three co-located
-test files (~52 cases total). NEW non-stub doc
-[docs/tools/rename_note.md](docs/tools/rename_note.md) with ≥4 worked
-examples + Scope section + link-rewriting caveat per FR-014. ONE
-import + one tools-array entry in [src/server.ts](src/server.ts)
-(alphabetical insertion between `createReadPropertyTool` and
-`createWriteNoteTool`). ONE line in
-[docs/tools/index.md](docs/tools/index.md). ZERO new error codes
-(FR-018 — failures flow through `VALIDATION_ERROR` + the cli-adapter's
-four codes). ZERO new ADRs and ZERO ADR amendments. ZERO changes to
-existing tools (SC-009 — `obsidian_exec`, `read_note`, `write_note`,
-`delete_note`, `read_property`, `find_by_property`, `read_heading`,
-`write_property`, `list_files` byte-stable). ZERO changes to
-`src/target-mode/` (file-scoped tool reuses `applyTargetModeRefinement`
-verbatim; no folder-scoped variant needed unlike 019).
+**Punch-list** (locked):
 
-**Schema** (R4 / FR-002): `applyTargetModeRefinement(targetModeBaseSchema.extend({ name: z.string().min(1).regex(/^[^/\\]+$/) }))`.
-The post-010 flat-extension idiom with `.extend()` (NOT `.merge()` per
-010-flatten-target-mode FR-002). `name` is required in BOTH modes,
-non-empty, MUST NOT contain `/` or `\`. The folder-separator-rejection
-regex implements the /speckit-clarify Q2 resolution (session
-2026-05-12): inputs containing a slash fail at the zod parse boundary
-as `VALIDATION_ERROR` with the `move_note` recovery hint. The
-existing target-mode rules govern locator XOR + forbidden-key checks
-unchanged.
+- `read_note` → `read` (FR-003 single-word verbatim — upstream `read`)
+- `delete_note` → `delete` (FR-003)
+- `list_files` → `files` (FR-003 — drops wrapper-invented `list_` prefix)
+- `write_property` → `set_property` (FR-004 — `namespace:action`
+  reversal of upstream `property:set`)
+- `rename_note` → `rename` (FR-003)
 
-**Extension-handling rule** (R6 / /speckit-clarify Q1, locked
-2026-05-12): file-local helper `appendMdIfMissing(name): string` in
-[handler.ts](src/tools/rename_note/handler.ts) of ~3 LOC implements
-`return name.endsWith(".md") ? name : name + ".md"`. Literal byte-
-equality, case-sensitive. Internal periods preserved (`Doc.v1.draft`
-→ `Doc.v1.draft.md`). Mirrors 020-fix-write-gaps R2 exactly. The
-allowlist is exactly `{".md"}` — non-`.md` filename targets
-(renaming `.canvas`, `.pdf`, image files, cross-extension type
-conversion like `.md → .canvas`) are **out of scope** and route
-through `obsidian_exec rename file=… name=…` directly per the
-/speckit-clarify Q1 scope narrowing.
+**022-rename-typed-tools touch surface** (LOCKED): RENAMED dirs via
+`git mv` preserving git-blame history —
+[src/tools/read_note/](src/tools/read_note/) → `src/tools/read/`,
+[src/tools/delete_note/](src/tools/delete_note/) → `src/tools/delete/`,
+[src/tools/list_files/](src/tools/list_files/) → `src/tools/files/`,
+[src/tools/write_property/](src/tools/write_property/) →
+`src/tools/set_property/`,
+[src/tools/rename_note/](src/tools/rename_note/) → `src/tools/rename/`.
+Each dir keeps its `{schema, handler, index}.ts` plus three co-located
+`*.test.ts` files; bodies byte-identical save for factory-function-name
+updates in `index.ts` (`createXxxNoteTool` → `createXxxTool` etc., per
+Q1 lockstep). EDITED: [src/server.ts](src/server.ts) (5 import-name
+updates + tools-array re-sort; alphabetical-by-import-path because
+ESLint's `import/order` rule with `alphabetize: asc` constrains
+imports — the only conflict with the data-model's factory-name sort
+is `read/` vs `read_heading/` / `read_property/`, where ASCII `/`
+(47) < `_` (95) puts `read/` first; the tools-array follows the same
+order for internal consistency),
+[src/tools/_register.test.ts](src/tools/_register.test.ts) (5
+invariants-map key renames + new durable baseline test suite + a
+no-retired-names assertion). NEW: `src/tools/_register-baseline.json`
+(FR-018 registry-stability baseline; SHA-256 fingerprints of every
+published tool's description + inputSchema),
+`src/tools/_register-baseline.ts` (shared canonicalJSON / sha256 /
+fingerprintLiveRegistry helper consumed by both the verifier test
+and the regen script — locked at /speckit-analyze U6 remediation),
+`src/tools/_register-baseline.test.ts` (co-located unit tests for the
+shared helper per Principle II),
+[scripts/write-register-baseline.ts](scripts/write-register-baseline.ts)
+(regen script invoked via `npm run baseline:write`), and the matching
+`baseline:write` entry in [package.json](package.json) `scripts`.
+RENAMED docs: `docs/tools/{read_note → read,
+delete_note → delete, list_files → files, write_property →
+set_property, rename_note → rename}.md` via `git mv`. EDITED:
+[README.md](README.md), this CLAUDE.md active-narrative block,
+[docs/tools/index.md](docs/tools/index.md). EDITED release mechanics:
+[CHANGELOG.md](CHANGELOG.md) (new `## [0.5.0]` section with single
+migration block per FR-010), [package.json](package.json) (`0.4.4` →
+`0.5.0`).
 
-**Per-mode call architecture** (R3): ONE `invokeCli` call per
-request, regardless of `target_mode`. Specific mode argv:
-`vault=<v> rename {file=<f> | path=<p>} name=<appended>` (the
-`appendMdIfMissing` step happens upstream of the CLI). Active mode
-argv: `rename name=<appended>` (no `vault=`, no `file=`, no `path=`).
-F1 verified at plan stage via `obsidian help` — the `rename`
-subcommand exists with parameters `file=<name>`, `path=<path>`,
-`name=<name>` (required). The neighbouring `move` subcommand exists
-analogously for the future `move_note` BI (referenced but not a
-precondition).
+**Clarifications session 2026-05-12** (locked at /speckit-clarify):
 
-**Response parsing** (R8, T0-deferred): `parseRenameResponse(stdout)`
-regex pattern locked against T0-captured CLI wording during
-/speckit-implement T0 task. Anticipated shapes (in order of
-likelihood per 012-delete-note precedent): single-line `Renamed: <from>
-→ <to>` or two-line per-path. Parse failure throws
-`CLI_REPORTED_ERROR` with `stdout` in `details`.
+- **Q1 (lockstep)**: source dirs AND factory functions rename together
+  with the registered tool name. `createReadNoteTool` →
+  `createReadTool`; `src/tools/read_note/` → `src/tools/read/`; etc.
+  across all five. Upholds the path-matches-name convention every
+  prior typed tool follows; eliminates path/name drift.
+- **Q2 (durable test)**: FR-018's registry-stability test ships as
+  permanent machinery, not transient. The checked-in baseline at
+  `src/tools/_register-baseline.json` is rolled forward by every
+  future BI that intentionally adds, removes, or renames a tool —
+  in the same commit as the registry change. Catches accidental
+  renames in every future feature, not just this BI's intended five.
+- **Q3 (narrow sweep)**: tool-name references rewritten ONLY in
+  `README.md`, `docs/tools/*.md`, and this CLAUDE.md active-narrative
+  block. `.decisions/` ADR text, `.architecture/` docs,
+  `CONTRIBUTING.md`, source-code comments in `src/`, and predecessor
+  `specs/0XX-*/` files NOT proactively swept (stale references age
+  along with the rest of their content).
 
-**Single-spawn invariant** (R9): handler tests assert
-`spawnFn.callCount === 1` per request — parity with 011/012/013/015
-precedent. Composes with the shared CLI queue's serialization
-guarantee per FR-008.
+**Architectural addition** (FR-018): the durable registry-stability
+test is the visible structural delta from this BI. The baseline JSON
+stores `{ name, descriptionFingerprint, schemaFingerprint }` per tool
+(SHA-256 hex of canonicalised JSON). The test loads the baseline and
+asserts `expect(live).toEqual(baseline.tools)` against fingerprints of
+the live registry. Failure modes (any registry mutation) produce a
+vitest deep-equality diff naming the deviating tool and the changed
+fingerprint. The baseline file is checked in at a pinned path; the
+test lives in `src/tools/_register.test.ts` as a new `describe(...)`
+block beside the existing per-tool invariants drift detector. The two
+coexist: invariants detect schema-shape drift; the baseline detects
+byte-level mutations including description text. Contract at
+[contracts/registry-baseline.contract.md](specs/022-rename-typed-tools/contracts/registry-baseline.contract.md).
 
-**Plan-stage spec amendments**: NONE. Both /speckit-clarify decisions
-(Q1 extension-handling rule, Q2 folder-separator-rejection rule) were
-locked at spec stage session 2026-05-12 and are already integrated.
-Research phase ratifies the chosen approach without further
-amendments. NINE FR-019 cases deferred to T0 of /speckit-implement —
-captured into research.md's deferred-T0 case roster; bundled into a
-`T0xx` task at /speckit-tasks time.
-
-**Compatibility / release**: this BI is purely additive — no existing
-tool changes, no error codes added, no ADRs amended. Public surface
-gains one new typed tool. Expected version bump: patch level
-(`0.4.3 → 0.4.4` per SC-016); release-task decision deferred to
-/speckit-tasks.
+**Compatibility / release**: this BI is a breaking-change rename
+sweep. No new error codes (FR-008); no new ADRs; no ADR amendments;
+no schema-field renames (FR-016); behaviour byte-identical for every
+renamed tool (FR-005..FR-007, SC-002 / SC-003). The handler-layer
+filetype widening that the new names imply (e.g. `read` operating on
+Canvas / PDF / attachments, not just Markdown) is tracked separately
+under **BI-060**, which ships after this rename per the spec's
+out-of-scope guard. The temporary mismatch where new names imply
+broader scope than the description text describes is accepted and
+resolved when BI-060 lands (before v1.0). Version bump 0.4.4 → 0.5.0
+(MINOR; pre-v1.0 semver permits MINOR-level breaking).
 
 See also:
-- [spec.md](specs/021-rename-note/spec.md) — feature spec; one
-  /speckit-clarify session ran 2026-05-12 (Q1 extension-handling rule
-  — `.md`-only allowlist with case-sensitive byte equality, cross-
-  extension renames out of scope; Q2 folder-separator-rejection rule
-  — validation-layer reject with `move_note` recovery hint).
-- [plan.md](specs/021-rename-note/plan.md) — implementation plan.
-- [research.md](specs/021-rename-note/research.md) — Phase 0
-  decisions R1–R10 + plan-stage live-CLI finding F1 (rename
-  subcommand argv shape from `obsidian help`) + FR-019 deferred T0
-  case roster (11 cases for /speckit-implement T0 task).
-- [data-model.md](specs/021-rename-note/data-model.md) — input/output
-  schema shapes, per-mode argv-mapping table, extension-handling rule
-  truth table, folder-separator-rejection truth table, per-tool
-  invariants ↔ FR mapping, test inventory (~52 cases).
-- [contracts/rename-note-input.contract.md](specs/021-rename-note/contracts/rename-note-input.contract.md)
-  — public input contract: zod schema, JSON Schema shape, field
-  policy, six worked examples (specific+path, verbatim-`.md`,
-  specific+file, internal-periods, active mode, cross-extension
-  scope-narrowing), validation failure roster, downstream failure
-  roster.
-- [contracts/rename-note-handler.contract.md](specs/021-rename-note/contracts/rename-note-handler.contract.md)
-  — handler invariants: deps shape, `appendMdIfMissing` helper
-  contract with seven worked examples, `parseRenameResponse` helper
-  contract (T0-locked), argv shape table exhaustive across all valid
-  inputs, single-spawn invariant (R9), failure propagation chain,
-  test-seam pattern.
-- [quickstart.md](specs/021-rename-note/quickstart.md) — 33 vitest
-  verification scenarios (S-1..S-33) mapped to SC-001..SC-016 + 12
-  manual T0 scenarios (M-1..M-12) for live-CLI characterisation
-  during /speckit-implement (M-12 added by /speckit-analyze U2
-  remediation 2026-05-12 as a documentation-only external-editor
-  probe).
+
+- [spec.md](specs/022-rename-typed-tools/spec.md) — feature spec; one
+  /speckit-clarify session ran 2026-05-12 (Q1 lockstep, Q2 durable
+  test, Q3 narrow sweep).
+- [plan.md](specs/022-rename-typed-tools/plan.md) — implementation
+  plan; Constitution Check PASS on initial + post-Phase-1 evaluation;
+  no Complexity Tracking entries.
+- [research.md](specs/022-rename-typed-tools/research.md) — Phase 0
+  decisions R1..R10 (git-mv mechanic, baseline JSON format, doc-file
+  mechanic, CHANGELOG shape, version bump target, server.ts edit
+  shape, invariants-map sweep, README/index sweep, this CLAUDE.md
+  rewrite, baseline capture timing).
+- [data-model.md](specs/022-rename-typed-tools/data-model.md) —
+  rename punch-list table, alphabetical-sort tables for server.ts
+  imports + tools-array + invariants map, baseline JSON shape + 11-
+  tool worked example, per-tool invariants confirmation pre = post.
+- [contracts/registry-baseline.contract.md](specs/022-rename-typed-tools/contracts/registry-baseline.contract.md)
+  — FR-018 durable test contract; baseline schema, canonicalisation
+  rule, three test assertions, baseline-roll-forward protocol.
+- [contracts/changelog-migration-block.contract.md](specs/022-rename-typed-tools/contracts/changelog-migration-block.contract.md)
+  — FR-010 migration block shape; section header, required content
+  blocks (headline / migration / internal / references), structural
+  rules.
+- [quickstart.md](specs/022-rename-typed-tools/quickstart.md) — 12
+  verification scenarios Q-1..Q-12 mapped to SC-001..SC-010; no
+  manual/live-CLI scenarios (wrapper-side rename only).
+
+---
+
+## Predecessor feature narrative (021-rename-note) — RETAINED FOR CONTEXT
+
+The 021 narrative below is retained for downstream cross-references
+but is NOT the active planning context. Consult
+[specs/022-rename-typed-tools/plan.md](specs/022-rename-typed-tools/plan.md)
+for the active feature; consult
+[specs/021-rename-note/plan.md](specs/021-rename-note/plan.md) for
+the 021 source. Summary: 021 added the ninth typed-tool wrap, an
+in-place rename primitive for `.md` notes registered as `rename_note`
+at the time and renamed to `rename` in this 022 sweep. Public surface:
+`{ target_mode, vault?, file?, path?, name }` → `{ renamed: true,
+fromPath, toPath }`. Wraps the Obsidian CLI's `rename` subcommand
+natively (not eval). The wrapper appends `.md` to `name` upstream of
+the CLI unless `name.endsWith(".md")` (literal, case-sensitive byte
+equality — mirroring 020-fix-write-gaps R2). Folder-separator
+rejection at the schema layer per /speckit-clarify Q2 (`name` matches
+`/^[^/\\]+$/`); folder relocation deferred to a future `move_note`
+typed tool wrapping the CLI's `move` subcommand. Link-rewriting is
+vault-config-dependent — the vault's "Automatically update internal
+links" setting governs whether existing wikilinks are rewritten; the
+wrapper documents the dependency rather than enforcing it. Zero new
+error codes; zero new ADRs. See [021
+spec.md](specs/021-rename-note/spec.md) and [021
+plan.md](specs/021-rename-note/plan.md) for the full detail. Note:
+post-022 rename, the registered tool name is `rename`, the source
+dir is `src/tools/rename/`, and the factory function is
+`createRenameTool` — the body of the implementation and the
+clarifications-decided contracts are otherwise unchanged.
 
 ---
 

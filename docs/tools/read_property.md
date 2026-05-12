@@ -7,8 +7,8 @@ the Obsidian CLI's `properties` (plural) subcommand with `format=json` and
 returns a typed result `{ value, type }` where `value` is the property's
 native YAML-derived runtime type (string / number / boolean / array / object
 / null) and `type` is one of seven labels naming Obsidian's resolved
-property type. Direct counterpart of [`read_note`](./read_note.md): where
-`read_note` retired `obsidian_exec` for full-file reads, `read_property`
+property type. Direct counterpart of [`read`](./read.md): where
+`read` retired `obsidian_exec` for full-file reads, `read_property`
 retires it for **surgical frontmatter-property reads** — agents that want a
 single property no longer pay the token cost of a full-file fetch plus
 client-side YAML parsing. Use [`obsidian_exec`](./obsidian_exec.md) only for
@@ -209,7 +209,7 @@ shell-metacharacter injection structurally.
 
 - **Unknown vault names** surface as `CLI_REPORTED_ERROR` with the verbatim
   `Vault not found.` message (per the cli-adapter's R5 / T002
-  response-inspection clause inherited from `write_note` and `delete_note`).
+  response-inspection clause inherited from `write_note` and `delete`).
 - **File not found** surfaces as `CLI_REPORTED_ERROR` with the verbatim
   `Error: File "<path>" not found.` message. The path quoting in the
   message is the CLI's own — agents should not strip it.
@@ -389,9 +389,9 @@ Mappings get `"unknown"` natively from Obsidian (Q2 confirmed).
 - [help tool spec](../../specs/005-help-tool/spec.md) — the
   schema-stripping contract and `help({ tool_name })` lookup that surfaces
   this document.
-- [read_note](./read_note.md) — the symmetric typed full-file read tool.
+- [read](./read.md) — the symmetric typed full-file read tool.
 - [write_note](./write_note.md) — the symmetric typed create/overwrite tool.
-- [delete_note](./delete_note.md) — the symmetric typed delete tool.
+- [delete](./delete.md) — the symmetric typed delete tool.
 - [obsidian_exec](./obsidian_exec.md) — the freeform escape hatch retained
   for unwrapped subcommands.
 - [errors contract](../../specs/001-add-cli-bridge/contracts/errors.contract.md)
