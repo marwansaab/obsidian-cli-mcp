@@ -5,9 +5,9 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [0.4.1] - 2026-05-12
 
-**MINOR (additive surface)** — adds `write_property`, the seventh typed-tool wrap and the symmetric write companion to `read_property`. Surgical single-frontmatter-property writes — agents that want to flip one field no longer pay the cost of a full-file `read_note` plus `write_note` round-trip. Public surface: `write_property({ target_mode, vault?, file? | path?, name, value, type? })` → `{ written: true, path, name }`. Target-mode parity with the other typed tools. Six YAML types supported (text / list / number / checkbox / date / datetime); type inferred from `value`'s JavaScript shape when omitted; date and datetime require explicit type. Cross-type overwrite is native: writing a string to a number-typed property flips both the value and the on-disk type representation (per FR-033 + SC-021). Spec-id 018-write-property, FR-001..FR-033, SC-001..SC-021.
+**PATCH release (additive surface)** — adds `write_property`, the seventh typed-tool wrap and the symmetric write companion to `read_property`. Surgical single-frontmatter-property writes — agents that want to flip one field no longer pay the cost of a full-file `read_note` plus `write_note` round-trip. Public surface: `write_property({ target_mode, vault?, file? | path?, name, value, type? })` → `{ written: true, path, name }`. Target-mode parity with the other typed tools. Six YAML types supported (text / list / number / checkbox / date / datetime); type inferred from `value`'s JavaScript shape when omitted; date and datetime require explicit type. Cross-type overwrite is native: writing a string to a number-typed property flips both the value and the on-disk type representation (per FR-033 + SC-021). Spec-id 018-write-property, FR-001..FR-033, SC-001..SC-021.
 
 ### Added
 
@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Known limitations** (documented in `docs/tools/write_property.md`): CRLF line-ending preservation is partial — all-LF files round-trip cleanly, but CRLF files end up with mixed line endings post-write because the CLI emits LF for the modified frontmatter region (per research.md R8). YAML flow-style sequences (`tags: [a, b]`) are re-emitted as block-style on every write (per research.md R7). List elements containing literal `,` characters are split by the CLI's parser; callers needing comma-containing elements fall back to `obsidian_exec`.
 - **Zero new error codes** added to `src/errors.ts`. All failures flow through `VALIDATION_ERROR` (zod boundary) + `UpstreamError` codes from the cli-adapter (`CLI_BINARY_NOT_FOUND`, `CLI_NON_ZERO_EXIT`, `CLI_REPORTED_ERROR`) + `ERR_NO_ACTIVE_FILE` (active-mode no focused file).
 - **No edits to** existing per-tool modules — `obsidian_exec`, `help`, `read_note`, `read_heading`, `write_note`, `delete_note`, `read_property`, `find_by_property` are all byte-stable per SC-013 / FR-031.
+
+### Notes on semver category
+
+The surface IS additive (a new public MCP tool), which under strict semver would typically code as MINOR. Cut as PATCH (0.4.0 → 0.4.1) per maintainer decision — the bump reflects "another typed tool wrap on top of the established foundation" rather than a substantial new release vector. Future bumps that change existing tool surfaces, error codes, or schemas will use MINOR or MAJOR as the semver semantics demand.
 
 ## [0.4.0] - 2026-05-10
 
