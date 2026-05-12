@@ -5,6 +5,36 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.4] - 2026-05-12
+
+**PATCH release (additive surface)** — adds `rename_note`, the ninth typed-tool wrap on top of the foundation completed by features 003–020. In-place rename of `.md` notes via the Obsidian CLI's `rename` subcommand. Public surface: `rename_note({ target_mode, vault?, file?, path?, name })` → `{ renamed: true, fromPath, toPath }`. Agents that want a structured rename surface no longer pay the cost of `obsidian_exec rename` returning plain text plus client-side parsing for the canonical paths. Spec-id 021-rename-note, FR-001..FR-019, SC-001..SC-016.
+
+### Added
+
+- **`rename_note` typed MCP tool** at `src/tools/rename_note/` — schema + handler + index + co-located tests (~52 cases: 24 schema / 22 handler / 6 registration). Single-spawn architecture (R9): ONE `invokeCli` call per request regardless of `target_mode`. Wraps the CLI's native `rename` subcommand (NOT eval, NOT obsidian_exec). The handler's `appendMdIfMissing` file-local helper applies `name.endsWith(".md") ? name : name + ".md"` — literal byte-equality, case-sensitive — mirroring 020-fix-write-gaps R2 exactly. The `parseRenameResponse` regex is locked at `/^Renamed: (.+?) -> (.+?)\s*$/m` against the T0-captured CLI wording (F2/F12, 2026-05-12). Link-rewriting is vault-config-dependent: Obsidian's Settings → Files & Links → "Automatically update internal links" governs whether existing wikilinks/markdown links are rewritten. The wrapper documents the dependency; it does NOT enforce or override.
+- **Folder-separator rejection at the schema layer** per /speckit-clarify Q2 (locked 2026-05-12): the `name` field's regex `/^[^/\\]+$/` rejects `Sub/X` and `Sub\X` at the zod parse boundary as `VALIDATION_ERROR` whose message names the `move_note` recovery hint. Folder relocation is a separate concern owned by a future `move_note` typed tool (wrapping the CLI's `move` subcommand).
+- **Non-stub `docs/tools/rename_note.md`** per FR-014 — input schema, per-mode field policy, output shape with same-name no-op signal, extension-handling rule truth table, Scope section (cross-extension renames and non-`.md` filename targets route through `obsidian_exec rename`), six worked examples, full error roster with recovery guidance, T0-captured behavioural notes.
+- **One-line entry** in `docs/tools/index.md` between `read_property` and `search_vault`.
+- **Two-line wiring** in `src/server.ts`: import + tools-array entry (alphabetical: inserted between `createReadPropertyTool` and `createWriteNoteTool`).
+
+### Routing note (SC-015)
+
+For rename operations, prefer `rename_note`. `obsidian_exec rename file=… name=…` remains the fallback for non-`.md` targets (`.canvas`, `.pdf`, attachments) and any cross-extension type conversion (`.md → .canvas` etc.) — those are explicitly out of scope for `rename_note` per the /speckit-clarify Q1 scope narrowing.
+
+### Internal
+
+- **Frozen surfaces** (SC-009): `obsidian_exec`, `read_note`, `write_note`, `delete_note`, `read_property`, `find_by_property`, `read_heading`, `write_property`, `list_files`, `help` all byte-stable. Zero new error codes (FR-018, Constitution IV); zero new ADRs; zero ADR amendments. The cli-adapter's 011-R5 unknown-vault response-inspection clause is inherited unchanged (verified at T0-M7 against the `rename` subcommand: byte-identical `Vault not found.\n` exit 0).
+- **SC-012 path-traversal gate**: verified at T0-M9 — the CLI rejects `path: "../../etc/x.md"` with `Error: File "../../etc/x.md" not found.` exit 0. The bait file at the sibling-of-vault path was untouched post-probe. No tool-layer reject was added; the SC-012 amendment-shape sketch documented in research.md is preserved for future reference but not applied.
+- **Plan-stage decisions** (R1–R10): thin handler (no per-call logger events at the tool layer); STANDARD target-mode mapping (file-scoped tool reusing `applyTargetModeRefinement` verbatim — no folder-scoped variant); 011-R5 unknown-vault inspection inherited; `endsWith(".md")` byte-equality extension rule; schema-layer folder-separator rejection; T0-locked response parser regex; single-spawn invariant; `move_note` documented as a future BI but NOT a precondition.
+
+### References
+
+- Spec: [specs/021-rename-note/spec.md](specs/021-rename-note/spec.md)
+- Plan: [specs/021-rename-note/plan.md](specs/021-rename-note/plan.md)
+- Research: [specs/021-rename-note/research.md](specs/021-rename-note/research.md) — see "## T0 Live-CLI Capture (2026-05-12)" for findings F2–F11 captured during /speckit-implement T005
+- Data model: [specs/021-rename-note/data-model.md](specs/021-rename-note/data-model.md)
+- Quickstart: [specs/021-rename-note/quickstart.md](specs/021-rename-note/quickstart.md)
+
 ## [0.4.3] - 2026-05-12
 
 **PATCH release (contract-restorative + additive)** — two narrow handler-layer fixes to `write_note` against the 016-reliable-writer surface, both caught during acceptance testing of the 016 overhaul. (1) Short-form-name `file` target resolution restored to the predecessor 011's behaviour: when `input.file` is canonical (no `/` or `\` folder separator AND not ending in `.md`), the handler now resolves the target to `<input.file>.md` at the vault root and the response's `path` field reports the resolved value; any other `input.file` shape passes through verbatim per FR-001a. (2) `FILE_EXISTS` hot-path rejections gain `details.errno: "EEXIST"` alongside the existing `path` and `vault` fields — field-name parity with `FS_WRITE_FAILED`'s `details.errno`. Spec-id 020-fix-write-gaps, FR-001..FR-018, SC-001..SC-011.

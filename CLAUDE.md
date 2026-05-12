@@ -1,143 +1,161 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-[specs/020-fix-write-gaps/plan.md](specs/020-fix-write-gaps/plan.md)
+[specs/021-rename-note/plan.md](specs/021-rename-note/plan.md)
 
-Active feature: **020-fix-write-gaps** — two narrow handler-layer
-contract-restoration fixes to the existing `write_note` operation
-against the 016-reliable-writer surface. Both gaps were caught during
-acceptance testing of the 016 overhaul. (1) Short-form-name target
-resolution: when `input.file` matches the canonical short-form shape
-(no `/` or `\` folder separator AND does not end in `.md`), the
-handler resolves the target to `<input.file>.md` at the vault root
-and the response's `path` field reports the resolved value; any other
-`input.file` shape passes through verbatim per FR-001a. (2) FILE_EXISTS
-additive `details.errno` enrichment: when the `wx`-flag write rejects
-with EEXIST on the hot path, the rejection's `details` object gains
-`errno: "EEXIST"` alongside the existing `path` and `vault` fields —
-field-name parity with `FS_WRITE_FAILED`'s `details.errno`. Predecessor
-narrative for 019-list-files retained below; 018, 017, 015 narratives
-retained in skipped bulk further down.
+Active feature: **021-rename-note** — the **ninth** typed-tool wrap
+on top of the foundation completed by features 003–020. Adds
+`rename_note`, the typed in-place rename primitive for `.md` notes.
+The user-facing surface: `rename_note({ target_mode, vault?, file?,
+path?, name })` returns `{ renamed: true, fromPath, toPath }` —
+fromPath is the source's canonical vault-relative path; toPath is the
+new canonical destination path. The CLI's `rename` subcommand wraps
+underneath; the wrapper appends `.md` to `name` upstream of the CLI
+unless `name.endsWith(".md")` (literal, case-sensitive byte equality
+— mirrors 020-fix-write-gaps R2). The vault's "Automatically update
+internal links" setting governs link-rewriting; the wrapper does NOT
+enforce or warn about the setting, it documents the dependency.
+Predecessor narratives for 020-fix-write-gaps, 019-list-files, 018,
+017, 015 retained below.
 
-**020-fix-write-gaps touch surface** (LOCKED): ONE source file
-([src/tools/write_note/handler.ts](src/tools/write_note/handler.ts)),
-ONE co-located test file
-([src/tools/write_note/handler.test.ts](src/tools/write_note/handler.test.ts)),
-ONE doc file ([docs/tools/write_note.md](docs/tools/write_note.md)).
-ZERO schema edits (FR-012 freezes the input contract). ZERO new
-modules. ZERO new error codes (FR-011 freezes the top-level roster).
-ZERO new ADRs and ZERO ADR amendments. ZERO changes to other tools
-(FR-014). ZERO changes to the write mechanism (FR-017 — temp+rename
-atomic write, canonical-root path-safety, lazy vault-registry, post-
-write metadataCache invalidation all preserved).
+**021-rename-note touch surface** (LOCKED): NEW module
+[src/tools/rename_note/](src/tools/rename_note/) with three source
+files (`schema.ts`, `handler.ts`, `index.ts`) and three co-located
+test files (~52 cases total). NEW non-stub doc
+[docs/tools/rename_note.md](docs/tools/rename_note.md) with ≥4 worked
+examples + Scope section + link-rewriting caveat per FR-014. ONE
+import + one tools-array entry in [src/server.ts](src/server.ts)
+(alphabetical insertion between `createReadPropertyTool` and
+`createWriteNoteTool`). ONE line in
+[docs/tools/index.md](docs/tools/index.md). ZERO new error codes
+(FR-018 — failures flow through `VALIDATION_ERROR` + the cli-adapter's
+four codes). ZERO new ADRs and ZERO ADR amendments. ZERO changes to
+existing tools (SC-009 — `obsidian_exec`, `read_note`, `write_note`,
+`delete_note`, `read_property`, `find_by_property`, `read_heading`,
+`write_property`, `list_files` byte-stable). ZERO changes to
+`src/target-mode/` (file-scoped tool reuses `applyTargetModeRefinement`
+verbatim; no folder-scoped variant needed unlike 019).
 
-**Short-form rule placement** (R1, locked): inline in `handler.ts` via
-a file-local helper `resolveSpecificModePath(input): string` (~8 LOC)
-that replaces the current `relPath = (input.path ?? input.file)!`
-collapse at [handler.ts:149](src/tools/write_note/handler.ts#L149).
-The helper applies the FR-001 short-form rule when `input.path` is
-absent and `input.file` is canonical; falls through to verbatim
-otherwise (FR-001a passthrough). Active mode is untouched — schema
-forbids `input.file` in active mode; the active-mode branch resolves
-through `parsed.path` from the focused-file eval unchanged.
+**Schema** (R4 / FR-002): `applyTargetModeRefinement(targetModeBaseSchema.extend({ name: z.string().min(1).regex(/^[^/\\]+$/) }))`.
+The post-010 flat-extension idiom with `.extend()` (NOT `.merge()` per
+010-flatten-target-mode FR-002). `name` is required in BOTH modes,
+non-empty, MUST NOT contain `/` or `\`. The folder-separator-rejection
+regex implements the /speckit-clarify Q2 resolution (session
+2026-05-12): inputs containing a slash fail at the zod parse boundary
+as `VALIDATION_ERROR` with the `move_note` recovery hint. The
+existing target-mode rules govern locator XOR + forbidden-key checks
+unchanged.
 
-**Canonical short-form predicate** (R2, locked): three literal-character
-checks — `!file.includes("/") && !file.includes("\\") && !file.endsWith(".md")`.
-Captures Q2's literal-rule wording from the spec's
-Clarifications-session-2026-05-12. Internal periods are preserved
-(`version_1.2.3` → `version_1.2.3.md` because `endsWith(".md")` is
-`false`); `endsWith` is precise — NOT `path.extname` which would
-incorrectly treat `.3` as the extension boundary.
+**Extension-handling rule** (R6 / /speckit-clarify Q1, locked
+2026-05-12): file-local helper `appendMdIfMissing(name): string` in
+[handler.ts](src/tools/rename_note/handler.ts) of ~3 LOC implements
+`return name.endsWith(".md") ? name : name + ".md"`. Literal byte-
+equality, case-sensitive. Internal periods preserved (`Doc.v1.draft`
+→ `Doc.v1.draft.md`). Mirrors 020-fix-write-gaps R2 exactly. The
+allowlist is exactly `{".md"}` — non-`.md` filename targets
+(renaming `.canvas`, `.pdf`, image files, cross-extension type
+conversion like `.md → .canvas`) are **out of scope** and route
+through `obsidian_exec rename file=… name=…` directly per the
+/speckit-clarify Q1 scope narrowing.
 
-**FILE_EXISTS details enrichment** (R3, locked): ONE call-site at
-[handler.ts:208-213](src/tools/write_note/handler.ts#L208-L213) — the
-hot-path `wx`-flag collision throw. Change is exactly:
-`details: { path: relPath, vault: input.vault ?? null }` becomes
-`details: { errno: "EEXIST", path: relPath, vault: input.vault ?? null }`.
-The `mapFsError` path's EEXIST handler at
-[handler.ts:79-87](src/tools/write_note/handler.ts#L79-L87) keeps its
-existing `{ errno }`-only details shape (R4 preserved asymmetry — that
-path is rare mkdir/rename race and reconciling would widen `mapFsError`'s
-signature, out of scope for this BI).
+**Per-mode call architecture** (R3): ONE `invokeCli` call per
+request, regardless of `target_mode`. Specific mode argv:
+`vault=<v> rename {file=<f> | path=<p>} name=<appended>` (the
+`appendMdIfMissing` step happens upstream of the CLI). Active mode
+argv: `rename name=<appended>` (no `vault=`, no `file=`, no `path=`).
+F1 verified at plan stage via `obsidian help` — the `rename`
+subcommand exists with parameters `file=<name>`, `path=<path>`,
+`name=<name>` (required). The neighbouring `move` subcommand exists
+analogously for the future `move_note` BI (referenced but not a
+precondition).
 
-**Cross-failure-type field-name parity** (FR-008 / SC-007): the
-cross-type contract is on the `details.errno` field name and value
-vocabulary (standard POSIX errno names) — NOT on full `details`-object
-shape. Callers reading `response.details?.errno` see one shape across
-all filesystem-level failure types; broader fields differ per code
-(`FILE_EXISTS` hot path: `{ errno, path, vault }`; `FS_WRITE_FAILED`:
-`{ errno, syscall, path }`).
+**Response parsing** (R8, T0-deferred): `parseRenameResponse(stdout)`
+regex pattern locked against T0-captured CLI wording during
+/speckit-implement T0 task. Anticipated shapes (in order of
+likelihood per 012-delete-note precedent): single-line `Renamed: <from>
+→ <to>` or two-line per-path. Parse failure throws
+`CLI_REPORTED_ERROR` with `stdout` in `details`.
 
-**Schema frozen** (R6 + FR-012): the existing zod schema at
-[src/tools/write_note/schema.ts](src/tools/write_note/schema.ts) is
-unchanged. `file` and `path` continue to use the same `safePathField`
-validator (the schema does NOT structurally distinguish them — the
-handler's interpretation of `file` for canonical short-form inputs
-is the behavioural change).
+**Single-spawn invariant** (R9): handler tests assert
+`spawnFn.callCount === 1` per request — parity with 011/012/013/015
+precedent. Composes with the shared CLI queue's serialization
+guarantee per FR-008.
 
-**Logger surface frozen** (R7): no new typed logger methods, no
-`ErrorCode` union amendments. FILE_EXISTS does NOT emit per-call
-logger events per 016-FR-029; the new `errno` field doesn't change
-that. PATH_ESCAPES_VAULT continues to emit `logger.pathEscapeAttempt`.
+**Plan-stage spec amendments**: NONE. Both /speckit-clarify decisions
+(Q1 extension-handling rule, Q2 folder-separator-rejection rule) were
+locked at spec stage session 2026-05-12 and are already integrated.
+Research phase ratifies the chosen approach without further
+amendments. NINE FR-019 cases deferred to T0 of /speckit-implement —
+captured into research.md's deferred-T0 case roster; bundled into a
+`T0xx` task at /speckit-tasks time.
 
-**Test surface** (R9, locked): EIGHT new / updated handler test cases
-covering all FR / AC scenarios — canonical short-form happy path,
-internal-period preservation, three FR-001a passthrough cases on `file`
-(ends-in-`.md`, contains-`/`, both), `path`-form regression guard,
-FILE_EXISTS hot-path additive details, `mapFsError` EEXIST asymmetry
-guard, overwrite-true on existing success guard. Schema tests, index
-tests, and registration tests are unchanged (schema unchanged →
-no schema-test change; descriptor unchanged → no index-test change).
-
-**Path-safety check sequencing** (R5): the short-form rule fires at
-the `relPath` assignment step BEFORE `checkCanonicalPath` runs. The
-canonical-root check validates the RESOLVED path (`<file>.md` for
-canonical short-form inputs), not the raw input — path safety
-validates what's actually written.
-
-**Help update** (FR-018 / R14): two short callouts in
-[docs/tools/write_note.md](docs/tools/write_note.md), both under
-existing sections. (a) input contract section gains canonical short-form
-`file` shape definition + worked example (`file: "Daily Note"` →
-`Daily Note.md`) + non-canonical-passthrough note. (b) error roster
-section's FILE_EXISTS row gains the `details.errno: "EEXIST"` field
-+ additive-enrichment note.
-
-**Plan-stage spec amendments**: NONE. The two /speckit-clarify Q&A
-bullets (Q1 additive details shape, Q2 literal short-form rule) closed
-both ambiguities at spec stage. Research surfaced no further unresolved
-questions. No T0 deferrals.
-
-**Compatibility / release**: this BI is additive on `details.errno`
-and contract-restorative on short-form resolution; downstream callers
-that already depended on the predecessor 011's `<file>.md` behaviour
-get their contract back, and callers branching on `response.details`
-gain a new readable `errno` field without losing any existing field.
-Expected version bump: patch level (`0.4.2` → `0.4.3`); release-task
-decision deferred to /speckit-tasks.
+**Compatibility / release**: this BI is purely additive — no existing
+tool changes, no error codes added, no ADRs amended. Public surface
+gains one new typed tool. Expected version bump: patch level
+(`0.4.3 → 0.4.4` per SC-016); release-task decision deferred to
+/speckit-tasks.
 
 See also:
-- [spec.md](specs/020-fix-write-gaps/spec.md) — feature spec; one
-  clarifications session ran 2026-05-12 (Q1 additive FILE_EXISTS
-  details shape — `{ errno, path, vault }`; Q2 literal short-form rule
-  — canonical = no separator AND not ending in `.md`, non-canonical
-  passes through verbatim).
-- [plan.md](specs/020-fix-write-gaps/plan.md) — implementation plan.
-- [research.md](specs/020-fix-write-gaps/research.md) — Phase 0
-  decisions R1–R15 + ground-truth verification table (handler line
-  numbers, current behaviour, change shape) + FR-coverage mapping.
-- [data-model.md](specs/020-fix-write-gaps/data-model.md) — short-form
-  predicate truth table, resolution flowchart, FILE_EXISTS details
-  shape transition diagram, per-FR test inventory (8 cases).
-- [contracts/write-note-handler-delta.contract.md](specs/020-fix-write-gaps/contracts/write-note-handler-delta.contract.md)
-  — handler delta contract: what changes (resolveSpecificModePath
-  helper + FILE_EXISTS additive errno), what stays the same (schema,
-  write mechanism, path-safety, mapFsError, active mode, cache
-  invalidation, editor-open), helper invariant table, cross-failure-
-  type field-name parity, migration / compatibility table.
-- [quickstart.md](specs/020-fix-write-gaps/quickstart.md) — 11
-  verification scenarios (S-1..S-11) mapped 1:1 to SC-001..SC-011
-  + one manual live-Obsidian scenario (S-2 for SC-002).
+- [spec.md](specs/021-rename-note/spec.md) — feature spec; one
+  /speckit-clarify session ran 2026-05-12 (Q1 extension-handling rule
+  — `.md`-only allowlist with case-sensitive byte equality, cross-
+  extension renames out of scope; Q2 folder-separator-rejection rule
+  — validation-layer reject with `move_note` recovery hint).
+- [plan.md](specs/021-rename-note/plan.md) — implementation plan.
+- [research.md](specs/021-rename-note/research.md) — Phase 0
+  decisions R1–R10 + plan-stage live-CLI finding F1 (rename
+  subcommand argv shape from `obsidian help`) + FR-019 deferred T0
+  case roster (11 cases for /speckit-implement T0 task).
+- [data-model.md](specs/021-rename-note/data-model.md) — input/output
+  schema shapes, per-mode argv-mapping table, extension-handling rule
+  truth table, folder-separator-rejection truth table, per-tool
+  invariants ↔ FR mapping, test inventory (~52 cases).
+- [contracts/rename-note-input.contract.md](specs/021-rename-note/contracts/rename-note-input.contract.md)
+  — public input contract: zod schema, JSON Schema shape, field
+  policy, six worked examples (specific+path, verbatim-`.md`,
+  specific+file, internal-periods, active mode, cross-extension
+  scope-narrowing), validation failure roster, downstream failure
+  roster.
+- [contracts/rename-note-handler.contract.md](specs/021-rename-note/contracts/rename-note-handler.contract.md)
+  — handler invariants: deps shape, `appendMdIfMissing` helper
+  contract with seven worked examples, `parseRenameResponse` helper
+  contract (T0-locked), argv shape table exhaustive across all valid
+  inputs, single-spawn invariant (R9), failure propagation chain,
+  test-seam pattern.
+- [quickstart.md](specs/021-rename-note/quickstart.md) — 33 vitest
+  verification scenarios (S-1..S-33) mapped to SC-001..SC-016 + 12
+  manual T0 scenarios (M-1..M-12) for live-CLI characterisation
+  during /speckit-implement (M-12 added by /speckit-analyze U2
+  remediation 2026-05-12 as a documentation-only external-editor
+  probe).
+
+---
+
+## Predecessor feature narrative (020-fix-write-gaps) — RETAINED FOR CONTEXT
+
+The 020 narrative below is retained for downstream cross-references
+but is NOT the active planning context. Consult
+[specs/021-rename-note/plan.md](specs/021-rename-note/plan.md) for
+the active feature; consult
+[specs/020-fix-write-gaps/plan.md](specs/020-fix-write-gaps/plan.md)
+for the 020 source. Summary: 020 closed two narrow handler-layer
+contract gaps in the existing `write_note` operation against the
+016-reliable-writer surface — (1) short-form-name target resolution:
+when `input.file` matches the canonical short-form shape (no `/` or
+`\` AND not ending in `.md`), the handler resolves the target to
+`<input.file>.md` at the vault root; non-canonical `input.file`
+shapes pass through verbatim; and (2) `FILE_EXISTS` additive
+`details.errno: "EEXIST"` enrichment for field-name parity with
+`FS_WRITE_FAILED.details.errno`. R2 locked the predicate as three
+literal-character checks (`!file.includes("/") && !file.includes("\\")
+&& !file.endsWith(".md")`) — case-sensitive byte equality, NOT
+`path.extname`. The 021-rename-note `appendMdIfMissing` helper
+inherits the same `endsWith(".md")` precedent. Zero new error codes;
+zero new ADRs; zero schema edits. Module unchanged at
+`src/tools/write_note/handler.ts` (~8 LOC of new helper + 1 line of
+`details.errno` addition). See
+[020 spec.md](specs/020-fix-write-gaps/spec.md) and [020
+plan.md](specs/020-fix-write-gaps/plan.md) for the full detail.
 
 ---
 
@@ -145,7 +163,7 @@ See also:
 
 The 019 narrative below is retained for downstream cross-references
 but is NOT the active planning context. Consult
-[specs/020-fix-write-gaps/plan.md](specs/020-fix-write-gaps/plan.md)
+[specs/021-rename-note/plan.md](specs/021-rename-note/plan.md)
 for the active feature; consult
 [specs/019-list-files/plan.md](specs/019-list-files/plan.md) for the
 019 source. Summary: 019 added the eighth typed-tool wrap (`list_files`),

@@ -19,6 +19,7 @@ import { createObsidianExecTool } from "./tools/obsidian_exec/index.js";
 import { createReadHeadingTool } from "./tools/read_heading/index.js";
 import { createReadNoteTool } from "./tools/read_note/index.js";
 import { createReadPropertyTool } from "./tools/read_property/index.js";
+import { createRenameNoteTool } from "./tools/rename_note/index.js";
 import { createWriteNoteTool } from "./tools/write_note/index.js";
 import { createWritePropertyTool } from "./tools/write_property/index.js";
 import { createVaultRegistry } from "./vault-registry/registry.js";
@@ -87,6 +88,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     createReadHeadingTool({ logger, queue }),
     createReadNoteTool({ logger, queue }),
     createReadPropertyTool({ logger, queue }),
+    createRenameNoteTool({ logger, queue }),
     createWriteNoteTool({ logger, queue, vaultRegistry }),
     createWritePropertyTool({ logger, queue }),
   ];
