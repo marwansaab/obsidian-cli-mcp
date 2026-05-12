@@ -5,6 +5,32 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3] - 2026-05-12
+
+**PATCH release (contract-restorative + additive)** — two narrow handler-layer fixes to `write_note` against the 016-reliable-writer surface, both caught during acceptance testing of the 016 overhaul. (1) Short-form-name `file` target resolution restored to the predecessor 011's behaviour: when `input.file` is canonical (no `/` or `\` folder separator AND not ending in `.md`), the handler now resolves the target to `<input.file>.md` at the vault root and the response's `path` field reports the resolved value; any other `input.file` shape passes through verbatim per FR-001a. (2) `FILE_EXISTS` hot-path rejections gain `details.errno: "EEXIST"` alongside the existing `path` and `vault` fields — field-name parity with `FS_WRITE_FAILED`'s `details.errno`. Spec-id 020-fix-write-gaps, FR-001..FR-018, SC-001..SC-011.
+
+### Fixed
+
+- **Short-form-name `file` resolution restored.** Calls of the form `write_note({ target_mode: "specific", vault, file: "Daily Note", content })` now write `<vault-root>/Daily Note.md` and return `{ created: true, path: "Daily Note.md" }`. The 016-reliable-writer overhaul inadvertently dropped the `.md`-appending step the predecessor 011's CLI-routed handler performed, so canonical short-form inputs were writing extension-less files that Obsidian's file explorer hides and wikilinks can't resolve. Wired via two file-local helpers in `src/tools/write_note/handler.ts`: `isCanonicalShortForm(file)` (three literal-character checks — `!file.includes("/") && !file.includes("\\") && !file.endsWith(".md")`) and `resolveSpecificModePath(input)` (replaces the prior `relPath = (input.path ?? input.file)!` collapse). Internal periods are preserved by `endsWith(".md")` precision — `file: "version_1.2.3"` resolves to `version_1.2.3.md` (NOT to `version_1.2.md` as `path.extname` would). The `input.path` form is unchanged; FR-001a passthrough preserves `file: "Notes.md"` and `file: "Folder/Note"` shapes verbatim. The active-mode branch is untouched — the schema forbids `input.file` in active mode and the focused-file eval continues to resolve through `parsed.path`.
+- **`FILE_EXISTS` rejection diagnostic precision.** The hot-path `wx`-flag write at `handler.ts:208-213` now throws with `details: { errno: "EEXIST", path: relPath, vault: input.vault ?? null }` (was `{ path, vault }`). The new `errno` field is additive — callers reading `response.details.path` and `response.details.vault` see no change. Field-name parity with `FS_WRITE_FAILED`'s `details.errno` means downstream callers can branch uniformly on `response.details?.errno` across both filesystem-level failure codes. The separate `mapFsError` path (rare mkdir/rename race) keeps its single-field `{ errno }` shape per research decision R4 — preserved asymmetry; reconciling would widen `mapFsError`'s signature, out of scope for this BI.
+
+### Changed
+
+- **`docs/tools/write_note.md`** gains two short callouts under existing sections. The input contract section gains a *Canonical short-form `file` resolution* paragraph defining the literal three-check predicate with worked examples (`file: "Daily Note"` → `Daily Note.md`; `file: "Notes.md"` and `file: "Folder/Note"` pass through verbatim; `file: "version_1.2.3"` → `version_1.2.3.md`). The error roster's FILE_EXISTS row now documents the full `details: { errno, path, vault }` shape with the additive-enrichment note and the field-name-parity note.
+
+### Internal
+
+- Eight new co-located handler test cases in `src/tools/write_note/handler.test.ts` covering all FR / AC scenarios — canonical short-form happy path, internal-period preservation, three FR-001a passthrough cases on `file` (ends-in-`.md`, contains-`/`, both), `path`-form regression guard, FILE_EXISTS hot-path additive details, `mapFsError` EEXIST asymmetry guard, overwrite-true on existing success guard. Test count grows 694 → 702; aggregate statements coverage rises 91.32% → 91.63%; `write_note/handler.ts` coverage rises 84.93% → 88.46%.
+- **Frozen surfaces**: input contract (FR-012 — `src/tools/write_note/schema.ts` byte-stable, `file` and `path` continue to use the same `safePathField` validator), top-level error code roster (FR-011 — no new codes added to `src/errors.ts`), logger surface (R7 — no new typed logger methods; FILE_EXISTS does NOT emit per-call logger events per 016-FR-029, the new `errno` field doesn't change that), write mechanism (FR-017 — temp+rename atomic write, canonical-root path-safety, lazy vault-registry, post-write metadataCache invalidation, optional editor-open all preserved), other tools' surfaces (FR-014 — `obsidian_exec`, `help`, `read_note`, `read_heading`, `delete_note`, `read_property`, `find_by_property`, `write_property`, `list_files` are all byte-stable).
+- **Compatibility**: this BI is additive on `details.errno` and contract-restorative on short-form resolution. Downstream callers that depended on the predecessor 011's `<file>.md` behaviour get their contract back; callers branching on `response.details` for FILE_EXISTS gain a new readable `errno` field without losing any existing field. No new error codes, no new ADRs, no ADR amendments.
+
+### References
+
+- Spec: [specs/020-fix-write-gaps/spec.md](specs/020-fix-write-gaps/spec.md)
+- Plan: [specs/020-fix-write-gaps/plan.md](specs/020-fix-write-gaps/plan.md)
+- Research: [specs/020-fix-write-gaps/research.md](specs/020-fix-write-gaps/research.md)
+- Data model: [specs/020-fix-write-gaps/data-model.md](specs/020-fix-write-gaps/data-model.md)
+
 ## [0.4.2] - 2026-05-12
 
 **PATCH release (additive surface)** — adds `list_files`, the eighth typed-tool wrap and the project's first FOLDER-scoped typed surface. Where the prior seven typed tools (`read_note` / `write_note` / `delete_note` / `read_property` / `find_by_property` / `read_heading` / `write_property`) all operate on a single named file or the focused file, `list_files` operates on a vault folder and returns the structured `{ count, paths }` shape. Public surface: `list_files({ target_mode, vault?, folder?, ext?, total? })` → `{ count: number, paths: string[] }`. Agents that want folder enumeration no longer pay the cost of `obsidian_exec` returning plain text plus client-side line parsing. Spec-id 019-list-files, FR-001..FR-028, SC-001..SC-022.
