@@ -14,6 +14,7 @@ import { asToolError, type RegisteredTool } from "./tools/_shared.js";
 import { createDeleteNoteTool } from "./tools/delete_note/index.js";
 import { createFindByPropertyTool } from "./tools/find_by_property/index.js";
 import { createHelpTool } from "./tools/help/index.js";
+import { createListFilesTool } from "./tools/list_files/index.js";
 import { createObsidianExecTool } from "./tools/obsidian_exec/index.js";
 import { createReadHeadingTool } from "./tools/read_heading/index.js";
 import { createReadNoteTool } from "./tools/read_note/index.js";
@@ -81,6 +82,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     createDeleteNoteTool({ logger, queue }),
     createFindByPropertyTool({ logger, queue }),
     createHelpTool(),
+    createListFilesTool({ logger, queue }),
     createObsidianExecTool({ logger, queue }),
     createReadHeadingTool({ logger, queue }),
     createReadNoteTool({ logger, queue }),

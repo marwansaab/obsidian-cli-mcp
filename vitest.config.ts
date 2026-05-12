@@ -17,7 +17,7 @@ export default defineConfig({
       // function / per-file thresholds are forbidden without a constitution amendment
       // (gate #5 — reviewers MUST flag any PR that adds those keys).
       thresholds: {
-        statements: 90.9,
+        statements: 91.3,
       },
     },
   },

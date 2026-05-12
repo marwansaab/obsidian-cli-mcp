@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import {
   applyTargetModeRefinement,
+  applyTargetModeRefinementForFolderScoped,
   targetModeBaseSchema,
   targetModeSchema,
   type TargetMode,
@@ -385,5 +386,66 @@ describe("target-mode primitive", () => {
     const inner = (targetModeSchema as unknown as { _def: { schema: { constructor: { name: string } } } })._def
       .schema;
     expect(inner.constructor.name).toBe("ZodObject");
+  });
+
+  // -----------------------------------------------------------------------------------------------
+  // Folder-scoped refinement (019-list-files) — forbids `file` and `path` in BOTH modes; preserves
+  // the in-specific-requires-vault / in-active-forbids-vault rules.
+  // -----------------------------------------------------------------------------------------------
+
+  describe("applyTargetModeRefinementForFolderScoped — folder-scoped variant", () => {
+    const folderSchema = applyTargetModeRefinementForFolderScoped(
+      targetModeBaseSchema.extend({ folder: z.string().min(1).optional() }),
+    );
+
+    it("accepts {specific, vault} with no locator (folder-scoped — no locator required)", () => {
+      const r = folderSchema.safeParse({ target_mode: "specific", vault: "V" });
+      expect(r.success).toBe(true);
+    });
+
+    it("accepts {active} alone", () => {
+      const r = folderSchema.safeParse({ target_mode: "active" });
+      expect(r.success).toBe(true);
+    });
+
+    it("rejects {specific, vault, file} — file forbidden in BOTH modes", () => {
+      const r = folderSchema.safeParse({ target_mode: "specific", vault: "V", file: "F" });
+      expect(r.success).toBe(false);
+      if (!r.success) {
+        expect(r.error.issues.some((i) => i.path.includes("file"))).toBe(true);
+      }
+    });
+
+    it("rejects {specific, vault, path} — path forbidden in BOTH modes", () => {
+      const r = folderSchema.safeParse({ target_mode: "specific", vault: "V", path: "P.md" });
+      expect(r.success).toBe(false);
+      if (!r.success) {
+        expect(r.error.issues.some((i) => i.path.includes("path"))).toBe(true);
+      }
+    });
+
+    it("rejects {active, file} — file forbidden in active mode too", () => {
+      const r = folderSchema.safeParse({ target_mode: "active", file: "F" });
+      expect(r.success).toBe(false);
+      if (!r.success) {
+        expect(r.error.issues.some((i) => i.path.includes("file"))).toBe(true);
+      }
+    });
+
+    it("rejects {active, vault} — vault forbidden in active mode", () => {
+      const r = folderSchema.safeParse({ target_mode: "active", vault: "V" });
+      expect(r.success).toBe(false);
+      if (!r.success) {
+        expect(r.error.issues.some((i) => i.path.includes("vault"))).toBe(true);
+      }
+    });
+
+    it("rejects {specific} without vault", () => {
+      const r = folderSchema.safeParse({ target_mode: "specific" });
+      expect(r.success).toBe(false);
+      if (!r.success) {
+        expect(r.error.issues.some((i) => i.path.includes("vault"))).toBe(true);
+      }
+    });
   });
 });
