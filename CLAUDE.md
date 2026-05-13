@@ -1,18 +1,90 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-[specs/022-rename-typed-tools/plan.md](specs/022-rename-typed-tools/plan.md)
+[specs/023-outline/plan.md](specs/023-outline/plan.md)
 
-Active feature: **022-rename-typed-tools** — surface-rename sweep
-aligning five typed tools to upstream Obsidian CLI subcommand names.
-Single-release MINOR-bump breaking change (`0.4.4` → `0.5.0`); no
-deprecation aliases. The user-facing surface change: an MCP client
-calling `tools/list` sees `read`, `delete`, `files`, `set_property`,
-`rename` where previously they saw `read_note`, `delete_note`,
-`list_files`, `write_property`, `rename_note`. Schema fields, output
-shapes, and error codes are byte-identical pre vs post rename — only
-the names change. Predecessor narratives for 021-rename-note,
-020-fix-write-gaps, 019-list-files, 018, 017, 015 retained below.
+Active feature: **023-outline** — adds the tenth typed-tool wrap and the
+project's first structural-discovery primitive. Tool name `outline`
+follows BI-022's single-word-verbatim-from-upstream convention (matches
+the upstream `obsidian outline` subcommand). User surface: `outline({
+target_mode, vault?, file?, path?, total? })` returning `{ count:
+number, headings: Array<{ level, text, line }> }`. Wraps the upstream
+`outline` subcommand natively (NOT eval — F1 / R2 confirmed
+`format=json` returns the structured array shape directly).
+Single-call architecture branched on `input.total` (default →
+`format=json` parameter; count-only → `total` flag — mutually exclusive
+per F14). Empty-outline files return upstream literal `No headings
+found.` plain text — handler detects sentinel and maps to `{ count: 0,
+headings: [] }` for both modes (R9, the only load-bearing handler
+quirk). FR-027 non-`.md` filetype rejection satisfied entirely by
+upstream + dispatch-layer's `Error:`-prefix classifier (R8 / F9). The
+2026-05-13 spec clarifications session locked three Q&As: marker-
+stripping (Q1/A1 strip-leading-marker + closing-ATX + surrounding-
+whitespace — satisfied automatically by upstream per F3), indented-
+code-block opacity (Q2/A2 deferred-to-upstream — confirmed F12), and
+non-`.md` rejection (Q3/A3 wrapper boundary — actually satisfied by
+upstream per F9). The 2026-05-13 plan-stage finding F10 drove ONE spec
+amendment: FR-013 rewritten from "Setext MUST NOT be returned" to
+"Setext defers to upstream" — live probe revealed upstream INCLUDES
+Setext entries, applying same Q2/A2 defer-to-upstream pattern keeps the
+single-call architecture intact. Additive surface; zero existing-tool
+public-shape changes; zero new error codes; zero new ADRs. Predecessor
+narratives for 022-rename-typed-tools, 021-rename-note, 020-fix-write-
+gaps, 019-list-files, 018, 017, 015 retained below.
+
+See also:
+
+- [spec.md](specs/023-outline/spec.md) — feature spec; one
+  /speckit-clarify session ran 2026-05-13 (Q1 marker-strip, Q2
+  indented-code defer-to-upstream, Q3 non-`.md` rejection); one
+  plan-stage amendment ran 2026-05-13 (F10 Setext defer-to-upstream).
+- [plan.md](specs/023-outline/plan.md) — implementation plan;
+  Constitution Check PASS on initial + post-Phase-1 evaluation; no
+  Complexity Tracking entries.
+- [research.md](specs/023-outline/research.md) — Phase 0 decisions
+  R1..R14 + plan-stage live-CLI findings F1..F16 (16 findings spanning
+  native subcommand structure, fenced-block opacity, closing-ATX
+  pre-stripping, inline-markdown survival, vault-routing limitation,
+  non-`.md` rejection by upstream, Setext inclusion, frontmatter
+  opacity, indented-code-block opacity, level-skip preservation,
+  total-flag overrides format, format value leniency, path-traversal
+  handling).
+- [data-model.md](specs/023-outline/data-model.md) — input/output/
+  upstream-wire schema shapes, handler shape with two-stage parse
+  step, per-tool invariants table, module LOC budget (~145 source /
+  ~930 test), test inventory (18 / 28 / 5 = 51 cases).
+- [contracts/outline-input.contract.md](specs/023-outline/contracts/outline-input.contract.md)
+  — public input contract: zod schema, emitted JSON Schema shape,
+  field policy, seven worked examples (A–G), error response roster.
+- [contracts/outline-handler.contract.md](specs/023-outline/contracts/outline-handler.contract.md)
+  — handler invariants: deps shape, single invokeCli call shape × 2
+  modes, two-stage parse step (default mode) + single-stage (count-
+  only mode), failure propagation chain, test seam pattern.
+- [quickstart.md](specs/023-outline/quickstart.md) — 23 verification
+  scenarios Q-1..Q-23 mapped to SC-001..SC-021; Q-1..Q-19 in CI;
+  Q-20..Q-23 manual against TestVault during T0 of /speckit-implement.
+
+---
+
+## Predecessor feature narrative (022-rename-typed-tools) — RETAINED FOR CONTEXT
+
+The 022 narrative below is retained for downstream cross-references
+but is NOT the active planning context. Consult
+[specs/023-outline/plan.md](specs/023-outline/plan.md) for the active
+feature; consult [specs/022-rename-typed-tools/plan.md](specs/022-rename-typed-tools/plan.md)
+for the 022 source. Summary: 022 was a surface-rename sweep aligning
+five typed tools to upstream Obsidian CLI subcommand names. Single-
+release MINOR-bump breaking change (`0.4.4` → `0.5.0`); no deprecation
+aliases. Renamed `read_note → read`, `delete_note → delete`,
+`list_files → files`, `write_property → set_property`, `rename_note →
+rename`. Schema fields, output shapes, and error codes byte-identical
+pre vs post rename — only the names changed. Introduced the durable
+FR-018 baseline machinery (`src/tools/_register-baseline.{json,ts,test.ts}`
++ `scripts/write-register-baseline.ts` + `npm run baseline:write`)
+that every future BI mutating the tool registry rolls forward in the
+same commit. The 023-outline BI consumes this machinery — adds one
+new tool (`outline`), rolls the baseline forward via `npm run
+baseline:write`. Original detail follows verbatim.
 
 **Punch-list** (locked):
 

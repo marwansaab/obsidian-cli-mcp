@@ -319,6 +319,12 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
     required_equals: ["command"],
     additionalProperties: false,
   },
+  outline: {
+    type: "object",
+    properties_equals_set: ["target_mode", "vault", "file", "path", "total"],
+    required_equals: ["target_mode"],
+    additionalProperties: false,
+  },
   help: {
     type: "object",
     properties_equals_set: ["tool_name"],

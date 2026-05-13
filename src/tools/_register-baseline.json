@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "022-rename-typed-tools",
-  "generatedAt": "2026-05-12",
+  "generatedFromBranch": "023-outline",
+  "generatedAt": "2026-05-13",
   "tools": [
     {
       "name": "delete",
@@ -27,6 +27,11 @@
       "name": "obsidian_exec",
       "descriptionFingerprint": "70234746fe95397e7f5000dcf25e42b9674d06117fed9279bf059d870af73b7a",
       "schemaFingerprint": "e6124549cb2a69cddaf74dea058a0c9dba3f1062bdc178decd916e9019ee385d"
+    },
+    {
+      "name": "outline",
+      "descriptionFingerprint": "09b0b625b23ea8018bf5ab0c3229a2e3624b36685bb710f9602338fbb5f2b591",
+      "schemaFingerprint": "3affa6b4260fc26466e0b52018a248ec0e9752bd49d1f65bd549db20ab77f642"
     },
     {
       "name": "read",
