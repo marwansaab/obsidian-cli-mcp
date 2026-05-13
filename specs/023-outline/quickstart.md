@@ -20,7 +20,7 @@ This file enumerates verification scenarios mapped 1:1 to the success criteria i
 | Q-12 | SC-012 | `handler.test.ts` (token-cost regression) | Outline payload size << full-file payload size (assertion via fixture-based payload byte comparison); outline-then-targeted-read pattern documented in `docs/tools/outline.md` |
 | Q-13 | SC-013 | `_register-baseline.test.ts` | After regenerating the baseline via `npm run baseline:write`, every other tool's fingerprint is unchanged; only the new `outline` entry is added |
 | Q-14 | SC-014 | `index.test.ts` | `docs/tools/outline.md` exists with non-stub content (≥4 worked examples + error roster + input/output contracts × 2 modes) |
-| Q-15 | SC-015 | All test files | Total test count ≥ 25 across schema/handler/registration suites — actual count is 51 (18 schema / 28 handler / 5 registration) |
+| Q-15 | SC-015 | All test files | Total test count ≥ 25 across schema/handler/registration suites — actual count is 52 (18 schema / 29 handler / 5 registration; post-/speckit-analyze U1 remediation 2026-05-13) |
 | Q-16 | SC-016 | `errors.ts` | Greppable: zero new error codes added by this BI; failure paths flow through `VALIDATION_ERROR` / `CLI_REPORTED_ERROR` / `ERR_NO_ACTIVE_FILE` / `CLI_NON_ZERO_EXIT` / `CLI_BINARY_NOT_FOUND` only |
 | Q-17 | SC-017 | `research.md` | All 16 enumerated FR-023 characterisation cases are documented; F1–F16 findings persisted live |
 | Q-18 | SC-018 | `handler.test.ts` (argv assertion + base64 sanity) | Argv inspection confirms `vault` / `file` / `path` are passed as separate process arguments; no shell, no eval, no string interpolation |

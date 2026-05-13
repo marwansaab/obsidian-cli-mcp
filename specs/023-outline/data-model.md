@@ -189,16 +189,16 @@ Single `invokeCli` invocation per request (R3 / R12). The two failure paths (`to
 | `src/tools/outline/schema.ts` | ~30 | — | Three zod schemas (input, output, upstream array) + types |
 | `src/tools/outline/schema.test.ts` | — | ~250 | 18 cases (target_mode discriminator + total + additionalProperties + types) |
 | `src/tools/outline/handler.ts` | ~90 | — | `executeOutline` + sentinel constant + parse/branch logic |
-| `src/tools/outline/handler.test.ts` | — | ~600 | 28 cases (default mode happy + count-only mode happy + empty-outline both modes + field rename + level+line+text byte-faithful + inline markdown / `::` / closing-ATX survival via fixture + JSON parse failure + integer parse failure + unknown-vault silently ignored + file-not-found upstream + non-`.md` upstream rejection + active-mode happy + active-mode no-focus + argv shape default mode + argv shape total mode + single-spawn-per-request invariant) |
+| `src/tools/outline/handler.test.ts` | — | ~620 | 29 cases (default mode happy + count-only mode happy + empty-outline both modes + field rename + level+line+text byte-faithful + inline markdown / `::` / closing-ATX survival via fixture + JSON parse failure + integer parse failure + unknown-vault silently ignored per amended FR-016 + file-not-found upstream + non-`.md` upstream rejection + active-mode happy + active-mode no-focus per amended SC-007 + argv shape default mode + argv shape total mode + single-spawn-per-request invariant + token-cost regression per SC-012) — 28 → 29 post-/speckit-analyze U1 remediation 2026-05-13 |
 | `src/tools/outline/index.ts` | ~25 | — | `createOutlineTool` factory via `registerTool` |
 | `src/tools/outline/index.test.ts` | — | ~80 | 5 cases (descriptor name, stripped schema, help mention, doc presence, drift-detector lock) |
-| **Totals** | **~145** | **~930** | 51 tests across 3 layers — exceeds SC-015's floor of 25 |
+| **Totals** | **~145** | **~950** | 52 tests across 3 layers — exceeds SC-015's floor of 25 (post-/speckit-analyze U1 remediation 2026-05-13) |
 
 `docs/tools/outline.md` ~180 lines (input schema, output shape × 2 modes, error roster, ≥4 worked examples, multi-vault inherited limitation, output-cap ceiling, Setext-included note, deferred-to-upstream architectural note linking to FR-012a / amended FR-013).
 
 ---
 
-## Test inventory (51 cases)
+## Test inventory (52 cases — post-/speckit-analyze U1 remediation 2026-05-13)
 
 **Schema (18 cases — `schema.test.ts`)**:
 
@@ -221,7 +221,7 @@ Single `invokeCli` invocation per request (R3 / R12). The two failure paths (`to
 17. `vault: ""` empty string → ✗ (min 1)
 18. Inferred `OutlineInput` and `OutlineOutput` types compile
 
-**Handler (28 cases — `handler.test.ts`)**:
+**Handler (29 cases — `handler.test.ts`)**:
 
 Happy paths (default mode):
 1. Multi-level fixture in specific+path → returns full headings array
@@ -260,6 +260,10 @@ Failure paths:
 26. Output-cap kill (very large outline) → `CLI_NON_ZERO_EXIT` (dispatch-layer auto-classified per R10)
 27. Binary not found → `CLI_BINARY_NOT_FOUND` (dispatch-layer auto-classified)
 28. UpstreamError pass-through (handler does NOT wrap UpstreamError thrown by invokeCli)
+
+Token-cost regression (added per /speckit-analyze U1 remediation 2026-05-13):
+
+29. Token-cost regression (SC-012): seed two upstream stdout fixtures — (a) outline payload with 50 headings (~3.5 KB JSON), (b) full-file `read` payload of the same logical note (~30 KB markdown). Assert `Buffer.byteLength(outlineStdout, "utf8") < Buffer.byteLength(fullReadStdout, "utf8") / 5` (outline payload at least 5× smaller; locks SC-012's "two orders of magnitude" claim with conservative 5× threshold for fixture flexibility).
 
 **Registration (5 cases — `index.test.ts`)**:
 
