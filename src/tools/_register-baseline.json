@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "023-outline",
+  "generatedFromBranch": "024-list-properties",
   "generatedAt": "2026-05-13",
   "tools": [
     {
@@ -32,6 +32,11 @@
       "name": "outline",
       "descriptionFingerprint": "09b0b625b23ea8018bf5ab0c3229a2e3624b36685bb710f9602338fbb5f2b591",
       "schemaFingerprint": "3affa6b4260fc26466e0b52018a248ec0e9752bd49d1f65bd549db20ab77f642"
+    },
+    {
+      "name": "properties",
+      "descriptionFingerprint": "145398215775e6c31693f30e5024d16a2bb76cff486cf4c4dad2fc49e24554c8",
+      "schemaFingerprint": "bd4389053b0867cdde65a07ac65d8ac2331d249b8909a9358e9c90c104812dff"
     },
     {
       "name": "read",

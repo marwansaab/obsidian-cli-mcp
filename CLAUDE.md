@@ -1,16 +1,112 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-[specs/023-outline/plan.md](specs/023-outline/plan.md)
+[specs/024-list-properties/plan.md](specs/024-list-properties/plan.md)
 
-Active feature: **023-outline** — adds the tenth typed-tool wrap and the
-project's first structural-discovery primitive. Tool name `outline`
-follows BI-022's single-word-verbatim-from-upstream convention (matches
-the upstream `obsidian outline` subcommand). User surface: `outline({
-target_mode, vault?, file?, path?, total? })` returning `{ count:
-number, headings: Array<{ level, text, line }> }`. Wraps the upstream
-`outline` subcommand natively (NOT eval — F1 / R2 confirmed
+Active feature: **024-list-properties** — adds the eleventh typed-tool
+wrap and the project's **second** structural-discovery primitive (after
+BI-023 `outline`). Tool name `properties` follows BI-022's single-word-
+verbatim-from-upstream convention (matches the upstream `obsidian
+properties` subcommand; parity with `files` from BI-019 post-rename).
+User surface: `properties({ vault?, total? })` returning `{ count:
+number, properties: Array<{ name, noteCount }> }`. Wraps the upstream
+`properties` subcommand natively (NOT eval — F1 / R2 confirmed
 `format=json` returns the structured array shape directly).
+Single-call architecture branched on `input.total` (default →
+`format=json` parameter; count-only → `total` flag). NO `target_mode`
+discriminator (vault-only surface — different from `outline` / `read` /
+`read_heading` / etc.); ADR-003 NOT APPLICABLE. Two upstream-to-wrapper
+transforms per entry: DROP `type` (per FR-004 — type metadata out of
+scope), RENAME `count` → `noteCount` (per FR-007 — avoids collision
+with outer envelope's `count`). Wrapper-side post-fetch sort (R8 /
+FR-013): case-insensitive primary with byte-order tiebreak —
+drift-adjacent display (`Tags` next to `tags`) per the 2026-05-13 Q1
+clarification. The 2026-05-13 clarifications session locked TWO Q&As:
+Q1 sort order (drift-adjacent case-insensitive primary), Q2 outer
+`count` semantic when `total: true` (distinct names count, not
+sum-of-occurrences). The 2026-05-13 plan-stage finding F3 CONFIRMED Q2
+holds by upstream construction (upstream's `total` flag returns array
+length, not sum-of-counts — verified live with 73 distinct names / 4159
+total occurrences). The 2026-05-13 plan-stage finding F4 drove ONE
+spec amendment: FR-015 rewritten from "MUST surface a structured
+error" to "MUST be documented as an inherited limitation" — live probe
+revealed `vault=` is silently honoured-as-noop by the upstream
+`properties` subcommand (parity with BI-019 / BI-023 / BI-015 / BI-014
+defer-to-upstream pattern). Additive surface; zero existing-tool
+public-shape changes; zero new error codes; zero new ADRs. Predecessor
+narratives for 023-outline, 022-rename-typed-tools, 021-rename-note,
+020-fix-write-gaps, 019-list-files, 018, 017, 015 retained below.
+
+See also:
+
+- [spec.md](specs/024-list-properties/spec.md) — feature spec; one
+  /speckit-clarify session ran 2026-05-13 (Q1 sort order
+  case-insensitive primary, Q2 `total: true` outer count = distinct
+  names); one plan-stage amendment ran 2026-05-13 (F4 unknown-vault
+  → documented inherited limitation per upstream silently-honoured-
+  as-noop `vault=`).
+- [plan.md](specs/024-list-properties/plan.md) — implementation plan;
+  Constitution Check PASS on initial + post-Phase-1 evaluation; no
+  Complexity Tracking entries.
+- [research.md](specs/024-list-properties/research.md) — Phase 0
+  decisions R1..R14 + plan-stage live-CLI findings F1..F14 (14
+  findings spanning native subcommand structure, wire-format
+  `{name, type, count}` shape, `counts` flag no-op for JSON,
+  `total` flag distinct-names semantic CONFIRMED, vault-routing
+  silently-honoured-as-noop, type-metadata drop, count-to-noteCount
+  rename, per-file scope different wire shape OOS, name= integer OOS,
+  sort=count frequency-order OOS, path-traversal deferred to T0,
+  empty-vault deferred to T0, body-content opacity deferred to T0,
+  case-distinct sort deferred to T0, wire-format leniency).
+- [data-model.md](specs/024-list-properties/data-model.md) — input/
+  output/upstream-wire schema shapes (NO target_mode; plain
+  `z.object({vault, total}).strict()`), handler shape with
+  multi-stage parse step (default mode) + single-stage (count-only
+  mode) + wrapper-side post-fetch sort, per-tool invariants table,
+  module LOC budget (~140 source / ~920 test), test inventory (16 /
+  24 / 5 = 45 cases), architectural delta map vs predecessors.
+- [contracts/properties-input.contract.md](specs/024-list-properties/contracts/properties-input.contract.md)
+  — public input contract: zod schema, emitted JSON Schema shape,
+  field policy, seven worked examples (A–G), error response roster,
+  multi-vault inherited limitation, out-of-scope upstream surfaces
+  table (file=/path=/active/name=/sort=/counts/format= all rejected).
+- [contracts/properties-handler.contract.md](specs/024-list-properties/contracts/properties-handler.contract.md)
+  — handler invariants: deps shape, single invokeCli call shape × 2
+  modes, multi-stage parse step (default mode: JSON.parse → zod
+  validation → drop type + rename count → post-fetch sort) +
+  single-stage parse step (count-only mode: integer parse), failure
+  propagation chain, test seam pattern, single-spawn invariant.
+- [quickstart.md](specs/024-list-properties/quickstart.md) — 21
+  verification scenarios Q-1..Q-21 mapped to SC-001..SC-021;
+  Q-1..Q-17 in CI; Q-18..Q-21 manual against TestVault during T0 of
+  /speckit-implement.
+
+---
+
+## Predecessor feature narrative (023-outline) — RETAINED FOR CONTEXT
+
+The 023 narrative below is retained for downstream cross-references
+but is NOT the active planning context. Consult
+[specs/024-list-properties/plan.md](specs/024-list-properties/plan.md)
+for the active feature; consult
+[specs/023-outline/plan.md](specs/023-outline/plan.md) for the 023
+source. Summary: 023 added the tenth typed-tool wrap and the project's
+FIRST structural-discovery primitive — `outline({ target_mode, vault?,
+file?, path?, total? })` returning `{ count, headings: Array<{ level,
+text, line }> }`. Wraps upstream `obsidian outline format=json`
+natively. Empty-outline detection (R9 sentinel `No headings found.`)
+is the only load-bearing handler quirk. Three clarifications-session
+Q&As (Q1 marker-strip, Q2 indented-code defer-to-upstream, Q3 non-`.md`
+rejection) + one plan-stage amendment (F10 Setext defer-to-upstream).
+Additive surface; PATCH version bump 0.5.0 → 0.5.1; zero new error
+codes; zero new ADRs. Original detail below.
+
+Tool name `outline` follows BI-022's single-word-verbatim-from-upstream
+convention (matches the upstream `obsidian outline` subcommand). User
+surface: `outline({ target_mode, vault?, file?, path?, total? })`
+returning `{ count: number, headings: Array<{ level, text, line }> }`.
+Wraps the upstream `outline` subcommand natively (NOT eval — F1 / R2
+confirmed `format=json` returns the structured array shape directly).
 Single-call architecture branched on `input.total` (default →
 `format=json` parameter; count-only → `total` flag — mutually exclusive
 per F14). Empty-outline files return upstream literal `No headings
@@ -27,10 +123,7 @@ upstream per F9). The 2026-05-13 plan-stage finding F10 drove ONE spec
 amendment: FR-013 rewritten from "Setext MUST NOT be returned" to
 "Setext defers to upstream" — live probe revealed upstream INCLUDES
 Setext entries, applying same Q2/A2 defer-to-upstream pattern keeps the
-single-call architecture intact. Additive surface; zero existing-tool
-public-shape changes; zero new error codes; zero new ADRs. Predecessor
-narratives for 022-rename-typed-tools, 021-rename-note, 020-fix-write-
-gaps, 019-list-files, 018, 017, 015 retained below.
+single-call architecture intact.
 
 See also:
 
@@ -42,13 +135,7 @@ See also:
   Constitution Check PASS on initial + post-Phase-1 evaluation; no
   Complexity Tracking entries.
 - [research.md](specs/023-outline/research.md) — Phase 0 decisions
-  R1..R14 + plan-stage live-CLI findings F1..F16 (16 findings spanning
-  native subcommand structure, fenced-block opacity, closing-ATX
-  pre-stripping, inline-markdown survival, vault-routing limitation,
-  non-`.md` rejection by upstream, Setext inclusion, frontmatter
-  opacity, indented-code-block opacity, level-skip preservation,
-  total-flag overrides format, format value leniency, path-traversal
-  handling).
+  R1..R14 + plan-stage live-CLI findings F1..F16.
 - [data-model.md](specs/023-outline/data-model.md) — input/output/
   upstream-wire schema shapes, handler shape with two-stage parse
   step, per-tool invariants table, module LOC budget (~145 source /
@@ -61,8 +148,7 @@ See also:
   modes, two-stage parse step (default mode) + single-stage (count-
   only mode), failure propagation chain, test seam pattern.
 - [quickstart.md](specs/023-outline/quickstart.md) — 23 verification
-  scenarios Q-1..Q-23 mapped to SC-001..SC-021; Q-1..Q-19 in CI;
-  Q-20..Q-23 manual against TestVault during T0 of /speckit-implement.
+  scenarios Q-1..Q-23 mapped to SC-001..SC-021.
 
 ---
 
