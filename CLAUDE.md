@@ -1,7 +1,135 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
+[specs/025-list-links/plan.md](specs/025-list-links/plan.md)
+
+Active feature: **025-list-links** — adds the twelfth typed-tool wrap
+and the project's **first link-graph primitive**. Tool name `links`
+follows BI-022's single-word-verbatim-from-upstream convention (matches
+the upstream `obsidian links` subcommand; parity with `outline` from
+BI-023, `properties` from BI-024). User surface: `links({ target_mode,
+vault?, file?, path?, total? })` returning `{ count: number, links:
+Array<{ target, line, kind, displayText? }> }`. Wraps the upstream
+**`eval` subcommand** (NOT native `links` — F1 / R2 confirmed the
+native `links` subcommand is plain-text-only with no `format=json`
+support; the wrapper CANNOT satisfy the locked per-entry shape via
+upstream `links` and routes through `app.metadataCache.getFileCache`
+inside eval — parity with BI-014 / BI-015, NOT BI-019 / BI-023 /
+BI-024). Single-call architecture branched **at envelope-emission on
+`a.total`** (R3) — the same eval JS computes the full entries array
+regardless of mode; cross-mode invariant (FR-005a) holds by
+construction. STANDARD `target_mode` discriminator per ADR-003
+(specific / active). Three upstream-to-wrapper transforms per entry
+(R7 / F3 / F4 / F6): (a) kind synthesis from `original` prefix or
+origin-array — `links[]` → wikilink/markdown by `[[` vs `[`; `embeds[]`
+→ embed; `frontmatterLinks[]` → wikilink (Q3 closed three-value
+enum); (b) line conversion `position.start.line + 1` for body
+links/embeds, synthetic `line: 1` for frontmatterLinks (F5 — cache
+lacks per-entry position); (c) displayText omit-when-equal-to-target
+(Q1 / F6 — Obsidian's natural shape is always-present-sometimes-equal;
+wrapper omits when equal). Source-order sort intra-eval (R8 / FR-008)
+with intra-line `_col`-ascending tiebreak, `_col` stripped before
+emission (Q5). Frontmatter-link inclusion intermingled in source order
+(Q4 / FR-006b). The 2026-05-13 clarifications session locked FIVE
+Q&As: Q1 displayText absent-when-no-alias, Q2 heading/block fragment
+embedded in `target`, Q3 closed three-value `kind` enum (no bare
+URLs), Q4 frontmatter-link inclusion, Q5 column NOT surfaced
+(internal-only sort key). The 2026-05-13 plan-stage findings F1–F14
+confirmed all five Q&As survive live-CLI verification AND resolved
+FR-012's unknown-vault outcome — `eval` DOES emit "Vault not found."
+(F7), so the cli-adapter's 011-R5 inspection clause FIRES and the
+spec-stage structured-error commitment HOLDS without amendment.
+Different from BI-019 / BI-023 / BI-024 inheritance pattern in this
+single respect; matches BI-014 / BI-015 inheritance for the eval
+cohort. F9 confirmed non-`.md` files yield `{}` empty cache → wrapper
+guards in-eval via `f.extension === 'md'` check, surfacing envelope
+code `NOT_MARKDOWN` → `CLI_REPORTED_ERROR`. F10 confirmed empty-list
+contract is natural via `|| []` coalescing (no sentinel-detection
+branch). Anti-injection via base64-encoded JSON payload + frozen JS
+template (R6, parity with BI-014 / BI-015). Additive surface; zero
+existing-tool public-shape changes; zero new error codes; zero new
+ADRs; NO spec amendments at plan stage. Predecessor narratives for
+024-list-properties, 023-outline, 022-rename-typed-tools,
+021-rename-note, 020-fix-write-gaps, 019-list-files, 018, 017, 015
+retained below.
+
+See also:
+
+- [spec.md](specs/025-list-links/spec.md) — feature spec; one
+  /speckit-clarify session ran 2026-05-13 (Q1 displayText
+  absent-when-no-alias, Q2 fragment embedded in `target`, Q3 closed
+  three-value `kind` enum, Q4 frontmatter-link inclusion, Q5 column
+  not surfaced); zero plan-stage spec amendments.
+- [plan.md](specs/025-list-links/plan.md) — implementation plan;
+  Constitution Check PASS on initial + post-Phase-1 evaluation; no
+  Complexity Tracking entries.
+- [research.md](specs/025-list-links/research.md) — Phase 0 decisions
+  R1..R14 + plan-stage live-CLI findings F1..F14 (14 findings spanning
+  native `links` plain-text-only output, metadataCache shape for
+  links/embeds/frontmatterLinks, 0-based-to-1-based line conversion,
+  kind detection via `original` prefix or origin-array, frontmatterLinks
+  lacks position → synthetic line=1, displayText always-present in
+  cache → wrapper omit-when-equal, `eval` emits "Vault not found." for
+  unknown vault → 011-R5 clause FIRES, `getFileCache(canvasFile)`
+  returns `{}` → in-eval `f.extension === 'md'` guard, empty cache →
+  empty-list natural, source-order preserved by cache, self-references
+  appear, no-active-file path, `total` integer return semantic).
+- [data-model.md](specs/025-list-links/data-model.md) — input/output/
+  eval-envelope schema shapes (STANDARD target_mode discriminator;
+  `linksInputSchema` extends `targetModeBaseSchema` with optional
+  `total`), frozen JS template with three load-bearing transforms,
+  base64 payload assembly, per-tool invariants table, module LOC
+  budget (~195 source / ~1120 test), test inventory (18 / 28 / 5 = 51
+  cases), architectural delta map vs predecessors (eval-driven cohort
+  with BI-014 / BI-015).
+- [contracts/links-input.contract.md](specs/025-list-links/contracts/links-input.contract.md)
+  — public input contract: zod schema, emitted JSON Schema shape,
+  field policy, seven worked examples (A–G), error response roster
+  (VALIDATION_ERROR / VAULT_NOT_FOUND / FILE_NOT_FOUND × 2 / NOT_MARKDOWN
+  / NO_ACTIVE_FILE / json-parse / envelope-parse / cap-kill), multi-vault
+  note (structured error, NOT inherited-limitation — different from
+  BI-019 / BI-023 / BI-024), out-of-scope upstream surfaces table
+  (format=json / total flag at CLI level / bare URLs / fragment as
+  separate field / column field / source-discriminator / resolved
+  flag / original / endLine,endColumn / backlinks / multi-hop /
+  vault-wide / canonical-path / request-side filter,sort all rejected).
+- [contracts/links-handler.contract.md](specs/025-list-links/contracts/links-handler.contract.md)
+  — handler invariants: deps shape, single invokeCli call shape
+  (subcommand=eval, parameters.code=<rendered-js>), frozen JS template
+  render (single `__PAYLOAD_B64__` substitution), multi-stage parse
+  step (stage 0 `=> ` prefix strip, stage 1 JSON.parse, stage 2
+  envelope safeParse, stage 3 discriminate on `ok`, stage 4 return),
+  envelope-error → UpstreamError mapping table (NO_ACTIVE_FILE →
+  ERR_NO_ACTIVE_FILE or CLI_REPORTED_ERROR per T0 lock; FILE_NOT_FOUND
+  / NOT_MARKDOWN → CLI_REPORTED_ERROR(stage: envelope-error)), failure
+  propagation chain diagram, test seam pattern with base64 round-trip,
+  single-spawn invariant.
+- [quickstart.md](specs/025-list-links/quickstart.md) — 24 verification
+  scenarios Q-1..Q-24 mapped to SC-001..SC-024; Q-1..Q-18 in CI;
+  Q-19..Q-24 manual against TestVault during T0 of /speckit-implement.
+
+---
+
+## Predecessor feature narrative (024-list-properties) — RETAINED FOR CONTEXT
+
+The 024 narrative below is retained for downstream cross-references
+but is NOT the active planning context. Consult
+[specs/025-list-links/plan.md](specs/025-list-links/plan.md) for the
+active feature; consult
 [specs/024-list-properties/plan.md](specs/024-list-properties/plan.md)
+for the 024 source. Summary: 024 added the eleventh typed-tool wrap
+and the project's SECOND structural-discovery primitive (after BI-023
+outline). User surface `properties({ vault?, total? })` returning `{
+count, properties: Array<{ name, noteCount }> }`. Wraps upstream
+`obsidian properties format=json` natively (NOT eval). Two
+clarifications-session Q&As (Q1 case-insensitive primary sort with
+byte-order tiebreak, Q2 `total: true` outer count = distinct names)
+plus one plan-stage amendment (F4 unknown-vault → documented inherited
+limitation per upstream silently-honoured-as-noop `vault=`). Wrapper-
+side post-fetch sort applied for drift-adjacent display (`Tags` next
+to `tags`). NO target_mode discriminator — vault-only surface. Additive
+surface; PATCH version bump 0.5.1 → 0.5.2; zero new error codes; zero
+new ADRs. Original detail below.
 
 Active feature: **024-list-properties** — adds the eleventh typed-tool
 wrap and the project's **second** structural-discovery primitive (after
@@ -33,9 +161,7 @@ error" to "MUST be documented as an inherited limitation" — live probe
 revealed `vault=` is silently honoured-as-noop by the upstream
 `properties` subcommand (parity with BI-019 / BI-023 / BI-015 / BI-014
 defer-to-upstream pattern). Additive surface; zero existing-tool
-public-shape changes; zero new error codes; zero new ADRs. Predecessor
-narratives for 023-outline, 022-rename-typed-tools, 021-rename-note,
-020-fix-write-gaps, 019-list-files, 018, 017, 015 retained below.
+public-shape changes; zero new error codes; zero new ADRs.
 
 See also:
 
