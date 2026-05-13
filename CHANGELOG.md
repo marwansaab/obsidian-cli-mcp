@@ -5,6 +5,43 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3] - 2026-05-13
+
+**PATCH release (additive surface)** — adds `links`, the twelfth typed-tool wrap and the project's first link-graph primitive. Returns the outgoing-link inventory for a single named note (or the focused note) as a typed `{ count, links: [{ target, line, kind, displayText? }] }` envelope. Wraps the upstream Obsidian CLI's `eval` subcommand under the hood (NOT native `links` — per F1 the native subcommand is plain-text-only with no `format=json` support; the wrapper routes through `app.metadataCache.getFileCache(file).{links,embeds,frontmatterLinks}` to produce the locked per-entry shape). The `total: true` switch returns the count alone with `links: []` for a token-economical pre-flight read. Replaces "full `read` plus client-side Markdown parse" for the outgoing-link inventory case at one to two orders of magnitude less token cost. Spec-id 025-list-links, FR-001..FR-024, SC-001..SC-024.
+
+### Added
+
+- **`links` typed MCP tool** at `src/tools/links/` — schema + handler + frozen `_template.ts` JS template + index + co-located tests (51 cases: 18 schema / 28 handler / 5 registration). Single-spawn architecture (R3): ONE `invokeCli` call per request with `subcommand: eval` and `parameters.code: <rendered-js>`; the `a.total` branch lives INSIDE the eval at envelope emission, so the cross-mode invariant (FR-005a — `count_default === count_total_only`) holds by construction. Three load-bearing in-eval transforms per entry: (a) kind synthesis from origin-array + `original` prefix (`[[…]]` → wikilink, `[…]…` → markdown, embeds → embed, frontmatterLinks → wikilink) per R7/F4/Q3; (b) `position.start.line + 1` body-link conversion AND synthetic `line: 1` for frontmatter entries per R7/F3/F5; (c) displayText omit-when-equal-to-target per R7/F6/Q1. Source-order sort intra-eval with `_col`-ascending intra-line tiebreak; `_col` stripped before emission per R8/Q5. Non-`.md` rejection inside eval via `f.extension === 'md'` guard surfacing `NOT_MARKDOWN` envelope code per F9. Public surface: `links({ target_mode, vault?, file?, path?, total? })` → `{ count, links: [{ target, line, kind, displayText? }] }`. STANDARD target-mode discriminator (parity with `outline` / `read` / `read_heading` / `read_property`).
+- **Non-stub `docs/tools/links.md`** per FR-018 — input contract per mode, output shape × 2 modes, six worked examples (specific by path / specific by basename / active focused / count-only / file-not-found / non-Markdown filetype rejection), full error roster covering `VALIDATION_ERROR` / `CLI_REPORTED_ERROR` (multiple sub-cases: VAULT_NOT_FOUND / FILE_NOT_FOUND × 2 / NOT_MARKDOWN / json-parse / envelope-parse) / `ERR_NO_ACTIVE_FILE` / `CLI_NON_ZERO_EXIT` / `CLI_BINARY_NOT_FOUND`, frontmatter-link inclusion note (intermingled in source order, no `source` discriminator), multi-vault structured-error contract (different from BI-019 / BI-023 / BI-024 inheritance — `eval` DOES emit "Vault not found." so the 011-R5 inspection clause fires), out-of-scope upstream surfaces section.
+- **One-line entry** in `docs/tools/index.md` between `help` and `obsidian_exec`.
+- **Two-line wiring** in `src/server.ts`: import + tools-array entry (alphabetical: inserted between `createHelpTool` and `createObsidianExecTool`).
+- **FR-018 baseline roll-forward**: `src/tools/_register-baseline.json` extended with the `links` entry via `npm run baseline:write`. All other tool fingerprints unchanged byte-identically (SC-018).
+
+### Plan-stage design decisions
+
+- **R2 — `eval` subcommand load-bearing (NOT native `links`)**: probed live 2026-05-13 (F1). The native `links` subcommand is plain-text-only — `format=json` / `tsv` / `csv` all silently ignored, output is alphabetically-sorted `<target> (<status>)` lines with no line / kind / displayText. The wrapper CANNOT satisfy the locked per-entry shape via upstream `links`; must route through `eval` to access `app.metadataCache.getFileCache(file)`. Parity with BI-014 / BI-015 eval cohort.
+- **R5 — Unknown-vault structured-error contract holds (different from BI-019/023/024)**: probed live (F7). `obsidian vault=NonExistent eval code=…` returns `Vault not found.` (plain text, exit 0); the cli-adapter's 011-R5 unknown-vault response-inspection clause FIRES and reclassifies to `CLI_REPORTED_ERROR(code: 'VAULT_NOT_FOUND')`. FR-012 spec-stage commitment holds without amendment. Matches BI-014 / BI-015 inheritance for the eval cohort.
+- **R9 — Empty-list contract natural via `|| []` coalescing (no sentinel needed)**: probed live (F10). `getFileCache(emptyMdFile)` returns `{}` empty cache; the in-eval defensive `c.{frontmatterLinks,links,embeds} || []` coalescing produces `{count: 0, links: []}` naturally. NO sentinel-detection branch (unlike BI-023's `No headings found.` sentinel).
+- **F9 — Non-`.md` rejection in-eval (`f.extension === 'md'` guard)**: probed live. `getFileCache(canvasFile)` returns `{}` empty cache; absent the guard, canvas / png / pdf locators would silently succeed with `{count:0, links:[]}` contradicting FR-014. The eval JS surfaces `NOT_MARKDOWN` envelope code and the wrapper maps to `CLI_REPORTED_ERROR(stage:'envelope-error', code:'NOT_MARKDOWN')`.
+- **T0.2 — active-mode no-focused-file lock to `ERR_NO_ACTIVE_FILE`**: aligned with BI-015 read_heading precedent. The wrapper's `mapEnvelopeError` emits `ERR_NO_ACTIVE_FILE` (not `CLI_REPORTED_ERROR`) for envelope `NO_ACTIVE_FILE` code.
+- **Q1–Q5 clarifications all survive live verification (no spec amendments at plan stage)**: Q1 displayText absent-when-no-alias implementable via wrapper-side omit-when-equal transform; Q2 fragment embedded in target byte-faithful per Obsidian's natural cache shape; Q3 closed three-value `kind` enum (no bare URLs surfaced); Q4 frontmatter-link inclusion via merge of `frontmatterLinks` cache array (synthetic line=1); Q5 column NOT surfaced (internal-only `_col` sort key, stripped before emission).
+
+### Internal
+
+- **Frozen surfaces** (SC-018): `obsidian_exec`, `read`, `write_note`, `delete`, `read_property`, `find_by_property`, `read_heading`, `set_property`, `files`, `rename`, `outline`, `properties`, `help` all byte-stable — input schemas, output shapes, and error codes unchanged. Zero new error codes (FR-017, Constitution IV); zero new ADRs; zero ADR amendments.
+- **Drift detector**: the post-010 consolidated drift detector's `it.each` registry walk auto-covers `links`.
+
+### References
+
+- Spec: [specs/025-list-links/spec.md](specs/025-list-links/spec.md)
+- Plan: [specs/025-list-links/plan.md](specs/025-list-links/plan.md)
+- Research: [specs/025-list-links/research.md](specs/025-list-links/research.md)
+- Data model: [specs/025-list-links/data-model.md](specs/025-list-links/data-model.md)
+- Tasks: [specs/025-list-links/tasks.md](specs/025-list-links/tasks.md)
+- Quickstart: [specs/025-list-links/quickstart.md](specs/025-list-links/quickstart.md)
+- Input contract: [specs/025-list-links/contracts/links-input.contract.md](specs/025-list-links/contracts/links-input.contract.md)
+- Handler contract: [specs/025-list-links/contracts/links-handler.contract.md](specs/025-list-links/contracts/links-handler.contract.md)
+
 ## [0.5.2] - 2026-05-13
 
 **PATCH release (additive surface)** — adds `properties`, the eleventh typed-tool wrap and the project's second structural-discovery primitive (after BI-023 `outline`). Returns the vault-wide catalogue of frontmatter property names with per-property note counts as a typed `{ count, properties: [{ name, noteCount }] }` envelope. Wraps the upstream Obsidian CLI's `properties` subcommand natively (no `eval` composition). The `total: true` switch returns the distinct-names count alone with `properties: []` for a token-economical pre-flight read. Replaces "obsidian_exec plus full-vault grep plus client-side dedup" for the property-inventory case at one to two orders of magnitude less token cost. Spec-id 024-list-properties, FR-001..FR-024, SC-001..SC-021.

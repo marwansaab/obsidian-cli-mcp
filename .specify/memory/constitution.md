@@ -1,66 +1,74 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 1.1.0 → 1.2.0 (MINOR — CLI surface descoped from project
-scope. The project is now MCP-server-only as of v0.2.2; the CLI surface
-envisaged at v1.0.0 ratification was never built.)
+Version change: 1.2.0 → 1.3.0 (MINOR — a new normative gate is added:
+the Constitution Compliance checklist gains a sixth row pointing at
+ADR-010 (Typed Tool Names Mirror Upstream CLI Subcommand). Principles
+I–V are unchanged in substance, name, and rationale; only the per-PR
+review gate widens to acknowledge the new ADR.)
 
 Modified sections:
-  - Project preamble: project-description sentence rewritten — drops the
-    "command-line interface and" clause; the project now exposes "an MCP
-    server surface" only.
-  - Principle I (Modular Code Organization): per-surface enumeration and
-    flow node updated — drops "CLI command", drops the "command/tool"
-    fork in the downward-flow chain, drops the
-    "{schema, command, handler}.ts" template variant. The
-    {schema, tool, handler}.ts shape remains the canonical
-    per-MCP-tool layout. Rationale paragraph updated to drop "CLI surface"
-    reference.
-  - Principle II (Public Surface Test Coverage): drops "every CLI command"
-    from the test-coverage enumeration. The MCP-tool and published-API
-    coverage requirements are unchanged. Rationale paragraph updated.
-  - Principle III (Boundary Input Validation with Zod): drops "Every CLI
-    command parser" and the parenthetical "(CLI help text generation,
-    ...)". Zod-as-source-of-truth and per-issue-error rules are
-    unchanged. Rationale updated.
-  - Principle IV (Explicit Upstream Error Propagation): drops the CLI
-    surface stanza ("the CLI surface MUST surface them as non-zero exit
-    codes..."). UpstreamError shape and SDK serialization rules are
-    unchanged.
-  - Technical Standards & Stack Constraints: deletes the CLI / citty
-    bullet wholesale. The remaining stack constraints are unchanged.
+  - Development Workflow & Quality Gates → point 8 (Constitution
+    Compliance checklist): a sixth row appended below the five
+    Principle rows pointing at ADR-010.
+  - Development Workflow & Quality Gates → the "Any `N` MUST be
+    paired with..." prose immediately below the checklist: rephrased
+    from "no surface that the principle governs" to "no surface that
+    the principle or ADR governs"; the parenthetical example expanded
+    from "a docs-only PR is N/A on II–V" to "a docs-only PR is N/A
+    on II–V; a PR that adds no typed tool is N/A on ADR-010".
+  - Development Workflow & Quality Gates → the "Code review MUST
+    verify each gate explicitly..." paragraph: extended from
+    "Principles I–V by inspection" to "Principles I–V and the ADR-010
+    naming check by inspection".
+  - Footer version line: 1.2.0 → 1.3.0; Last Amended 2026-05-07 →
+    2026-05-13. Ratified date unchanged (2026-05-03).
 
-Added sections: none.
-Removed sections: the CLI / citty bullet under Technical Standards.
-Modified principles: I, II, III, IV — references to a CLI surface
-removed; principle substance unchanged. Principle V unchanged.
+Added sections: none. The new checklist row reuses the existing
+Constitution Compliance checklist machinery — no new top-level
+sections, no new principles, no new normative paragraphs beyond the
+checklist row and the two prose-companion edits.
 
-Driver: aligning the constitution with what the project IS as of v0.2.2.
-The CLI surface envisaged at v1.0.0 ratification (2026-05-03) was never
-built. Eleven months of work later, only the MCP server surface exists
-in src/. Keeping the CLI clauses in the constitution produces a
-recurring N/A pattern in PR Constitution Compliance checklists for
-Principles I-IV and risks future maintainers adding citty as a
-dependency thinking the design demands it. If a CLI surface is later
-wanted, it lands as a future amendment.
+Removed sections: none.
+
+Modified principles: none. Principles I–V are byte-stable in name,
+ordering, and rationale. The change is purely additive at the
+per-PR gate layer.
+
+Driver: codifying the typed-tool naming convention that BI-0061
+(022-rename-typed-tools) applied wholesale in
+@marwansaab/obsidian-cli-mcp@0.5.0 — renaming `read_note → read`,
+`delete_note → delete`, `list_files → files`, `write_property →
+set_property`, `rename_note → rename` to mirror upstream Obsidian CLI
+subcommand names. The convention previously lived only in BI-0061
+prose. ADR-010 (decided 2026-05-13, file at
+.decisions/ADR-010 - Typed Tool Names Mirror Upstream CLI Subcommand.md)
+lifts the convention into a normative artefact. The new Constitution
+Compliance row is the per-PR enforcement gate that catches non-
+conforming names at /speckit-plan time, complementing the FR-018
+registry-stability baseline test (already shipped under BI-0061)
+which catches drift in the CURRENT set but cannot catch a new tool
+introduced with a non-conforming name.
 
 Templates requiring updates:
-  - .specify/templates/plan-template.md: ✅ no CLI-specific references.
-  - .specify/templates/spec-template.md: ✅ no CLI-specific references.
-  - .specify/templates/tasks-template.md: ✅ no CLI-specific references.
-  - .specify/templates/checklist-template.md: ✅ no CLI-specific references.
-  - CLAUDE.md: ✅ already defers to plan/constitution; no edits required.
+  - .specify/templates/plan-template.md: ✅ Constitution Check
+    section already references "Constitution Check gate documented in
+    the plan template"; no edit required — plans cite ADRs alongside
+    principles in the existing free-form gate evidence rows.
+  - .specify/templates/spec-template.md: ✅ no constitution-gate
+    references; no edit required.
+  - .specify/templates/tasks-template.md: ✅ no constitution-gate
+    references; no edit required.
+  - .specify/templates/checklist-template.md: ✅ no constitution-gate
+    references; no edit required.
+  - CLAUDE.md: ✅ already defers to plan/constitution; no edits
+    required.
 
 Follow-up TODOs:
-  - README.md: confirm it does not describe a user-facing CLI command
-    set or `citty`-based parser. The `bin` entry in package.json
-    (`obsidian-cli-mcp` → `dist/index.js`) is the MCP server's
-    executable for `npx -y` invocation by MCP clients, NOT a CLI
-    surface in the constitution's sense — that field stays.
-  - package.json: confirm `dependencies` does not list `citty`. The
-    `bin` field stays per the note above. (Verified at amendment
-    time: dependencies = @modelcontextprotocol/sdk, zod,
-    zod-to-json-schema — no citty present.)
+  - None. ADR-010 is already in place at
+    .decisions/ADR-010 - Typed Tool Names Mirror Upstream CLI Subcommand.md
+    and registered in .decisions/Decision Log.md (verified at
+    amendment time).
 -->
 
 # obsidian-cli-mcp Constitution
@@ -253,11 +261,12 @@ The following gates apply to every change before it can be merged:
    - [ ] Principle III (Boundary Input Validation with Zod): Y / N / N/A
    - [ ] Principle IV (Explicit Upstream Error Propagation): Y / N / N/A
    - [ ] Principle V (Attribution & Layered Composition): Y / N / N/A
+   - [ ] ADR-010 (Typed Tool Names Mirror Upstream CLI Subcommand): Y / N / N/A
 
    Any `N` MUST be paired with a Complexity Tracking entry in the corresponding
    plan that justifies the deviation. `N/A` is permitted only when the change
-   touches no surface that the principle governs (e.g., a docs-only PR is N/A
-   on II–V).
+   touches no surface that the principle or ADR governs (e.g., a docs-only PR
+   is N/A on II–V; a PR that adds no typed tool is N/A on ADR-010).
 
 **Spec-kit workflow**: Any feature larger than a single-file change MUST
 enter via `/speckit-specify` → `/speckit-clarify` (repeated until no
@@ -268,7 +277,8 @@ The plan's Constitution Check table cites how each principle is satisfied
 or documents and justifies any deviation. `tasks.md` is dependency-ordered.
 
 Code review MUST verify each gate explicitly; "CI is green" is necessary but
-not sufficient — reviewers also confirm Principles I–V by inspection.
+not sufficient — reviewers also confirm Principles I–V and the ADR-010 naming
+check by inspection.
 
 ## Governance
 
@@ -297,4 +307,4 @@ and in feature-specific plans under `specs/`. Those documents MUST defer to
 this constitution; if they imply a contradiction, treat it as a bug in the
 guidance document and fix it.
 
-**Version**: 1.2.0 | **Ratified**: 2026-05-03 | **Last Amended**: 2026-05-07
+**Version**: 1.3.0 | **Ratified**: 2026-05-03 | **Last Amended**: 2026-05-13
