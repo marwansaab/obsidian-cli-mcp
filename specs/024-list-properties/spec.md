@@ -1,0 +1,222 @@
+## Feature Specification: Properties — Vault-Wide Frontmatter Property Inventory
+
+**Feature Branch**: `024-list-properties`
+**Created**: 2026-05-13
+**Status**: Draft
+**Input**: User description: "List Vault Properties — a new tool that returns the catalogue of frontmatter property names in active use across an Obsidian vault, alongside the number of notes each property appears in."
+
+## User Scenarios & Testing *(mandatory)*
+
+### User Story 1 — Vault-wide property inventory with per-property note counts (Priority: P1)
+
+An agent needs the complete catalogue of frontmatter property names in active use across a vault, along with the number of notes carrying each name — for example "what frontmatter fields exist in this knowledge base before I propose a per-property read?", "give me the inventory so I can detect duplicate naming such as `tag` vs `tags`", or "list every property so I can audit which ones are widely used and which are orphans". The agent calls the property-inventory tool with no scope parameter (or with an explicit `vault` display name when more than one vault is configured). The tool returns the flat ordered list of distinct property names found in any note's frontmatter across the entire vault, each entry carrying the property name and a non-negative integer count of notes carrying that name.
+
+**Why this priority**: This is the dominant use case and the entry point that justifies the feature's existence. Today an agent that wants to ground a downstream per-property read or value-to-file lookup on a real field has no efficient discovery path — it must either guess from convention (brittle, leads to silent empty results when the guess is wrong) or text-grep across thousands of notes (slow, conflates YAML keys with body content, picks up property-like tokens inside fenced blocks). A single typed call turns "what fields are even available?" into a deterministic answer. Without this story the feature offers no value; every other story refines this primary read path.
+
+**Independent Test**: Construct a vault with at least three notes carrying overlapping frontmatter (e.g. one note with `status: draft, tags: [a]`; one with `status: published, author: bob`; one with no frontmatter at all). Call the tool. Assert the response carries a `count` of 3 distinct property names (`status`, `tags`, `author`), and one entry per name with `noteCount` reflecting how many notes carry that name (`status: 2`, `tags: 1`, `author: 1`). Independently testable in isolation; nothing in P2/P3 is required.
+
+**Acceptance Scenarios**:
+
+1. **Given** a vault containing five notes whose frontmatter collectively declares `status` (in 3 notes), `tags` (in 4 notes), `author` (in 1 note), `created` (in 5 notes), and where the body of one note contains a `## status` heading and a fenced YAML example block declaring `category: foo`, **When** the agent invokes the tool, **Then** the response carries `count: 4` and a `properties` list with four entries (`status` / `tags` / `author` / `created`); each entry's `noteCount` matches the on-disk frontmatter count; the body-content `## status` heading and the fenced `category: foo` token are NOT in the listing.
+2. **Given** a vault containing no notes with frontmatter at all (all notes start with body content; no `---`-delimited frontmatter block exists in any note), **When** the agent invokes the tool, **Then** the response succeeds with `count: 0` and `properties: []` — no error.
+3. **Given** two notes that both declare a property whose name is identical at the byte level (e.g. both carry a `status:` key), **When** the agent invokes the tool, **Then** the listing carries exactly one entry for that property with `noteCount: 2` (the wrapper deduplicates property names; it does not return two separate entries for the same byte-identical name).
+4. **Given** two notes whose property names differ only in case (e.g. one note carries `Tags:`, another carries `tags:`), **When** the agent invokes the tool, **Then** the listing carries two entries (case-sensitive deduplication) — `Tags` with `noteCount: 1` and `tags` with `noteCount: 1`. Callers detecting case-drift can act on it.
+5. **Given** a vault containing a note whose body includes a fenced code block where a line declares `pretendkey: value` (visually resembling a YAML key but inside a fence), **When** the agent invokes the tool, **Then** `pretendkey` is NOT in the listing — only true frontmatter YAML keys are counted, not body content.
+6. **Given** a note whose frontmatter contains a YAML key whose value is null or empty (e.g. `tags:` with nothing on the right-hand side), **When** the agent invokes the tool, **Then** that note IS counted as carrying the property (presence of the key in frontmatter is what counts; the value's emptiness does not exclude it).
+
+---
+
+### User Story 2 — Named-vault scoping in multi-vault setups (Priority: P1)
+
+An agent operating in a multi-vault configuration needs the property inventory of one specific vault by display name. The agent calls the tool with the `vault` parameter set. The tool returns the inventory scoped to that vault. When the named vault is not registered, the tool surfaces a clear error identifying the unknown vault rather than silently returning the focused vault's inventory or an empty success.
+
+**Why this priority**: Multi-vault scoping is the standard pattern for every typed tool that operates on a vault scope (`files`, `find_by_property`, every per-file tool's `specific` mode). Omitting it would create an inconsistency in the typed surface AND make the answer ambiguous for any user with more than one vault registered. Pairs equally with US1.
+
+**Independent Test**: Configure two vaults `A` and `B` with disjoint frontmatter inventories. Call the tool once with `vault: "A"` and once with `vault: "B"`. Assert each response covers only the named vault's inventory. Call once with `vault: "DoesNotExist"`. Assert the call fails with a structured error naming the unknown vault.
+
+**Acceptance Scenarios**:
+
+1. **Given** vaults `A` and `B` are registered AND `A` declares `status`/`tags` across its notes while `B` declares `priority`/`due` across its notes, **When** the agent calls the tool with `{ vault: "A" }`, **Then** the response covers `status` and `tags` only; `priority` and `due` are absent.
+2. **Given** `vault: "Unknown"` names a display name that is not registered, **When** the agent calls the tool, **Then** the call fails with a structured error preserving the operation's context (the unknown vault display name appears in the error message) — not an empty success.
+3. **Given** the `vault` field is omitted from the call AND a focused Obsidian vault is reachable, **When** the agent calls the tool, **Then** the response covers the focused vault's inventory. The omitted-vault behaviour mirrors the inherited multi-vault default-ambiguity contract of every other vault-scoped typed tool in the project.
+
+---
+
+### User Story 3 — Validation rejects malformed inputs at the boundary (Priority: P1)
+
+An agent (or a misbehaving caller) submits an input shape that violates the tool's contract. The tool MUST reject the call at the validation boundary, before any underlying CLI invocation occurs, and MUST surface a structured validation error that names the offending field.
+
+**Why this priority**: Validation is the safety contract for every typed tool in this project, and zod-as-source-of-truth is a constitutional requirement. Without it, malformed callers reach the CLI and produce undefined or harmful behaviour. Independently testable because every validation case can be exercised with a mock/spy on the CLI dispatcher to assert the dispatcher was never called.
+
+**Independent Test**: For each invalid input shape, call the tool with a CLI dispatcher spy. Assert the call rejects with a structured validation error AND that the dispatcher was never invoked. No real CLI or vault required.
+
+**Acceptance Scenarios**:
+
+1. **Given** any input with an unknown top-level key (e.g. `{ vault: "Demo", file: "note.md" }` — `file` is not part of this tool's surface), **When** the call is forwarded by an MCP client that does NOT strip unknown keys, **Then** the server-side validation fails; no CLI call is made.
+2. **Given** `vault` set to an empty string `""`, **When** the agent calls the tool, **Then** the call fails validation; no CLI call is made.
+3. **Given** `vault` set to a non-string value (e.g. a number or null), **When** the agent calls the tool, **Then** the call fails validation; no CLI call is made.
+4. **Given** `total` set to a non-boolean value (e.g. the string `"true"`), **When** the agent calls the tool, **Then** the call fails validation; no CLI call is made.
+5. **Given** `vault` containing path-traversal characters (e.g. `"../Other"`) or shell metacharacters, **When** the agent calls the tool, **Then** the call is rejected — either at the input-validation boundary or by the underlying vault-access layer; in both cases a structured error reaches the caller and no escape from the vault occurs.
+
+---
+
+### User Story 4 — Count-only mode skips the per-entry payload (Priority: P2)
+
+An agent only needs to know how many distinct property names a vault has — for a structural audit ("does this vault have fewer than ten distinct frontmatter fields?"), a heuristic ("is this vault's frontmatter discipline tight or sprawling?"), or a pre-flight check before deciding whether a full listing is worthwhile. The agent calls the tool with `total: true`. The response carries the `count` only — the `properties` list is empty. The tool MUST NOT pay the per-entry payload cost when the caller asks only for a count.
+
+**Why this priority**: Count-only mode matches the established `total: true` precedent shared by the project's other enumerating tools (`files`, `outline`, and the upstream `properties` subcommand's own `total` flag). It is an optimisation, not a requirement of the core read path; agents that always set `total: false` lose no functionality. Independently testable from US1 with a separate single-line input variation.
+
+**Independent Test**: Author a fixture vault with N distinct frontmatter properties (N > 0) and a fixture vault with zero frontmatter properties. Call the tool with `total: true` against each. Assert the first response carries `count: N` and an empty `properties` list; assert the second response carries `count: 0` and an empty `properties` list. Both succeed.
+
+**Acceptance Scenarios**:
+
+1. **Given** a vault with exactly seven distinct frontmatter property names, **When** the agent calls the tool with `{ total: true }`, **Then** the response carries `count: 7` and `properties: []` (empty list).
+2. **Given** a vault with zero notes carrying frontmatter, **When** the agent calls the tool with `{ total: true }`, **Then** the response carries `count: 0` and `properties: []` (empty list); no error.
+3. **Given** count-only mode AND a `vault` parameter naming an unknown vault, **When** the agent calls the tool, **Then** the call fails with a structured error — count-only mode does NOT short-circuit the unknown-vault error path.
+
+---
+
+### User Story 5 — Documentation surface for the typed tool (Priority: P2)
+
+An operator or agent inspects the project's progressive-disclosure help facility to understand how the property-inventory tool works. The published documentation MUST cover the per-field input contract, the output shape (both with and without count-only mode), the failure-mode roster, and at least four worked examples covering at least: a default-scope happy path, a named-vault happy path, a count-only-mode call, and at least one failure path (unknown-vault OR validation-rejection).
+
+**Why this priority**: The help facility is the primary discovery surface for tool consumers (mirrored from every typed tool). The tool is callable without docs but undiscoverable without them. Should-pass for ship; not required for the read code path itself to function. Independently testable by loading the help facility output and asserting structural completeness.
+
+**Independent Test**: Invoke the help facility for the property-inventory tool. Assert the doc carries: per-field input contract, output shape for both default and count-only modes, failure-mode roster, and at least four worked examples covering at least four distinct usage modes. The registry-consistency test from `005-help-tool` already auto-asserts the file's existence once the tool is registered; this story expands the assertion to content completeness.
+
+**Acceptance Scenarios**:
+
+1. **Given** the help facility, **When** an operator queries the property-inventory tool, **Then** the response carries the full per-field input contract, the output shape for both default and count-only modes, the failure-mode roster (including unknown-vault, validation-rejection, and the practical ceiling for vaults with unusually many distinct property names), and at least four worked examples covering at least four distinct usage modes from {default-scope happy path, named-vault happy path, count-only-mode call, unknown-vault error, validation-rejection error}.
+2. **Given** the help facility, **When** an operator queries the property-inventory tool, **Then** the doc explicitly names the practical ceiling for very large inventories (the underlying execution layer's output cap inherited from feature 003) so callers can choose to defer to a different discovery strategy when a vault's inventory is unusually large.
+
+---
+
+### Edge Cases
+
+The implementation MUST handle, document, or explicitly defer each of the following observable shapes.
+
+**CONCURRENCY**
+
+- The vault may be edited (frontmatter added, removed, renamed) between the moment the request is received and the moment its contents are scanned. The response reflects the vault's state at the moment of scan; there are no stale-read or partial-update guarantees beyond that. Documented as a known limitation.
+
+**CONTENT — duplicate property name across notes**
+
+- A property name carried by N notes MUST appear as exactly one entry in the listing with the `noteCount` field set to N. The wrapper deduplicates by byte-identical name; it does not return one entry per occurrence.
+
+**CONTENT — case-distinct property names**
+
+- Property names differing only in case (e.g. `Tags` vs `tags`) MUST appear as separate entries. YAML key matching is case-sensitive at the byte level; case-folding is the caller's concern.
+
+**CONTENT — empty inventory**
+
+- A vault containing zero notes with frontmatter MUST return `{ count: 0, properties: [] }` — no error. Both default and count-only modes share this contract.
+
+**CONTENT — body-content opacity**
+
+- Property-like tokens that appear in a note's body (in fenced code blocks, in indented code blocks, inside YAML example blocks the author embeds for documentation, in inline prose) MUST NOT be returned in the listing. Only true frontmatter YAML keys — the keys declared in a note's `---`-delimited frontmatter block — are counted.
+
+**CONTENT — properties with null or empty values**
+
+- A YAML key whose value is null, empty, or whitespace-only (e.g. `foo:` with nothing on the right, `foo: ~`, `foo: null`, `foo: ""`) MUST still be counted — presence of the key is what counts as "carrying the property", not the value's content. The feature does not surface per-property value semantics.
+
+**CONTENT — special Obsidian properties**
+
+- Obsidian's reserved property names (`tags`, `aliases`, `cssclasses`, and others added by future Obsidian releases) MUST be treated as regular frontmatter properties — they appear in the listing alongside user-defined names, with their note counts. The wrapper does NOT filter or distinguish reserved names from user-defined names.
+
+**CONTENT — nested or compound YAML values**
+
+- A note's frontmatter MAY contain values that are themselves nested structures (a list, a mapping, a multi-line scalar). The listing counts the top-level key only — for example a frontmatter block declaring `nested:\n  child: foo` MUST yield exactly one entry for `nested`, not separate entries for `nested` and `nested.child`. Counting is at the top-level YAML key.
+
+**CONTENT — sort order**
+
+- The `properties` list MUST be in a stable, deterministic order across repeated calls on an unchanged vault. The default ordering is alphabetical ascending by property name in case-sensitive byte order (the same default the upstream CLI advertises). The wrapper does not expose alternative sort-order parameters in this feature; callers needing frequency-ordered or custom-sorted views re-sort the list client-side.
+
+**CONTENT — very large inventories and the underlying execution layer's output cap**
+
+- The underlying execution layer enforces a 10 MiB output cap on a single CLI invocation (inherited from feature 003). A vault whose serialised inventory would exceed this cap MUST produce a structured `CLI_NON_ZERO_EXIT` (output-cap kill) rather than a silent truncation. The practical ceiling MUST be documented in the published help facility so callers can choose to defer when their vault's inventory is unusually large.
+
+**UNDERLYING CLI — unknown vault**
+
+- An unknown vault display name may produce a CLI response that the existing bridge classifier reclassifies to a structured error (the same shape covered for `delete` / `write_note` / `read_property` / `set_property` / `read` via the 011-R5 inheritance). Alternatively the upstream CLI may silently honour-as-noop the `vault=` parameter for this subcommand and use the focused vault instead — parity with `files` / `read_heading` / `find_by_property` / `outline` per plan-stage findings in those features. The locus of the unknown-vault contract MUST be settled at plan stage via a live probe, and either path satisfies User Story 2's intent — a structured error from the wrapper OR a documented inherited limitation surfaced in the published help facility. The wrapper MUST NOT add a vault-registry pre-check (rejected by precedent as adding per-call probe cost without changing the architectural reality).
+
+**CLIENT-CLASS — unknown-key validation**
+
+- The server-side validation behaviour for "unknown top-level keys" (US3 scenario 1) is directly observable only from MCP clients that forward unknown keys to the server. Strict-naive clients strip unknown keys client-side per the published JSON Schema's `additionalProperties: false`, in which case the server never sees the offending key and validation does not trigger. Both pathways MUST be documented; the test case MUST exercise the server-side path explicitly so the validation contract holds for the client class that does forward unknown keys.
+
+**SECURITY — structural data-passing**
+
+- The `vault` field is caller-supplied. The implementation MUST pass it to the underlying CLI as **data** (a process argument or structured parameter), never as text concatenated into a shell command, an `eval` payload, or any other text-based execution surface. Path-traversal handling for `vault` (US3 scenario 5) is independently a separate concern handled either at the schema layer or by the underlying vault-access layer.
+
+## Requirements *(mandatory)*
+
+### Functional Requirements
+
+- **FR-001**: System MUST expose a typed MCP tool named `properties` that returns the catalogue of frontmatter property names in active use across a vault, alongside the number of notes each property appears in. The tool's registered name follows the project's post-022 single-word-verbatim-from-upstream convention (the upstream Obsidian CLI subcommand is `properties`; parity with `files` from BI-019 post-rename).
+- **FR-002**: The tool MUST accept an optional `vault` field — a non-empty string display name. When omitted, the wrapper defers to the focused vault per the inherited multi-vault default-ambiguity pattern shared by every vault-scoped typed tool in the project.
+- **FR-003**: The tool MUST accept an optional `total` boolean field, defaulting to `false`. When `total: true`, the response carries the count only and the `properties` list MUST be empty. When `total: false` (or omitted), the response carries the full inventory.
+- **FR-004**: The tool MUST NOT accept a `target_mode` discriminator OR any per-file locator (`file`, `path`, `active`). Property inventory is inherently vault-wide; per-note frontmatter dumps are out of scope for this feature and are addressed by the existing `read_property` surface.
+- **FR-005**: The tool's input schema MUST forbid unknown top-level keys (`additionalProperties: false`).
+- **FR-006**: The tool MUST return an output object with two fields: `count` (a non-negative integer — the total number of distinct frontmatter property names found in the vault) and `properties` (an ordered list of per-property entries). The list is empty when `total: true`; it is fully populated when `total: false`.
+- **FR-007**: Each per-property entry MUST carry exactly two fields: `name` (the property name as a string, byte-faithful to the YAML key as declared in source) and `noteCount` (a non-negative integer — the number of notes whose frontmatter declares this property name).
+- **FR-008**: The `properties` list MUST deduplicate by byte-identical name. A property name carried by N notes MUST appear as exactly one entry whose `noteCount` is N.
+- **FR-009**: Property-name matching MUST be case-sensitive at the byte level. Names differing only in case (e.g. `Tags` vs `tags`) MUST appear as separate entries.
+- **FR-010**: The tool MUST count only frontmatter YAML keys — keys declared in a note's `---`-delimited frontmatter block. Property-like tokens that appear elsewhere in the note (in body prose, in fenced code blocks, in indented code blocks, in inline YAML examples) MUST NOT be returned. The implementation MAY satisfy this requirement by deferring to the upstream CLI / Obsidian metadata cache, which already separates frontmatter from body content; no wrapper-side YAML detector is required.
+- **FR-011**: A YAML key whose value is null, empty, or whitespace-only MUST still be counted as carrying the property — presence of the key in frontmatter is the inclusion criterion, not the value's content.
+- **FR-012**: Counting MUST be at the top-level YAML key only. A frontmatter block declaring `nested:\n  child: foo` MUST yield exactly one entry for `nested`, not separate entries for `nested` and `nested.child`.
+- **FR-013**: The `properties` list MUST be in a stable, deterministic order across repeated calls on an unchanged vault. The default ordering is alphabetical ascending by property name in case-sensitive byte order. The wrapper does NOT expose alternative sort-order parameters in this feature.
+- **FR-014**: A vault with zero notes carrying frontmatter MUST return `{ count: 0, properties: [] }` — no error. Count-only mode and default mode share this contract.
+- **FR-015**: The tool MUST surface a clear, structured error when the `vault` parameter names an unknown vault display name. The error MUST identify the unknown vault. The locus of the error contract (wrapper-side reclassification via 011-R5 inheritance, OR documented inherited limitation if the upstream CLI silently honours-as-noop) MUST be settled at plan stage based on a live probe of the upstream `properties` subcommand; either path satisfies User Story 2's intent.
+- **FR-016**: All validation failures MUST occur strictly before any underlying CLI invocation. Tests MUST be able to assert a CLI dispatcher spy was never called for invalid inputs.
+- **FR-017**: A `vault` value containing path-traversal characters or shell metacharacters MUST be rejected. The locus of rejection MAY be the input-validation boundary, the underlying vault-access layer, or both; in all cases a structured error MUST reach the caller and no escape from the vault MUST occur.
+- **FR-018**: Errors MUST flow through the project's existing structured error codes — no new error codes MUST be introduced by this feature. Validation failures MUST surface as `VALIDATION_ERROR`; CLI failures MUST surface through the existing CLI-failure codes; the unknown-vault case MUST surface through one of those existing codes (selected at planning time based on the live-probe outcome of FR-015).
+- **FR-019**: The tool MUST be registered through the project's existing typed-tool registration factory. The progressive-disclosure help facility's documentation file for the tool MUST be authored with the per-field input contract, the output shape (for both default and count-only modes), the failure-mode roster, the practical ceiling for very large inventories, and at least four worked examples covering at least four distinct usage modes from {default-scope happy path, named-vault happy path, count-only-mode call, unknown-vault error, validation-rejection error}.
+- **FR-020**: Each acceptance criterion across US1–US5 MUST be locked by at least one regression test that survives subsequent re-runs unchanged. The test count MUST be sufficient to cover schema validation, handler behaviour, and registration consistency.
+- **FR-021**: The feature MUST run a live-CLI characterisation pass before ship that documents observable CLI behaviour for: default-scope happy path with notes carrying multiple distinct properties; default-scope with zero frontmatter; default-scope with two notes carrying the byte-identical property name (verifies deduplication); default-scope with two notes carrying property names differing only in case (verifies case-sensitive deduplication); default-scope with body-content YAML-like tokens in fenced and indented code blocks (verifies the deferred-to-upstream body-opacity contract); default-scope with a note whose frontmatter contains a null-valued key (verifies the FR-011 inclusion contract); default-scope with a note whose frontmatter contains a nested YAML value (verifies the FR-012 top-level-key contract); default-scope with Obsidian's reserved property names (`tags`, `aliases`, `cssclasses`) declared (verifies reserved-name handling); default-scope sort-order verification across multiple property names; count-only mode against a populated vault; count-only mode against an empty vault; named-vault scoping with a real registered vault; named-vault scoping with an unknown vault (locks the FR-015 outcome — structured error OR documented inherited limitation); very-large-inventory cap-boundary behaviour. Findings MUST be persisted in the feature's research artefact.
+- **FR-022**: The feature MUST NOT change the public surface of any existing typed tool (`read`, `delete`, `files`, `write_note`, `read_property`, `find_by_property`, `set_property`, `read_heading`, `rename`, `outline`, `obsidian_exec`, the help tool). The only permitted edit to existing source is the addition of the new tool to the registration list AND the corresponding rolled-forward FR-018 baseline (per feature 022's durable registry-stability machinery).
+- **FR-023**: All new source files introduced by this feature MUST carry the project's "Original — no upstream." attribution header per the project Constitution's originality principle.
+- **FR-024**: The `vault` input MUST be passed to the underlying CLI as **data** (a process argument or structured parameter), never interpolated into a shell-evaluated string, an `eval` payload, or any other text-based execution surface.
+
+### Key Entities *(include if feature involves data)*
+
+- **Property entry**: A record describing one distinct frontmatter property name observed in the vault. Carries two fields: `name` (the YAML key byte-faithful from source, deduplicated case-sensitively) and `noteCount` (a non-negative integer — how many notes carry this name in their frontmatter).
+- **Inventory**: An ordered list of property entries in stable deterministic order (alphabetical ascending by name in case-sensitive byte order) plus a `count` (the list's length — the number of distinct property names found in the vault). The list is fully populated in default mode and empty in count-only mode (`total: true`); the `count` is identical in both modes.
+- **Vault scope**: An optional reference to a registered Obsidian vault by display name. When omitted, the wrapper defers to the focused vault per the inherited multi-vault default-ambiguity pattern. When supplied and registered, the inventory is scoped to that vault. When supplied and unknown, the call fails (or the upstream CLI silently honours-as-noop, with the limitation documented — settled at plan stage).
+
+## Success Criteria *(mandatory)*
+
+### Measurable Outcomes
+
+- **SC-001**: A default-scope call against a fixture vault carrying multiple notes with overlapping frontmatter returns every distinct property name with correct per-property `noteCount` in 100% of test runs.
+- **SC-002**: A default-scope call against a fixture vault carrying zero frontmatter returns `{ count: 0, properties: [] }` with no error in 100% of test runs.
+- **SC-003**: A property name carried by N notes (N >= 2) appears as exactly one entry with `noteCount: N` in 100% of test runs (deduplication contract).
+- **SC-004**: Property names differing only in case appear as separate entries in 100% of test runs (case-sensitive contract).
+- **SC-005**: Property-like tokens appearing only in body content (fenced code blocks, indented code blocks, inline prose) do NOT appear in the listing in 100% of test runs (body-opacity contract).
+- **SC-006**: A YAML key with a null, empty, or whitespace-only value is counted as carrying the property in 100% of test runs (presence-is-inclusion contract).
+- **SC-007**: A frontmatter block carrying a nested YAML value yields exactly one entry for the top-level key (not separate entries for nested children) in 100% of test runs.
+- **SC-008**: A named-vault call with a real registered vault returns that vault's inventory and only that vault's inventory in 100% of test runs.
+- **SC-009**: An unknown-vault call produces a structured error identifying the unknown vault OR is documented as an inherited limitation (settled at plan stage per FR-015); whichever outcome is selected, the call does NOT silently return an empty success in any test run.
+- **SC-010**: Every invalid input shape rejected at the validation boundary (US3 scenarios 1–5) produces a structured error AND zero underlying CLI invocations across 100% of test runs.
+- **SC-011**: A `vault` value containing path-traversal characters or shell metacharacters is rejected (at the schema layer or the vault-access layer) and never produces a successful read against a vault outside the registered set in 100% of test runs.
+- **SC-012**: Count-only mode returns `{ count: N, properties: [] }` for both N > 0 and N = 0 cases in 100% of test runs; count-only mode also surfaces the unknown-vault error path when the `vault` parameter is unknown (does NOT short-circuit it).
+- **SC-013**: The `properties` list is in alphabetical ascending order by property name in case-sensitive byte order across 100% of test runs against multi-property fixtures.
+- **SC-014**: An agent retrieving a vault's full property inventory can do so in a single tool call returning a payload typically far smaller than the equivalent text-grep across all notes (an inventory of a vault with 50 distinct property names is on the order of a few hundred bytes; the grep alternative scans the full vault content). Token saving relative to a full-vault grep is observable from any tracing layer that records request/response payload sizes.
+- **SC-015**: Every byte of the public output of the existing typed tools (`read`, `delete`, `files`, `write_note`, `read_property`, `find_by_property`, `set_property`, `read_heading`, `rename`, `outline`, `obsidian_exec`, the help tool) is unchanged by this feature, except for the help facility growing one new entry for the property-inventory tool AND the FR-018 baseline file rolling forward to include the new tool's fingerprint.
+- **SC-016**: The published documentation for the property-inventory tool covers the full per-field input contract, the output shape (for both default and count-only modes), the failure-mode roster, the practical ceiling for very large inventories, and at least four worked examples covering at least four distinct usage modes.
+- **SC-017**: Every acceptance criterion across US1–US5 is locked by at least one regression test, totalling no fewer than 20 tests across schema, handler, and registration suites.
+- **SC-018**: Zero new error codes are introduced by this feature; every failure flows through existing structured error codes.
+- **SC-019**: The live-CLI characterisation pass (FR-021) documents observable behaviour for all 13 cases enumerated in FR-021, persisted in the feature's research artefact and surfaceable from the published documentation.
+- **SC-020**: The caller-supplied `vault` input cannot reach a shell-evaluated context. The structural data-passing contract is verifiable by inspection of the dispatcher call shape (no shell, no `eval`-payload string interpolation of the vault display name).
+- **SC-021**: A vault whose serialised inventory would exceed the underlying execution layer's 10 MiB cap produces a structured `CLI_NON_ZERO_EXIT` (output-cap kill) rather than a silent truncation in 100% of test runs.
+
+## Assumptions
+
+- **Tool name**: The registered tool name is `properties`, per the project's post-022 single-word-verbatim-from-upstream convention (FR-001). Confirmed at spec stage 2026-05-13 via `obsidian help` output: the upstream Obsidian CLI subcommand for listing vault-wide frontmatter properties is `properties` (single-word). Parity with `files` (BI-019 post-rename — single-word verbatim from upstream `files` subcommand). Source dir `src/tools/properties/`; factory `createPropertiesTool`.
+- **Output field naming**: Per-entry fields are `name` (the property name) and `noteCount` (the integer count of notes carrying that property). The outer envelope field `count` carries the number of distinct property names — semantically distinct from the per-entry `noteCount` and named to avoid collision. This is a spec-level commitment; plan-stage live probe may surface a wire-format variation requiring a parsing transform, but the public output contract is the names committed here.
+- **Sort order**: Default ordering is alphabetical ascending by property name in case-sensitive byte order (FR-013). This matches the upstream CLI's documented default (`sort=name` per `obsidian help properties`). Callers needing a different order re-sort the list client-side; the wrapper does NOT expose alternative sort parameters in this feature.
+- **Count-only field name**: The optional boolean `total` (FR-003) follows the established precedent shared by features 019 (`files`'s `total` field), 023 (`outline`'s `total` field), and the upstream `properties` subcommand's own `total` flag. The default is `false` so existing callers unaware of count-only mode receive the full inventory.
+- **Active mode not supported**: Per the user's out-of-scope list, active-mode "focused-note" scope is not exposed (FR-004). Per-note frontmatter dumps are already covered by the existing `read_property` surface; surfacing them through this tool would duplicate functionality. Conversely, vault-scoping omits the per-file locators (`file`, `path`, `active`) that the upstream `properties` subcommand otherwise accepts — those facets are intentionally hidden by the wrapper.
+- **Output shape consistency between modes**: The same envelope `{ count, properties }` is returned in both default and count-only modes (FR-006); count-only differs only by `properties` being empty. This eliminates a discriminated-union output type and keeps client code uniform.
+- **The bridge classifier's existing inheritance for unknown-vault response inspection** (introduced in feature 011 and inherited unchanged by features 012, 013, 014, 015, 018, 019, 021, 022) is applicable to this feature's CLI subcommand. If the underlying response shape differs (as occurred for BI-019 and BI-023 where upstream silently honours-as-noop the `vault=` parameter), the feature's planning phase will surface that as a delta and the FR-015 contract will be resolved there — either reclassification or documented inherited limitation.
+- **No new error codes; additive surface**: The release impact is purely additive — no existing tool's public surface changes; no error codes are added; no ADRs are amended. Version bump deferred to plan stage; precedent (BI-023 outline) used PATCH for additive surface changes.
+- **The post-008 module-layout convention** (`{schema, handler, index}.ts` plus co-located `*.test.ts`) and the post-022 FR-018 baseline machinery (`npm run baseline:write` rolls the registry-stability baseline forward in the same commit) are the conventions this feature consumes. No precedent feature's spec or plan is amended.
+- **Out of scope** for this feature, recorded here so the planning phase does not silently absorb them: listing the VALUES held by any property (the existing `read_property` surface returns a single file's property value; the existing `find_by_property` surface returns notes carrying a specific value); filtering or grouping the inventory by property type / folder / tag (callers filter the listing client-side); returning per-property type metadata such as text / list / number / checkbox / date / datetime (type-aware enumeration is deferred to a later capability); writing, renaming, merging, or removing properties (this feature is read-only); active-mode "focused-note" scope and per-file scoping via `file` / `path` parameters (vault inventory is inherently vault-wide; per-note frontmatter dumps are already covered by `read_property`); surfacing per-property example notes or paths (once a property name is known, the existing `find_by_property` surface returns the list of notes carrying any given value).
