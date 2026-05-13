@@ -1,0 +1,251 @@
+## Feature Specification: Links — Outgoing Link Inventory for a Single Note
+
+**Feature Branch**: `025-list-links`
+**Created**: 2026-05-13
+**Status**: Draft
+**Input**: User description: "Add List Links — a typed tool that returns the outgoing links of a single named note. Callers identify the target note either by an explicit locator (vault display name plus a vault-relative path or vault-root basename) or implicitly by which note the user currently has focused in the editor, and receive a structured list of every link that note points to."
+
+## User Scenarios & Testing *(mandatory)*
+
+### User Story 1 — Outgoing-link listing for a named note (Priority: P1)
+
+An agent (or a human caller through an MCP-aware client) needs the complete list of outgoing links contained in one specific note — for example "what does the project-brief note connect to so I can plan a one-hop graph traversal?", "audit which working-set notes a given index note still references", or "before I rewrite this note, show me every link it points out so I can confirm none are critical." The caller identifies the note in specific mode by either a vault-relative path or a vault-root basename, optionally scoping the call to a named vault. The tool returns the ordered list of every outgoing link contained in the note's source, each entry carrying the link's target as the note records it, the source-position information needed to locate the occurrence in the note, the display label when the source uses an aliased syntax, and the kind of link (wikilink / embed / markdown / bare URL) so callers can filter the returned list client-side without re-parsing the note body.
+
+**Why this priority**: This is the dominant use case and the entry point that justifies the feature's existence. Today an agent that wants to traverse the vault's link graph one hop outward from a named note has no efficient discovery path — it must either fetch the entire note body (potentially tens of kilobytes) and run a client-side Markdown link parser (fragile against link-syntax edge cases, duplicates the host's parsing work, picks up link-like tokens inside fenced blocks if not careful), or guess from convention. A single typed call turns "what does this note connect to?" into a deterministic answer and pairs with the existing inbound-links primitive to give complete 1-hop graph reads from any target note. Without this story the feature offers no value; every other story refines this primary read path.
+
+**Independent Test**: Construct a note carrying a known mix of outgoing links (e.g. one bare wikilink `[[Other]]`, one aliased wikilink `[[Other|Display]]`, one wiki-style embed `![[Image.png]]`, one inline Markdown link `[Display](https://example.com)`, one bare URL `https://example.org`). Call the tool with that note's vault-relative path in specific mode. Assert the response carries a `count` matching the number of outgoing links in the note and one entry per occurrence, each entry's `target` reflecting what the note records, each entry's `line` placing the occurrence in the note, each entry's `kind` matching the source link syntax, and each entry's `displayText` carrying the alias when one is present. Independently testable in isolation; nothing in P2/P3 is required.
+
+**Acceptance Scenarios**:
+
+1. **Given** a note at vault-relative path `Projects/brief.md` containing four outgoing links — `[[Roadmap]]`, `[[Glossary|Terms]]`, `![[diagrams/system.png]]`, and `[Source](https://example.com)` — appearing on lines 3, 5, 7, and 9 respectively, **When** the agent invokes the tool with `{ target_mode: "specific", vault: "Demo", path: "Projects/brief.md" }`, **Then** the response carries `count: 4` and four ordered entries, each entry's `target` byte-faithful to what the source records (`Roadmap`, `Glossary`, `diagrams/system.png`, `https://example.com`), each entry's `line` matching the source line number, the second entry carrying `displayText: "Terms"` (the alias), the third entry's `kind` reported as embed, the fourth entry's `kind` reported as markdown.
+2. **Given** the same note exists at the same vault-relative path AND the basename `brief` resolves unambiguously inside the vault, **When** the agent invokes the tool with `{ target_mode: "specific", vault: "Demo", file: "brief" }` (basename without the `.md` extension) instead of with `path`, **Then** the response is structurally equivalent to the path-based call — same `count`, same per-entry `target`/`line`/`displayText`/`kind` values, same order. The two locator forms are interchangeable when the basename resolves unambiguously.
+3. **Given** a note that contains zero outgoing links (a pure-prose note with no wikilinks, no embeds, no markdown links, no bare URLs), **When** the agent invokes the tool against that note, **Then** the response succeeds with `count: 0` and `links: []` — no error.
+4. **Given** a locator that does not resolve to any note in the vault (an unknown path or an unknown basename), **When** the agent invokes the tool, **Then** the response is a structured error identifying the missing file; the response is NOT an empty success.
+5. **Given** a vault display name the host does not recognise (e.g. `vault: "Unknown"`), **When** the agent invokes the tool, **Then** the response is a structured error identifying the unknown vault — the call MUST NOT silently return an empty success and MUST NOT silently route to the focused vault. (Plan-stage live-CLI characterisation may downgrade this outcome to a documented inherited limitation if the upstream subcommand silently honours-as-noop the `vault=` parameter; see FR-012 + the Assumptions block for the precedent applied by BI-014 / BI-015 / BI-019 / BI-023 / BI-024.)
+6. **Given** a note containing the same link target twice on different lines (e.g. `[[Other]]` on line 4 and `[[Other]]` again on line 12), **When** the agent invokes the tool, **Then** the response carries TWO entries, both with `target: "Other"`, with `line` values `4` and `12` respectively, in source order. The wrapper does NOT deduplicate by target — each occurrence is its own entry, because position fidelity is the load-bearing affordance of the per-entry shape.
+
+---
+
+### User Story 2 — Outgoing-link listing for the focused note (Priority: P1)
+
+An agent acting on the user's working context needs the outgoing links of whichever note the user currently has open in the editor, without restating the path. The caller invokes the tool in active mode. The tool resolves the focused note implicitly and returns its outgoing links. When no note is currently focused (a fresh Obsidian window, the user switched to a non-note view, etc.) the tool surfaces a structured error indicating there is no active file rather than silently returning an empty list.
+
+**Why this priority**: Active-mode is the canonical pattern shared by every per-file typed tool in the project (`read`, `outline`, `read_heading`, `read_property`, `delete`, `rename`, `write_note`, `set_property`, `find_by_property`). Omitting it would create an inconsistency in the typed surface AND would force agents acting on the user's working context to first invoke a separate "what file is focused?" lookup. Pairs equally with US1.
+
+**Independent Test**: With Obsidian open and a known note focused, call the tool with `{ target_mode: "active" }`. Assert the response covers the focused note's outgoing links. Switch focus away (open a non-note view or close all notes) and call again with `{ target_mode: "active" }`. Assert the second response is a structured no-active-file error rather than an empty success.
+
+**Acceptance Scenarios**:
+
+1. **Given** the user has a note focused in Obsidian and that note contains a known set of outgoing links, **When** the agent invokes the tool with `{ target_mode: "active" }`, **Then** the response covers exactly that focused note's outgoing links — same `count`, same per-entry shape, same source order as if the caller had supplied the focused note's vault-relative path in specific mode.
+2. **Given** no note is currently focused in Obsidian (the workspace shows an empty pane, a non-note view, or the help panel), **When** the agent invokes the tool with `{ target_mode: "active" }`, **Then** the response is a structured error indicating there is no active file — NOT an empty success, NOT a generic CLI failure.
+3. **Given** active mode AND any per-file locator field accidentally supplied alongside it (e.g. `{ target_mode: "active", file: "Other" }`), **When** the agent invokes the tool, **Then** the call fails validation BEFORE any underlying CLI invocation — active mode forbids the per-file locator fields per the project's existing target_mode discriminator contract (ADR-003).
+
+---
+
+### User Story 3 — Validation rejects malformed inputs at the boundary (Priority: P1)
+
+An agent (or a misbehaving caller) submits an input shape that violates the tool's contract. The tool MUST reject the call at the validation boundary, before any underlying CLI invocation occurs, and MUST surface a structured validation error that names the offending field.
+
+**Why this priority**: Validation is the safety contract for every typed tool in this project, and zod-as-source-of-truth is a constitutional requirement. Without it, malformed callers reach the CLI and produce undefined or harmful behaviour. Independently testable because every validation case can be exercised with a mock/spy on the CLI dispatcher to assert the dispatcher was never called.
+
+**Independent Test**: For each invalid input shape, call the tool with a CLI dispatcher spy. Assert the call rejects with a structured validation error AND that the dispatcher was never invoked. No real CLI or vault required.
+
+**Acceptance Scenarios**:
+
+1. **Given** specific mode WITHOUT a vault parameter (e.g. `{ target_mode: "specific", path: "Projects/brief.md" }`), **When** the agent invokes the tool, **Then** the call fails validation (vault is mandatory in specific mode per the project's existing target_mode discriminator contract); no CLI call is made.
+2. **Given** specific mode WITHOUT any per-file locator (neither `file` nor `path` supplied), **When** the agent invokes the tool, **Then** the call fails validation (the XOR locator rule from the project's target_mode contract); no CLI call is made.
+3. **Given** specific mode with BOTH `file` AND `path` supplied, **When** the agent invokes the tool, **Then** the call fails validation (the XOR locator rule rejects supplying both); no CLI call is made.
+4. **Given** any input with an unknown top-level key (e.g. `{ target_mode: "specific", vault: "Demo", path: "Projects/brief.md", filter: "wikilink" }` — `filter` is not part of this tool's surface), **When** the call is forwarded by an MCP client that does NOT strip unknown keys, **Then** the server-side validation fails; no CLI call is made.
+5. **Given** `total` set to a non-boolean value (e.g. the string `"true"`), **When** the agent invokes the tool, **Then** the call fails validation; no CLI call is made.
+6. **Given** `path` containing path-traversal characters (e.g. `"../../etc/passwd"`) or shell metacharacters, **When** the agent invokes the tool, **Then** the call is rejected — either at the input-validation boundary or by the underlying vault-access layer; in both cases a structured error reaches the caller and no escape from the vault occurs.
+7. **Given** an input shape where `target_mode` is missing, set to an unknown value (e.g. `"focused"`, `"current"`), or set to a non-string value, **When** the agent invokes the tool, **Then** the call fails validation; no CLI call is made.
+
+---
+
+### User Story 4 — Count-only mode skips the per-entry payload (Priority: P2)
+
+An agent only needs to know how many outgoing links a note has — for a structural audit ("how connected is this note?"), a heuristic ("does this index note still have most of its expected outbound links?"), or a pre-flight check before deciding whether a full listing is worthwhile. The caller invokes the tool with `total: true`. The response carries the `count` only — the per-entry list is empty. The tool MUST NOT pay the per-entry payload cost when the caller asks only for a count.
+
+**Why this priority**: Count-only mode matches the established `total: true` precedent shared by every other enumerating typed tool in the project (`files`, `outline`, `properties`, and the upstream `links` subcommand's own `total` flag). It is an optimisation, not a requirement of the core read path; agents that always set `total: false` lose no functionality. Independently testable from US1 with a separate single-line input variation.
+
+**Independent Test**: Author a fixture note with a known number of outgoing links (N > 0) and a fixture note with zero outgoing links. Call the tool with `total: true` against each. Assert the first response carries `count: N` and an empty `links` list; assert the second response carries `count: 0` and an empty `links` list. Both succeed.
+
+**Acceptance Scenarios**:
+
+1. **Given** a note containing exactly seven outgoing links (any mix of kinds), **When** the agent invokes the tool with `{ target_mode: "specific", vault: "Demo", path: "Projects/brief.md", total: true }`, **Then** the response carries `count: 7` and `links: []` (empty list).
+2. **Given** a note containing zero outgoing links, **When** the agent invokes the tool with `{ ..., total: true }`, **Then** the response carries `count: 0` and `links: []` (empty list); no error.
+3. **Given** count-only mode AND active mode AND no focused note, **When** the agent invokes the tool with `{ target_mode: "active", total: true }`, **Then** the response is the same structured no-active-file error as in default mode (US2 scenario 2) — count-only mode does NOT suppress error paths; it only suppresses the per-entry payload on success.
+4. **Given** count-only mode AND an unresolved locator in specific mode, **When** the agent invokes the tool, **Then** the response is the same structured "missing file" error as in default mode (US1 scenario 4) — count-only mode never silently masks an unresolved locator with `count: 0`.
+
+---
+
+### User Story 5 — Documentation surface for the typed tool (Priority: P2)
+
+An operator or agent inspects the project's progressive-disclosure help facility to understand how the outgoing-link tool works. The published documentation MUST cover the per-field input contract, the output shape (both with and without count-only mode), the failure-mode roster, and at least four worked examples covering at least: a specific-mode happy path with `path`, a specific-mode happy path with `file` (basename), an active-mode happy path, a count-only-mode call, and at least one failure path (unresolved locator OR no-active-file OR validation-rejection).
+
+**Why this priority**: The help facility is the primary discovery surface for tool consumers (mirrored from every typed tool). The tool is callable without docs but undiscoverable without them. Should-pass for ship; not required for the read code path itself to function. Independently testable by loading the help facility output and asserting structural completeness.
+
+**Independent Test**: Invoke the help facility for the outgoing-link tool. Assert the doc carries: per-field input contract, output shape for both default and count-only modes, failure-mode roster, and at least four worked examples covering at least four distinct usage modes. The registry-consistency test from `005-help-tool` already auto-asserts the file's existence once the tool is registered; this story expands the assertion to content completeness.
+
+**Acceptance Scenarios**:
+
+1. **Given** the help facility, **When** an operator queries the outgoing-link tool, **Then** the response carries the full per-field input contract (target_mode, vault, file, path, total; including the active-mode XOR locator rule), the output shape for both default and count-only modes, the failure-mode roster (unresolved locator, unknown vault, no active file, validation rejection, output-cap kill), and at least four worked examples covering at least four distinct usage modes from {specific-mode-by-path, specific-mode-by-file, active-mode, count-only-mode, unresolved-locator error, no-active-file error, validation rejection}.
+2. **Given** the help facility, **When** an operator queries the outgoing-link tool, **Then** the doc explicitly names the practical ceiling for notes with unusually many outgoing links (the underlying execution layer's output cap inherited from feature 003) so callers can choose to defer to a different discovery strategy when a note's outgoing-link list is unusually long.
+
+---
+
+### Edge Cases
+
+The implementation MUST handle, document, or explicitly defer each of the following observable shapes.
+
+**CONCURRENCY**
+
+- The note may be edited (links added, removed, reordered) between the moment the request is received and the moment its contents are scanned. The response reflects the note's state at the moment of scan; there are no stale-read or partial-update guarantees beyond that. Documented as a known limitation.
+
+**CONTENT — repeated link target on multiple lines**
+
+- A target appearing N times on N different lines MUST yield N entries in source order. The wrapper does NOT deduplicate by target — position fidelity is the load-bearing affordance of the per-entry shape (the per-occurrence semantic is what lets callers act on "the third reference to Other on line 27").
+
+**CONTENT — repeated link target on the same line**
+
+- A target appearing twice on the same source line (e.g. `Compare [[Apple]] vs [[Apple]]`) MUST yield two entries with the same `line` value. The wrapper does NOT deduplicate. Source-order ordering within a line follows the order the occurrences appear in the source.
+
+**CONTENT — empty list**
+
+- A note containing zero outgoing links MUST return `{ count: 0, links: [] }` — no error. Both default and count-only modes share this contract.
+
+**CONTENT — body-content opacity**
+
+- Link-like tokens that appear inside fenced code blocks or inside indented code blocks (e.g. `[[Other]]` written verbatim inside a triple-backtick block as documentation of wikilink syntax) MUST NOT be counted as outgoing links. Only real outgoing links the host recognises as links are returned. The implementation MAY satisfy this requirement by deferring to the upstream CLI / Obsidian metadata cache, which already separates real links from body-content tokens; no wrapper-side Markdown parser is required.
+
+**CONTENT — link target with alias**
+
+- A wikilink of the form `[[Target|Display]]` MUST yield an entry whose `target` is `Target` (byte-faithful, no normalisation) and whose `displayText` is `Display`. A markdown link `[Display](Target)` MUST yield an entry whose `target` is `Target` and whose `displayText` is `Display`. A bare wikilink `[[Target]]` MUST yield an entry whose `target` is `Target` and whose `displayText` is absent (or equal to `target` — exact convention locked at plan stage based on upstream wire format).
+
+**CONTENT — link target with heading or block reference**
+
+- A wikilink of the form `[[Target#Heading]]` or `[[Target#^block-id]]` MUST yield an entry whose `target` carries the full reference as the note records it (the wrapper does NOT strip the heading/block fragment). This preserves the "as the note records it" contract from the user's out-of-scope clause. Whether the heading/block fragment is surfaced as a separate field or remains embedded in the `target` string is locked at plan stage based on upstream wire format.
+
+**CONTENT — embed vs link**
+
+- A wiki-style embed `![[Target]]` and an image embed `![alt](src)` MUST be classified as `kind: "embed"`. A bare wikilink `[[Target]]` MUST be classified as `kind: "wikilink"`. An inline Markdown link `[Display](Target)` MUST be classified as `kind: "markdown"`. A bare URL appearing in body prose (e.g. `https://example.org`) MUST be classified as `kind: "url"` IF the host's link parser surfaces it as a link; if the host treats bare URLs as plain prose, the wrapper inherits that classification and the URL does NOT appear in the listing. The exact set of kinds surfaced is locked at plan stage to whatever the upstream wire format distinguishes.
+
+**CONTENT — broken / unresolved link**
+
+- A link whose target does NOT resolve to any file in the vault (e.g. `[[NonExistent]]` where no `NonExistent.md` exists) MUST still appear in the listing. The wrapper does NOT filter unresolved targets — broken-link detection is explicitly out of scope per the user's out-of-scope clause. Whether unresolved targets are flagged via an additional per-entry field is locked at plan stage based on upstream wire format.
+
+**CONTENT — non-`.md` target file**
+
+- The tool MUST work for any note the host treats as a note carrying links (typically `.md`; potentially Canvas or other note types if the host's link parser surfaces them). A target locator pointing to a binary attachment (image, PDF) MUST be rejected with a structured error rather than silently returning a zero-link list — attachments do not carry outgoing links in the host's link graph.
+
+**CONTENT — ordering**
+
+- The per-entry list MUST be in stable, deterministic source order across repeated calls on an unchanged note. The default ordering is source-position ascending: primary sort by `line` ascending, tiebreak by left-to-right column position ascending within a line. This matches the user-visible "where it appears in the note" framing and matches the source-order precedent set by `outline`. The wrapper does NOT expose alternative sort-order parameters in this feature; callers needing a different order (alphabetical by target, grouped by kind, etc.) re-sort the list client-side.
+
+**CONTENT — very large link lists and the underlying execution layer's output cap**
+
+- The underlying execution layer enforces a 10 MiB output cap on a single CLI invocation (inherited from feature 003). A note whose serialised outgoing-link list would exceed this cap MUST produce a structured `CLI_NON_ZERO_EXIT` (output-cap kill) rather than a silent truncation. The practical ceiling MUST be documented in the published help facility so callers can choose to defer when a note's outgoing-link list is unusually long.
+
+**LOCATOR — unresolved locator**
+
+- A `file` or `path` value that does not resolve to any note in the vault MUST yield a structured error identifying the missing file rather than an empty success (`count: 0, links: []`). Count-only mode (`total: true`) does NOT suppress this error.
+
+**LOCATOR — basename collision**
+
+- A `file` value that is a basename matching more than one note in the vault (e.g. both `Notes/Foo.md` and `Archive/Foo.md` exist) MUST resolve through the host's existing wikilink-resolution semantics; the wrapper does NOT impose a separate disambiguation contract. Whether the host returns one specific file's links or a structured error is the host's choice; the wrapper inherits whatever surface the host produces.
+
+**LOCATOR — unknown vault**
+
+- A `vault` display name that is not registered MUST surface as a structured error naming the unknown vault — UNLESS plan-stage live-CLI characterisation reveals the upstream `links` subcommand silently honours-as-noop the `vault=` parameter (parity with the `properties` subcommand per BI-024 / the `files` subcommand per BI-019 / the `outline` subcommand per BI-023 / the `find_by_property` and `read_heading` eval-driven flows per BI-014 and BI-015). In the inherited-limitation case the wrapper documents the behaviour in the published help facility rather than imposing a wrapper-side pre-check. The spec-stage commitment is "structured error"; the plan-stage finding takes precedence if the upstream behaviour differs. See the Assumptions block for the inheritance lineage.
+
+**ACTIVE-MODE — no focused file**
+
+- Active mode with no focused note MUST yield a structured no-active-file error rather than an empty success. This applies in both default mode and count-only mode (count-only mode does not mask the error). Parity with every other typed tool that exposes active mode.
+
+**CLIENT-CLASS — unknown-key validation**
+
+- The server-side validation behaviour for "unknown top-level keys" (US3 scenario 4) is directly observable only from MCP clients that forward unknown keys to the server. Strict-naive clients strip unknown keys client-side per the published JSON Schema's `additionalProperties: false`, in which case the server never sees the offending key and validation does not trigger. Both pathways MUST be documented; the test case MUST exercise the server-side path explicitly so the validation contract holds for the client class that does forward unknown keys.
+
+**SECURITY — structural data-passing**
+
+- The `vault` / `file` / `path` fields are caller-supplied. The implementation MUST pass them to the underlying CLI as **data** (process arguments or structured parameters), never as text concatenated into a shell command, an `eval` payload, or any other text-based execution surface. Path-traversal handling for `path` (US3 scenario 6) is independently a separate concern handled either at the schema layer or by the underlying vault-access layer.
+
+## Requirements *(mandatory)*
+
+### Functional Requirements
+
+- **FR-001**: System MUST expose a typed MCP tool that returns the catalogue of outgoing links contained in a single named note. The tool's registered name follows the project's post-022 single-word-verbatim-from-upstream convention (the upstream Obsidian CLI subcommand is `links`; parity with `outline` from BI-023, `files` from BI-019 post-rename, `properties` from BI-024).
+- **FR-002**: The tool's input MUST consume the project's existing target_mode discriminator contract (`specific` vs `active`) per ADR-003. In specific mode, `vault` is mandatory and exactly one of `file` (vault-root basename) or `path` (vault-relative path) is supplied (XOR). In active mode, none of `vault`, `file`, `path` MUST be supplied.
+- **FR-003**: The tool MUST accept an optional `total` boolean field, defaulting to `false`. When `total: true`, the response carries the count only and the per-entry list MUST be empty. When `total: false` (or omitted), the response carries the full link inventory.
+- **FR-004**: The tool's input schema MUST forbid unknown top-level keys (`additionalProperties: false`).
+- **FR-005**: The tool MUST return an output object with two fields: `count` (a non-negative integer — the total number of outgoing-link occurrences in the note) and `links` (an ordered list of per-occurrence entries). The list is empty when `total: true`; it is fully populated when `total: false`. The outer `count` ALWAYS represents the number of outgoing-link occurrences — NOT a deduplicated-by-target count, NOT an upstream-emitted alternative metric.
+- **FR-005a**: The outer `count` field MUST have the same value across both default mode (`total: false`) and count-only mode (`total: true`) for the same note state at the same instant. Specifically, when `total: false`, `count === links.length` MUST hold; when `total: true`, `count` MUST equal the value it would have had under `total: false` against the same note state. This cross-mode invariant is the testable form of the FR-005 commitment.
+- **FR-006**: Each per-occurrence entry MUST carry the following fields: `target` (string, byte-faithful to what the note records — the wikilink target portion before `|`, OR the markdown link's URL portion, OR the bare URL — preserved verbatim including any heading or block fragment such as `#Heading` or `#^block-id`); `line` (a 1-based integer — the source line number where the occurrence appears in the note); `kind` (a string from a small finite enum classifying the link syntax — at minimum `wikilink`, `embed`, `markdown`; `url` is included if the upstream wire format distinguishes bare URLs as links — exact enum locked at plan stage based on upstream classification); `displayText` (an optional string carrying the display label when the source uses an aliased syntax; absent when the source carries no separate display label).
+- **FR-007**: Repeated occurrences of the same link target MUST yield separate entries — the wrapper does NOT deduplicate by target. Each occurrence is its own per-occurrence entry with its own `line` value.
+- **FR-008**: The per-entry list MUST be in stable, deterministic source order across repeated calls on an unchanged note. Primary sort is `line` ascending; tiebreak within a line is left-to-right column position ascending (the order the occurrences appear in the source). The wrapper does NOT expose alternative sort-order parameters in this feature.
+- **FR-009**: A note containing zero outgoing links MUST return `{ count: 0, links: [] }` — no error. Count-only mode and default mode share this contract.
+- **FR-010**: Link-like tokens that appear only in body content excluded from the host's link parser (typically inside fenced code blocks or indented code blocks) MUST NOT be returned. The implementation MAY satisfy this requirement by deferring to the upstream CLI / Obsidian metadata cache, which already separates real links from body-content tokens; no wrapper-side Markdown parser is required.
+- **FR-011**: A `file` or `path` value that does not resolve to any note in the vault MUST yield a structured error identifying the missing file rather than an empty success. Count-only mode does NOT suppress this error.
+- **FR-012**: A `vault` display name that is not registered MUST surface as a structured error naming the unknown vault — unless plan-stage live-CLI characterisation reveals the upstream `links` subcommand silently honours-as-noop the `vault=` parameter, in which case the wrapper MUST document the behaviour as an inherited limitation in the published help facility (parity with `files` per BI-019, `outline` per BI-023, `properties` per BI-024, `read_heading` per BI-015, `find_by_property` per BI-014). The spec-stage commitment is "structured error"; the plan-stage finding takes precedence.
+- **FR-013**: Active mode with no focused note MUST yield a structured no-active-file error rather than an empty success. This applies in both default mode and count-only mode.
+- **FR-014**: A target locator pointing to a binary attachment (image, PDF, or any file the host does not treat as a link-carrying note) MUST yield a structured error rather than silently returning a zero-link list.
+- **FR-015**: All validation failures MUST occur strictly before any underlying CLI invocation. Tests MUST be able to assert a CLI dispatcher spy was never called for invalid inputs.
+- **FR-016**: A `path` value containing path-traversal characters or shell metacharacters MUST be rejected. The locus of rejection MAY be the input-validation boundary, the underlying vault-access layer, or both; in all cases a structured error MUST reach the caller and no escape from the vault MUST occur.
+- **FR-017**: Errors MUST flow through the project's existing structured error codes — NO new error codes MUST be introduced by this feature. Validation failures surface as `VALIDATION_ERROR`; CLI failures surface through the existing CLI-failure codes; no-active-file surfaces through the project's existing no-active-file code; unresolved-locator surfaces through the project's existing unresolved-locator code.
+- **FR-018**: The tool MUST be registered through the project's existing typed-tool registration factory. The progressive-disclosure help facility's documentation file for the tool MUST be authored with the per-field input contract, the output shape (for both default and count-only modes), the failure-mode roster (including the unresolved-locator, unknown-vault, no-active-file, validation-rejection, and output-cap-kill modes), the practical ceiling for very long outgoing-link lists, and at least four worked examples covering at least four distinct usage modes from {specific-mode-by-path, specific-mode-by-file, active-mode, count-only-mode, unresolved-locator error, no-active-file error, validation rejection}.
+- **FR-019**: Each acceptance criterion across US1–US5 MUST be locked by at least one regression test that survives subsequent re-runs unchanged. The test count MUST be sufficient to cover schema validation, handler behaviour, and registration consistency.
+- **FR-020**: The feature MUST run a live-CLI characterisation pass before ship that documents observable CLI behaviour for: specific-mode by-path happy path against a note carrying multiple outgoing links of mixed kinds (wikilink / aliased wikilink / embed / markdown / bare URL if upstream classifies it); specific-mode by-file happy path against the same fixture (verifies basename↔path equivalence); specific-mode against a note with zero outgoing links (verifies the empty-list contract); specific-mode against a note with the same target repeated on different lines (verifies per-occurrence semantic); specific-mode against a note with the same target twice on one line (verifies same-line tiebreak); specific-mode against a note containing a wikilink with a heading or block fragment (verifies `target` carries the full reference byte-faithfully); specific-mode against a note containing a link inside a fenced code block (verifies body-content opacity is inherited from upstream); specific-mode against a note containing an unresolved wikilink target (verifies unresolved targets still appear in the listing); active-mode happy path against a focused note; active-mode with no focused file (verifies the no-active-file error path); specific-mode with an unresolved `path` value (verifies the unresolved-locator error path); specific-mode with an unresolved `file` basename (verifies the unresolved-locator error path); specific-mode with `path` pointing at a binary attachment (verifies the non-`.md` rejection contract); specific-mode with `vault: "Unknown"` (locks the FR-012 outcome — structured error OR documented inherited limitation); count-only mode against a populated note (verifies the FR-005a cross-mode invariant — outer `count` matches the value returned in default mode for the same note state); count-only mode against an empty note (verifies the zero-link contract holds in count-only mode); upstream wire-format characterisation — verifies what fields upstream emits per link, locking the wrapper's parsing strategy per FR-006 (in particular: whether upstream emits `displayText`, whether upstream emits `kind`, whether upstream emits `column`, whether upstream surfaces unresolved-target metadata, whether upstream supports a `format=json` flag undocumented in `obsidian help links`); very-large-link-list cap-boundary behaviour. Findings MUST be persisted in the feature's research artefact.
+- **FR-021**: The feature MUST NOT change the public surface of any existing typed tool (`read`, `delete`, `files`, `write_note`, `read_property`, `find_by_property`, `set_property`, `read_heading`, `rename`, `outline`, `properties`, `obsidian_exec`, the help tool). The only permitted edit to existing source is the addition of the new tool to the registration list AND the corresponding rolled-forward FR-018 baseline (per feature 022's durable registry-stability machinery).
+- **FR-022**: All new source files introduced by this feature MUST carry the project's "Original — no upstream." attribution header per the project Constitution's originality principle.
+- **FR-023**: The `vault`, `file`, and `path` inputs MUST be passed to the underlying CLI as **data** (process arguments or structured parameters), never interpolated into a shell-evaluated string, an `eval` payload, or any other text-based execution surface.
+
+### Key Entities *(include if feature involves data)*
+
+- **Outgoing link occurrence**: A record describing one occurrence of one outgoing link in a single note's source. Carries: `target` (the link target byte-faithful to source — wikilink target portion, markdown URL, or bare URL — preserved verbatim including any `#Heading` or `#^block-id` fragment); `line` (1-based source line number); `kind` (a small finite enum classifying link syntax — wikilink / embed / markdown / url subject to the exact set the upstream wire format distinguishes); `displayText` (optional — present when source carries an aliased syntax).
+- **Outgoing-link inventory**: An ordered list of outgoing-link occurrences in stable source order (line ascending, intra-line left-to-right tiebreak) plus a `count` (the list's length — total occurrences in the note). The list is fully populated in default mode and empty in count-only mode (`total: true`); the `count` is identical in both modes per FR-005a.
+- **Target locator**: An ADR-003 target_mode discriminator. In `specific` mode, `vault` is mandatory and exactly one of `file` (vault-root basename) or `path` (vault-relative path) is supplied. In `active` mode, none of `vault`, `file`, `path` is supplied — the focused note is resolved implicitly.
+
+## Success Criteria *(mandatory)*
+
+### Measurable Outcomes
+
+- **SC-001**: A specific-mode by-path call against a fixture note carrying multiple outgoing links of mixed kinds returns every occurrence with correct per-entry `target`, `line`, `kind`, and `displayText` values in 100% of test runs.
+- **SC-002**: A specific-mode by-file (basename) call against the same fixture returns a response structurally equivalent to the by-path call — same `count`, same per-entry values, same source order — in 100% of test runs.
+- **SC-003**: An active-mode call with a focused note returns that note's outgoing links in 100% of test runs.
+- **SC-004**: An active-mode call with no focused note returns the project's existing no-active-file error in 100% of test runs.
+- **SC-005**: A note containing zero outgoing links returns `{ count: 0, links: [] }` with no error in 100% of test runs.
+- **SC-006**: A target appearing N times on N different lines yields N entries in source order in 100% of test runs (per-occurrence contract).
+- **SC-007**: A target appearing twice on the same source line yields two entries with the same `line` value and left-to-right intra-line ordering in 100% of test runs.
+- **SC-008**: A wikilink with a heading or block fragment (`[[Target#Heading]]`, `[[Target#^block-id]]`) yields an entry whose `target` carries the full reference byte-faithfully in 100% of test runs.
+- **SC-009**: Link-like tokens inside fenced code blocks are NOT returned in the listing in 100% of test runs (body-content opacity inherited from upstream).
+- **SC-010**: An unresolved `file` or `path` locator yields a structured error identifying the missing file (NOT an empty success) in 100% of test runs. Count-only mode does NOT mask this error.
+- **SC-011**: An unknown-vault call surfaces a structured error naming the unknown vault — UNLESS plan-stage live-CLI characterisation locks the inherited-limitation outcome per FR-012, in which case the published documentation surfaces the inherited limitation explicitly. The locked outcome is verified in 100% of test runs.
+- **SC-012**: A target locator pointing at a binary attachment yields a structured error in 100% of test runs.
+- **SC-013**: Every invalid input shape rejected at the validation boundary (US3 scenarios 1–7) produces a structured error AND zero underlying CLI invocations across 100% of test runs.
+- **SC-014**: A `path` value containing path-traversal characters or shell metacharacters is rejected (at the schema layer or the vault-access layer) and never produces a successful read against a file outside the vault in 100% of test runs.
+- **SC-015**: Count-only mode returns `{ count: N, links: [] }` for both N > 0 and N = 0 cases in 100% of test runs. The cross-mode invariant (FR-005a) is verified: the same note state returns the same outer `count` value whether queried with `total: false` or `total: true` in 100% of test runs.
+- **SC-016**: The per-entry list is in source order (line ascending, intra-line left-to-right tiebreak) across 100% of test runs against multi-link fixtures.
+- **SC-017**: An agent retrieving a note's full outgoing-link inventory can do so in a single tool call returning a payload typically far smaller than the equivalent full-note `read` + client-side Markdown link parse (a note with 20 outgoing links is on the order of one to two kilobytes of structured response; the read alternative returns the entire note body, often tens of kilobytes). Token saving relative to a full-file read is observable from any tracing layer that records request/response payload sizes.
+- **SC-018**: Every byte of the public output of the existing typed tools (`read`, `delete`, `files`, `write_note`, `read_property`, `find_by_property`, `set_property`, `read_heading`, `rename`, `outline`, `properties`, `obsidian_exec`, the help tool) is unchanged by this feature, except for the help facility growing one new entry for the outgoing-link tool AND the FR-018 baseline file rolling forward to include the new tool's fingerprint.
+- **SC-019**: The published documentation for the outgoing-link tool covers the full per-field input contract, the output shape (for both default and count-only modes), the failure-mode roster, the practical ceiling for very long outgoing-link lists, and at least four worked examples covering at least four distinct usage modes.
+- **SC-020**: Every acceptance criterion across US1–US5 is locked by at least one regression test, totalling no fewer than 20 tests across schema, handler, and registration suites.
+- **SC-021**: Zero new error codes are introduced by this feature; every failure flows through existing structured error codes.
+- **SC-022**: The live-CLI characterisation pass (FR-020) documents observable behaviour for all 18 cases enumerated in FR-020, persisted in the feature's research artefact and surfaceable from the published documentation.
+- **SC-023**: The caller-supplied `vault`, `file`, and `path` inputs cannot reach a shell-evaluated context. The structural data-passing contract is verifiable by inspection of the dispatcher call shape (no shell, no `eval`-payload string interpolation of these locator fields).
+- **SC-024**: A note whose serialised outgoing-link list would exceed the underlying execution layer's 10 MiB cap produces a structured `CLI_NON_ZERO_EXIT` (output-cap kill) rather than a silent truncation in 100% of test runs.
+
+## Assumptions
+
+- **Tool name**: The registered tool name is `links`, per the project's post-022 single-word-verbatim-from-upstream convention (FR-001). Confirmed at spec stage 2026-05-13 via `obsidian help` output: the upstream Obsidian CLI subcommand for listing a note's outgoing links is `links` (single-word). Parity with `outline` (BI-023 — single-word verbatim from upstream `outline` subcommand), `files` (BI-019 post-rename), `properties` (BI-024). Source dir `src/tools/links/`; factory `createLinksTool`.
+- **Per-entry shape**: The per-occurrence entry carries `target` / `line` / `kind` / optional `displayText` (FR-006). Rationale: the user's out-of-scope clause names four link kinds (wikilink / embed / markdown / bare URL) and explicitly says callers filter on the returned list — which is only operational if each entry carries kind metadata. The `displayText` field is needed because the user-visible representation of `[[Target|Display]]` and `[Display](Target)` carries two distinct strings; preserving both in the response is required to support callers that surface the user-visible label without re-parsing the note. The `line` field is required by the user's "where it appears in the note" wording. The exact enum values surfaced for `kind` are locked at plan stage based on the upstream wire format's classification.
+- **Per-occurrence dedup**: The wrapper does NOT deduplicate by target (FR-007). A target appearing N times on N different lines yields N entries. Rationale: the user spec explicitly mentions position fidelity ("where it appears in the note") and a single de-duplicated entry would lose that fidelity when a target appears on multiple lines.
+- **Sort order**: Default ordering is source order — line ascending, intra-line left-to-right tiebreak (FR-008). Rationale: matches the user-visible "where it appears in the note" framing; matches the source-order precedent set by `outline` (BI-023); ordering is upstream-natural (upstream's link enumeration walks the source in source order) so wrapper-side post-fetch re-sorting is a no-op in the typical case. The wrapper does NOT expose alternative sort-order parameters in this feature; callers re-sort client-side.
+- **Count-only field name**: The optional boolean `total` (FR-003) follows the established precedent shared by features 019 (`files`'s `total` field), 023 (`outline`'s `total` field), 024 (`properties`'s `total` field), and the upstream `links` subcommand's own `total` flag. The default is `false` so existing callers unaware of count-only mode receive the full inventory.
+- **Output shape consistency between modes**: The same envelope `{ count, links }` is returned in both default and count-only modes (FR-005); count-only differs only by `links` being empty. This eliminates a discriminated-union output type and keeps client code uniform.
+- **Unknown-vault outcome subject to plan-stage finding**: The spec-stage commitment (FR-012) is "structured error naming the unknown vault." Plan-stage live-CLI characterisation MAY reveal the upstream `links` subcommand silently honours-as-noop the `vault=` parameter — the precedent from BI-014 (`find_by_property`), BI-015 (`read_heading`), BI-019 (`files`), BI-023 (`outline`), BI-024 (`properties`) all settled on documented inherited limitation rather than wrapper-imposed pre-check when upstream emits no "Vault not found." string. If `links` exhibits the same behaviour, the spec amends FR-012 at plan stage to defer-to-upstream; otherwise the spec-stage commitment holds and the cli-adapter's existing 011-R5 unknown-vault response-inspection clause handles the case.
+- **Upstream wire-format characterisation deferred to plan stage**: The upstream `links` subcommand's `help` output documents only `file=` / `path=` / `total`. Live probe against the test vault on 2026-05-13 revealed plain-text output (e.g. `create a link (unresolved)` for `Welcome.md`) with no `format=json` flag documented in `obsidian help links`. The plan-stage research artefact MUST characterise the upstream wire format and lock the wrapper's parsing strategy — whether the wrapper consumes upstream's plain-text shape, requests an undocumented JSON format if upstream silently honours one, or routes through `eval` with the Obsidian metadata cache as the load-bearing structured-data source (parity with the `read_heading` and `find_by_property` eval-driven flows when no native subcommand exposes the needed wire shape). The public output contract (FR-005, FR-006) is fixed by the spec; the upstream parsing path is the plan's call.
+- **Active mode shares the existing target_mode discriminator contract**: Active mode forbids `vault`, `file`, and `path` (FR-002, US3 scenario 7 + the active-mode-locator scenario in US2). The XOR rule for specific mode (`file` vs `path`) is also inherited unchanged. ADR-003 governs.
+- **The bridge classifier's existing inheritance for unknown-vault response inspection** (introduced in feature 011 and inherited by features 012, 013, 016, 017, 018, 020, 021, 022 where applicable) is conditionally inherited for this feature pending the plan-stage characterisation of the upstream `links` subcommand's `vault=` behaviour. If upstream emits a "Vault not found." string, the clause fires and FR-012's structured-error contract holds; if upstream silently honours-as-noop, the inherited-limitation path of FR-012 applies.
+- **No new error codes; additive surface**: The release impact is purely additive — no existing tool's public surface changes; no error codes are added; no ADRs are amended. Version bump locked at plan stage — PATCH-level bump per BI-023 / BI-024 precedent (additive surface).
+- **The post-008 module-layout convention** (`{schema, handler, index}.ts` plus co-located `*.test.ts`) and the post-022 FR-018 baseline machinery (`npm run baseline:write` rolls the registry-stability baseline forward in the same commit) are the conventions this feature consumes. No precedent feature's spec or plan is amended.
+- **Out of scope** for this feature, recorded here so the planning phase does not silently absorb them: inbound links / backlinks (covered by the existing `backlinks` upstream subcommand on a sibling tool surface, not exposed here); broken-link detection or dangling-link reporting (this feature is read-only retrieval; unresolved targets appear in the listing without a separate flag unless the upstream wire format surfaces one as a side-effect of FR-006's plan-stage shape characterisation); link removal or link rewriting (this feature is read-only); multi-hop or transitive graph traversal (single-hop from a single target only); vault-wide outgoing-link inventory across every note at once (this feature operates on one note at a time; callers iterate by composing with `files`); resolving each outgoing link to its canonical target file path (the response carries each link as the note records it; canonical-path resolution is the caller's job — typically done by composing with `read` or `file` info); filtering the returned links by kind at the request layer (callers filter on the returned `kind` field client-side); request-side sorting controls (callers re-sort client-side); per-link traversal counts or weights (each occurrence is a flat entry).
