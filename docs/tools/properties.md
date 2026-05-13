@@ -1,0 +1,378 @@
+# `properties`
+
+## Overview
+
+Return the vault-wide catalogue of frontmatter property names with
+per-property note counts as a typed envelope `{ count, properties: [{
+name, noteCount }] }`. Wraps the upstream Obsidian CLI's `properties`
+subcommand natively. The second **structural-discovery** primitive
+(after [outline](./outline.md)) — where `read_property` returns one
+property value in one note and `find_by_property` returns the set of
+notes carrying a specific value, `properties` returns the union of
+distinct names across the entire vault. Agents that previously combined
+`obsidian_exec` with a full-vault grep plus client-side dedup pay one
+to two orders of magnitude less token cost.
+
+This tool is **vault-only** — there is no `target_mode` discriminator,
+no `file` / `path` / `active` argument. Per-file frontmatter is covered
+by [read_property](./read_property.md); per-name value lookups by
+[find_by_property](./find_by_property.md).
+
+## Input contract
+
+`properties` consumes the schema below. Every field is rejected at the
+boundary as `VALIDATION_ERROR` if the constraints fail. Unknown
+top-level keys are rejected (`additionalProperties: false`).
+
+```json
+{
+  "vault": "<vault name>",
+  "total": false
+}
+```
+
+| Field | Type | Required | Constraint |
+|-------|------|----------|------------|
+| `vault` | string | OPTIONAL | length ≥ 1 — silently honoured-as-noop by upstream; see [Inherited limitations](#multi-vault-default-ambiguity) |
+| `total` | boolean | OPTIONAL | defaults to `false` |
+
+### Per-field policy
+
+- **`vault`** — the vault display name. When omitted, the focused vault
+  is used. **Inherited limitation**: per the 2026-05-13 live probe (F4),
+  the upstream CLI silently honours-as-noop the `vault=` parameter for
+  the `properties` subcommand — the focused vault is what's actually
+  used regardless. The wrapper accepts and forwards the parameter as
+  data (FR-024 structural data-passing) but cannot enforce vault
+  scoping. Parity with [files](./files.md), [outline](./outline.md),
+  [read_heading](./read_heading.md), [find_by_property](./find_by_property.md).
+- **`total`** — when `true`, the response carries `properties: []`
+  with `count` set to the distinct property-name total. The CLI's
+  native `total` flag is used (mutually exclusive with `format=json` at
+  upstream per R3).
+
+Out-of-scope upstream surfaces (rejected at the schema layer per
+FR-005):
+
+| Upstream parameter | Why not exposed | Alternative |
+|---|---|---|
+| `file=<name>` / `path=<path>` / `active` | Per-file frontmatter dump — different wire shape (single object, not array) | Use [read_property](./read_property.md) |
+| `name=<name>` | Single-property note count (returns plain integer) | Use [find_by_property](./find_by_property.md) for value-to-file lookups |
+| `sort=count` | Frequency-ordered list | Re-sort the `properties` list client-side |
+| `counts` | No-op when `format=json` is set | n/a |
+| `format=yaml|tsv` | Alternative output formats — wrapper hardcodes `format=json` for stable parsing | n/a |
+
+## Output shape
+
+Uniform envelope across both modes (the only difference is whether
+`properties` is populated). The outer `count` value is identical
+across both `total` branches for the same vault state (FR-006a
+cross-mode invariant — confirmed by upstream per F3).
+
+### Default mode (`total !== true`)
+
+```json
+{
+  "count": 4,
+  "properties": [
+    { "name": "aliases", "noteCount": 0 },
+    { "name": "author",  "noteCount": 5 },
+    { "name": "status",  "noteCount": 12 },
+    { "name": "tags",    "noteCount": 8 }
+  ]
+}
+```
+
+### Count-only mode (`total: true`)
+
+```json
+{ "count": 4, "properties": [] }
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `count` | integer ≥ 0 | Number of distinct property names in the vault. Identical across both `total` branches for the same vault state. |
+| `properties` | array | One entry per distinct property name. Populated in default mode; always `[]` in count-only mode. |
+| `properties[].name` | string | YAML key byte-faithful from source. Case-sensitive deduplication — `Tags` and `tags` are distinct entries. |
+| `properties[].noteCount` | integer ≥ 0 | Number of notes whose frontmatter declares this property name. |
+
+### Sort order
+
+`properties` is sorted alphabetical ascending by `name`,
+case-insensitive primary key with byte-order tiebreak. Case-distinct
+duplicates (`Tags` next to `tags`; `Aardvark` next to `aardvark`)
+appear adjacent — drift-detection-friendly ordering per the
+2026-05-13 clarifications session Q1. The sort is applied wrapper-side
+post-fetch (R8); upstream emits its own order but the wrapper
+re-imposes the case-insensitive-primary rule regardless of upstream
+version's sort behaviour.
+
+For example, a vault with `Tags`, `tags`, `Aardvark`, `aardvark`,
+`Banana` returns:
+
+```
+Aardvark, aardvark, Banana, Tags, tags
+```
+
+(`aardvark` case-folded < `tags` case-folded places the `Aardvark`
+pair before the `Tags` pair; within each pair, byte-order places the
+uppercase variant first per ASCII `A`=0x41 < `a`=0x61.)
+
+### Empty vaults
+
+A vault with zero frontmatter returns `{ count: 0, properties: [] }`
+in both modes. No sentinel string is involved — upstream emits `[]`
+(default mode) or `0` (count-only mode) which both flow naturally
+through the handler's parse-and-map chain.
+
+## Worked examples
+
+### Example 1 — Default-scope happy path
+
+```json
+{
+  "name": "properties",
+  "arguments": {}
+}
+```
+
+Spawns one call: `obsidian properties format=json`. Example response:
+
+```json
+{
+  "count": 4,
+  "properties": [
+    { "name": "aliases", "noteCount": 0 },
+    { "name": "author",  "noteCount": 5 },
+    { "name": "status",  "noteCount": 12 },
+    { "name": "tags",    "noteCount": 8 }
+  ]
+}
+```
+
+Use this as the entry point for "what frontmatter properties does this
+vault use?" workflows. The upstream `type` metadata (`text`, `tags`,
+`date`, `multitext`, `checkbox`, etc.) is dropped per FR-004 — future
+BI may expose it as a separate field if user demand emerges.
+
+### Example 2 — Named-vault scoping (multi-vault inherited limitation)
+
+```json
+{
+  "name": "properties",
+  "arguments": { "vault": "Architecture Notes" }
+}
+```
+
+Spawns one call: `obsidian properties vault="Architecture Notes"
+format=json`. **The upstream silently honours-as-noop the `vault=`
+parameter** — the focused vault is what's actually used regardless. The
+wrapper still passes the argument as data (FR-024); multi-vault users
+must open the target vault in Obsidian before invoking. Parity with
+`files`, `outline`, `read_heading`, `find_by_property`.
+
+### Example 3 — Count-only mode (token-economical pre-flight read)
+
+```json
+{
+  "name": "properties",
+  "arguments": { "total": true }
+}
+```
+
+Spawns one call: `obsidian properties total` (the `format=json`
+parameter is omitted — `total` and `format=json` are mutually exclusive
+at upstream per R3). Response:
+
+```json
+{ "count": 73, "properties": [] }
+```
+
+Use this when only the distinct-name count matters (size estimation,
+quick existence check, drift watchdog). The outer `count` value
+matches the default-mode `count` for the same vault state (FR-006a
+cross-mode invariant). The count-only mode also bypasses the
+output-cap risk entirely for vaults with very large inventories.
+
+### Example 4 — Empty vault
+
+```json
+{
+  "name": "properties",
+  "arguments": {}
+}
+```
+
+Against a vault with zero frontmatter, the response is:
+
+```json
+{ "count": 0, "properties": [] }
+```
+
+The handler's parse-and-map chain produces this from upstream's `[]`
+JSON output naturally (no special-case sentinel detection required).
+
+### Example 5 — Validation rejection
+
+```json
+{
+  "name": "properties",
+  "arguments": { "vault": "" }
+}
+```
+
+The empty-string `vault` fails the schema's `.min(1)` check; the
+registration layer maps the `ZodError` to `VALIDATION_ERROR`:
+
+```json
+{
+  "isError": true,
+  "content": [{ "type": "text", "text": "{\"code\":\"VALIDATION_ERROR\",\"message\":\"properties input failed schema validation\",\"details\":{\"issues\":[{\"path\":[\"vault\"],\"message\":\"String must contain at least 1 character(s)\",\"code\":\"too_small\"}]}}" }]
+}
+```
+
+Likewise, an unknown top-level key (e.g. `{ "file": "note.md" }`)
+fails `additionalProperties: false` and surfaces as
+`VALIDATION_ERROR — Unrecognized key(s) in object: 'file'`.
+
+### Example 6 — Case-distinct drift detection
+
+```json
+{
+  "name": "properties",
+  "arguments": {}
+}
+```
+
+Against a vault where some notes carry `Tags:` and others `tags:` (a
+common drift scenario in long-lived vaults), the response shows the
+adjacent pairing thanks to the case-insensitive-primary sort:
+
+```json
+{
+  "count": 5,
+  "properties": [
+    { "name": "Aardvark", "noteCount": 1 },
+    { "name": "aardvark", "noteCount": 3 },
+    { "name": "Banana",   "noteCount": 2 },
+    { "name": "Tags",     "noteCount": 1 },
+    { "name": "tags",     "noteCount": 4 }
+  ]
+}
+```
+
+The pair `Tags(1)` / `tags(4)` appearing adjacent in the output makes
+drift visible at a glance — the agent or operator can normalise to a
+single casing without scrolling through the entire alphabet.
+
+## Error roster
+
+All failure surfaces flow through `UpstreamError` per Constitution
+Principle IV. `properties` introduces **zero new error codes**.
+
+| Code | When | Recovery |
+|------|------|----------|
+| `VALIDATION_ERROR` | Input failed the schema (`vault` non-string, `vault` empty, `total` non-boolean, unknown top-level key including `file` / `path` / `active` / `name` / `sort` / `counts` / `format`). | Agent retries with corrected input. `details.issues` carries per-issue `path` + `message` + zod code. |
+| `CLI_REPORTED_ERROR` | Wrapper-imposed: (a) JSON parse failure in default mode (`details.stage: "json-parse"` — upstream contract divergence); (b) integer parse failure in count-only mode (`details.stage: "total-parse"` — upstream contract divergence). | Investigate as a regression — the upstream contract was contract-stable per plan-stage F1/F3. |
+| `CLI_NON_ZERO_EXIT` | The Obsidian CLI exited with a non-zero code (typical cause: output-cap kill on pathologically large inventories). | `details.{exitCode, signal, stdout, stderr}` carry the failure context. Use `total: true` to bypass the cap-risk entirely (upstream returns a small integer regardless of inventory size). |
+| `CLI_BINARY_NOT_FOUND` | The `obsidian` CLI binary is not on `PATH` and `OBSIDIAN_BIN` was unset/invalid. | Operator-side: install the Obsidian CLI, OR set `OBSIDIAN_BIN` to a valid path. |
+| `CLI_OUTPUT_TOO_LARGE` | The CLI's stdout exceeded the cli-adapter's 10 MiB output cap (cap-exceeded kill). | Use `total: true`, OR reduce vault scope. |
+
+**No `ERR_NO_ACTIVE_FILE`** — this tool has no active mode. **No
+`CLI_REPORTED_ERROR` for unknown vault** — upstream silently
+honours-as-noop the `vault=` parameter (FR-015 resolves to documented
+inherited limitation per R5 / F4); the 011-R5 cli-adapter
+unknown-vault inspection clause does NOT fire because no
+"Vault not found." stdout is ever emitted.
+
+The canonical errors contract is at
+[specs/001-add-cli-bridge/contracts/errors.contract.md](../../specs/001-add-cli-bridge/contracts/errors.contract.md);
+`properties` propagates the adapter's classification verbatim with no
+rewrites.
+
+## Inherited limitations
+
+### Multi-vault default ambiguity
+
+The Obsidian CLI's `vault=` parameter is silently honoured-as-noop
+for the `properties` subcommand (verified at plan stage per F4) — the
+focused vault is always used. In multi-vault setups, callers cannot
+specify which vault to target via `vault=`. **Recommendation**: open
+the target vault in Obsidian before invoking `properties`. Parity
+with `files`, `outline`, `read_heading`, `find_by_property`.
+
+### Output-cap ceiling
+
+Very large inventories may exceed the cli-adapter's 10 MiB output cap
+and surface as `CLI_NON_ZERO_EXIT`. In practice this requires
+~200,000 distinct property names; the `total: true` mode bypasses the
+risk entirely — upstream returns a small integer regardless of
+inventory size.
+
+### Sort order is wrapper-locked
+
+The case-insensitive-primary + byte-order-tiebreak sort is applied
+wrapper-side post-fetch (per the 2026-05-13 clarifications session
+Q1 / FR-013). Upstream's order is not load-bearing for this tool — the
+wrapper re-imposes the rule regardless of upstream's default
+(`sort=name` ascending in the version probed at plan stage). Callers
+needing alternative sort orders (e.g. `sort=count` frequency-ordered)
+re-sort the `properties` list client-side, or fall through to
+`obsidian_exec` for the upstream-native `sort=count` view.
+
+### Type metadata is dropped
+
+Upstream emits a per-entry `type` field with values from `{aliases,
+text, date, multitext, number, tags, checkbox, ...}`. The wrapper
+drops this field per FR-004 (type-aware enumeration is out of scope).
+Future BI may expose `type` as a separate field if user demand
+emerges; until then, callers needing type metadata use
+`obsidian_exec properties format=json` for the raw upstream wire
+shape.
+
+### Single-call architecture
+
+Each MCP request fires exactly ONE `invokeCli` invocation regardless
+of `vault` or `total`. End-to-end latency is approximately 1× a
+single-call typed tool (~50–150 ms typical). All invocations serialise
+through the project's single-in-flight queue.
+
+### Argv anti-injection guarantee
+
+User input (`vault`) flows through a discrete argv parameter to the
+CLI's `properties` subcommand via `child_process.spawn` — no shell
+interpolation, no `eval` source-text concatenation. The "no eval
+injection vector" assertion holds because `properties` invokes the
+native subcommand directly (stark contrast to `read_heading` /
+`find_by_property` which compose against `eval`).
+
+## Related tools
+
+- [read_property](./read_property.md) — read a single property's
+  value in a single note; pairs naturally with `properties` (discover
+  the name set first, then read the per-note values).
+- [find_by_property](./find_by_property.md) — find the set of notes
+  whose frontmatter declares a specific property value; pairs
+  naturally with `properties` for inventory-to-cohort workflows.
+- [outline](./outline.md) — heading structure of a single Markdown
+  note; the first structural-discovery primitive.
+- [obsidian_exec](./obsidian_exec.md) — freeform escape hatch for
+  `properties sort=count` (frequency-ordered) or
+  `properties format=tsv` renderings.
+
+## References
+
+- [024-list-properties spec](../../specs/024-list-properties/spec.md)
+  — feature spec, clarifications session 2026-05-13 (Q1 sort order
+  drift-adjacent, Q2 `total` outer count semantic = distinct names),
+  plan-stage FR-015 unknown-vault amendment per F4.
+- [024-list-properties research](../../specs/024-list-properties/research.md)
+  — R1–R14 design decisions, F1–F14 live findings, T0 capture
+  summary.
+- [024-list-properties data-model](../../specs/024-list-properties/data-model.md)
+  — schema shapes, per-tool invariants, test inventory (45 cases).
+- [errors contract](../../specs/001-add-cli-bridge/contracts/errors.contract.md)
+  — canonical roster of `UpstreamError` codes.
+- [help tool spec](../../specs/005-help-tool/spec.md) — the
+  schema-stripping contract and `help({ tool_name })` lookup that
+  surfaces this document.

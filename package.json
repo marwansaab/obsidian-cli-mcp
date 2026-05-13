@@ -1,7 +1,7 @@
 {
   "name": "@marwansaab/obsidian-cli-mcp",
-  "version": "0.5.1",
-  "description": "Cross-platform MCP server bridging MCP clients to the Obsidian Integrated CLI binary on macOS, Linux, and Windows hosts. Typed tools: delete, files, find_by_property, obsidian_exec, outline, read, read_heading, read_property, rename, set_property, write_note + help.",
+  "version": "0.5.2",
+  "description": "Cross-platform MCP server bridging MCP clients to the Obsidian Integrated CLI binary on macOS, Linux, and Windows hosts. Typed tools: delete, files, find_by_property, obsidian_exec, outline, properties, read, read_heading, read_property, rename, set_property, write_note + help.",
   "type": "module",
   "bin": {
     "obsidian-cli-mcp": "dist/index.js"

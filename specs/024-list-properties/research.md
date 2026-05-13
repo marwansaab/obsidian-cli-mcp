@@ -187,3 +187,37 @@ Inherited limitation (per F4 / R5). Documented in `docs/tools/properties.md` per
 - Very-large-inventory cap-boundary behaviour: synthesise (or already-have) a vault with sufficient distinct property names to approach the 10 MiB output cap; verify `CLI_NON_ZERO_EXIT`.
 
 **No plan-stage spec amendments beyond FR-015 resolution** (resolved to documented inherited limitation per F4). The 2026-05-13 clarifications session's Q1 and Q2 outcomes survive the live probe unchanged — Q1 (case-insensitive primary sort) is wrapper-locked regardless of upstream, Q2 (count = distinct names) is satisfied by upstream behaviour directly per F3.
+
+---
+
+## T0 Live-CLI Capture (2026-05-13)
+
+T001 ran during `/speckit-implement`. Cases that could be probed without re-focusing Obsidian onto a seeded TestVault were exercised live; the remaining cases hold to the plan-stage best-evidence assumption pending an operator-driven manual gate.
+
+### T0.4 — Path-traversal `vault=` value (LIVE PROBE — PASSES)
+
+Command: `obsidian properties vault=../escape format=json`.
+
+Outcome: byte-identical output to `obsidian properties format=json` against the focused vault — the upstream silently honours-as-noop the `vault=../escape` value (parity with F4). The probe returned the focused-vault inventory (36 distinct properties — first 5 names: `aliases`, `created`, `cssclasses`, `feature`, `id`; type field values observed: `aliases`, `date`, `multitext`, `text`, `tags`, `checkbox`). No filesystem mutation; no error; no escape; exit code 0.
+
+Implication: F4 / R5 hold. FR-017 / SC-011 satisfied — `vault=` is consumed by the upstream's internal vault registry, not the filesystem. The wrapper's argv-data-passing (R6) is the structural defence; the upstream's silently-honoured-as-noop behaviour is the practical defence. No wrapper code change.
+
+### T0.1 — Empty-vault behaviour (DEFERRED to manual gate)
+
+Cannot run without focusing Obsidian onto a seeded empty TestVault. Plan-stage best-evidence assumption per R9 holds: upstream emits `[]` JSON array (default mode) and `0` integer (count-only mode); handler parse-and-map-and-sort chain handles both natively. T005 handler test case 14 covers default-mode `[]` via mocked stdout; T005 case 11 covers count-only `0` via mocked stdout. If operator's manual probe reveals a sentinel string, the handler gains a sentinel-detection branch parallel to BI-023 R9.
+
+### T0.2 — Body-content opacity + null-valued key + nested YAML (DEFERRED to manual gate)
+
+Cannot run without seeding Sandbox fixtures in TestVault and focusing Obsidian on it. Plan-stage best-evidence assumption per F12 holds: upstream's Obsidian metadata cache separates frontmatter from body content AND emits one entry per top-level YAML key with appropriate inclusion semantics for null values. Wrapper is a pure pass-through modulo type-drop / count-rename / post-fetch-sort; FR-010 / FR-011 / FR-012 are defer-to-upstream.
+
+### T0.3 — Case-distinct sort verification end-to-end (DEFERRED to manual gate — wrapper-side sort is unit-test-verified)
+
+Cannot run without seeding Sandbox fixtures in TestVault and focusing Obsidian on it. The wrapper-side post-fetch sort is wrapper-locked regardless of upstream's order per R8 / F14; T005 handler test case 4 verifies the comparator against the documented fixture `[Tags(1), tags(4), Banana(2), Aardvark(1), aardvark(3)]` → `[Aardvark, aardvark, Banana, Tags, tags]`. Operator's end-to-end probe is observability evidence, not a contract gate.
+
+### T0.5 — Very-large-inventory cap-boundary (OPTIONAL — deferred)
+
+Per task spec the FR-018 contract (cap fires as structured error, not silent truncation) is structurally ensured by the cli-adapter's existing 10 MiB cap — empirical confirmation is observability evidence, not a contract gate. T005 handler test case 23 verifies the wrapper propagates the dispatch-layer's `CLI_NON_ZERO_EXIT` unchanged.
+
+### Outcome
+
+T0.4 confirms F4. T0.1 / T0.2 / T0.3 deferred to the operator's manual gate (Q-18..Q-21 of quickstart.md) — handler implementation proceeds on the plan-stage best-evidence assumption that empty-vault behaviour is natural `[]` / `0` handling AND body-content opacity / null-key inclusion / top-level-key counting are defer-to-upstream. The sentinel-detection branch is NOT added at this stage; if the operator's probe reveals a sentinel, the handler is amended in a follow-up patch.

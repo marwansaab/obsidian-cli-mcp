@@ -1,12 +1,13 @@
 # obsidian-cli-mcp
 
-A minimal MCP server that bridges any MCP client (running locally or in a sandboxed container like Claude Cowork's Linux environment) to the Obsidian Integrated CLI binary on the operator's macOS, Linux, or Windows desktop. Exposes twelve tools:
+A minimal MCP server that bridges any MCP client (running locally or in a sandboxed container like Claude Cowork's Linux environment) to the Obsidian Integrated CLI binary on the operator's macOS, Linux, or Windows desktop. Exposes thirteen tools:
 
 - **`obsidian_exec`** — generic CLI bridge that lets the caller invoke any Obsidian CLI subcommand with structured parameters, bare-word flags, optional vault scoping, and a per-call timeout.
 - **`help`** — progressive-disclosure tool that serves full Markdown documentation for any registered tool on demand, per [ADR-005](.decisions/ADR-005%20-%20Token-Optimized%20Tool%20Definitions%20via%20Progressive%20Disclosure.md). Parameter-level descriptions are stripped from the JSON Schema at registration time to save context-window tokens, and recovered via `help({ tool_name: "<name>" })` when the agent needs them.
 - **`read`** — typed read primitive: reads a note's raw UTF-8 text by file/path locator or from the focused editor (active mode), routing through the centralised cli-adapter per [ADR-004](.decisions/ADR-004%20-%20Centralised%20Internal%20CLI%20Adapter.md).
 - **`read_heading`** — typed heading-body retrieval: returns just the body bytes between a named heading and its first-subsequent heading marker (typically 100–500 tokens vs. the 5–50k a full `read` returns).
 - **`outline`** — typed structural-discovery primitive: returns the flat ordered list of every heading in a Markdown note as `{ count, headings: [{ level, text, line }] }` (typically a few hundred bytes vs. the 5–50k a full `read` returns). Supports `total: true` for token-economical count-only pre-flight reads.
+- **`properties`** — typed vault-wide structural-discovery primitive: returns the catalogue of distinct frontmatter property names with per-property note counts as `{ count, properties: [{ name, noteCount }] }`. Case-insensitive-primary + byte-tiebreak sort places case-distinct duplicates (`Tags` next to `tags`) adjacent for drift-detection workflows. Supports `total: true` for token-economical count-only pre-flight reads.
 - **`read_property`** — typed surgical frontmatter-property read: returns `{ value, type }` with the property's native YAML type preserved (text / list / number / checkbox / date / datetime / unknown).
 - **`set_property`** — typed surgical frontmatter-property write: writes one named property to a vault note and returns `{ written: true, path, name }`. Symmetric write companion to `read_property`; six YAML types supported; cross-type overwrite native.
 - **`find_by_property`** — typed value-to-file lookup over frontmatter: enumerates the vault for files whose named property equals a given value.

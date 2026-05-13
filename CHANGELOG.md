@@ -5,6 +5,42 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] - 2026-05-13
+
+**PATCH release (additive surface)** — adds `properties`, the eleventh typed-tool wrap and the project's second structural-discovery primitive (after BI-023 `outline`). Returns the vault-wide catalogue of frontmatter property names with per-property note counts as a typed `{ count, properties: [{ name, noteCount }] }` envelope. Wraps the upstream Obsidian CLI's `properties` subcommand natively (no `eval` composition). The `total: true` switch returns the distinct-names count alone with `properties: []` for a token-economical pre-flight read. Replaces "obsidian_exec plus full-vault grep plus client-side dedup" for the property-inventory case at one to two orders of magnitude less token cost. Spec-id 024-list-properties, FR-001..FR-024, SC-001..SC-021.
+
+### Added
+
+- **`properties` typed MCP tool** at `src/tools/properties/` — schema + handler + index + co-located tests (45 cases: 16 schema / 24 handler / 5 registration). Single-spawn architecture (R3): ONE `invokeCli` call per request, branched on `input.total` — default mode invokes with `format=json` parameter, count-only mode invokes with the `total` flag (mutually exclusive at upstream per R3). Load-bearing wrapper transforms: DROP upstream `type` field per R7/F5/FR-004, RENAME upstream `count` → wrapper `noteCount` per R7/F6/FR-007, and post-fetch case-insensitive-primary + byte-tiebreak sort per R8/FR-013 — case-distinct duplicates (`Tags` next to `tags`) appear adjacent for drift-detection workflows. Public surface: `properties({ vault?, total? })` → `{ count, properties: [{ name, noteCount }] }`. NO `target_mode` discriminator (vault-only surface — different from `outline` / `read` / `read_heading` / etc.); ADR-003 NOT APPLICABLE.
+- **Non-stub `docs/tools/properties.md`** per FR-019 — input contract, output shape × 2 modes, six worked examples (default-scope happy / named-vault multi-vault inherited limitation / count-only pre-flight read / empty vault / validation rejection / case-distinct drift detection), full error roster covering `VALIDATION_ERROR` / `CLI_REPORTED_ERROR` (2 sub-cases) / `CLI_NON_ZERO_EXIT` / `CLI_BINARY_NOT_FOUND` / `CLI_OUTPUT_TOO_LARGE`, five inherited-limitation sections (multi-vault default ambiguity, output-cap ceiling, wrapper-locked sort order, type-metadata dropped, single-call architecture).
+- **One-line entry** in `docs/tools/index.md` between `outline` and `read`.
+- **Two-line wiring** in `src/server.ts`: import + tools-array entry (alphabetical: inserted between `createOutlineTool` and `createReadTool`).
+- **FR-018 baseline roll-forward**: `src/tools/_register-baseline.json` extended with the `properties` entry via `npm run baseline:write`. All other tool fingerprints unchanged byte-identically (SC-015).
+
+### Plan-stage design decisions deferred to upstream
+
+- **Body-content opacity (FR-010 / F12 defer-to-upstream)**: upstream's Obsidian metadata cache separates frontmatter from body content; YAML-like tokens inside fenced or indented code blocks do not appear in the inventory. Wrapper is pure pass-through.
+- **Unknown-vault silently honoured-as-noop (FR-015 amended at plan stage / F4)**: spec FR-015 was rewritten from "MUST surface a structured error" to "MUST be documented as an inherited limitation" — live probe revealed `vault=NonExistent` returns byte-identical output to a focused-vault query (parity with BI-019 / BI-023 / BI-015 / BI-014). The 011-R5 cli-adapter unknown-vault inspection clause does NOT fire because no "Vault not found." stdout is ever emitted.
+- **Top-level-key counting (FR-012 defer-to-upstream)**: nested YAML values contribute one entry per top-level key only.
+- **Null-valued-key inclusion (FR-011 defer-to-upstream)**: keys with null values are included in the inventory (presence-is-inclusion semantic).
+- **Q2 (`total: true` outer count semantic) confirmed by upstream (F3)**: upstream's `total` flag returns the count of distinct property names (NOT sum of occurrences); the FR-006a cross-mode invariant holds by upstream construction, no wrapper-side recomputation required.
+
+### Internal
+
+- **Frozen surfaces** (SC-015): `obsidian_exec`, `read`, `write_note`, `delete`, `read_property`, `find_by_property`, `read_heading`, `set_property`, `files`, `rename`, `outline`, `help` all byte-stable — input schemas, output shapes, and error codes unchanged. Zero new error codes (FR-018, Constitution IV); zero new ADRs; zero ADR amendments.
+- **Drift detector**: the post-010 consolidated drift detector's `it.each` registry walk auto-covers `properties`.
+
+### References
+
+- Spec: [specs/024-list-properties/spec.md](specs/024-list-properties/spec.md)
+- Plan: [specs/024-list-properties/plan.md](specs/024-list-properties/plan.md)
+- Research: [specs/024-list-properties/research.md](specs/024-list-properties/research.md)
+- Data model: [specs/024-list-properties/data-model.md](specs/024-list-properties/data-model.md)
+- Tasks: [specs/024-list-properties/tasks.md](specs/024-list-properties/tasks.md)
+- Quickstart: [specs/024-list-properties/quickstart.md](specs/024-list-properties/quickstart.md)
+- Input contract: [specs/024-list-properties/contracts/properties-input.contract.md](specs/024-list-properties/contracts/properties-input.contract.md)
+- Handler contract: [specs/024-list-properties/contracts/properties-handler.contract.md](specs/024-list-properties/contracts/properties-handler.contract.md)
+
 ## [0.5.1] - 2026-05-13
 
 **PATCH release (additive surface)** — adds `outline`, the tenth typed-tool wrap and the project's first structural-discovery primitive. Returns the flat ordered list of every heading in a Markdown note as a typed `{ count, headings: [{ level, text, line }] }` envelope. Wraps the upstream Obsidian CLI's `outline` subcommand natively (no `eval` composition). The `total: true` switch returns the count alone with `headings: []` for a token-economical pre-flight read. Replaces "full `read` plus client-side Markdown parse" for the outline case at one to two orders of magnitude less token cost. Spec-id 023-outline, FR-001..FR-027, SC-001..SC-021.
