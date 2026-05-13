@@ -300,3 +300,66 @@ These deferrals are appropriate for T0 (require fresh fixtures, active-mode stat
 | Frontmatter inclusion | YES (Q4 — merge frontmatterLinks) | N/A | N/A | N/A |
 
 The single most distinctive feature of this BI: the **three load-bearing transforms** required to convert Obsidian's `LinkCache` shape into the locked public contract. Implementable in ~15 LOC of in-eval JS; locked by handler tests on every input variation.
+
+---
+
+## T0 Live-CLI Capture (2026-05-13)
+
+### T0.2 — Active-mode `NO_ACTIVE_FILE` UpstreamError code decision (mandatory pre-impl gate)
+
+**Decision**: lock to `ERR_NO_ACTIVE_FILE` per the BI-015 precedent.
+
+**Evidence**: [`src/tools/read_heading/handler.ts:74-81`](../../src/tools/read_heading/handler.ts#L74-L81) maps envelope `NO_ACTIVE_FILE` → `new UpstreamError({ code: "ERR_NO_ACTIVE_FILE", ..., details: { stage: "envelope-error", detail } })`. The wrapper's `mapEnvelopeError` adopts the same shape for parity with BI-015 / BI-014 alignment per R13. T004 handler therefore emits `ERR_NO_ACTIVE_FILE` with `details: { stage: "envelope-error", detail }` (no `code` key in `details` — matches BI-015 verbatim).
+
+### T0.1, T0.3, T0.4, T0.5, T0.6, T0.7 — Deferred to manual smoke
+
+Per the task definition's `[post-impl wrapper E2E]` tagging and the OPTIONAL marker on T0.7, these characterisation probes require:
+
+- Obsidian app focused on `TestVault-Obsidian-CLI-MCP`
+- Workspace state changes (closing all panes for T0.2 active-mode no-focus path)
+- 130k-link fixture seeding (T0.7 OPTIONAL)
+
+The wrapper-side contracts these probes characterise are structurally locked by handler-test stubs (the eval JS is wrapper-controlled; the cache fixtures are stubbed). Live-CLI verification ships as the T017 manual smoke per the quickstart.
+
+
+---
+
+## T016 Deliberate-Fails-First Sanity Check (2026-05-13)
+
+**Outcome**: the deliberate revert of the displayText omit-when-equal
+transform in `_template.ts` (changing `if(e.displayText!==e.link)o.displayText=e.displayText;`
+to `o.displayText=e.displayText;`) did NOT cause handler-test failures.
+
+**Why**: the 28 handler tests use stub `spawnFn` injections that simulate
+the *post-eval* envelope shape — the eval JS template never executes in
+the unit test environment. Stub envelopes for cases 7 (bare wikilink),
+9 (wiki embed), and 14 (frontmatter wikilink) already represent the
+final wire shape with `displayText` omitted; changing the in-eval
+omit-rule has no effect on what the stub returns to the handler.
+
+**Implication**: the in-eval logic (kind synthesis, line+1 conversion,
+displayText omit-when-equal, source-order sort, `_col` strip, `f.extension==='md'`
+guard, `|| []` coalescing) is NOT covered by the unit test suite. The
+test at case 28 verifies the handler renders the CURRENT template
+byte-faithfully (via `JS_TEMPLATE.replace(...)`), so the template is
+frozen against accidental change at the assembly layer — but the
+template's behavioural correctness is verified only via T0 live probes
+(T0.1 / T0.3 / T0.4 / T0.6 against `TestVault-Obsidian-CLI-MCP`) and
+the T017 manual smoke.
+
+**Architectural note**: this matches BI-014 / BI-015 (read_heading,
+find_by_property) which carry the same characterisation by
+construction. The eval-driven cohort's behavioural correctness rests
+on the wrapper-controlled template being a frozen string (no
+interpolation, single substitution point) plus live-CLI verification
+at T0 / smoke time. The unit suite locks the *assembly* of the eval
+call (R3 single-spawn, R6 base64 round-trip, envelope-parse + envelope-
+error mapping, two-stage parse error paths) — not the in-eval
+semantics.
+
+**Action**: no action taken. The contract gates surface via T0
+characterisation and the T017 manual smoke, not via the unit suite.
+The deliberate-revert protocol was useful here as a diagnostic of test
+coverage shape, not as a regression guard for the displayText
+transform itself.
+

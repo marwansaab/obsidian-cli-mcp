@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "024-list-properties",
+  "generatedFromBranch": "025-list-links",
   "generatedAt": "2026-05-13",
   "tools": [
     {
@@ -22,6 +22,11 @@
       "name": "help",
       "descriptionFingerprint": "7b3112a84ea0caad54008b5d853d36c698fb877c68715a19d2e9b3dee3a87b72",
       "schemaFingerprint": "18f8be71427ad98b413fa1b2b5779d4c4aadfef6dd93376f2a62cc224dc4303e"
+    },
+    {
+      "name": "links",
+      "descriptionFingerprint": "8bca852fe141bd343dade2ccce49f7e0bf43cec577a498fb8bdb274d01d7996c",
+      "schemaFingerprint": "3affa6b4260fc26466e0b52018a248ec0e9752bd49d1f65bd549db20ab77f642"
     },
     {
       "name": "obsidian_exec",
