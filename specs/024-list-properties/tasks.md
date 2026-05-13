@@ -52,10 +52,15 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
   - **(T0.1) Empty-vault behaviour (R9 verification)**: open Obsidian focused on TestVault-Obsidian-CLI-MCP (or a freshly-created bare vault with zero notes carrying frontmatter — e.g. seed only `Sandbox/no-frontmatter.md` containing just `# Body`, no `---` block). Probe: `obsidian properties vault=TestVault-Obsidian-CLI-MCP format=json` and `obsidian properties vault=TestVault-Obsidian-CLI-MCP total`. **Expected per R9**: default mode returns `[]` (with newline); count-only mode returns `0`. **TRIGGER**: if upstream emits a sentinel string (e.g. `No properties found.` or similar, parity with BI-023 F7), document the actual string in research.md and AMEND T004's handler.ts to add a sentinel-detection branch BEFORE the JSON.parse / integer-parse step (parallel to BI-023's `EMPTY_OUTLINE_SENTINEL`). Add a `EMPTY_INVENTORY_SENTINEL` constant if needed. Add the corresponding handler test case to T005 covering the sentinel. **Note**: if the test vault has even one note with frontmatter, this probe won't surface empty-vault behaviour — seed a dedicated empty vault OR temporarily remove all frontmatter from TestVault before probing (restore after).
 
-  - **(T0.2) Body-content opacity end-to-end (F12 / FR-010 verification)**: seed `Sandbox/properties-T0-bodyopacity.md` with this exact content:
+  - **(T0.2) Body-content opacity + null-valued key + nested YAML end-to-end (F12 / FR-010 / FR-011 / FR-012 verification — extended per /speckit-analyze C1 remediation 2026-05-13)**: seed `Sandbox/properties-T0-bodyopacity.md` with this exact content (fixture extended at remediation to cover FR-021 cases 5 + 6 + 7 in a single probe):
     ```
     ---
     realkey: yes
+    nullkey:
+    nested:
+      child: foo
+      grandchild:
+        deep: bar
     ---
     # Body
 
@@ -65,7 +70,14 @@ No setup tasks — the repository's TypeScript / vitest / zod / `zod-to-json-sch
 
         indented_fake_key: nope
     ```
-    Open TestVault as focused. Probe: `obsidian properties vault=TestVault-Obsidian-CLI-MCP format=json` and confirm `realkey` appears in the listing AND `fakekey_fenced` / `indented_fake_key` do NOT. **Expected per F12 / BI-023 precedent**: upstream's Obsidian metadata cache separates frontmatter from body content; only `realkey` is in the inventory. **TRIGGER**: if `fakekey_fenced` or `indented_fake_key` appear in the listing, FR-010's deferred-to-upstream contract is broken — the wrapper would need a body-content filter, which is a major scope expansion. Escalate to user before implementing wrapper-side filtering. Document the actual upstream behaviour either way. Clean up fixture.
+    Open TestVault as focused. Probe: `obsidian properties vault=TestVault-Obsidian-CLI-MCP format=json` and confirm:
+    - **FR-010 (body opacity)**: `realkey` appears AND `fakekey_fenced` / `indented_fake_key` do NOT.
+    - **FR-011 (null-valued key inclusion)**: `nullkey` appears in the listing with `noteCount: 1` — presence of the key in frontmatter is the inclusion criterion, NOT the value's content. Document the actual upstream `count` value AND whether upstream emits `nullkey` at all (best-evidence expectation per the BI-023 precedent is yes — Obsidian's metadata cache enumerates frontmatter keys regardless of value semantics).
+    - **FR-012 (top-level YAML key only)**: `nested` appears with `noteCount: 1` AND `child` / `grandchild` / `deep` do NOT — counting is at the top-level YAML key per the spec. Document the actual upstream behaviour.
+
+    **Expected per F12 / BI-023 precedent + FR-011 / FR-012 inclusion-via-defer-to-upstream**: upstream's Obsidian metadata cache separates frontmatter from body content AND emits one entry per top-level YAML key with appropriate inclusion semantics for null values. Inventory contents: `realkey`, `nullkey`, `nested` — three entries, each `noteCount: 1`. Body-content tokens absent. Nested children absent.
+
+    **TRIGGER**: (a) if `fakekey_fenced` or `indented_fake_key` appear in the listing, FR-010's deferred-to-upstream contract is broken — wrapper would need a body-content filter, major scope expansion; escalate to user. (b) if `nullkey` does NOT appear in the listing, FR-011's "presence-is-inclusion" contract is contradicted by upstream — escalate; the spec's FR-011 may need amendment. (c) if `child` / `grandchild` / `deep` appear as separate entries (not nested under `nested`), FR-012's top-level-key contract is contradicted — escalate; the wrapper would need a key-flattening filter. Document the actual upstream behaviour for all three subcases either way. Clean up fixture.
 
   - **(T0.3) Case-distinct sort verification end-to-end (F13 / FR-013 verification)**: seed two notes in TestVault Sandbox: `Sandbox/properties-T0-case-A.md` with frontmatter `---\nTags: [a]\nAardvark: 1\n---\n` and `Sandbox/properties-T0-case-B.md` with frontmatter `---\ntags: [b]\naardvark: 2\n---\n`. Open TestVault as focused. Probe: `obsidian properties vault=TestVault-Obsidian-CLI-MCP format=json` and confirm all four names (`Tags`, `tags`, `Aardvark`, `aardvark`) appear in the upstream output. Then exercise the wrapper end-to-end (via direct invocation or unit test) and confirm the wrapper's output order is `Aardvark, aardvark, Tags, tags` (case-insensitive primary + byte-order tiebreak per FR-013). **TRIGGER**: if upstream's sort or the wrapper's post-fetch sort produces a different order, debug the sort comparator in T004's handler.ts. Clean up fixtures.
 
