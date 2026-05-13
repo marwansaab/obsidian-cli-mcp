@@ -5,6 +5,41 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-05-13
+
+**PATCH release (additive surface)** — adds `outline`, the tenth typed-tool wrap and the project's first structural-discovery primitive. Returns the flat ordered list of every heading in a Markdown note as a typed `{ count, headings: [{ level, text, line }] }` envelope. Wraps the upstream Obsidian CLI's `outline` subcommand natively (no `eval` composition). The `total: true` switch returns the count alone with `headings: []` for a token-economical pre-flight read. Replaces "full `read` plus client-side Markdown parse" for the outline case at one to two orders of magnitude less token cost. Spec-id 023-outline, FR-001..FR-027, SC-001..SC-021.
+
+### Added
+
+- **`outline` typed MCP tool** at `src/tools/outline/` — schema + handler + index + co-located tests (52 cases: 18 schema / 29 handler / 5 registration). Single-spawn architecture (R3): ONE `invokeCli` call per request, branched on `input.total` — default mode invokes with `format=json` parameter, count-only mode invokes with the `total` flag (mutually exclusive at upstream per F14). Load-bearing wrapper transforms: the empty-outline sentinel detection (literal `No headings found.` after trim → `{ count: 0, headings: [] }` in both modes per R9/F7) and the upstream `heading` → wrapper `text` field rename per F1/FR-008. Public surface: `outline({ target_mode, vault?, file?, path?, total? })` → `{ count, headings: [{ level, text, line }] }`. STANDARD target-mode discriminator (parity with `read` / `read_heading` / `read_property`).
+- **Non-stub `docs/tools/outline.md`** per FR-021 — input contract per mode, output shape × 2 modes, five worked examples (specific by path / active focused / count-only / file-not-found / non-Markdown filetype rejection), full error roster covering `VALIDATION_ERROR` / `CLI_REPORTED_ERROR` (5 sub-cases) / `ERR_NO_ACTIVE_FILE` / `CLI_NON_ZERO_EXIT` / `CLI_BINARY_NOT_FOUND` / `CLI_OUTPUT_TOO_LARGE`, four inherited-limitation sections (multi-vault default ambiguity, output-cap ceiling, Setext-included contract, indented-code-block opacity).
+- **One-line entry** in `docs/tools/index.md` between `obsidian_exec` and `read`.
+- **Two-line wiring** in `src/server.ts`: import + tools-array entry (alphabetical: inserted between `createObsidianExecTool` and `createReadTool`).
+- **FR-018 baseline roll-forward**: `src/tools/_register-baseline.json` extended with the `outline` entry via `npm run baseline:write`. All other tool fingerprints unchanged byte-identically (SC-013).
+
+### Plan-stage design decisions
+
+- **R2 — native `outline` subcommand wrap (NOT eval)**: probed live 2026-05-13 (F1). `obsidian outline format=json` returns `[{level, heading, line}]` directly — the wrapper's wire shape. Architecturally simplest typed-tool wrap since BI-006.
+- **R8 — non-`.md` filetype rejection satisfied by upstream + dispatch-layer classifier**: probed live (F9). Upstream returns `Error: File is not a markdown file.` exit 0; dispatch layer's existing `Error:`-prefix classifier maps to `CLI_REPORTED_ERROR`. ZERO wrapper-side filetype guard required.
+- **R5 — vault routing limitation inherited**: probed live (F8). `vault=` is silently honoured-as-noop; focused vault is always used. Parity with `files` (BI-019). Documented limitation.
+- **R11 — Setext defer-to-upstream (plan-stage spec amendment per F10)**: live probe revealed upstream INCLUDES Setext entries in `format=json` output, contradicting spec-stage FR-013. Spec FR-013 amended at plan stage to defer-to-upstream, logically consistent with the clarifications-session Q2/A2 defer-to-upstream pattern for indented-code-blocks.
+
+### Internal
+
+- **Frozen surfaces** (SC-013): `obsidian_exec`, `read`, `write_note`, `delete`, `read_property`, `find_by_property`, `read_heading`, `set_property`, `files`, `rename`, `help` all byte-stable — input schemas, output shapes, and error codes unchanged. Zero new error codes (FR-020, Constitution IV); zero new ADRs; zero ADR amendments. The cli-adapter's 011-R5 unknown-vault response-inspection clause is NOT inherited for `outline` per R5/F8 (no "Vault not found." string to inspect); documented as an inherited limitation in `docs/tools/outline.md`.
+- **Drift detector**: invariants map in `src/tools/_register.test.ts` extended with the `outline` entry (`properties_equals_set: ["target_mode", "vault", "file", "path", "total"]`, `required_equals: ["target_mode"]`, `additionalProperties: false`). The post-010 consolidated drift detector's `it.each` registry walk auto-covers `outline`.
+
+### References
+
+- Spec: [specs/023-outline/spec.md](specs/023-outline/spec.md)
+- Plan: [specs/023-outline/plan.md](specs/023-outline/plan.md)
+- Research: [specs/023-outline/research.md](specs/023-outline/research.md)
+- Data model: [specs/023-outline/data-model.md](specs/023-outline/data-model.md)
+- Tasks: [specs/023-outline/tasks.md](specs/023-outline/tasks.md)
+- Quickstart: [specs/023-outline/quickstart.md](specs/023-outline/quickstart.md)
+- Input contract: [specs/023-outline/contracts/outline-input.contract.md](specs/023-outline/contracts/outline-input.contract.md)
+- Handler contract: [specs/023-outline/contracts/outline-handler.contract.md](specs/023-outline/contracts/outline-handler.contract.md)
+
 ## [0.5.0] - 2026-05-12
 
 **MINOR release (breaking — typed tool renames)** — Five typed MCP tools rename to match their upstream Obsidian CLI subcommand names: `read_note` → `read`, `delete_note` → `delete`, `list_files` → `files`, `write_property` → `set_property`, `rename_note` → `rename`. Single-release wholesale cleanup; no deprecation aliases. Pre-v1.0 semver window permits the MINOR-level breaking change. Spec-id 022-rename-typed-tools, FR-001..FR-021, SC-001..SC-010.

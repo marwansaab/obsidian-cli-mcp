@@ -173,3 +173,54 @@ Sections to amend:
 The amendment is applied in the same commit as this plan-stage research artefact; the spec's `## Clarifications` block gains a session-2026-05-13-plan-stage entry naming the F10 finding and the consistency-with-Q2/A2 reasoning.
 
 **No other spec amendments.** All other live findings (F1–F9, F11–F16) align with spec contracts as written.
+
+---
+
+## T0 Live-CLI Capture (2026-05-13)
+
+T001 attempted live characterisation of the four cases deferred from plan
+stage. Focused vault during probe was `The Setup`, not
+`TestVault-Obsidian-CLI-MCP`. Per F8 the `vault=` parameter is silently
+honoured-as-noop, so probes against TestVault-seeded fixtures fall back to
+the focused vault (where the seeded paths do not exist).
+
+- **T0.1 active-mode no-focus**: not probed live. Toggling Obsidian to a
+  no-focus state would intrude on the user's open editor session. Best-
+  evidence assumption from R13 + the dispatch-layer classifier
+  ([src/cli-adapter/_dispatch.ts](../../src/cli-adapter/_dispatch.ts)
+  priority (b) at line 294): upstream `Error: no active file` → wrapper
+  `ERR_NO_ACTIVE_FILE` via the existing prefix matcher. The handler test
+  case 24 asserts `ERR_NO_ACTIVE_FILE` is produced when the stub spawn
+  returns this stdout, which structurally exercises the classifier
+  contract. If upstream wording diverges in production, the test still
+  passes (stub matches stub) — only a live regression would surface
+  divergence at T017's smoke step.
+- **T0.2 multi-extension non-`.md` rejection**: three fixtures
+  (`outline-T0-canvas.canvas`, `outline-T0-pdf.pdf`,
+  `outline-T0-image.png`) seeded under
+  `TestVault-Obsidian-CLI-MCP\Sandbox\`. Probes returned
+  `Error: File "Sandbox/outline-T0-<ext>.<ext>" not found.` exit 0
+  for all three — paths resolved against `The Setup` (focused vault),
+  not against `TestVault-Obsidian-CLI-MCP`. The dispatch-layer
+  `Error:`-prefix classifier maps both this string AND F9's
+  `Error: File is not a markdown file.` to `CLI_REPORTED_ERROR` — so
+  the wrapper contract holds either way. Handler test case 23 stubs
+  the F9 wording (locked at plan stage). Fixtures cleaned up
+  post-probe.
+- **T0.3 CRLF / LF parity**: not probed live. Seeding CRLF / LF
+  fixtures requires writes against the focused vault (`The Setup`),
+  which is not pre-authorised per
+  [.memory/test-execution-instructions.md](../../.memory/test-execution-instructions.md).
+  Best-evidence assumption: upstream's parser operates on logical
+  lines; CRLF terminators are normalised to single logical lines.
+  Handler test case 18 (CRLF round-trip) stubs both stdouts and
+  asserts identical heading entries — a structural lock that would
+  catch any wrapper-side line-terminator handling regression.
+- **T0.4 cap-boundary**: deferred per the task's OPTIONAL clause
+  (FR-020 / R10 contract is structurally ensured by the cli-adapter's
+  10 MiB output cap; empirical confirmation is observability evidence,
+  not a contract gate).
+
+**TRIGGER status**: none fired. Implementation proceeds against the
+documented assumptions; the T017 manual smoke against MCP Inspector with
+TestVault focused remains the deferred end-to-end validation step.
