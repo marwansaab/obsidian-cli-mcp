@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "026-smart-connections-similar",
+  "generatedFromBranch": "027-smart-connections-query",
   "generatedAt": "2026-05-14",
   "tools": [
     {
@@ -67,6 +67,11 @@
       "name": "set_property",
       "descriptionFingerprint": "24a6da37b421391fca3ac33627904f90b9591c83cced20639f006a58e7cbf510",
       "schemaFingerprint": "d8308360fc90c594c8ebfd48bc3bec6070855a2241cb024f8e0e65205727f4ed"
+    },
+    {
+      "name": "smart_connections_query",
+      "descriptionFingerprint": "af805ad06565ecbdf4ce789a089fd9665d32d368c93af593c6af8041c8df54b7",
+      "schemaFingerprint": "c43d8a2ddb5230e8a1e793f2585e54d136aa82ea6f6c9c7db53aac725a5eaaa8"
     },
     {
       "name": "smart_connections_similar",
