@@ -966,3 +966,86 @@ test("R3 single-call invariant: one spawn per request; frozen template prefix/su
   const rendered = JS_TEMPLATE.replace("__PAYLOAD_B64__", match![1]!);
   expect(codeArg).toBe(rendered);
 });
+
+// =====================================================================
+// BI-027 ripple regression cases (39–41) — per FR-013a + FR-020a
+// =====================================================================
+
+// (39) details.reason: "api-missing" emission on env.smart_sources undefined path
+// (cohort-consistency with BI-027's SMART_CONNECTIONS_NOT_READY emissions per
+// ADR-015 worked-example pattern)
+test("BI-027 ripple: details.reason:'api-missing' on env.smart_sources undefined path", async () => {
+  const { spawnFn } = makeQueuedSpawn([
+    {
+      stdout:
+        '=> {"ok":false,"code":"SMART_CONNECTIONS_NOT_READY","detail":"env.smart_sources unavailable"}\n',
+      exitCode: 0,
+    },
+  ]);
+  const err = (await captureRejection(
+    executeSmartConnectionsSimilar(
+      { target_mode: "specific", vault: "Demo", path: "x.md", limit: defaultLimit },
+      deps(spawnFn),
+    ),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toMatchObject({
+    stage: "envelope-error",
+    code: "SMART_CONNECTIONS_NOT_READY",
+    reason: "api-missing",
+  });
+});
+
+// (40) details.reason: "api-missing" emission on the find_connections method-missing path
+// (same envelope code from the eval template's stage-4 readiness check; the wrapper does
+// not distinguish at the wire — both surface "api-missing" by handler convention)
+test("BI-027 ripple: details.reason:'api-missing' on find_connections method-missing path", async () => {
+  const { spawnFn } = makeQueuedSpawn([
+    {
+      stdout:
+        '=> {"ok":false,"code":"SMART_CONNECTIONS_NOT_READY","detail":"smart_sources.items[<key>].find_connections not a function"}\n',
+      exitCode: 0,
+    },
+  ]);
+  const err = (await captureRejection(
+    executeSmartConnectionsSimilar(
+      { target_mode: "specific", vault: "Demo", path: "x.md", limit: defaultLimit },
+      deps(spawnFn),
+    ),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toMatchObject({
+    stage: "envelope-error",
+    code: "SMART_CONNECTIONS_NOT_READY",
+    reason: "api-missing",
+  });
+});
+
+// (41) Behaviour-preservation regression on refactored stage-0 closed-vault detection.
+// After swapping the inline isVaultRegistered helper for the shared
+// `_eval-vault-closed-detection` module, the closed-vault path must emit a byte-equal
+// error response (same code / details / message) as before the refactor.
+test("BI-027 ripple: stage-0 closed-vault detection produces byte-equal error after shared-module refactor", async () => {
+  const vaultsListStdout = "The Setup\tD:\\\\Vaults\\\\The Setup\n";
+  const { spawnFn, getCount } = makeQueuedSpawn([
+    { stdout: "", exitCode: 0 },
+    { stdout: vaultsListStdout, exitCode: 0 },
+  ]);
+  const err = (await captureRejection(
+    executeSmartConnectionsSimilar(
+      { target_mode: "specific", vault: "The Setup", path: "x.md", limit: defaultLimit },
+      deps(spawnFn),
+    ),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({
+    code: "VAULT_NOT_FOUND",
+    reason: "not-open",
+    stage: "handler-stage-0",
+    vault: "The Setup",
+  });
+  expect(err.message).toBe(
+    'Vault "The Setup" is registered but not currently open in Obsidian; the CLI has begun opening it — retry after a brief delay.',
+  );
+  expect(getCount()).toBe(2);
+});

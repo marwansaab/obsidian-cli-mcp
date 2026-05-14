@@ -1,9 +1,199 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-[specs/026-smart-connections-similar/plan.md](specs/026-smart-connections-similar/plan.md)
+[specs/027-smart-connections-query/plan.md](specs/027-smart-connections-query/plan.md)
 
-Active feature: **026-smart-connections-similar** — adds the
+Active feature: **027-smart-connections-query** — adds the
+**thirteenth** typed-tool wrap and the project's **second
+plugin-backed typed surface** AND the **first cross-cutting
+eval-handler shared module**. Tool name `smart_connections_query`
+follows the plugin-namespace convention codified in ADR-013
+(`<plugin_name>_<operation>`) — second consumer after BI-026. User
+surface: `smart_connections_query({ query, vault?, limit?, total? })`
+returning `{ count: number, matches: Array<{ path, headingPath, score
+}> }`. FLAT schema, NO `target_mode` discriminator (parity with BI-014
+`find_by_property` / BI-019 `files` / BI-024 `properties` — fileless
+precedent; ADR-003 governs per-file typed tools and explicitly does
+NOT apply here). First member of the FILELESS sub-cohort within the
+plugin-backed cohort. Where BI-026 answers "what's near this source
+note?", BI-027 answers "what's near this question?" — together the
+two cover the Smart Connections plugin's two principal call shapes.
+Wraps the plugin's
+`app.plugins.plugins["smart-connections"].env.smart_sources.lookup
+({hypotheticals, filter, collection: 'smart_blocks'})` API
+reached via the `eval` subcommand. **CRITICAL plan-stage live-probe
+amendments** (per FR-024 protocol, 2026-05-15): **(1)** the
+`hypotheticals` field lives at the TOP LEVEL of `lookup({...})`
+params, NOT inside `filter` — verified via plugin source inspection
+(`async lookup(params = {}) { const { hypotheticals = [] } = params;
+... }`); the corrected call shape is `lookup({ hypotheticals: [query],
+filter: { limit }, collection: "smart_blocks" })`; spec FR-011
+amended; **(2)** lookup errors return as `{ error: <string> }`
+SENTINELS, NOT as thrown exceptions or rejected promises (verified:
+empty hypotheticals → `{error: "hypotheticals is required"}`;
+missing embed model → `{error: "Embedding search is not enabled."}`);
+in-eval pipeline does `if (r && r.error) ...` — NO try/catch; PLUS
+plugin-side `console.log` output ("Found and returned N
+smart_blocks.") AND `[warn]` lines capture to stdout BEFORE the
+`=> ` eval-return marker — handler stage-1 uses
+`stdout.lastIndexOf('\n=> ')` to extract JSON (vs BI-026's
+`trimStart + startsWith('=> ') ? slice(3) : passthrough` which works
+only because `find_connections` is a quieter API). Single-call
+architecture branched at envelope-emission on `a.total` (R3). World A
+locked (R3 grilling): lookup embeds query internally via
+`embed_model.embed_batch(hypotheticals.map(h => ({embed_input: h})))`;
+wrapper does NOT pre-compute embeddings. Per-match shape `{path,
+headingPath, score}` IDENTICAL to BI-026 — same R7 split rule (split
+on first `#`, before = `path`, after = `headingPath` array;
+`["---frontmatter---"]` sentinel preserved verbatim; `#{N}` sub-block
+ids in nested heading paths preserved). Three-level sort intra-eval
+(R8): `score` desc / `path` byte-asc / `headingPath.join("#")`
+byte-asc. NO self-exclusion (R9 N/A — no source). `Number.isFinite`
+score filter (R10). Schema-level `query: z.string().trim().min(1).max
+(4000)` cap. Anti-injection via base64-encoded JSON payload + frozen
+JS template (R6, parity with BI-014 / BI-015 / BI-025 / BI-026).
+**5-entry failure-mode roster** (zero new top-level codes; zero new
+`details.code` strings — thirteen-tool streak preserved per
+Constitution Principle IV / FR-013): `VALIDATION_ERROR`;
+`CLI_REPORTED_ERROR(VAULT_NOT_FOUND, reason: "unknown")`;
+`CLI_REPORTED_ERROR(VAULT_NOT_FOUND, reason: "not-open")`;
+`CLI_REPORTED_ERROR(SMART_CONNECTIONS_NOT_INSTALLED)`;
+`CLI_REPORTED_ERROR(SMART_CONNECTIONS_NOT_READY, reason:
+"api-missing"|"embed-failed")`. NEW emission for BI-027: the
+`embed-failed` sub-reason (detected via in-eval `if (r && r.error)`
+return-value sentinel check per R11). The `api-missing` sub-reason
+exists for ANY future plugin-API-shape drift (detected via in-eval
+`typeof env.smart_sources?.lookup !== 'function'` per R12).
+Error-precedence chain (FR-017): `VAULT_NOT_FOUND(unknown)` →
+`VAULT_NOT_FOUND(not-open)` → `SMART_CONNECTIONS_NOT_INSTALLED` →
+`SMART_CONNECTIONS_NOT_READY(api-missing)` →
+`SMART_CONNECTIONS_NOT_READY(embed-failed)` → success.
+**Architectural addition** (FR-020 / Q8(c) hybrid extraction): a NEW
+cross-cutting shared module `src/tools/_eval-vault-closed-detection/
+{detector, registry-parser, index}.ts` extracted from BI-026's inline
+detection branch. Plugin-AGNOSTIC — characterises a property of the
+Obsidian CLI's response to `vault=<closed>` eval (empty stdout +
+transparent open); any future eval-driven typed tool with a `vault?`
+parameter MAY consume it. The cli-adapter remains FROZEN (008-refactor
+surface invariant) — the shared module sits ONE LAYER UP. Other
+plugin-cohort-specific machinery (envelope schemas, JS template
+fragments, lifecycle stage shapes) is NOT extracted at tool #2 —
+deferred to rule-of-three at the next plugin BI. **BI-026 ripples
+bundled** (FR-013a / FR-020a): (a) refactor `smart_connections_similar`
+handler to consume the shared closed-vault detector (behaviour-
+preserving — `_register-baseline.json` fingerprint UNCHANGED); (b)
+emit `details.reason: "api-missing"` on BI-026's existing
+`SMART_CONNECTIONS_NOT_READY` for cohort-wide exhaustiveness of the
+`details.reason` field (ADR-015 worked-example pattern). Both ripples
+are additive at the wire — existing pattern-matchers on `details.code`
+still match. Two clarifications-session Q&As locked
+2026-05-15 pre-/speckit-clarify grilling (Q1 embed-call timeout
+boundary → defer to cli-adapter 10s cap, new inherited limitation #7;
+Q2 stale-index reverse direction — match references deleted file →
+pass through unchanged, new inherited limitation #8) PLUS two
+plan-stage live-probe-driven amendments to spec (amendment 1
+hypotheticals-at-top-level; amendment 2 error-sentinel-return +
+LAST-`=> ` extraction). NO new ADRs (ADR-013/014/015 cover this BI
+as second consumer per FR-027). NO Constitution amendment
+(v1.5.0 stays — no new compliance row). NO new architecture snapshot
+(FR-025 — canonical `.architecture/Obsidian CLI MCP - Architecture.md`
+rolled forward only; BI-026's snapshot remains the first-of-kind
+frozen historical artefact). 70 co-located tests total (47 new tool
++ 20 shared module + 3 BI-026 ripple regression). Version bump 0.5.3
+→ 0.5.4 (PATCH; additive surface).
+
+See also:
+
+- [spec.md](specs/027-smart-connections-query/spec.md) — feature
+  spec; /speckit-clarify ran 2026-05-15 (Q1 embed-call timeout cap,
+  Q2 stale-index reverse direction); two live-probe-driven amendments
+  ran 2026-05-15 plan stage (amendment 1 hypotheticals at top level;
+  amendment 2 error-sentinel return mechanism + LAST-`=> ` extraction).
+- [plan.md](specs/027-smart-connections-query/plan.md) —
+  implementation plan; Constitution Check PASS on initial +
+  post-Phase-1 evaluation; no Complexity Tracking entries.
+- [research.md](specs/027-smart-connections-query/research.md) —
+  Phase 0 decisions R1..R15 + plan-stage live-CLI/plugin findings
+  F1..F12 (3 deferred to T0). Includes the verbatim plugin source
+  inspection transcript that drove amendment 1.
+- [data-model.md](specs/027-smart-connections-query/data-model.md)
+  — schemas, frozen JS template (~40 LOC), base64 payload, per-tool
+  invariants, module LOC budget (~305 source / ~1410 test), test
+  inventory (70 cases), architectural delta map.
+- [contracts/smart-connections-query-input.contract.md](specs/027-smart-connections-query/contracts/smart-connections-query-input.contract.md)
+  — public input contract: zod schema, JSON Schema, field policy,
+  8 worked examples (A–H), 11-row error roster, out-of-scope
+  upstream surfaces table.
+- [contracts/smart-connections-query-handler.contract.md](specs/027-smart-connections-query/contracts/smart-connections-query-handler.contract.md)
+  — handler invariants I-1..I-9: single invokeCli call shape,
+  base64 payload assembly, stage-0 closed-vault detection via shared
+  module, LAST-`=> ` extraction strategy, multi-stage parse,
+  envelope-error → UpstreamError mapping, failure propagation chain,
+  test seam pattern, anti-injection structural lock.
+- [quickstart.md](specs/027-smart-connections-query/quickstart.md)
+  — 31 verification scenarios Q-1..Q-31 mapped to SC-001..SC-024;
+  22 CI cases + 5 T0 manual + 4 inspection/structural.
+- [.architecture/Obsidian CLI MCP - Architecture.md](.architecture/Obsidian%20CLI%20MCP%20-%20Architecture.md)
+  — canonical forward-going architecture document, rolled forward in
+  this plan run to reference `smart_connections_query` as the second
+  plugin-backed cohort member AND the new
+  `_eval-vault-closed-detection/` cross-cutting shared module
+  category AND the `details.reason: "api-missing"|"embed-failed"`
+  sub-discriminator on `SMART_CONNECTIONS_NOT_READY`.
+
+---
+
+## Predecessor feature narrative (026-smart-connections-similar) — RETAINED FOR CONTEXT
+
+The 026 narrative below is retained for downstream cross-references
+but is NOT the active planning context. Consult
+[specs/027-smart-connections-query/plan.md](specs/027-smart-connections-query/plan.md)
+for the active feature; consult
+[specs/026-smart-connections-similar/plan.md](specs/026-smart-connections-similar/plan.md)
+for the 026 source. Summary: 026 added the (then-)twelfth typed-tool
+wrap and the project's FIRST plugin-backed typed surface. Tool
+`smart_connections_similar({ target_mode, vault?, file?, path?,
+limit?, total? })` returns `{ count, matches: Array<{path,
+headingPath, score}> }`. Wraps the Smart Connections plugin's
+`find_connections({limit})` API via the `eval` subcommand. Five
+clarifications-session Q&As locked 2026-05-15 plus two live-probe-
+driven amendments (Q3 vault-routing premise contradicted →
+repurposed for closed-but-registered vault detection; grilling-Q3
+source-only granularity contradicted → switched v1 to block-level
+matches per the plugin's natural output). Eight-entry failure roster:
+VALIDATION_ERROR; VAULT_NOT_FOUND × 2 reasons (unknown / not-open);
+FILE_NOT_FOUND; NO_ACTIVE_FILE; NOT_MARKDOWN;
+SMART_CONNECTIONS_NOT_INSTALLED; SMART_CONNECTIONS_NOT_READY;
+SOURCE_NOT_INDEXED — all under `CLI_REPORTED_ERROR` with `details.code`
+discriminator. Zero new top-level codes. Plan-phase deliverables:
+**ADR-013** created (plugin-namespace tool-naming convention); the
+**architecture snapshot file** populated as BI-026-frozen historical
+artefact at `.architecture/Obsidian CLI MCP - Architecture with Smart
+Connections.md`; the **canonical base architecture file** rolled
+forward. Constitution v1.3.0 → v1.4.0 amendment adds a seventh
+Compliance checklist row for ADR-013. Post-/speckit-analyze
+deliberation surfaced **ADR-014** (Plugin-Backed Typed Tools
+Runtime-Dependency Pattern) and **ADR-015** (Sub-Discriminators via
+details.reason for Multi-State Error Codes); Constitution v1.4.0 →
+v1.5.0 amendment adds eighth and ninth rows. **BI-027 ripples** apply
+to BI-026 in BI-027's release: (a) refactor handler to consume the
+shared `_eval-vault-closed-detection` detector (behaviour-preserving);
+(b) emit `details.reason: "api-missing"` on the existing
+SMART_CONNECTIONS_NOT_READY path (cohort-consistency with BI-027's
+NEW `embed-failed` reason — both reasons present across the cohort
+per ADR-015 worked-example pattern). Predecessor narratives for
+025-list-links and earlier retained below.
+
+---
+
+## Predecessor feature narrative (026-smart-connections-similar) full text — RETAINED FOR CONTEXT
+
+Below is the full BI-026 active-narrative block as it stood at end of
+BI-026 implementation. The short summary above this section captures
+the cohort-level summary; this block captures the verbatim original
+prose for downstream cross-references. Original detail:
+
+Active feature (pre-BI-027): **026-smart-connections-similar** — adds the
 **twelfth** typed-tool wrap and the project's **first plugin-backed
 typed surface**. Tool name `smart_connections_similar` follows a NEW
 **plugin-namespace prefix** naming convention `<plugin_name>_<operation>`

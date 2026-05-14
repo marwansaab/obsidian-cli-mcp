@@ -24,6 +24,7 @@ import { createReadHeadingTool } from "./tools/read_heading/index.js";
 import { createReadPropertyTool } from "./tools/read_property/index.js";
 import { createRenameTool } from "./tools/rename/index.js";
 import { createSetPropertyTool } from "./tools/set_property/index.js";
+import { createSmartConnectionsQueryTool } from "./tools/smart_connections_query/index.js";
 import { createSmartConnectionsSimilarTool } from "./tools/smart_connections_similar/index.js";
 import { createWriteNoteTool } from "./tools/write_note/index.js";
 import { createVaultRegistry } from "./vault-registry/registry.js";
@@ -97,6 +98,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     createReadPropertyTool({ logger, queue }),
     createRenameTool({ logger, queue }),
     createSetPropertyTool({ logger, queue }),
+    createSmartConnectionsQueryTool({ logger, queue }),
     createSmartConnectionsSimilarTool({ logger, queue }),
     createWriteNoteTool({ logger, queue, vaultRegistry }),
   ];
