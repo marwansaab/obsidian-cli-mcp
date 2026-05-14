@@ -80,10 +80,32 @@ Connections.md`, AND the **canonical base architecture file rolled
 forward** at `.architecture/Obsidian CLI MCP - Architecture.md`
 (forward-going source-of-truth for future plugin BIs). Constitution
 v1.3.0 → v1.4.0 amendment adds a seventh Compliance checklist row
-for ADR-013. Additive surface; zero existing-tool public-shape
-changes; zero new top-level error codes; ONE new ADR (ADR-013); NO
-spec amendments at plan stage beyond the seven 2026-05-15
-clarifications-session decisions + amendments already integrated.
+for ADR-013. **Post-/speckit-analyze deliberation 2026-05-15** —
+review of the session's architectural decisions surfaced TWO
+additional project-wide patterns worth lifting from BI-026 inline
+spec text into normative ADRs: **ADR-014** (Plugin-Backed Typed
+Tools Runtime-Dependency Pattern — codifies the three plugin-
+lifecycle states `<PLUGIN>_NOT_INSTALLED` / `<PLUGIN>_NOT_READY` /
+`SOURCE_NOT_INDEXED` as `CLI_REPORTED_ERROR.details.code`
+discriminators with fixed stage-order in-eval lifecycle checks per
+FR-017b's precedence chain; sibling rule to ADR-013 covering the
+FAILURE-MODE dimension of the plugin-backed cohort vs ADR-013's
+NAMING dimension), AND **ADR-015** (Sub-Discriminators via
+`details.reason` for Multi-State Error Codes — codifies the pattern
+of using `details.reason` to distinguish 2+ sub-states under a
+single `(top-level-code, details.code)` pair when remediation paths
+differ; worked example is BI-026's `VAULT_NOT_FOUND(reason:
+"unknown" | "not-open")` per FR-017a; preserves Constitution
+Principle IV's zero-new-top-level-codes streak while permitting
+finer agent-actionable signal). Constitution v1.4.0 → v1.5.0
+amendment in lockstep adds an eighth checklist row for ADR-014 and
+a ninth row for ADR-015. Additive surface; zero existing-tool
+public-shape changes; zero new top-level error codes; **THREE new
+ADRs total** (ADR-013 at plan stage; ADR-014 + ADR-015 post-analyze);
+NO spec amendments beyond the seven 2026-05-15 clarifications-session
+decisions + amendments already integrated AND the four
+/speckit-analyze remediation findings (A1, C1, I1, F1) integrated
+at commit `b04d81f`.
 Predecessor narratives for 025-list-links, 024-list-properties,
 023-outline, 022-rename-typed-tools, 021-rename-note, 020-fix-write-gaps,
 019-list-files, 018, 017, 015 retained below.
@@ -145,6 +167,17 @@ See also:
   — NEW ADR codifying the `<plugin_name>_<operation>` convention;
   sibling rule to ADR-010; mutually exclusive in scope and exhaustive
   over the typed-tool naming space.
+- [.decisions/ADR-014 - Plugin-Backed Typed Tools Runtime-Dependency Pattern.md](.decisions/ADR-014%20-%20Plugin-Backed%20Typed%20Tools%20Runtime-Dependency%20Pattern.md)
+  — NEW ADR codifying the plugin-lifecycle failure-mode pattern
+  (`<PLUGIN>_NOT_INSTALLED` / `<PLUGIN>_NOT_READY` / `SOURCE_NOT_INDEXED`
+  as `CLI_REPORTED_ERROR.details.code` discriminators); sibling
+  rule to ADR-013 covering FAILURE-MODE PATTERN vs ADR-013's NAMING.
+- [.decisions/ADR-015 - Sub-Discriminators via details.reason for Multi-State Error Codes.md](.decisions/ADR-015%20-%20Sub-Discriminators%20via%20details.reason%20for%20Multi-State%20Error%20Codes.md)
+  — NEW ADR codifying the `details.reason` sub-discriminator pattern
+  for multi-state error codes; preserves Constitution Principle IV's
+  zero-new-top-level-codes streak while permitting finer agent-
+  actionable signal. Worked example: BI-026's `VAULT_NOT_FOUND` with
+  `details.reason: "unknown" | "not-open"` (FR-017a).
 - [.architecture/Obsidian CLI MCP - Architecture.md](.architecture/Obsidian%20CLI%20MCP%20-%20Architecture.md)
   — canonical forward-going architecture document, rolled forward
   with the BI-026 changes (plugin-backed typed-content tools as
@@ -155,7 +188,11 @@ See also:
   update the base file, not this snapshot.
 - [.specify/memory/constitution.md](.specify/memory/constitution.md)
   — v1.3.0 → v1.4.0 amendment adds the seventh Compliance checklist
-  row pointing at ADR-013; Sync Impact Report regenerated.
+  row pointing at ADR-013. Subsequent **v1.4.0 → v1.5.0 amendment**
+  (post-/speckit-analyze deliberation, same date) adds the eighth
+  row pointing at ADR-014 AND the ninth row pointing at ADR-015.
+  Sync Impact Report regenerated on each amendment; prior reports
+  preserved for reference.
 
 ---
 
