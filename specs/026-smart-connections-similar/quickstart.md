@@ -213,7 +213,7 @@ CI handler test. Record the JSON-serialised response payload size for a `limit: 
 
 **SC-019**
 
-CI registration test. Inspect FR-018-from-022 baseline drift detector output post-implementation. Every existing tool's `descriptionFingerprint` and `schemaFingerprint` is byte-equal to pre-implementation.
+CI registration test. Inspect BI-022 registry-stability baseline drift detector output post-implementation. Every existing tool's `descriptionFingerprint` and `schemaFingerprint` is byte-equal to pre-implementation.
 
 **Assertion**: zero entries in the drift detector diff except the new `smart_connections_similar` entry. Inherited from BI-022 machinery.
 
@@ -239,7 +239,7 @@ CI registration test. Load `docs/tools/smart_connections_similar.md`. Assert str
 
 CI meta-test. Walk `src/tools/smart_connections_similar/*.test.ts`. Count `it(...)` / `test(...)` blocks across schema, handler, registration suites.
 
-**Assertion**: total count >= 50 (per data-model.md's 20 / 32 / 5 = 57-case inventory).
+**Assertion**: total count >= 50 (per data-model.md's 20 / 38 / 5 = 63-case inventory per the /speckit-analyze C1 remediation; was stated as 57 = 20 / 32 / 5 in initial output).
 
 ### Q-22 — Zero new top-level error codes
 

@@ -657,6 +657,45 @@ Confirms cross-vault behaviour AND defines the T0 deferred-probe set: SMART_CONN
 
 ---
 
+### F10a — Probed Smart Connections plugin version (soft-pin anchor per Q1)
+
+#### What was probed
+
+```
+> obsidian vault="The Setup" eval code="JSON.stringify(app.plugins.plugins['smart-connections'].manifest)"
+> obsidian vault="TestVault-Obsidian-CLI-MCP" eval code="JSON.stringify(app.plugins.plugins['smart-connections'].manifest)"
+```
+
+(Probed 2026-05-15 after the /speckit-analyze A1 remediation surfaced the gap. The original F1–F14 probe sequence did not query the plugin manifest.)
+
+#### Result
+
+Both vaults report the same plugin manifest:
+
+```json
+{
+  "id": "smart-connections",
+  "name": "Smart Connections",
+  "author": "Brian Petro",
+  "description": "Chat with your notes & see links to related content with Local or Remote models.",
+  "minAppVersion": "1.1.0",
+  "authorUrl": "https://smartconnections.app",
+  "isDesktopOnly": false,
+  "version": "4.5.0",
+  "dir": ".obsidian/plugins/smart-connections"
+}
+```
+
+**Probed plugin version: `4.5.0`** (Smart Connections v4.5.0 by Brian Petro). Both `The Setup` and `TestVault-Obsidian-CLI-MCP` reported identical version strings — confirms the API path verified in F2–F14 is consistent across this user's installation. `minAppVersion: 1.1.0` is the plugin's stated Obsidian-host floor; the wrapper does not assert against it (the host running the eval is necessarily a satisfying Obsidian release).
+
+#### Implication for the spec/plan
+
+Locks the **minimum probed plugin version** that FR-022 / SC-020 / T010 reference — `Smart Connections v4.5.0`. The Q1 docs-only soft-pin is therefore concrete: `docs/tools/smart_connections_similar.md` will state "Verified against Smart Connections plugin v4.5.0; older or newer plugin versions whose API surface diverges from this baseline surface as `SMART_CONNECTIONS_NOT_READY` via the in-eval lifecycle check at Stage 4 of the JS template". Per the Q1 contract, the wrapper does NOT enforce this version at runtime; the soft-pin is operator-facing documentation only.
+
+The probed major version `4.x` clarifies that the plugin's API path (`env.smart_sources.items[<key>].find_connections({limit})`) is the v4-era shape. Earlier v2.x / v3.x plugin releases may have a different API path; users on those older versions will surface `SMART_CONNECTIONS_NOT_READY` rather than silently incorrect results — this is the intended fallback per FR-016.
+
+---
+
 ### F11 — Plugin internals: `env`, `.SmartEnv`, `_loaded`, `_smart_env_config` on plugin object; `env.smart_sources.items[<key>]` is item-based
 
 #### What was probed
@@ -772,6 +811,6 @@ These deferrals are appropriate for T0 (require fresh fixtures, vault-state chan
 | New plugin-lifecycle codes | 3 (NOT_INSTALLED / NOT_READY / SOURCE_NOT_INDEXED) | 0 | 0 | 0 |
 | Error-precedence chain | YES (FR-017b — 7-step specific, 5-step active) | implicit | implicit | implicit |
 | Tool-naming ADR | ADR-013 (NEW — plugin-namespace) | ADR-010 (single-word-verbatim) | ADR-010 | ADR-010 N/A (eval-composition) |
-| Test inventory | 57 cases (20 / 32 / 5) | 51 cases (18 / 28 / 5) | 45 cases (16 / 24 / 5) | 55 cases (20 / 30 / 5) |
+| Test inventory | 63 cases (20 / 38 / 5) per /speckit-analyze C1 remediation | 51 cases (18 / 28 / 5) | 45 cases (16 / 24 / 5) | 55 cases (20 / 30 / 5) |
 
 The single most distinctive feature of this BI: it is the **first plugin-backed typed tool**, introducing the eval-driven plugin-backed cohort. The runtime-dependency surface widens from "Obsidian CLI binary + Obsidian" to "Obsidian CLI binary + Obsidian + Smart Connections plugin (installed and indexed)" — three new lifecycle codes carve that widening into actionable signals, the FR-017b precedence chain locks the order of those signals, and the R5a handler-side detection branch handles the closed-but-registered-vault case that emerges naturally when `eval` is the route into plugin internals.

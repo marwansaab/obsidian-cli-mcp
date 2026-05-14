@@ -272,9 +272,9 @@ The handler test's stub `spawnFn` decodes the base64 payload via `Buffer.from(b6
 | `src/tools/smart_connections_similar/index.ts` | ~30 | createSmartConnectionsSimilarTool factory (~15 LOC) + descriptor (~10 LOC) + types/exports (~5 LOC) |
 | **Total source** | **~230 LOC** | Slightly above BI-025's ~195 — adds plugin-lifecycle stages + closed-vault detection branch + three-level sort. |
 | `src/tools/smart_connections_similar/schema.test.ts` | ~360 | 20 cases × ~18 LOC |
-| `src/tools/smart_connections_similar/handler.test.ts` | ~720 | 32 cases × ~22 LOC (more elaborate per case due to plugin-lifecycle fixtures + closed-vault detection + base64 round-trip + 6 compound-failure precedence-chain fixtures) |
+| `src/tools/smart_connections_similar/handler.test.ts` | ~840 | 38 cases × ~22 LOC (count reconciled per /speckit-analyze C1 remediation — the 6 FR-017b precedence-chain compound fixtures are DEDICATED cases rather than displacing existing error-path slots; per-case complexity higher due to plugin-lifecycle fixtures + closed-vault detection + base64 round-trip) |
 | `src/tools/smart_connections_similar/index.test.ts` | ~200 | 5 cases × ~40 LOC (content completeness checks for the larger error roster + plugin-namespace name assertion) |
-| **Total tests** | **~1280 LOC** | Total ~1510 LOC for source + tests; expanded from BI-025's ~1310 to cover the plugin-lifecycle dimension + closed-vault detection + precedence-chain fixtures. |
+| **Total tests** | **~1400 LOC** | Total ~1630 LOC for source + tests; expanded from BI-025's ~1310 to cover the plugin-lifecycle dimension + closed-vault detection + precedence-chain fixtures (handler tests rebalanced from 32 → 38 per /speckit-analyze C1). |
 
 ---
 
@@ -303,7 +303,7 @@ The handler test's stub `spawnFn` decodes the base64 payload via `Buffer.from(b6
 19. fail: `total` as string `"true"` → ZodError
 20. fail: `target_mode` missing OR set to unknown value (`"focused"`) → ZodError
 
-### `handler.test.ts` — 32 cases
+### `handler.test.ts` — 38 cases (rebalanced from 32 per /speckit-analyze C1 remediation)
 
 **Happy paths**
 
@@ -370,7 +370,7 @@ The handler test's stub `spawnFn` decodes the base64 payload via `Buffer.from(b6
 
 ### Test total
 
-**57 cases** (20 schema / 32 handler / 5 registration), exceeding SC-021's floor of 50. Higher than BI-025's 51 because of the three additional plugin-lifecycle envelope codes (`SMART_CONNECTIONS_NOT_INSTALLED` / `SMART_CONNECTIONS_NOT_READY` / `SOURCE_NOT_INDEXED`), the closed-vault detection branch (`VAULT_NOT_FOUND(reason: "not-open")`), the `limit` boundary cases, the three-level sort tiebreaker fixtures, and the compound-failure precedence-chain coverage.
+**63 cases** (20 schema / 38 handler / 5 registration) per /speckit-analyze C1 remediation (was 57 = 20/32/5 in the initial output; the handler count was rebalanced from 32 → 38 to keep the 6 FR-017b precedence-chain compound fixtures as DEDICATED cases rather than displacing existing error-path slots). Exceeds SC-021's floor of 50. Higher than BI-025's 51 because of the three additional plugin-lifecycle envelope codes (`SMART_CONNECTIONS_NOT_INSTALLED` / `SMART_CONNECTIONS_NOT_READY` / `SOURCE_NOT_INDEXED`), the closed-vault detection branch (`VAULT_NOT_FOUND(reason: "not-open")`), the `limit` boundary cases, the three-level sort tiebreaker fixtures, and the dedicated compound-failure precedence-chain coverage.
 
 ---
 
