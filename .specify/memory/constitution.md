@@ -1,6 +1,82 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 1.3.0 → 1.4.0 (MINOR — a new normative gate is added:
+the Constitution Compliance checklist gains a seventh row pointing at
+ADR-013 (Plugin-Namespace Tool Naming Convention). Principles I–V are
+unchanged in substance, name, and rationale; ADR-010's row is unchanged;
+the per-PR review gate widens to acknowledge the new ADR. Mirrors the
+1.2.0 → 1.3.0 amendment pattern that added the ADR-010 row.)
+
+Modified sections:
+  - Development Workflow & Quality Gates → point 8 (Constitution
+    Compliance checklist): a seventh row appended below the existing
+    six rows pointing at ADR-013.
+  - Development Workflow & Quality Gates → the "Any `N` MUST be
+    paired with..." prose: parenthetical example extended from "a PR
+    that adds no typed tool is N/A on ADR-010" to "a PR that adds no
+    typed tool is N/A on ADR-010 AND ADR-013; a PR that adds a
+    native-CLI-wrapper typed tool is N/A on ADR-013; a PR that adds a
+    plugin-API-wrapper typed tool is N/A on ADR-010".
+  - Development Workflow & Quality Gates → the "Code review MUST
+    verify each gate explicitly..." paragraph: extended from
+    "Principles I–V and the ADR-010 naming check by inspection" to
+    "Principles I–V and the ADR-010 / ADR-013 naming checks by
+    inspection".
+  - Footer version line: 1.3.0 → 1.4.0; Last Amended 2026-05-13 →
+    2026-05-15. Ratified date unchanged (2026-05-03).
+
+Added sections: none. The new checklist row reuses the existing
+Constitution Compliance checklist machinery — no new top-level
+sections, no new principles, no new normative paragraphs beyond the
+checklist row and the two prose-companion edits.
+
+Removed sections: none.
+
+Modified principles: none. Principles I–V are byte-stable in name,
+ordering, and rationale. The change is purely additive at the
+per-PR gate layer.
+
+Driver: codifying the plugin-namespace tool-naming convention that
+BI-026 (026-smart-connections-similar) establishes for typed-tool
+wrappers over plugin-exposed APIs. The convention previously did not
+exist; BI-026 is the first instance (`smart_connections_similar`
+wraps the Smart Connections plugin's similarity-search API reached
+via `obsidian eval`). ADR-013 (decided 2026-05-15, file at
+.decisions/ADR-013 - Plugin-Namespace Tool Naming Convention.md)
+lifts the convention into a normative artefact. The new Constitution
+Compliance row is the per-PR enforcement gate that catches
+non-conforming plugin-backed tool names at /speckit-plan time,
+complementing both the ADR-010 row (which governs native-CLI
+wrappers) and the FR-018 registry-stability baseline test (already
+shipped under BI-0061) which catches drift in the CURRENT set but
+cannot catch a new plugin-backed tool introduced with a
+non-conforming name.
+
+Templates requiring updates:
+  - .specify/templates/plan-template.md: ✅ Constitution Check
+    section already references "Constitution Check gate documented in
+    the plan template"; no edit required — plans cite ADRs alongside
+    principles in the existing free-form gate evidence rows.
+  - .specify/templates/spec-template.md: ✅ no constitution-gate
+    references; no edit required.
+  - .specify/templates/tasks-template.md: ✅ no constitution-gate
+    references; no edit required.
+  - .specify/templates/checklist-template.md: ✅ no constitution-gate
+    references; no edit required.
+  - CLAUDE.md: ✅ already defers to plan/constitution; no edits
+    required for the constitution amendment itself (the
+    BI-026-specific active-narrative rewrite is a separate concern
+    handled by /speckit-plan's Phase-1 agent-context-update step).
+
+Follow-up TODOs:
+  - None. ADR-013 is in place at
+    .decisions/ADR-013 - Plugin-Namespace Tool Naming Convention.md
+    and registered in .decisions/Decision Log.md (verified at
+    amendment time).
+
+PRIOR SYNC IMPACT REPORT (preserved for reference):
+==================
 Version change: 1.2.0 → 1.3.0 (MINOR — a new normative gate is added:
 the Constitution Compliance checklist gains a sixth row pointing at
 ADR-010 (Typed Tool Names Mirror Upstream CLI Subcommand). Principles
@@ -262,11 +338,14 @@ The following gates apply to every change before it can be merged:
    - [ ] Principle IV (Explicit Upstream Error Propagation): Y / N / N/A
    - [ ] Principle V (Attribution & Layered Composition): Y / N / N/A
    - [ ] ADR-010 (Typed Tool Names Mirror Upstream CLI Subcommand): Y / N / N/A
+   - [ ] ADR-013 (Plugin-Namespace Tool Naming Convention): Y / N / N/A
 
    Any `N` MUST be paired with a Complexity Tracking entry in the corresponding
    plan that justifies the deviation. `N/A` is permitted only when the change
    touches no surface that the principle or ADR governs (e.g., a docs-only PR
-   is N/A on II–V; a PR that adds no typed tool is N/A on ADR-010).
+   is N/A on II–V; a PR that adds no typed tool is N/A on ADR-010 AND ADR-013;
+   a PR that adds a native-CLI-wrapper typed tool is N/A on ADR-013; a PR that
+   adds a plugin-API-wrapper typed tool is N/A on ADR-010).
 
 **Spec-kit workflow**: Any feature larger than a single-file change MUST
 enter via `/speckit-specify` → `/speckit-clarify` (repeated until no
@@ -277,8 +356,8 @@ The plan's Constitution Check table cites how each principle is satisfied
 or documents and justifies any deviation. `tasks.md` is dependency-ordered.
 
 Code review MUST verify each gate explicitly; "CI is green" is necessary but
-not sufficient — reviewers also confirm Principles I–V and the ADR-010 naming
-check by inspection.
+not sufficient — reviewers also confirm Principles I–V and the ADR-010 / ADR-013
+naming checks by inspection.
 
 ## Governance
 
@@ -307,4 +386,4 @@ and in feature-specific plans under `specs/`. Those documents MUST defer to
 this constitution; if they imply a contradiction, treat it as a bug in the
 guidance document and fix it.
 
-**Version**: 1.3.0 | **Ratified**: 2026-05-03 | **Last Amended**: 2026-05-13
+**Version**: 1.4.0 | **Ratified**: 2026-05-03 | **Last Amended**: 2026-05-15
