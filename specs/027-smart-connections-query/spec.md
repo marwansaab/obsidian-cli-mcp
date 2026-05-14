@@ -87,7 +87,7 @@ An agent (or the user's environment) calls the tool against a vault where the Sm
 
 1. **Given** a vault where the Smart Connections plugin is NOT installed (or installed but disabled), **When** the agent invokes the tool, **Then** the response is a structured error with `details.code = "SMART_CONNECTIONS_NOT_INSTALLED"` — distinct from generic CLI failure; the agent's remediation is "install or enable the plugin".
 2. **Given** a vault where the Smart Connections plugin IS installed and enabled BUT its `env.smart_sources` object is unavailable OR `env.smart_sources.lookup` is not a function (e.g. plugin in mid-load, plugin API path renamed across versions per the soft-pin minimum-version assumption), **When** the agent invokes the tool, **Then** the response is a structured error with `details.code = "SMART_CONNECTIONS_NOT_READY"` AND `details.reason = "api-missing"`.
-3. **Given** a vault where the plugin and its API path ARE present BUT the call throws (embedding model not loaded, invalid OpenAI API key, cloud-embed network failure, rate-limited), **When** the agent invokes the tool, **Then** the response is a structured error with `details.code = "SMART_CONNECTIONS_NOT_READY"` AND `details.reason = "embed-failed"` — distinct from `api-missing` so the agent's remediation path differs ("check config / network / keys" vs "update plugin / wait for load"). The agent's `details.message` field should contain the upstream error string for diagnostic surface.
+3. **Given** a vault where the plugin and its API path ARE present BUT the call throws (embedding model not loaded, invalid OpenAI API key, cloud-embed network failure, rate-limited), **When** the agent invokes the tool, **Then** the response is a structured error with `details.code = "SMART_CONNECTIONS_NOT_READY"` AND `details.reason = "embed-failed"` — distinct from `api-missing` so the agent's remediation path differs ("check config / network / keys" vs "update plugin / wait for load"). The agent's `details.detail` field should contain the upstream error string for diagnostic surface (parity with the UpstreamError envelope convention from Constitution Principle IV — `message` lives at the top level of UpstreamError; the upstream error string lives in `details.detail`).
 4. **Given** simultaneous failures (unknown vault AND plugin not installed AND embed-failed), **When** the agent invokes the tool, **Then** the response surfaces the outermost / cheapest discriminator per FR-017's precedence chain: `VAULT_NOT_FOUND(unknown)` → `VAULT_NOT_FOUND(not-open)` → `SMART_CONNECTIONS_NOT_INSTALLED` → `SMART_CONNECTIONS_NOT_READY(api-missing)` → `SMART_CONNECTIONS_NOT_READY(embed-failed)` → success.
 
 ---
@@ -130,7 +130,7 @@ An operator or agent inspects the project's progressive-disclosure help facility
 **PLUGIN LIFECYCLE — sub-state edge cases**:
 - Plugin loaded but `env.smart_sources` is `null` or `undefined`: in-eval probe emits `SMART_CONNECTIONS_NOT_READY` with `details.reason = "api-missing"`.
 - Plugin loaded AND `env.smart_sources` present BUT `lookup` is not a function: in-eval probe emits `SMART_CONNECTIONS_NOT_READY` with `details.reason = "api-missing"`.
-- `lookup` is a function BUT calling it throws synchronously OR returns a rejected promise: in-eval `try/catch` (or `.catch()` chain on the awaited promise) catches the throw and emits `SMART_CONNECTIONS_NOT_READY` with `details.reason = "embed-failed"`. The upstream error message is carried verbatim in the envelope `detail` field.
+- `lookup` returns the sentinel `{ error: <string> }` per plan-stage live-probe amendment 2: in-eval `if (r && r.error)` check after `await lookup(...)` emits `SMART_CONNECTIONS_NOT_READY` with `details.reason = "embed-failed"`. The upstream error string is carried verbatim in the envelope `detail` field. NO try/catch — the plugin does NOT throw for embed-model / config failures (the lookup helper wraps such errors into the sentinel return).
 - Plugin's first-install state where settings panel has never been opened (initial embed model not configured): behaviour to be characterised at plan stage (F13). Recommended emission: `SMART_CONNECTIONS_NOT_READY` with whichever reason the actual probe surfaces.
 
 **INDEXING — freshness edge cases**:
@@ -188,7 +188,7 @@ An operator or agent inspects the project's progressive-disclosure help facility
   3. `VAULT_NOT_FOUND` with `details.reason = "not-open"` (shared closed-vault detector, on empty-stdout signature)
   4. `SMART_CONNECTIONS_NOT_INSTALLED` (in-eval plugin presence check)
   5. `SMART_CONNECTIONS_NOT_READY` with `details.reason = "api-missing"` (in-eval API-shape check)
-  6. `SMART_CONNECTIONS_NOT_READY` with `details.reason = "embed-failed"` (in-eval lookup-call try/catch)
+  6. `SMART_CONNECTIONS_NOT_READY` with `details.reason = "embed-failed"` (in-eval `{error}` sentinel return-value check per amendment 2)
   7. Success
   - Plan-stage live probe MUST exercise at least one compound-failure case per adjacent pair in the chain to verify the earlier-priority discriminator fires.
 
