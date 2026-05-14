@@ -19,4 +19,5 @@ Call `help({ tool_name: "<name>" })` to read the full Markdown documentation for
 - **rename** — Rename a `.md` note in place; honours the vault's auto-update-links setting.
 - **search_vault** — _(documentation pending — owned by a future BI)_.
 - **set_property** — Write a single named frontmatter property to a vault note (returns `{ written: true, path, name }` — surgical single-property write, the symmetric write companion to `read_property`).
+- **smart_connections_similar** — Return the typed list of semantically-similar block-level matches for a single source note via the Smart Connections plugin (returns `{ count, matches: [{ path, headingPath, score }] }` — plugin-backed similarity primitive; requires the Smart Connections plugin to be installed and indexed; `total: true` switches to count-only mode; `limit` 1..100 default 20).
 - **write_note** — Create a note in an Obsidian vault, or overwrite an existing one with `overwrite: true`. Wraps the CLI's `create` subcommand.

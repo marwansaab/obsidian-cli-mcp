@@ -343,6 +343,12 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
     required_equals: ["target_mode"],
     additionalProperties: false,
   },
+  smart_connections_similar: {
+    type: "object",
+    properties_equals_set: ["target_mode", "vault", "file", "path", "limit", "total"],
+    required_equals: ["target_mode"],
+    additionalProperties: false,
+  },
   synthetic_pattern_a: {
     type: "object",
     properties_equals_set: ["target_mode", "vault", "file", "path", "note_text"],
