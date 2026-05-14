@@ -8,6 +8,7 @@ import {
 } from "./schema.js";
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
+import { detectIfClosed } from "../_eval-vault-closed-detection/index.js";
 
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
@@ -47,29 +48,17 @@ export async function executeSmartConnectionsSimilar(
   // === Stage 0 — closed-but-registered-vault detection (R5a / FR-017a / SC-011a) ===
   // Per F7 / F8 (live probe 2026-05-15): the CLI emits empty stdout + exit 0 for the FIRST
   // eval call against a closed registered vault AND transparently OPENS the vault as a
-  // side effect. The cli-adapter's 011-R5 inspection clause does NOT fire (no "Vault not
-  // found." string in empty output) and the dispatch-layer's `Error:` prefix classifier
-  // does NOT fire either. The wrapper distinguishes "registered but not open" from the
-  // genuinely-anomalous empty-stdout case by issuing a SECOND invokeCli to the `vaults`
-  // subcommand to confirm vault registration. The second call is narrow — fires ONLY on
-  // this signature — and is invisible to handler tests whose stubs use the queued-spawn
-  // pattern.
+  // side effect. Delegated to the shared `_eval-vault-closed-detection` module (extracted
+  // at BI-027 per FR-020 / Q8(c) hybrid extraction); the module issues a SECOND invokeCli
+  // to the `vaults` subcommand and parses the registry.
   if (
     input.target_mode === "specific" &&
     typeof input.vault === "string" &&
     result.stdout.trim().length === 0
   ) {
     const vaultName = input.vault;
-    const vaultsResult = await invokeCli(
-      {
-        command: "vaults",
-        parameters: {},
-        flags: ["verbose"],
-        target_mode: "specific",
-      },
-      { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
-    );
-    if (isVaultRegistered(vaultsResult.stdout, vaultName)) {
+    const isRegistered = await detectIfClosed({ vaultName, deps });
+    if (isRegistered) {
       throw new UpstreamError({
         code: "CLI_REPORTED_ERROR",
         cause: null,
@@ -123,23 +112,6 @@ export async function executeSmartConnectionsSimilar(
   throw mapEnvelopeError(validated.data.code, validated.data.detail);
 }
 
-// Parse the `obsidian vaults verbose` stdout to check whether `vaultName` is a known
-// registered vault. The output format is `<name>\t<absolute path>\n` per line, optionally
-// prefixed by a UTF-8 BOM. Replicated structurally from src/vault-registry/registry.ts.
-function isVaultRegistered(stdout: string, vaultName: string): boolean {
-  const BOM = "﻿";
-  const body = stdout.startsWith(BOM) ? stdout.slice(1) : stdout;
-  for (const rawLine of body.split("\n")) {
-    const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
-    if (line.length === 0) continue;
-    const tabIdx = line.indexOf("\t");
-    if (tabIdx < 0) continue;
-    const name = line.slice(0, tabIdx);
-    if (name === vaultName) return true;
-  }
-  return false;
-}
-
 function mapEnvelopeError(
   code: SmartConnectionsSimilarEvalErrorCode,
   detail: string,
@@ -179,7 +151,7 @@ function mapEnvelopeError(
       return new UpstreamError({
         code: "CLI_REPORTED_ERROR",
         cause: null,
-        details: { stage: "envelope-error", code, detail },
+        details: { stage: "envelope-error", code, reason: "api-missing", detail },
         message: `smart_connections_similar: Smart Connections plugin is loaded but its similarity API is not ready (${detail})`,
       });
     case "SOURCE_NOT_INDEXED":
