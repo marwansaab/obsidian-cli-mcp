@@ -1,9 +1,222 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-[specs/025-list-links/plan.md](specs/025-list-links/plan.md)
+[specs/026-smart-connections-similar/plan.md](specs/026-smart-connections-similar/plan.md)
 
-Active feature: **025-list-links** — adds the twelfth typed-tool wrap
+Active feature: **026-smart-connections-similar** — adds the
+**twelfth** typed-tool wrap and the project's **first plugin-backed
+typed surface**. Tool name `smart_connections_similar` follows a NEW
+**plugin-namespace prefix** naming convention `<plugin_name>_<operation>`
+codified in [ADR-013](.decisions/ADR-013%20-%20Plugin-Namespace%20Tool%20Naming%20Convention.md)
+(created during this BI's plan phase per FR-029) — a sibling track to
+ADR-010's single-word-verbatim-from-upstream rule which applies only
+to native-CLI-subcommand wrappers. User surface:
+`smart_connections_similar({ target_mode, vault?, file?, path?,
+limit?, total? })` returning
+`{ count: number, matches: Array<{ path, headingPath, score }> }`.
+Wraps the Smart Connections plugin's similarity API (`app.plugins.plugins
+["smart-connections"].env.smart_sources.items[<key>].find_connections
+({limit})`) reached via the `eval` subcommand — parity with BI-014 /
+BI-015 / BI-025 (eval-driven cohort) but distinct in routing into a
+plugin's runtime object rather than Obsidian's core metadataCache
+(this BI is the first member of a new **eval-driven plugin-backed
+cohort**). Single-call architecture branched **at envelope-emission on
+`a.total`** (R3) — the same eval JS computes the full match array
+regardless of mode; cross-mode invariant (FR-006a) holds by
+construction. STANDARD `target_mode` discriminator per ADR-003. The
+2026-05-15 clarifications session locked FIVE Q&As (Q1 docs-only
+soft-pin for minimum plugin version, Q2 silently drop non-finite
+scores via `Number.isFinite` filter, Q3 originally focused-vault
+mismatch detection — REVISED by post-test live-probe amendment, Q4
+outer-to-inner / cheapest-first error precedence chain, Q5
+architecture-doc snapshot semantics — new file frozen vs base file
+canonical) plus TWO live-probe-driven amendments (post-test
+2026-05-15): amendment 1 contradicted Q3's premise (live probe
+confirmed `vault=<name> eval` routes correctly to the named vault's
+`app` instance — `app.vault.getName()` returns the requested name,
+not the focused-window name) → FR-017a repurposed for closed-but-
+registered vault detection (`details.code = "VAULT_NOT_FOUND"`,
+`details.reason = "not-open"`); amendment 2 contradicted grilling-Q3
+source-only granularity (live probe confirmed `find_connections()`
+returns BLOCK-level matches by default; even `exclude_blocks: true`
+filter returned zero source-level matches) → v1 per-match shape
+switched from `{path, score}` to `{path, headingPath, score}` where
+`path` is the source file (everything before first `#`) and
+`headingPath` is an array of heading segments after the first `#`
+(empty `[]` for source-level matches; literal `["---frontmatter---"]`
+for frontmatter-block matches with the plugin's sentinel preserved
+verbatim). Three-level sort intra-eval (R8 / FR-008): `score`
+descending / `path` byte-asc / `headingPath.join("#")` byte-asc.
+Source-path-keyed self-exclusion (R9 / FR-010) excludes source AND
+blocks inside source. Closed-vault detection via empty-stdout
+signature (R5a / FR-017a — observed by live probe 2026-05-15 after
+user closed two vaults: CLI emits empty stdout + exit 0 AND
+transparently OPENS the vault as side effect; cli-adapter's existing
+011-R5 clause does NOT fire because no `Vault not found.` string in
+empty output; detection branch lives in the typed-tool handler, NOT
+in the cli-adapter — 008-refactor surface stays FROZEN). Eight-entry
+failure-mode roster: `VALIDATION_ERROR`, `VAULT_NOT_FOUND` (with
+`details.reason: "unknown" | "not-open"` sub-discriminator),
+`FILE_NOT_FOUND`, `NO_ACTIVE_FILE`, `NOT_MARKDOWN`,
+`SMART_CONNECTIONS_NOT_INSTALLED`, `SMART_CONNECTIONS_NOT_READY`,
+`SOURCE_NOT_INDEXED` — ALL via `CLI_REPORTED_ERROR` with `details.code`
+discriminator; **zero new top-level error codes**; the eleven-tool
+zero-new-top-level-codes streak since BI-011 is preserved (per
+FR-021). Error precedence chain (FR-017b): outer-to-inner /
+cheapest-first; specific mode: `VAULT_NOT_FOUND(unknown)` →
+`VAULT_NOT_FOUND(not-open)` → `SMART_CONNECTIONS_NOT_INSTALLED` →
+`FILE_NOT_FOUND` → `NOT_MARKDOWN` → `SMART_CONNECTIONS_NOT_READY` →
+`SOURCE_NOT_INDEXED` → success. Five documented inherited limitations:
+embedding-model-dependent score bands; indexing freshness; folder
+exclusions; plugin-version drift (surfaces via NOT_READY per Q1);
+multi-vault basename ambiguity (vault= routes correctly but basename
+lookup is per-vault). Anti-injection via base64-encoded JSON payload
++ frozen JS template (R6, parity with BI-014 / BI-015 / BI-025).
+Plan-phase deliverables per FR-029 / FR-030 / FR-030a:
+**ADR-013 created** (plugin-namespace tool-naming convention), the
+**architecture snapshot file populated** as BI-026-frozen historical
+artefact at `.architecture/Obsidian CLI MCP - Architecture with Smart
+Connections.md`, AND the **canonical base architecture file rolled
+forward** at `.architecture/Obsidian CLI MCP - Architecture.md`
+(forward-going source-of-truth for future plugin BIs). Constitution
+v1.3.0 → v1.4.0 amendment adds a seventh Compliance checklist row
+for ADR-013. **Post-/speckit-analyze deliberation 2026-05-15** —
+review of the session's architectural decisions surfaced TWO
+additional project-wide patterns worth lifting from BI-026 inline
+spec text into normative ADRs: **ADR-014** (Plugin-Backed Typed
+Tools Runtime-Dependency Pattern — codifies the three plugin-
+lifecycle states `<PLUGIN>_NOT_INSTALLED` / `<PLUGIN>_NOT_READY` /
+`SOURCE_NOT_INDEXED` as `CLI_REPORTED_ERROR.details.code`
+discriminators with fixed stage-order in-eval lifecycle checks per
+FR-017b's precedence chain; sibling rule to ADR-013 covering the
+FAILURE-MODE dimension of the plugin-backed cohort vs ADR-013's
+NAMING dimension), AND **ADR-015** (Sub-Discriminators via
+`details.reason` for Multi-State Error Codes — codifies the pattern
+of using `details.reason` to distinguish 2+ sub-states under a
+single `(top-level-code, details.code)` pair when remediation paths
+differ; worked example is BI-026's `VAULT_NOT_FOUND(reason:
+"unknown" | "not-open")` per FR-017a; preserves Constitution
+Principle IV's zero-new-top-level-codes streak while permitting
+finer agent-actionable signal). Constitution v1.4.0 → v1.5.0
+amendment in lockstep adds an eighth checklist row for ADR-014 and
+a ninth row for ADR-015. Additive surface; zero existing-tool
+public-shape changes; zero new top-level error codes; **THREE new
+ADRs total** (ADR-013 at plan stage; ADR-014 + ADR-015 post-analyze);
+NO spec amendments beyond the seven 2026-05-15 clarifications-session
+decisions + amendments already integrated AND the four
+/speckit-analyze remediation findings (A1, C1, I1, F1) integrated
+at commit `b04d81f`.
+Predecessor narratives for 025-list-links, 024-list-properties,
+023-outline, 022-rename-typed-tools, 021-rename-note, 020-fix-write-gaps,
+019-list-files, 018, 017, 015 retained below.
+
+See also:
+
+- [spec.md](specs/026-smart-connections-similar/spec.md) — feature
+  spec; one /speckit-clarify session ran 2026-05-15 (Q1 docs-only
+  soft-pin for minimum plugin version, Q2 silently-drop non-finite
+  scores, Q3 vault-mismatch detection — superseded by live-probe
+  amendment to closed-vault `not-open`, Q4 error-precedence chain,
+  Q5 architecture-doc snapshot semantics); two live-probe-driven
+  amendments to Q3 / grilling-Q3 ran 2026-05-15 post-test (vault=
+  routing premise + block-level granularity).
+- [plan.md](specs/026-smart-connections-similar/plan.md) —
+  implementation plan; Constitution Check PASS on initial +
+  post-Phase-1 evaluation; no Complexity Tracking entries.
+- [research.md](specs/026-smart-connections-similar/research.md) —
+  Phase 0 decisions R1..R14 (incl. R5a closed-vault detection branch,
+  R7 path/headingPath extraction, R8 three-level sort, R9
+  source-path-keyed self-exclusion, R10 non-finite-score filter, R11
+  SOURCE_NOT_INDEXED detection, R13 precedence chain, R14
+  plugin-namespace name) + plan-stage live-CLI/plugin findings F1..F14
+  (vault= routes correctly; plugin API path; block-level shape;
+  closed-vault empty-stdout transparent-open; three-vault probe data;
+  limit-vs-threshold cap; score range).
+- [data-model.md](specs/026-smart-connections-similar/data-model.md)
+  — input/output/eval-envelope schema shapes
+  (`smartConnectionsSimilarInputSchema` extends `targetModeBaseSchema`
+  with `limit: 1..100 default 20` + optional `total`;
+  `matchEntrySchema` strict with `{path, headingPath, score}`; eval
+  envelope discriminated union with 6 envelope codes), frozen JS
+  template (~60-80 LOC), base64 payload assembly, per-tool invariants
+  table, module LOC budget (~230 source / ~1280 test), test inventory
+  (20 / 32 / 5 = 57 cases), architectural delta map (first member of
+  eval-driven plugin-backed cohort).
+- [contracts/smart-connections-similar-input.contract.md](specs/026-smart-connections-similar/contracts/smart-connections-similar-input.contract.md)
+  — public input contract: zod schema, emitted JSON Schema shape,
+  field policy (6 fields), 8 worked examples (A–H), 15-row error
+  response roster (incl. `VAULT_NOT_FOUND × 2 reasons` and handler
+  stage codes), multi-vault basename-ambiguity note (inherited
+  limitation #5), 15-row out-of-scope upstream surfaces table.
+- [contracts/smart-connections-similar-handler.contract.md](specs/026-smart-connections-similar/contracts/smart-connections-similar-handler.contract.md)
+  — handler invariants: deps shape, single invokeCli call shape
+  (subcommand=eval, parameters.code=<rendered-js>), frozen JS template
+  render (single `__PAYLOAD_B64__` substitution), multi-stage parse
+  step (stage 0 closed-vault empty-stdout detection per R5a, stage 1
+  `=> ` prefix strip, stage 2 JSON.parse, stage 3 envelope safeParse,
+  stage 4 discriminate on `ok`, stage 5 return), envelope-error →
+  UpstreamError mapping table (6 rows), failure propagation chain
+  diagram, test seam pattern with base64 round-trip, single-spawn
+  invariant.
+- [quickstart.md](specs/026-smart-connections-similar/quickstart.md)
+  — 31 verification scenarios Q-1..Q-28 (with Q-6a, Q-7a, Q-11a,
+  Q-11b inserts) mapped to SC-001..SC-028; bulk in CI; 3 MANUAL T0
+  cases (closed-vault, plugin-uninstall, full 17-case characterisation
+  pass).
+- [.decisions/ADR-013 - Plugin-Namespace Tool Naming Convention.md](.decisions/ADR-013%20-%20Plugin-Namespace%20Tool%20Naming%20Convention.md)
+  — NEW ADR codifying the `<plugin_name>_<operation>` convention;
+  sibling rule to ADR-010; mutually exclusive in scope and exhaustive
+  over the typed-tool naming space.
+- [.decisions/ADR-014 - Plugin-Backed Typed Tools Runtime-Dependency Pattern.md](.decisions/ADR-014%20-%20Plugin-Backed%20Typed%20Tools%20Runtime-Dependency%20Pattern.md)
+  — NEW ADR codifying the plugin-lifecycle failure-mode pattern
+  (`<PLUGIN>_NOT_INSTALLED` / `<PLUGIN>_NOT_READY` / `SOURCE_NOT_INDEXED`
+  as `CLI_REPORTED_ERROR.details.code` discriminators); sibling
+  rule to ADR-013 covering FAILURE-MODE PATTERN vs ADR-013's NAMING.
+- [.decisions/ADR-015 - Sub-Discriminators via details.reason for Multi-State Error Codes.md](.decisions/ADR-015%20-%20Sub-Discriminators%20via%20details.reason%20for%20Multi-State%20Error%20Codes.md)
+  — NEW ADR codifying the `details.reason` sub-discriminator pattern
+  for multi-state error codes; preserves Constitution Principle IV's
+  zero-new-top-level-codes streak while permitting finer agent-
+  actionable signal. Worked example: BI-026's `VAULT_NOT_FOUND` with
+  `details.reason: "unknown" | "not-open"` (FR-017a).
+- [.architecture/Obsidian CLI MCP - Architecture.md](.architecture/Obsidian%20CLI%20MCP%20-%20Architecture.md)
+  — canonical forward-going architecture document, rolled forward
+  with the BI-026 changes (plugin-backed typed-content tools as
+  fourth tool category; plugin-API routing-via-eval pattern;
+  closed-but-registered vault detection branch; ADR-013 link).
+- [.architecture/Obsidian CLI MCP - Architecture with Smart Connections.md](.architecture/Obsidian%20CLI%20MCP%20-%20Architecture%20with%20Smart%20Connections.md)
+  — BI-026-time-frozen snapshot; historical artefact; future BIs
+  update the base file, not this snapshot.
+- [.specify/memory/constitution.md](.specify/memory/constitution.md)
+  — v1.3.0 → v1.4.0 amendment adds the seventh Compliance checklist
+  row pointing at ADR-013. Subsequent **v1.4.0 → v1.5.0 amendment**
+  (post-/speckit-analyze deliberation, same date) adds the eighth
+  row pointing at ADR-014 AND the ninth row pointing at ADR-015.
+  Sync Impact Report regenerated on each amendment; prior reports
+  preserved for reference.
+
+---
+
+## Predecessor feature narrative (025-list-links) — RETAINED FOR CONTEXT
+
+The 025 narrative below is retained for downstream cross-references
+but is NOT the active planning context. Consult
+[specs/026-smart-connections-similar/plan.md](specs/026-smart-connections-similar/plan.md)
+for the active feature; consult
+[specs/025-list-links/plan.md](specs/025-list-links/plan.md) for the
+025 source. Summary: 025 added the (then-)twelfth typed-tool wrap
+and the project's first link-graph primitive — outgoing-link
+inventory for a single named note. User surface
+`links({ target_mode, vault?, file?, path?, total? })` returning
+`{ count, links: Array<{ target, line, kind, displayText? }> }`.
+Wraps the upstream `eval` subcommand (NOT native `links` — F1 / R2
+confirmed plain-text-only output). Closed three-value kind enum
+`{wikilink, embed, markdown}` per Q3 clarification; frontmatter-link
+inclusion via cache merge per Q4; displayText omit-when-equal
+transform per Q1. Eval cohort with BI-014 / BI-015. Zero new error
+codes; zero new ADRs; additive surface; PATCH version bump 0.5.2 →
+0.5.3. Original detail below.
+
+Active feature (pre-BI-026): **025-list-links** — adds the twelfth typed-tool wrap
 and the project's **first link-graph primitive**. Tool name `links`
 follows BI-022's single-word-verbatim-from-upstream convention (matches
 the upstream `obsidian links` subcommand; parity with `outline` from
