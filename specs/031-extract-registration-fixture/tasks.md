@@ -23,7 +23,7 @@ description: "Task list for BI-031 Extract Registration Stub Fixture"
 
 **Purpose**: Verify the working environment is ready for the refactor.
 
-- [ ] T001 Verify working tree is clean and the active branch is `031-extract-registration-fixture` by running `git status` and `git branch --show-current`. If unclean, stop and ask the user how to proceed (stash, commit, or discard).
+- [X] T001 Verify working tree is clean and the active branch is `031-extract-registration-fixture` by running `git status` and `git branch --show-current`. If unclean, stop and ask the user how to proceed (stash, commit, or discard).
 
 ---
 
@@ -33,11 +33,11 @@ description: "Task list for BI-031 Extract Registration Stub Fixture"
 
 **⚠️ CRITICAL**: US1 (the 16-caller refactor) cannot start until the fixture exists and its co-located test passes.
 
-- [ ] T002 Create the shared fixture module at `src/tools/_registration-stub.ts` per the contract in [contracts/registration-stub.contract.md](contracts/registration-stub.contract.md). The file must (a) carry the `// Original — no upstream.` header from data-model.md §1.5; (b) export the `RegistrationStubOpts` interface with exactly the two fields `stdout?: string` and `exitCode?: number`; (c) export `makeRegistrationStubSpawn(opts?: RegistrationStubOpts): SpawnLike` whose body is byte-equivalent to the 788-byte template currently duplicated across the 11 byte-identical callers (per FR-003); (d) import `SpawnLike` from `../cli-adapter/_dispatch.js` (and import the supporting `SpawnOptions` from `node:child_process`, `EventEmitter` from `node:events`, `Readable` from `node:stream`, all needed inside the function body).
+- [X] T002 Create the shared fixture module at `src/tools/_registration-stub.ts` per the contract in [contracts/registration-stub.contract.md](contracts/registration-stub.contract.md). The file must (a) carry the `// Original — no upstream.` header from data-model.md §1.5; (b) export the `RegistrationStubOpts` interface with exactly the two fields `stdout?: string` and `exitCode?: number`; (c) export `makeRegistrationStubSpawn(opts?: RegistrationStubOpts): SpawnLike` whose body is byte-equivalent to the 788-byte template currently duplicated across the 11 byte-identical callers (per FR-003); (d) import `SpawnLike` from `../cli-adapter/_dispatch.js` (and import the supporting `SpawnOptions` from `node:child_process`, `EventEmitter` from `node:events`, `Readable` from `node:stream`, all needed inside the function body).
 
-- [ ] T003 Create the co-located unit test at `src/tools/_registration-stub.test.ts` with the 7 cases enumerated in data-model.md §5: (1) default invocation produces exit-0 child with empty streams; (2) `opts.stdout` is encoded as UTF-8 and pushed before the null sentinel; (3) `opts.exitCode` propagates to the `exit` event; (4) both opts together exercise the full pipeline; (5) the returned child satisfies the SpawnLike shape contract (`.stdout` Readable, `.stderr` Readable, `.pid = 7`, `.kill` returns `true`); (6) setImmediate lifecycle order — stdout-push precedes stdout-null-push; stdout-null-push precedes stderr-null-push; stderr-null-push precedes exit-emit (verified by attaching listeners and recording the sequence); (7) default `exitCode = 0` when `opts.exitCode` is omitted. Use vitest's `describe` / `it` / `expect`. Carry the `// Original — no upstream. Tests for the shared registration stub fixture (BI-031).` header.
+- [X] T003 Create the co-located unit test at `src/tools/_registration-stub.test.ts` with the 7 cases enumerated in data-model.md §5: (1) default invocation produces exit-0 child with empty streams; (2) `opts.stdout` is encoded as UTF-8 and pushed before the null sentinel; (3) `opts.exitCode` propagates to the `exit` event; (4) both opts together exercise the full pipeline; (5) the returned child satisfies the SpawnLike shape contract (`.stdout` Readable, `.stderr` Readable, `.pid = 7`, `.kill` returns `true`); (6) setImmediate lifecycle order — stdout-push precedes stdout-null-push; stdout-null-push precedes stderr-null-push; stderr-null-push precedes exit-emit (verified by attaching listeners and recording the sequence); (7) default `exitCode = 0` when `opts.exitCode` is omitted. Use vitest's `describe` / `it` / `expect`. Carry the `// Original — no upstream. Tests for the shared registration stub fixture (BI-031).` header.
 
-- [ ] T004 Run `npm test -- src/tools/_registration-stub.test.ts` and verify ALL 7 cases pass. This isolates the fixture's contract validation from the consumer refactor and exercises Q-1 / Q-2 / Q-3..Q-9 from quickstart.md. If any case fails, fix `_registration-stub.ts` before proceeding to Phase 3.
+- [X] T004 Run `npm test -- src/tools/_registration-stub.test.ts` and verify ALL 7 cases pass. This isolates the fixture's contract validation from the consumer refactor and exercises Q-1 / Q-2 / Q-3..Q-9 from quickstart.md. If any case fails, fix `_registration-stub.ts` before proceeding to Phase 3.
 
 **Checkpoint**: Fixture exists at the locked path; co-located tests pass; the import target is resolvable from any `src/tools/<name>/index.test.ts` via `"../_registration-stub.js"`.
 
@@ -63,47 +63,47 @@ The editing protocol per consumer file is identical:
 
 After each edit, the file's invocations of `makeStubSpawn(...)` remain byte-stable.
 
-- [ ] T005 [P] [US1] Refactor `src/tools/delete/index.test.ts` per the editing protocol above. (Source body class: 788/e92c — byte-identical baseline.)
+- [X] T005 [P] [US1] Refactor `src/tools/delete/index.test.ts` per the editing protocol above. (Source body class: 788/e92c — byte-identical baseline.)
 
-- [ ] T006 [P] [US1] Refactor `src/tools/files/index.test.ts` per the editing protocol above. (Source body class: 789/78417 — pid=11 absorbed by unification on pid=7 per R4.)
+- [X] T006 [P] [US1] Refactor `src/tools/files/index.test.ts` per the editing protocol above. (Source body class: 789/78417 — pid=11 absorbed by unification on pid=7 per R4.)
 
-- [ ] T007 [P] [US1] Refactor `src/tools/find_by_property/index.test.ts` per the editing protocol above. (Source body class: 788/e92c.)
+- [X] T007 [P] [US1] Refactor `src/tools/find_by_property/index.test.ts` per the editing protocol above. (Source body class: 788/e92c.)
 
-- [ ] T008 [P] [US1] Refactor `src/tools/links/index.test.ts` per the editing protocol above. (Source body class: 788/e92c.)
+- [X] T008 [P] [US1] Refactor `src/tools/links/index.test.ts` per the editing protocol above. (Source body class: 788/e92c.)
 
-- [ ] T009 [P] [US1] Refactor `src/tools/move/index.test.ts` per the editing protocol above. (Source body class: 788/e92c.)
+- [X] T009 [P] [US1] Refactor `src/tools/move/index.test.ts` per the editing protocol above. (Source body class: 788/e92c.)
 
-- [ ] T010 [P] [US1] Refactor `src/tools/outline/index.test.ts` per the editing protocol above. (Source body class: 789/f6753 — pid=12 absorbed by unification on pid=7.)
+- [X] T010 [P] [US1] Refactor `src/tools/outline/index.test.ts` per the editing protocol above. (Source body class: 789/f6753 — pid=12 absorbed by unification on pid=7.)
 
-- [ ] T011 [P] [US1] Refactor `src/tools/properties/index.test.ts` per the editing protocol above. (Source body class: 789/ae069 — pid=13 absorbed by unification on pid=7.)
+- [X] T011 [P] [US1] Refactor `src/tools/properties/index.test.ts` per the editing protocol above. (Source body class: 789/ae069 — pid=13 absorbed by unification on pid=7.)
 
-- [ ] T012 [P] [US1] Refactor `src/tools/read/index.test.ts` per the editing protocol above. (Source body class: 788/e92c.)
+- [X] T012 [P] [US1] Refactor `src/tools/read/index.test.ts` per the editing protocol above. (Source body class: 788/e92c.)
 
-- [ ] T013 [P] [US1] Refactor `src/tools/read_heading/index.test.ts` per the editing protocol above. (Source body class: 788/e92c.)
+- [X] T013 [P] [US1] Refactor `src/tools/read_heading/index.test.ts` per the editing protocol above. (Source body class: 788/e92c.)
 
-- [ ] T014 [P] [US1] Refactor `src/tools/read_property/index.test.ts` per the editing protocol above. (Source body class: 788/e92c.)
+- [X] T014 [P] [US1] Refactor `src/tools/read_property/index.test.ts` per the editing protocol above. (Source body class: 788/e92c.)
 
-- [ ] T015 [P] [US1] Refactor `src/tools/rename/index.test.ts` per the editing protocol above. (Source body class: 788/e92c.)
+- [X] T015 [P] [US1] Refactor `src/tools/rename/index.test.ts` per the editing protocol above. (Source body class: 788/e92c.)
 
-- [ ] T016 [P] [US1] Refactor `src/tools/set_property/index.test.ts` per the editing protocol above. (Source body class: 788/e92c.)
+- [X] T016 [P] [US1] Refactor `src/tools/set_property/index.test.ts` per the editing protocol above. (Source body class: 788/e92c.)
 
-- [ ] T017 [P] [US1] Refactor `src/tools/smart_connections_query/index.test.ts` per the editing protocol above. (Source body class: 788/e92c.)
+- [X] T017 [P] [US1] Refactor `src/tools/smart_connections_query/index.test.ts` per the editing protocol above. (Source body class: 788/e92c.)
 
-- [ ] T018 [P] [US1] Refactor `src/tools/smart_connections_similar/index.test.ts` per the editing protocol above. (Source body class: 788/e92c.)
+- [X] T018 [P] [US1] Refactor `src/tools/smart_connections_similar/index.test.ts` per the editing protocol above. (Source body class: 788/e92c.)
 
-- [ ] T019 [P] [US1] Refactor `src/tools/tag/index.test.ts` per the editing protocol above. (Source body class: 789/ae069 — pid=13 absorbed by unification on pid=7.)
+- [X] T019 [P] [US1] Refactor `src/tools/tag/index.test.ts` per the editing protocol above. (Source body class: 789/ae069 — pid=13 absorbed by unification on pid=7.)
 
-- [ ] T020 [P] [US1] Refactor `src/tools/tree/index.test.ts` per the editing protocol above. (Source body class: 789/ae069 — pid=13 absorbed by unification on pid=7.)
+- [X] T020 [P] [US1] Refactor `src/tools/tree/index.test.ts` per the editing protocol above. (Source body class: 789/ae069 — pid=13 absorbed by unification on pid=7.)
 
 ### Verification gate for User Story 1
 
-- [ ] T021 [US1] Run `npm run typecheck` and verify exit code `0`. Failure modes to expect if a task in T005..T020 was incomplete: (a) unused-import error from `noUnusedLocals: true` if an unused import was left in place; (b) `makeStubSpawn is not defined` error if the import was added with a different identifier than the call-site identifier expects. Verifies Q-10 from quickstart.md.
+- [X] T021 [US1] Run `npm run typecheck` and verify exit code `0`. Failure modes to expect if a task in T005..T020 was incomplete: (a) unused-import error from `noUnusedLocals: true` if an unused import was left in place; (b) `makeStubSpawn is not defined` error if the import was added with a different identifier than the call-site identifier expects. Verifies Q-10 from quickstart.md.
 
-- [ ] T022 [US1] Run `npm test` and verify (a) exit code `0`; (b) the same number of test files, test cases, case names, and pass / fail counts as the pre-refactor baseline. Capture the vitest summary line; compare against the pre-refactor baseline if available. Verifies Q-11, Q-16 (the `_register-baseline.test.ts` durable test must pass without baseline regeneration), and Q-17 from quickstart.md.
+- [X] T022 [US1] Run `npm test` and verify (a) exit code `0`; (b) the same number of test files, test cases, case names, and pass / fail counts as the pre-refactor baseline. Capture the vitest summary line; compare against the pre-refactor baseline if available. Verifies Q-11, Q-16 (the `_register-baseline.test.ts` durable test must pass without baseline regeneration), and Q-17 from quickstart.md.
 
-- [ ] T023 [US1] Verify the obsidian_exec carve-out is intact by running `grep -n "function makeStubSpawn(" src/tools/obsidian_exec/index.test.ts` (expected: one match, the local declaration at approximately line 17) AND `grep -n "_registration-stub" src/tools/obsidian_exec/index.test.ts` (expected: zero matches). Verifies Q-12 from quickstart.md and confirms FR-006 / R7.
+- [X] T023 [US1] Verify the obsidian_exec carve-out is intact by running `grep -n "function makeStubSpawn(" src/tools/obsidian_exec/index.test.ts` (expected: one match, the local declaration at approximately line 17) AND `grep -n "_registration-stub" src/tools/obsidian_exec/index.test.ts` (expected: zero matches). Verifies Q-12 from quickstart.md and confirms FR-006 / R7.
 
-- [ ] T024 [US1] Verify the post-refactor `function makeStubSpawn(` count by running `grep -rl "function makeStubSpawn(" src/tools/*/index.test.ts | wc -l` and confirming the count is exactly `1` (the surviving `obsidian_exec/index.test.ts`). Verifies Q-13 and Q-14 from quickstart.md, plus SC-001.
+- [X] T024 [US1] Verify the post-refactor `function makeStubSpawn(` count by running `grep -rl "function makeStubSpawn(" src/tools/*/index.test.ts | wc -l` and confirming the count is exactly `1` (the surviving `obsidian_exec/index.test.ts`). Verifies Q-13 and Q-14 from quickstart.md, plus SC-001.
 
 **Checkpoint**: User Story 1 is complete. A new typed tool author can now write `import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";` in their `index.test.ts` and skip the 22-line local declaration. The 16 consuming registration tests pass with no inventory drift; the carve-out is preserved; the registry-stability baseline holds.
 
@@ -127,15 +127,15 @@ After each edit, the file's invocations of `makeStubSpawn(...)` remain byte-stab
 
 **Purpose**: Verify all constitutional and project gates pass; finalize delivery.
 
-- [ ] T026 [P] Run `npm run lint` and verify exit code `0` with zero warnings (constitutional Workflow gate point 1). Verifies Q-20 from quickstart.md.
+- [X] T026 [P] Run `npm run lint` and verify exit code `0` with zero warnings (constitutional Workflow gate point 1). Verifies Q-20 from quickstart.md.
 
-- [ ] T027 [P] Run `npm run build` and verify exit code `0` (constitutional Workflow gate point 3). Verifies Q-21 from quickstart.md.
+- [X] T027 [P] Run `npm run build` and verify exit code `0` (constitutional Workflow gate point 3). Verifies Q-21 from quickstart.md.
 
-- [ ] T028 Run `npx vitest run --coverage` and verify the `statements` metric is at-or-above the pinned `91.3` floor in `vitest.config.ts`. Capture the actual percentage and include it in the PR description's quality-gate row. Verifies Q-18 from quickstart.md and SC-005. If the metric is BELOW `91.3`, investigate (per R5 the expected impact is flat-to-positive — a regression indicates an unforeseen interaction).
+- [X] T028 Run `npx vitest run --coverage` and verify the `statements` metric is at-or-above the pinned `91.3` floor in `vitest.config.ts`. Capture the actual percentage and include it in the PR description's quality-gate row. Verifies Q-18 from quickstart.md and SC-005. If the metric is BELOW `91.3`, investigate (per R5 the expected impact is flat-to-positive — a regression indicates an unforeseen interaction).
 
 - [ ] T029 (Optional) Decide whether to add a CHANGELOG.md entry for the internal test-infrastructure refactor. This is a test-only change with no end-user surface impact, so a CHANGELOG entry is not strictly required by the project's release convention. If included, place under an `### Internal` subsection in the next `## [Unreleased]` block; do NOT bump the package version (currently `0.5.8`) for this refactor alone — bundle the version bump with the next BI that ships an end-user-visible change.
 
-- [ ] T030 Spot-check a sample of 3-4 of the 16 modified `index.test.ts` files in the IDE / VS Code SCM panel to verify the per-file diff shape matches the data-model.md §3.2 "after" template — function block deleted, fixture import added, four imports cleaned up per R3, no other edits. Verifies Q-19 from quickstart.md and SC-008. (No automated assertion; this is a reviewer-grade sanity check before the implementation commit.) ADDITIONALLY: compute the byte-distinct-body audit for SC-002 by extracting the post-refactor `makeStubSpawn` function bodies and hashing them — expected result is exactly 2 distinct sha256 hashes (the shared fixture's body + `obsidian_exec`'s 971-byte local body). One audit recipe (PowerShell-on-Windows): iterate over `src/tools/_registration-stub.ts` and `src/tools/obsidian_exec/index.test.ts`; for each, extract the lines from `function makeStubSpawn(` (or `function makeRegistrationStubSpawn(`) through the matching closing `}` brace; pipe each body through `Get-FileHash -Algorithm SHA256` (or `sha256sum` under bash); record the two distinct hashes in the PR description's quality-gate row. This makes SC-002 first-class verifiable rather than relying on Q-15's "manual audit" framing alone.
+- [X] T030 Spot-check a sample of 3-4 of the 16 modified `index.test.ts` files in the IDE / VS Code SCM panel to verify the per-file diff shape matches the data-model.md §3.2 "after" template — function block deleted, fixture import added, four imports cleaned up per R3, no other edits. Verifies Q-19 from quickstart.md and SC-008. (No automated assertion; this is a reviewer-grade sanity check before the implementation commit.) ADDITIONALLY: compute the byte-distinct-body audit for SC-002 by extracting the post-refactor `makeStubSpawn` function bodies and hashing them — expected result is exactly 2 distinct sha256 hashes (the shared fixture's body + `obsidian_exec`'s 971-byte local body). One audit recipe (PowerShell-on-Windows): iterate over `src/tools/_registration-stub.ts` and `src/tools/obsidian_exec/index.test.ts`; for each, extract the lines from `function makeStubSpawn(` (or `function makeRegistrationStubSpawn(`) through the matching closing `}` brace; pipe each body through `Get-FileHash -Algorithm SHA256` (or `sha256sum` under bash); record the two distinct hashes in the PR description's quality-gate row. This makes SC-002 first-class verifiable rather than relying on Q-15's "manual audit" framing alone.
 
 - [ ] T031 (Optional) Rotate the active-narrative block in CLAUDE.md — demote the 030-move-note prose to a "Predecessor feature narrative" subheading, write a new 031-extract-registration-fixture active-narrative block at the top, update the "See also" pointers. This is a SEPARATE commit per project convention (`docs(031-extract-registration-fixture): rotate CLAUDE.md active-narrative block`) — the plan-pointer link on line 4 was updated during /speckit-plan; the full narrative rotation is a documentation cycle distinct from the implementation. May be deferred to before-PR-open.
 
