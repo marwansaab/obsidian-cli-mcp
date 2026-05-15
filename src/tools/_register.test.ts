@@ -355,6 +355,12 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
     required_equals: ["target_mode"],
     additionalProperties: false,
   },
+  tag: {
+    type: "object",
+    properties_equals_set: ["tag", "vault", "total"],
+    required_equals: ["tag"],
+    additionalProperties: false,
+  },
   synthetic_pattern_a: {
     type: "object",
     properties_equals_set: ["target_mode", "vault", "file", "path", "note_text"],

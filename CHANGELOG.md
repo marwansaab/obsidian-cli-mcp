@@ -5,6 +5,53 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.6] - 2026-05-15
+
+**PATCH release (additive surface)** — adds `tag`, the fourteenth typed-tool wrap and the project's **first tag-index retrieval primitive**. Returns the vault-relative paths of every Markdown note carrying a given tag as a `{ count, paths: string[] }` envelope (default mode) or a bare integer (count-only mode). Sixth member of the eval-driven typed-tool cohort and **third consumer** of the cross-cutting `_eval-vault-closed-detection` shared module (rule-of-three confirmation point). Spec-id 028-list-tagged-files, FR-001..FR-021, SC-001..SC-013.
+
+### Added
+
+- **`tag` typed MCP tool** at `src/tools/tag/` — `schema.ts` + `handler.ts` + frozen `_template.ts` JS template + `index.ts` + co-located tests (53 cases: 16 schema / 32 handler / 5 registration). Single-call architecture (R3 / FR-019): each MCP request fires ONE `invokeCli` invocation with `command: "eval"` and a base64-encoded JSON payload `{query, total}` inside a frozen JS template; the template walks `app.metadataCache.fileCache × .metadataCache` directly (NOT a plugin API; this is the first core-metadataCache tag-index primitive). Stage-0 closed-but-registered-vault detection via the shared `_eval-vault-closed-detection` module — third consumer, no module edits. Public surface: `tag({ tag, vault?, total? })` → `{ count, paths: string[] }` (default) or bare integer (count-only). Schema-layer structural normalisation chain: trim → strip single leading `#` → reject empty post-strip → reject >200 chars post-strip → reject empty hierarchical segments (`/foo`, `foo/`, `foo//bar`); NO charset regex (Q2 lock — Unicode + symbols flow through). NO `target_mode` discriminator (vault-only fileless surface, parity with `properties`). SIX-entry failure-mode roster: `VALIDATION_ERROR`; `CLI_REPORTED_ERROR(VAULT_NOT_FOUND, reason: "unknown")` (cli-adapter 011-R5 inheritance); `CLI_REPORTED_ERROR(VAULT_NOT_FOUND, reason: "not-open", stage: "handler-stage-0")` (shared closed-vault detector); `CLI_REPORTED_ERROR(stage: "json-parse")`; `CLI_REPORTED_ERROR(stage: "envelope-parse")`; `CLI_REPORTED_ERROR(stage: "envelope-error", code: <as-emitted>)`. **ZERO new top-level error codes**, **ZERO new `details.code` values** — the fourteen-tool zero-new-codes streak since BI-011 is preserved (Constitution Principle IV).
+
+- **Non-stub `docs/tools/tag.md`** per FR-022 — input table, output shape × 2 modes, eight worked examples (simple happy path / leading-`#` strip / hierarchical parent query / leaf-tag precision / case-variant query / explicit vault / count-only / zero-match), full 11-entry error roster, six documented inherited limitations (multi-vault basename ambiguity; ASCII-only lower-fold; metadataCache freshness; output cap inherited from cli-adapter; no pagination at v1; Markdown-only tag-cache scope) plus the "why eval not native `tag`?" explanation, anti-injection guarantee section, single-call architecture note.
+
+- **Three-line wiring** in `src/server.ts`: import + tools-array entry (alphabetical: inserted between `createSmartConnectionsSimilarTool` and `createWriteNoteTool`).
+
+- **`_register.test.ts` invariants map** extended with the `tag` entry (`properties_equals_set: ["tag", "vault", "total"]`, `required_equals: ["tag"]`, `additionalProperties: false`).
+
+- **FR-018 baseline roll-forward**: `src/tools/_register-baseline.json` extended with the `tag` entry via `npm run baseline:write`. All other tool fingerprints unchanged byte-identically.
+
+### Plan-stage design decisions
+
+- **Amendment 1 — wrapper-side ASCII lower-fold (FR-008)**: live-probe F2 contradicted the spec-stage Q1 defer-to-upstream premise — `obsidian tag name=Alpha` returns "Tag not found." against a `#alpha`-tagged vault, AND `app.metadataCache.getTags()` keys are case-PRESERVED. Q1's explicit conditional fired; the wrapper applies ASCII lower-fold inside the eval JS template against both query and stored tag values. Non-ASCII case variants (Turkish dotless i, German ß) are NOT folded at v1 — documented as inherited limitation #2.
+
+- **Amendment 2 — architecture pivot to `eval`**: live-probe F3 surfaced three contract mismatches with the native `obsidian tag` subcommand — plain-text-only output (no `format=json`), `Error: Tag not found.` on zero-match (the spec contract is `{count: 0, paths: []}` — never an error), no child-tag subsumption. The wrapper routes through `eval` instead. FR-019..FR-021 (new in spec): single `invokeCli` call with `command: "eval"`; in-eval metadataCache walk; in-eval lower-fold + segment-bounded `isMatch`.
+
+- **/speckit-clarify Q&As 2026-05-15** (codified in spec.md): Q1 case-sensitivity → defer-to-upstream (contradicted by amendment 1 → wrapper-side lower-fold); Q2 charset validation → pass-through structural-only; Q3 frontmatter shape ingestion → defer to upstream metadataCache; Q4 leading-`#` handling → silent strip; Q5 path-ordering → wrapper-side byte-asc inside JS template.
+
+### Migration
+
+None. Additive surface — existing tools unchanged at the wire. Existing pattern-matchers on `CLI_REPORTED_ERROR.details.code` and `details.reason` still match (no new values introduced; the `reason: "not-open"` value is already established by BI-026).
+
+### Internal
+
+- **Frozen surfaces**: `obsidian_exec`, `read`, `write_note`, `delete`, `read_property`, `find_by_property`, `read_heading`, `set_property`, `files`, `rename`, `outline`, `properties`, `links`, `smart_connections_similar`, `smart_connections_query`, `help` all byte-stable.
+- **Shared module rule-of-three**: BI-028 is the third consumer of `src/tools/_eval-vault-closed-detection/` (BI-026 origin inline, BI-027 lift to shared module, BI-028 third consumer). Confirms the cross-cutting design at three consumers without further refactor.
+- **Zero new ADRs** (ADR-010 enforced for the tool name; ADR-013/014/015 N/A — this BI is core-metadataCache-backed, not plugin-backed). **Zero Constitution amendment** (v1.5.0 stays).
+- **Drift detector**: the post-010 consolidated drift detector's `it.each` registry walk auto-covers `tag`; the invariants map row added.
+
+### References
+
+- Spec: [specs/028-list-tagged-files/spec.md](specs/028-list-tagged-files/spec.md)
+- Plan: [specs/028-list-tagged-files/plan.md](specs/028-list-tagged-files/plan.md)
+- Research: [specs/028-list-tagged-files/research.md](specs/028-list-tagged-files/research.md)
+- Data model: [specs/028-list-tagged-files/data-model.md](specs/028-list-tagged-files/data-model.md)
+- Tasks: [specs/028-list-tagged-files/tasks.md](specs/028-list-tagged-files/tasks.md)
+- Quickstart: [specs/028-list-tagged-files/quickstart.md](specs/028-list-tagged-files/quickstart.md)
+- Input contract: [specs/028-list-tagged-files/contracts/tag-input.contract.md](specs/028-list-tagged-files/contracts/tag-input.contract.md)
+- Handler contract: [specs/028-list-tagged-files/contracts/tag-handler.contract.md](specs/028-list-tagged-files/contracts/tag-handler.contract.md)
+- ADR-010 (enforced): [.decisions/ADR-010 - Typed Tool Names Mirror Upstream CLI Subcommand.md](.decisions/ADR-010%20-%20Typed%20Tool%20Names%20Mirror%20Upstream%20CLI%20Subcommand.md)
+
 ## [0.5.5] - 2026-05-15
 
 **PATCH release (additive surface)** — adds `smart_connections_query`, the thirteenth typed-tool wrap and the project's **second plugin-backed typed surface**. Returns the typed list of semantically-nearest block-level matches in a vault for a free-text natural-language query, via the Smart Connections plugin's `env.smart_sources.lookup({hypotheticals, filter: {limit}, collection: "smart_blocks"})` API as a `{ count, matches: [{ path, headingPath, score }] }` envelope. Sibling to `smart_connections_similar` (BI-026, "what's near this source note?") — `smart_connections_query` answers "what's near this question?". Together the two cover the plugin's two principal call shapes; BI-027 establishes the FILELESS sub-cohort within the plugin-backed cohort (no `target_mode`, optional `vault?`). Spec-id 027-smart-connections-query, FR-001..FR-029, SC-001..SC-024.
