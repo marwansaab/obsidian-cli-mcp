@@ -1,40 +1,16 @@
 // Original — no upstream. Tests for the tree tool registration — descriptor name + description, stripped JSON Schema (ADR-005), docs file presence + content completeness, and the FR-018 baseline drift-detector lock rolled forward by `npm run baseline:write` post-implementation.
-import { type SpawnOptions } from "node:child_process";
-import { EventEmitter } from "node:events";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { Readable, Writable } from "node:stream";
+import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createTreeTool, TREE_DESCRIPTION, TREE_TOOL_NAME } from "./index.js";
-import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
+import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
-
-function makeStubSpawn(opts: { stdout?: string; exitCode?: number } = {}): SpawnLike {
-  return (binary, _argv, _options: SpawnOptions) => {
-    void binary;
-    const child = new EventEmitter() as EventEmitter & {
-      stdout: Readable;
-      stderr: Readable;
-      kill: (signal?: NodeJS.Signals) => boolean;
-      pid?: number;
-    };
-    child.stdout = new Readable({ read() {} });
-    child.stderr = new Readable({ read() {} });
-    child.pid = 13;
-    child.kill = () => true;
-    setImmediate(() => {
-      if (opts.stdout) child.stdout.push(Buffer.from(opts.stdout, "utf8"));
-      child.stdout.push(null);
-      child.stderr.push(null);
-      setImmediate(() => child.emit("exit", opts.exitCode ?? 0, null));
-    });
-    return child as unknown as ReturnType<SpawnLike>;
-  };
-}
+import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 
 const silentLogger = () =>
   createLogger({
