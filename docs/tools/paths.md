@@ -1,4 +1,4 @@
-# `tree`
+# `paths`
 
 ## Overview
 
@@ -191,7 +191,7 @@ folders.
 
 ```json
 {
-  "name": "tree",
+  "name": "paths",
   "arguments": { "target_mode": "specific", "vault": "Demo" }
 }
 ```
@@ -203,7 +203,7 @@ folders trailing-slashed, sorted byte-asc. Dotfiles excluded.
 
 ```json
 {
-  "name": "tree",
+  "name": "paths",
   "arguments": {
     "target_mode": "specific",
     "vault": "Demo",
@@ -221,7 +221,7 @@ returned.
 
 ```json
 {
-  "name": "tree",
+  "name": "paths",
   "arguments": { "target_mode": "specific", "vault": "Demo", "depth": 1 }
 }
 ```
@@ -233,7 +233,7 @@ quick top-level map.
 
 ```json
 {
-  "name": "tree",
+  "name": "paths",
   "arguments": {
     "target_mode": "active",
     "folder": "Archive",
@@ -251,7 +251,7 @@ a pre-flight to decide whether to issue the full-paths call.
 
 ```json
 {
-  "name": "tree",
+  "name": "paths",
   "arguments": { "target_mode": "active" }
 }
 ```
@@ -263,7 +263,7 @@ forbidden in active mode (would fail validation).
 
 ```json
 {
-  "name": "tree",
+  "name": "paths",
   "arguments": {
     "target_mode": "specific",
     "vault": "Demo",
@@ -279,7 +279,7 @@ Returns `{ count: 0, paths: [] }` if `Empty/` exists but is empty.
 
 ```json
 {
-  "name": "tree",
+  "name": "paths",
   "arguments": {
     "target_mode": "specific",
     "vault": "Demo",
@@ -296,7 +296,7 @@ the folder or revising the input.
 
 ```json
 {
-  "name": "tree",
+  "name": "paths",
   "arguments": {
     "target_mode": "specific",
     "vault": "Demo",

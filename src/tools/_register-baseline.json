@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "030-move-note",
+  "generatedFromBranch": "032-fix-tree-surface",
   "generatedAt": "2026-05-15",
   "tools": [
     {
@@ -42,6 +42,11 @@
       "name": "outline",
       "descriptionFingerprint": "09b0b625b23ea8018bf5ab0c3229a2e3624b36685bb710f9602338fbb5f2b591",
       "schemaFingerprint": "3affa6b4260fc26466e0b52018a248ec0e9752bd49d1f65bd549db20ab77f642"
+    },
+    {
+      "name": "paths",
+      "descriptionFingerprint": "0ce2bd21b2330725b512b96fedda7375a008cd8caf9db8f8781f4e4fe64bdccb",
+      "schemaFingerprint": "fe179867fe7570dd798b2bfe69a94a986ab5c36b56039410ee5fb148a4a24eab"
     },
     {
       "name": "properties",
@@ -87,11 +92,6 @@
       "name": "tag",
       "descriptionFingerprint": "9d0f39793d37558125686ec3387f22513f0c4a76b6cced9e4788130f94519228",
       "schemaFingerprint": "d1f0426ea5439d8642d2dd4db1505209d9a3682f080f91b4985b7ba4aac4ac8a"
-    },
-    {
-      "name": "tree",
-      "descriptionFingerprint": "c10a181f84aacd6287212ede9dd89f67c6214ce6122d98def3bc67af0823ca59",
-      "schemaFingerprint": "df1a839793c3b180c56406ed9c9e4e6c847ed1a899e7cc9c4df135eeafb9a654"
     },
     {
       "name": "write_note",

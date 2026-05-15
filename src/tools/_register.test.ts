@@ -367,9 +367,9 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
     required_equals: ["tag"],
     additionalProperties: false,
   },
-  tree: {
+  paths: {
     type: "object",
-    properties_equals_set: ["target_mode", "vault", "file", "path", "folder", "depth", "ext", "total"],
+    properties_equals_set: ["target_mode", "vault", "folder", "depth", "ext", "total"],
     required_equals: ["target_mode"],
     additionalProperties: false,
   },

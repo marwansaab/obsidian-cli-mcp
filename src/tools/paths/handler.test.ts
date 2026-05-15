@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the tree handler — covers US1..US9 handler-test inventory: single-spawn invariant (R3 / I-2), argv contract (subcommand=eval, base64 payload, vault flow-through, active-mode strip), happy paths (whole-vault, sub-folder, depth, ext, active, count-only, ext+depth composition), trailing-slash invariant on folder entries (FR-028 / I-9), cross-mode count invariant (I-10), stage-3 closed-vault detection via the shared `_eval-vault-closed-detection` module (fourth consumer), stage-5/6 parse failures with discriminative `details.stage`, stage-7 envelope-error branch (FOLDER_NOT_FOUND / NOT_A_FOLDER), inherited unknown-vault via cli-adapter 011-R5, inherited NO_ACTIVE_FILE + CLI_NON_ZERO_EXIT, payload-injection structural lock (anti-injection round-trips), and frozen-template byte-stability.
+// Original — no upstream. Tests for the paths handler — covers US1..US9 handler-test inventory: single-spawn invariant, argv contract (subcommand=eval, base64 payload, vault flow-through, active-mode strip), happy paths (whole-vault, sub-folder, depth, ext, active, count-only, ext+depth composition), trailing-slash invariant on folder entries, cross-mode count invariant, stage-3 closed-vault detection via the shared `_eval-vault-closed-detection` module, stage-5/6 parse failures with discriminative `details.stage`, stage-7 envelope-error branch (FOLDER_NOT_FOUND / NOT_A_FOLDER), inherited unknown-vault via cli-adapter, inherited NO_ACTIVE_FILE + CLI_NON_ZERO_EXIT, payload-injection structural lock (anti-injection round-trips), and frozen-template byte-stability.
 import { type SpawnOptions } from "node:child_process";
 import { createHash } from "node:crypto";
 import { EventEmitter } from "node:events";
@@ -7,8 +7,8 @@ import { Readable, Writable } from "node:stream";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { JS_TEMPLATE } from "./_template.js";
-import { executeTree } from "./handler.js";
-import { treeInputSchema } from "./schema.js";
+import { executePaths } from "./handler.js";
+import { pathsInputSchema } from "./schema.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createLogger, type Logger } from "../../logger.js";
@@ -134,7 +134,7 @@ test("US1 Q-9 default-mode happy path: mixed subtree round-trips with trailing-s
     "README.md",
   ];
   const { spawnFn } = makeQueuedSpawn([{ stdout: okEnv(8, paths), exitCode: 0 }]);
-  const result = await executeTree({ target_mode: "specific", vault: "Demo" }, deps(spawnFn));
+  const result = await executePaths({ target_mode: "specific", vault: "Demo" }, deps(spawnFn));
   expect(result).toEqual({ count: 8, paths });
   expect(result.count).toBe(result.paths.length);
   for (const p of result.paths) {
@@ -150,21 +150,21 @@ test("US1 Q-9 default-mode happy path: mixed subtree round-trips with trailing-s
 // (T007) Empty-vault happy path
 test("US1 empty-vault: { count:0, paths:[] } — never throws", async () => {
   const { spawnFn } = makeQueuedSpawn([{ stdout: okEnv(0, []), exitCode: 0 }]);
-  const result = await executeTree({ target_mode: "specific", vault: "Demo" }, deps(spawnFn));
+  const result = await executePaths({ target_mode: "specific", vault: "Demo" }, deps(spawnFn));
   expect(result).toEqual({ count: 0, paths: [] });
 });
 
 // (T008) I-2 single-spawn invariant — exactly one invokeCli call
 test("US1 I-2 single-spawn: exactly one invokeCli call", async () => {
   const { spawnFn, getCount } = makeQueuedSpawn([{ stdout: okEnv(0, []), exitCode: 0 }]);
-  await executeTree({ target_mode: "specific", vault: "Demo" }, deps(spawnFn));
+  await executePaths({ target_mode: "specific", vault: "Demo" }, deps(spawnFn));
   expect(getCount()).toBe(1);
 });
 
 // (T009) I-3 fixed dispatch shape (subcommand=eval, vault, code contains atob)
 test("US1 I-3 dispatch shape: argv contains 'eval', vault=Demo, code= with atob", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: okEnv(0, []), exitCode: 0 }]);
-  await executeTree({ target_mode: "specific", vault: "Demo" }, deps(spawnFn));
+  await executePaths({ target_mode: "specific", vault: "Demo" }, deps(spawnFn));
   expect(recorded[0]!.argv).toContain("eval");
   expect(recorded[0]!.argv).toContain("vault=Demo");
   const codeArg = recorded[0]!.argv.find((a) => a.startsWith("code="))!;
@@ -174,7 +174,7 @@ test("US1 I-3 dispatch shape: argv contains 'eval', vault=Demo, code= with atob"
 // (T010) I-5 base64 payload round-trip (minimal US1 invocation)
 test("US1 I-5 base64 payload: {folder:null, depth:null, ext:null, total:false}", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: okEnv(0, []), exitCode: 0 }]);
-  await executeTree({ target_mode: "specific", vault: "Demo" }, deps(spawnFn));
+  await executePaths({ target_mode: "specific", vault: "Demo" }, deps(spawnFn));
   expect(decodePayload(recorded[0]!.argv)).toEqual({
     folder: null,
     depth: null,
@@ -196,7 +196,7 @@ test("US1 I-4 frozen template byte-stable: SHA-256 matches locked digest", () =>
 test("US1 Q-17 unknown vault: 'Vault not found.' stdout → CLI_REPORTED_ERROR (011-R5)", async () => {
   const { spawnFn } = makeQueuedSpawn([{ stdout: "Vault not found.\n", exitCode: 0 }]);
   const err = (await captureRejection(
-    executeTree({ target_mode: "specific", vault: "NoSuchVault" }, deps(spawnFn)),
+    executePaths({ target_mode: "specific", vault: "NoSuchVault" }, deps(spawnFn)),
   )) as UpstreamError;
   expect(err).toBeInstanceOf(UpstreamError);
   expect(err.code).toBe("CLI_REPORTED_ERROR");
@@ -211,7 +211,7 @@ test("US1 Q-17 unknown vault: 'Vault not found.' stdout → CLI_REPORTED_ERROR (
 test("US2 Q-10 sub-folder happy path: only Inbox/-rooted entries", async () => {
   const paths = ["Inbox/Sub/", "Inbox/Sub/c.md", "Inbox/a.md", "Inbox/b.md"];
   const { spawnFn } = makeQueuedSpawn([{ stdout: okEnv(4, paths), exitCode: 0 }]);
-  const result = await executeTree(
+  const result = await executePaths(
     { target_mode: "specific", vault: "Demo", folder: "Inbox" },
     deps(spawnFn),
   );
@@ -226,7 +226,7 @@ test("US2 Q-15 missing-folder: ok:false code:FOLDER_NOT_FOUND → CLI_REPORTED_E
     { stdout: errEnv("FOLDER_NOT_FOUND", "Missing"), exitCode: 0 },
   ]);
   const err = (await captureRejection(
-    executeTree(
+    executePaths(
       { target_mode: "specific", vault: "Demo", folder: "Missing" },
       deps(spawnFn),
     ),
@@ -246,7 +246,7 @@ test("US2 Q-16 not-a-folder: ok:false code:NOT_A_FOLDER → CLI_REPORTED_ERROR",
     { stdout: errEnv("NOT_A_FOLDER", "notes/x.md"), exitCode: 0 },
   ]);
   const err = (await captureRejection(
-    executeTree(
+    executePaths(
       { target_mode: "specific", vault: "Demo", folder: "notes/x.md" },
       deps(spawnFn),
     ),
@@ -262,7 +262,7 @@ test("US2 Q-16 not-a-folder: ok:false code:NOT_A_FOLDER → CLI_REPORTED_ERROR",
 // (T018) Empty-existing-folder distinguishable from missing-folder
 test("US2 empty-existing folder: {count:0, paths:[]} — distinguishable from FOLDER_NOT_FOUND", async () => {
   const { spawnFn } = makeQueuedSpawn([{ stdout: okEnv(0, []), exitCode: 0 }]);
-  const result = await executeTree(
+  const result = await executePaths(
     { target_mode: "specific", vault: "Demo", folder: "Empty" },
     deps(spawnFn),
   );
@@ -272,7 +272,7 @@ test("US2 empty-existing folder: {count:0, paths:[]} — distinguishable from FO
 // (T019) I-5 payload round-trip with folder
 test("US2 I-5 payload round-trip with folder='Inbox'", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: okEnv(0, []), exitCode: 0 }]);
-  await executeTree(
+  await executePaths(
     { target_mode: "specific", vault: "Demo", folder: "Inbox" },
     deps(spawnFn),
   );
@@ -292,7 +292,7 @@ test("US2 I-5 payload round-trip with folder='Inbox'", async () => {
 test("US3 Q-11 depth-1: immediate children only", async () => {
   const paths = ["Archive/", "Inbox/", "README.md"];
   const { spawnFn } = makeQueuedSpawn([{ stdout: okEnv(3, paths), exitCode: 0 }]);
-  const result = await executeTree(
+  const result = await executePaths(
     { target_mode: "specific", vault: "Demo", depth: 1 },
     deps(spawnFn),
   );
@@ -311,7 +311,7 @@ test("US3 depth-2: depths 1 and 2 included", async () => {
     "README.md",
   ];
   const { spawnFn } = makeQueuedSpawn([{ stdout: okEnv(7, paths), exitCode: 0 }]);
-  const result = await executeTree(
+  const result = await executePaths(
     { target_mode: "specific", vault: "Demo", depth: 2 },
     deps(spawnFn),
   );
@@ -322,7 +322,7 @@ test("US3 depth-2: depths 1 and 2 included", async () => {
 test("US3 depth=99: silently accepted (no error from handler)", async () => {
   const paths = ["a.md", "b.md"];
   const { spawnFn } = makeQueuedSpawn([{ stdout: okEnv(2, paths), exitCode: 0 }]);
-  const result = await executeTree(
+  const result = await executePaths(
     { target_mode: "specific", vault: "Demo", depth: 99 },
     deps(spawnFn),
   );
@@ -332,7 +332,7 @@ test("US3 depth=99: silently accepted (no error from handler)", async () => {
 // (T024) I-5 payload round-trip with depth
 test("US3 I-5 payload round-trip with depth=2", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: okEnv(0, []), exitCode: 0 }]);
-  await executeTree(
+  await executePaths(
     { target_mode: "specific", vault: "Demo", depth: 2 },
     deps(spawnFn),
   );
@@ -346,7 +346,7 @@ test("US3 I-5 payload round-trip with depth=2", async () => {
 
 // (T025) Schema-layer depth=0 rejection (cross-suite reference)
 test("US3 schema depth=0 rejected pre-dispatch (cross-suite reference)", () => {
-  const r = treeInputSchema.safeParse({
+  const r = pathsInputSchema.safeParse({
     target_mode: "specific",
     vault: "Demo",
     depth: 0,
@@ -362,7 +362,7 @@ test("US3 schema depth=0 rejected pre-dispatch (cross-suite reference)", () => {
 test("US4 Q-12 ext=md: only files, no folder entries", async () => {
   const paths = ["Archive/old.md", "Inbox/Sub/c.md", "Inbox/a.md", "README.md"];
   const { spawnFn } = makeQueuedSpawn([{ stdout: okEnv(4, paths), exitCode: 0 }]);
-  const result = await executeTree(
+  const result = await executePaths(
     { target_mode: "specific", vault: "Demo", ext: "md" },
     deps(spawnFn),
   );
@@ -380,8 +380,8 @@ test("US4 I-5 payload round-trip with ext='.md' and ext='md'", async () => {
   const { spawnFn: spawnB, recorded: recB } = makeQueuedSpawn([
     { stdout: okEnv(0, []), exitCode: 0 },
   ]);
-  await executeTree({ target_mode: "specific", vault: "Demo", ext: ".md" }, deps(spawnA));
-  await executeTree({ target_mode: "specific", vault: "Demo", ext: "md" }, deps(spawnB));
+  await executePaths({ target_mode: "specific", vault: "Demo", ext: ".md" }, deps(spawnA));
+  await executePaths({ target_mode: "specific", vault: "Demo", ext: "md" }, deps(spawnB));
   expect((decodePayload(recA[0]!.argv) as { ext: string }).ext).toBe(".md");
   expect((decodePayload(recB[0]!.argv) as { ext: string }).ext).toBe("md");
 });
@@ -389,7 +389,7 @@ test("US4 I-5 payload round-trip with ext='.md' and ext='md'", async () => {
 // (T029) Ext no-match: success, not error
 test("US4 ext-no-match: {count:0, paths:[]} (not an error)", async () => {
   const { spawnFn } = makeQueuedSpawn([{ stdout: okEnv(0, []), exitCode: 0 }]);
-  const result = await executeTree(
+  const result = await executePaths(
     { target_mode: "specific", vault: "Demo", ext: "qqq" },
     deps(spawnFn),
   );
@@ -402,7 +402,7 @@ test("US4 ext+depth composition: round-trips verbatim", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
     { stdout: okEnv(2, paths), exitCode: 0 },
   ]);
-  const result = await executeTree(
+  const result = await executePaths(
     { target_mode: "specific", vault: "Demo", ext: "md", depth: 2 },
     deps(spawnFn),
   );
@@ -422,7 +422,7 @@ test("US4 ext+depth composition: round-trips verbatim", async () => {
 // (T032) Q-13 active-mode dispatch shape — no vault= argv
 test("US5 Q-13 active-mode dispatch: no vault= argv prefix", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: okEnv(0, []), exitCode: 0 }]);
-  await executeTree({ target_mode: "active" }, deps(spawnFn));
+  await executePaths({ target_mode: "active" }, deps(spawnFn));
   expect(recorded[0]!.argv.some((a) => a.startsWith("vault="))).toBe(false);
   expect(recorded[0]!.argv).toContain("eval");
 });
@@ -433,7 +433,7 @@ test("US5 Q-19 active-mode no focus: 'Error: no active file' → ERR_NO_ACTIVE_F
     { stdout: "Error: no active file\n", exitCode: 0 },
   ]);
   const err = (await captureRejection(
-    executeTree({ target_mode: "active" }, deps(spawnFn)),
+    executePaths({ target_mode: "active" }, deps(spawnFn)),
   )) as UpstreamError;
   expect(err).toBeInstanceOf(UpstreamError);
   expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
@@ -447,7 +447,7 @@ test("US5 Q-18 closed-vault: empty stdout + registered → VAULT_NOT_FOUND(reaso
     { stdout: vaultsListStdout, exitCode: 0 }, // second call: vaults verbose
   ]);
   const err = (await captureRejection(
-    executeTree(
+    executePaths(
       { target_mode: "specific", vault: "The Setup" },
       deps(spawnFn),
     ),
@@ -470,13 +470,13 @@ test("US5 Q-18 closed-vault: empty stdout + registered → VAULT_NOT_FOUND(reaso
 test("US6 Q-14 cross-mode count invariant: total:false count === total:true count; paths===[] when total", async () => {
   const paths = ["a.md", "b.md", "c.md"];
   const { spawnFn: spawnA } = makeQueuedSpawn([{ stdout: okEnv(3, paths), exitCode: 0 }]);
-  const def = await executeTree(
+  const def = await executePaths(
     { target_mode: "specific", vault: "Demo" },
     deps(spawnA),
   );
 
   const { spawnFn: spawnB } = makeQueuedSpawn([{ stdout: okEnv(3, []), exitCode: 0 }]);
-  const co = await executeTree(
+  const co = await executePaths(
     { target_mode: "specific", vault: "Demo", total: true },
     deps(spawnB),
   );
@@ -490,7 +490,7 @@ test("US6 Q-14 cross-mode count invariant: total:false count === total:true coun
 // (T037) total:true + ext composition
 test("US6 total+ext: count carries the filtered count", async () => {
   const { spawnFn } = makeQueuedSpawn([{ stdout: okEnv(5, []), exitCode: 0 }]);
-  const result = await executeTree(
+  const result = await executePaths(
     { target_mode: "specific", vault: "Demo", ext: "md", total: true },
     deps(spawnFn),
   );
@@ -500,7 +500,7 @@ test("US6 total+ext: count carries the filtered count", async () => {
 // (T038) total:true + depth composition
 test("US6 total+depth: count carries the depth-bounded count", async () => {
   const { spawnFn } = makeQueuedSpawn([{ stdout: okEnv(7, []), exitCode: 0 }]);
-  const result = await executeTree(
+  const result = await executePaths(
     { target_mode: "specific", vault: "Demo", depth: 1, total: true },
     deps(spawnFn),
   );
@@ -510,7 +510,7 @@ test("US6 total+depth: count carries the depth-bounded count", async () => {
 // (T039) Payload round-trip with total:true
 test("US6 I-5 payload round-trip with total:true", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: okEnv(0, []), exitCode: 0 }]);
-  await executeTree(
+  await executePaths(
     { target_mode: "specific", vault: "Demo", total: true },
     deps(spawnFn),
   );
@@ -543,7 +543,7 @@ test("US7 dispatcher-never-called: invalid inputs reject pre-dispatch", async ()
     { target_mode: "specific", vault: "V", depth: 1.5 }, // depth non-integer
   ];
   for (const input of cases) {
-    const parsed = treeInputSchema.safeParse(input);
+    const parsed = pathsInputSchema.safeParse(input);
     expect(parsed.success).toBe(false);
   }
 });
@@ -558,7 +558,7 @@ test("US9 Q-22 adapter cap-kill: CLI_NON_ZERO_EXIT propagates unchanged", async 
     { stdout: "", stderr: "output cap exceeded\n", exitCode: 1 },
   ]);
   const err = (await captureRejection(
-    executeTree({ target_mode: "specific", vault: "Demo" }, deps(spawnFn)),
+    executePaths({ target_mode: "specific", vault: "Demo" }, deps(spawnFn)),
   )) as UpstreamError;
   expect(err).toBeInstanceOf(UpstreamError);
   expect(err.code).toBe("CLI_NON_ZERO_EXIT");
@@ -572,7 +572,7 @@ test("US9 Q-22 adapter cap-kill: CLI_NON_ZERO_EXIT propagates unchanged", async 
 test("stage-5 json-parse: malformed JSON → CLI_REPORTED_ERROR(stage:'json-parse')", async () => {
   const { spawnFn } = makeQueuedSpawn([{ stdout: "=> not-json{\n", exitCode: 0 }]);
   const err = (await captureRejection(
-    executeTree({ target_mode: "specific", vault: "Demo" }, deps(spawnFn)),
+    executePaths({ target_mode: "specific", vault: "Demo" }, deps(spawnFn)),
   )) as UpstreamError;
   expect(err.code).toBe("CLI_REPORTED_ERROR");
   expect(err.details.stage).toBe("json-parse");
@@ -584,7 +584,7 @@ test("stage-6 envelope-parse: wrong shape → CLI_REPORTED_ERROR(stage:'envelope
     { stdout: '=> {"ok":true,"bogus":1}\n', exitCode: 0 },
   ]);
   const err = (await captureRejection(
-    executeTree({ target_mode: "specific", vault: "Demo" }, deps(spawnFn)),
+    executePaths({ target_mode: "specific", vault: "Demo" }, deps(spawnFn)),
   )) as UpstreamError;
   expect(err.code).toBe("CLI_REPORTED_ERROR");
   expect(err.details.stage).toBe("envelope-parse");
@@ -594,7 +594,7 @@ test("stage-6 envelope-parse: wrong shape → CLI_REPORTED_ERROR(stage:'envelope
 test("stage-4: missing '=> ' prefix → raw JSON tolerated", async () => {
   const raw = JSON.stringify({ ok: true, count: 1, paths: ["x.md"] });
   const { spawnFn } = makeQueuedSpawn([{ stdout: raw + "\n", exitCode: 0 }]);
-  const result = await executeTree(
+  const result = await executePaths(
     { target_mode: "specific", vault: "Demo" },
     deps(spawnFn),
   );
@@ -608,7 +608,7 @@ test("stage-4: missing '=> ' prefix → raw JSON tolerated", async () => {
 test("anti-injection: hostile folder content round-trips via base64 verbatim", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: okEnv(0, []), exitCode: 0 }]);
   const hostile = `"); evil(); ("foo`;
-  await executeTree(
+  await executePaths(
     { target_mode: "specific", vault: "Demo", folder: hostile },
     deps(spawnFn),
   );
@@ -621,7 +621,7 @@ test("anti-injection: hostile folder content round-trips via base64 verbatim", a
 test("anti-injection: Unicode + emoji round-trips via base64 verbatim", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: okEnv(0, []), exitCode: 0 }]);
   const unicode = "漢字-emoji-🚀";
-  await executeTree(
+  await executePaths(
     { target_mode: "specific", vault: "Demo", folder: unicode },
     deps(spawnFn),
   );
@@ -640,11 +640,11 @@ test("frozen template byte-stable across calls: only base64 region varies", asyn
   const { spawnFn: spawnB, recorded: recB } = makeQueuedSpawn([
     { stdout: okEnv(0, []), exitCode: 0 },
   ]);
-  await executeTree(
+  await executePaths(
     { target_mode: "specific", vault: "Demo", folder: "alpha" },
     deps(spawnA),
   );
-  await executeTree(
+  await executePaths(
     { target_mode: "specific", vault: "Demo", folder: "betagamma" },
     deps(spawnB),
   );
