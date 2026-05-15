@@ -32,8 +32,10 @@
 ## Notes
 
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`.
-- Spec drafted with informed defaults documented in the Assumptions section instead of inline `[NEEDS CLARIFICATION]` markers. `/speckit-clarify` is the appropriate venue for the user to revisit any of those assumptions before planning. Highest-impact assumptions to consider revisiting:
-  1. Case-insensitive tag matching (FR-008 / SC-009). Default chosen on Obsidian-convention grounds; project trend has been case-sensitive byte-equality elsewhere (e.g. 015-read-heading, 020-fix-write-gaps).
-  2. Leading `#` strip semantics (FR-009 / SC-008). Default is silent strip; alternatives are reject or pass-through.
-  3. Path-result ordering (FR-013 / SC-005). Default is byte-ascending alphabetical; alternatives include source-order or unspecified.
-  4. Frontmatter `tags:` ingestion (FR-006). Default is include-equally with body inline tags; alternative is body-only.
+- `/speckit-clarify` session 2026-05-15 ran 5 questions and locked them in the spec's Clarifications section:
+  1. **Case-sensitivity (FR-008 / SC-009)** — LOCKED: defer to upstream CLI behaviour, no wrapper-side case-fold, plan-stage live probe BLOCKING.
+  2. **Charset validation (FR-011 / SC-011)** — LOCKED: pass-through after structural validation only (non-empty post-trim/post-#-strip, no empty hierarchical segments, max-length ≤200 chars). No wrapper-side charset regex.
+  3. **Frontmatter shape ingestion (FR-006)** — LOCKED: defer entirely to upstream metadata cache; every shape Obsidian's tag index ingests contributes equally.
+  4. **Leading `#` handling (FR-009 / SC-008)** — LOCKED: silent strip of a single leading `#` post-whitespace-trim.
+  5. **Path ordering (FR-013 / SC-005)** — LOCKED: wrapper-side byte-ascending sort post-fetch (parity with BI-026 / BI-027).
+- One residual category remains Outstanding at low spec-stage risk: `vault=` routing semantic (whether upstream routes correctly, silently honours as no-op, or surfaces a structured error). Resolved at plan-stage via live-CLI probe — parallel to BI-019 / BI-024 / BI-025 / BI-026 / BI-027.
