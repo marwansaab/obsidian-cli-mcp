@@ -21,7 +21,7 @@ Two plan-stage decisions own the surface this BI delivers: **R1** locks the exac
 **Project Type**: library/cli — the obsidian-cli-mcp MCP server; this refactor touches only its internal test infrastructure
 **Performance Goals**: N/A — test-helper code, runs once per consuming test, no production hot path
 **Constraints**: (a) the shared fixture MUST live inside `tsconfig.json`'s `rootDir: "src"` (R1 satisfies); (b) it MUST NOT match the vitest `test.include: ["src/**/*.test.ts"]` glob so it does not execute as a test itself (R1 satisfies — `_registration-stub.ts` has no `.test.ts` suffix); (c) including the new module under `coverage.include: ["src/**"]` MUST NOT push the `statements: 91.3` floor down (R5 verifies — the helper's statements are executed by every consuming test file at runtime, so they enter the numerator and denominator together; net impact on the metric is flat-to-positive); (d) `tsconfig`'s `noUnusedLocals: true` and `noUnusedParameters: true` force a now-unused-import cleanup per consuming file (R3 specifies the exact set)
-**Scale/Scope**: 1 new source file (~30 LOC product + ~80 LOC co-located test); 16 modified `index.test.ts` files (each loses ~22 lines + 3-to-4 import lines, gains 1 import line); zero production-code touch; zero schema / handler / descriptor / docs / package.json edits beyond an optional CHANGELOG entry. No tool added; no error code added; no ADR amendment.
+**Scale/Scope**: 1 new source file (~30 LOC product) + 1 new co-located test file (~120-160 LOC covering 7 cases per data-model.md §5 — the LOC range matches the tighter post-Phase-1 count after R6 enumerated the cases; the earlier "~80 LOC" estimate predates the tightening); 16 modified `index.test.ts` files (each loses ~22 lines of local-function block + 2 deleted import lines + 2 trimmed import lines, gains 1 fixture import line — net ~−22 LOC per file, ~−352 LOC across the 16 callers per data-model.md §6); zero production-code touch; zero schema / handler / descriptor / docs / package.json edits beyond an optional CHANGELOG entry. No tool added; no error code added; no ADR amendment. Net code reduction in the tree: ~160-200 LOC.
 
 ## Constitution Check
 
@@ -136,7 +136,21 @@ Seven plan-stage decisions R1..R7 will be documented in [research.md](research.m
 
 ## Post-Phase-1 Constitution Re-Check
 
-Re-evaluated after Phase 1 design artefacts land. Expected verdict: **PASS** with the same nine-gate row table above. The Phase 1 design does not introduce any new surface; it elaborates the mechanical refactor protocol. No Complexity Tracking entries anticipated.
+Re-evaluated after Phase 1 design artefacts (research.md, data-model.md, contracts/registration-stub.contract.md, quickstart.md) landed. Verdict: **PASS** with the SAME nine-gate row table as the initial check above — no row changes verdict, no row changes evidence beyond pointing at the now-existing artefacts.
+
+| Gate | Initial verdict | Post-Phase-1 verdict | Phase-1 evidence added |
+|------|-----------------|----------------------|-----------------------|
+| Principle I — Modular Code Organization | Y | Y (unchanged) | Contracts §2-3 lock the single-export shape; data-model.md §1 locks the import direction (down to `cli-adapter/_dispatch.js` only). |
+| Principle II — Public Surface Test Coverage (NON-NEGOTIABLE) | Y | Y (unchanged) | Data-model.md §5 enumerates the 7 co-located cases; research.md R6 locks them. Cases cover happy path + 6 boundary / invariant cases. |
+| Principle III — Boundary Input Validation with Zod | N/A | N/A (unchanged) | Contracts §3 confirms the options bag is structurally typed; no MCP boundary added. |
+| Principle IV — Explicit Upstream Error Propagation | N/A | N/A (unchanged) | No error path in the fixture (contracts §4 lists no error-emission invariants). |
+| Principle V — Attribution & Layered Composition Transparency | Y | Y (unchanged) | Data-model.md §1.5 captures the verbatim `// Original — no upstream.` header text. |
+| ADR-010 — Typed Tool Names Mirror Upstream CLI Subcommand | N/A | N/A (unchanged) | No typed tool added across Phase 1 artefacts. |
+| ADR-013 — Plugin-Namespace Tool Naming Convention | N/A | N/A (unchanged) | No plugin-backed tool added. |
+| ADR-014 — Plugin-Backed Typed Tools Runtime-Dependency Pattern | N/A | N/A (unchanged) | No plugin-backed tool added. |
+| ADR-015 — Sub-Discriminators via details.reason for Multi-State Error Codes | N/A | N/A (unchanged) | No `(top-level-code, details.code)` pair touched. |
+
+**Post-Phase-1 verdict**: PASS. The Phase 1 design did not introduce any new surface; it elaborated the mechanical refactor protocol. No Complexity Tracking entries needed.
 
 ## Complexity Tracking
 
