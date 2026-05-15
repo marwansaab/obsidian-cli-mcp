@@ -5,6 +5,36 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.7] - 2026-05-15
+
+**PATCH release (additive surface)** — adds `tree`, the fifteenth typed-tool wrap and the project's **first recursive subtree-enumeration primitive**. Returns the vault-relative paths of every file and folder under a vault or a sub-folder beneath it as `{ count, paths: string[] }`, with folder entries terminated by `/` and file entries bare (FR-028 trailing-slash discrimination rule). Seventh member of the eval-driven typed-tool cohort and **fourth consumer** of the cross-cutting `_eval-vault-closed-detection` shared module. Spec-id 029-list-files-recursive, FR-001..FR-028, SC-001..SC-022.
+
+### Added
+
+- **`tree` typed MCP tool** at `src/tools/tree/` — `schema.ts` + `handler.ts` + frozen `_template.ts` JS template + `index.ts` + co-located tests. STANDARD `target_mode` discriminator with folder-scoped adaptation (forbids `file`/`path` locators; accepts optional `folder`) — parity with BI-019 `files`. Single-call architecture (R3 / FR-008): each MCP request fires ONE `invokeCli` invocation with `command: "eval"` and a base64-encoded JSON payload `{folder, depth, ext, total}` inside a frozen JS template; the template walks `app.vault.adapter` directly via `stat()` (existence trichotomy) + `list()` (immediate-children enumeration) with an in-template recursive DFS descent + level counter for depth bounding (R7..R10). Stage-3 closed-but-registered-vault detection via the shared `_eval-vault-closed-detection` module — fourth consumer, no module edits. Public surface: `tree({ target_mode, vault?, folder?, depth?, ext?, total? })` → `{ count, paths: string[] }`. **Trailing-slash discrimination rule (FR-028)**: folder entries end with `/`; file entries do not — the trailing character is the in-band file-vs-folder signal. **Departures from BI-019** (deliberate, spec-locked): (a) missing-folder and not-a-folder surface as STRUCTURED ERRORS with distinguishing `details.code` (FR-011); BI-019 conflates both with empty-folder; (b) folder entries appear alongside files in `paths` when no `ext` filter is set (FR-007); BI-019 drops sub-folder entries unconditionally; (c) recursive traversal with optional depth bound vs BI-019's non-recursive contract. SIX-entry failure-mode roster: `VALIDATION_ERROR`; `CLI_REPORTED_ERROR(VAULT_NOT_FOUND, reason: "unknown")` (cli-adapter 011-R5 inheritance); `CLI_REPORTED_ERROR(VAULT_NOT_FOUND, reason: "not-open", stage: "handler-stage-0")` (shared closed-vault detector); `CLI_REPORTED_ERROR(stage: "json-parse")`; `CLI_REPORTED_ERROR(stage: "envelope-parse")`; `CLI_REPORTED_ERROR(stage: "envelope-error", code: "FOLDER_NOT_FOUND" | "NOT_A_FOLDER")`. Plus inherited `ERR_NO_ACTIVE_FILE` and `CLI_NON_ZERO_EXIT` (BI-003 output-cap kill). **ZERO new top-level error codes**, **TWO new `details.code` values** (`FOLDER_NOT_FOUND`, `NOT_A_FOLDER`) under existing `CLI_REPORTED_ERROR` per ADR-015 sub-discriminator pattern — twelve-tool zero-new-top-level-codes streak preserved (Constitution Principle IV).
+
+- **Non-stub `docs/tools/tree.md`** per FR-022 — input table, output shape × 2 modes, trailing-slash discrimination rule, folder-vs-file inclusion rule, depth-bounding semantics, dotfile exclusion rule, eight worked examples (whole-vault recursive listing / sub-folder + ext / depth-limited overview / count-only pre-flight / active mode / empty existing folder / missing folder error / not-a-folder error), full 12-entry error roster, seven documented inherited limitations (multi-vault basename ambiguity; platform-dependent case-sensitivity; symlinks pass-through; permission-denied pass-through; output cap inherited from cli-adapter; no pagination at v1; why eval not native `files`/`folders`?), anti-injection guarantee section, single-call architecture note.
+
+- **Two-line wiring** in `src/server.ts`: import + tools-array entry (alphabetical: inserted between `createTagTool` and `createWriteNoteTool`).
+
+- **FR-018 baseline roll-forward**: `src/tools/_register-baseline.json` extended with the `tree` entry via `npm run baseline:write`. All other tool fingerprints unchanged byte-identically.
+
+### Plan-stage design decisions
+
+- **Tool name `tree`** — single-word original choice; ADR-010 N/A because the wrapper composes via `eval`, not a single named native subcommand. The CLI has `files` and `folders` but no `tree`/`walk`/`find` — naming space unconstrained.
+- **Architecture pivot to `eval`** — live-probe findings F1/F2/F3 confirmed neither native `files` nor `folders` supports depth bounding, combined files+folders output, or missing-folder distinguishability; combining them would require two spawns (violates R3). The wrapper walks `app.vault.adapter.{stat, list}` directly in-eval.
+- **/speckit-clarify Q&A 2026-05-15** (codified in spec.md FR-028 / SC-022): Q1 folder-entry representation in `paths` → trailing-slash on folders, bare on files. ONE clarifications-session Q&A; zero plan-stage spec amendments.
+
+### Migration
+
+None. Additive surface — existing tools unchanged at the wire. Existing pattern-matchers on `CLI_REPORTED_ERROR.details.code` continue to match; the two new `details.code` values (`FOLDER_NOT_FOUND`, `NOT_A_FOLDER`) are scoped to `tree` envelope-error responses.
+
+### Internal
+
+- **Frozen surfaces**: `obsidian_exec`, `read`, `write_note`, `delete`, `read_property`, `find_by_property`, `read_heading`, `set_property`, `files`, `rename`, `outline`, `properties`, `links`, `smart_connections_similar`, `smart_connections_query`, `tag`, `help` all byte-stable.
+- **Shared module fourth consumer**: BI-029 is the fourth consumer of `src/tools/_eval-vault-closed-detection/` (BI-026 origin inline, BI-027 lift, BI-028 third consumer, BI-029 fourth). Confirms the cross-cutting design at four consumers.
+- **Zero new ADRs** (ADR-010 N/A — eval-route; ADR-013/014 N/A — core-adapter-backed not plugin-backed; ADR-015 N/A as consumer — the two new `(top-level-code, details.code)` pairs have no internal multi-state sub-discrimination). **Zero Constitution amendment** (v1.5.0 stays — no new compliance row).
+
 ## [0.5.6] - 2026-05-15
 
 **PATCH release (additive surface)** — adds `tag`, the fourteenth typed-tool wrap and the project's **first tag-index retrieval primitive**. Returns the vault-relative paths of every Markdown note carrying a given tag as a `{ count, paths: string[] }` envelope (default mode) or a bare integer (count-only mode). Sixth member of the eval-driven typed-tool cohort and **third consumer** of the cross-cutting `_eval-vault-closed-detection` shared module (rule-of-three confirmation point). Spec-id 028-list-tagged-files, FR-001..FR-021, SC-001..SC-013.

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "028-list-tagged-files",
+  "generatedFromBranch": "029-list-files-recursive",
   "generatedAt": "2026-05-15",
   "tools": [
     {
@@ -82,6 +82,11 @@
       "name": "tag",
       "descriptionFingerprint": "9d0f39793d37558125686ec3387f22513f0c4a76b6cced9e4788130f94519228",
       "schemaFingerprint": "d1f0426ea5439d8642d2dd4db1505209d9a3682f080f91b4985b7ba4aac4ac8a"
+    },
+    {
+      "name": "tree",
+      "descriptionFingerprint": "c10a181f84aacd6287212ede9dd89f67c6214ce6122d98def3bc67af0823ca59",
+      "schemaFingerprint": "df1a839793c3b180c56406ed9c9e4e6c847ed1a899e7cc9c4df135eeafb9a654"
     },
     {
       "name": "write_note",
