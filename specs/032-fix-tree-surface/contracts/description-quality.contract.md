@@ -38,7 +38,7 @@ The output-shape mention `{ count, paths: string[] }` does not need to be inside
 | Invariant | Anchor |
 |---|---|
 | Mentions that folder entries end with `/` and file entries do not | FR-009 |
-| Does NOT cite the spec-branch identifier `FR-028` (which v0.5.7 did) | FR-005 |
+| Does NOT cite the historical spec-branch identifier of the trailing-slash decision (the v0.5.7 description named the prior spec's `FR-028`; that identifier is one instance of the forbidden `\bFR-\d+\b` regex set under FR-005) | FR-005 |
 
 R8 sample (~ 45 chars):
 
