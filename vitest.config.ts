@@ -9,7 +9,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/**"],
-      exclude: ["src/**/*.test.ts", "src/graphify-out/**"],
+      exclude: ["src/**/*.test.ts", "src/**/graphify-out/**"],
       reporter: ["text", "lcov", "json-summary"],
       reportsDirectory: "coverage",
       // SINGLE SOURCE OF TRUTH for the merge floor. Ratchet up (or down, intentionally)
