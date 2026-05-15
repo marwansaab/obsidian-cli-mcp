@@ -1,9 +1,146 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-[specs/027-smart-connections-query/plan.md](specs/027-smart-connections-query/plan.md)
+[specs/028-list-tagged-files/plan.md](specs/028-list-tagged-files/plan.md)
 
-Active feature: **027-smart-connections-query** — adds the
+Active feature: **028-list-tagged-files** — adds the **fourteenth**
+typed-tool wrap, the project's **first tag-index retrieval primitive**,
+AND the **sixth member of the eval-driven typed-tool cohort**
+(after BI-014 / BI-015 / BI-025 / BI-026 / BI-027). Tool name `tag`
+follows ADR-010 single-word-verbatim-from-upstream (matches the
+upstream `obsidian tag` subcommand). User surface
+`tag({ tag, vault?, total? })` returning `{ count: number, paths:
+string[] }` (default) or bare integer (count-only mode via the
+project-wide `total: true` convention). FLAT schema, NO `target_mode`
+discriminator (parity with BI-024 `properties` — vault-only fileless
+precedent; ADR-003 governs per-file typed tools and explicitly does
+NOT apply here). Wraps the upstream **`eval`** subcommand (NOT the
+native `obsidian tag` subcommand — live-probe F3 surfaced three
+contract mismatches: plain-text-only output, `Error: Tag not found.`
+on zero-match, NO child-tag subsumption); the eval JS template walks
+`app.metadataCache.fileCache × .metadataCache` directly. Single-call
+architecture branched at envelope-emission on `a.total` (R3). Five
+clarifications-session Q&As locked 2026-05-15 (Q1 tag-string
+case-equivalence → defer-to-upstream → contradicted at plan stage,
+see amendment 1; Q2 charset validation → pass-through with structural
+rules only; Q3 frontmatter shape ingestion → defer entirely to
+upstream metadataCache; Q4 leading-`#` strip; Q5 path-ordering →
+wrapper-side byte-asc) PLUS TWO plan-stage live-probe-driven
+amendments to spec (amendment 1: Q1 premise contradicted — live probe
+F2 showed `obsidian tag name=Alpha` returns "not found" against
+`#alpha`-tagged vault, AND `app.metadataCache.getTags()` keys are
+case-PRESERVED; Q1's explicit conditional fired → wrapper applies
+ASCII lower-fold inside the eval JS template against both query
+and stored tag values; amendment 2: architecture pivot from "wrap
+native `tag` subcommand" to "wrap `eval` with metadataCache walk" →
+FR-019..FR-021 new). Wrapper-side normalisation pipeline:
+trim → strip-leading-`#` → reject empty/empty-segment/length>200 →
+base64-encode `{query, total}` → frozen JS template → ASCII lower-fold
+of both query and each cache tag value INSIDE template →
+`isMatch = (tagLower) => tagLower === q || tagLower.startsWith(q + "/")`
+(segment-boundary precision, FR-016 / R14) → path-collect →
+`out.sort()` byte-asc → envelope emit. Anti-injection via base64-encoded
+JSON payload + frozen JS template (R6, parity with BI-014 / BI-015 /
+BI-025 / BI-026 / BI-027). **6-entry failure-mode roster** (zero new
+top-level codes; zero new `details.code` strings — fourteen-tool
+zero-new-top-level-codes streak preserved per Constitution Principle
+IV): `VALIDATION_ERROR`;
+`CLI_REPORTED_ERROR(VAULT_NOT_FOUND, reason: "unknown")`;
+`CLI_REPORTED_ERROR(VAULT_NOT_FOUND, reason: "not-open")`;
+`CLI_REPORTED_ERROR(stage: "json-parse")`;
+`CLI_REPORTED_ERROR(stage: "envelope-parse")`;
+`CLI_REPORTED_ERROR(stage: "envelope-error", code: <reserved>)`.
+**Third consumer of the cross-cutting
+`src/tools/_eval-vault-closed-detection/` shared module** (BI-026 origin
+inline; BI-027 lifted to shared module; BI-028 confirms the cross-
+cutting design at three consumers). NO new ADRs (ADR-010 enforced;
+ADR-013 / ADR-014 / ADR-015 N/A — this BI is core-cache-backed not
+plugin-backed). NO Constitution amendment (v1.5.0 stays — no new
+compliance row). NO new architecture snapshot. 53 co-located tests
+(16 schema / 32 handler / 5 registration). Version bump 0.5.5 → 0.5.6
+(PATCH; additive surface).
+
+See also:
+
+- [spec.md](specs/028-list-tagged-files/spec.md) — feature spec;
+  /speckit-clarify ran 2026-05-15 (Q1 case → defer-to-upstream,
+  Q2 charset → pass-through, Q3 frontmatter shape → defer-to-upstream,
+  Q4 leading-`#` → silent strip, Q5 ordering → byte-asc); two
+  live-probe-driven amendments ran 2026-05-15 plan stage (amendment 1
+  Q1 premise contradicted → wrapper-side ASCII lower-fold; amendment 2
+  architecture pivot to eval + FR-019..FR-021 new).
+- [plan.md](specs/028-list-tagged-files/plan.md) — implementation
+  plan; Constitution Check PASS on initial + post-Phase-1 evaluation;
+  no Complexity Tracking entries.
+- [research.md](specs/028-list-tagged-files/research.md) — Phase 0
+  decisions R1..R15 + plan-stage live-CLI/metadataCache findings
+  F1..F8 (F2 case-sensitive upstream drove amendment 1; F3 three
+  native-subcommand mismatches drove amendment 2 architecture pivot).
+- [data-model.md](specs/028-list-tagged-files/data-model.md) —
+  schemas, frozen JS template (~40 LOC), base64 payload, per-tool
+  invariants, module LOC budget (~220 source / ~1140 test), test
+  inventory (53 cases), architectural delta map, T0 fixture-seeding
+  plan.
+- [contracts/tag-input.contract.md](specs/028-list-tagged-files/contracts/tag-input.contract.md)
+  — public input contract: zod schema, JSON Schema, field policy,
+  8 worked examples (A–H), 11-row error roster, out-of-scope upstream
+  surfaces table.
+- [contracts/tag-handler.contract.md](specs/028-list-tagged-files/contracts/tag-handler.contract.md)
+  — handler invariants I-1..I-12: validation-before-dispatch, single
+  invokeCli call shape, base64 payload assembly, frozen template
+  byte-stability, stage-0 closed-vault via shared module, five-stage
+  parse, envelope-error mapping, cross-mode count invariant, vault
+  flow-through, output schema validation at boundary, original-no-
+  upstream attribution.
+- [quickstart.md](specs/028-list-tagged-files/quickstart.md) — 30
+  verification scenarios Q-1..Q-30 mapped to SC-001..SC-013; 21 CI
+  cases + 5 T0 manual + 4 inspection/structural.
+- [.architecture/Obsidian CLI MCP - Architecture.md](.architecture/Obsidian%20CLI%20MCP%20-%20Architecture.md)
+  — canonical forward-going architecture document, rolled forward in
+  this plan run to reference `tag` as the sixth eval-cohort member,
+  the first tag-index primitive, AND the third consumer of the
+  `_eval-vault-closed-detection/` shared module.
+
+---
+
+## Predecessor feature narrative (027-smart-connections-query) — RETAINED FOR CONTEXT
+
+The 027 narrative below is retained for downstream cross-references
+but is NOT the active planning context. Consult
+[specs/028-list-tagged-files/plan.md](specs/028-list-tagged-files/plan.md)
+for the active feature; consult
+[specs/027-smart-connections-query/plan.md](specs/027-smart-connections-query/plan.md)
+for the 027 source. Summary: 027 added the (then-)thirteenth typed-tool
+wrap and the project's SECOND plugin-backed typed surface, AND
+established the **first cross-cutting eval-handler shared module**
+(`src/tools/_eval-vault-closed-detection/`) extracted from BI-026's
+inline detection branch. Tool `smart_connections_query({ query, vault?,
+limit?, total? })` returns `{ count, matches: Array<{path,
+headingPath, score}> }`. Wraps the Smart Connections plugin's
+`smart_sources.lookup({hypotheticals, filter, collection: "smart_blocks"})`
+via `eval`. FLAT schema (NO target_mode — fileless precedent within
+plugin-backed cohort). Two clarify Q&As + two plan-stage live-probe
+amendments. Eight-entry failure roster all under `CLI_REPORTED_ERROR`
+with `details.code` discriminator; introduced `details.reason:
+"api-missing"|"embed-failed"` on `SMART_CONNECTIONS_NOT_READY` per
+ADR-015. BI-026 ripples bundled: (a) refactor BI-026's handler to
+consume the new shared closed-vault detector; (b) emit
+`details.reason: "api-missing"` on BI-026's existing
+`SMART_CONNECTIONS_NOT_READY` for cohort-wide exhaustiveness. Zero
+new top-level codes; zero new ADRs (ADR-013/014/015 cover this BI
+as second consumer); zero Constitution amendment. v0.5.4 → v0.5.5.
+Original detail in subsequent block.
+
+---
+
+## Predecessor feature narrative (027-smart-connections-query) full text — RETAINED FOR CONTEXT
+
+Below is the full BI-027 active-narrative block as it stood at end of
+BI-027 implementation. The short summary above captures the cohort-
+level summary; this block captures the verbatim original prose for
+downstream cross-references. Original detail:
+
+Active feature (pre-BI-028): **027-smart-connections-query** — adds the
 **thirteenth** typed-tool wrap and the project's **second
 plugin-backed typed surface** AND the **first cross-cutting
 eval-handler shared module**. Tool name `smart_connections_query`
