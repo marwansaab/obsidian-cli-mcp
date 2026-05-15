@@ -295,6 +295,12 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
     required_equals: ["target_mode", "name"],
     additionalProperties: false,
   },
+  move: {
+    type: "object",
+    properties_equals_set: ["target_mode", "vault", "file", "path", "to"],
+    required_equals: ["target_mode", "to"],
+    additionalProperties: false,
+  },
   find_by_property: {
     type: "object",
     properties_equals_set: ["vault", "property", "value", "folder", "arrayMatch", "caseSensitive"],

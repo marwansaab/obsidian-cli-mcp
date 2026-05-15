@@ -80,6 +80,7 @@ The server currently registers fifteen public tools. Call `help({ tool_name: "<n
 | `set_property` | Write a single frontmatter property. |
 | `delete` | Delete a note. |
 | `rename` | Rename a note in place. |
+| `move` | Move a note (optionally renaming); honours the vault's auto-update-links setting. |
 | `files` | List files directly inside a folder. |
 | `outline` | List headings in a note. |
 | `properties` | Vault-wide inventory of frontmatter property names. |

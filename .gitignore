@@ -156,3 +156,4 @@ vite.config.ts.timestamp-*
 
 # Scratch witnesses
 .scratch/
+graphify-out/

@@ -5,6 +5,39 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.8] - 2026-05-15
+
+**PATCH release (additive surface)** — adds `move`, the sixteenth typed-tool wrap and the project's **second member of the file-scoped write-side cohort** alongside `rename`. Returns `{ moved: true, fromPath, toPath }` on success. Wraps the Obsidian CLI's native `move` subcommand (NOT eval). Spec-id 030-move-note, FR-001..FR-019, SC-001..SC-015.
+
+### Added
+
+- **`move` typed MCP tool** at `src/tools/move/` — `schema.ts` + `handler.ts` + `index.ts` + co-located tests (~57 cases: 24 schema / 24 handler / 5 registration). STANDARD `target_mode` discriminator (file-scoped, parity with BI-011/012/013/015/018/021). Single-call architecture (R3 / R11): each MCP request fires ONE `invokeCli` invocation with `command: "move"` and a per-mode parameter record. Public surface: `move({ target_mode, vault?, file?, path?, to })` → `{ moved: true, fromPath, toPath }`. **Strict trailing-`/` discriminator on `to`** (per /speckit-clarify Q2 lock 2026-05-15): `to: "Archive/"` is a folder-target (source basename preserved at the new location); `to: "Archive/Renamed.md"` (or `to: "Archive"` with no trailing `/`) is a full-path-target. No heuristic disambiguation, no validation reject — callers MUST include trailing `/` for folder-target shapes. **Source-`.md`-guarded `.md` append** (per /speckit-clarify Q1 lock 2026-05-15): in full-path-target mode, if the source ends in `.md` AND the filename portion of `to` does NOT end in `.md` (case-sensitive byte equality, mirroring 020-fix-write-gaps R2 / 021-rename Q1), the wrapper appends `.md`; if the source does NOT end in `.md` (`.canvas`, `.pdf`, attachments), the append rule is suppressed entirely — preventing silent cross-type conversion (e.g. `to=Archive/X` on `.canvas` forwards `Archive/X` verbatim, NOT `Archive/X.md`). **Four-entry failure-mode roster** under inherited dispatch codes: `VALIDATION_ERROR`; `CLI_BINARY_NOT_FOUND`; `CLI_NON_ZERO_EXIT`; `CLI_REPORTED_ERROR`. **`ERR_NO_ACTIVE_FILE` is NOT in `move`'s error roster** — per the inherited bridge-classifier mismatch (R9), the native CLI's `move` subcommand emits capital-N `Error: No active file.` on no-focused-note while the dispatch-layer classifier targets lowercase only, so the call falls through to `CLI_REPORTED_ERROR` with `details.message` carrying the verbatim line; tracked under [[BI-0027 - Audit Tool Descriptions]] dimension C.2. **ZERO new top-level error codes**, **ZERO new `details.code` values** — the fifteen-tool zero-new-top-level-codes streak since BI-011 is preserved (Constitution Principle IV).
+
+- **Non-stub `docs/tools/move.md`** per FR-014 — input schema × two modes, prominent `to`-shape rules section with the trailing-`/` discriminator surprise-case worked examples, source-`.md`-guarded append rule with non-`.md` source suppression worked examples, rename-equivalence note, four required examples + two recommended, full error roster with the explicit active-mode CLI_REPORTED_ERROR + capital-N classifier-mismatch note (+ BI-0027 dimension C.2 attribution), link-rewriting caveat, six adversarial behavioural notes.
+
+- **Two-line wiring** in `src/server.ts`: import + tools-array entry (alphabetical: inserted between `createLinksTool` and `createObsidianExecTool`).
+
+- **FR-018 baseline roll-forward**: `src/tools/_register-baseline.json` extended with the `move` entry via `npm run baseline:write`. All other tool fingerprints unchanged byte-identically.
+
+### Plan-stage design decisions
+
+- **Tool name `move`** — single-word verbatim-from-upstream choice per ADR-010. Verified live during plan stage (F1) via `obsidian help` which lists `move` as a first-class subcommand with description "Move or rename a file" and argv shape `file=<name>` / `path=<path>` / `to=<path>` (`to=` required).
+- **Architecture native, NOT eval** (R2): the CLI exposes `move` natively; using `eval` would add a load-bearing JS template + base64 anti-injection layer for no functional gain. Wrapper forwards user-facing field names (`file`, `path`, `to`) to CLI argv keys verbatim — no PSR-5-style locator argv-key rename.
+- **/speckit-clarify Q&As 2026-05-15** (codified in spec.md): Q1 `.md` append rule on full-path-target → source-`.md`-guarded (apply IFF source ends in `.md` AND `to` filename portion does not end in `.md`); Q2 trailing-`/` discriminator for ambiguous `to` cases → strict trailing-`/`. Zero plan-stage spec amendments — both locks integrated at spec stage; F1–F5b ratified without surfacing contradictions.
+
+### Routing guidance
+
+For relocation operations, prefer `move`. For in-place renames (no folder change), `rename` remains preferred. `obsidian_exec move file=… to=…` remains the fallback for deliberate non-`.md` cross-type conversions (`.md → .canvas`, etc.) — those bypass the wrapper's source-`.md` guard.
+
+### Migration
+
+None. Additive surface — existing tools unchanged at the wire.
+
+### Internal
+
+- **Frozen surfaces**: `obsidian_exec`, `read`, `write_note`, `delete`, `read_property`, `find_by_property`, `read_heading`, `set_property`, `files`, `rename`, `outline`, `properties`, `links`, `smart_connections_similar`, `smart_connections_query`, `tag`, `tree`, `help` all byte-stable.
+- **Zero new ADRs** (ADR-010 PASS — verbatim upstream name; ADR-013/014/015 N/A — native-CLI-wrapper, no plugin runtime, no new sub-discriminator pairs). **Zero Constitution amendment** (v1.5.0 stays).
+
 ## [0.5.7] - 2026-05-15
 
 **PATCH release (additive surface)** — adds `tree`, the fifteenth typed-tool wrap and the project's **first recursive subtree-enumeration primitive**. Returns the vault-relative paths of every file and folder under a vault or a sub-folder beneath it as `{ count, paths: string[] }`, with folder entries terminated by `/` and file entries bare (FR-028 trailing-slash discrimination rule). Seventh member of the eval-driven typed-tool cohort and **fourth consumer** of the cross-cutting `_eval-vault-closed-detection` shared module. Spec-id 029-list-files-recursive, FR-001..FR-028, SC-001..SC-022.
