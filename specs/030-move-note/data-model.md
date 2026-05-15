@@ -98,7 +98,7 @@ Both `endsWith` predicates are literal byte-equality, case-sensitive. Both helpe
 | `Boards/Plan.canvas` | `Archive/Renamed.md` | full-path verbatim (caller-explicit `.md`; cross-type intent honoured) | `Archive/Renamed.md` | `Archive/Renamed.md` |
 | `Inbox/日記.md` | `Archive/` | folder-target | `Archive/日記.md` | `Archive/日記.md` (UTF-8 bytes forwarded verbatim) |
 | `Welcome.md` | `Archive` (no trailing `/`) | full-path + append (the surprise case per R7) | `Archive.md` | `Archive.md` at vault root |
-| `Welcome.md` | `Inbox/Welcome.md` | full-path verbatim (same-folder rename equivalence per Story 8) | `Inbox/Welcome.md` | `Inbox/Welcome.md` (if source was at vault root; same-folder applies when `dirname === ""` matches `dirname === "Inbox"`? NO — only when literal folder match. This case is "move to non-root"; the Story 8 invariant `dirname(fromPath) === dirname(toPath)` holds when source and `to` are both at root OR both in the same subfolder) |
+| `Inbox/Original.md` | `Inbox/Renamed.md` | full-path verbatim (same-folder rename equivalence per Story 8) | `Inbox/Renamed.md` | `Inbox/Renamed.md` — both source and destination share `Inbox/` as the parent folder, so the Story 8 invariant `dirname(fromPath) === dirname(toPath)` holds by string equality |
 
 **Active and `file=` modes**: the wrapper forwards `to=` verbatim. The CLI's native handling determines whether `.md` is appended on `.md`-source moves. T0 case xiii captures this; the spec's structural contract (the rule fires in specific + `path=` mode) binds; active/`file=`-mode behaviour matches CLI native handling per FR-019.
 
