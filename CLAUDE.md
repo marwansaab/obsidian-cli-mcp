@@ -1,105 +1,149 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-[specs/028-list-tagged-files/plan.md](specs/028-list-tagged-files/plan.md)
+[specs/029-list-files-recursive/plan.md](specs/029-list-files-recursive/plan.md)
 
-Active feature: **028-list-tagged-files** — adds the **fourteenth**
-typed-tool wrap, the project's **first tag-index retrieval primitive**,
-AND the **sixth member of the eval-driven typed-tool cohort**
-(after BI-014 / BI-015 / BI-025 / BI-026 / BI-027). Tool name `tag`
-follows ADR-010 single-word-verbatim-from-upstream (matches the
-upstream `obsidian tag` subcommand). User surface
-`tag({ tag, vault?, total? })` returning `{ count: number, paths:
-string[] }` (default) or bare integer (count-only mode via the
-project-wide `total: true` convention). FLAT schema, NO `target_mode`
-discriminator (parity with BI-024 `properties` — vault-only fileless
-precedent; ADR-003 governs per-file typed tools and explicitly does
-NOT apply here). Wraps the upstream **`eval`** subcommand (NOT the
-native `obsidian tag` subcommand — live-probe F3 surfaced three
-contract mismatches: plain-text-only output, `Error: Tag not found.`
-on zero-match, NO child-tag subsumption); the eval JS template walks
-`app.metadataCache.fileCache × .metadataCache` directly. Single-call
-architecture branched at envelope-emission on `a.total` (R3). Five
-clarifications-session Q&As locked 2026-05-15 (Q1 tag-string
-case-equivalence → defer-to-upstream → contradicted at plan stage,
-see amendment 1; Q2 charset validation → pass-through with structural
-rules only; Q3 frontmatter shape ingestion → defer entirely to
-upstream metadataCache; Q4 leading-`#` strip; Q5 path-ordering →
-wrapper-side byte-asc) PLUS TWO plan-stage live-probe-driven
-amendments to spec (amendment 1: Q1 premise contradicted — live probe
-F2 showed `obsidian tag name=Alpha` returns "not found" against
-`#alpha`-tagged vault, AND `app.metadataCache.getTags()` keys are
-case-PRESERVED; Q1's explicit conditional fired → wrapper applies
-ASCII lower-fold inside the eval JS template against both query
-and stored tag values; amendment 2: architecture pivot from "wrap
-native `tag` subcommand" to "wrap `eval` with metadataCache walk" →
-FR-019..FR-021 new). Wrapper-side normalisation pipeline:
-trim → strip-leading-`#` → reject empty/empty-segment/length>200 →
-base64-encode `{query, total}` → frozen JS template → ASCII lower-fold
-of both query and each cache tag value INSIDE template →
-`isMatch = (tagLower) => tagLower === q || tagLower.startsWith(q + "/")`
-(segment-boundary precision, FR-016 / R14) → path-collect →
-`out.sort()` byte-asc → envelope emit. Anti-injection via base64-encoded
-JSON payload + frozen JS template (R6, parity with BI-014 / BI-015 /
-BI-025 / BI-026 / BI-027). **6-entry failure-mode roster** (zero new
-top-level codes; zero new `details.code` strings — fourteen-tool
-zero-new-top-level-codes streak preserved per Constitution Principle
-IV): `VALIDATION_ERROR`;
+Active feature: **029-list-files-recursive** — adds the **fifteenth**
+typed-tool wrap, the project's **first recursive subtree-enumeration
+primitive**, AND the **seventh member of the eval-driven typed-tool
+cohort** (after BI-014 / BI-015 / BI-025 / BI-026 / BI-027 / BI-028).
+Tool name `tree` is a single-word ORIGINAL choice — ADR-010 N/A
+because the wrapper composes via `eval` (NOT a single named native
+subcommand); the CLI has `files` and `folders` but no `tree` /
+`walk` / `find` per live-probe F-help, so the naming space is
+unconstrained. User surface
+`tree({ target_mode, vault?, folder?, depth?, ext?, total? })`
+returning `{ count: number, paths: string[] }`. Folder entries in
+`paths` end with `/` per FR-028; file entries do NOT. The
+trailing-character discrimination rule is the in-band file-vs-folder
+signal locked by the 2026-05-15 clarifications session (Q1 →
+trailing-slash on folders, bare on files). STANDARD `target_mode`
+discriminator with folder-scoped adaptation (forbid `file`/`path`
+locators; accept `folder`) — parity with BI-019 `files`. Wraps the
+upstream **`eval`** subcommand (NOT native `files` or `folders` —
+live-probe F1 / F2 / F3 surfaced three contract mismatches:
+neither native has depth bounding, combined files+folders output,
+or missing-folder distinguishability; combining `files` and
+`folders` requires TWO spawns which violates R3 single-call
+architecture); the eval JS template walks `app.vault.adapter`
+directly via `stat()` for the missing/file/folder trichotomy and
+`list()` for immediate-children enumeration. Single-call
+architecture branched at envelope-emission on `payload.total` (R3).
+ONE clarifications-session Q&A locked 2026-05-15 (folder-entry
+representation in `paths` → trailing-slash on folders, bare on
+files — codified in FR-028 / SC-022). NO plan-stage spec amendments
+(spec's "planning-phase decision" placeholders for tool name /
+native-vs-eval / `details.code` strings resolved here without
+amending the spec). Wrapper-side pipeline: input normalisation
+(trailing-slash strip on `folder`) → base64-encode
+`{folder, depth, ext, total}` → frozen JS template → in-eval
+`stat()` trichotomy (R7) → recursive DFS walk via
+`app.vault.adapter.list()` with in-eval level counter for depth
+bound (R9) → in-walk dotfile filter (R12 / FR-027 — drops dot-
+prefixed segments early so dotdirs are never descended) →
+post-walk ext filter that excludes folders when set (R11 / FR-007)
+→ trailing-slash transform on folder entries (R10 / FR-028) →
+`out.sort()` byte-asc (R13) → envelope emit. Anti-injection via
+base64-encoded JSON payload + frozen JS template (R6, parity with
+BI-014 / BI-015 / BI-025 / BI-026 / BI-027 / BI-028).
+**Six-entry failure-mode roster** plus inherited dispatch codes
+(zero new top-level codes; TWO new `details.code` strings under the
+existing `CLI_REPORTED_ERROR` top-level code per ADR-015 sub-
+discriminator pattern — twelve-tool zero-new-top-level-codes streak
+preserved per Constitution Principle IV): `VALIDATION_ERROR`;
 `CLI_REPORTED_ERROR(VAULT_NOT_FOUND, reason: "unknown")`;
 `CLI_REPORTED_ERROR(VAULT_NOT_FOUND, reason: "not-open")`;
 `CLI_REPORTED_ERROR(stage: "json-parse")`;
 `CLI_REPORTED_ERROR(stage: "envelope-parse")`;
-`CLI_REPORTED_ERROR(stage: "envelope-error", code: <reserved>)`.
-**Third consumer of the cross-cutting
-`src/tools/_eval-vault-closed-detection/` shared module** (BI-026 origin
-inline; BI-027 lifted to shared module; BI-028 confirms the cross-
-cutting design at three consumers). NO new ADRs (ADR-010 enforced;
-ADR-013 / ADR-014 / ADR-015 N/A — this BI is core-cache-backed not
-plugin-backed). NO Constitution amendment (v1.5.0 stays — no new
-compliance row). NO new architecture snapshot. 53 co-located tests
-(16 schema / 32 handler / 5 registration). Version bump 0.5.5 → 0.5.6
+`CLI_REPORTED_ERROR(stage: "envelope-error", code: "FOLDER_NOT_FOUND" | "NOT_A_FOLDER")`.
+Plus inherited `ERR_NO_ACTIVE_FILE` (dispatch-layer classifier)
+and `CLI_NON_ZERO_EXIT` (BI-003 output-cap kill).
+**Fourth consumer of the cross-cutting
+`src/tools/_eval-vault-closed-detection/` shared module** (BI-026
+origin inline; BI-027 lifted to shared module; BI-028 third
+consumer; BI-029 confirms the cross-cutting design at FOUR consumers).
+DEPARTURES FROM BI-019 (the non-recursive `files` tool) locked at
+spec stage: (a) missing-folder and not-a-folder surface as
+STRUCTURED ERRORS with distinguishing `details.code` (FR-011 /
+SC-005) — BI-019's FR-010 conflates them with empty-folder into
+`{count:0, paths:[]}`; (b) folder entries APPEAR in `paths`
+alongside files when no `ext` filter is set (FR-007) — BI-019's
+FR-026 drops sub-folder entries unconditionally; (c) recursive
+traversal with optional depth bound vs BI-019's non-recursive
+contract. NO new ADRs (ADR-010 N/A — eval-route; ADR-013 / ADR-014
+N/A — core-cache-backed not plugin-backed; ADR-015 PASS as consumer
+introducing TWO new `(top-level-code, details.code)` pairs). NO
+Constitution amendment (v1.5.0 stays — no new compliance row).
+NO new architecture snapshot. 43 co-located tests minimum (18
+schema / 20 handler / 5 registration). Version bump 0.5.6 → 0.5.7
 (PATCH; additive surface).
 
 See also:
 
-- [spec.md](specs/028-list-tagged-files/spec.md) — feature spec;
-  /speckit-clarify ran 2026-05-15 (Q1 case → defer-to-upstream,
-  Q2 charset → pass-through, Q3 frontmatter shape → defer-to-upstream,
-  Q4 leading-`#` → silent strip, Q5 ordering → byte-asc); two
-  live-probe-driven amendments ran 2026-05-15 plan stage (amendment 1
-  Q1 premise contradicted → wrapper-side ASCII lower-fold; amendment 2
-  architecture pivot to eval + FR-019..FR-021 new).
-- [plan.md](specs/028-list-tagged-files/plan.md) — implementation
+- [spec.md](specs/029-list-files-recursive/spec.md) — feature spec;
+  /speckit-clarify ran 2026-05-15 (Q1 folder-entry representation →
+  trailing-slash on folders + bare on files); zero plan-stage spec
+  amendments.
+- [plan.md](specs/029-list-files-recursive/plan.md) — implementation
   plan; Constitution Check PASS on initial + post-Phase-1 evaluation;
   no Complexity Tracking entries.
-- [research.md](specs/028-list-tagged-files/research.md) — Phase 0
-  decisions R1..R15 + plan-stage live-CLI/metadataCache findings
-  F1..F8 (F2 case-sensitive upstream drove amendment 1; F3 three
-  native-subcommand mismatches drove amendment 2 architecture pivot).
-- [data-model.md](specs/028-list-tagged-files/data-model.md) —
-  schemas, frozen JS template (~40 LOC), base64 payload, per-tool
-  invariants, module LOC budget (~220 source / ~1140 test), test
-  inventory (53 cases), architectural delta map, T0 fixture-seeding
-  plan.
-- [contracts/tag-input.contract.md](specs/028-list-tagged-files/contracts/tag-input.contract.md)
+- [research.md](specs/029-list-files-recursive/research.md) — Phase 0
+  decisions R1..R15 + plan-stage live-CLI / `app.vault.adapter`
+  findings F1..F12 (F1 / F2 / F3 confirm native `files`+`folders`
+  combination requires two spawns; F5 / F6 confirm
+  `app.vault.adapter.{list,stat}` shape; F8 / F9 confirm unknown-
+  and closed-vault inheritance for eval).
+- [data-model.md](specs/029-list-files-recursive/data-model.md) —
+  schemas, frozen JS template (~70 LOC), base64 payload, per-tool
+  invariants I-1..I-14, module LOC budget (~260 source / ~940 test),
+  test inventory (43 cases), architectural delta map, T0 fixture-
+  seeding plan.
+- [contracts/tree-input.contract.md](specs/029-list-files-recursive/contracts/tree-input.contract.md)
   — public input contract: zod schema, JSON Schema, field policy,
-  8 worked examples (A–H), 11-row error roster, out-of-scope upstream
+  8 worked examples (A–H), 9-row error roster, out-of-scope upstream
   surfaces table.
-- [contracts/tag-handler.contract.md](specs/028-list-tagged-files/contracts/tag-handler.contract.md)
-  — handler invariants I-1..I-12: validation-before-dispatch, single
-  invokeCli call shape, base64 payload assembly, frozen template
-  byte-stability, stage-0 closed-vault via shared module, five-stage
-  parse, envelope-error mapping, cross-mode count invariant, vault
-  flow-through, output schema validation at boundary, original-no-
-  upstream attribution.
-- [quickstart.md](specs/028-list-tagged-files/quickstart.md) — 30
-  verification scenarios Q-1..Q-30 mapped to SC-001..SC-013; 21 CI
-  cases + 5 T0 manual + 4 inspection/structural.
+- [contracts/tree-handler.contract.md](specs/029-list-files-recursive/contracts/tree-handler.contract.md)
+  — handler invariants I-1..I-14: validation-before-dispatch, single
+  invokeCli call shape, fixed dispatch shape, frozen template
+  byte-stability, base64 payload round-trip, stage-3 closed-vault
+  detection via shared module, `=> ` prefix strip, multi-stage parse,
+  envelope-error mapping (FOLDER_NOT_FOUND / NOT_A_FOLDER), cross-mode
+  count invariant, vault flow-through, output schema validation at
+  boundary, original-no-upstream attribution, test-seam single-spawn
+  assertion.
+- [quickstart.md](specs/029-list-files-recursive/quickstart.md) — 28
+  verification scenarios Q-1..Q-28 mapped to SC-001..SC-022; 22 CI
+  cases + 6 T0 manual + 4 inspection/structural.
 - [.architecture/Obsidian CLI MCP - Architecture.md](.architecture/Obsidian%20CLI%20MCP%20-%20Architecture.md)
   — canonical forward-going architecture document, rolled forward in
-  this plan run to reference `tag` as the sixth eval-cohort member,
-  the first tag-index primitive, AND the third consumer of the
-  `_eval-vault-closed-detection/` shared module.
+  this plan run to reference `tree` as the seventh eval-cohort member,
+  the first recursive subtree-enumeration primitive, AND the fourth
+  consumer of the `_eval-vault-closed-detection/` shared module.
+
+---
+
+## Predecessor feature narrative (028-list-tagged-files) — RETAINED FOR CONTEXT
+
+The 028 narrative below is retained for downstream cross-references
+but is NOT the active planning context. Consult
+[specs/029-list-files-recursive/plan.md](specs/029-list-files-recursive/plan.md)
+for the active feature; consult
+[specs/028-list-tagged-files/plan.md](specs/028-list-tagged-files/plan.md)
+for the 028 source. Summary: 028 added the (then-)fourteenth typed-tool
+wrap and the project's FIRST tag-index retrieval primitive, AND the
+SIXTH member of the eval-driven typed-tool cohort. Tool `tag({ tag,
+vault?, total? })` returns `{ count, paths }` (default) or bare
+integer (count-only). FLAT schema, NO `target_mode` discriminator
+(vault-only fileless precedent shared with BI-024). Wraps the `eval`
+subcommand (NOT the native `obsidian tag` subcommand — F3 surfaced
+three contract mismatches). Five clarifications Q&As + two
+plan-stage live-probe-driven amendments. Six-entry failure-mode
+roster all under `CLI_REPORTED_ERROR` with `details.code`
+discriminator; zero new top-level codes; zero new `details.code`
+strings (fourteen-tool zero-new-codes streak preserved). THIRD
+consumer of `_eval-vault-closed-detection/` shared module. NO new
+ADRs; NO Constitution amendment; v0.5.5 → v0.5.6. Original detail
+in subsequent block.
 
 ---
 
