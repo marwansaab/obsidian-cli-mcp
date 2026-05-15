@@ -1458,9 +1458,79 @@ Resume full mode after the clear part is done.
 
 ## Architecture & Decision References
 
-Two reference folders document the project's design rationale. Consult them **before** proposing or making design decisions, and cite the relevant ADR/architecture section when justifying choices:
+Three reference sources document the project's design rationale. Consult them **before** proposing or making design decisions, and cite the relevant ADR/architecture/graph evidence when justifying choices:
 
 - [.architecture/](.architecture/) — high-level architecture notes describing the system's structure, module boundaries, and design principles. Start with [Obsidian CLI MCP - Architecture.md](.architecture/Obsidian%20CLI%20MCP%20-%20Architecture.md).
 - [.decisions/](.decisions/) — Architecture Decision Records (ADRs). [Decision Log.md](.decisions/Decision%20Log.md) is the index; each ADR-NNN file contains the full decision text.
+- [graphify-out/](graphify-out/) — structural knowledge graph of the codebase. The architecture and ADRs describe **intent**; the graph describes **structural reality** as it exists on disk. Use the graph to verify that intent and reality agree.
 
 When a design choice conflicts with an existing ADR, surface the conflict to the user rather than silently overriding it — superseding an ADR is a deliberate act that should produce a new ADR, not an undocumented drift.
+
+When the graph contradicts the architecture or an ADR (e.g., a god-node where the ADR says there should be a seam, or a community where the architecture says there should be a layer), surface the contradiction. Either the graph reveals drift the ADRs haven't caught up to, or a recent change violated a written invariant. Both outcomes are actionable.
+
+## Knowledge Graph (graphify-out/)
+
+The project maintains a structural knowledge graph at `graphify-out/`, built by the `graphify` skill. The graph is rebuilt automatically on every commit via a `post-commit` git hook (AST-only, no LLM cost). Semantic nodes (extracted from prose: ADRs, specs, CLAUDE.md, constitution) refresh only on explicit `/graphify --update`.
+
+**Outputs**:
+- `graphify-out/GRAPH_REPORT.md` — human-readable audit: god nodes, surprising connections, suggested questions, community summaries.
+- `graphify-out/graph.json` — queryable graph data.
+- `graphify-out/graph.html` — interactive visualisation (open in browser).
+
+**Trigger**: `/graphify` (per the skill at `~/.claude/skills/graphify/SKILL.md`). The `--platform windows` install flag affects internal shell invocation only; the user-facing trigger is the same cross-platform name. Subcommands:
+- `/graphify query "..."` — natural-language structural questions ("what depends on X", "what classifies through Y").
+- `/graphify path A B` — shortest path between two named symbols.
+- `/graphify explain X` — full neighbourhood of a node.
+- `/graphify --update` — refresh semantic nodes after prose/spec changes (costs tokens; batch at phase boundaries, not after every edit).
+
+### When to consult the graph autonomously
+
+Before answering any question about architecture, cross-module dependencies, blast radius, or impact analysis, read `graphify-out/GRAPH_REPORT.md`. Prefer graph queries over grep for these question shapes:
+
+- "What depends on / imports / consumes X?" → `/graphify query`.
+- "How does A relate to B structurally?" → `/graphify path A B`.
+- "What is the neighbourhood of X?" → `/graphify explain X`.
+
+Grep remains correct for textual/lexical questions ("where is the string 'foo' used?"); the graph is for structural questions.
+
+### Graph consultation during Spec Kit phases
+
+Spec Kit phases run on intent (the spec) and structure (the codebase). The graph is the bridge.
+
+- **`/speckit-clarify`**: when a clarification question concerns an existing pattern, cohort, or cross-cutting concern, ground the answer with `/graphify explain` or `/graphify query`. The Business Analyst / Solution Architect role becomes accurate (not just plausible) when graph-grounded.
+- **`/speckit-plan`**: before submitting a plan for approval, identify the affected communities and god-nodes via graph queries. Document them in the plan's research/decisions section. If the plan touches any of the four kernel nodes (`createLogger`, `createQueue`, `UpstreamError`, `createServer`), say so explicitly — these are high-blast-radius areas.
+- **`/speckit-analyze`**: after implementation but before marking the BI Complete, run `/graphify --update` to refresh semantic nodes, then verify:
+  1. No new top-level error codes were introduced (Constitution Principle IV) — there should be no new error-class nodes outside the errors.ts community.
+  2. No production handler imports the boot-time factories directly (`createLogger`, `createQueue`) — these should remain confined to `server.ts` per the project's DI discipline.
+  3. New symbols land in expected communities — surprise community placement is a smell worth investigating before shipping.
+  4. New production code is structurally connected, not orphaned (test files are expected to be weakly connected; production files are not).
+
+Document any structural deviations in the BI's analyze artifact with rationale. The graph is the structural truth-check on whether the plan's intent matches the implementation's reality.
+
+### Validated architectural facts the graph encodes
+
+The following facts have been verified empirically via graph traces and are stable across BIs. Treat them as load-bearing invariants when reasoning about new BIs:
+
+- **Three spines, not one**: boot spine (`index.ts → server.ts → tools/_register.ts → createXTool() × N`), runtime spine (`handler.ts → invokeCli → spawn/Logger/Queue`), error spine (`handler.ts → UpstreamError`). `server.ts` owns the boot spine only and is absent from runtime and error spines.
+- **`server.ts` is the sole production file that constructs both `createLogger()` and `createQueue()`**. Every other production file receives them as injected deps via `RegisterDeps` / `ExecuteDeps`. Handlers must not reach back into the composition root at runtime.
+- **`UpstreamError` is a pure value type** — imported by ~33 files, called by zero. Every handler classifies its failures through one of its six codes. The fifteen-tool zero-new-codes streak (Principle IV) shows up structurally as a star with `UpstreamError` at the centre.
+- **The four god-nodes by degree** (raw, before dedup): `createLogger()` (~80), `createQueue()` (~57), `UpstreamError` (~47), `createServer()` (~30+). These have stayed stable across builds; treat changes to this list as architectural events worth attention.
+
+### Graph hygiene notes
+
+Two known caveats when reading graph numbers:
+
+1. **Dedup imperfection on re-exported types**: TypeScript classes that are re-exported across module boundaries produce 2–3 separate nodes in the graph (one AST, one semantic, sometimes one external-marker). Centrality scores split across them. Mentally add the degrees together for top-level types when comparing across builds.
+2. **AST noise floor ~50–60%**: a large fraction of weakly-connected nodes are tokenisation artifacts (local variables, destructured fields, generic type params), not genuine documentation gaps. Test files run 80–90% weakly-connected by design — they construct one-use fixtures.
+
+When citing graph numbers in plans, ADRs, or BI artifacts, prefer relative claims ("X is among the top god-nodes", "Y bridges N communities") over absolute counts when the absolute count is dedup-sensitive.
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- ALWAYS read graphify-out/GRAPH_REPORT.md before reading any source files, running grep/glob searches, or answering codebase questions. The graph is your primary map of the codebase.
+- IF graphify-out/wiki/index.md EXISTS, navigate it instead of reading raw files
+- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep — these traverse the graph's EXTRACTED + INFERRED edges instead of scanning files
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
