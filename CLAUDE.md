@@ -1,124 +1,192 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-[specs/029-list-files-recursive/plan.md](specs/029-list-files-recursive/plan.md)
+[specs/030-move-note/plan.md](specs/030-move-note/plan.md)
 
-Active feature: **029-list-files-recursive** — adds the **fifteenth**
-typed-tool wrap, the project's **first recursive subtree-enumeration
-primitive**, AND the **seventh member of the eval-driven typed-tool
-cohort** (after BI-014 / BI-015 / BI-025 / BI-026 / BI-027 / BI-028).
-Tool name `tree` is a single-word ORIGINAL choice — ADR-010 N/A
-because the wrapper composes via `eval` (NOT a single named native
-subcommand); the CLI has `files` and `folders` but no `tree` /
-`walk` / `find` per live-probe F-help, so the naming space is
-unconstrained. User surface
-`tree({ target_mode, vault?, folder?, depth?, ext?, total? })`
-returning `{ count: number, paths: string[] }`. Folder entries in
-`paths` end with `/` per FR-028; file entries do NOT. The
-trailing-character discrimination rule is the in-band file-vs-folder
-signal locked by the 2026-05-15 clarifications session (Q1 →
-trailing-slash on folders, bare on files). STANDARD `target_mode`
-discriminator with folder-scoped adaptation (forbid `file`/`path`
-locators; accept `folder`) — parity with BI-019 `files`. Wraps the
-upstream **`eval`** subcommand (NOT native `files` or `folders` —
-live-probe F1 / F2 / F3 surfaced three contract mismatches:
-neither native has depth bounding, combined files+folders output,
-or missing-folder distinguishability; combining `files` and
-`folders` requires TWO spawns which violates R3 single-call
-architecture); the eval JS template walks `app.vault.adapter`
-directly via `stat()` for the missing/file/folder trichotomy and
-`list()` for immediate-children enumeration. Single-call
-architecture branched at envelope-emission on `payload.total` (R3).
-ONE clarifications-session Q&A locked 2026-05-15 (folder-entry
-representation in `paths` → trailing-slash on folders, bare on
-files — codified in FR-028 / SC-022). NO plan-stage spec amendments
-(spec's "planning-phase decision" placeholders for tool name /
-native-vs-eval / `details.code` strings resolved here without
-amending the spec). Wrapper-side pipeline: input normalisation
-(trailing-slash strip on `folder`) → base64-encode
-`{folder, depth, ext, total}` → frozen JS template → in-eval
-`stat()` trichotomy (R7) → recursive DFS walk via
-`app.vault.adapter.list()` with in-eval level counter for depth
-bound (R9) → in-walk dotfile filter (R12 / FR-027 — drops dot-
-prefixed segments early so dotdirs are never descended) →
-post-walk ext filter that excludes folders when set (R11 / FR-007)
-→ trailing-slash transform on folder entries (R10 / FR-028) →
-`out.sort()` byte-asc (R13) → envelope emit. Anti-injection via
-base64-encoded JSON payload + frozen JS template (R6, parity with
-BI-014 / BI-015 / BI-025 / BI-026 / BI-027 / BI-028).
-**Six-entry failure-mode roster** plus inherited dispatch codes
-(zero new top-level codes; TWO new `details.code` strings under the
-existing `CLI_REPORTED_ERROR` top-level code per ADR-015 sub-
-discriminator pattern — twelve-tool zero-new-top-level-codes streak
-preserved per Constitution Principle IV): `VALIDATION_ERROR`;
-`CLI_REPORTED_ERROR(VAULT_NOT_FOUND, reason: "unknown")`;
-`CLI_REPORTED_ERROR(VAULT_NOT_FOUND, reason: "not-open")`;
-`CLI_REPORTED_ERROR(stage: "json-parse")`;
-`CLI_REPORTED_ERROR(stage: "envelope-parse")`;
-`CLI_REPORTED_ERROR(stage: "envelope-error", code: "FOLDER_NOT_FOUND" | "NOT_A_FOLDER")`.
-Plus inherited `ERR_NO_ACTIVE_FILE` (dispatch-layer classifier)
-and `CLI_NON_ZERO_EXIT` (BI-003 output-cap kill).
-**Fourth consumer of the cross-cutting
-`src/tools/_eval-vault-closed-detection/` shared module** (BI-026
-origin inline; BI-027 lifted to shared module; BI-028 third
-consumer; BI-029 confirms the cross-cutting design at FOUR consumers).
-DEPARTURES FROM BI-019 (the non-recursive `files` tool) locked at
-spec stage: (a) missing-folder and not-a-folder surface as
-STRUCTURED ERRORS with distinguishing `details.code` (FR-011 /
-SC-005) — BI-019's FR-010 conflates them with empty-folder into
-`{count:0, paths:[]}`; (b) folder entries APPEAR in `paths`
-alongside files when no `ext` filter is set (FR-007) — BI-019's
-FR-026 drops sub-folder entries unconditionally; (c) recursive
-traversal with optional depth bound vs BI-019's non-recursive
-contract. NO new ADRs (ADR-010 N/A — eval-route; ADR-013 / ADR-014
-N/A — core-cache-backed not plugin-backed; ADR-015 PASS as consumer
-introducing TWO new `(top-level-code, details.code)` pairs). NO
-Constitution amendment (v1.5.0 stays — no new compliance row).
-NO new architecture snapshot. 43 co-located tests minimum (18
-schema / 20 handler / 5 registration). Version bump 0.5.6 → 0.5.7
-(PATCH; additive surface).
+Active feature: **030-move-note** — adds the **sixteenth** typed-tool
+wrap, the project's **second member of the file-scoped write-side
+cohort** alongside `rename` (BI-021), AND closes the path-changes
+deferral that BI-021's /speckit-clarify Q2 lock made explicit. Tool
+name `move` is a single-word verbatim-from-upstream name per ADR-010
+— verified live during plan stage (F1) via `obsidian help` which
+lists `move` as a first-class subcommand with description "Move or
+rename a file" and argv shape `file=<name>` / `path=<path>` /
+`to=<path>` (`to=` required). User surface
+`move({ target_mode, vault?, file?, path?, to })` returning
+`{ moved: true, fromPath, toPath }`. The `to` field accepts two
+shapes per the user input: a folder path ending in `/` (the source
+filename is preserved at the new location) or a full vault-relative
+path with filename (the file is moved-and-renamed in one operation).
+STANDARD `target_mode` discriminator (file-scoped, parity with
+BI-011 / BI-012 / BI-013 / BI-015 / BI-018 / BI-021); NO folder-
+scoped variant (BI-019 / BI-029 were folder-scoped — `move` is
+file-scoped on the SOURCE side). Wraps the upstream **`move`**
+subcommand natively (NOT eval, NOT obsidian_exec); the wrapper
+forwards the user-facing schema field names (`file`, `path`, `to`)
+to the CLI argv keys verbatim — no PSR-5-style locator argv-key
+rename (cf. BI-011 PSR-5 `file=` → `name=` for `create`). Single-
+call architecture branched at handler entry via the per-mode argv
+mapping (R3): specific + `path=` invokes
+`vault=<v> move path=<p> to=<resolveTo(to,p)>`; specific + `file=`
+invokes `vault=<v> move file=<f> to=<to-verbatim>`; active mode
+invokes `move to=<to-verbatim>` (no `vault=`, no locator). TWO
+clarifications-session Q&As locked 2026-05-15 (Q1 → source-`.md`-
+guarded `.md` append rule for full-path-target `to` filename
+portion; Q2 → strict trailing-`/` discriminator for folder-target
+vs full-path-target — no heuristic, no validation-reject, no
+source-location probe). NO plan-stage spec amendments — the two
+/speckit-clarify decisions are already integrated; F1–F5b ratify
+without surfacing contradictions. Wrapper-side pipeline (specific +
+`path=` mode): validated input → `resolveTo(to, fromPath)` helper
+(file-local, ~12 LOC) branching on `to.endsWith("/")` (folder-
+target → append source basename) or otherwise full-path-target
+with **source-`.md` guard** (`if (fromPath.endsWith(".md") &&
+!filenamePortion.endsWith(".md")) append ".md"`; both predicates
+case-sensitive byte equality, mirroring 020-fix-write-gaps R2 / 021-
+rename Q1) → `invokeCli({command: "move", target_mode, vault,
+parameters: {path|file, to: resolved}, flags: []}, deps)` → adapter
+spawns ONE `obsidian` process → `parseMoveResponse(stdout, input,
+resolvedTo)` extracts canonical `fromPath`/`toPath` from CLI
+response (locked at T0 per R14 — three anticipated shapes: single-
+line `Moved: <from> → <to>`, two-line, or empty stdout +
+deterministic fallback to input + resolveTo output; unrecognised
+shape throws `CLI_REPORTED_ERROR(stage: "parse")` to prevent silent
+passthrough of CLI changes). In `file=` and active modes the
+wrapper forwards `to=` verbatim — the source-`.md` guard's
+protection only fully binds in specific + `path=` mode because
+`fromPath` is CLI-resolved in the other two modes and the R3 single-
+spawn invariant forbids a pre-resolve roundtrip. T0 case xiii
+captures the CLI's native `to=` handling on `file=`/active modes.
+**Four-entry failure-mode roster** plus inherited dispatch codes
+(ZERO new top-level codes — fifteen-tool zero-new-top-level-codes
+streak preserved per Constitution Principle IV; zero new
+`details.code` strings under any existing top-level code): `VALIDATION_ERROR`;
+`CLI_BINARY_NOT_FOUND`; `CLI_NON_ZERO_EXIT`; `CLI_REPORTED_ERROR`.
+**`ERR_NO_ACTIVE_FILE` is NOT in `move`'s error roster** — per the
+inherited bridge-classifier mismatch (R9), the native CLI's `move`
+subcommand emits capital-N `Error: No active file.` on no-focused-
+note while the dispatch-layer classifier targets lowercase only, so
+the call falls through to `CLI_REPORTED_ERROR` with `details.message`
+carrying the verbatim line. Empirically confirmed across `delete`
+(TC-049) and `rename` (TC-171); T0 case (ix) verifies the same
+wording for `move`. Tracked under [[BI-0027 - Audit Tool
+Descriptions]] dimension C.2 — bridge-classifier change is OUT OF
+SCOPE for this BI (cross-cutting concern). Anti-injection structural
+property: cli-adapter assembles argv as `child_process.spawn` array
+(no shell); no `to=` character can break out into a shell.
+**Path-traversal precondition (SC-012)**: F5/F5b confirm the CLI
+guards SOURCE traversal (`Error: File "..." not found.` for
+`path=../../etc/passwd` — CLI treats `..` as literal vault-relative
+segments). `to=` traversal (case x) still requires T0 with bait-file
+staging per `.memory/test-execution-instructions.md`. If T0
+surfaces silent vault-escape on `to=` traversal → spec amendment
+pre-ship to add validation-boundary reject. **Backslash-in-`to`**:
+deferred to T0 case (xii) per R10; spec amendment pre-ship if
+silent corruption observed (same SC-012 precondition pattern).
+**Active-mode `to`-transform timing**: deferred to T0 case (viii) +
+(xiii) per FR-007 (active/file= modes accept CLI's native handling;
+spec amendment pre-ship if CLI's behaviour observably diverges from
+specific + `path=` mode). NO new ADRs (ADR-010 PASS — verbatim
+upstream name per F1; ADR-013 / ADR-014 / ADR-015 N/A — native-CLI-
+wrapper, no plugin runtime, no new sub-discriminator pairs per the
+Constitution v1.5.0 parentheticals). NO Constitution amendment
+(v1.5.0 stays — no new compliance row needed). NO new architecture
+snapshot (canonical `.architecture/Obsidian CLI MCP -
+Architecture.md` rolled forward only; same pattern as BI-027/28/29).
+**Post-022 registry-stability baseline roll-forward** required per
+R13 / FR-013a: `npm run baseline:write` in the same commit that
+registers `move` (without the roll-forward, the durable test at
+`src/tools/_register-baseline.test.ts` fails). ~57 co-located tests
+minimum (24 schema / 28 handler / 5 registration). Version bump
+0.5.7 → 0.5.8 (PATCH; additive surface).
 
 See also:
 
-- [spec.md](specs/029-list-files-recursive/spec.md) — feature spec;
-  /speckit-clarify ran 2026-05-15 (Q1 folder-entry representation →
-  trailing-slash on folders + bare on files); zero plan-stage spec
-  amendments.
-- [plan.md](specs/029-list-files-recursive/plan.md) — implementation
-  plan; Constitution Check PASS on initial + post-Phase-1 evaluation;
-  no Complexity Tracking entries.
-- [research.md](specs/029-list-files-recursive/research.md) — Phase 0
-  decisions R1..R15 + plan-stage live-CLI / `app.vault.adapter`
-  findings F1..F12 (F1 / F2 / F3 confirm native `files`+`folders`
-  combination requires two spawns; F5 / F6 confirm
-  `app.vault.adapter.{list,stat}` shape; F8 / F9 confirm unknown-
-  and closed-vault inheritance for eval).
-- [data-model.md](specs/029-list-files-recursive/data-model.md) —
-  schemas, frozen JS template (~70 LOC), base64 payload, per-tool
-  invariants I-1..I-14, module LOC budget (~260 source / ~940 test),
-  test inventory (43 cases), architectural delta map, T0 fixture-
-  seeding plan.
-- [contracts/tree-input.contract.md](specs/029-list-files-recursive/contracts/tree-input.contract.md)
-  — public input contract: zod schema, JSON Schema, field policy,
-  8 worked examples (A–H), 9-row error roster, out-of-scope upstream
-  surfaces table.
-- [contracts/tree-handler.contract.md](specs/029-list-files-recursive/contracts/tree-handler.contract.md)
-  — handler invariants I-1..I-14: validation-before-dispatch, single
-  invokeCli call shape, fixed dispatch shape, frozen template
-  byte-stability, base64 payload round-trip, stage-3 closed-vault
-  detection via shared module, `=> ` prefix strip, multi-stage parse,
-  envelope-error mapping (FOLDER_NOT_FOUND / NOT_A_FOLDER), cross-mode
-  count invariant, vault flow-through, output schema validation at
-  boundary, original-no-upstream attribution, test-seam single-spawn
-  assertion.
-- [quickstart.md](specs/029-list-files-recursive/quickstart.md) — 28
-  verification scenarios Q-1..Q-28 mapped to SC-001..SC-022; 22 CI
-  cases + 6 T0 manual + 4 inspection/structural.
+- [spec.md](specs/030-move-note/spec.md) — feature spec;
+  /speckit-clarify ran 2026-05-15 (Q1 source-`.md`-guarded `.md`
+  append; Q2 strict trailing-`/` discriminator); zero plan-stage
+  spec amendments.
+- [plan.md](specs/030-move-note/plan.md) — implementation plan;
+  Constitution Check PASS on initial + post-Phase-1 evaluation; no
+  Complexity Tracking entries.
+- [research.md](specs/030-move-note/research.md) — Phase 0 decisions
+  R1..R14 + plan-stage live-CLI findings F1..F5b (F1 = subcommand
+  argv shape from `obsidian help`; F2 = unknown-vault response
+  `Vault not found.` byte-identical to 011-R5; F3 = source-not-found
+  `Error: File "<p>" not found.` with lowercase-Error prefix that
+  dispatch-layer classifier catches; F4 = missing-`to=` wording
+  unreachable from wrapper because schema rejects empty; F5/F5b =
+  CLI guards SOURCE traversal and source-not-found short-circuits
+  before `to=` validation — `to=` traversal case still requires T0
+  case x).
+- [data-model.md](specs/030-move-note/data-model.md) — schemas,
+  `resolveTo` truth table (10 worked examples across `.md` and non-
+  `.md` source classes), per-mode argv-mapping table, per-tool
+  invariants ↔ FR mapping, module LOC budget (~120 source / ~880
+  test), test inventory (57 cases).
+- [contracts/move-input.contract.md](specs/030-move-note/contracts/move-input.contract.md)
+  — public input contract: zod schema, JSON Schema (flat, 5
+  properties, `additionalProperties: false`), field policy, 8
+  worked examples (A–H covering all valid input shapes AND the Q2
+  surprise case), validation failure roster (14 rows), downstream
+  failure roster (4 rows including the `CLI_REPORTED_ERROR` active-
+  mode caveat).
+- [contracts/move-handler.contract.md](specs/030-move-note/contracts/move-handler.contract.md)
+  — handler invariants: deps shape, single-spawn invariant (R11),
+  per-mode argv-shape table, `resolveTo` helper contract with 10
+  worked examples (load-bearing source-`.md`-guard suppression row
+  for non-`.md` sources), `parseMoveResponse` three-shape contract
+  (single-line, two-line, empty stdout fallback; unrecognised throws
+  CLI_REPORTED_ERROR(stage: "parse")), failure propagation chain
+  (with capital-N inherited classifier mismatch surfaced explicitly),
+  test seam pattern.
+- [quickstart.md](specs/030-move-note/quickstart.md) — 22 CI
+  scenarios Q-1..Q-22 mapped to SC-001..SC-014; 13 manual T0
+  scenarios M-1..M-13 covering FR-019 cases (i)–(xiii) with the
+  destructive-probe protocol per `.memory/test-execution-instructions.md`;
+  M-9 verifies the capital-N classifier mismatch (SC-014 load-
+  bearing); M-10 verifies the path-traversal precondition with bait-
+  file staging (SC-012 gate).
 - [.architecture/Obsidian CLI MCP - Architecture.md](.architecture/Obsidian%20CLI%20MCP%20-%20Architecture.md)
-  — canonical forward-going architecture document, rolled forward in
-  this plan run to reference `tree` as the seventh eval-cohort member,
-  the first recursive subtree-enumeration primitive, AND the fourth
-  consumer of the `_eval-vault-closed-detection/` shared module.
+  — canonical forward-going architecture document, rolled forward
+  in this plan run to reference `move` as the sixteenth typed-tool
+  and the second member of the file-scoped write-side cohort
+  alongside `rename` / `delete` / `set_property`, and to document
+  the inherited capital-N classifier mismatch on active-mode no-
+  focused-note as a cross-cutting concern surfaced across `delete` /
+  `rename` / `move`.
+
+---
+
+## Predecessor feature narrative (029-list-files-recursive) — RETAINED FOR CONTEXT
+
+The 029 narrative below is retained for downstream cross-references
+but is NOT the active planning context. Consult
+[specs/030-move-note/plan.md](specs/030-move-note/plan.md) for the
+active feature; consult
+[specs/029-list-files-recursive/plan.md](specs/029-list-files-recursive/plan.md)
+for the 029 source. Summary: 029 added the (then-)fifteenth typed-
+tool wrap and the project's first recursive subtree-enumeration
+primitive, AND the seventh member of the eval-driven typed-tool
+cohort (after BI-014 / BI-015 / BI-025 / BI-026 / BI-027 / BI-028).
+Tool `tree({target_mode, vault?, folder?, depth?, ext?, total?})`
+returns `{count, paths}` with folder entries ending `/` per FR-028.
+STANDARD `target_mode` discriminator with folder-scoped adaptation.
+Wraps the `eval` subcommand directly (NOT native `files`/`folders` —
+both lack depth bounding and combined output). Six-entry failure
+roster with TWO new `details.code` strings (`FOLDER_NOT_FOUND`,
+`NOT_A_FOLDER`) under existing `CLI_REPORTED_ERROR` top-level code.
+Fourth consumer of the cross-cutting `_eval-vault-closed-detection`
+shared module. One clarifications-session Q&A (Q1 folder-entry
+representation in `paths` → trailing-slash + bare). NO plan-stage
+amendments. NO new ADRs. NO Constitution amendment. 43 co-located
+tests. Version 0.5.6 → 0.5.7. The 029 narrative is the predecessor
+that established the `_eval-vault-closed-detection` shared module's
+four-consumer stability and codified the trailing-character in-band
+discriminator pattern that BI-030 echoes (in form, not substance —
+029 uses trailing `/` to disambiguate file vs folder ENTRIES in a
+listing; 030 uses trailing `/` to disambiguate folder-target vs
+full-path-target `to` INPUTS in a move).
 
 ---
 
