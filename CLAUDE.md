@@ -1,7 +1,7 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-[specs/031-extract-registration-fixture/plan.md](specs/031-extract-registration-fixture/plan.md)
+[specs/032-fix-tree-surface/plan.md](specs/032-fix-tree-surface/plan.md)
 
 Active feature: **030-move-note** — adds the **sixteenth** typed-tool
 wrap, the project's **second member of the file-scoped write-side
