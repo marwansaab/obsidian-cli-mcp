@@ -101,3 +101,29 @@ package.json                                # EDITED — `"version": "0.5.8"` �
 > **All Constitution Check gates PASS on initial and post-Phase-1 evaluation. No Complexity Tracking entries required.**
 
 The Principle II "is the existing co-located test sufficient when the surface is renamed without adding the new-invariant assertions in-flight?" question is addressed in the gate row above. The user's explicit out-of-scope deferral of NEW invariant tests is reconcilable with Principle II's "ships with tests" mandate because the surface is RENAMED, not ADDED, and the existing happy-path + failure-path tests continue to cover the modified surface byte-equivalently. If a reviewer disagrees, escalate to an amendment of this plan with a deviation justification — but neither this BI's authors nor the spec contemplate Principle II as a blocker.
+
+## Graph consultation (added retroactively)
+
+The original plan commit (`7840256`) skipped the CLAUDE.md `/speckit-plan` graph-consultation gate. This section was added on user prompt to repair the gap; full detail in [research.md "Graph consultation"](./research.md#graph-consultation-added-retroactively-per-claudemd-speckit-plan-rule) (entries G1..G6).
+
+**Kernel-node interaction (CLAUDE.md mandates explicit naming)**: This plan TOUCHES `createServer` — one of the four kernel god-nodes per CLAUDE.md. The interaction is the lowest-blast-radius possible: a single outbound `--calls-->` edge label change at `src/server.ts:31` (`createServer --calls--> createTreeTool` → `createServer --calls--> createPathsTool`). Zero edges added; zero edges deleted; zero changes to the other 18 outbound `--calls-->` edges to sibling tool factories. The other three kernel nodes (`createLogger`, `createQueue`, `UpstreamError`) are NOT perturbed by this BI. The three-spine model (boot / runtime / error) holds: only the boot spine sees the rename; runtime and error spines are byte-stable per FR-016.
+
+**Affected communities** (per `graphify-out/GRAPH_REPORT.md`):
+
+- Community 12 "tree + move spec docs" — the 032 spec artefacts join this community on next `/graphify --update`.
+- Community 94 (`tree JS_TEMPLATE`, `executeTree` co-located with tag-tool symbols) — symbol renames; semantic-similarity edges to tag persist.
+- Community 105 (tree schema-symbol cluster: `treeInputSchema`, `treeOutputSchema`, etc.) — eight symbols rename in lockstep.
+- Community 141 (tree schema-test cluster) — symbol renames.
+- Community 47 "target-mode shared module" — NOT edited; the schema fix uses `.omit()` inline, leaving the shared helper byte-stable.
+
+**No surprise community placements expected.** No new community is created. No new error-class nodes outside the `errors.ts` community (Principle IV preserved structurally).
+
+**Out-of-scope stale references surfaced by graph (NOT touched by this BI)**:
+
+- `docs/tools/smart_connections_query.md` carries an `eval subcommand --references--> tree tool` edge. After rename, this textual cross-tool docs reference becomes stale. Spec FR-019's one-tool-docs-only scope explicitly excludes sibling tool docs from this BI.
+- `.scratch/pre-rename-tools.json` is a historical pre-022 snapshot tracked by the graph. Intentionally preserved as historical artefact; never edited.
+- `specs/030-move-note/contracts/move-input.contract.md` carries an inferred semantic-similarity edge to `tree input contract (029)`. Cross-spec history reference; not load-bearing for runtime.
+
+**Sibling structural-similarity cohort** surfaced (G5): the `tag` tool shares multiple inferred semantic-similarity edges with `tree` symbols. `tag` was correctly excluded from this BI's edit surface. The cohort relationship suggests `tag`'s description (2 423 chars per F1) is the natural next-BI candidate for the same description-trim treatment.
+
+**Net structural verdict**: graph consultation surfaces NO contradictions with the plan's existing claims. The plan's 14-file edit-surface inventory is complete for in-scope work; two out-of-scope stale-reference files are flagged for future-sweep traceability; the `createServer` god-node touch is the lowest-blast-radius kernel-node interaction possible. Constitution Check status unchanged: all gates PASS.

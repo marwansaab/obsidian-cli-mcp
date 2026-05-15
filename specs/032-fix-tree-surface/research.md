@@ -293,3 +293,89 @@ Result: `targetModeBaseSchema` is a `z.object({ target_mode, vault, file, path }
 Probe: `grep -c "tree" src/tools/help/handler.ts src/tools/help/schema.ts`
 
 Result: 0 matches in either file. Confirms R20 — the help tool is registry-driven and needs no edits.
+
+## Graph consultation (added retroactively per CLAUDE.md `/speckit-plan` rule)
+
+This section was added after the original plan commit (`7840256`) on user prompt to repair the missed graph-consultation gate. CLAUDE.md mandates: "before submitting a plan for approval, identify the affected communities and god-nodes via graph queries. Document them in the plan's research/decisions section. If the plan touches any of the four kernel nodes (`createLogger`, `createQueue`, `UpstreamError`, `createServer`), say so explicitly." The original plan did neither. The graph queries below close that gap. Source: `graphify-out/GRAPH_REPORT.md` and direct queries against `graphify-out/graph.json` (graph rebuilt at commit `26741a7` per post-commit hook).
+
+### G1 — `createServer` god-node interaction (KERNEL NODE TOUCHED)
+
+Query: `/graphify explain createServer`. Three node instances surface due to dedup imperfection (CLAUDE.md notes this): `createServer()` (34 edges), `MCP Server Bootstrap createServer` (67 edges), `createServer factory (MCP bootstrap)` (7 edges) — same logical node. Combined raw degree ~108 edges, confirming god-node #1-or-#2 status per `GRAPH_REPORT.md`.
+
+The plan's edit to `src/server.ts` line 31 mutates one of `createServer`'s 19 outbound `--calls-->` edges (renames `createTreeTool()` → `createPathsTool()`). All 18 other `--calls-->` edges to sibling tool factories are byte-stable, confirming the plan's "boot-spine-only" claim structurally. Critically: zero edges from runtime-spine nodes (`createLogger`, `createQueue`, `UpstreamError`, `invokeCli`) are perturbed by this BI.
+
+Kernel-node interaction is therefore: **`createServer` — one outbound edge label change**. No new edges added; no edges deleted; no edges with different target communities. Lowest-blast-radius kernel-node interaction possible.
+
+### G2 — Affected communities
+
+Tree-related symbols live across these communities (verified via `graphify-out/GRAPH_REPORT.md`):
+
+| Community | Cohesion | Tree-resident contribution |
+|---|---|---|
+| Community 12 "tree + move spec docs" | 0.09 | `tree input contract (029)` lives here alongside the 030-move-note artifacts. The 032 spec docs (which this BI creates) will join this community after `/graphify --update`. |
+| Community 94 "Community 94" | 0.21 | `tree JS_TEMPLATE` and `executeTree` live here alongside `executeTag`, `createTagTool`, `tagCountOnlyOutputSchema`, `tagDefaultOutputSchema`, `tagEvalEnvelopeSchema`, `tagInputSchema`. Cross-tool cohort — `tree` and `tag` share structural template patterns. After rename, `executeTree` → `executePaths` may shift community membership; semantic similarity edges to `tag` symbols persist by structure. |
+| Community 105 "Community 105" | 0.25 | `treeEnvelopeError, treeEnvelopeOk, TreeEvalEnvelope, treeEvalEnvelopeSchema, TreeInput, TreeOutput, treeOutputSchema, ExecuteDeps` — the tree schema-symbols cluster. All eight nodes rename to `paths*` counterparts; community membership preserved (same shape, new labels). |
+| Community 141 "Community 141" | 0.29 | `treeInputSchema, badEnv, errEnv, okEnv, out, r` — the tree schema-test cluster. Renames track. |
+| Community 47 "target-mode shared module" | 0.16 | Contains `applyTargetModeRefinementForFolderScoped()`, `targetModeBaseSchema`, etc. NOT edited by this BI; the schema-fix consumes `.omit()` inline in `paths/schema.ts` without touching the shared module. |
+
+No new community is created. No surprise community placements expected post-rename.
+
+### G3 — Three-spine confirmation (boot / runtime / error)
+
+CLAUDE.md's "Validated architectural facts" lists three spines: boot (`index.ts → server.ts → tools/_register.ts → createXTool() × N`), runtime (`handler.ts → invokeCli → spawn/Logger/Queue`), error (`handler.ts → UpstreamError`). Graph queries confirm:
+
+- **Boot spine**: This BI's edit at `src/server.ts:31` is the ONLY boot-spine perturbation. `createServer --calls--> createTreeTool()` becomes `createServer --calls--> createPathsTool()`. All other 18 outbound calls byte-stable.
+- **Runtime spine**: Graph confirms `executeTree --calls--> invokeCli()` and `executeTree --calls--> detectIfClosed() [INFERRED]` (from `_eval-vault-closed-detection/detector.ts`). FR-016 byte-stability means the rename touches only the *label* of `executeTree → executePaths`; the outbound call edges are byte-stable in target. The runtime spine is NOT perturbed except by the symbol rename.
+- **Error spine**: Graph confirms `handler.ts --imports--> UpstreamError` from `errors.ts`. No new `UpstreamError` instantiation paths; the four existing `UpstreamError` emission sites in `tree/handler.ts` preserve their `details.code` strings per FR-016 / R16. The fifteen-tool zero-new-top-level-codes streak is structurally maintained — confirmable post-rename via `/graphify --update` showing no new error-class nodes outside the `errors.ts` community.
+
+### G4 — Edit-surface inventory cross-check (graph vs grep)
+
+The plan's data-model.md inventory lists **14 files touched**. The graph query "what depends on tree" returns **16 files** with edges pointing INTO tree-resident nodes. Reconciliation:
+
+| File (source of edge) | In plan inventory? | Notes |
+|---|---|---|
+| `src/server.ts` | YES | (R10) — primary edit |
+| `src/server.test.ts` | YES | (R10) — 19-tool names array update |
+| `src/tools/_register-baseline.json` | YES | (R9) — regenerated |
+| `src/tools/_registration-stub.ts` | implicit | The graph shows `makeRegistrationStubSpawn --calls--> tree registration tests`. The fixture file itself is unchanged; only its *consumers* in `tree/index.test.ts` are renamed. Plan's data-model.md correctly notes `_registration-stub.ts` is UNCHANGED. Graph confirms. |
+| `src/cli-adapter/cli-adapter.ts` | implicit | `invokeCli --calls--> executeTree` — the call-site target renames, but the SOURCE file (cli-adapter.ts) is byte-stable per 008-refactor surface-freeze. Graph's edge re-points to `executePaths` on next `/graphify --update`. Plan correctly excludes this file from edit-surface. |
+| `src/cli-adapter/_dispatch.ts` | implicit | Same — `SpawnLike`/`__resetInFlightRegistryForTests` imports flow INTO tree's test files; the dispatch source is byte-stable. |
+| `src/errors.ts` | implicit | `UpstreamError` import flows into tree's handler + handler.test — source byte-stable. |
+| `src/logger.ts` | implicit | Same pattern. |
+| `src/queue.ts` | implicit | Same pattern. |
+| `src/target-mode/target-mode.ts` | YES (load-bearing absence) | Plan explicitly says UNCHANGED (the spec clarify decision). Graph confirms `applyTargetModeRefinementForFolderScoped` is consumed by `tree/schema.ts` but the helper itself is unedited. |
+| `src/tools/_register.ts` | implicit | `registerTool --calls--> createTreeTool` rename — source byte-stable. |
+| `src/tools/_shared.ts` | implicit | Same pattern. |
+| `docs/tools/tree.md` | YES (renamed → `paths.md`) | (R11) |
+| `docs/tools/smart_connections_query.md` | **NO — graph surfaced this** | The graph shows `eval subcommand --references--> tree tool` originating in this sibling-tool docs file. After rename, this textual reference becomes stale. The spec FR-019 only covers `docs/tools/<renamed-tool>.md`; this cross-tool docs reference is **out of scope** per spec (one-tool-only docs pass). Flagged here for traceability — a future docs sweep should update it. |
+| `.scratch/pre-rename-tools.json` | **NO — graph surfaced this** | A historical snapshot from the BI-022 pre-rename state, gitignored or scratch-tracked. The graph has it as a node with inferred edges. Out of scope; pre-rename snapshots are intentionally preserved as historical artefacts. |
+| `specs/030-move-note/contracts/move-input.contract.md` | NO — graph-surfaced | Inferred semantic similarity edge to `tree input contract (029)`. Cross-spec reference; intentionally preserved. |
+
+**Reconciliation outcome**: the plan's 14-file inventory captures all EDIT-required files. The graph surfaces TWO additional files (`docs/tools/smart_connections_query.md`, `.scratch/pre-rename-tools.json`) carrying STALE-AFTER-RENAME references that are correctly out-of-scope per the spec. The plan's edit-surface inventory is COMPLETE for in-scope work; the out-of-scope inventory was UNDOCUMENTED until this graph pass.
+
+### G5 — Sibling structural-similarity cohort (tag ≈ tree)
+
+The graph shows multiple INFERRED `--semantically_similar_to-->` edges between `tree` and `tag` symbols:
+
+- `executeTag` ↔ `executeTree`
+- `ExecuteDeps (tag)` ↔ `ExecuteDeps (tree)`
+- `createTagTool` ↔ `createTreeTool`
+- `tagInputSchema` ↔ `treeInputSchema`
+- `tagDefaultOutputSchema` ↔ `treeOutputSchema`
+
+This confirms `tag` is the closest structural cousin to `tree` — both are eval-cohort handlers consuming the JS_TEMPLATE pattern with similar envelope shapes. Two consequences for this BI:
+
+1. **`tag` was NOT in my grep edit-inventory**. Correct — the rename does not touch `tag`. But the inferred semantic-similarity edges will reattach to `paths*` counterparts on next `/graphify --update`. No source-tree change needed.
+2. **`tag`'s description is the largest siblings at 2 423 chars per F1**. A future BI applying the same `paths`-style description rewrite to `tag` is a natural follow-up — the graph confirms the structural template is shared. Surface for future-work tracking.
+
+### G6 — `applyTargetModeRefinementForFolderScoped` consumer count = 2
+
+Manual probe `grep -rln "applyTargetModeRefinementForFolderScoped" src/` returns exactly two production schema consumers: `src/tools/files/schema.ts` AND `src/tools/tree/schema.ts`. The graph's Community 101 ("target_mode discriminator pattern") shows these as related but does not enumerate all consumers in the visible report. The grep is the authoritative count for this fact: TWO consumers, with `tree` being one of them and `files` being the sibling out-of-scope tool. The plan's SC-011 (sibling-tool no-regress) invariant is exactly the "leave `files` byte-stable" requirement; the graph confirms there is no third consumer that this BI could accidentally regress.
+
+### Net impact of the graph consultation on the plan
+
+- **Plan was structurally correct.** No graph fact contradicts a plan claim. All FR / SC invariants hold under graph scrutiny.
+- **Plan under-documented kernel-node interaction.** G1 documents the `createServer` god-node touch that the plan should have called out by name per CLAUDE.md. This research-section addition closes that gap.
+- **Plan under-documented out-of-scope stale references.** G4 surfaces `docs/tools/smart_connections_query.md` and `.scratch/pre-rename-tools.json` carrying outdated `tree`-named references. Both correctly excluded by the spec's one-tool-docs-only scope statement; flagged here for future-sweep traceability.
+- **Plan correctly excluded the `files` schema fix.** G6 confirms the helper has exactly two consumers; SC-011's no-regress invariant is preserved by construction (refinement helper unedited).
+- **Future-work signal surfaced.** G5's `tag ≈ tree` semantic-similarity edges identify `tag`'s description as the next-most-bloated and the natural follow-up BI candidate.
