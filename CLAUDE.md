@@ -1485,11 +1485,13 @@ The project maintains a structural knowledge graph at `graphify-out/`, built by 
 
 ### When to consult the graph autonomously
 
-Before answering any question about architecture, cross-module dependencies, blast radius, or impact analysis, read `graphify-out/GRAPH_REPORT.md`. Prefer graph queries over grep for these question shapes:
+For SPECIFIC structural questions, query `graph.json` directly via the named subcommands. They return precisely-scoped answers (~1-3 KB each) and are the PRIMARY interface to the graph:
 
-- "What depends on / imports / consumes X?" → `/graphify query`.
+- "What depends on / imports / consumes X?" → `/graphify query "what depends on X"`.
 - "How does A relate to B structurally?" → `/graphify path A B`.
 - "What is the neighbourhood of X?" → `/graphify explain X`.
+
+**Do NOT read `graphify-out/GRAPH_REPORT.md` as a default first step.** It is a ~25k-token human-readable summary intended for COLD-START ORIENTATION ONLY — useful when you don't yet know which node to query (e.g. unfamiliar codebase, broad "what's in here" survey). For any session where the relevant symbols are already named in the user's prompt, the spec, the open files, or the conversation, skip the report entirely and go straight to the subcommands. Reading the report when you already know what to query is a token-expensive detour that produces no information the queries don't.
 
 Grep remains correct for textual/lexical questions ("where is the string 'foo' used?"); the graph is for structural questions.
 
@@ -1530,7 +1532,7 @@ When citing graph numbers in plans, ADRs, or BI artifacts, prefer relative claim
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
 
 Rules:
-- ALWAYS read graphify-out/GRAPH_REPORT.md before reading any source files, running grep/glob searches, or answering codebase questions. The graph is your primary map of the codebase.
-- IF graphify-out/wiki/index.md EXISTS, navigate it instead of reading raw files
-- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep — these traverse the graph's EXTRACTED + INFERRED edges instead of scanning files
+- **Query-first.** For SPECIFIC structural questions, query `graph.json` directly via `/graphify explain X`, `/graphify query "..."`, or `/graphify path A B`. These return scoped answers (~1-3 KB each) and are the PRIMARY interface to the graph. Prefer them over grep for cross-module questions like "what depends on X" or "how does A relate to B" — they traverse EXTRACTED + INFERRED edges instead of scanning files.
+- **Read `graphify-out/GRAPH_REPORT.md` ONLY for cold-start orientation** when you don't yet know which node to query. Skip it whenever the relevant symbols are already known from the user prompt, the spec, the conversation, or the open files. The report is a ~25k-token summary — wrong default for a focused question.
+- IF `graphify-out/wiki/index.md` EXISTS, navigate it instead of reading raw files.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
