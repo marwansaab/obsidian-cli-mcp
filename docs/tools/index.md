@@ -10,6 +10,7 @@ Call `help({ tool_name: "<name>" })` to read the full Markdown documentation for
 - **links** — Return the flat ordered list of every outgoing link in a Markdown note (returns `{ count, links: [{ target, line, kind, displayText? }] }` — link-graph primitive; frontmatter-declared wikilinks intermingled in source order; closed `{wikilink, embed, markdown}` kind enum; `total: true` switches to count-only mode).
 - **list_notes** — _(documentation pending — owned by a future BI)_.
 - **list_vaults** — _(documentation pending — owned by a future BI)_.
+- **move** — Move a note in a vault (optionally renaming); honours the vault's auto-update-links setting.
 - **obsidian_exec** — Invoke any Obsidian Integrated CLI subcommand.
 - **outline** — Return the flat ordered list of every heading in a Markdown note (returns `{ count, headings: [{ level, text, line }] }` — structural-discovery primitive; `total: true` switches to count-only mode).
 - **properties** — List every distinct frontmatter property name in a vault with per-property note counts (returns `{ count, properties: [{ name, noteCount }] }` — vault-wide structural-discovery primitive; case-insensitive-primary + byte-tiebreak sort places case-distinct duplicates adjacent; `total: true` switches to count-only mode).

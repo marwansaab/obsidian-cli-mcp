@@ -16,6 +16,7 @@ import { createFilesTool } from "./tools/files/index.js";
 import { createFindByPropertyTool } from "./tools/find_by_property/index.js";
 import { createHelpTool } from "./tools/help/index.js";
 import { createLinksTool } from "./tools/links/index.js";
+import { createMoveTool } from "./tools/move/index.js";
 import { createObsidianExecTool } from "./tools/obsidian_exec/index.js";
 import { createOutlineTool } from "./tools/outline/index.js";
 import { createPropertiesTool } from "./tools/properties/index.js";
@@ -92,6 +93,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     createFindByPropertyTool({ logger, queue }),
     createHelpTool(),
     createLinksTool({ logger, queue }),
+    createMoveTool({ logger, queue }),
     createObsidianExecTool({ logger, queue }),
     createOutlineTool({ logger, queue }),
     createPropertiesTool({ logger, queue }),

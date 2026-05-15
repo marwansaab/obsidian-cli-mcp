@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "029-list-files-recursive",
+  "generatedFromBranch": "030-move-note",
   "generatedAt": "2026-05-15",
   "tools": [
     {
@@ -27,6 +27,11 @@
       "name": "links",
       "descriptionFingerprint": "8bca852fe141bd343dade2ccce49f7e0bf43cec577a498fb8bdb274d01d7996c",
       "schemaFingerprint": "3affa6b4260fc26466e0b52018a248ec0e9752bd49d1f65bd549db20ab77f642"
+    },
+    {
+      "name": "move",
+      "descriptionFingerprint": "42f83240c2ff8fcec0d1d5ab42c82307b401254ca57d136ff0ade4944f2f7f93",
+      "schemaFingerprint": "93d12501e4ff5d9eb113998d080afe5cf0136f01bc690a4c9b1b1bb199b025a3"
     },
     {
       "name": "obsidian_exec",
