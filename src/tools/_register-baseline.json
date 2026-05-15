@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "027-smart-connections-query",
-  "generatedAt": "2026-05-14",
+  "generatedFromBranch": "028-list-tagged-files",
+  "generatedAt": "2026-05-15",
   "tools": [
     {
       "name": "delete",
@@ -77,6 +77,11 @@
       "name": "smart_connections_similar",
       "descriptionFingerprint": "5913a85df7b2da448f0018d8f9b9d01f6a6e4b78dd4db939feae41c1d08a6bdf",
       "schemaFingerprint": "39e440e445fceee7945d49e6923d6c7e6ddef58a6ebf10775615a2ced77e1b7c"
+    },
+    {
+      "name": "tag",
+      "descriptionFingerprint": "9d0f39793d37558125686ec3387f22513f0c4a76b6cced9e4788130f94519228",
+      "schemaFingerprint": "d1f0426ea5439d8642d2dd4db1505209d9a3682f080f91b4985b7ba4aac4ac8a"
     },
     {
       "name": "write_note",
