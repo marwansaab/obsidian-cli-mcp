@@ -1,40 +1,16 @@
 // Original — no upstream. Tests for the move tool registration — descriptor shape, stripped schema, help mention + link-rewriting caveat, docs presence + non-stub + active-mode CLI_REPORTED_ERROR note + to-shape rules, thin-handler logger drift lock (FR-009 / R1).
-import { type SpawnOptions } from "node:child_process";
-import { EventEmitter } from "node:events";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { Readable, Writable } from "node:stream";
+import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createMoveTool, MOVE_DESCRIPTION, MOVE_TOOL_NAME } from "./index.js";
-import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
+import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
-
-function makeStubSpawn(opts: { stdout?: string; exitCode?: number } = {}): SpawnLike {
-  return (binary, _argv, _options: SpawnOptions) => {
-    void binary;
-    const child = new EventEmitter() as EventEmitter & {
-      stdout: Readable;
-      stderr: Readable;
-      kill: (signal?: NodeJS.Signals) => boolean;
-      pid?: number;
-    };
-    child.stdout = new Readable({ read() {} });
-    child.stderr = new Readable({ read() {} });
-    child.pid = 7;
-    child.kill = () => true;
-    setImmediate(() => {
-      if (opts.stdout) child.stdout.push(Buffer.from(opts.stdout, "utf8"));
-      child.stdout.push(null);
-      child.stderr.push(null);
-      setImmediate(() => child.emit("exit", opts.exitCode ?? 0, null));
-    });
-    return child as unknown as ReturnType<SpawnLike>;
-  };
-}
+import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 
 const silentLogger = () =>
   createLogger({ stream: new Writable({ write(_c, _e, cb) { cb(); } }) });
