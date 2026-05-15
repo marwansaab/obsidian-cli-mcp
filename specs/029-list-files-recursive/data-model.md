@@ -260,14 +260,17 @@ The frozen JS template (~70 LOC formatted) is a single string constant inside `h
 
 Plus baseline registry roll-forward (no LOC count — JSON file update via `npm run baseline:write`).
 
-## Test inventory (43 cases minimum to satisfy SC-016's "no fewer than 40 tests")
+## Test inventory (43 test-groups minimum to satisfy SC-016's "no fewer than 40 tests")
 
-| Suite | Count | Coverage |
+The counts below enumerate test GROUPS (one row per coverage concern). The per-story task decomposition in tasks.md realises these as individual `it()` blocks; the per-task realisation produces ~30+ handler test cases (more than the 20 groups below), comfortably exceeding the SC-016 minimum of 40 total individual cases.
+
+| Suite | Groups | Coverage |
 |---|---|---|
 | `schema.test.ts` | 18 | target_mode × specific/active × required/forbidden field combinations; depth integer/positive validation; ext / folder / total type validation; unknown-key rejection; field policy worked examples A–H. |
-| `handler.test.ts` | 20 | Happy path (specific + active, with/without folder, with/without depth, with/without ext, with/without total — 8 combinations); single-spawn invariant; payload base64 round-trip; envelope-error mapping (FOLDER_NOT_FOUND, NOT_A_FOLDER); closed-vault detection seam; trailing-slash invariant on folder entries; bare invariant on file entries; sort invariant; cross-mode count equality; dotfile filter under recursion; depth-bound stop-at-N; ext filter excludes folders; vault flow-through. |
+| `handler.test.ts` | 20 | Happy path (specific + active, with/without folder, with/without depth, with/without ext, with/without total — 8 combinations); single-spawn invariant; payload base64 round-trip; envelope-error mapping (FOLDER_NOT_FOUND, NOT_A_FOLDER); closed-vault detection seam; trailing-slash invariant on folder entries; bare invariant on file entries; sort invariant; cross-mode count equality; dotfile filter under recursion (verified via SHA-256 byte-stability of `FROZEN_TEMPLATE`, not direct handler test — the filter lives in the template); depth-bound stop-at-N; ext filter excludes folders; vault flow-through. |
 | `index.test.ts` | 5 | Registration consistency; tool name `tree`; factory accepts deps; tool description carries the FR-028 trailing-slash promise; original-no-upstream attribution header present. |
-| **Total** | **43** | All US1–US9 acceptance criteria covered; cross-cutting invariants asserted. |
+| **Total groups** | **43** | All US1–US9 acceptance criteria covered; cross-cutting invariants asserted. |
+| **Realised cases** | **~60** | Per the tasks.md per-story decomposition (T003 18 schema + T006..T045 ~37 handler + T047 5 registration). |
 
 ## T0 fixture-seeding plan
 
