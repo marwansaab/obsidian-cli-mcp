@@ -43,10 +43,10 @@ Single-project layout under [src/](../../src/). Tests are co-located with their 
 
 **Locus**: [src/tools/_shared.ts](../../src/tools/_shared.ts) (existing module, gains two exports) + [src/tools/_shared.test.ts](../../src/tools/_shared.test.ts) (existing module, gains two test groups).
 
-- [ ] T006 Add `B64_PAYLOAD_DECODE_EXPR` text constant to `src/tools/_shared.ts` — the V8-eval-side decode expression `new TextDecoder("utf-8").decode(Uint8Array.from(atob('__PAYLOAD_B64__'),c=>c.charCodeAt(0)))` per [research.md §4.2](research.md), with `Original — no upstream` header preserved and an inline comment citing the spec branch
-- [ ] T007 Add `composeEvalCode(template: string, payload: unknown): string` helper to `src/tools/_shared.ts` per [research.md §4.3](research.md) — performs `JSON.stringify` → `Buffer.from(payloadJson, "utf-8").toString("base64")` → `template.replace("__PAYLOAD_B64__", payloadB64)` and returns the rendered code string; signature `payload: unknown` is correct (callers pass already-shaped objects)
-- [ ] T008 [P] Add unit tests for `B64_PAYLOAD_DECODE_EXPR` constant in `src/tools/_shared.test.ts` — at minimum: (a) the constant is a non-empty string, (b) the constant contains the literal `__PAYLOAD_B64__` placeholder so substitution works, (c) the constant does NOT contain `JSON.parse(atob(` (the broken expression) — to catch future regression
-- [ ] T009 [P] Add unit tests for `composeEvalCode` in `src/tools/_shared.test.ts` — happy path: returns a string with the base64-encoded payload substituted into the placeholder; non-ASCII payload: an em-dash / accented-letter / CJK / emoji payload round-trips correctly when the returned code is evaluated in a V8 sandbox (or a Node `vm` context); ASCII payload: unchanged behaviour; rejects template that lacks the placeholder
+- [X] T006 Add `B64_PAYLOAD_DECODE_EXPR` text constant to `src/tools/_shared.ts` — the V8-eval-side decode expression `new TextDecoder("utf-8").decode(Uint8Array.from(atob('__PAYLOAD_B64__'),c=>c.charCodeAt(0)))` per [research.md §4.2](research.md), with `Original — no upstream` header preserved and an inline comment citing the spec branch
+- [X] T007 Add `composeEvalCode(template: string, payload: unknown): string` helper to `src/tools/_shared.ts` per [research.md §4.3](research.md) — performs `JSON.stringify` → `Buffer.from(payloadJson, "utf-8").toString("base64")` → `template.replace("__PAYLOAD_B64__", payloadB64)` and returns the rendered code string; signature `payload: unknown` is correct (callers pass already-shaped objects)
+- [X] T008 [P] Add unit tests for `B64_PAYLOAD_DECODE_EXPR` constant in `src/tools/_shared.test.ts` — at minimum: (a) the constant is a non-empty string, (b) the constant contains the literal `__PAYLOAD_B64__` placeholder so substitution works, (c) the constant does NOT contain `JSON.parse(atob(` (the broken expression) — to catch future regression
+- [X] T009 [P] Add unit tests for `composeEvalCode` in `src/tools/_shared.test.ts` — happy path: returns a string with the base64-encoded payload substituted into the placeholder; non-ASCII payload: an em-dash / accented-letter / CJK / emoji payload round-trips correctly when the returned code is evaluated in a V8 sandbox (or a Node `vm` context); ASCII payload: unchanged behaviour; rejects template that lacks the placeholder
 
 **Checkpoint**: `_shared.ts` exports the decoder constant and the compose helper; `_shared.test.ts` covers both; `npm run typecheck && npm run lint && npm run test src/tools/_shared.test.ts` is clean.
 
@@ -62,12 +62,12 @@ Single-project layout under [src/](../../src/). Tests are co-located with their 
 
 > Write these tests FIRST; verify they FAIL pre-fix (against current `_template.ts`) before applying the fix.
 
-- [ ] T010 [P] [US1] Add non-ASCII heading-path test cases to `src/tools/read_heading/handler.test.ts` covering: (a) em-dash in single-segment heading, (b) accented letter in single-segment heading, (c) CJK character in single-segment heading, (d) emoji in single-segment heading, (e) nested path mixing ASCII-only segments with one non-ASCII segment. Each case mocks `invokeCli` to return the eval response that the FIXED template would produce; assertion is that the handler returns `{ content: "<expected body>" }`. The TEST verifies the handler-side wire shape — the actual template-eval correctness is verified at T012.
+- [X] T010 [P] [US1] Add non-ASCII heading-path test cases to `src/tools/read_heading/handler.test.ts` covering: (a) em-dash in single-segment heading, (b) accented letter in single-segment heading, (c) CJK character in single-segment heading, (d) emoji in single-segment heading, (e) nested path mixing ASCII-only segments with one non-ASCII segment. Each case mocks `invokeCli` to return the eval response that the FIXED template would produce; assertion is that the handler returns `{ content: "<expected body>" }`. The TEST verifies the handler-side wire shape — the actual template-eval correctness is verified at T012.
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] Update `src/tools/read_heading/_template.ts` — replace the line `const a=JSON.parse(atob('__PAYLOAD_B64__'));` with the UTF-8-safe decode using the shared expression: substitute `${B64_PAYLOAD_DECODE_EXPR}` (or expand inline if the template-literal approach proves awkward; see [plan.md Structure Decision](plan.md)). Preserve the file's existing `Original — no upstream` header, the R7 metadataCache reuse, the R14 Setext defence-in-depth filter, and the FR-010 leading-line-terminator strip — only the decode line changes
-- [ ] T012 [US1] Refactor `src/tools/read_heading/handler.ts` — replace the inline `payloadJson` / `payloadB64` / `JS_TEMPLATE.replace(...)` triplet with a single `composeEvalCode(JS_TEMPLATE, payload)` call. The `payload` shape is unchanged. Existing two-stage envelope parse, discriminator-mapped `UpstreamError`, and Setext defence-in-depth filter all unchanged.
+- [X] T011 [US1] Update `src/tools/read_heading/_template.ts` — replace the line `const a=JSON.parse(atob('__PAYLOAD_B64__'));` with the UTF-8-safe decode using the shared expression: substitute `${B64_PAYLOAD_DECODE_EXPR}` (or expand inline if the template-literal approach proves awkward; see [plan.md Structure Decision](plan.md)). Preserve the file's existing `Original — no upstream` header, the R7 metadataCache reuse, the R14 Setext defence-in-depth filter, and the FR-010 leading-line-terminator strip — only the decode line changes
+- [X] T012 [US1] Refactor `src/tools/read_heading/handler.ts` — replace the inline `payloadJson` / `payloadB64` / `JS_TEMPLATE.replace(...)` triplet with a single `composeEvalCode(JS_TEMPLATE, payload)` call. The `payload` shape is unchanged. Existing two-stage envelope parse, discriminator-mapped `UpstreamError`, and Setext defence-in-depth filter all unchanged.
 
 **Checkpoint**: `npm run test src/tools/read_heading/` passes — non-ASCII boundary cases turn green, every pre-existing ASCII test stays green. US1's MVP is shippable on its own at this point.
 
@@ -81,7 +81,7 @@ Single-project layout under [src/](../../src/). Tests are co-located with their 
 
 ### Tests for User Story 2
 
-- [ ] T013 [P] [US2] Add non-ASCII property-name verification test to `src/tools/read_property/handler.test.ts`: stub `invokeCli` so Call A returns JSON with a non-ASCII key (e.g. `{"café_key":"value-here"}`) and Call B returns the matching properties metadata; call `executeReadProperty` with `input.name: "café_key"`; assert the return is `{ value: "value-here", type: "text" }` rather than the `{ value: null, type: "unknown" }` absent-property sentinel. Also add an em-dash key variant and a CJK key variant for class coverage. **If this test FAILS unexpectedly**, halt and escalate per [research.md §2.3](research.md) — `read_property` has a non-atob Unicode defect path and the BI scope expands.
+- [X] T013 [P] [US2] Add non-ASCII property-name verification test to `src/tools/read_property/handler.test.ts`: stub `invokeCli` so Call A returns JSON with a non-ASCII key (e.g. `{"café_key":"value-here"}`) and Call B returns the matching properties metadata; call `executeReadProperty` with `input.name: "café_key"`; assert the return is `{ value: "value-here", type: "text" }` rather than the `{ value: null, type: "unknown" }` absent-property sentinel. Also add an em-dash key variant and a CJK key variant for class coverage. **If this test FAILS unexpectedly**, halt and escalate per [research.md §2.3](research.md) — `read_property` has a non-atob Unicode defect path and the BI scope expands.
 
 ### Implementation for User Story 2
 
@@ -99,13 +99,13 @@ Single-project layout under [src/](../../src/). Tests are co-located with their 
 
 ### Tests for User Story 3
 
-- [ ] T014 [P] [US3] Add non-ASCII value-match test cases to `src/tools/find_by_property/handler.test.ts` covering: (a) em-dash + accented letter (`"café — naïve"` against the BI-038 fixture shape), (b) CJK character value, (c) emoji value, (d) ASCII/non-ASCII interleaved value, (e) selectivity: when two notes share the same property name but one carries a non-ASCII value and the other an ASCII value, calling with the non-ASCII value MUST return only the non-ASCII note. Each case mocks `invokeCli` to return the eval response that the FIXED template would produce.
+- [X] T014 [P] [US3] Add non-ASCII value-match test cases to `src/tools/find_by_property/handler.test.ts` covering: (a) em-dash + accented letter (`"café — naïve"` against the BI-038 fixture shape), (b) CJK character value, (c) emoji value, (d) ASCII/non-ASCII interleaved value, (e) selectivity: when two notes share the same property name but one carries a non-ASCII value and the other an ASCII value, calling with the non-ASCII value MUST return only the non-ASCII note. Each case mocks `invokeCli` to return the eval response that the FIXED template would produce.
 
 ### Implementation for User Story 3
 
-- [ ] T015 [US3] Extract `JS_TEMPLATE` from `src/tools/find_by_property/handler.ts` (lines 16-39) into a new `src/tools/find_by_property/_template.ts` per the cohort convention (matches `read_heading/_template.ts` etc.). Principle-I cohort-layout housekeeping per [plan.md §4.4](plan.md) — not a spec-driven task; it is bundled here because the same handler is being modified for T016/T017 and leaving the inlined template behind would skew the cohort layout immediately after the rest of the cohort gets the uniform fix. The new file carries an `Original — no upstream` header summarising the eval-template's R6 anti-injection, R3 active/specific mode mapping, and array/scalar equality semantics. Export `JS_TEMPLATE` from the new file; import it back in `handler.ts`. No JS-template content change in this step — pure mechanical extraction.
-- [ ] T016 [US3] Update `src/tools/find_by_property/_template.ts` (the newly-extracted file from T015) — replace the line `const a=JSON.parse(atob('__PAYLOAD_B64__'));` with the UTF-8-safe decode using the shared expression. Preserve the existing array-equality / scalar-equality / case-sensitive comparator logic — only the decode line changes.
-- [ ] T017 [US3] Refactor `src/tools/find_by_property/handler.ts` — replace the inline `payloadJson` / `payloadB64` / `JS_TEMPLATE.replace(...)` triplet with a single `composeEvalCode(JS_TEMPLATE, payload)` call. Existing two-stage parse, count/paths invariant check, and target_mode mapping unchanged.
+- [X] T015 [US3] Extract `JS_TEMPLATE` from `src/tools/find_by_property/handler.ts` (lines 16-39) into a new `src/tools/find_by_property/_template.ts` per the cohort convention (matches `read_heading/_template.ts` etc.). Principle-I cohort-layout housekeeping per [plan.md §4.4](plan.md) — not a spec-driven task; it is bundled here because the same handler is being modified for T016/T017 and leaving the inlined template behind would skew the cohort layout immediately after the rest of the cohort gets the uniform fix. The new file carries an `Original — no upstream` header summarising the eval-template's R6 anti-injection, R3 active/specific mode mapping, and array/scalar equality semantics. Export `JS_TEMPLATE` from the new file; import it back in `handler.ts`. No JS-template content change in this step — pure mechanical extraction.
+- [X] T016 [US3] Update `src/tools/find_by_property/_template.ts` (the newly-extracted file from T015) — replace the line `const a=JSON.parse(atob('__PAYLOAD_B64__'));` with the UTF-8-safe decode using the shared expression. Preserve the existing array-equality / scalar-equality / case-sensitive comparator logic — only the decode line changes.
+- [X] T017 [US3] Refactor `src/tools/find_by_property/handler.ts` — replace the inline `payloadJson` / `payloadB64` / `JS_TEMPLATE.replace(...)` triplet with a single `composeEvalCode(JS_TEMPLATE, payload)` call. Existing two-stage parse, count/paths invariant check, and target_mode mapping unchanged.
 
 **Checkpoint**: `npm run test src/tools/find_by_property/` passes — non-ASCII selectivity case turns green, all existing ASCII / case-sensitivity / array-match tests stay green. US3 ships on its own at this point.
 
@@ -119,33 +119,33 @@ Single-project layout under [src/](../../src/). Tests are co-located with their 
 
 ### paths
 
-- [ ] T018 Update `src/tools/paths/_template.ts` — replace the `JSON.parse(atob(...))` decode line with the shared UTF-8-safe expression; everything below the decode line (folder/depth handling, file walk, sort order) byte-stable
-- [ ] T019 Refactor `src/tools/paths/handler.ts` — switch to `composeEvalCode(JS_TEMPLATE, payload)`; payload shape unchanged
-- [ ] T020 [P] Add non-ASCII folder-input test case to `src/tools/paths/handler.test.ts` (folder name containing accented letter or CJK character); mock invokeCli; assert response includes the expected child paths under that folder
+- [X] T018 Update `src/tools/paths/_template.ts` — replace the `JSON.parse(atob(...))` decode line with the shared UTF-8-safe expression; everything below the decode line (folder/depth handling, file walk, sort order) byte-stable
+- [X] T019 Refactor `src/tools/paths/handler.ts` — switch to `composeEvalCode(JS_TEMPLATE, payload)`; payload shape unchanged
+- [X] T020 [P] Add non-ASCII folder-input test case to `src/tools/paths/handler.test.ts` (folder name containing accented letter or CJK character); mock invokeCli; assert response includes the expected child paths under that folder
 
 ### links
 
-- [ ] T021 Update `src/tools/links/_template.ts` — replace the `JSON.parse(atob(...))` decode line with the shared UTF-8-safe expression
-- [ ] T022 Refactor `src/tools/links/handler.ts` — switch to `composeEvalCode(JS_TEMPLATE, payload)`
-- [ ] T023 [P] Add non-ASCII wikilink-target test case to `src/tools/links/handler.test.ts` (a fixture note whose body contains `[[café-target]]`); mock invokeCli; assert the response's links list resolves the non-ASCII target correctly
+- [X] T021 Update `src/tools/links/_template.ts` — replace the `JSON.parse(atob(...))` decode line with the shared UTF-8-safe expression
+- [X] T022 Refactor `src/tools/links/handler.ts` — switch to `composeEvalCode(JS_TEMPLATE, payload)`
+- [X] T023 [P] Add non-ASCII wikilink-target test case to `src/tools/links/handler.test.ts` (a fixture note whose body contains `[[café-target]]`); mock invokeCli; assert the response's links list resolves the non-ASCII target correctly
 
 ### tag
 
-- [ ] T024 Update `src/tools/tag/_template.ts` — replace the `JSON.parse(atob(...))` decode line with the shared UTF-8-safe expression; existing `payload.query.toLowerCase()` semantics unchanged (the lowercase fold happens AFTER the decode, so the fix is sufficient)
-- [ ] T025 Refactor `src/tools/tag/handler.ts` — switch to `composeEvalCode(JS_TEMPLATE, payload)`
-- [ ] T026 [P] Add non-ASCII tag-query test case to `src/tools/tag/handler.test.ts` (e.g. `query: "café-tag"`); mock invokeCli; assert matching notes are returned
+- [X] T024 Update `src/tools/tag/_template.ts` — replace the `JSON.parse(atob(...))` decode line with the shared UTF-8-safe expression; existing `payload.query.toLowerCase()` semantics unchanged (the lowercase fold happens AFTER the decode, so the fix is sufficient)
+- [X] T025 Refactor `src/tools/tag/handler.ts` — switch to `composeEvalCode(JS_TEMPLATE, payload)`
+- [X] T026 [P] Add non-ASCII tag-query test case to `src/tools/tag/handler.test.ts` (e.g. `query: "café-tag"`); mock invokeCli; assert matching notes are returned
 
 ### smart_connections_similar
 
-- [ ] T027 Update `src/tools/smart_connections_similar/_template.ts` — replace ONLY the `JSON.parse(atob(...))` decode line. Verify the three ADR-014 lifecycle-state branches (`SMART_CONNECTIONS_NOT_INSTALLED` / `_NOT_READY` / `SOURCE_NOT_INDEXED`) below the decode line are BYTE-IDENTICAL pre/post-fix. Diff the file before/after to confirm
-- [ ] T028 Refactor `src/tools/smart_connections_similar/handler.ts` — switch to `composeEvalCode(JS_TEMPLATE, payload)`; payload shape unchanged; ADR-014 stage-order behaviour unchanged
-- [ ] T029 [P] Add non-ASCII query-input test case to `src/tools/smart_connections_similar/handler.test.ts` — mock invokeCli to return a Smart Connections-shaped success envelope; assert the input payload's non-ASCII field round-trips correctly through `composeEvalCode` (assert on the rendered code string OR on the eval-response shape — whichever pattern the existing tests in this file use). NO live plugin probe ([research.md §6.2 + Complexity Tracking](plan.md))
+- [X] T027 Update `src/tools/smart_connections_similar/_template.ts` — replace ONLY the `JSON.parse(atob(...))` decode line. Verify the three ADR-014 lifecycle-state branches (`SMART_CONNECTIONS_NOT_INSTALLED` / `_NOT_READY` / `SOURCE_NOT_INDEXED`) below the decode line are BYTE-IDENTICAL pre/post-fix. Diff the file before/after to confirm
+- [X] T028 Refactor `src/tools/smart_connections_similar/handler.ts` — switch to `composeEvalCode(JS_TEMPLATE, payload)`; payload shape unchanged; ADR-014 stage-order behaviour unchanged
+- [X] T029 [P] Add non-ASCII query-input test case to `src/tools/smart_connections_similar/handler.test.ts` — mock invokeCli to return a Smart Connections-shaped success envelope; assert the input payload's non-ASCII field round-trips correctly through `composeEvalCode` (assert on the rendered code string OR on the eval-response shape — whichever pattern the existing tests in this file use). NO live plugin probe ([research.md §6.2 + Complexity Tracking](plan.md))
 
 ### smart_connections_query
 
-- [ ] T030 Update `src/tools/smart_connections_query/_template.ts` — replace ONLY the `JSON.parse(atob(...))` decode line. Same byte-identical-lifecycle-branches check as T027
-- [ ] T031 Refactor `src/tools/smart_connections_query/handler.ts` — switch to `composeEvalCode(JS_TEMPLATE, payload)`
-- [ ] T032 [P] Add non-ASCII query-input test case to `src/tools/smart_connections_query/handler.test.ts` analogous to T029. NO live plugin probe
+- [X] T030 Update `src/tools/smart_connections_query/_template.ts` — replace ONLY the `JSON.parse(atob(...))` decode line. Same byte-identical-lifecycle-branches check as T027
+- [X] T031 Refactor `src/tools/smart_connections_query/handler.ts` — switch to `composeEvalCode(JS_TEMPLATE, payload)`
+- [X] T032 [P] Add non-ASCII query-input test case to `src/tools/smart_connections_query/handler.test.ts` analogous to T029. NO live plugin probe
 
 **Checkpoint**: All 5 extended-cohort tools fixed; `npm run test src/tools/{paths,links,tag,smart_connections_similar,smart_connections_query}/` passes. The cohort is now uniformly UTF-8-safe.
 
@@ -155,12 +155,12 @@ Single-project layout under [src/](../../src/). Tests are co-located with their 
 
 **Purpose**: Project-wide gate verification + the live-CLI T0 probes that confirm the in-process tests' assumptions about the real `obsidian` binary on Windows hold.
 
-- [ ] T033 Run the full constitutional quality-gate sequence — `npm run lint` (zero warnings), `npm run typecheck` (clean), `npm run build` (clean), `npm run test` (all suites pass + aggregate statements coverage threshold preserved). Record results in this task line on completion
-- [ ] T034 Verify `src/tools/_register-baseline.json` is BYTE-IDENTICAL to its pre-BI state — run `git diff main -- src/tools/_register-baseline.json` and confirm zero changes. This enforces FR-007 + SC-005 (zero schema/description drift) per [contracts/README.md](contracts/README.md). If the file changes, STOP — a schema/description leaked and must be reverted before merge
+- [X] T033 Run the full constitutional quality-gate sequence — `npm run lint` (zero warnings), `npm run typecheck` (clean), `npm run build` (clean), `npm run test` (all suites pass + aggregate statements coverage threshold preserved). Record results in this task line on completion
+- [X] T034 Verify `src/tools/_register-baseline.json` is BYTE-IDENTICAL to its pre-BI state — run `git diff main -- src/tools/_register-baseline.json` and confirm zero changes. This enforces FR-007 + SC-005 (zero schema/description drift) per [contracts/README.md](contracts/README.md). If the file changes, STOP — a schema/description leaked and must be reverted before merge
 - [ ] T035 Execute the 6 live-CLI T0 probes in [quickstart.md](quickstart.md) against `TestVault-Obsidian-CLI-MCP` per `.memory/test-execution-instructions.md`. Record per-probe pass/fail; on any C-stage ASCII regression failure, halt and roll back. Probe 7 (smart_connections_*) is SKIPPED per the plan's Complexity Tracking entry
 - [ ] T036 Clean up the 4 new fixtures created in T001-T004 from `<TestVault>/Sandbox/unicode/`. Leave the pre-existing `Fixtures/BI-038/` notes intact. Verify `Sandbox/` matches its pre-T001 state (or remains empty if it was empty)
 - [ ] T037 `/graphify --update` per the project's phase-boundary convention. Confirms no new error-class nodes outside `errors.ts` community (Principle IV streak preserved), no new dependency from a tool's handler.ts on the boot-time factories, and that the new `_shared.ts` exports land in the expected `tools` community rather than surprise community placement
-- [ ] T038 Update [CHANGELOG.md](../../CHANGELOG.md) — add a `0.6.2` (PATCH; defect repair, no public-surface change) entry summarising the seven-tool atob+base64 fix and the verified-as-unaffected `read_property` case. Mirror the existing 0.6.1 / 0.6.0 entry style
+- [X] T038 Update [CHANGELOG.md](../../CHANGELOG.md) — add a `0.6.2` (PATCH; defect repair, no public-surface change) entry summarising the seven-tool atob+base64 fix and the verified-as-unaffected `read_property` case. Mirror the existing 0.6.1 / 0.6.0 entry style
 
 **Checkpoint**: All gates green; registration baseline byte-stable; live-CLI probes confirm wire shape; graph audit clean; CHANGELOG reflects the patch release.
 
