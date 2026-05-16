@@ -373,6 +373,12 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
     required_equals: ["target_mode"],
     additionalProperties: false,
   },
+  search: {
+    type: "object",
+    properties_equals_set: ["query", "folder", "limit", "case_sensitive", "context_lines", "vault"],
+    required_equals: ["query"],
+    additionalProperties: false,
+  },
   synthetic_pattern_a: {
     type: "object",
     properties_equals_set: ["target_mode", "vault", "file", "path", "note_text"],

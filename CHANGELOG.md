@@ -5,6 +5,41 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-05-17
+
+**PATCH release (additive surface)** — adds `search`, the seventeenth typed-tool wrap and the project's **first vault-text-search primitive**. Returns either `{ count, paths, truncated? }` (default mode) or `{ count, matches: [{ path, line, text }], truncated? }` (line mode). Second member of the **multi-subcommand native-wrapper cohort** alongside BI-019 `files` — a single MCP tool routes between two upstream subcommands (`obsidian search` default, `obsidian search:context` when `context_lines: true`). Spec-id 033-search-vault-content, FR-001..FR-024, SC-001..SC-011.
+
+### Added
+
+- **`search` typed MCP tool** at `src/tools/search/` — `schema.ts` + `handler.ts` + `index.ts` + co-located tests (~60 cases: ~22 schema / ~33 handler / 6 registration). Vault-scoped surface (NO `target_mode` discriminator). Single-call architecture: each MCP request fires ONE `invokeCli` invocation. **Two-subcommand routing** (R2): the wrapper picks `command: "search"` or `command: "search:context"` based on `input.context_lines`; both subcommands accept `format=json` natively (live-probe F1) — NO eval template required. Public surface: `search({ query, folder?, limit?, case_sensitive?, context_lines?, vault? })`. **Zero-match sentinel handling** (FR-012 / R4 / F2): stdout `No matches found.` returns the empty envelope (`{ count: 0, paths: [] }` or `{ count: 0, matches: [] }`), never an error. **Staged parse with `details.stage` discriminator** (I-7 / I-8): `json-parse` for non-JSON stdout, `wire-parse` for shape mismatch. **Defensive `.md` filter** at wrapper level (R6 / FR-021) defends against future upstream behaviour change. **Deterministic sort** (FR-019 / R11): default-mode `paths` ascending UTF-16; line-mode `matches` by `path` asc then `line` asc. **`truncated: true` cap detection** via two mechanisms (R3): default mode uses an `appliedCap + 1` probe trick (the wrapper requests one more than the user-facing cap; if upstream returns exactly that count, truncation fired); line mode uses the conservative `cliFileCapFired || flatExceedsCap` test. The `truncated` field is **only present when fired** — absent === `false` (I-11). **500-char text cap with U+2026 ellipsis** (FR-024 / R10): line-mode `text` longer than 500 chars truncates to first 500 + `…` (final length 501). **Folder normalisation** (FR-006 / I-5): leading/trailing `/` stripped wrapper-side; `folder: "/"` alone normalises to empty and is omitted. **ZERO new top-level error codes**, **ZERO new `details.code` values** — the sixteen-tool zero-new-codes streak since BI-011 is preserved (Constitution Principle IV); `json-parse` / `wire-parse` `details.stage` strings are re-used from peer typed-tool conventions (BI-024 / BI-025 / BI-026 / BI-028).
+
+- **Non-stub `docs/tools/search.md`** per FR-020 / FR-014 — full input contract table; both output shapes with field annotations and truncated-flag semantics; complete error roster (5 codes); eight worked examples (minimal default; line mode; folder-scoped; capped+truncated; case-sensitive; cross-vault; long-line truncation; validation rejection); six documented behavioural notes (filename-match inflation; line-mode count divergence; conservative truncation; .md-only result; case-sensitive folder; ASCII-fold case-insensitivity); inherited limitations (output-cap ceiling; no relevance ranking; no `total: true` at v1; no regex / boolean / surrounding-context; single-call architecture; argv anti-injection).
+
+- **Two-line wiring** in `src/server.ts`: import + tools-array entry (alphabetical: inserted between `createRenameTool` and `createSetPropertyTool`).
+
+- **FR-018 baseline roll-forward**: `src/tools/_register-baseline.json` extended with the `search` entry via `npm run baseline:write` (20 entries total). All other tool fingerprints unchanged byte-identically.
+
+### Plan-stage design decisions
+
+- **Tool name `search`** — single-word verbatim-from-upstream choice per ADR-010. Internal routing to `search:context` is an implementation detail (BI-019 `files` precedent: single MCP tool routes to multiple upstream subcommands).
+- **Architecture native, NOT eval** (R1): live-probe F1 confirmed both `obsidian search` and `obsidian search:context` accept `format=json` natively. The eval-cohort departure point — BI-028 used eval because the native `tag` lacks case-insensitivity + child-subsumption + JSON output; the native `search` has all three (R1 / R2 / F1).
+- **FR-016 restated (plan-stage Amendment 1)**: the `mode + vault?` discriminator dropped in favour of plain `vault?` — parity with BI-024 / BI-028 vault-scoped query tools. The project convention is `vault?`-only for vault-scoped query surfaces; `target_mode` is for file-scoped tools.
+- **FR-021 status documented (plan-stage Amendment 2)**: the defensive `.md` filter is currently non-firing (upstream natively restricts to `.md`, F6) but retained as defence-in-depth against future upstream behaviour change.
+
+### Routing guidance
+
+For substring text queries, prefer `search`. For semantic/embedding-similarity queries, use `smart_connections_query` instead. For tag-indexed lookups, use `tag`. For frontmatter property-value lookups, use `find_by_property`. `obsidian_exec search:open` remains the fallback for the UX-opening subcommand (not a data primitive).
+
+### Migration
+
+None. Additive surface — existing tools unchanged at the wire.
+
+### Internal
+
+- **Frozen surfaces**: `obsidian_exec`, `read`, `write_note`, `delete`, `read_property`, `find_by_property`, `read_heading`, `set_property`, `files`, `rename`, `outline`, `properties`, `links`, `smart_connections_similar`, `smart_connections_query`, `tag`, `tree`, `move`, `paths`, `help` all byte-stable.
+- **Zero new ADRs** (ADR-010 PASS — verbatim upstream name; ADR-013/014 N/A — not plugin-backed; ADR-015 N/A — no new `(top-level-code, details.code)` pair with sub-states). **Zero Constitution amendment** (v1.5.0 stays).
+- **Second member of the multi-subcommand native-wrapper cohort** (joining BI-019 `files`). Both tools route between sibling upstream subcommands keyed on an input flag; `search` is the first to combine that routing with mode-dependent output shapes (default-mode `paths` array vs line-mode `matches` array).
+
 ## [0.5.8] - 2026-05-15
 
 **PATCH release (additive surface)** — adds `move`, the sixteenth typed-tool wrap and the project's **second member of the file-scoped write-side cohort** alongside `rename`. Returns `{ moved: true, fromPath, toPath }` on success. Wraps the Obsidian CLI's native `move` subcommand (NOT eval). Spec-id 030-move-note, FR-001..FR-019, SC-001..SC-015.
