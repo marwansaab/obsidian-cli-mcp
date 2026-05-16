@@ -516,3 +516,27 @@ test("US3 Q-13 segment-boundary precision: substring-prefix 'foobar' MUST NOT ma
   const result = await executeTag({ tag: "foo" }, deps(spawnFn));
   expect(result).toEqual({ count: 0, paths: [] });
 });
+
+// (BI-034) Non-ASCII tag-query round-trips through base64
+test("BI-034: non-ASCII tag query 'café-tag' round-trips through base64 (FR-009)", async () => {
+  const paths = ["Sandbox/unicode/tagged.md"];
+  const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: defaultEnv(paths), exitCode: 0 }]);
+  const result = await executeTag({ vault: "Demo", tag: "café-tag" }, deps(spawnFn));
+  expect(result).toEqual({ count: 1, paths });
+  const payload = decodePayload(recorded[0]!.argv) as { query: unknown };
+  expect(payload.query).toBe("café-tag");
+});
+
+test("BI-034: non-ASCII tag query (CJK) round-trips through base64 (FR-009)", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: defaultEnv([]), exitCode: 0 }]);
+  await executeTag({ vault: "Demo", tag: "笔记" }, deps(spawnFn));
+  const payload = decodePayload(recorded[0]!.argv) as { query: unknown };
+  expect(payload.query).toBe("笔记");
+});
+
+test("BI-034: non-ASCII tag query (emoji) round-trips through base64 (FR-009)", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: defaultEnv([]), exitCode: 0 }]);
+  await executeTag({ vault: "Demo", tag: "🎉-launch" }, deps(spawnFn));
+  const payload = decodePayload(recorded[0]!.argv) as { query: unknown };
+  expect(payload.query).toBe("🎉-launch");
+});

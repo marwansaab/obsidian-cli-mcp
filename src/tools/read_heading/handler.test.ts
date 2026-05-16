@@ -570,6 +570,84 @@ test("argv shape in active mode: [eval, code=...] no vault= (R6/R12)", async () 
   expect(codeArg.endsWith("})()")).toBe(true);
 });
 
+// (BI-034 US1) Non-ASCII heading segments survive base64 round-trip — em-dash
+test("BI-034 US1 (a): em-dash single-segment heading round-trips verbatim (FR-009)", async () => {
+  const heading = "TC-108 Round Trip Fixture — 5 KB";
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    { stdout: '=> {"ok":true,"content":"em-dash body."}\n', exitCode: 0 },
+  ]);
+  const result = await executeReadHeading(
+    { target_mode: "specific", vault: "Demo", path: "x.md", heading },
+    deps(spawnFn),
+  );
+  expect(result).toEqual({ content: "em-dash body." });
+  const payload = decodePayload(recorded[0]!.argv) as { segments: string[] };
+  expect(payload.segments).toEqual([heading]);
+});
+
+// (BI-034 US1) Accented-letter single-segment heading
+test("BI-034 US1 (b): accented-letter single-segment heading round-trips verbatim (FR-009)", async () => {
+  const heading = "café";
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    { stdout: '=> {"ok":true,"content":"accented body."}\n', exitCode: 0 },
+  ]);
+  const result = await executeReadHeading(
+    { target_mode: "specific", vault: "Demo", path: "x.md", heading },
+    deps(spawnFn),
+  );
+  expect(result).toEqual({ content: "accented body." });
+  const payload = decodePayload(recorded[0]!.argv) as { segments: string[] };
+  expect(payload.segments).toEqual([heading]);
+});
+
+// (BI-034 US1) CJK single-segment heading
+test("BI-034 US1 (c): CJK single-segment heading round-trips verbatim (FR-009)", async () => {
+  const heading = "你好世界";
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    { stdout: '=> {"ok":true,"content":"cjk body."}\n', exitCode: 0 },
+  ]);
+  const result = await executeReadHeading(
+    { target_mode: "specific", vault: "Demo", path: "x.md", heading },
+    deps(spawnFn),
+  );
+  expect(result).toEqual({ content: "cjk body." });
+  const payload = decodePayload(recorded[0]!.argv) as { segments: string[] };
+  expect(payload.segments).toEqual([heading]);
+});
+
+// (BI-034 US1) Emoji single-segment heading
+test("BI-034 US1 (d): emoji single-segment heading round-trips verbatim (FR-009)", async () => {
+  const heading = "👋🌍 greetings";
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    { stdout: '=> {"ok":true,"content":"emoji body."}\n', exitCode: 0 },
+  ]);
+  const result = await executeReadHeading(
+    { target_mode: "specific", vault: "Demo", path: "x.md", heading },
+    deps(spawnFn),
+  );
+  expect(result).toEqual({ content: "emoji body." });
+  const payload = decodePayload(recorded[0]!.argv) as { segments: string[] };
+  expect(payload.segments).toEqual([heading]);
+});
+
+// (BI-034 US1) Nested path mixing ASCII + non-ASCII segments
+test("BI-034 US1 (e): nested ASCII-then-non-ASCII path round-trips verbatim (FR-009)", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    { stdout: '=> {"ok":true,"content":"nested body."}\n', exitCode: 0 },
+  ]);
+  await executeReadHeading(
+    {
+      target_mode: "specific",
+      vault: "Demo",
+      path: "x.md",
+      heading: "Outer::café — naïve",
+    },
+    deps(spawnFn),
+  );
+  const payload = decodePayload(recorded[0]!.argv) as { segments: string[] };
+  expect(payload.segments).toEqual(["Outer", "café — naïve"]);
+});
+
 // (50) R6 anti-injection: adversarial heading round-trips through base64
 test("R6 anti-injection: hostile heading segments survive base64 round-trip exactly (SC-021)", async () => {
   const hostile = 'Outer::Inner"); doSomething(); //';

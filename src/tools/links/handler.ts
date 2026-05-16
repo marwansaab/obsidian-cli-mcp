@@ -8,6 +8,7 @@ import {
 } from "./schema.js";
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
+import { composeEvalCode } from "../_shared.js";
 
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
@@ -23,14 +24,12 @@ export async function executeLinks(
   input: LinksInput,
   deps: ExecuteDeps,
 ): Promise<LinksOutput> {
-  const payloadJson = JSON.stringify({
+  const code = composeEvalCode(JS_TEMPLATE, {
     active: input.target_mode === "active",
     path: input.target_mode === "specific" ? input.path ?? null : null,
     file: input.target_mode === "specific" ? input.file ?? null : null,
     total: input.total === true,
   });
-  const payloadB64 = Buffer.from(payloadJson, "utf-8").toString("base64");
-  const code = JS_TEMPLATE.replace("__PAYLOAD_B64__", payloadB64);
 
   const result = await invokeCli(
     {

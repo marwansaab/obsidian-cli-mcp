@@ -5,6 +5,36 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2026-05-17
+
+**PATCH release (defect repair)** — fixes the silent-non-ASCII-lookup defect in the seven-tool atob+base64 eval-composition cohort. `atob()` in V8 returns a Latin-1 binary string, so UTF-8 multi-byte sequences (em-dash, accented letters, CJK, emoji) survive base64 transit but get mojibake-interpreted post-`atob`, producing a JS object whose string fields no longer byte-equal the vault's authored content. Spec-id 034-fix-unicode-lookups, FR-001..FR-019, SC-001..SC-006.
+
+### Fixed
+
+- **Seven-tool atob+base64 cohort fix**: `read_heading`, `find_by_property`, `paths`, `links`, `tag`, `smart_connections_similar`, `smart_connections_query` all replace the eval-side `JSON.parse(atob('__PAYLOAD_B64__'))` decode with the UTF-8-safe expression `JSON.parse(new TextDecoder("utf-8").decode(Uint8Array.from(atob('__PAYLOAD_B64__'),c=>c.charCodeAt(0))))`. Non-ASCII identifier inputs (heading paths, property values, folder names, wikilink targets, tag queries, similarity-query strings) now byte-equal the vault's authored content and lookups succeed where they previously returned empty / not-found.
+
+### Added (internal)
+
+- **`src/tools/_shared.ts`** gains two exports — `B64_PAYLOAD_DECODE_EXPR` (the UTF-8-safe decode expression embedded by every eval template) and `composeEvalCode(template, payload)` (the Node-side base64-encode + placeholder-substitute helper consumed by every cohort handler). Both centralise the shared compose seam ADR-004 was authored to maintain; future eval-composition tools pick up the fix free.
+- **`src/tools/find_by_property/_template.ts`** — newly extracted from the previously inlined `JS_TEMPLATE` constant in `handler.ts` so the cohort layout matches `read_heading/_template.ts`, `paths/_template.ts`, etc. (Principle I housekeeping landed alongside the same-file fix so the cohort layout doesn't skew post-BI).
+
+### Verified unaffected
+
+- **`read_property`** — static audit at plan stage showed this tool uses the argv-based `properties` subcommand and a native JS-string `Object.prototype.hasOwnProperty.call()` comparison; it does NOT use the atob+base64 indirection. A regression test exercising non-ASCII property KEYs (accented, em-dash, CJK) was added to confirm the prediction; all cases pass without any production code change.
+
+### Plan-stage design decisions
+
+- **Scope broadened from spec's 3-named tools to 7-tool cohort** (per research.md §3) — the atob+base64 defect is identical across every cohort member; fixing 2-of-7 would create the partial-fix landmine the next agent would trip on. ADR-004's centralised-adapter spirit favours one shared helper over seven parallel patches.
+- **Shared decoder helper lives in `src/tools/_shared.ts`, not `src/cli-adapter/`** — the decoder is a per-template concern and the compose helper is a per-handler concern; both are tool-layer concerns and `cli-adapter/` retains its current concern of dispatching `obsidian` invocations (research.md §4.3).
+- **Live-CLI T0 probe SKIPPED for `smart_connections_*`** — the authorised test vault is intentionally plugin-free; installing Smart Connections violates the bare-vault invariant. Unit tests with mocked `invokeCli` cover the decoder fix for both tools (Complexity Tracking entry in plan.md).
+
+### Internal
+
+- **Zero new top-level error codes**; **zero new `details.code` values** — the seventeen-tool zero-new-top-level-codes streak since BI-011 is preserved (Constitution Principle IV).
+- **`_register-baseline.json` byte-identical** to its pre-BI state (FR-007 + SC-005 enforced by `_register-baseline.test.ts`).
+- **Zero new ADR**, **zero Constitution amendment** — ADR-010 / ADR-013 / ADR-014 / ADR-015 all N/A; ADR-014 lifecycle-state branches in `smart_connections_*` templates verified byte-stable below the decode line.
+- **Seven `_template.ts` files modified at decode line only**; **seven `handler.ts` files refactored** to use `composeEvalCode`; **one new file** (`find_by_property/_template.ts`); **one shared module extended** (`_shared.ts` + co-located tests).
+
 ## [0.6.1] - 2026-05-17
 
 **PATCH release (additive surface)** — adds `search`, the seventeenth typed-tool wrap and the project's **first vault-text-search primitive**. Returns either `{ count, paths, truncated? }` (default mode) or `{ count, matches: [{ path, line, text }], truncated? }` (line mode). Second member of the **multi-subcommand native-wrapper cohort** alongside BI-019 `files` — a single MCP tool routes between two upstream subcommands (`obsidian search` default, `obsidian search:context` when `context_lines: true`). Spec-id 033-search-vault-content, FR-001..FR-024, SC-001..SC-011.
