@@ -3,6 +3,7 @@
 Call `help({ tool_name: "<name>" })` to read the full Markdown documentation for any tool below. Calling `help()` with no arguments returns this index.
 
 - **append_note** — _(documentation pending — owned by a future BI)_.
+- **context_search** — Return each match of a literal phrase in a vault as a single entry carrying file path, 1-based line number, and the matching line's text (returns `{ count, matches: [{ path, line, text }], truncated? }` — eighteenth typed-tool wrap; dedicated per-line-context primitive; vault-scoped surface; collapses the "find file → read file → locate line" grep-style three-call pattern to one call; preferred over `search` with `context_lines=true`).
 - **delete** — Delete a note from an Obsidian vault. Default sends the file to the OS trash (recoverable); `permanent: true` is irreversible.
 - **files** — List files directly inside a vault folder (returns `{ count, paths }` — non-recursive folder-scoped enumeration, sub-folder + dotfile entries dropped, paths sorted by UTF-8 byte order; supports `total: true` for count-only mode).
 - **find_by_property** — Find notes whose frontmatter property matches a given value (returns `{ count, paths }` — the value→file inverse of `read_property`).

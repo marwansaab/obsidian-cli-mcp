@@ -36,7 +36,7 @@ top-level keys are rejected (`additionalProperties: false`).
 | `folder` | string | OPTIONAL | length ≥ 1; leading/trailing `/` stripped wrapper-side |
 | `limit` | integer | OPTIONAL | inclusive 1..10000; defaults to implicit 1000 cap |
 | `case_sensitive` | boolean | OPTIONAL | defaults to `false` (upstream case-insensitive) |
-| `context_lines` | boolean | OPTIONAL | defaults to `false` (default mode); when `true`, routes to `search:context` |
+| `context_lines` | boolean | OPTIONAL | **deprecated — prefer the dedicated `context_search` tool.** Defaults to `false` (default mode); when `true`, routes to `search:context` |
 | `vault` | string | OPTIONAL | length ≥ 1; routes to focused vault when omitted |
 
 ### Per-field policy
@@ -57,9 +57,13 @@ top-level keys are rejected (`additionalProperties: false`).
   presence-only `case` flag; otherwise it's omitted and upstream's
   default insensitivity (ASCII fold only) applies. Folding is ASCII-only
   — `É` does NOT match `é`.
-- **`context_lines`** — when `true`, routes to `obsidian search:context`
-  and returns line-level matches; otherwise routes to `obsidian search`
-  and returns paths only.
+- **`context_lines`** — **deprecated — prefer the dedicated
+  [`context_search`](./context_search.md) tool.** When `true`, routes to
+  `obsidian search:context` and returns line-level matches; otherwise
+  routes to `obsidian search` and returns paths only. For per-line
+  context, prefer `context_search` (added in BI-035); `context_lines=true`
+  is retained for backward compatibility but will be removed in a future
+  BI.
 - **`vault`** — the vault display name. Unknown vault →
   `CLI_REPORTED_ERROR(details.code: "VAULT_NOT_FOUND")` via the
   cli-adapter's success-path stdout inspection.
