@@ -7,7 +7,7 @@ description: "Task list for BI-035 context-search implementation"
 **Input**: Design documents from `/specs/035-context-search/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md
 
-**Tests**: REQUIRED — co-located vitest cases ship in the same change as their surface per Constitution Principle II. ~37 cases total (~22 schema / ~14 handler / 1 index smoke) per [data-model.md](data-model.md) test inventory. Test scope is unit-only (per project memory `feedback_test_scope`); integration / TC-XXX cases live in the user's external tracker.
+**Tests**: REQUIRED — co-located vitest cases ship in the same change as their surface per Constitution Principle II. ~39 cases total (~22 schema / ~16 handler / 1 index smoke) per [data-model.md](data-model.md) test inventory plus two analyzer-driven additions (T023a output-too-large pass-through, T036a recursion characterisation — both folded in from `/speckit-analyze` remediation 2026-05-17). Test scope is unit-only (per project memory `feedback_test_scope`); integration / TC-XXX cases live in the user's external tracker.
 
 **Organization**: Tasks grouped by the four user stories (US1..US4 from [spec.md](spec.md)). The four stories share a single new module (`src/tools/context_search/`); per-story grouping primarily partitions tests and progressively layers handler-behaviour features. US1 ships the per-match line-context happy path (MVP); US2 adds help-tool discoverability + the `search` help-text deprecation marker; US3 adds folder normalisation + `limit` + `case_sensitive` + the conservative `truncated` flag; US4 adds the second CLI invocation for FR-013 folder-existence probing + verifies vault-not-found pass-through.
 
@@ -44,7 +44,7 @@ Single-project TypeScript layout. All new source under `src/tools/context_search
 - [ ] T005 Create `src/tools/context_search/index.ts` — declare `CONTEXT_SEARCH_TOOL_NAME = "context_search"` (ADR-010 strict reversal of `search:context` per R2); export `CONTEXT_SEARCH_DESCRIPTION` (rich one-paragraph text describing the input contract, output shape, error roster, and the "Prefer this over `search` when..." guidance line per FR-020); export `createContextSearchTool(deps: RegisterDeps): RegisteredTool` factory calling `registerTool({name, description, schema: contextSearchInputSchema, deps, handler: async (input, d) => executeContextSearch(input, d)})`. Look at `src/tools/search/index.ts` for the canonical factory shape; mirror structure minus the `context_lines` references. Carry `// Original — no upstream. context_search tool registration via registerTool — vault-text-search-with-line-context primitive returning { count, matches: [{ path, line, text }], truncated? } in one call (eighteenth typed-tool wrap). Tool name `context_search` follows ADR-010 strict composite-namespace reversal of upstream `obsidian search:context` — parity with read_property (property:read) / set_property (property:set).` header.
 - [ ] T006 Create `src/tools/context_search/index.test.ts` — I1 smoke test: `createContextSearchTool` returns a `RegisteredTool` with `name === "context_search"` and `description.length > 0`. Parity with `src/tools/search/index.test.ts`.
 - [ ] T007 Modify `src/tools/_register.ts` — add `createContextSearchTool` import and registration call. Position alphabetically among existing tool registrations; mirror the surrounding code shape exactly.
-- [ ] T008 Modify `src/tools/_register-baseline.json` — add `"context_search"` to the registered-tools array (alphabetical position; FR-018 registry-stability lock). The existing `_register.test.ts` regression test will then pass.
+- [ ] T008 Regenerate `src/tools/_register-baseline.json` via the project's canonical regenerator workflow — run `npm run baseline:write` (which executes `scripts/write-register-baseline.ts`) AFTER T007's `_register.ts` change is in place. The script produces the canonical JSON including fingerprint hashes for the new `context_search` entry; do NOT hand-edit the JSON file (manual edits would diverge from the regenerator's canonicalisation and the FR-018 stability test would re-fail on the next run). The helper module `src/tools/_register-baseline.ts` (fingerprint utilities) is NOT touched — it contains no tool-name list, only hashing helpers. Note added by /speckit-analyze remediation 2026-05-17.
 - [ ] T009 Modify `src/tools/_register.test.ts` — update the assertion target count (existing tools + 1 = 18) and/or any snapshot that enumerates registered tool names. The baseline JSON drives the assertion; this task touches only the test if it carries a parallel constant.
 
 **Checkpoint**: Foundation ready — module skeleton compiles (`tsc --noEmit` clean), schemas parse, handler is a stub that throws "not implemented", index.ts wires schema + handler into a `RegisteredTool`, the new tool is registered and present in the FR-018 baseline. T003 + T006 pass.
@@ -60,7 +60,7 @@ Single-project TypeScript layout. All new source under `src/tools/context_search
 ### Tests for User Story 1
 
 - [ ] T010 [P] [US1] Add to `src/tools/context_search/handler.test.ts` — H1 happy path single file, two matches, single CLI call: mock `invokeCli` (1st call) returns `{stdout: '[{"file":"a.md","matches":[{"line":2,"text":"foo"},{"line":5,"text":"foo"}]}]', stderr: "", exitCode: 0}`; input `{query: "foo"}`; assert exactly ONE invokeCli call with `command: "search:context"`, `parameters.query === "foo"`, `parameters.format === "json"`, `parameters.limit === "1000"`; response `{count: 2, matches: [{path: "a.md", line: 2, text: "foo"}, {path: "a.md", line: 5, text: "foo"}]}`; NO `truncated` field; NO second invokeCli call (no folder param → no probe).
-- [ ] T011 [P] [US1] Add to `src/tools/context_search/handler.test.ts` — H3 vault flow-through: input `{query: "foo", vault: "MyVault"}`; assert `invokeCli` `parameters.vault === "MyVault"` AND parameters.vault is ABSENT when input.vault undefined.
+- [ ] T011 [P] [US1] Add to `src/tools/context_search/handler.test.ts` — H3 vault flow-through (note: vault is a **top-level field** of `InvokeCliInput`, not inside `parameters` — see [src/cli-adapter/cli-adapter.ts:21](../../src/cli-adapter/cli-adapter.ts#L21)): input `{query: "foo", vault: "MyVault"}`; assert the constructed CLI `argv` contains `"vault=MyVault"` verbatim (parity with [src/tools/search/handler.test.ts:263-274](../../src/tools/search/handler.test.ts#L263-L274)'s shipped pattern). With `input.vault` undefined, assert `argv.find((a) => a.startsWith("vault=")) === undefined`. The assertion target is the resulting argv array (or the spawnFn spy's recorded argv parameter), NOT `parameters.vault`. Reworded by /speckit-analyze remediation 2026-05-17.
 - [ ] T012 [P] [US1] Add to `src/tools/context_search/handler.test.ts` — H5 zero-match sentinel no folder: mock stdout `"\nNo matches found.\n"`; input `{query: "absent"}`; assert exactly ONE invokeCli call; response `{count: 0, matches: []}`; NO `truncated`; output-schema validation passes.
 - [ ] T013 [P] [US1] Add to `src/tools/context_search/handler.test.ts` — H8 malformed JSON in first-call stdout: mock stdout `"not json {{{"`; input `{query: "foo"}`; assert throws `UpstreamError` with `code === "CLI_REPORTED_ERROR"`, `details.stage === "json-parse"`, and `cause` preserved.
 - [ ] T014 [P] [US1] Add to `src/tools/context_search/handler.test.ts` — H9 wire-shape parse failure: mock stdout `'[{"file":"a.md","matches":"not-array"}]'`; input `{query: "foo"}`; assert throws `UpstreamError` with `code === "CLI_REPORTED_ERROR"`, `details.stage === "wire-parse"`.
@@ -73,12 +73,13 @@ Single-project TypeScript layout. All new source under `src/tools/context_search
 - [ ] T021 [P] [US1] Add to `src/tools/context_search/handler.test.ts` — Response-key-set invariant: assert `Object.keys(response).sort()` is exactly `["count", "matches"]` for non-truncated; `["count", "matches", "truncated"]` for truncated. NO `vault` / `query` / `folder` / `limit` / `case_sensitive` echo in any response shape (FR-021 / read-tool memory note).
 - [ ] T022 [P] [US1] Add to `src/tools/context_search/handler.test.ts` — Byte-identical repeated call (FR-018 / SC-007): same input + same mocked CLI return → `JSON.stringify(r1) === JSON.stringify(r2)`.
 - [ ] T023 [P] [US1] Add to `src/tools/context_search/handler.test.ts` — Drop entries with empty `matches: []` (R8 inherited from BI-033 R9): mock CLI returns `[{"file":"a.md","matches":[]},{"file":"b.md","matches":[{"line":1,"text":"y"}]}]`; assert response `{count: 1, matches: [{path:"b.md", line:1, text:"y"}]}` — `a.md` dropped naturally by flatMap (zero rows from empty array).
+- [ ] T023a [P] [US1] Add to `src/tools/context_search/handler.test.ts` — FR-019 / inherited `CLI_OUTPUT_TOO_LARGE` pass-through: mock `invokeCli` THROWS `UpstreamError({code: "CLI_OUTPUT_TOO_LARGE", cause: null, details: { argv: [...], stream: "stdout", limitBytes: 10485760 } })` (simulating the dispatch-layer kill at `_dispatch.ts:263`); assert handler re-raises unchanged (no swallow, no wrapping, no re-classification). Parity with T040's vault-not-found pass-through pattern; characterises FR-019's defer-to-cli-adapter contract at the handler boundary. Added by /speckit-analyze remediation 2026-05-17 to close C2 coverage gap.
 
 ### Implementation for User Story 1
 
 - [ ] T024 [US1] Implement `executeContextSearch` body in `src/tools/context_search/handler.ts` for the single-call happy path: zod parse implicit (caller passes already-parsed input via the registered tool); `appliedCap = input.limit ?? DEFAULT_CAP`; assemble `parameters` (`query`, `format: "json"`, `limit: String(appliedCap)` — NOT +1, line-mode conservative per R9); single `await invokeCli({command: "search:context", vault: input.vault, parameters, flags: [], target_mode: "specific"}, deps)`; stage-0 zero-match sentinel check (`result.stdout.trim() === ZERO_MATCH_SENTINEL` → return `{count: 0, matches: []}`); JSON.parse with try/catch throwing `UpstreamError(CLI_REPORTED_ERROR, {cause, details: {stage: "json-parse", stdout: result.stdout.slice(0, 500)}})`; `searchContextWireSchema.safeParse(parsed)` with `!success` throwing `UpstreamError(..., details: {stage: "wire-parse", stdout: ...})`; file-level `.md` filter (`wire.filter((f) => f.file.toLowerCase().endsWith(".md"))`); flatten via `flatMap` ((f) => f.matches.map((m) => ({path: f.file, line: m.line, text: capLine(stripCr(m.text))}))); sort by `path` asc then `line` asc; `contextSearchOutputSchema.parse({count: sorted.length, matches: sorted})` boundary check; return. **Defer to US3**: folder normalisation (skip if `input.folder` undefined; T037 fills in), `case_sensitive` mapping (T038), truncation flag (T039). **Defer to US4**: post-empty folder-existence probe (T044).
 
-**Checkpoint**: US1 fully functional for the no-folder / no-limit / no-case-sensitive / non-truncated path. MVP shippable when T010-T023 pass. Handler returns `{count, matches}` for valid inputs; throws structured `UpstreamError` for every failure mode; never silent-fails. Folder filter / `limit` / case-sensitivity / truncation flag / folder-not-found probe are still no-op or absent (deferred to US3-US4).
+**Checkpoint**: US1 fully functional for the no-folder / no-limit / no-case-sensitive / non-truncated path. MVP shippable when T010-T023a pass. Handler returns `{count, matches}` for valid inputs; throws structured `UpstreamError` for every failure mode; never silent-fails. Folder filter / `limit` / case-sensitivity / truncation flag / folder-not-found probe are still no-op or absent (deferred to US3-US4).
 
 ---
 
@@ -88,11 +89,13 @@ Single-project TypeScript layout. All new source under `src/tools/context_search
 
 **Independent Test**: Call `help({ tool_name: "search" })` and assert the response includes a deprecation marker on `context_lines` and a cross-pointer to `context_search`. Call `help({ tool_name: "context_search" })` and assert the response is non-empty and includes the four worked examples + guidance line. Call `help()` (no arg) and assert both tools appear in the index.
 
+**⚠️ PRECONDITION** (added by /speckit-analyze remediation 2026-05-17): the exact file paths in T025-T030 use placeholders (`<help-test-file>`, `<content-source>`) because the help-tool's content data structure was not pinned down at plan stage. Before starting US2, inspect `src/tools/help/` (and locate any per-tool help blocks for shipped tools like `search`, `read_property`, `find_by_property` etc.) to identify (a) the canonical content file(s) carrying the help blocks and (b) the corresponding test file(s). Update tasks T025-T030 in place with the resolved file paths before implementation begins. This unblocks parallel execution of US2 with US1.
+
 ### Tests for User Story 2
 
-- [ ] T025 [P] [US2] Add to `src/tools/help/<help-test-file>` (whatever the existing per-tool help tests are co-located with) — assert `help({ tool_name: "context_search" })` response: (a) non-empty body, (b) contains the four worked examples (minimal, folder-scoped, capped+truncated, CRLF-source), (c) lists the input parameters `query / folder / limit / case_sensitive / vault`, (d) lists the failure roster (VALIDATION_ERROR / CLI_REPORTED_ERROR / CLI_BINARY_NOT_FOUND / CLI_TIMEOUT / CLI_OUTPUT_TOO_LARGE / CLI_NON_ZERO_EXIT), (e) contains the "Prefer this over `search` when..." guidance line.
+- [ ] T025 [P] [US2] Add to `src/tools/help/<help-test-file>` (resolve per the precondition above) — assert `help({ tool_name: "context_search" })` response: (a) non-empty body, (b) contains the four worked examples (minimal, folder-scoped, capped+truncated, CRLF-source), (c) lists the input parameters `query / folder / limit / case_sensitive / vault`, (d) lists the failure roster (VALIDATION_ERROR / CLI_REPORTED_ERROR / CLI_BINARY_NOT_FOUND / CLI_TIMEOUT / CLI_OUTPUT_TOO_LARGE / CLI_NON_ZERO_EXIT), (e) contains the "Prefer this over `search` when..." guidance line.
 - [ ] T026 [P] [US2] Add to `src/tools/help/<help-test-file>` — assert `help({ tool_name: "search" })` response now contains: (a) a `deprecated` marker on the `context_lines` parameter row, (b) the one-sentence cross-pointer to `context_search`, (c) the existing six-behavioural-notes block (no regression on BI-033's prior content). Verify the marker text matches `deprecated — prefer the dedicated context_search tool` exactly (or whichever phrasing the help-tool implementation supports).
-- [ ] T027 [P] [US2] Add to `src/tools/help/<help-test-file>` — assert `help()` (no tool_name argument) index lists both `search` and `context_search` (alphabetical order; `context_search` precedes `search`). Verify the count of registered tools the help-index iterates matches the 18-tool registered set.
+- [ ] T027 [P] [US2] Add to `src/tools/help/<help-test-file>` — assert `help()` (no tool_name argument) index lists both `search` and `context_search` (alphabetical order; `context_search` precedes `search`). Assert the index includes every tool registered through `_register.ts` (use the same registry the existing help-index iterates — do not bake in a brittle integer count, since the project's typed-tool surface continues to grow). Note: brittle-integer claim removed by /speckit-analyze remediation 2026-05-17.
 
 ### Implementation for User Story 2
 
@@ -118,6 +121,7 @@ Single-project TypeScript layout. All new source under `src/tools/context_search
 - [ ] T034 [P] [US3] Add to `src/tools/context_search/handler.test.ts` — `folder` undefined → `parameters.path` is ABSENT (default; no folder restriction). Already covered by T010 (H1) implicitly; this task explicitly asserts the negative.
 - [ ] T035 [P] [US3] Add to `src/tools/context_search/handler.test.ts` — H4 `case_sensitive=true` sets `case` flag: input `{query: "Foo", case_sensitive: true}`; assert `parameters.case === true` (presence-only boolean flag). Also test `case_sensitive: false` → `parameters.case` ABSENT; `case_sensitive` omitted → `parameters.case` ABSENT.
 - [ ] T036 [P] [US3] Add to `src/tools/context_search/handler.test.ts` — H14 truncation flag (R9 conservative): mock CLI returns `appliedCap` files each with one match (where `appliedCap = input.limit`). Two sub-cases: (a) `limit: 3`, CLI returns 3 files × 1 match each → `truncated: true`, `count: 3`, `matches.length: 3`. (b) `limit: 3`, CLI returns 3 files × 2 matches each (flat → 6 entries) → `truncated: true` (flatExceedsCap fires), trimmed to `count: 3, matches.length: 3`. (c) `limit: 3`, CLI returns 2 files × 1 match each (flat → 2 entries, under cap) → `truncated` ABSENT (or false), `count: 2`. (d) `limit` omitted, CLI returns 1000 files × 1 match each → `truncated: true`, `matches.length: 1000`. (e) `limit` omitted, CLI returns 999 files × 1 match each → `truncated` ABSENT.
+- [ ] T036a [P] [US3] Add to `src/tools/context_search/handler.test.ts` — FR-003 / SC-003 recursive subtree-prefix characterisation: input `{query: "foo", folder: "Projects"}`; mock CLI returns `[{"file":"Projects/foo.md","matches":[{"line":1,"text":"x"}]},{"file":"Projects/sub/bar.md","matches":[{"line":1,"text":"y"}]},{"file":"Projects/a/b/c.md","matches":[{"line":1,"text":"z"}]}]`; assert response `matches` contains all three entries with paths preserved verbatim and sorted by `(path, line)` ascending. Verifies the wrapper forwards nested-subfolder rows from upstream without filtering them out (per Clarification Q2=A). Added by /speckit-analyze remediation 2026-05-17 to close C1 coverage gap (the recursion shape is inherited from upstream's `path=` flag; this test characterises the forward step at the wrapper layer, complementing the live-CLI probe in T050).
 
 ### Implementation for User Story 3
 
@@ -125,7 +129,7 @@ Single-project TypeScript layout. All new source under `src/tools/context_search
 - [ ] T038 [US3] Extend `executeContextSearch` with `case_sensitive` mapping: if `input.case_sensitive === true`, set `parameters.case = true` (presence-only boolean). Otherwise omit. Parity with `search/handler.ts:67`.
 - [ ] T039 [US3] Extend `executeContextSearch` with truncation flag computation: compute `cliFileCapFired = (mdOnly.length === appliedCap)`, `flatExceedsCap = (flat.length > appliedCap)`, `truncated = cliFileCapFired || flatExceedsCap` (R9 / BI-033 R3 conservative line-mode). Trim `flat` to `appliedCap` entries if `flatExceedsCap` (`flat.slice(0, appliedCap)`). Sort. Build output as `{count: sorted.length, matches: sorted, ...(truncated ? { truncated: true as const } : {})}`. Boundary-validate via `contextSearchOutputSchema.parse(...)`.
 
-**Checkpoint**: US3 fully functional. Folder scoping with normalisation, `limit` capping with `truncated` flag, and case-sensitivity toggle all work. T031-T036 pass. Combined with US1, the tool now satisfies every spec requirement except FR-013 (folder-not-found-as-error), which is US4.
+**Checkpoint**: US3 fully functional. Folder scoping with normalisation, `limit` capping with `truncated` flag, and case-sensitivity toggle all work. T031-T036a pass. Combined with US1, the tool now satisfies every spec requirement except FR-013 (folder-not-found-as-error), which is US4.
 
 ---
 
@@ -157,12 +161,13 @@ Single-project TypeScript layout. All new source under `src/tools/context_search
 - [ ] T045 Run `npm run lint` — must pass with zero warnings (Constitution §Lint & format gate).
 - [ ] T046 Run `npm run typecheck` — must pass with zero errors (`tsc --noEmit` clean per Constitution §Language).
 - [ ] T047 Run `npm run build` — must succeed (Constitution §Build gate).
-- [ ] T048 Run `vitest run` — full test suite must pass (Constitution Principle II + §5 coverage gate). Confirm the new ~37 test cases (T003 + T006 + T010-T023 + T025-T027 + T031-T036 + T040-T043) all pass.
+- [ ] T048 Run `vitest run` — full test suite must pass (Constitution Principle II + §5 coverage gate). Confirm the new ~39 test cases (T003 + T006 + T010-T023a + T025-T027 + T031-T036a + T040-T043) all pass.
 - [ ] T049 Run the aggregate statements coverage gate per `vitest.config.ts` `test.coverage.thresholds.statements` (Constitution §5). Should not regress; if it raises naturally with the new file, optionally ratchet the threshold upward by one-line edit (Constitution §5 single-source-of-truth pattern).
 - [ ] T050 Manual verification against [quickstart.md](quickstart.md) walkthroughs 1-5 using `TestVault-Obsidian-CLI-MCP` per `.memory/test-execution-instructions.md`. Seed the sandbox with fixtures matching each walkthrough; assert response shapes match the documented examples. Clean up `Sandbox/` artifacts after the run. This is the T0 live-CLI characterisation gate.
 - [ ] T051 [P] Confirm `src/tools/_register-baseline.json` reflects the new `context_search` registration (the FR-018 lock); confirm `_register.test.ts` passes against the updated baseline. (Already covered by T008/T009 but re-checked here as the project's pre-merge gate.)
 - [ ] T052 [P] Cross-check: open [data-model.md](data-model.md)'s module-boundary diagram and confirm imports in `src/tools/context_search/handler.ts` match (`../search/schema.js` for `searchContextWireSchema`; `../search/handler.js` for `stripBoundarySlashes`; `../../cli-adapter/cli-adapter.js` for `invokeCli`; `../../errors.js` for `UpstreamError`). No cycles, no upward imports (Principle I).
 - [ ] T053 [P] Cross-check: confirm all source files carry the `Original — no upstream.` header (Principle V). Five new files (schema.ts / schema.test.ts / handler.ts / handler.test.ts / index.ts / index.test.ts) — verify each carries the header.
+- [ ] T054 [P] Update `package.json` — insert `context_search, ` immediately before `delete, ` in the `description` field's typed-tools enumeration (alphabetical position — `c` precedes `d`). The current list starts `Typed tools: delete, files, ...`; after the edit it reads `Typed tools: context_search, delete, files, ...`. Keeps the npm-registry description in sync with the registered surface. Added by /speckit-analyze remediation 2026-05-17 to close I2 (package.json description sync).
 
 **Checkpoint**: BI-035 ready to merge. All Constitution gates green. Quickstart walkthroughs verified against live CLI.
 
@@ -174,9 +179,9 @@ Single-project TypeScript layout. All new source under `src/tools/context_search
 
 - **Setup (Phase 1)**: Empty — no dependencies, no tasks.
 - **Foundational (Phase 2)**: No dependencies on prior phases — BLOCKS all user stories. T001 (mkdir) → T002+T003 (schema pair) → T004 (handler stub) → T005+T006 (index + smoke) → T007+T008+T009 (registration triple).
-- **US1 (Phase 3)**: Depends on Foundational. T024 (handler impl) is the load-bearing implementation task; T010-T023 are the tests for it.
+- **US1 (Phase 3)**: Depends on Foundational. T024 (handler impl) is the load-bearing implementation task; T010-T023a are the tests for it.
 - **US2 (Phase 4)**: Depends on Foundational (the new tool must be registered for the help index to enumerate it). Independent of US1's handler implementation — the help-tool integration only depends on the tool's registered name + schema, not on the runtime behaviour. Can run in parallel with US1.
-- **US3 (Phase 5)**: Depends on US1 (extends the same handler). Cannot run in parallel with US1's implementation T024 (same file). Tests within US3 (T031-T036) can be authored against the stub-and-test-fail discipline before T037-T039 land.
+- **US3 (Phase 5)**: Depends on US1 (extends the same handler). Cannot run in parallel with US1's implementation T024 (same file). Tests within US3 (T031-T036a) can be authored against the stub-and-test-fail discipline before T037-T039 land.
 - **US4 (Phase 6)**: Depends on US1 (extends the same handler with a second invokeCli call). Cannot run in parallel with US1 or US3's implementations (same file). Tests within US4 (T040-T043) can be authored TDD-style before T044 lands.
 - **Polish (Phase 7)**: Depends on all prior phases.
 
@@ -191,15 +196,15 @@ Single-project TypeScript layout. All new source under `src/tools/context_search
 
 - Tests authored FIRST per Principle II TDD discipline. Test cases must FAIL before implementation lands.
 - Schema before handler (T002/T003 before T004 — except in parallel-pair execution).
-- Handler before registration tests (T024 before T010-T023 can pass — but the tests are authored first).
+- Handler before registration tests (T024 before T010-T023a can pass — but the tests are authored first).
 
 ### Parallel Opportunities
 
 - T001 (mkdir) — standalone.
 - T002+T003 (schema pair) — same file; sequential.
-- T010-T023 — all `[P]` because each adds an independent test case to `handler.test.ts`. Can be authored in parallel by different developers OR drafted together in one editor session.
+- T010-T023a — all `[P]` because each adds an independent test case to `handler.test.ts`. Can be authored in parallel by different developers OR drafted together in one editor session.
 - T025-T027 — all `[P]` (different help test cases).
-- T031-T036 — all `[P]` (different handler test cases).
+- T031-T036a — all `[P]` (different handler test cases).
 - T040-T043 — all `[P]` (different handler test cases).
 - T045-T053 — Polish phase parallelism: T045-T048 are sequential (lint → typecheck → build → test); T049-T053 can fan out after T048 passes.
 
@@ -240,7 +245,7 @@ Task T023 — Drop empty matches entries
 ### Incremental Delivery
 
 1. Setup + Foundational → Foundation ready (T001-T009).
-2. US1 → Test independently → MVP deploy (T010-T024).
+2. US1 → Test independently → MVP deploy (T010-T024, including T023a output-too-large pass-through).
 3. US2 → Test help-surface independently → docs deploy (T025-T030). Can run in parallel with US3/US4 since it touches only help-tool files.
 4. US3 → Test scoped+capped queries independently → deploy (T031-T039).
 5. US4 → Test structured-error paths independently → deploy (T040-T044). Completes the full FR-013 contract.
@@ -252,7 +257,7 @@ Each phase adds value without breaking previous phases. The BI-033 `search` test
 
 With multiple developers, after Foundational (T001-T009) is complete:
 
-- Developer A: US1 implementation (T024) + drives the TDD test cases T010-T023.
+- Developer A: US1 implementation (T024) + drives the TDD test cases T010-T023a.
 - Developer B: US2 help-tool integration (T028-T030) + tests T025-T027.
 - Developer C: Wait for US1's T024 to land, then take US3 (T031-T039).
 - Developer D: Wait for US1's T024 to land, then take US4 (T040-T044).
