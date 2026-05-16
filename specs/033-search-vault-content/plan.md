@@ -92,6 +92,42 @@ Complete. See [research.md](research.md) for R1..R16 decisions and F1..F8 live-C
 
 Phase 0 NEEDS CLARIFICATION items: ZERO (all spec-stage Q1-Q5 plus Session-2 Q1-Q3 are locked in spec.md; plan-stage F1-F8 findings drove two spec amendments: FR-016 restated (mode/vault → plain `vault?`), FR-021 status documented as currently-non-firing-but-retained-as-defense).
 
+## Graph consultation (`graphify-out/`)
+
+Per CLAUDE.md's `/speckit-plan` discipline: identify affected communities and god-nodes via graph queries; explicitly flag kernel-node touches.
+
+### Affected god-nodes
+
+Graph queries (`/graphify explain UpstreamError` + neighbourhood traces on `cli_adapter_cli_adapter_invokecli`, `tools_register_ts`) confirm BI-033 extends three existing structural patterns and touches ONE of the four kernel nodes:
+
+| Node | Degree (raw) | Dedup-adjusted | Current consumers | Post-BI-033 | Kernel? |
+|---|---|---|---|---|---|
+| `UpstreamError` (src/errors.ts) | 47 | ~67 (after re-export dedup per CLAUDE.md hygiene note) | 17 production handlers + 1 shared detector | **18 handlers + 1 detector** | YES (CLAUDE.md kernel-4) |
+| `invokeCli()` (cli-adapter) | 38 | — | 18 production handlers | **19 handlers** | NO (runtime spine, but not in kernel-4) |
+| `_register.ts` | 34 | — | 16 typed-tool `index.ts` neighbours | **17 index.ts neighbours** + 1 `_register-baseline.json` row | NO (boot spine; auto-derived per BI-031 fixture) |
+| `createLogger()` | 80 | — | — | **unchanged** | YES (kernel-4; injected via `ExecuteDeps`, NOT directly imported) |
+| `createServer()` (server.ts) | 67 | — | — | **unchanged on runtime spine**; gains 1 import + 1 tools-array entry on the boot spine | YES (kernel-4) |
+| `createQueue()` | 57 | — | — | **unchanged** | YES (kernel-4; injected via `ExecuteDeps`) |
+
+### Kernel-node touch declaration
+
+**UpstreamError is the only kernel-4 node that BI-033 directly imports and consumes.** The handler throws `UpstreamError("CLI_REPORTED_ERROR", { details: { stage: "json-parse" | "wire-parse" } })` at staged-parse failures (invariants I-7 / I-8). This is the standard extension of the UpstreamError star — the BI introduces ZERO new top-level codes and ZERO new `details.stage` values (`"json-parse"` and `"wire-parse"` are pre-existing sub-keys used by BI-024 / BI-025 / BI-026 / BI-028). High-blast-radius declaration discharged: BI-033 adds a CONSUMER of UpstreamError, NOT a new error CODE.
+
+The other three kernel-4 nodes (`createLogger`, `createQueue`, `createServer`) are NOT directly imported by `src/tools/search/`. Per CLAUDE.md validated architectural fact: "Handlers must not reach back into the composition root at runtime." `searchHandler` receives logger/queue access (when needed) via the injected `ExecuteDeps` parameter; it does NOT import the factories.
+
+### Community placement
+
+The new module `src/tools/search/{schema, handler, index}.ts` is expected to land in the **typed-tool handler community** (peer with `tools/tag/`, `tools/tree/`, `tools/properties/`, `tools/find_by_property/`, etc.) — based on import topology (each consumes `invokeCli`, `UpstreamError`, `zod`, and re-exports a `createXTool` factory). The `_register.ts` boot-spine community gains one neighbour. The `errors.ts` community gains one consumer of `UpstreamError`. No new community is expected; no community-bridging god-node introduced.
+
+`/speckit-analyze` post-implementation should run `/graphify --update` and verify:
+1. No new error-class nodes appear outside the `errors.ts` community (would indicate a Principle IV violation — a new top-level error type).
+2. `src/tools/search/handler.ts` lands in the typed-tool handler community alongside peers, with edges to `invokeCli`, `UpstreamError`, and its own `schema.ts` only — NO direct edge to `createLogger` / `createQueue` / `createServer`.
+3. `src/tools/search/` symbols are structurally connected (production code is expected to be non-orphaned; only test files run weakly-connected by design per CLAUDE.md graph-hygiene note).
+
+### Graph-hygiene caveats applied
+
+Per CLAUDE.md note: "Dedup imperfection on re-exported types: TypeScript classes that are re-exported across module boundaries produce 2-3 separate nodes in the graph (one AST, one semantic, sometimes one external-marker). Centrality scores split across them. Mentally add the degrees together for top-level types when comparing across builds." The UpstreamError dedup-adjusted estimate (~67) sums the AST node (47), the `_external_UpstreamError` re-export marker (9), the `errors_UpstreamError` class-symbol node (8), and the `external_UpstreamError` re-export (3). Other rows are AST-only and need no dedup adjustment.
+
 ## Phase 1 — Design & Contracts
 
 Complete. Generated artifacts:
