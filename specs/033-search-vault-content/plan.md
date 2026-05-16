@@ -15,7 +15,7 @@ Add the seventeenth typed-tool wrap, the project's first vault-text-search primi
 **Testing**: `vitest run`, co-located `*.test.ts`. ~60 cases (~20 schema / ~35 handler / ~5 registration) per data-model.md test inventory.
 **Target Platform**: Same as project (Windows / macOS / Linux per binary-resolver tri-platform support post-017).
 **Project Type**: Single-project TypeScript library exposing an MCP server.
-**Performance Goals**: ≤ 1 s end-to-end against a 10 000-note vault for typical queries (inherited from BI-028 SC-004 baseline; native search subcommand is upstream-optimised, no wrapper compute beyond JSON parse + flatten + sort).
+**Performance Goals**: No explicit target at v1 — the native `obsidian search` / `search:context` subcommands are upstream-optimised; wrapper compute is bounded (JSON parse + linear flatten + sort of ≤ 1000 entries). Spec has no SC for performance; BI-028's "≤ 1 s against a 10 000-note vault" is informational reference only, NOT a contract this BI binds to. (Reworded by /speckit-analyze remediation 2026-05-17 to align with spec.)
 **Constraints**: Zero new top-level error codes; zero new ADRs; zero new `details.code` strings (preserves the sixteen-tool zero-new-codes streak through BI-032). 008-refactor surface frozen — handler talks to `invokeCli` only; no cli-adapter edits.
 **Scale/Scope**: Default-mode `paths` capped at 1000 entries (FR-022); explicit `limit` allows up to 10000 (FR-008 / Q3). Line-mode `matches` similarly capped. Per-line `text` capped at 500 chars + ellipsis (FR-024 / Q1 second-session). Underlying CLI's 10 MiB output cap is the post-cap safety net.
 
