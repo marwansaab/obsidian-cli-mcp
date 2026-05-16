@@ -259,6 +259,12 @@ type ToolInvariant = {
 };
 
 const invariants: Readonly<Record<string, ToolInvariant>> = {
+  context_search: {
+    type: "object",
+    properties_equals_set: ["query", "folder", "limit", "case_sensitive", "vault"],
+    required_equals: ["query"],
+    additionalProperties: false,
+  },
   read: {
     type: "object",
     properties_equals_set: ["target_mode", "vault", "file", "path"],

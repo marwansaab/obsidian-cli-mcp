@@ -1,8 +1,13 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "033-search-vault-content",
+  "generatedFromBranch": "035-context-search",
   "generatedAt": "2026-05-16",
   "tools": [
+    {
+      "name": "context_search",
+      "descriptionFingerprint": "ea35771f6819e6f6808e838c5e760952f41cecc99f2794124689e3909c6180cb",
+      "schemaFingerprint": "e62a932890669fb86d6eecb056c6488ba643860f699fd7aec6ff96bc2e8ba3d4"
+    },
     {
       "name": "delete",
       "descriptionFingerprint": "aabf3f3a85fbff85dd5b1d74d091cb1ebf05e1d84a17863a88337df96660a27b",
@@ -75,7 +80,7 @@
     },
     {
       "name": "search",
-      "descriptionFingerprint": "783bdbc5e05c6ca1a6b6dfc6c9906252f3ba55965ceea11e2fe19ffea295ea37",
+      "descriptionFingerprint": "01a7bf2089dfc2ac0f470eefce44910790d5cc3cc1b15de46c27dbda2a16fbb1",
       "schemaFingerprint": "f79b888ab914b86e6c136786723e59edf7af46b2429ad2282c7396b4fda368d2"
     },
     {
