@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "032-fix-tree-surface",
-  "generatedAt": "2026-05-15",
+  "generatedFromBranch": "033-search-vault-content",
+  "generatedAt": "2026-05-16",
   "tools": [
     {
       "name": "delete",
@@ -72,6 +72,11 @@
       "name": "rename",
       "descriptionFingerprint": "e0788ce08f122b129430b2bbbbf056cf056722857768e1c9aaa2fbf5acd050bb",
       "schemaFingerprint": "0d9100afe6f1dba552bf5277f83319b0c2929baf0738e76c20483183327895a5"
+    },
+    {
+      "name": "search",
+      "descriptionFingerprint": "783bdbc5e05c6ca1a6b6dfc6c9906252f3ba55965ceea11e2fe19ffea295ea37",
+      "schemaFingerprint": "f79b888ab914b86e6c136786723e59edf7af46b2429ad2282c7396b4fda368d2"
     },
     {
       "name": "set_property",
