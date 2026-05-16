@@ -1,7 +1,37 @@
-// Original — no upstream. Shared types and helpers for the tool aggregator pattern. Post-010: the wrap-branch envelope helper deletes (FR-005); toMcpInputSchema is now a one-line delegate to zodToJsonSchema. The flat-z.object().strict().superRefine encoding of targetModeSchema (feature 010) emits a natural single-flat-object descriptor directly; no envelope synthesis required.
+// Original — no upstream. Shared types and helpers for the tool aggregator pattern. Post-010: the wrap-branch envelope helper deletes (FR-005); toMcpInputSchema is now a one-line delegate to zodToJsonSchema. The flat-z.object().strict().superRefine encoding of targetModeSchema (feature 010) emits a natural single-flat-object descriptor directly; no envelope synthesis required. BI-034 (spec branch 034-fix-unicode-lookups): adds B64_PAYLOAD_DECODE_EXPR and composeEvalCode for the seven-tool atob+base64 eval-composition cohort — `atob()` in V8 returns a Latin-1 binary string; the new decode expression re-interprets the byte sequence as UTF-8 so non-ASCII identifiers survive the base64 round-trip.
 import { zodToJsonSchema } from "zod-to-json-schema";
 
 import type { ZodTypeAny } from "zod";
+
+/**
+ * UTF-8-safe replacement for the legacy `JSON.parse(atob('__PAYLOAD_B64__'))` decode
+ * embedded inside every eval-composition `_template.ts`. `atob()` in V8 yields a
+ * Latin-1 binary string — UTF-8 multi-byte sequences survive base64 transit at the
+ * byte level but get mojibake-interpreted post-`atob`. This expression converts
+ * each Latin-1 code point back to its original byte via `Uint8Array.from(...,
+ * c=>c.charCodeAt(0))` and then re-decodes the byte sequence as UTF-8 via
+ * `TextDecoder("utf-8")`. The `__PAYLOAD_B64__` placeholder is substituted at
+ * compose time by `composeEvalCode`. Spec branch: 034-fix-unicode-lookups.
+ */
+export const B64_PAYLOAD_DECODE_EXPR =
+  "new TextDecoder(\"utf-8\").decode(Uint8Array.from(atob('__PAYLOAD_B64__'),c=>c.charCodeAt(0)))";
+
+/**
+ * Compose the eval-side JS code string from a template carrying the
+ * `__PAYLOAD_B64__` placeholder and a JSON-serialisable payload. Centralises the
+ * `JSON.stringify` → `Buffer.from(...).toString("base64")` →
+ * `template.replace(placeholder, b64)` boilerplate previously duplicated across
+ * seven handlers. Throws if the template lacks the placeholder so a future
+ * eval-composition tool cannot silently lose its payload.
+ */
+export function composeEvalCode(template: string, payload: unknown): string {
+  if (!template.includes("__PAYLOAD_B64__")) {
+    throw new Error("composeEvalCode: template is missing the __PAYLOAD_B64__ placeholder");
+  }
+  const payloadJson = JSON.stringify(payload);
+  const payloadB64 = Buffer.from(payloadJson, "utf-8").toString("base64");
+  return template.replace("__PAYLOAD_B64__", payloadB64);
+}
 
 /**
  * The descriptor a tool publishes to MCP clients via `tools/list`. The strip

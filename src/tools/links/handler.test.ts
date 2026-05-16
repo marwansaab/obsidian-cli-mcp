@@ -703,3 +703,35 @@ test("R6 anti-injection + R3 single-call invariant: base64 round-trips verbatim;
     total: false,
   });
 });
+
+// (BI-034) Non-ASCII wikilink-target round-trips through base64
+test("BI-034: non-ASCII wikilink target ('café-target') round-trips through base64 (FR-009)", async () => {
+  const envelope = {
+    ok: true,
+    count: 1,
+    links: [{ target: "café-target", line: 3, kind: "wikilink" }],
+  };
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+  ]);
+  const result = await executeLinks(
+    { target_mode: "specific", vault: "Demo", path: "Sandbox/unicode/links-from.md" },
+    deps(spawnFn),
+  );
+  expect(result).toEqual({ count: 1, links: envelope.links });
+  const payload = decodePayload(recorded[0]!.argv) as { path: unknown };
+  expect(payload.path).toBe("Sandbox/unicode/links-from.md");
+});
+
+test("BI-034: non-ASCII source path (CJK) preserved in payload (FR-009)", async () => {
+  const envelope = { ok: true, count: 0, links: [] };
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+  ]);
+  await executeLinks(
+    { target_mode: "specific", vault: "Demo", path: "笔记/链接源.md" },
+    deps(spawnFn),
+  );
+  const payload = decodePayload(recorded[0]!.argv) as { path: unknown };
+  expect(payload.path).toBe("笔记/链接源.md");
+});

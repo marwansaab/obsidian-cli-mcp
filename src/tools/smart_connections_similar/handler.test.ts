@@ -1049,3 +1049,30 @@ test("BI-027 ripple: stage-0 closed-vault detection produces byte-equal error af
   );
   expect(getCount()).toBe(2);
 });
+
+// (BI-034) Non-ASCII path input round-trips through base64 (mocked invokeCli; no live plugin probe)
+test("BI-034: non-ASCII path 'café-target.md' round-trips through base64 (FR-009)", async () => {
+  const envelope = { ok: true, count: 0, matches: [] };
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+  ]);
+  await executeSmartConnectionsSimilar(
+    { target_mode: "specific", vault: "Demo", path: "Sandbox/unicode/café-target.md", limit: defaultLimit },
+    deps(spawnFn),
+  );
+  const payload = decodePayload(recorded[0]!.argv) as { path: unknown };
+  expect(payload.path).toBe("Sandbox/unicode/café-target.md");
+});
+
+test("BI-034: non-ASCII file wikilink (CJK) round-trips through base64 (FR-009)", async () => {
+  const envelope = { ok: true, count: 0, matches: [] };
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+  ]);
+  await executeSmartConnectionsSimilar(
+    { target_mode: "specific", vault: "Demo", file: "笔记", limit: defaultLimit },
+    deps(spawnFn),
+  );
+  const payload = decodePayload(recorded[0]!.argv) as { file: unknown };
+  expect(payload.file).toBe("笔记");
+});

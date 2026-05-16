@@ -1,7 +1,9 @@
-// Original — no upstream. find_by_property handler: single invokeCli wrapper around the eval subcommand with a frozen JS template + base64 payload (R6 anti-injection); two-stage response parse (=> prefix strip + JSON.parse + output schema validate); R4 target_mode mapping (vault undefined → active, vault set → specific); count/paths invariant defensive check.
+// Original — no upstream. find_by_property handler: single invokeCli wrapper around the eval subcommand with a frozen JS template + base64 payload (R6 anti-injection); two-stage response parse (=> prefix strip + JSON.parse + output schema validate); R4 target_mode mapping (vault undefined → active, vault set → specific); count/paths invariant defensive check. BI-034 (spec branch 034-fix-unicode-lookups): JS_TEMPLATE extracted to sibling `_template.ts` so the cohort layout matches `read_heading/_template.ts` etc.; payload compose uses the shared `composeEvalCode` helper.
+import { JS_TEMPLATE } from "./_template.js";
 import { findByPropertyOutputSchema, type FindByPropertyInput, type FindByPropertyOutput } from "./schema.js";
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
+import { composeEvalCode } from "../_shared.js";
 
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
@@ -13,44 +15,17 @@ export interface ExecuteDeps {
   env?: NodeJS.ProcessEnv;
 }
 
-const JS_TEMPLATE = `(()=>{
-const a=JSON.parse(atob('__PAYLOAD_B64__'));
-const m=[];
-const eq=(x,y)=>(typeof x==='string'&&typeof y==='string'&&!a.caseSensitive)?x.toLowerCase()===y.toLowerCase():x===y;
-const arrEq=(x,y)=>Array.isArray(x)&&Array.isArray(y)&&x.length===y.length&&x.every((e,i)=>eq(e,y[i]));
-const prefix=a.folder?a.folder.replace(/[/\\\\]+$/,'')+'/':'';
-const fc=app.metadataCache.fileCache;
-const mc=app.metadataCache.metadataCache;
-for(const p in fc){
-if(prefix&&!p.startsWith(prefix))continue;
-const fm=mc[fc[p].hash]&&mc[fc[p].hash].frontmatter;
-if(!fm||!(a.property in fm))continue;
-const v=fm[a.property];
-let hit=false;
-if(Array.isArray(v)){
-if(a.arrayMatch){hit=!Array.isArray(a.value)&&v.some(e=>eq(e,a.value));}
-else{hit=Array.isArray(a.value)&&arrEq(v,a.value);}
-}else{
-hit=!Array.isArray(a.value)&&eq(v,a.value);
-}
-if(hit)m.push(p);
-}
-return JSON.stringify({count:m.length,paths:m});
-})()`;
-
 export async function executeFindByProperty(
   input: FindByPropertyInput,
   deps: ExecuteDeps,
 ): Promise<FindByPropertyOutput> {
-  const payloadJson = JSON.stringify({
+  const code = composeEvalCode(JS_TEMPLATE, {
     property: input.property,
     value: input.value,
     folder: input.folder ?? "",
     arrayMatch: input.arrayMatch,
     caseSensitive: input.caseSensitive,
   });
-  const payloadB64 = Buffer.from(payloadJson, "utf-8").toString("base64");
-  const code = JS_TEMPLATE.replace("__PAYLOAD_B64__", payloadB64);
 
   const target_mode = input.vault === undefined ? "active" : "specific";
   const result = await invokeCli(

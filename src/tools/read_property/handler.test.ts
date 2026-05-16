@@ -405,6 +405,24 @@ test("ENOENT on Call A spawn → CLI_BINARY_NOT_FOUND (F5 / FR-021)", async () =
   expect(err.code).toBe("CLI_BINARY_NOT_FOUND");
 });
 
+// (BI-034 US2) Non-ASCII property KEY verification — research.md §2.3 predicts these pass without production change.
+// If any of these fail unexpectedly, halt and escalate: read_property has a non-atob Unicode defect path that BI-034 has not addressed.
+test.each<[string, string]>([
+  ["café_key", "accented-letter property key"],
+  ["em—dash_key", "em-dash property key"],
+  ["键名", "CJK property key"],
+])("BI-034 US2: non-ASCII key '%s' (%s) round-trips through both calls (research.md §2.3 prediction)", async (name, _label) => {
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: JSON.stringify({ [name]: "value-here" }) + "\n", exitCode: 0 },
+    { stdout: JSON.stringify([{ name, type: "text", count: 1 }]) + "\n", exitCode: 0 },
+  ]);
+  const result = await executeReadProperty(
+    { target_mode: "specific", vault: "V", path: "x.md", name },
+    deps(spawnFn),
+  );
+  expect(result).toEqual({ value: "value-here", type: "text" });
+});
+
 // (22) F5 — FR-021 CLI_NON_ZERO_EXIT propagation
 test("non-zero exit on Call A → CLI_NON_ZERO_EXIT verbatim (F5 / FR-021)", async () => {
   const { spawnFn } = makeQueuedSpawn([

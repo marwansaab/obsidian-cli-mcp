@@ -1,6 +1,8 @@
-// Original — no upstream. Frozen JS template for the `paths` eval subcommand — base64 payload anti-injection; walks `app.vault.adapter` directly via stat()/list() for missing/file/folder trichotomy + recursive DFS descent with in-eval level counter for depth bound; in-walk dotfile filter via segment-starts-with-`.` predicate; post-walk ext filter that excludes folders unconditionally when set; trailing-slash transform on folder entries; byte-asc `out.sort()` on the final string array; envelope emit branched on `payload.total` preserves cross-mode count invariant. Returns JSON-stringified envelope so the eval `=> ` prefix carries raw JSON to the handler.
+// Original — no upstream. Frozen JS template for the `paths` eval subcommand — base64 payload anti-injection; walks `app.vault.adapter` directly via stat()/list() for missing/file/folder trichotomy + recursive DFS descent with in-eval level counter for depth bound; in-walk dotfile filter via segment-starts-with-`.` predicate; post-walk ext filter that excludes folders unconditionally when set; trailing-slash transform on folder entries; byte-asc `out.sort()` on the final string array; envelope emit branched on `payload.total` preserves cross-mode count invariant. Returns JSON-stringified envelope so the eval `=> ` prefix carries raw JSON to the handler. BI-034 (spec branch 034-fix-unicode-lookups): decode line uses the shared UTF-8-safe `B64_PAYLOAD_DECODE_EXPR` so non-ASCII folder names survive the base64 → atob round-trip.
+import { B64_PAYLOAD_DECODE_EXPR } from "../_shared.js";
+
 export const JS_TEMPLATE = `(async()=>{
-const p=JSON.parse(atob('__PAYLOAD_B64__'));
+const p=JSON.parse(${B64_PAYLOAD_DECODE_EXPR});
 const folder=p.folder;
 const depth=p.depth;
 const ext=p.ext;

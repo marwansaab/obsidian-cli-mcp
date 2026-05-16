@@ -665,3 +665,40 @@ test("empty matches success (count:0): {count:0, matches:[]} no error", async ()
   );
   expect(result).toEqual({ count: 0, matches: [] });
 });
+
+// =====================================================================
+// BI-034 — Non-ASCII query input round-trips through base64 (mocked; no live plugin probe)
+// =====================================================================
+
+test("BI-034: non-ASCII query 'café — naïve' round-trips through base64 (FR-009)", async () => {
+  const envelope = { ok: true, count: 0, matches: [] };
+  const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: withPreamble(envelope), exitCode: 0 }]);
+  await executeSmartConnectionsQuery(
+    { query: "café — naïve", vault: "Demo", limit: defaultLimit },
+    deps(spawnFn),
+  );
+  const payload = decodePayload(recorded[0]!.argv) as { query: unknown };
+  expect(payload.query).toBe("café — naïve");
+});
+
+test("BI-034: non-ASCII query (CJK) round-trips through base64 (FR-009)", async () => {
+  const envelope = { ok: true, count: 0, matches: [] };
+  const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: withPreamble(envelope), exitCode: 0 }]);
+  await executeSmartConnectionsQuery(
+    { query: "你好世界", vault: "Demo", limit: defaultLimit },
+    deps(spawnFn),
+  );
+  const payload = decodePayload(recorded[0]!.argv) as { query: unknown };
+  expect(payload.query).toBe("你好世界");
+});
+
+test("BI-034: non-ASCII query (emoji) round-trips through base64 (FR-009)", async () => {
+  const envelope = { ok: true, count: 0, matches: [] };
+  const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: withPreamble(envelope), exitCode: 0 }]);
+  await executeSmartConnectionsQuery(
+    { query: "🎉 launch notes", vault: "Demo", limit: defaultLimit },
+    deps(spawnFn),
+  );
+  const payload = decodePayload(recorded[0]!.argv) as { query: unknown };
+  expect(payload.query).toBe("🎉 launch notes");
+});

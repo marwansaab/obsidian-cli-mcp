@@ -189,7 +189,7 @@ test("US1 I-4 frozen template byte-stable: SHA-256 matches locked digest", () =>
   // Locked digest: the JS_TEMPLATE string must not drift without conscious update.
   // Any modification to the template body (filter logic, walk, sort, envelope shape)
   // changes this digest. Roll forward intentionally when the template changes.
-  expect(digest).toBe("35593f327c0b9993a48c0da427b1d07a01b4ce7a3573db3f29b359fc2be5a269");
+  expect(digest).toBe("f6e983b07907cb0d4f99cdb161f491c56a1e0b459d08826db6eab528ef6bc70e");
 });
 
 // (T012) Q-17 unknown vault dispatch propagation
@@ -206,6 +206,29 @@ test("US1 Q-17 unknown vault: 'Vault not found.' stdout → CLI_REPORTED_ERROR (
 // =====================================================================
 // US2 — Specific-mode sub-folder subtree listing
 // =====================================================================
+
+// (BI-034) Non-ASCII folder input — accented + CJK round-trip through base64
+test("BI-034: non-ASCII folder name 'cafés' round-trips through base64 (FR-009)", async () => {
+  const paths = ["Sandbox/unicode/cafés/inner-note.md"];
+  const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: okEnv(1, paths), exitCode: 0 }]);
+  const result = await executePaths(
+    { target_mode: "specific", vault: "Demo", folder: "Sandbox/unicode/cafés" },
+    deps(spawnFn),
+  );
+  expect(result).toEqual({ count: 1, paths });
+  const payload = decodePayload(recorded[0]!.argv) as { folder: unknown };
+  expect(payload.folder).toBe("Sandbox/unicode/cafés");
+});
+
+test("BI-034: non-ASCII folder name (CJK) round-trips through base64 (FR-009)", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: okEnv(0, []), exitCode: 0 }]);
+  await executePaths(
+    { target_mode: "specific", vault: "Demo", folder: "笔记" },
+    deps(spawnFn),
+  );
+  const payload = decodePayload(recorded[0]!.argv) as { folder: unknown };
+  expect(payload.folder).toBe("笔记");
+});
 
 // (T015) Q-10 sub-folder happy path
 test("US2 Q-10 sub-folder happy path: only Inbox/-rooted entries", async () => {

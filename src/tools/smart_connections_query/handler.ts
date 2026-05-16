@@ -9,6 +9,7 @@ import {
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import { detectIfClosed } from "../_eval-vault-closed-detection/index.js";
+import { composeEvalCode } from "../_shared.js";
 
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
@@ -24,13 +25,11 @@ export async function executeSmartConnectionsQuery(
   input: SmartConnectionsQueryInput,
   deps: ExecuteDeps,
 ): Promise<SmartConnectionsQueryOutput> {
-  const payloadJson = JSON.stringify({
+  const code = composeEvalCode(JS_TEMPLATE, {
     query: input.query,
     limit: input.limit,
     total: input.total === true,
   });
-  const payloadB64 = Buffer.from(payloadJson, "utf-8").toString("base64");
-  const code = JS_TEMPLATE.replace("__PAYLOAD_B64__", payloadB64);
 
   const result = await invokeCli(
     {

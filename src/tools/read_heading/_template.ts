@@ -1,6 +1,8 @@
-// Original — no upstream. Frozen JS template for the eval subcommand — base64 payload anti-injection (R6); pre-parsed metadataCache headings array reuse (R7); ATX-only Setext defence-in-depth filter (R14); leading-line-terminator strip per FR-010.
+// Original — no upstream. Frozen JS template for the eval subcommand — base64 payload anti-injection (R6); pre-parsed metadataCache headings array reuse (R7); ATX-only Setext defence-in-depth filter (R14); leading-line-terminator strip per FR-010. BI-034 (spec branch 034-fix-unicode-lookups): decode line uses the shared UTF-8-safe `B64_PAYLOAD_DECODE_EXPR` so non-ASCII segments survive the base64 → atob round-trip.
+import { B64_PAYLOAD_DECODE_EXPR } from "../_shared.js";
+
 export const JS_TEMPLATE = `(async()=>{
-const a=JSON.parse(atob('__PAYLOAD_B64__'));
+const a=JSON.parse(${B64_PAYLOAD_DECODE_EXPR});
 let resolvedPath;
 if(a.active){
 const f=app.workspace.getActiveFile();

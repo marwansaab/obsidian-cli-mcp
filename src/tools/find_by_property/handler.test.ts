@@ -422,6 +422,87 @@ test("anti-injection (R6): hostile property survives base64 round-trip exactly",
   expect(payload.property).toBe(hostile);
 });
 
+// (BI-034 US3) Non-ASCII value match (em-dash + accented)
+test("BI-034 US3 (a): em-dash + accented value round-trips through base64 (FR-009)", async () => {
+  const value = "café — naïve";
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    { stdout: '=> {"count":1,"paths":["Fixtures/BI-038/tc-mojibake-fbp.md"]}\n', exitCode: 0 },
+  ]);
+  const result = await executeFindByProperty(
+    { vault: "Demo", property: "unicode_marker", value, arrayMatch: true, caseSensitive: true },
+    deps(spawnFn),
+  );
+  expect(result).toEqual({ count: 1, paths: ["Fixtures/BI-038/tc-mojibake-fbp.md"] });
+  const payload = decodePayload(recorded[0]!.argv) as { value: unknown };
+  expect(payload.value).toBe(value);
+});
+
+// (BI-034 US3) CJK value
+test("BI-034 US3 (b): CJK value round-trips through base64 (FR-009)", async () => {
+  const value = "你好世界";
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    { stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 },
+  ]);
+  await executeFindByProperty(
+    { vault: "Demo", property: "marker", value, arrayMatch: true, caseSensitive: true },
+    deps(spawnFn),
+  );
+  const payload = decodePayload(recorded[0]!.argv) as { value: unknown };
+  expect(payload.value).toBe(value);
+});
+
+// (BI-034 US3) Emoji value
+test("BI-034 US3 (c): emoji value round-trips through base64 (FR-009)", async () => {
+  const value = "🎉 launch";
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    { stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 },
+  ]);
+  await executeFindByProperty(
+    { vault: "Demo", property: "marker", value, arrayMatch: true, caseSensitive: true },
+    deps(spawnFn),
+  );
+  const payload = decodePayload(recorded[0]!.argv) as { value: unknown };
+  expect(payload.value).toBe(value);
+});
+
+// (BI-034 US3) Interleaved ASCII / non-ASCII value
+test("BI-034 US3 (d): interleaved ASCII + non-ASCII value preserved verbatim (FR-009)", async () => {
+  const value = "Release v1.0 — résumé draft";
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    { stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 },
+  ]);
+  await executeFindByProperty(
+    { vault: "Demo", property: "title", value, arrayMatch: true, caseSensitive: true },
+    deps(spawnFn),
+  );
+  const payload = decodePayload(recorded[0]!.argv) as { value: unknown };
+  expect(payload.value).toBe(value);
+});
+
+// (BI-034 US3) Selectivity — non-ASCII value differs from ASCII fallback
+test("BI-034 US3 (e): selectivity — non-ASCII value payload distinct from ASCII variant (FR-009)", async () => {
+  const { spawnFn: spawnA, recorded: recordedA } = makeQueuedSpawn([
+    { stdout: '=> {"count":1,"paths":["café-note.md"]}\n', exitCode: 0 },
+  ]);
+  await executeFindByProperty(
+    { vault: "Demo", property: "marker", value: "café", arrayMatch: true, caseSensitive: true },
+    deps(spawnA),
+  );
+  const payloadA = decodePayload(recordedA[0]!.argv) as { value: unknown };
+  expect(payloadA.value).toBe("café");
+
+  const { spawnFn: spawnB, recorded: recordedB } = makeQueuedSpawn([
+    { stdout: '=> {"count":1,"paths":["cafe-note.md"]}\n', exitCode: 0 },
+  ]);
+  await executeFindByProperty(
+    { vault: "Demo", property: "marker", value: "cafe", arrayMatch: true, caseSensitive: true },
+    deps(spawnB),
+  );
+  const payloadB = decodePayload(recordedB[0]!.argv) as { value: unknown };
+  expect(payloadB.value).toBe("cafe");
+  expect(payloadA.value).not.toBe(payloadB.value);
+});
+
 // (23) FR-023 — hierarchical-tag rollup not performed (wrapper-side non-transformation lock)
 test("FR-023: wrapper does not transform value 'work' to a rollup query", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
