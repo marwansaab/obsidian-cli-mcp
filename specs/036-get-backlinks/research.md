@@ -230,3 +230,103 @@ The plan's structural delta against the four kernel god-nodes per the CLAUDE.md 
 Community placement (CLAUDE.md /speckit-analyze rule 3): `backlinks/` MUST land inside the `src/tools/` community at the next `/graphify --update`. Surprise placement (e.g. orphan community, mis-clustering with `src/cli-adapter/`) would indicate a structural problem worth investigating before ship.
 
 Connectivity verification (CLAUDE.md /speckit-analyze rule 4): new production files in `backlinks/` (schema.ts, handler.ts, index.ts, _template.ts) MUST be structurally connected via the registration path (`server.ts` → `index.ts` → factory → handler.ts → cli-adapter), NOT orphaned. Test files (schema.test.ts, handler.test.ts, index.test.ts) are expected to be weakly connected per CLAUDE.md hygiene note 2 (test files run 80-90% weakly-connected by design).
+
+## T0 Live-CLI Capture (2026-05-17)
+
+Executed at `/speckit-implement` Phase 2 against `TestVault-Obsidian-CLI-MCP` per `.memory/test-execution-instructions.md`. Authorised vault path: `C:\Marwan-Saab-ADO\Marwan at Metcash\Obsidian\TestVault-Obsidian-CLI-MCP`. CLI binary: `C:\Program Files\Obsidian\Obsidian.com`. All fixtures seeded under `Sandbox/`; cleanup confirmed before T002.
+
+### F1 — Upstream `obsidian backlinks` subcommand shape
+
+`obsidian help backlinks` output:
+
+```
+backlinks             List backlinks to a file
+    file=<name>         - Target file name
+    path=<path>         - Target file path
+    counts              - Include link counts
+    total               - Return backlink count
+    format=json|tsv|csv - Output format (default: tsv)
+```
+
+Probes against `path=Welcome.md` in TestVault:
+
+- `backlinks path=Welcome.md format=json` → `[{"file":"Fixtures/BI-017/inline-markdown.md"}]` (exit 0).
+- `backlinks path=Welcome.md counts format=json` → `[{"file":"Fixtures/BI-017/inline-markdown.md","count":"1"}]` (exit 0; **note `count` is a STRING, not integer**).
+- `backlinks path=Welcome.md total format=json` → `1` (exit 0; **bare integer, not a JSON envelope**).
+
+**Finding**: native `obsidian backlinks` exists and emits per-source JSON with counts.
+
+**TRIGGER assessment — eval architecture RETAINED, not pivoted**. Native subcommand surfaces match `with_counts` / `total` in name but **diverge sharply in shape and capability**:
+
+1. No `active`-mode parameter (subcommand requires `file=` or `path=`). Active mode would still require an `eval` fallback, forcing a hybrid (specific via native, active via eval) — two code paths instead of one.
+2. `total` returns a bare integer literal, not a `{count, backlinks: []}` envelope. The wrapper would need a parse-path branch (integer vs JSON-array) instead of one uniform `JSON.parse → safeParse(discriminatedUnion)` flow.
+3. `count` is a string, not a number; would need coercion + range validation in the wrapper.
+4. No `limit` parameter (only `counts` / `total` switches documented). Implicit cap and `truncated` signal would still be wrapper-side.
+5. No `.md`-only filter guarantee; not verified.
+6. No `NOT_MARKDOWN` target-rejection guarantee; not verified.
+7. Source-key field is `file`, not `source`; wrapper-side rename required.
+8. Sort order not verified.
+
+The eval route gives ONE uniform code path that handles all modes (active + specific + with_counts + total + limit + truncated + .md filter + NOT_MARKDOWN guard) through a single base64-decoded payload and a single envelope-emission step. Pivoting to native would require parallel implementation paths and extra wrapper-side transformations. R1 keeps the eval-cohort decision; the native subcommand becomes a documented follow-up opportunity (future BI could re-evaluate if active-mode is dropped or if a unified shape emerges upstream).
+
+R5 is therefore preserved by both the cohort decision AND the F2 verification below.
+
+### F2 — Unknown-vault behaviour (R5 confirmation)
+
+- `obsidian vault=NonExistent-XYZ-12345 backlinks path=anything.md format=json` → stdout `Vault not found.` exit 0.
+- `obsidian vault=NonExistent-XYZ-12345 eval 'code=(()=>{return "probe";})()'` → stdout `Vault not found.` exit 0.
+
+**Finding**: both routes emit the same `Vault not found.` plain-text response. The cli-adapter's 011-R5 unknown-vault response-inspection clause fires identically on both routes → reclassifies as `CLI_REPORTED_ERROR(code: 'VAULT_NOT_FOUND')`. R5 confirmed for `backlinks`; **FR-018 unchanged**. Eval cohort placement holds.
+
+### F3 — Frontmatter-link inclusion + CustomArrayDict accessor (R6 verification — TRIGGER)
+
+Seeded `Sandbox/backlinks-F3-target.md` (empty body) and `Sandbox/backlinks-F3-source.md` with frontmatter `related: "[[backlinks-F3-target]]"` AND body `Reference to [[backlinks-F3-target]] in body.`. After Obsidian's metadataCache re-indexed the new files, probed `getBacklinksForFile()` on the target.
+
+Initial probe surfaced an unexpected result requiring deeper inspection:
+
+```
+Object.keys(d.data) → []           // empty
+d.count() → 2                      // correct
+d.keys() → ["Sandbox/backlinks-F3-source.md"]   // populated
+d.get("Sandbox/backlinks-F3-source.md").length → 2   // 1 body + 1 frontmatter
+```
+
+**Finding — TRIGGER on the planned `_template.ts` access pattern**:
+
+The Obsidian `CustomArrayDict` returned by `getBacklinksForFile()` does **NOT** expose its data via the enumerable `.data` property. Its `.data` shows `{}` to `Object.keys()` / `JSON.stringify()` while the dict's `.keys()` method and `.get(k)` accessor return the actual content. The data-model.md's planned template (`Object.keys(dict.data).filter(...)` + `(data[p] || []).length`) would have shipped silently broken — every call would return `{count: 0, backlinks: []}`.
+
+**Plan correction folded into T004 implementation** (deviation from data-model.md § Frozen JS template): the template uses the dict's documented method surface:
+
+```js
+const dict = app.metadataCache.getBacklinksForFile(f);
+const sources = (dict.keys() || []).filter(p => /\.md$/i.test(p)).sort();
+// per-source count via dict.get(p).length
+if (a.with_counts) e.count = (dict.get(p) || []).length;
+```
+
+R6's underlying semantic is verified: per-source aggregation via array `.length` is correct; the source-key is the source's vault-relative path; frontmatter and body references are pre-merged in the dict's value array (count === 2 from one source containing 1 body + 1 frontmatter wikilink). FR-016 (frontmatter inclusion) confirmed.
+
+`app.metadataCache.resolvedLinks['Sandbox/backlinks-F3-source.md']` showed `{"Sandbox/backlinks-F3-target.md": 2}` as an independent confirmation that the source's parsed cache contains both references.
+
+### F4 — Code-block-only references excluded (R8 verification)
+
+Seeded `Sandbox/backlinks-F4-target.md` (empty body) and `Sandbox/backlinks-F4-codeonly.md` whose only `[[backlinks-F4-target]]` token was inside a fenced code block.
+
+- `getBacklinksForFile(target).keys()` → `[]` (count: 0).
+- `getFileCache(codeonly).links` → `[]` (no link parsed); `sections` includes one `type:"code"` block at the wikilink's position.
+- `app.metadataCache.resolvedLinks['Sandbox/backlinks-F4-codeonly.md']` → `{}`.
+
+**Finding**: Obsidian's link parser excludes wikilinks inside fenced code blocks from the metadataCache (no entry in `links`, no entry in `resolvedLinks`, hence no entry in any target's backlinks). R8 confirmed; the wrapper inherits this exclusion at zero additional logic cost. FR-014 holds.
+
+### Sandbox cleanup
+
+All four fixture files removed (`backlinks-F3-target.md`, `backlinks-F3-source.md`, `backlinks-F4-target.md`, `backlinks-F4-codeonly.md`) after the probe. `Sandbox/` left empty per `.memory/test-execution-instructions.md`.
+
+### Summary of TRIGGERs surfaced
+
+| Probe | Outcome | TRIGGER | Action |
+|-------|---------|---------|--------|
+| F1 | Native `backlinks` exists with JSON + counts + total | Documented but NOT acted on | Eval architecture retained; rationale above. Future BI may re-evaluate. |
+| F2 | Both routes return `Vault not found.` exit 0 | None | R5 confirmed; FR-018 unchanged. |
+| F3 | `CustomArrayDict.data` is empty; methods `.keys()` / `.get()` are load-bearing | Yes — template access pattern | Template implementation in T004 uses `dict.keys()` / `dict.get(p)` instead of `Object.keys(dict.data)` / `dict.data[p]`. |
+| F4 | Code-block wikilinks excluded from cache | None | R8 confirmed; FR-014 unchanged. |
