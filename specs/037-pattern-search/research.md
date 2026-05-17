@@ -208,3 +208,23 @@ If any probe diverges from its pass criterion, surface the divergence to the use
 - **OBC-2**: If T0.1 fails (eval round-trip can't construct RegExp), pivot to a `paths` + `read` chained execution path — quadratic but workable for the small-vault cohort the test vault covers. Document the pivot via an in-PR ADR rather than amending the constitution.
 - **OBC-3**: Non-UTF-8 content handling deferred (spec coverage summary marked Outstanding-low). T0.2 surfaces it incidentally if the test vault contains any; otherwise no action this BI.
 - **OBC-4**: ECMAScript regex Unicode-mode (`u` flag) is not exposed in this BI. The template instantiates `new RegExp(pattern, flags)` with flags ∈ {`""`, `"i"`} only. The `u` flag flips `\d` to Unicode-aware semantics and changes `\b` behaviour; that's a deliberate non-feature for v1 because the spec example (`BI-\d{4}`) is ASCII. A follow-up BI can add a `unicode: boolean` knob.
+
+---
+
+## T0 Live-CLI Capture (2026-05-17)
+
+Authorised test vault: `TestVault-Obsidian-CLI-MCP` (Obsidian CLI 1.12.7, installer 1.12.7). All probes ran via `node .scratch/t0-probe.mjs`, which builds the candidate eval template, composes the base64 payload via the same `composeEvalCode`-shaped helper the handler will use, and shells out via `execFileSync("obsidian", ["vault=…", "eval", "code=…"])`. A `Sandbox/037/long-line.md` fixture (1000-char single-line note with `needle` at offset 540) was seeded for T0.6 and BONUS truncation, then deleted after capture.
+
+| Probe | Expected | Actual | Result |
+|---|---|---|---|
+| T0.1 eval RegExp round-trip | stdout `=> true` for `new RegExp('BI-\\d{4}').test('BI-0042')` | `=> true` | PASS — R1 confirmed; eval body runs in Obsidian Node runtime with V8 RegExp semantics |
+| T0.2 `app.vault.getMarkdownFiles()` enumeration | `.md`-only set; no `.canvas`/`.base` entries | 110-entry `.md`-only array (sample: `BI019/…`, `Fixtures/…`, `Welcome.md`, etc.); the upstream CLI does NOT expose a `paths` subcommand at 1.12.7 (sibling cross-check via `obsidian paths --ext md` returned `Error: Command "paths" not found. Did you mean: bases, tags, tasks?`) so the in-eval enumeration is the only authoritative `.md` source — R6 stands; the wrapper-side `.md` defensive filter remains as defence-in-depth | PASS — R6 confirmed |
+| T0.3 folder-not-found stat | `null` for `await app.vault.adapter.stat('NoSuchFolder037')` | `{"stat":null}` | PASS — R5/template `s===null` check correct |
+| T0.4 zero-match envelope | `{ ok: true, count: 0, matches: [] }` for `pattern: "Z{50}"` | `{"ok":true,"count":0,"matches":[]}` | PASS — empty-collection emission matches data-model |
+| T0.5 zero-length match skip | empty envelope + return within 10 s for `pattern: "^"` | `{"ok":true,"count":0,"matches":[]}` (sub-second) | PASS — R8 `lastIndex++` idiom drops zero-width hits and terminates |
+| T0.6 500-cap clip | `text.length === 501` (500 chars + `…`), `match === "needle"`, `offset === 540` | `text.length === 501`, `match === "needle"`, `offset === 540` | PASS — R10/Q2 clip confirmed; match field intact past the 500-cap |
+| BONUS case-insensitive | `case_sensitive: false` flips `g` → `gi`; uppercase `NEEDLE` pattern matches lowercase `needle` in fixture | `{"ok":true,"count":1,"matches":[{…"match":"needle"…}]}` | PASS — R4/Q-flag selection correct |
+| BONUS FOLDER_NOT_FOUND envelope | `{ ok: false, code: "FOLDER_NOT_FOUND", folder: "NoSuchFolder037" }` for `folder: "NoSuchFolder037"` | `{"ok":false,"code":"FOLDER_NOT_FOUND","folder":"NoSuchFolder037"}` | PASS — R5 envelope shape via the full template (not just `stat`) |
+| BONUS truncation | `count: 2, truncated: true` for `pattern: "x", limit: 2` against the 1000-`x` fixture | `{"ok":true,"count":2,"matches":[…],"truncated":true}` | PASS — R9 in-template cap detection + truncated emission correct |
+
+No TRIGGER findings — every probe passed its pass criterion against the live CLI. R1..R10 design assumptions all hold against the Obsidian 1.12.7 runtime. T2 implementation proceeds with no spec or plan amendments. The eval-driven execution path is locked; OBC-2 (paths+read fallback) is not needed.
