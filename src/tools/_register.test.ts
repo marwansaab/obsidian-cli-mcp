@@ -259,6 +259,12 @@ type ToolInvariant = {
 };
 
 const invariants: Readonly<Record<string, ToolInvariant>> = {
+  backlinks: {
+    type: "object",
+    properties_equals_set: ["target_mode", "vault", "file", "path", "with_counts", "total", "limit"],
+    required_equals: ["target_mode"],
+    additionalProperties: false,
+  },
   context_search: {
     type: "object",
     properties_equals_set: ["query", "folder", "limit", "case_sensitive", "vault"],

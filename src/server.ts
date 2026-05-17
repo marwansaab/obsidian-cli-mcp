@@ -11,6 +11,7 @@ import { createLogger, type Logger, type ShutdownReason } from "./logger.js";
 import { createQueue, type Queue } from "./queue.js";
 import { assertToolDocsExist } from "./tools/_register.js";
 import { asToolError, type RegisteredTool } from "./tools/_shared.js";
+import { createBacklinksTool } from "./tools/backlinks/index.js";
 import { createContextSearchTool } from "./tools/context_search/index.js";
 import { createDeleteTool } from "./tools/delete/index.js";
 import { createFilesTool } from "./tools/files/index.js";
@@ -90,6 +91,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
   });
 
   const tools: RegisteredTool[] = [
+    createBacklinksTool({ logger, queue }),
     createContextSearchTool({ logger, queue }),
     createDeleteTool({ logger, queue }),
     createFilesTool({ logger, queue }),

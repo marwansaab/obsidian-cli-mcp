@@ -1,8 +1,13 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "035-context-search",
-  "generatedAt": "2026-05-16",
+  "generatedFromBranch": "036-get-backlinks",
+  "generatedAt": "2026-05-17",
   "tools": [
+    {
+      "name": "backlinks",
+      "descriptionFingerprint": "b0c788cf8f8fba0e330a008774f41f2f5bd6e093cd22ae8d9c1db62c168766bd",
+      "schemaFingerprint": "bd63e8cd884ef5278f1edd368de0b929f5886cd8bf0ef96f1110d219447328b5"
+    },
     {
       "name": "context_search",
       "descriptionFingerprint": "ea35771f6819e6f6808e838c5e760952f41cecc99f2794124689e3909c6180cb",
