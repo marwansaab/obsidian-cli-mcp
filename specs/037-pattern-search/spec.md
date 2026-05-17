@@ -5,6 +5,14 @@
 **Status**: Draft
 **Input**: User description: "Add Pattern Search — agents search every markdown note in a vault for matches against a regular-expression pattern and receive each match together with the note it came from and the line on which it was found."
 
+## Clarifications
+
+### Session 2026-05-17
+
+- Q: Regex dialect — which regular-expression flavour does the pattern argument speak? → A: **ECMAScript** (Node's built-in `RegExp`). Pattern validity, `\d` / `\b` / lookahead / lookbehind / named-capture semantics, and the `i` flag for case-insensitive matching all follow JavaScript `RegExp` rules. The invalid-pattern error (FR-010) is the typed envelope around `new RegExp(pattern)` throwing `SyntaxError`.
+- Q: Long matched-line text — how is the full-line field bounded when the matched line is very large? → A: **Sibling parity with BI-033 FR-024.** The full-line field is capped at 500 UTF-16 code units; if the original line is longer, the field carries the first 500 code units followed by `…` (U+2026). The matched-substring field is NEVER capped — the predicate's hit is always returned in full, even when the surrounding line is clipped. A match whose substring starts after the 500th code unit of its line is still surfaced; the line field shows the clipped prefix + `…` and the match field shows the substring intact.
+- Q: Zero-length matches — what happens when the pattern matches at a zero-width position (`^`, `$`, `a*`, `\b`, lookarounds)? → A: **Skip them.** A position where the pattern matches the empty string contributes no result entry. A line whose only matches are zero-length yields zero entries; a line that matches both zero-length AND non-empty positions yields one entry per non-empty match. Matches `grep`'s default behaviour and prevents zero-width predicates from saturating the truncation cap with empty-substring entries. Patterns themselves are NOT rejected at validation — `a*?`, `foo|bar*`, and similar predicates with both zero-width and non-empty branches remain valid; only the zero-width *matches* are dropped, not the patterns.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Search vault for a regex pattern (Priority: P1)
@@ -59,23 +67,23 @@ An agent can request case-insensitive matching when the predicate should ignore 
 ### Edge Cases
 
 - A note exists but contains no lines matching the pattern: the note contributes zero entries; this is not an error.
-- The pattern is valid but matches the empty string between every character (e.g., `a*`): the search must terminate and the result must be bounded by the result-size limit; the truncation signal must reflect any over-limit condition rather than the call hanging or erroring.
+- The pattern matches at a zero-width position (e.g., `a*`, `^`, `$`, `\b`, lookarounds): the zero-width hit is **skipped**, not emitted, per FR-016. The pattern itself is still valid; only the zero-width matches are dropped. A line whose only matches are zero-length contributes zero entries. The call still terminates within the result-size limit.
 - The matched substring spans the entire line: the matched substring and the full line are equal; both fields are still populated.
 - Several matches on the same line: each occurrence is a separate match entry that reports the same full-line text and may report a different matched substring.
 - Pattern matches text inside a fenced code block, frontmatter block, or HTML comment: the match is returned. The vault is searched as plain text; markdown-aware exclusion is out of scope for this feature.
 - Pattern includes a newline metacharacter (e.g., `\n`): matching is line-scoped, so the pattern cannot span lines; this is a deliberate limitation rather than an error.
-- Vault contains notes with very long lines: the full line is still returned so the matched substring stays anchored to its source; the result-size limit and truncation signal protect callers from unbounded payloads.
+- Vault contains notes with very long lines: the line field is clipped to the first 500 UTF-16 code units with a trailing `…` (FR-005), so the per-entry payload is bounded; the matched-substring field stays full, so the match itself is always faithful even when the surrounding line is clipped. The result-size truncation signal protects callers from unbounded payloads at the result level; per-line capping protects them from unbounded payloads at the entry level.
 - Folder scope is valid but the named folder is empty: the result is an empty list with the "complete" signal — same shape as a whole-vault search that yielded no matches.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: System MUST accept a regular-expression pattern as the search predicate.
+- **FR-001**: System MUST accept a regular-expression pattern as the search predicate. The pattern dialect is ECMAScript (Node's built-in `RegExp`); `\d`, `\b`, lookahead, lookbehind, named captures, and the `i` flag for case-insensitive matching all follow JavaScript `RegExp` semantics.
 - **FR-002**: System MUST scan every markdown note in the named vault (or every note under the named folder, when a folder scope is supplied) and report every line that contains at least one match for the pattern.
 - **FR-003**: System MUST report each match as a separate entry, including when several matches occur within the same note or on the same line.
 - **FR-004**: System MUST identify, for every match, the note it came from and the line within that note on which the match was found.
-- **FR-005**: System MUST return, for every match, both the full text of the matched line and the substring that matched the pattern.
+- **FR-005**: System MUST return, for every match, both the text of the matched line and the substring that matched the pattern. The full-line field MUST be capped at 500 UTF-16 code units; when the original line is longer, the field carries the first 500 code units followed by `…` (U+2026), parity with BI-033 FR-024. The matched-substring field MUST NOT be capped — the predicate's hit is always returned in full, even when the substring begins after the 500th code unit of its line and is therefore absent from the clipped line field.
 - **FR-006**: System MUST accept an optional folder scope that restricts the search to notes under the named folder of the vault.
 - **FR-007**: System MUST accept an optional case-sensitivity control. The default behaviour MUST be case-sensitive matching; an explicit case-insensitive request MUST cause the search to ignore letter case.
 - **FR-008**: System MUST return a result that indicates, without ambiguity, whether the returned list of matches is complete or whether further matches exist beyond a result-size limit.
@@ -86,6 +94,7 @@ An agent can request case-insensitive matching when the predicate should ignore 
 - **FR-013**: System MUST treat vault content as plain text for the purpose of matching; matches inside fenced code blocks, frontmatter blocks, or HTML comments MUST be returned the same as matches in any other position.
 - **FR-014**: System MUST search exactly one vault per invocation; callers that need results across multiple vaults invoke the search once per vault.
 - **FR-015**: System MUST NOT mutate vault content; the search is read-only.
+- **FR-016**: System MUST skip zero-length matches. A position where the pattern matches the empty string MUST NOT contribute a result entry; a line whose only matches are zero-length yields zero entries; a line that matches both zero-length AND non-empty positions yields one entry per non-empty match. Patterns that *can* produce zero-width matches (`a*`, `^`, `$`, `\b`, lookarounds) MUST NOT be rejected at validation; only their zero-width hits are dropped.
 
 ### Key Entities
 
