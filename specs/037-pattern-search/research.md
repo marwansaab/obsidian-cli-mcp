@@ -185,6 +185,23 @@ If any probe diverges from its pass criterion, surface the divergence to the use
 
 ---
 
+## R12 — Base64 anti-injection (project-wide convention)
+
+**Decision**: the eval-cohort base64-payload-anti-injection convention shared across BI-014 / BI-019 / BI-025 / BI-027 / BI-028 / BI-030 / BI-036 applies verbatim. Frozen JS template with a single `__PAYLOAD_B64__` substitution; user-supplied `pattern` / `folder` / `case_sensitive` / `limit` flow through `JSON.stringify → Buffer.from(json, "utf-8").toString("base64") → atob/JSON.parse at JS runtime` via `composeEvalCode` and `B64_PAYLOAD_DECODE_EXPR` from `../_shared.js`. No user input ever reaches the JS source as text.
+
+**Rationale**:
+
+- Numbered "R12" to align with BI-036's per-task carried-forward findings naming — the label is project-wide rather than per-feature. R1..R11 above are the design decisions specific to this BI; R12 is the cross-feature convention re-stated for traceability.
+- Defends against pattern strings that contain JS source — e.g., pattern `"});malicious()/*"` could escape an unprotected template-string concatenation. Base64 transit removes the attack surface entirely; the payload is interpreted by `JSON.parse` inside the Obsidian Node runtime, never by the JS parser at template-render time.
+- Structurally verified by T006 case 25 (anti-injection structural lock): decode the base64 payload from the recorded `code=` argv; assert the user input appears ONLY inside the decoded payload and never as text in the surrounding template.
+
+**Alternatives considered**:
+
+- Plain template-string concatenation — direct injection risk. Rejected.
+- Per-argv `obsidian eval --pattern=<x> --folder=<y>` flags — the upstream CLI's eval subcommand does not accept structured per-argument flags; the convention is `code=<rendered-js>`. Rejected by upstream contract.
+
+---
+
 ## Open items deferred to /speckit-implement
 
 - **OBC-1**: T0 probe set above runs during the first task of `/speckit-implement` (T0 task per the project's quickstart-before-source convention).
