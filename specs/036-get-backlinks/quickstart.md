@@ -45,6 +45,8 @@ The walkthroughs assume:
 
 `Notes/C.md` is absent (no reference). Per-source entries carry `source` only (no `count` — default `with_counts: false`). Order is `source` ascending UTF-16 code-unit (FR-008).
 
+**Token-saving note (SC-021)**: this 2-source response is ~120 bytes (`{"count":2,"backlinks":[{"source":"Notes/A.md"},{"source":"Notes/B.md"}]}`). The equivalent vault-wide body-text grep for the literal string `Target` via `search` or `context_search` returns per-line match payloads spanning every occurrence across every `.md` file in the vault — typically orders of magnitude larger on vaults with many notes. `backlinks` aggregates the file-level inbound-reference graph at the metadata-cache layer, never reading note bodies, and never returning per-line match text. Callers can observe the relative payload size from any MCP tracing layer that records request/response sizes.
+
 ## Q-2 — Backlinks for the focused note (active mode)
 
 **Maps to**: US2 scenario 1, SC-003.
