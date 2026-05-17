@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "036-get-backlinks",
+  "generatedFromBranch": "037-pattern-search",
   "generatedAt": "2026-05-17",
   "tools": [
     {
@@ -57,6 +57,11 @@
       "name": "paths",
       "descriptionFingerprint": "0ce2bd21b2330725b512b96fedda7375a008cd8caf9db8f8781f4e4fe64bdccb",
       "schemaFingerprint": "fe179867fe7570dd798b2bfe69a94a986ab5c36b56039410ee5fb148a4a24eab"
+    },
+    {
+      "name": "pattern_search",
+      "descriptionFingerprint": "665ffcdbbe984777086fea4ec371ac75a1631db5c6a0b75d73151155cbe1c249",
+      "schemaFingerprint": "0a4b6d3e01caea82b1a89a3d16cd391b7ac87ed4ca167988a63eecd6ec3de053"
     },
     {
       "name": "properties",
