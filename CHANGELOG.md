@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.5] - 2026-05-17
+
+### Added
+
+- `pattern_search` typed tool — ECMAScript-regex search across vault markdown notes returning per-occurrence matches with `(path, line, offset, match, text)`. Companion to `context_search` (BI-035) which is keyword-only. Optional `folder` restricts the scan to a subtree; optional `case_sensitive` toggles case sensitivity (**default `true`** — diverges from `context_search`'s case-insensitive default per spec FR-007); optional `limit` overrides the implicit 1000-match cap in range 1..10000. Pattern dialect is ECMAScript (Node `RegExp`) per spec Clarification 2026-05-17 Q1; the matched substring is never capped, the surrounding line is capped at 500 UTF-16 code units with `…` (U+2026) per Q2; zero-length matches (`^`, `$`, `a*`, `\b`, lookarounds) are skipped per Q3. See `docs/tools/pattern_search.md` for the full input contract, ECMAScript-dialect notes, and worked examples. Sixteenth typed-tool wrap; fourteenth eval-cohort tool. Zero new top-level error codes — Constitution Principle IV streak preserved at sixteen typed tools (invalid pattern routes through `VALIDATION_ERROR`). (BI-037)
+
 ## [0.6.4] - 2026-05-17
 
 **PATCH release (additive surface)** — adds `backlinks`, the **thirteenth eval-cohort typed tool** and the project's **direct inverse of [`links`](docs/tools/links.md) (BI-025)**. Together the two surfaces give complete 1-hop link-graph reads from any note. Spec-id 036-get-backlinks, FR-001..FR-030, SC-001..SC-029.

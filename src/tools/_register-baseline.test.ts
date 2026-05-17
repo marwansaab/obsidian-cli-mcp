@@ -46,7 +46,7 @@ describe("sha256", () => {
 describe("fingerprintLiveRegistry", () => {
   it("returns one entry per registered tool, sorted by name", async () => {
     const entries = await fingerprintLiveRegistry();
-    expect(entries.length).toBe(22);
+    expect(entries.length).toBe(23);
     const names = entries.map((e) => e.name);
     expect(names).toEqual([...names].sort());
     for (const entry of entries) {
