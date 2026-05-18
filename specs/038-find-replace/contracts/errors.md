@@ -3,7 +3,7 @@
 **Branch**: `038-find-replace`
 **Schema source of truth**: `src/errors.ts` — `UpstreamError`.
 
-The find_and_replace surface produces TWELVE distinct `(top-level code, details.code, details.reason)` failure triples. All twelve REUSE existing top-level error codes — no new top-level codes are introduced. The eleven-tool zero-new-top-level-codes streak (Constitution Principle IV) is preserved across the twelfth typed tool.
+The find_and_replace surface produces THIRTEEN distinct `(top-level code, details.code, details.reason)` failure triples. All thirteen REUSE existing top-level error codes — no new top-level codes are introduced. The eleven-tool zero-new-top-level-codes streak (Constitution Principle IV) is preserved across the twelfth typed tool.
 
 Per ADR-015, multi-sub-state `(top-level, details.code)` pairs use the `details.reason` sub-discriminator with kebab-case literals. Each `(code, reason)` pair is enumerated below per ADR-015 §Format.
 
@@ -22,9 +22,10 @@ Per ADR-015, multi-sub-state `(top-level, details.code)` pairs use the `details.
 | 9 | `PATH_ESCAPES_VAULT` | — (n/a) | — (n/a) | FR-009 Layer 2 | Handler — `checkCanonicalPath` (on subfolder OR per-note) | In-vault symlink resolves outside the vault root. |
 | 10 | `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND` | `unknown` | FR-013 | Handler — `resolveVaultPath` | `vault: "Typo"` not in registry. |
 | 11 | `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND` | `not-open` | FR-013 | Handler — `resolveVaultPath` | `vault: "Closed"` registered but not currently open. |
-| 12 | `FS_WRITE_FAILED` | — (n/a — `details.errno` carries the Node errno) | — (n/a) | FR-021 | Handler commit step — `fs.writeFile` / `fs.rename` throw | ENOSPC, EACCES, EROFS, EIO, etc. |
+| 12 | `FS_WRITE_FAILED` | — (n/a) | `write` | FR-021 | Handler commit step — `fs.writeFile` / `fs.rename` throw | ENOSPC, EACCES, EROFS, EIO during write. Carries `details.errno` + `partial: true` flag on commit response. |
+| 13 | `FS_WRITE_FAILED` | — (n/a) | `read` | FR-021 | Handler scan step — per-note `fs.readFile` throws (preview OR commit code path) | EACCES, EIO, ENOENT-mid-walk during read. Carries `details.errno`; commit aborts BEFORE any write so the response carries the error envelope with NO `partial` flag. |
 
-All twelve discriminators REUSE existing top-level codes (`VALIDATION_ERROR`, `PATH_ESCAPES_VAULT`, `CLI_REPORTED_ERROR`, `FS_WRITE_FAILED`).
+All thirteen discriminators REUSE existing top-level codes (`VALIDATION_ERROR`, `PATH_ESCAPES_VAULT`, `CLI_REPORTED_ERROR`, `FS_WRITE_FAILED`).
 
 ## Envelope shapes
 
@@ -193,13 +194,14 @@ Parity with BI-037 `pattern_search` handler.ts:74 / handler.test.ts:293 — the 
 }
 ```
 
-### `FS_WRITE_FAILED`
+### `FS_WRITE_FAILED` + `details.reason: "write"`
 
 ```json
 {
   "code": "FS_WRITE_FAILED",
   "message": "filesystem write failed: ENOSPC",
   "details": {
+    "reason": "write",
     "errno": "ENOSPC",
     "path": "Inbox/notes/wiki-refs.md",
     "vault": "Research"
@@ -208,6 +210,23 @@ Parity with BI-037 `pattern_search` handler.ts:74 / handler.test.ts:293 — the 
 ```
 
 Accompanied by the commit response carrying `partial: true` and `failing_note_locator: "Inbox/notes/wiki-refs.md"` per FR-021 / FR-025.
+
+### `FS_WRITE_FAILED` + `details.reason: "read"`
+
+```json
+{
+  "code": "FS_WRITE_FAILED",
+  "message": "filesystem read failed: EACCES",
+  "details": {
+    "reason": "read",
+    "errno": "EACCES",
+    "path": "Inbox/notes/locked-file.md",
+    "vault": "Research"
+  }
+}
+```
+
+NOT accompanied by a `partial: true` commit response — read failures abort the operation BEFORE any write, so no successful writes precede the failure. The caller sees only the error envelope.
 
 ## ADR-015 enumeration
 
@@ -219,7 +238,8 @@ Per ADR-015 §Format, the value space of `details.reason` is closed per `(top-le
 - `(VALIDATION_ERROR, OCCURRENCE_COUNT_EXCEEDED)`: single-state, no sub-discriminator.
 - `(VALIDATION_ERROR, OCCURRENCE_COUNT_DRIFT)`: single-state, no sub-discriminator.
 - `(CLI_REPORTED_ERROR, VAULT_NOT_FOUND)`: `details.reason ∈ { "unknown", "not-open" }` — two sub-states (BI-026 v0.5.4 / BI-037 parity).
-- `PATH_ESCAPES_VAULT` and `FS_WRITE_FAILED` are top-level-only — no `details.code` / `details.reason` discriminator.
+- `PATH_ESCAPES_VAULT` is top-level-only — no `details.code` / `details.reason` discriminator.
+- `(FS_WRITE_FAILED, —)`: `details.reason ∈ { "read", "write" }` — two sub-states. The pair has no `details.code` discriminator; the `details.reason` carries directly under the top-level code per ADR-015's allowance for `details.reason` to apply at the top-level layer when no `details.code` namespace exists.
 
 ## Detection-gate summary
 
@@ -231,4 +251,5 @@ Per ADR-015 §Format, the value space of `details.reason` is closed per `(top-le
 | Handler scan step | #6 (unknown subfolder — directory does not exist) |
 | Handler bound-check step | #7 (occurrence count exceeded) — on FIRST scan AND on SECOND scan during commit |
 | Handler drift-check step (commit-only) | #8 (occurrence count drift) — when first-scan count ≠ second-scan count |
+| Handler scan step (preview AND commit) | #13 (FS read failed) — propagated from per-note `fs.readFile` throw |
 | Handler write step (commit-only) | #12 (FS write failed) — propagated from `fs.writeFile` / `fs.rename` |

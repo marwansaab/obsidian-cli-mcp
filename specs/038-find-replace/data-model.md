@@ -182,8 +182,9 @@ The operation has no persistent state. Per-invocation state-transition shape:
 [checkCanonicalPath on scanRoot] ──fail──▶ PATH_ESCAPES_VAULT + pathEscapeAttempt log
      │ ok (or ENOENT lexical fallback)
      ▼
-[directory walk + .md/.-prefix filter + region-scan + per-line regex evaluation]
-     │
+[directory walk + .md/.-prefix filter + per-note fs.readFile + region-scan + per-line regex evaluation]
+     │ fs.readFile throws (EACCES/EIO/ENOENT) ──▶ FS_WRITE_FAILED + details.reason:"read" — no write attempted, no partial flag
+     │ ok
      ▼
 [first ScanCounts]
      │
@@ -212,6 +213,7 @@ The operation has no persistent state. Per-invocation state-transition shape:
                                          ▼                                   │
                                 [queue.run: writeFile(tmp) + rename]         │
                                          │ FS error ──▶ FS_WRITE_FAILED      │
+                                         │           + details.reason:"write"│
                                          │           + partial=true          │
                                          │           + failing_note_locator  │
                                          ▼                                   │
