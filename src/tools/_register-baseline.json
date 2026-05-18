@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "037-pattern-search",
-  "generatedAt": "2026-05-17",
+  "generatedFromBranch": "038-find-replace",
+  "generatedAt": "2026-05-18",
   "tools": [
     {
       "name": "backlinks",
@@ -22,6 +22,11 @@
       "name": "files",
       "descriptionFingerprint": "38474bcf0652428f5e232a76135b63c4fa45088402529b131b2c76ae8dfed40a",
       "schemaFingerprint": "053fa3cb78939dc6e23204250d0bc14727ae9e85fb93c6942a319bee78352908"
+    },
+    {
+      "name": "find_and_replace",
+      "descriptionFingerprint": "35d57e49c0db5aa4edb668c371354baa334d9ef2b00b98429b0c8754c046598f",
+      "schemaFingerprint": "e8b5f4c94cfd2d91207f2b0774a070ada0999cc878f8f99a4ec84448ab4b6895"
     },
     {
       "name": "find_by_property",
