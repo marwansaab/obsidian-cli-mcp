@@ -76,6 +76,7 @@ The server currently registers fifteen public tools. Call `help({ tool_name: "<n
 | `read_heading` | Read the body under a single named heading. |
 | `read_property` | Read one frontmatter property. |
 | `find_by_property` | Find notes whose frontmatter field matches a value. |
+| `find_and_replace` | Preview-then-commit find-and-replace across a vault (or subfolder); code blocks + HTML comments skipped by default; bounded by `OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES`. |
 | `write_note` | Create or overwrite a note. |
 | `set_property` | Write a single frontmatter property. |
 | `delete` | Delete a note. |

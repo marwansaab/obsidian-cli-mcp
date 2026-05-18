@@ -331,6 +331,22 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
     required_equals: ["target_mode"],
     additionalProperties: false,
   },
+  find_and_replace: {
+    type: "object",
+    properties_equals_set: [
+      "case_insensitive",
+      "commit",
+      "include_code_blocks",
+      "include_html_comments",
+      "mode",
+      "pattern",
+      "replacement",
+      "subfolder",
+      "vault",
+    ],
+    required_equals: ["pattern", "replacement"],
+    additionalProperties: false,
+  },
   obsidian_exec: {
     type: "object",
     properties_equals_set: ["command", "vault", "parameters", "flags", "copy", "timeoutMs"],

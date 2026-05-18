@@ -15,6 +15,7 @@ import { createBacklinksTool } from "./tools/backlinks/index.js";
 import { createContextSearchTool } from "./tools/context_search/index.js";
 import { createDeleteTool } from "./tools/delete/index.js";
 import { createFilesTool } from "./tools/files/index.js";
+import { createFindAndReplaceTool } from "./tools/find_and_replace/index.js";
 import { createFindByPropertyTool } from "./tools/find_by_property/index.js";
 import { createHelpTool } from "./tools/help/index.js";
 import { createLinksTool } from "./tools/links/index.js";
@@ -96,6 +97,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     createContextSearchTool({ logger, queue }),
     createDeleteTool({ logger, queue }),
     createFilesTool({ logger, queue }),
+    createFindAndReplaceTool({ logger, queue, vaultRegistry }),
     createFindByPropertyTool({ logger, queue }),
     createHelpTool(),
     createLinksTool({ logger, queue }),
