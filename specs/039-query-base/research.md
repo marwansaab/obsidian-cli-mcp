@@ -89,7 +89,7 @@ The classification table for stage 3 will be populated during /speckit-implement
 
 ## R7 — Source-tree layout and registration wiring
 
-**Decision**: New module at `src/tools/query_base/{index, schema, handler}.ts` plus three co-located `*.test.ts` files. Wiring into the server boot path is a one-line addition to `src/tools/_registration-stub.ts` — import `createQueryBaseTool` from `./query_base/index.js` and call the factory with `{ logger, queue }` in the existing `forEach`-style registration block. No edits to `src/tools/_register.ts` (the centralised factory), `src/cli-adapter/`, `src/errors.ts`, or `src/server.ts`.
+**Decision**: New module at `src/tools/query_base/{index, schema, handler}.ts` plus three co-located `*.test.ts` files. Wiring into the server boot path is a one-line import + one-line factory call at `src/server.ts` (alongside the 26 existing `createXTool` imports + factory calls — cohort precedent from BI-038 / pattern_search / read_property). A separate one-entry append to `src/tools/_register-baseline.json` updates the registry-stability baseline fixture per BI-031 / FR-018. No edits to `src/tools/_register.ts` (the centralised factory), `src/tools/_registration-stub.ts` (the test-fixture SpawnLike helper), `src/cli-adapter/`, or `src/errors.ts`.
 
 **Rationale**: This is the cohort-canonical pattern for adding a new typed tool. Sixteen prior tools followed it (the streak count post-this-BI). The centralised `registerTool` factory consumes the zod input schema directly, publishes it via `zodToJsonSchema`, and wires the `handler` into the MCP `Server.tool` slot; the new tool inherits the full publication / dispatch pipeline by following the same pattern as `pattern_search` / `search` / `find_and_replace`.
 

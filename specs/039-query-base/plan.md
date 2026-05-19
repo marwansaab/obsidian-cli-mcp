@@ -70,13 +70,13 @@ src/
 │       └── handler.test.ts     # Behaviour tests against mocked spawn (happy path, all error sub-states, truncation, ordering, collision rule)
 │
 ├── tools/_register.ts           # No edits — query_base registers through the existing centralised factory
-├── tools/_registration-stub.ts  # 1-line addition: import + factory call to wire query_base into the server boot path
+├── tools/_register-baseline.json # 1-entry addition — registry-stability baseline fixture (BI-031 / FR-018)
 ├── cli-adapter/cli-adapter.ts   # No edits — invokeCli is the existing interface, `base:query` is just another `command` string
 ├── errors.ts                    # No edits — UpstreamError already supports the existing top-level codes
-└── server.ts                    # No edits — boot path consumes the registration stub
+└── server.ts                    # 1-line import + 1-line factory call in the existing tool-registration block (cohort precedent — 16 prior tools follow this pattern)
 ```
 
-**Structure Decision**: Single project, per-surface module triplet at `src/tools/query_base/` per Principle I. The new tool registers through the existing centralised `_registration-stub.ts` factory wiring; no changes to the server boot path beyond a one-line addition for `createQueryBaseTool({ logger, queue })`. All existing infrastructure (`invokeCli`, `UpstreamError`, the vault-closed-detection helper, the centralised cli-adapter bounds) is consumed unchanged.
+**Structure Decision**: Single project, per-surface module triplet at `src/tools/query_base/` per Principle I. The new tool wires into the boot spine at `src/server.ts` (one-line import alongside the 26 existing `createXTool` imports, one-line factory call in the existing registration block — cohort precedent from BI-038 / pattern_search / read_property and 16 sibling tools). A separate one-entry append to `src/tools/_register-baseline.json` updates the registry-stability baseline fixture per BI-031 / FR-018. All existing infrastructure (`invokeCli`, `UpstreamError`, the vault-closed-detection helper, the centralised cli-adapter bounds) is consumed unchanged. The `_register.ts` central factory and `_registration-stub.ts` test fixture both stay untouched.
 
 ## Complexity Tracking
 
