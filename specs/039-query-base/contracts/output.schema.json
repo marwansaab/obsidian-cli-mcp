@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/marwansaab/obsidian-cli-mcp/specs/039-query-base/contracts/output.schema.json",
+  "title": "query_base success response envelope",
+  "description": "Success response shape for the query_base typed MCP tool. Authoritative source is the Zod output schema in src/tools/query_base/schema.ts; this JSON Schema is the human-readable cross-reference. Errors are NOT represented here — they surface through UpstreamError thrown from the handler and serialised by the MCP SDK's error-response shape (see contracts/errors.md).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["columns", "rows", "truncated"],
+  "properties": {
+    "columns": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Column names in view-declared order. The reserved key 'path' always appears at index 0. A view-defined column named 'path' is renamed to 'path_view' (FR-002b) and appears in this array at the index the view declared for the original 'path' column. Populated even when 'rows' is the empty array (FR-002c) so the agent learns the view's schema from a zero-row response.",
+      "examples": [
+        ["path"],
+        ["path", "id", "status", "priority"],
+        ["path", "path_view", "tags", "created"]
+      ]
+    },
+    "rows": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "required": ["path"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Reserved wrapper-guaranteed source-note locator (FR-002a). Vault-relative path. Always present, regardless of whether the view's column selection includes file.path — synthesised by the wrapper when upstream omits it."
+          }
+        },
+        "additionalProperties": {
+          "description": "All other row keys are passthrough from upstream (FR-002d). Wrapper does not synthesise, suppress, or type-coerce them. Native JSON types preserved (FR-014): string, number, boolean, null, nested object, ISO-date string. The key names match the view's declared column names; insertion order matches the 'columns' vector as a secondary guarantee."
+        }
+      },
+      "description": "Up to 1000 row objects, ordered per FR-003 (view's explicit sort as primary, then row.path ascending as tiebreaker, then upstream emission for path-equal rows)."
+    },
+    "truncated": {
+      "type": "boolean",
+      "description": "Truncation signal (FR-013). Always present. false when the view's full row set fit within the 1000-row cap. true when the wrapper sliced the row set down."
+    },
+    "total_rows": {
+      "type": "integer",
+      "minimum": 1001,
+      "description": "Present only when truncated: true. Reports the upstream's full match count for the view at query time so the caller can plan narrowing strategy without iterative probing. Omitted when truncated: false (the count is rows.length, no separate field needed). Minimum 1001 because total_rows is only emitted when the count exceeds the 1000-row cap."
+    }
+  },
+  "examples": [
+    {
+      "$comment": "Empty view — successful zero-row response (FR-006). columns still populated.",
+      "columns": ["path", "status", "priority"],
+      "rows": [],
+      "truncated": false
+    },
+    {
+      "$comment": "Single row, native-type-preserved values (FR-014).",
+      "columns": ["path", "id", "open", "priority"],
+      "rows": [
+        {
+          "path": "Issues/BI-0048.md",
+          "id": "BI-0048",
+          "open": true,
+          "priority": 3
+        }
+      ],
+      "truncated": false
+    },
+    {
+      "$comment": "Truncated response — view matched 4527 notes total, first 1000 returned (FR-013).",
+      "columns": ["path", "created"],
+      "rows": [{ "path": "Notes/aardvark.md", "created": "2024-01-01" }],
+      "truncated": true,
+      "total_rows": 4527
+    }
+  ]
+}
