@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "038-find-replace",
-  "generatedAt": "2026-05-18",
+  "generatedFromBranch": "039-query-base",
+  "generatedAt": "2026-05-19",
   "tools": [
     {
       "name": "backlinks",
@@ -72,6 +72,11 @@
       "name": "properties",
       "descriptionFingerprint": "145398215775e6c31693f30e5024d16a2bb76cff486cf4c4dad2fc49e24554c8",
       "schemaFingerprint": "bd4389053b0867cdde65a07ac65d8ac2331d249b8909a9358e9c90c104812dff"
+    },
+    {
+      "name": "query_base",
+      "descriptionFingerprint": "cf95b2fb9922ac0114419442f0390d0797c68d5d4338b4de3e2b013fe612241b",
+      "schemaFingerprint": "2ff8e608d397020639d19b42e6f5f8d13b1d71d663cfe78cae0f03de85bb9d4d"
     },
     {
       "name": "read",
