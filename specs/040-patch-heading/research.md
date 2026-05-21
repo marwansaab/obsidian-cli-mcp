@@ -102,6 +102,8 @@ The losing call's write is NOT silently dropped: the loser's content is preserve
 - **Backslash escape** (`\#` means literal `#` in heading text): rejected — adds a parsing surface for ~0% of real use cases, creates dual semantics, and breaks cohort parity with the unescaped wikilink form.
 - **Double-hash escape** (`##` means literal `#`): rejected — collides with the empty-segment shape; "empty segment then `Sub`" and "literal `#` then `Sub`" would be indistinguishable to the parser.
 
+**Defensive-sentinel note** — `INVALID_HEADING_PATH details.reason: "contains-hash"` is enumerated in the contract (per [contracts/errors.md](contracts/errors.md) and FR-018) even though the schema-level split-on-`#` makes it unreachable in normal flow: splitting a string on `#` cannot produce a segment containing `#`. The sub-state is retained as a defensive sentinel for ADR-015 forward-compatibility — if a future BI changes the segment-encoding scheme (e.g., introducing an escape mechanism per the rejected alternatives above), the `"contains-hash"` reason already has stable semantics and can be emitted without a new sub-discriminator. The cost of carrying an unreachable enumerated value is one untested branch in handler-side error classification; the value is that the published `details.reason` enumeration is stable across schema iterations.
+
 ## R8 — Output envelope echoes locator for write-verification
 
 **Decision**: The success response echoes the resolved write target for the caller's write-verification needs. Envelope shape:
