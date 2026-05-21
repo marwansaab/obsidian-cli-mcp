@@ -515,6 +515,7 @@ export async function executeFindAndReplace(
           cause: err,
           details: {
             code: "INVALID_SUBFOLDER",
+            reason: "not-found",
             subfolder,
             vault: vaultLabel,
           },

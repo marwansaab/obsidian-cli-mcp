@@ -79,7 +79,7 @@ Thirteen distinct `(top-level code, details.code, details.reason)` failure tripl
 | `VALIDATION_ERROR` | `INVALID_PATTERN` | `regex-syntax` | invalid ECMAScript regex (regex mode) |
 | `VALIDATION_ERROR` | `INVALID_REPLACEMENT` | — | over 1000 UTF-16 code units |
 | `VALIDATION_ERROR` | `INVALID_SUBFOLDER` | `path-traversal` | `../`, leading `/` or `\`, drive letter, control char |
-| `VALIDATION_ERROR` | `INVALID_SUBFOLDER` | — | subfolder does not exist |
+| `VALIDATION_ERROR` | `INVALID_SUBFOLDER` | `not-found` | subfolder does not exist (ENOENT on `fs.realpath`); closed union `{ "path-traversal", "not-found" }` per ADR-015 (BI-042 added this sub-state for envelope symmetry) |
 | `VALIDATION_ERROR` | `OCCURRENCE_COUNT_EXCEEDED` | — | total > `OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES` |
 | `VALIDATION_ERROR` | `OCCURRENCE_COUNT_DRIFT` | — | first-scan count ≠ second-scan count |
 | `PATH_ESCAPES_VAULT` | — | — | canonical path resolves outside vault root |
@@ -89,6 +89,19 @@ Thirteen distinct `(top-level code, details.code, details.reason)` failure tripl
 | `FS_WRITE_FAILED` | — | `write` | `fs.writeFile` / `fs.rename` failed during commit (carries `details.partial: true` + `details.failing_note_locator` + `details.changed_notes` + `details.total_occurrences_replaced`) |
 
 Full envelope examples: [`specs/038-find-replace/contracts/errors.md`](../../specs/038-find-replace/contracts/errors.md).
+
+### Dual validation envelope (BI-042 cohort acknowledgement)
+
+Field-level input rejections produce two distinct wire envelopes depending on the MCP client class:
+
+| Constraint family | Wrapped envelope (`UpstreamError`) | MCP transport envelope |
+|---|---|---|
+| String `min/max` on `pattern` (1..1000); `replacement` `max(1000)`; numeric typing on flags; `vault` non-empty | `VALIDATION_ERROR` with `details.code` (e.g. `INVALID_PATTERN`, `INVALID_REPLACEMENT`) — fires when the offending value reaches the wrapper (Cowork pathway, or strict-rich clients that forward un-validated input). | `-32602 Invalid Params` with a zod-issue body — fires when the strict-rich client validates against the published `inputSchema` and rejects before forwarding. |
+| Custom `superRefine` rules (regex syntax in `regex` mode; `subfolder` path-traversal shape) | `VALIDATION_ERROR` with `details.code` + `details.reason` per ADR-015 (e.g. `INVALID_PATTERN`/`regex-syntax`, `INVALID_SUBFOLDER`/`path-traversal`) — wrapped envelope only; the constraint does not render into the published JSON Schema. | Not produced — strict-rich clients pass through. |
+| Handler-layer rules (`subfolder` ENOENT after fs.realpath; `OCCURRENCE_COUNT_EXCEEDED`; `OCCURRENCE_COUNT_DRIFT`) | `VALIDATION_ERROR` with `details.code` + (for `INVALID_SUBFOLDER`) `details.reason: "not-found"` per ADR-015 BI-042 (closed union `{ "path-traversal", "not-found" }`) — wrapped envelope only. | Not produced. |
+| Unknown top-level keys (`additionalProperties: false`) | `VALIDATION_ERROR(unrecognized_keys)` — strict-rich pathway only; Cowork strips client-side and never reaches the wrapper. | `-32602` — when the strict-rich client validates the published schema client-side. |
+
+The dual envelope is structurally inherent to the wrapper + MCP transport architecture and is uniform across the cohort (`search`, `context_search`, `pattern_search`, `find_and_replace`, `find_by_property`, `backlinks`, `query_base`, `tag`). See [BI-042 dual-envelope evidence](../../specs/042-close-audit-findings/contracts/dual-envelope-evidence.md) and [BI-042 dual-envelope contract](../../specs/042-close-audit-findings/contracts/dual-validation-envelope-roster.md).
 
 ## Worked examples
 
