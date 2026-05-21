@@ -146,15 +146,20 @@ directly); only `type` may mis-resolve. **Recommendation**: when type-correctnes
 matters and multiple vaults are registered, prefer `target_mode: "specific"`
 with an explicit `vault` argument.
 
-### No-frontmatter / malformed-frontmatter conflation
+### No-frontmatter / malformed-frontmatter conflation (BI-041 reconciled)
 
 Obsidian conflates "no frontmatter block" with "malformed frontmatter
-(missing closing fence)" — both surface as `No frontmatter found.` on
-stdout. Per [research.md R7](../../specs/013-read-property/research.md), the
-wrapper does **not** distinguish the two cases. Both produce `{ "value":
-null, "type": "unknown" }` with no error. Spec FR-012's "structured error
-for malformed frontmatter" is weakened to match Obsidian's actual conflation;
-this is a known limitation of the underlying CLI.
+(missing closing fence, broken YAML, stray colons, etc.)" — both surface
+as `No frontmatter found.` on the upstream `properties` subcommand's
+stdout. Per [research.md R7](../../specs/013-read-property/research.md) and
+the BI-041 T0 probe captured 2026-05-21, the wrapper does **not**
+distinguish the two cases. Both produce `{ "value": null, "type":
+"unknown" }` with no error. Spec FR-012's "structured error for malformed
+frontmatter" is weakened to match Obsidian's actual conflation; this is a
+known limitation of the underlying CLI. The schema's `.describe()`
+canonicalises this contract per BI-041 FR-010 — agents recovering from this
+surface should treat `type: "unknown"` as the failed-read signal and avoid
+assuming the property is absent.
 
 ### Type label inference vs explicit-type assignment
 

@@ -320,6 +320,62 @@ describe("dispatchCli — four-priority classification (FR-014)", () => {
     expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
   });
 
+  // BI-041 FR-001 / US1 — canonical capital-N upstream emit classifies.
+  it("capital-N: 'Error: No active file\\n' classifies as ERR_NO_ACTIVE_FILE", async () => {
+    const cap = captureLines();
+    const { spawnFn } = makeStubSpawn({ stdout: "Error: No active file\n", exitCode: 0 });
+    const err = await captureRejection(
+      dispatchCli(baseInput({ command: "delete" }), { spawnFn, env: {}, logger: cap.logger }),
+    );
+    expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
+    expect(err.message).toBe(
+      'No active file in Obsidian. Open a note in the editor, or call this tool with target_mode: "specific" and an explicit vault/file.',
+    );
+  });
+
+  // BI-041 FR-001 — period-terminator + capital-N (the verbatim T0-captured upstream phrase).
+  it("period-terminator: 'Error: No active file.\\n' classifies as ERR_NO_ACTIVE_FILE", async () => {
+    const cap = captureLines();
+    const { spawnFn } = makeStubSpawn({ stdout: "Error: No active file.\n", exitCode: 0 });
+    const err = await captureRejection(
+      dispatchCli(baseInput({ command: "rename" }), { spawnFn, env: {}, logger: cap.logger }),
+    );
+    expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
+  });
+
+  // BI-041 FR-001 / Edge Cases "case spectrum" — mixed-case variants classify.
+  it("mixed-case all-upper: 'ERROR: NO ACTIVE FILE!\\n' classifies as ERR_NO_ACTIVE_FILE", async () => {
+    const cap = captureLines();
+    const { spawnFn } = makeStubSpawn({ stdout: "ERROR: NO ACTIVE FILE!\n", exitCode: 0 });
+    const err = await captureRejection(
+      dispatchCli(baseInput({ command: "outline" }), { spawnFn, env: {}, logger: cap.logger }),
+    );
+    expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
+  });
+
+  it("mixed-case partial: 'Error: NO active file: foo\\n' classifies as ERR_NO_ACTIVE_FILE", async () => {
+    const cap = captureLines();
+    const { spawnFn } = makeStubSpawn({ stdout: "Error: NO active file: foo\n", exitCode: 0 });
+    const err = await captureRejection(
+      dispatchCli(baseInput({ command: "read" }), { spawnFn, env: {}, logger: cap.logger }),
+    );
+    expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
+  });
+
+  // BI-041 FR-001 anchor-at-head invariant — substring-of-longer-unrelated-message MUST NOT classify.
+  // The case-insensitive match remains anchored to the message head (prefix), not substring-anywhere.
+  it("substring-of-unrelated-message: 'Error: file open failed: no active file in vault\\n' does NOT classify as ERR_NO_ACTIVE_FILE", async () => {
+    const cap = captureLines();
+    const { spawnFn } = makeStubSpawn({
+      stdout: "Error: file open failed: no active file in vault\n",
+      exitCode: 0,
+    });
+    const err = await captureRejection(
+      dispatchCli(baseInput({ command: "read" }), { spawnFn, env: {}, logger: cap.logger }),
+    );
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+  });
+
   it("signal-only termination: exitCode=-1 sentinel + signal carried in details", async () => {
     const cap = captureLines();
     const { spawnFn } = makeStubSpawn({ exitCode: null, signal: "SIGTERM" });

@@ -16,6 +16,35 @@ import {
   type SearchLineOutput,
 } from "./schema.js";
 
+// =====================================================================
+// BI-041 US4 — schema .describe() error-roster Cowork carve-out claims (FR-009)
+// =====================================================================
+
+test("BI-041 FR-009: schema .describe() carries exactly two `strict-rich pathway only, per BI-0086` carve-out flags", () => {
+  const desc = searchInputSchema.description ?? "";
+  const matches = desc.match(/strict-rich pathway only, per BI-0086/g) ?? [];
+  expect(matches.length).toBe(2);
+});
+
+test("BI-041 FR-009(b): VALIDATION_ERROR(unrecognized_keys) is flagged strict-rich-only", () => {
+  const desc = searchInputSchema.description ?? "";
+  expect(desc).toContain("VALIDATION_ERROR(unrecognized_keys)");
+  // Within 200 chars of the carve-out phrase.
+  const flagIdx = desc.indexOf("VALIDATION_ERROR(unrecognized_keys)");
+  const carveOutIdx = desc.indexOf("strict-rich pathway only", flagIdx);
+  expect(carveOutIdx).toBeGreaterThan(-1);
+  expect(carveOutIdx - flagIdx).toBeLessThan(200);
+});
+
+test("BI-041 FR-009(b): out-of-range `limit` is flagged strict-rich-only", () => {
+  const desc = searchInputSchema.description ?? "";
+  expect(desc).toContain("Out-of-range `limit`");
+  const flagIdx = desc.indexOf("Out-of-range `limit`");
+  const carveOutIdx = desc.indexOf("strict-rich pathway only", flagIdx);
+  expect(carveOutIdx).toBeGreaterThan(-1);
+  expect(carveOutIdx - flagIdx).toBeLessThan(200);
+});
+
 // (1) happy path — query only
 test("happy path — { query: 'foo' } parses to { query: 'foo' }", () => {
   const r = searchInputSchema.safeParse({ query: "foo" });

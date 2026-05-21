@@ -37,7 +37,7 @@ describe("createSearchTool — descriptor", () => {
     expect(tool.descriptor.name).toBe("search");
   });
 
-  it("emits inputSchema with descriptions stripped at every nested depth", () => {
+  it("emits inputSchema with descriptions stripped at every nested depth (root description allowed per FR-003)", () => {
     const tool = createSearchTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
     expect(schema.type).toBe("object");
@@ -46,11 +46,15 @@ describe("createSearchTool — descriptor", () => {
     expect(Object.keys(props).sort()).toEqual(
       ["case_sensitive", "context_lines", "folder", "limit", "query", "vault"],
     );
-    let descriptionKeysFound = 0;
-    walkSchema(schema, (n) => {
-      if (Object.prototype.hasOwnProperty.call(n, "description")) descriptionKeysFound += 1;
-    });
-    expect(descriptionKeysFound).toBe(0);
+    // Walk children only — root description is preserved by stripSchemaDescriptions
+    // per FR-003 (BI-041 introduces a root-level description carrying the error roster).
+    let nestedDescriptionKeysFound = 0;
+    for (const child of Object.values(props)) {
+      walkSchema(child, (n) => {
+        if (Object.prototype.hasOwnProperty.call(n, "description")) nestedDescriptionKeysFound += 1;
+      });
+    }
+    expect(nestedDescriptionKeysFound).toBe(0);
   });
 
   it("SEARCH_DESCRIPTION mentions help({ tool_name: \"search\" })", () => {

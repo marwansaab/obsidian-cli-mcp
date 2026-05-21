@@ -361,3 +361,31 @@ test("SC-014 token-cost regression — properties stdout bytes << equivalent ful
   const grepBytes = Buffer.byteLength(grepEquivalent, "utf8");
   expect(propertiesBytes).toBeLessThan(grepBytes / 5);
 });
+
+// =====================================================================
+// BI-041 US6 — case-insensitive collapse (FR-011)
+// =====================================================================
+
+// T0 probe captured 2026-05-21: upstream `properties format=json` against a vault
+// containing `AaTest.md` (frontmatter `AaTest: value-1`) + `aatest.md` (frontmatter
+// `aatest: value-2`) emits exactly ONE entry with the lowercase reported casing
+// `aatest` and count summing both contributors. The runtime is correct (no change
+// here); this test documents the live behaviour going forward so future drift
+// surfaces immediately. The reported-casing assertion uses case-insensitive
+// regex because upstream's casing choice is not under wrapper control.
+test("BI-041 FR-011: case-variant frontmatter property names collapse to one entry with noteCount summed", async () => {
+  const upstreamMergedEmit = JSON.stringify([
+    { name: "aatest", type: "text", count: 2 },
+  ]);
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: upstreamMergedEmit, exitCode: 0 },
+  ]);
+  const result = await executeProperties(
+    { vault: "TestVault-Obsidian-CLI-MCP" },
+    deps(spawnFn),
+  );
+  expect(result.count).toBe(1);
+  expect(result.properties).toHaveLength(1);
+  expect(result.properties[0]!.noteCount).toBe(2);
+  expect(result.properties[0]!.name).toMatch(/aatest/i);
+});

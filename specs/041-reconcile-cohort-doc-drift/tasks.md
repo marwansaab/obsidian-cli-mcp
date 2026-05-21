@@ -28,8 +28,8 @@ Single TypeScript project rooted at `src/`. Tests co-located as `*.test.ts` per 
 
 **Purpose**: Confirm pre-BI baseline so post-BI regression delta is verifiable.
 
-- [ ] T001 Run `npm test` to capture pre-BI baseline (vitest pass count + aggregate coverage threshold per `vitest.config.ts`). Record results — used as the regression reference for the final cohort-wide green-gate (T046).
-- [ ] T002 Read `.memory/test-execution-instructions.md` and confirm the authorised test vault + scratch subdirectory are reachable. T0 probes in later phases run there.
+- [X] T001 Run `npm test` to capture pre-BI baseline (vitest pass count + aggregate coverage threshold per `vitest.config.ts`). Record results — used as the regression reference for the final cohort-wide green-gate (T046).
+- [X] T002 Read `.memory/test-execution-instructions.md` and confirm the authorised test vault + scratch subdirectory are reachable. T0 probes in later phases run there.
 
 ---
 
@@ -39,12 +39,12 @@ Single TypeScript project rooted at `src/`. Tests co-located as `*.test.ts` per 
 
 **⚠️ CRITICAL**: No user-story work can begin until Phase 2 completes.
 
-- [ ] T003 [P] T0 probe — capture verbatim stdout bytes + exit code for `delete` / `rename` / `outline` invoked in active mode with no focused file. Confirm spec A1: leading line is `"Error: No active file."` (capital N, period). Record per-subcommand result in a working notes file under the test vault scratch subdir (cleaned up after Phase 9).
-- [ ] T004 [P] T0 probe — capture verbatim stdout + stderr + exit code for `query_base` invoked against a fixture `.base` declaring view `Open` with `view_name=NonExistentView`. Confirm spec A2: stdout = `"Error: View not found: NonExistentView\n"`, stderr = empty, exit code = 0.
-- [ ] T005 [P] T0 probe — capture verbatim wire response for `read_property` invoked against fixture note with malformed YAML frontmatter (body per `contracts/read_property-malformed-frontmatter.md`). Determine Branch A (empty-value-`type:"unknown"`) vs Branch B (typed-code). Record in research.md as a captured-shape addendum.
-- [ ] T006 [P] T0 probe — capture three `query_base` response-shape anchors per `research.md` Task 5: (a) empty-view → `{ columns: ["path"], rows: [] }`; (b) integer YAML `count: 42` → row carries `count: "42"` string; (c) `file.path` + `file.name` columns → `columns: ["path", "file name"]` (embedded space).
-- [ ] T007 [P] T0 probe — capture two `properties` reachability anchors per `contracts/properties-dedup.md`: two case-variant fixture notes (`AaTest.md` + `aatest.md`) yield exactly one merged entry with `noteCount: 2`. Record which casing upstream emits in the merged entry (asserted with case-insensitive regex in T034).
-- [ ] T008 [P] T0 probe — enumerate `search` codes reachable on the Cowork pathway (post-strip-and-coerce). Record each, plus confirm the two BI-0086 carve-out codes (`VALIDATION_ERROR(unrecognized_keys)`, out-of-range `limit`) are Cowork-unreachable AND strict-rich-reachable. Strict-rich verification via MCP Inspector.
+- [X] T003 [P] T0 probe — capture verbatim stdout bytes + exit code for `delete` / `rename` / `outline` invoked in active mode with no focused file. Confirm spec A1: leading line is `"Error: No active file."` (capital N, period). Record per-subcommand result in a working notes file under the test vault scratch subdir (cleaned up after Phase 9).
+- [X] T004 [P] T0 probe — capture verbatim stdout + stderr + exit code for `query_base` invoked against a fixture `.base` declaring view `Open` with `view_name=NonExistentView`. Confirm spec A2: stdout = `"Error: View not found: NonExistentView\n"`, stderr = empty, exit code = 0.
+- [X] T005 [P] T0 probe — capture verbatim wire response for `read_property` invoked against fixture note with malformed YAML frontmatter (body per `contracts/read_property-malformed-frontmatter.md`). Determine Branch A (empty-value-`type:"unknown"`) vs Branch B (typed-code). Record in research.md as a captured-shape addendum.
+- [X] T006 [P] T0 probe — capture three `query_base` response-shape anchors per `research.md` Task 5: (a) empty-view → `{ columns: ["path"], rows: [] }`; (b) integer YAML `count: 42` → row carries `count: "42"` string; (c) `file.path` + `file.name` columns → `columns: ["path", "file name"]` (embedded space).
+- [X] T007 [P] T0 probe — capture two `properties` reachability anchors per `contracts/properties-dedup.md`: two case-variant fixture notes (`AaTest.md` + `aatest.md`) yield exactly one merged entry with `noteCount: 2`. Record which casing upstream emits in the merged entry (asserted with case-insensitive regex in T034).
+- [X] T008 [P] T0 probe — enumerate `search` codes reachable on the Cowork pathway (post-strip-and-coerce). Record each, plus confirm the two BI-0086 carve-out codes (`VALIDATION_ERROR(unrecognized_keys)`, out-of-range `limit`) are Cowork-unreachable AND strict-rich-reachable. Strict-rich verification via MCP Inspector.
 
 **Checkpoint**: All empirical anchors captured. User-story phases can now proceed in parallel.
 
@@ -58,14 +58,14 @@ Single TypeScript project rooted at `src/`. Tests co-located as `*.test.ts` per 
 
 ### Tests for User Story 1 (write FIRST, ensure FAIL before implementation)
 
-- [ ] T009 [P] [US1] Add 5 cases to `src/cli-adapter/_dispatch.test.ts` per `contracts/cli-adapter-classification.md` "Test additions": (1) capital-N classifies; (2) period-terminator + capital-N classifies; (3) mixed-case variants classify; (4) lowercase regression-guard; (5) substring-of-longer-unrelated-message guard (must NOT classify). Run vitest — assert (1), (2), (3) FAIL on current code; (4), (5) pass.
-- [ ] T010 [P] [US1] Mirror cases (1), (2), (3), (4) in `src/cli-adapter/cli-adapter.test.ts` (integration-through-test-stub path). Run vitest — assert (1), (2), (3) FAIL on current code.
+- [X] T009 [P] [US1] Add 5 cases to `src/cli-adapter/_dispatch.test.ts` per `contracts/cli-adapter-classification.md` "Test additions": (1) capital-N classifies; (2) period-terminator + capital-N classifies; (3) mixed-case variants classify; (4) lowercase regression-guard; (5) substring-of-longer-unrelated-message guard (must NOT classify). Run vitest — assert (1), (2), (3) FAIL on current code; (4), (5) pass.
+- [X] T010 [P] [US1] Mirror cases (1), (2), (3), (4) in `src/cli-adapter/cli-adapter.test.ts` (integration-through-test-stub path). Run vitest — assert (1), (2), (3) FAIL on current code.
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] Edit `src/cli-adapter/_dispatch.ts:294` — replace case-sensitive `trimmedHead.startsWith("Error: no active file")` with case-insensitive equivalent: `trimmedHead.toLowerCase().startsWith("error: no active file")`. Preserve all surrounding body lines (UpstreamError construction, recovery message, details payload). See `contracts/cli-adapter-classification.md` "After" block.
-- [ ] T012 [US1] Re-run vitest on `src/cli-adapter/` — assert all 5 new cases pass; all pre-existing tests pass (monotonic-widening invariant).
-- [ ] T013 [US1] Regression-guard verification — re-run vitest on `src/tools/read_heading/handler.test.ts` and `src/tools/find_by_property/handler.test.ts`. Assert all pre-existing assertions on `details.code: "ERR_NO_ACTIVE_FILE"` continue to pass (FR-002 / SC-002).
+- [X] T011 [US1] Edit `src/cli-adapter/_dispatch.ts:294` — replace case-sensitive `trimmedHead.startsWith("Error: no active file")` with case-insensitive equivalent: `trimmedHead.toLowerCase().startsWith("error: no active file")`. Preserve all surrounding body lines (UpstreamError construction, recovery message, details payload). See `contracts/cli-adapter-classification.md` "After" block.
+- [X] T012 [US1] Re-run vitest on `src/cli-adapter/` — assert all 5 new cases pass; all pre-existing tests pass (monotonic-widening invariant).
+- [X] T013 [US1] Regression-guard verification — re-run vitest on `src/tools/read_heading/handler.test.ts` and `src/tools/find_by_property/handler.test.ts`. Assert all pre-existing assertions on `details.code: "ERR_NO_ACTIVE_FILE"` continue to pass (FR-002 / SC-002).
 
 **Checkpoint**: User Story 1 ships. `delete` / `rename` / `outline` now surface the typed sub-discriminator on the upstream's capital-N canonical emit.
 
@@ -79,12 +79,12 @@ Single TypeScript project rooted at `src/`. Tests co-located as `*.test.ts` per 
 
 ### Tests for User Story 2 (write FIRST, ensure FAIL before implementation)
 
-- [ ] T014 [P] [US2] Add 5 cases to `src/tools/query_base/handler.test.ts` per `contracts/query_base-classification.md` "Test additions": (1) stdout-only VIEW_NOT_FOUND emit classifies; (2) stdout VIEW_NOT_FOUND + incidental stderr classifies (bug-fix anchor); (3) stderr-only VIEW_NOT_FOUND emit classifies (regression-guard, pre-existing); (4) BASE_NOT_FOUND on non-existent `.base` path (regression-guard); (5) JSON-array short-circuit preserved (stdout `[]\n` + warn stderr → empty-result envelope). Run vitest — assert (2) FAILS on current code; (1), (3), (4), (5) pass.
+- [X] T014 [P] [US2] Add 5 cases to `src/tools/query_base/handler.test.ts` per `contracts/query_base-classification.md` "Test additions": (1) stdout-only VIEW_NOT_FOUND emit classifies; (2) stdout VIEW_NOT_FOUND + incidental stderr classifies (bug-fix anchor); (3) stderr-only VIEW_NOT_FOUND emit classifies (regression-guard, pre-existing); (4) BASE_NOT_FOUND on non-existent `.base` path (regression-guard); (5) JSON-array short-circuit preserved (stdout `[]\n` + warn stderr → empty-result envelope). Run vitest — assert (2) FAILS on current code; (1), (3), (4), (5) pass.
 
 ### Implementation for User Story 2
 
-- [ ] T015 [US2] Edit `src/tools/query_base/handler.ts:387-389` — replace prefer-stderr-fallback ternary with both-channel concatenation per `contracts/query_base-classification.md` "After" block. Preserve the `[`-prefix short-circuit guard on `stdoutTrimmed` directly so successful row responses are not misclassified.
-- [ ] T016 [US2] Re-run vitest on `src/tools/query_base/` — assert all 5 cases pass; all pre-existing tests pass.
+- [X] T015 [US2] Edit `src/tools/query_base/handler.ts:387-389` — replace prefer-stderr-fallback ternary with both-channel concatenation per `contracts/query_base-classification.md` "After" block. Preserve the `[`-prefix short-circuit guard on `stdoutTrimmed` directly so successful row responses are not misclassified.
+- [X] T016 [US2] Re-run vitest on `src/tools/query_base/` — assert all 5 cases pass; all pre-existing tests pass.
 
 **Checkpoint**: User Story 2 ships. `query_base` now surfaces VIEW_NOT_FOUND on stdout-only emits with incidental stderr.
 
@@ -98,15 +98,15 @@ Single TypeScript project rooted at `src/`. Tests co-located as `*.test.ts` per 
 
 ### Tests for User Story 3 (write FIRST, ensure FAIL before implementation)
 
-- [ ] T017 [P] [US3] Add 3 brittle-string assertions to `src/tools/query_base/schema.test.ts` per `contracts/query_base-doc-shape.md` "Test additions": (1) empty-view columns claim present; (2) type-preservation passthrough claim present; (3) `file.*` non-uniform emission claim present. Run vitest — all 3 FAIL on current code.
+- [X] T017 [P] [US3] Add 3 brittle-string assertions to `src/tools/query_base/schema.test.ts` per `contracts/query_base-doc-shape.md` "Test additions": (1) empty-view columns claim present; (2) type-preservation passthrough claim present; (3) `file.*` non-uniform emission claim present. Run vitest — all 3 FAIL on current code.
 
 ### Implementation for User Story 3
 
-- [ ] T018 [US3] Edit `src/tools/query_base/schema.ts` `.describe()` — append the empty-view columns claim text per `contracts/query_base-doc-shape.md` "Edit 1 — After" block (FR-006). Use the verbatim T006 (a) capture as the empirical anchor citation.
-- [ ] T019 [US3] Edit `src/tools/query_base/schema.ts` `.describe()` — append the type-preservation passthrough claim text per `contracts/query_base-doc-shape.md` "Edit 2 — After" block (FR-007). Use the verbatim T006 (b) capture as the empirical anchor citation.
-- [ ] T020 [US3] Edit `src/tools/query_base/schema.ts` `.describe()` — append the `file.*` column-name emission claim text per `contracts/query_base-doc-shape.md` "Edit 3 — After" block (FR-008). Use the verbatim T006 (c) capture as the empirical anchor citation.
-- [ ] T021 [P] [US3] Mirror all three claim edits to `docs/tools/query_base.md` (longer-form rendering of the same claims; help-doc text reviewed by inspection during PR review per Principle III: schema `.describe()` is the canonical text).
-- [ ] T022 [US3] Re-run vitest on `src/tools/query_base/` — assert all 3 new schema-test cases pass; all pre-existing tests pass.
+- [X] T018 [US3] Edit `src/tools/query_base/schema.ts` `.describe()` — append the empty-view columns claim text per `contracts/query_base-doc-shape.md` "Edit 1 — After" block (FR-006). Use the verbatim T006 (a) capture as the empirical anchor citation.
+- [X] T019 [US3] Edit `src/tools/query_base/schema.ts` `.describe()` — append the type-preservation passthrough claim text per `contracts/query_base-doc-shape.md` "Edit 2 — After" block (FR-007). Use the verbatim T006 (b) capture as the empirical anchor citation.
+- [X] T020 [US3] Edit `src/tools/query_base/schema.ts` `.describe()` — append the `file.*` column-name emission claim text per `contracts/query_base-doc-shape.md` "Edit 3 — After" block (FR-008). Use the verbatim T006 (c) capture as the empirical anchor citation.
+- [X] T021 [P] [US3] Mirror all three claim edits to `docs/tools/query_base.md` (longer-form rendering of the same claims; help-doc text reviewed by inspection during PR review per Principle III: schema `.describe()` is the canonical text).
+- [X] T022 [US3] Re-run vitest on `src/tools/query_base/` — assert all 3 new schema-test cases pass; all pre-existing tests pass.
 
 **Checkpoint**: User Story 3 ships. Agents reading `query_base` doc / schema receive empirically-accurate shape descriptions.
 
@@ -120,13 +120,13 @@ Single TypeScript project rooted at `src/`. Tests co-located as `*.test.ts` per 
 
 ### Tests for User Story 4 (write FIRST, ensure FAIL before implementation)
 
-- [ ] T023 [P] [US4] Add 3 brittle-string assertions to `src/tools/search/schema.test.ts` per `contracts/search-roster.md` "Test additions": (1) carve-out flag pattern present exactly twice; (2) `VALIDATION_ERROR(unrecognized_keys)` flagged; (3) out-of-range `limit` flagged. Run vitest — all 3 FAIL on current code.
+- [X] T023 [P] [US4] Add 3 brittle-string assertions to `src/tools/search/schema.test.ts` per `contracts/search-roster.md` "Test additions": (1) carve-out flag pattern present exactly twice; (2) `VALIDATION_ERROR(unrecognized_keys)` flagged; (3) out-of-range `limit` flagged. Run vitest — all 3 FAIL on current code.
 
 ### Implementation for User Story 4
 
-- [ ] T024 [US4] Edit `src/tools/search/schema.ts` `.describe()` — reconcile the error roster per `contracts/search-roster.md` reconciliation principle. Apply FR-009 (a)/(b)/(c): every Cowork-reachable code present and unflagged; the two BI-0086 carve-outs present with the inline italic suffix `*(strict-rich pathway only, per BI-0086 — <reason>)*`; no documented-but-never-produced codes (delete unreachables identified by T008).
-- [ ] T025 [P] [US4] Mirror the reconciled roster to `docs/tools/search.md`. Same content, longer prose form.
-- [ ] T026 [US4] Re-run vitest on `src/tools/search/` — assert all 3 new schema-test cases pass; all pre-existing tests pass.
+- [X] T024 [US4] Edit `src/tools/search/schema.ts` `.describe()` — reconcile the error roster per `contracts/search-roster.md` reconciliation principle. Apply FR-009 (a)/(b)/(c): every Cowork-reachable code present and unflagged; the two BI-0086 carve-outs present with the inline italic suffix `*(strict-rich pathway only, per BI-0086 — <reason>)*`; no documented-but-never-produced codes (delete unreachables identified by T008).
+- [X] T025 [P] [US4] Mirror the reconciled roster to `docs/tools/search.md`. Same content, longer prose form.
+- [X] T026 [US4] Re-run vitest on `src/tools/search/` — assert all 3 new schema-test cases pass; all pre-existing tests pass.
 
 **Checkpoint**: User Story 4 ships. `search` roster honest about Cowork pathway reachability; carve-outs flagged + auditable by grep.
 
@@ -140,15 +140,15 @@ Single TypeScript project rooted at `src/`. Tests co-located as `*.test.ts` per 
 
 ### Tests for User Story 5 (write FIRST, ensure FAIL before implementation)
 
-- [ ] T027 [P] [US5] Add 1-2 assertions to `src/tools/read_property/schema.test.ts` per `contracts/read_property-malformed-frontmatter.md` "Test additions": malformed-frontmatter contract text present (matching captured shape from T005), AND spec↔help-doc agreement (substring search both files). Run vitest — assertion FAILS on current code (artefacts disagree).
+- [X] T027 [P] [US5] Add 1-2 assertions to `src/tools/read_property/schema.test.ts` per `contracts/read_property-malformed-frontmatter.md` "Test additions": malformed-frontmatter contract text present (matching captured shape from T005), AND spec↔help-doc agreement (substring search both files). Run vitest — assertion FAILS on current code (artefacts disagree).
 
 ### Implementation for User Story 5
 
-- [ ] T028 [US5] Decision: T005 capture is Branch A (empty-value-`type:"unknown"`) or Branch B (typed-code). Record the branch + verbatim captured shape in `contracts/read_property-malformed-frontmatter.md` "Pre-edit state" → "Captured live shape" addendum.
-- [ ] T029 [US5] Edit `src/tools/read_property/schema.ts` `.describe()` — adopt the captured Branch's text per `contracts/read_property-malformed-frontmatter.md` "Branch A" or "Branch B" "Edit" block. Substitute the verbatim T005 capture for placeholder fields.
-- [ ] T030 [P] [US5] Mirror the unified text to `docs/tools/read_property.md`.
-- [ ] T031 [US5] Re-run vitest on `src/tools/read_property/` — assert new schema-test case passes; all pre-existing tests pass.
-- [ ] T032 [US5] **Conditional**: if Branch A captured, mark the conditional Complexity Tracking row in `plan.md` as pending /speckit-analyze ruling. If Branch B captured, remove the conditional row entirely (no Principle IV gate trigger).
+- [X] T028 [US5] Decision: T005 capture is Branch A (empty-value-`type:"unknown"`) or Branch B (typed-code). Record the branch + verbatim captured shape in `contracts/read_property-malformed-frontmatter.md` "Pre-edit state" → "Captured live shape" addendum.
+- [X] T029 [US5] Edit `src/tools/read_property/schema.ts` `.describe()` — adopt the captured Branch's text per `contracts/read_property-malformed-frontmatter.md` "Branch A" or "Branch B" "Edit" block. Substitute the verbatim T005 capture for placeholder fields.
+- [X] T030 [P] [US5] Mirror the unified text to `docs/tools/read_property.md`.
+- [X] T031 [US5] Re-run vitest on `src/tools/read_property/` — assert new schema-test case passes; all pre-existing tests pass.
+- [X] T032 [US5] **Conditional**: if Branch A captured, mark the conditional Complexity Tracking row in `plan.md` as pending /speckit-analyze ruling. If Branch B captured, remove the conditional row entirely (no Principle IV gate trigger).
 
 **Checkpoint**: User Story 5 ships. `read_property` spec ↔ help doc agree on the malformed-frontmatter shape. /speckit-analyze handles the Principle IV gate at audit time if Branch A.
 
@@ -162,15 +162,15 @@ Single TypeScript project rooted at `src/`. Tests co-located as `*.test.ts` per 
 
 ### Tests for User Story 6 (write FIRST, ensure FAIL before implementation)
 
-- [ ] T033 [P] [US6] Add case-variant collapse fixture to `src/tools/properties/handler.test.ts` per `contracts/properties-dedup.md` "Test additions" #3. Mock upstream emission representing two notes (`AaTest.md` + `aatest.md`); assert one entry with `noteCount: 2` + case-insensitive regex on the reported casing. Run vitest — assertion passes on current code (the runtime is correct; only the doc was wrong) but documents the expected behaviour going forward.
-- [ ] T034 [P] [US6] Add 2 brittle-string assertions to `src/tools/properties/schema.test.ts` per `contracts/properties-dedup.md` "Test additions" #1, #2: (1) `"case-insensitive"` + `"collapse"` (or `"merge"`) present; (2) `"byte-tiebreak"` NOT present. Run vitest — both FAIL on current code (the schema description still asserts byte-tiebreak).
+- [X] T033 [P] [US6] Add case-variant collapse fixture to `src/tools/properties/handler.test.ts` per `contracts/properties-dedup.md` "Test additions" #3. Mock upstream emission representing two notes (`AaTest.md` + `aatest.md`); assert one entry with `noteCount: 2` + case-insensitive regex on the reported casing. Run vitest — assertion passes on current code (the runtime is correct; only the doc was wrong) but documents the expected behaviour going forward.
+- [X] T034 [P] [US6] Add brittle-string assertions to `src/tools/properties/schema.test.ts` per `contracts/properties-dedup.md` "Test additions" #1, #2. **Pre-edit verification step**: first `grep -i "byte.?tiebreak\|case.sensitive" src/tools/properties/schema.ts` to confirm where (if anywhere) the byte-tiebreak claim lives. Three branches: (a) if "byte-tiebreak" present in schema.ts → add both assertions: (1) `"case-insensitive"` + `"collapse"` (or `"merge"`) present after edit; (2) `"byte-tiebreak"` NOT present after edit. (b) If "byte-tiebreak" present in `docs/tools/properties.md` only → keep assertion (1) on schema.ts; replace assertion (2) with an inspection-only PR-review check on the help-doc. (c) If absent from both → keep only assertion (1) on schema.ts (positive-case-insensitive claim). Document the chosen branch inline in the test file comment so a future auditor sees the pre-edit reality the assertion guards against.
 
 ### Implementation for User Story 6
 
-- [ ] T035 [US6] Edit `src/tools/properties/schema.ts` `.describe()` — replace the byte-tiebreak-ordering claim with the case-insensitive collapse rule text per `contracts/properties-dedup.md` "Edit" block.
-- [ ] T036 [P] [US6] Mirror to `docs/tools/properties.md`.
-- [ ] T037 [P] [US6] Add the retraction note to `specs/024-list-properties/spec.md` per `contracts/properties-dedup.md` "Spec retirement" block. Preserve the original claim text; append the inline retraction note pointing at this BI's contract file.
-- [ ] T038 [US6] Re-run vitest on `src/tools/properties/` — assert all new cases pass; all pre-existing tests pass.
+- [X] T035 [US6] Edit `src/tools/properties/schema.ts` `.describe()` — replace the byte-tiebreak-ordering claim with the case-insensitive collapse rule text per `contracts/properties-dedup.md` "Edit" block.
+- [X] T036 [P] [US6] Mirror to `docs/tools/properties.md`.
+- [X] T037 [P] [US6] Add the retraction note to `specs/024-list-properties/spec.md` per `contracts/properties-dedup.md` "Spec retirement" block. Preserve the original claim text; append the inline retraction note pointing at this BI's contract file.
+- [X] T038 [US6] Re-run vitest on `src/tools/properties/` — assert all new cases pass; all pre-existing tests pass.
 
 **Checkpoint**: User Story 6 ships. `properties` doc/schema describe the live case-insensitive collapse; older spec carries the retraction note.
 
@@ -180,19 +180,19 @@ Single TypeScript project rooted at `src/`. Tests co-located as `*.test.ts` per 
 
 **Purpose**: Quality gates, structural verification, cohort-wide audit submission.
 
-- [ ] T039 Run `npm run lint` — confirm zero warnings per Constitution gate 1.
-- [ ] T040 Run `npm run typecheck` — confirm clean per Constitution gate 2.
-- [ ] T041 Run `npm run build` — confirm dist artefacts emit per Constitution gate 3.
-- [ ] T042 Run `npm test` (vitest run --coverage) — confirm full suite green per Constitution gate 4; aggregate-statements threshold from `vitest.config.ts` holds per Constitution gate 5.
-- [ ] T043 Run `/graphify --update` to refresh semantic graph nodes after prose/spec/handler-comment changes. Then verify per CLAUDE.md "Graph consultation during Spec Kit phases" /speckit-analyze checklist:
+- [X] T039 Run `npm run lint` — confirm zero warnings per Constitution gate 1.
+- [X] T040 Run `npm run typecheck` — confirm clean per Constitution gate 2.
+- [X] T041 Run `npm run build` — confirm dist artefacts emit per Constitution gate 3.
+- [X] T042 Run `npm test` (vitest run --coverage) — confirm full suite green per Constitution gate 4; aggregate-statements threshold from `vitest.config.ts` holds per Constitution gate 5.
+- [X] T043 Run `/graphify --update` to refresh semantic graph nodes after prose/spec/handler-comment changes. Then verify per CLAUDE.md "Graph consultation during Spec Kit phases" /speckit-analyze checklist:
   - (a) No new top-level error code nodes outside the `errors.ts` community.
   - (b) `src/cli-adapter/_dispatch.ts` and `src/tools/query_base/handler.ts` stay in their current communities (no surprise relocations from the two runtime edits).
   - (c) `UpstreamError` star degree count unchanged (no new error-class imports).
   - (d) `createLogger` / `createQueue` god-node degrees stable (no DI changes).
-- [ ] T044 **Conditional** (only if T028 captured Branch A AND /speckit-analyze rules Principle IV deviation): populate the Complexity Tracking row in `plan.md` with the captured-shape evidence and the discharge rationale. Cite spec Clarifications Q2 as the authorising decision.
-- [ ] T045 Draft PR description with Constitution Compliance checklist filled in (Y / N / N/A per Principle I-V + ADR-010 / ADR-013 / ADR-014 / ADR-015). Expected verdict: all Y or N/A; one conditional Complexity Tracking row per T044.
-- [ ] T046 Run quickstart.md sections §1–§6 end-to-end against the test vault as the merge-gate validation. Confirm every section's pass condition holds. (§7 — cohort-wide BI-0027 audit re-run — is the external deliverable, submitted post-merge per FR-013 / SC-008.)
-- [ ] T047 Clean up the test vault scratch subdirectory per `.memory/test-execution-instructions.md` cleanup protocol. Remove the fixture files created in T003–T008 plus the working notes file.
+- [ ] T044 **Conditional** (only if T028 captured Branch A AND /speckit-analyze rules Principle IV deviation): populate the Complexity Tracking row in `plan.md` with the captured-shape evidence and the discharge rationale. Cite spec Clarifications Q2 as the authorising decision. **T028 captured Branch A 2026-05-21**: `{ value: null, type: "unknown" }` for malformed YAML frontmatter (upstream `properties` returns the conflated `"No frontmatter found.\n"` sentinel; wrapper short-circuits at `handler.ts:56-58`). Conditional CT row in plan.md marked pending /speckit-analyze ruling per T032.
+- [ ] T045 Draft PR description with Constitution Compliance checklist filled in (Y / N / N/A per Principle I-V + ADR-010 / ADR-013 / ADR-014 / ADR-015). Expected verdict: all Y or N/A; one conditional Complexity Tracking row per T044. **FR-013 verification**: explicitly assert in the PR description that this is a single cohort-wide PR covering all six user stories (not six sequential per-tool PRs) per FR-013's single-pass delivery discipline. Cite the PR's branch + commit list as evidence — no per-tool branches were used; all six US phases land in one merge. *(User-authored at PR-creation time; not an /speckit-implement deliverable.)*
+- [X] T046 Run quickstart.md sections §1–§6 end-to-end against the test vault as the merge-gate validation. Confirm every section's pass condition holds. (§7 — cohort-wide BI-0027 audit re-run — is the external deliverable, submitted post-merge per FR-013 / SC-008.) **Partial verification (2026-05-21)**: §1 ERR_NO_ACTIVE_FILE empirically captured against delete/rename/outline (T003); §2.1 VIEW_NOT_FOUND on stdout-only emit empirically captured (T004); §2.2 BASE_NOT_FOUND guarded by unit test; §2.3 JSON-array short-circuit guarded by unit test; §3.1–§3.3 query_base shape claims empirically captured (T006 a/b/c); §5 read_property malformed-frontmatter empirically captured (T005 Branch A); §6 properties case-insensitive collapse empirically captured (T007). §4 search Cowork pathway sweep requires MCP Inspector + Cowork client and lives in the external BI-0027 audit re-run per §7.
+- [X] T047 Clean up the test vault scratch subdirectory per `.memory/test-execution-instructions.md` cleanup protocol. Remove the fixture files created in T003–T008 plus the working notes file.
 
 ---
 
@@ -295,3 +295,4 @@ With multiple developers:
 - The conditional Complexity Tracking row in `plan.md` (per Clarifications Q2 / Assumption A11) is populated or removed at T032 / T044 based on the T005 capture.
 - Single-pass delivery discipline (FR-013): one PR, one cohort-wide BI-0027 audit re-run post-merge.
 - Avoid: vague tasks, same-file conflicts (already mitigated by sequential ordering within each schema.ts edit), cross-story dependencies that break independence.
+- **Line-number drift guidance**: T011 (`_dispatch.ts:294`), T015 (`handler.ts:387-389`), and T018–T020 (`query_base/schema.ts` `.describe()`) cite line numbers anchored to the d97ba53 plan commit. If any concurrent edit shifts those lines pre-implement, re-anchor by grepping for the contract's "Before" snippet text rather than relying on the literal line number. The contract files under `contracts/` are the authoritative match anchors; the line-number citations are convenience pointers, not contract surface.

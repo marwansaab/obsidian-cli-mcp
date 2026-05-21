@@ -189,6 +189,44 @@ function classifyUpstreamError(message: string): ClassifierResult {
   return null;
 }
 
+interface DispatchClassifierResult {
+  kind: ClassifierMatch["kind"] | ClassifierViewMatch["kind"];
+  reason?: ClassifierMatch["reason"];
+  upstreamMessage: string;
+}
+
+/**
+ * Re-classify a dispatch-layer `CLI_REPORTED_ERROR` (priority c, stdout starts
+ * with `Error:`) against the typed sub-discriminator cohort. Scans both stdout
+ * and stderr from the dispatch error payload (BI-041 FR-003). Returns null when
+ * no pattern matches — caller re-throws the original dispatch error preserving
+ * chain-of-custody.
+ */
+function classifyDispatchError(
+  dispatchStdout: string,
+  dispatchStderr: string,
+): DispatchClassifierResult | null {
+  const stderrTrimmed = dispatchStderr.trim();
+  const stdoutTrimmed = dispatchStdout.trim();
+  const upstreamMessage =
+    stderrTrimmed.length > 0 && stdoutTrimmed.length > 0
+      ? `${stderrTrimmed}\n${stdoutTrimmed}`
+      : (stderrTrimmed.length > 0 ? stderrTrimmed : stdoutTrimmed);
+  if (
+    upstreamMessage.length === 0 ||
+    upstreamMessage.startsWith("[") ||
+    stdoutTrimmed.startsWith("[")
+  ) {
+    return null;
+  }
+  const classified = classifyUpstreamError(upstreamMessage);
+  if (classified === null) return null;
+  if (classified.kind === "VIEW_NOT_FOUND") {
+    return { kind: "VIEW_NOT_FOUND", upstreamMessage };
+  }
+  return { kind: classified.kind, reason: classified.reason, upstreamMessage };
+}
+
 interface RowPostProcessResult {
   rows: QueryBaseRow[];
   columns: string[];
@@ -361,33 +399,90 @@ export async function executeQueryBase(
   }
 
   // === Stage 3 — invoke upstream `obsidian base:query` ===
-  const cliResult = await invokeCli(
-    {
-      command: "base:query",
-      vault: input.vault,
-      parameters: {
-        path: input.base_path,
-        view: input.view_name,
-        format: "json",
+  let cliResult: { stdout: string; stderr: string };
+  try {
+    cliResult = await invokeCli(
+      {
+        command: "base:query",
+        vault: input.vault,
+        parameters: {
+          path: input.base_path,
+          view: input.view_name,
+          format: "json",
+        },
+        flags: [],
+        target_mode: "specific",
       },
-      flags: [],
-      target_mode: "specific",
-    },
-    {
-      spawnFn: deps.spawnFn,
-      env: deps.env,
-      logger: deps.logger,
-      queue: deps.queue,
-    },
-  );
+      {
+        spawnFn: deps.spawnFn,
+        env: deps.env,
+        logger: deps.logger,
+        queue: deps.queue,
+      },
+    );
+  } catch (err) {
+    // BI-041 FR-003 / FR-004: the upstream CLI emits "Error: View not found: <name>"
+    // on stdout with exitCode 0. The dispatch-layer's priority (c) catches every
+    // stdout prefix matching `Error:` and throws CLI_REPORTED_ERROR before stage 4
+    // can inspect it. Intercept that generic shape, scan BOTH channels via the
+    // same classifier table the success path uses, and re-throw with the typed
+    // sub-discriminator (`details.code: "VIEW_NOT_FOUND"` etc.). Other UpstreamError
+    // shapes (CLI_NON_ZERO_EXIT, CLI_BINARY_NOT_FOUND, CLI_TIMEOUT, the
+    // ERR_NO_ACTIVE_FILE typed surface) propagate unchanged.
+    if (err instanceof UpstreamError && err.code === "CLI_REPORTED_ERROR") {
+      const dispatchStdout =
+        typeof err.details["stdout"] === "string" ? (err.details["stdout"] as string) : "";
+      const dispatchStderr =
+        typeof err.details["stderr"] === "string" ? (err.details["stderr"] as string) : "";
+      const classified = classifyDispatchError(dispatchStdout, dispatchStderr);
+      if (classified !== null) {
+        if (classified.kind === "VIEW_NOT_FOUND") {
+          throw new UpstreamError({
+            code: "CLI_REPORTED_ERROR",
+            cause: err,
+            details: {
+              code: "VIEW_NOT_FOUND",
+              view_name: input.view_name,
+              base_path: input.base_path,
+            },
+            message: "query_base: view not found in base file",
+          });
+        }
+        throw new UpstreamError({
+          code: "CLI_REPORTED_ERROR",
+          cause: err,
+          details: {
+            code: "BASE_MALFORMED",
+            reason: classified.reason,
+            base_path: input.base_path,
+            message: classified.upstreamMessage,
+          },
+          message: "query_base: base file is structurally unusable",
+        });
+      }
+    }
+    throw err;
+  }
 
   // === Stage 4 — post-subprocess error classification (R4 stage 3 / R5) ===
-  // Inspect stderr first, then stdout, for known error patterns. Upstream may emit
-  // error text on either stream depending on the failure mode; T0 probes refine.
-  const upstreamMessage = (cliResult.stderr.trim().length > 0
-    ? cliResult.stderr.trim()
-    : cliResult.stdout.trim());
-  if (upstreamMessage.length > 0 && !upstreamMessage.startsWith("[")) {
+  // Success-path classification: scan BOTH channels (BI-041 FR-003). Stderr-only
+  // upstream emits reach this branch because dispatch priority (c) only inspects
+  // stdout. Stdout-only emits are intercepted in the catch above. The combined-
+  // channel scan keeps the classifier robust if upstream simultaneously emits an
+  // error phrase on stderr AND incidental output on stdout. The `[`-prefix guard
+  // on `stdoutTrimmed` preserves the JSON-array short-circuit even when stderr
+  // carries an unrelated warning.
+  const stderrTrimmed = cliResult.stderr.trim();
+  const stdoutTrimmed = cliResult.stdout.trim();
+  const upstreamMessage =
+    stderrTrimmed.length > 0 && stdoutTrimmed.length > 0
+      ? `${stderrTrimmed}\n${stdoutTrimmed}`
+      : (stderrTrimmed.length > 0 ? stderrTrimmed : stdoutTrimmed);
+  if (
+    upstreamMessage.length > 0 &&
+    !upstreamMessage.startsWith("[") &&
+    !stdoutTrimmed.startsWith("[")
+  ) {
     const classified = classifyUpstreamError(upstreamMessage);
     if (classified !== null) {
       if (classified.kind === "VIEW_NOT_FOUND") {

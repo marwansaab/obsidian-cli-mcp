@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "040-patch-heading",
+  "generatedFromBranch": "041-reconcile-cohort-doc-drift",
   "generatedAt": "2026-05-21",
   "tools": [
     {
@@ -76,12 +76,12 @@
     {
       "name": "properties",
       "descriptionFingerprint": "145398215775e6c31693f30e5024d16a2bb76cff486cf4c4dad2fc49e24554c8",
-      "schemaFingerprint": "bd4389053b0867cdde65a07ac65d8ac2331d249b8909a9358e9c90c104812dff"
+      "schemaFingerprint": "d3cee60e0d9118db2cdcd02241f2150141d3003d116e1090a89bf5685a55a70d"
     },
     {
       "name": "query_base",
       "descriptionFingerprint": "cf95b2fb9922ac0114419442f0390d0797c68d5d4338b4de3e2b013fe612241b",
-      "schemaFingerprint": "2ff8e608d397020639d19b42e6f5f8d13b1d71d663cfe78cae0f03de85bb9d4d"
+      "schemaFingerprint": "a7b575adedc1ca0a698f7f0bbceaf428d10bd5bb917c7335e999ceefd75364d2"
     },
     {
       "name": "read",
@@ -96,7 +96,7 @@
     {
       "name": "read_property",
       "descriptionFingerprint": "fe05770107c36752797d55bd9beb9765d2ffdf8ad3ca5e0e8fc6c38b8993b13f",
-      "schemaFingerprint": "c0013d4d9d6a6107f4c12ffa0a0ce9fe9b9ef1f8856e1a948eefc962b443afbd"
+      "schemaFingerprint": "88a99918bf202d1a13d6805d2082ca10b195970f4221bbd6036ea21f2201df51"
     },
     {
       "name": "rename",
@@ -106,7 +106,7 @@
     {
       "name": "search",
       "descriptionFingerprint": "01a7bf2089dfc2ac0f470eefce44910790d5cc3cc1b15de46c27dbda2a16fbb1",
-      "schemaFingerprint": "f79b888ab914b86e6c136786723e59edf7af46b2429ad2282c7396b4fda368d2"
+      "schemaFingerprint": "327a9166bfdcfdf2179f59b30289892539e4d0f474867c43b438fbfe0af078bd"
     },
     {
       "name": "set_property",

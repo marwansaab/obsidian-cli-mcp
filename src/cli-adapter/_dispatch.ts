@@ -290,8 +290,13 @@ export async function dispatchCli(input: DispatchInput, deps: DispatchDeps): Pro
 
       const trimmedHead = stdout.trimStart();
 
-      // Priority (b): ERR_NO_ACTIVE_FILE — exit 0 with stdout starting with the full literal prefix. Must precede priority (c).
-      if (trimmedHead.startsWith("Error: no active file")) {
+      // Priority (b): ERR_NO_ACTIVE_FILE — exit 0 with stdout starting with the canonical
+      // phrase, case-insensitive (BI-041 FR-001). Upstream emits the capital-N canonical
+      // form `"Error: No active file."` on `delete` / `rename` / `outline`; older lowercase
+      // fixtures keep matching (monotonic widening). Anchor stays at the message head —
+      // substring-anywhere matches are rejected by the prefix invariant. Must precede
+      // priority (c).
+      if (trimmedHead.toLowerCase().startsWith("error: no active file")) {
         const message = stdout.split("\n", 1)[0]!.trim();
         reject(
           new UpstreamError({

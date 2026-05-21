@@ -93,30 +93,36 @@ cross-mode invariant — confirmed by upstream per F3).
 |-------|------|-------------|
 | `count` | integer ≥ 0 | Number of distinct property names in the vault. Identical across both `total` branches for the same vault state. |
 | `properties` | array | One entry per distinct property name. Populated in default mode; always `[]` in count-only mode. |
-| `properties[].name` | string | YAML key byte-faithful from source. Case-sensitive deduplication — `Tags` and `tags` are distinct entries. |
-| `properties[].noteCount` | integer ≥ 0 | Number of notes whose frontmatter declares this property name. |
+| `properties[].name` | string | Property name as upstream reports it after **case-insensitive collapse** (see "Dedup contract" below). Two notes carrying `Tags` and `tags` collapse to a single entry; upstream chooses the reported casing (typically the first-encountered casing in upstream's iteration order). |
+| `properties[].noteCount` | integer ≥ 0 | Number of notes whose frontmatter declares this property name (sum across all case variants per the collapse rule). |
+
+### Dedup contract (BI-041 FR-011 reconciled)
+
+Upstream applies a **case-insensitive collapse** to frontmatter property
+names: two notes carrying `AaTest` and `aatest` produce one merged entry
+with `noteCount` summing both contributors. The reported casing in the
+merged entry is upstream's choice (typically the first-encountered casing
+in upstream's iteration order) — NOT alphabetical, NOT a wrapper-imposed
+rule. The wrapper does not invent a tiebreaker and does not split case
+variants.
+
+The previously-documented "case-sensitive deduplication with byte-tiebreak
+ordering" claim was incorrect (the wrapper sort was correct as
+implementation; the assertion that case variants were *separate entries*
+was wrong because upstream collapses them before the wrapper sees them).
+This claim is **retired as of BI-041 (2026-05-21)**. Empirical anchor: a
+fixture vault containing `AaTest.md` (`AaTest: value-1`) and `aatest.md`
+(`aatest: value-2`) yields a single entry `{ name: "aatest", noteCount: 2 }`
+(reported casing is upstream's choice — assert with case-insensitive regex).
 
 ### Sort order
 
-`properties` is sorted alphabetical ascending by `name`,
-case-insensitive primary key with byte-order tiebreak. Case-distinct
-duplicates (`Tags` next to `tags`; `Aardvark` next to `aardvark`)
-appear adjacent — drift-detection-friendly ordering per the
-2026-05-13 clarifications session Q1. The sort is applied wrapper-side
-post-fetch (R8); upstream emits its own order but the wrapper
-re-imposes the case-insensitive-primary rule regardless of upstream
-version's sort behaviour.
-
-For example, a vault with `Tags`, `tags`, `Aardvark`, `aardvark`,
-`Banana` returns:
-
-```
-Aardvark, aardvark, Banana, Tags, tags
-```
-
-(`aardvark` case-folded < `tags` case-folded places the `Aardvark`
-pair before the `Tags` pair; within each pair, byte-order places the
-uppercase variant first per ASCII `A`=0x41 < `a`=0x61.)
+`properties` is sorted alphabetical ascending by `name`, case-insensitive.
+The sort is applied wrapper-side post-fetch (R8); upstream emits its own
+order but the wrapper re-imposes the case-insensitive primary rule
+regardless of upstream version's sort behaviour. Because upstream collapses
+case variants before the wrapper sees them, no two entries share a
+case-folded key — so no secondary tiebreak operates in practice.
 
 ### Empty vaults
 
@@ -235,7 +241,7 @@ Likewise, an unknown top-level key (e.g. `{ "file": "note.md" }`)
 fails `additionalProperties: false` and surfaces as
 `VALIDATION_ERROR — Unrecognized key(s) in object: 'file'`.
 
-### Example 6 — Case-distinct drift detection
+### Example 6 — Case-variant collapse (BI-041)
 
 ```json
 {
@@ -244,26 +250,27 @@ fails `additionalProperties: false` and surfaces as
 }
 ```
 
-Against a vault where some notes carry `Tags:` and others `tags:` (a
-common drift scenario in long-lived vaults), the response shows the
-adjacent pairing thanks to the case-insensitive-primary sort:
+Against a vault where some notes carry `AaTest:` and others `aatest:`,
+upstream's case-insensitive collapse rule merges them into one entry with
+`noteCount` summing both contributors:
 
 ```json
 {
-  "count": 5,
+  "count": 3,
   "properties": [
-    { "name": "Aardvark", "noteCount": 1 },
-    { "name": "aardvark", "noteCount": 3 },
-    { "name": "Banana",   "noteCount": 2 },
-    { "name": "Tags",     "noteCount": 1 },
-    { "name": "tags",     "noteCount": 4 }
+    { "name": "aatest",   "noteCount": 5 },
+    { "name": "banana",   "noteCount": 2 },
+    { "name": "vault_id", "noteCount": 8 }
   ]
 }
 ```
 
-The pair `Tags(1)` / `tags(4)` appearing adjacent in the output makes
-drift visible at a glance — the agent or operator can normalise to a
-single casing without scrolling through the entire alphabet.
+The reported casing (`aatest` vs `AaTest` vs `AATEST`) is upstream's
+choice, not a wrapper-imposed rule. Agents seeking "did this vault have
+case-variant drift?" must compare against ground truth (e.g. by reading
+individual notes via `read_property`) — the collapse rule erases the
+case-variance signal from this tool's output. Agents seeking to normalise
+case across the vault use `read_property` + `set_property` per-note.
 
 ## Error roster
 

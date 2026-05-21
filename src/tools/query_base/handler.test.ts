@@ -725,3 +725,75 @@ test("US2: PATH_ESCAPES_VAULT — realpath returns path outside vault root → P
   expect(err.details).toMatchObject({ attemptedPath: "Indexes/Active.base" });
   expect(pathEscapeAttemptCalls).toBe(1);
 });
+
+// =====================================================================
+// BI-041 US2 — Both-channel VIEW_NOT_FOUND classification (FR-003 / FR-004 / FR-005)
+// =====================================================================
+
+// T0 probe capture: upstream emits "Error: View not found: <name>" on STDOUT
+// with exitCode 0 and empty stderr. Pre-edit prefer-stderr-fallback ternary
+// drops the message; both-channel scan reaches the classifier.
+test("BI-041 US2: VIEW_NOT_FOUND on stdout-only emit (T0-captured upstream shape)", async () => {
+  const { spawnFn } = makeQueuedSpawn([
+    {
+      stdout: "Error: View not found: NonExistentView\nAvailable views: Open\n",
+      stderr: "",
+      exitCode: 0,
+    },
+  ]);
+  const err = (await captureRejection(
+    executeQueryBase(
+      { ...HAPPY_INPUT, view_name: "NonExistentView" },
+      deps({ spawnFn }),
+    ),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toMatchObject({
+    code: "VIEW_NOT_FOUND",
+    view_name: "NonExistentView",
+    base_path: "Indexes/Active.base",
+  });
+});
+
+// Bug-fix anchor: pre-edit ternary picked stderr (non-empty incidental warning)
+// and discarded the stdout error phrase, so this case surfaced as BASE_MALFORMED/
+// unknown via the stage-6 fallback. Post-edit both-channel concat exposes the
+// VIEW_NOT_FOUND phrase regardless of which channel carried the warning.
+test("BI-041 US2: VIEW_NOT_FOUND on stdout emit with incidental stderr (bug-fix anchor)", async () => {
+  const { spawnFn } = makeQueuedSpawn([
+    {
+      stdout: "Error: View not found: NonExistentView\n",
+      stderr: "warn: connection slow\n",
+      exitCode: 0,
+    },
+  ]);
+  const err = (await captureRejection(
+    executeQueryBase(
+      { ...HAPPY_INPUT, view_name: "NonExistentView" },
+      deps({ spawnFn }),
+    ),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toMatchObject({
+    code: "VIEW_NOT_FOUND",
+    view_name: "NonExistentView",
+    base_path: "Indexes/Active.base",
+  });
+});
+
+// JSON-array short-circuit must beat the both-channel scan when stderr carries
+// a warning but stdout is a valid JSON-array success response. The `[`-prefix
+// guard on stdoutTrimmed wins over the combined-message classification.
+test("BI-041 US2: JSON-array short-circuit preserved when stderr carries a warning", async () => {
+  const { spawnFn } = makeQueuedSpawn([
+    {
+      stdout: "[]\n",
+      stderr: "warn: empty result\n",
+      exitCode: 0,
+    },
+  ]);
+  const r = await executeQueryBase(HAPPY_INPUT, deps({ spawnFn }));
+  expect(r.rows).toEqual([]);
+  expect(r.columns).toEqual(["path"]);
+  expect(r.truncated).toBe(false);
+});

@@ -35,19 +35,23 @@ describe("createPropertiesTool — descriptor", () => {
     expect(tool.descriptor.name).toBe("properties");
   });
 
-  // (b) inputSchema has descriptions stripped (ADR-005)
-  it("emits inputSchema with descriptions stripped at every nested depth", () => {
+  // (b) inputSchema has nested descriptions stripped (ADR-005); BI-041 introduces
+  //     a root-level description carrying the case-insensitive collapse contract,
+  //     preserved by stripSchemaDescriptions per FR-003.
+  it("emits inputSchema with nested descriptions stripped (root description allowed per FR-003)", () => {
     const tool = createPropertiesTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
     expect(schema.type).toBe("object");
     expect(schema.additionalProperties).toBe(false);
     const props = schema.properties as Record<string, unknown>;
     expect(Object.keys(props).sort()).toEqual(["total", "vault"]);
-    let descriptionKeysFound = 0;
-    walkSchema(schema, (n) => {
-      if (Object.prototype.hasOwnProperty.call(n, "description")) descriptionKeysFound += 1;
-    });
-    expect(descriptionKeysFound).toBe(0);
+    let nestedDescriptionKeysFound = 0;
+    for (const child of Object.values(props)) {
+      walkSchema(child, (n) => {
+        if (Object.prototype.hasOwnProperty.call(n, "description")) nestedDescriptionKeysFound += 1;
+      });
+    }
+    expect(nestedDescriptionKeysFound).toBe(0);
   });
 
   // (c) PROPERTIES_DESCRIPTION mentions help({ tool_name: "properties" })

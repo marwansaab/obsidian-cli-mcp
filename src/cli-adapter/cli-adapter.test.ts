@@ -228,6 +228,42 @@ describe("invokeCli — classification routes through dispatchCli", () => {
     expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
   });
 
+  // BI-041 FR-001 / US1 — capital-N upstream emit on native subcommands classifies.
+  it("capital-N 'Error: No active file\\n' classifies as ERR_NO_ACTIVE_FILE", async () => {
+    const { spawnFn } = makeStubSpawn({ stdout: "Error: No active file\n", exitCode: 0 });
+    const err = await captureRejection(
+      invokeCli(
+        { command: "delete", parameters: {}, flags: [], target_mode: "active" },
+        defaultDeps({ spawnFn, env: {} }),
+      ),
+    );
+    expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
+  });
+
+  // BI-041 FR-001 — period-terminator + capital-N (verbatim T0 capture).
+  it("period-terminator 'Error: No active file.\\n' classifies as ERR_NO_ACTIVE_FILE", async () => {
+    const { spawnFn } = makeStubSpawn({ stdout: "Error: No active file.\n", exitCode: 0 });
+    const err = await captureRejection(
+      invokeCli(
+        { command: "rename", parameters: { name: "X" }, flags: [], target_mode: "active" },
+        defaultDeps({ spawnFn, env: {} }),
+      ),
+    );
+    expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
+  });
+
+  // BI-041 Edge Cases — mixed-case variant.
+  it("all-upper 'ERROR: NO ACTIVE FILE!\\n' classifies as ERR_NO_ACTIVE_FILE", async () => {
+    const { spawnFn } = makeStubSpawn({ stdout: "ERROR: NO ACTIVE FILE!\n", exitCode: 0 });
+    const err = await captureRejection(
+      invokeCli(
+        { command: "outline", parameters: {}, flags: [], target_mode: "active" },
+        defaultDeps({ spawnFn, env: {} }),
+      ),
+    );
+    expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
+  });
+
   it("priority (a) beats (b): exit 1 + 'Error: no active file' stdout → CLI_NON_ZERO_EXIT", async () => {
     const { spawnFn } = makeStubSpawn({ stdout: "Error: no active file\n", exitCode: 1 });
     const err = await captureRejection(

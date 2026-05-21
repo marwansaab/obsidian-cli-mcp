@@ -37,7 +37,7 @@ describe("createReadPropertyTool — descriptor", () => {
   });
 
   // (b) Story 5 — emitted post-010 inputSchema invariants
-  it("emits a flat post-010 inputSchema with all 5 properties, additionalProperties:false, required includes target_mode AND name, no description keys", () => {
+  it("emits a flat post-010 inputSchema with all 5 properties, additionalProperties:false, required includes target_mode AND name, nested description keys stripped (BI-041: root description preserved per FR-003)", () => {
     const tool = createReadPropertyTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
     expect(schema.type).toBe("object");
@@ -47,11 +47,16 @@ describe("createReadPropertyTool — descriptor", () => {
     expect(Object.keys(props).sort()).toEqual(["file", "name", "path", "target_mode", "vault"]);
     const required = schema.required as string[];
     expect(required).toEqual(expect.arrayContaining(["target_mode", "name"]));
-    let descriptionKeysFound = 0;
-    walkSchema(schema, (n) => {
-      if (Object.prototype.hasOwnProperty.call(n, "description")) descriptionKeysFound += 1;
-    });
-    expect(descriptionKeysFound).toBe(0);
+    // Walk children only — root description is preserved by stripSchemaDescriptions
+    // per FR-003 (BI-041 introduces a root-level description carrying the
+    // malformed-frontmatter contract per FR-010).
+    let nestedDescriptionKeysFound = 0;
+    for (const child of Object.values(props)) {
+      walkSchema(child, (n) => {
+        if (Object.prototype.hasOwnProperty.call(n, "description")) nestedDescriptionKeysFound += 1;
+      });
+    }
+    expect(nestedDescriptionKeysFound).toBe(0);
   });
 
   // (c) Story 5 — descriptor description references help, the tool name, and output shape

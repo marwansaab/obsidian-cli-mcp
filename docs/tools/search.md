@@ -302,13 +302,26 @@ Principle IV. `search` introduces **zero new top-level error codes**
 and **zero new `details.code` strings** — the seventeen-tool zero-new-codes
 streak is preserved.
 
+The roster below is reconciled to the **Cowork pathway** (BI-041 FR-009 / SC-004). Two codes carry an explicit `*(strict-rich pathway only, per BI-0086 — <reason>)*` flag because Cowork's client-side transforms render them unreachable on the Cowork pathway; both remain in the roster because they DO fire on the strict-rich pathway (Claude Desktop, MCP Inspector) and agents on that pathway need to know what to recover from. The flag count is auditable: `grep -c "strict-rich pathway only, per BI-0086"` on this section yields exactly `2`.
+
 | Code | When | Recovery |
 |------|------|----------|
-| `VALIDATION_ERROR` | Input failed the schema: missing / empty / whitespace-only / oversize `query`; `limit` out of `1..10000` or non-integer; unknown top-level key; empty `vault` / `folder`. | Agent retries with corrected input. `details.issues` carries per-issue zod context. |
+| `VALIDATION_ERROR` | Input failed the schema (Cowork-reachable subset): missing / empty / whitespace-only / oversize `query`; non-integer `limit`; empty `vault` / `folder`. | Agent retries with corrected input. `details.issues` carries per-issue zod context. |
+| `VALIDATION_ERROR(unrecognized_keys)` | Unknown top-level key (e.g. `{ query, unknown_key }`) submitted via the strict-rich pathway. *(strict-rich pathway only, per BI-0086 — Cowork strips unknown top-level keys client-side per `additionalProperties: false`, so this code never fires on Cowork.)* | Strict-rich agents: drop the unknown key. Cowork agents: not reachable. |
+| Out-of-range `limit` (wrapped `VALIDATION_ERROR`) | `limit` < 1 or > 10000 submitted via the strict-rich pathway. *(strict-rich pathway only, per BI-0086 — Cowork surfaces this as MCP transport error `-32602` (Invalid Params), not as the wrapper's wrapped `VALIDATION_ERROR`.)* | Strict-rich agents: clamp `limit` to `1..10000`. Cowork agents: recover from the `-32602` MCP transport error instead. |
 | `CLI_REPORTED_ERROR` | Wrapper-imposed: (a) CLI stdout was not JSON AND not the zero-match sentinel (`details.stage: "json-parse"`); (b) CLI JSON failed wire-schema parse (`details.stage: "wire-parse"`); (c) unknown vault (`details.code: "VAULT_NOT_FOUND"` — inherited from cli-adapter). | (a)+(b) investigate as an upstream-contract regression; (c) supply a valid vault name. |
 | `CLI_NON_ZERO_EXIT` | The Obsidian CLI exited with a non-zero code (typical cause: output-cap kill on extreme result sets). | `details.{exitCode, signal, stdout, stderr}` carry the failure context. Reduce scope with `folder`, `limit`, or a narrower `query`. |
 | `CLI_BINARY_NOT_FOUND` | The `obsidian` CLI binary is not on `PATH` and `OBSIDIAN_BIN` was unset/invalid. | Operator-side: install the Obsidian CLI, OR set `OBSIDIAN_BIN` to a valid path. |
 | `CLI_OUTPUT_TOO_LARGE` | The CLI's stdout exceeded the cli-adapter's 10 MiB output cap. | Reduce scope; raise `limit` is NOT a recovery (the cap is on bytes, not entries). |
+
+### Pathway distinction (BI-0086 / BI-041)
+
+The wrapper serves two MCP client classes:
+
+- **Cowork pathway** — the Cowork MCP client. Strict-naive-but-spec-conformant: strips unknown top-level keys client-side per `additionalProperties: false` AND coerces non-string payloads to strings on open-schema fields BEFORE bytes hit the wrapper. The two carve-out codes above never reach the wrapper here.
+- **Strict-rich pathway** — Claude Desktop, MCP Inspector. Submits raw input; exercises the wrapper's full validation surface. The two carve-out codes fire as written.
+
+The roster's reachability claims are bounded by the Cowork pathway with explicit strict-rich-pathway-only flags for the BI-0086 carve-outs.
 
 ## Behavioural notes
 

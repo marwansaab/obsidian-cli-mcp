@@ -48,23 +48,37 @@ Expected response (relevant row): `{ path: "intval.md", count: "42" }` — `coun
 
 > Source-property columns declared as `file.X` strip uniformly to `X` in the response column names.
 
-### After
+### After (revised 2026-05-21 per T006(c) capture)
 
-> Source-property column names are stripped **non-uniformly**. `file.path` becomes the reserved `path` injection (with collision management: if the view also declares a column literally named `path`, the wrapper renames the view-declared column to `path_view` per the existing collision-management contract). `file.name` becomes the upstream display label `"file name"` — note the **embedded space** — NOT the segment `name`. The display-label form is upstream behaviour, not a wrapper choice; the wrapper does NOT remap upstream display labels back to YAML segment names (out-of-scope per BI-041). Agents indexing rows by column name MUST use the exact emitted string, including the embedded space for display labels.
+> Source-property column names declared as `file.X` are emitted by upstream as the display label `"file X"` (with **embedded space**) — including `file.path` → `"file path"` and `file.name` → `"file name"`. The wrapper does NOT remap these display labels back to YAML segment names (out-of-scope per BI-041). Independent of the view's column declarations, the wrapper always injects a reserved `path` column at index 0 of every row carrying the source note's vault-relative path. This reserved `path` is sourced from upstream's row metadata and is **distinct from `file.path`** (which yields `"file path"`). A view declaring `file.path` and `file.name` therefore produces three columns: `["path", "file path", "file name"]` — the wrapper's reserved locator plus both display labels. Agents indexing rows by column name MUST use the exact emitted string, including the embedded space for display labels.
 
-### Empirical anchor
+### Pre-edit "After" text revision (2026-05-21)
+
+The original "After" text in this contract claimed `file.path` → reserved `path` injection. T006(c) empirically captured the actual upstream emission and revealed that `file.path` produces a **separate** display-label column `"file path"` distinct from the reserved row-locator `path`. The schema `.describe()` and `docs/tools/query_base.md` were written against the corrected empirical truth (revised "After" above), not the original assumption. The "Before" baseline (pre-BI claim about uniform stripping) was still wrong — non-uniform stripping IS the bug class — but the specific non-uniformity claim has been corrected: it's "both `file.path` and `file.name` become display labels with embedded spaces" rather than "`file.path` becomes the reserved `path`".
+
+### Empirical anchor (T006(c) capture 2026-05-21)
 
 Fixture: `.base` view `FileView` declaring columns `file.path` and `file.name`.
-Invocation: `query_base { base_path: "fixtures/file-cols.base", view_name: "FileView" }`.
-Expected response (relevant row + columns): `{ columns: ["path", "file name"], rows: [{ path: "note.md", "file name": "note" }] }`.
+Invocation: `obsidian vault=TestVault-Obsidian-CLI-MCP base:query path=Sandbox/bi041-probes/file-cols.base view=FileView format=json`.
+Actual captured response (verbatim stdout JSON):
+```json
+[
+  {
+    "path": "Sandbox/bi041-probes/intval.md",
+    "file path": "Sandbox/bi041-probes/intval.md",
+    "file name": "intval"
+  }
+]
+```
+After the wrapper's row-post-processing: `{ columns: ["path", "file path", "file name"], rows: [<as above>], truncated: false }`. Reserved `path` at index 0 (wrapper-injected from upstream metadata); both `file.path` and `file.name` emit as display labels with embedded spaces.
 
 ## Test additions (co-located per Principle II)
 
 In `src/tools/query_base/schema.test.ts`:
 
-1. **Empty-view columns claim present**: assert the `.describe()` text on the `query_base` schema contains the phrase "When a view matches **zero rows**, `columns` carries only `[\"path\"]`" (or equivalent post-formatting). This is a brittle-string assertion; tolerated because the text IS the contract under the "doc IS the contract" invariant.
-2. **Type-preservation passthrough claim present**: assert the `.describe()` text contains the phrase "Frontmatter values are **stringified by upstream**".
-3. **`file.*` non-uniform emission claim present**: assert the `.describe()` text contains the phrase "`file.path` becomes the reserved `path` injection" AND "`file.name` becomes the upstream display label `\"file name\"`".
+1. **Empty-view columns claim present**: assert the `.describe()` text on the `query_base` schema contains the phrase about "zero rows" and `["path"]`. This is a brittle-string assertion; tolerated because the text IS the contract under the "doc IS the contract" invariant.
+2. **Type-preservation passthrough claim present**: assert the `.describe()` text contains the phrase "stringified by upstream".
+3. **`file.*` display-label emission claim present (revised 2026-05-21)**: assert the `.describe()` text contains both `` `file.path` → `"file path"` `` AND `` `file.name` → `"file name"` `` — the empirically-correct claims that both `file.X` columns produce display labels with embedded spaces.
 
 Help-doc edits in `docs/tools/query_base.md` are reviewed by inspection during PR review — no automated assertion on the `.md` text (the schema description IS the canonical text per Principle III; the help-doc is its rendered companion).
 
