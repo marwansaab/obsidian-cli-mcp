@@ -25,6 +25,7 @@ import { createOutlineTool } from "./tools/outline/index.js";
 import { createPathsTool } from "./tools/paths/index.js";
 import { createPatternSearchTool } from "./tools/pattern_search/index.js";
 import { createPropertiesTool } from "./tools/properties/index.js";
+import { createQueryBaseTool } from "./tools/query_base/index.js";
 import { createReadTool } from "./tools/read/index.js";
 import { createReadHeadingTool } from "./tools/read_heading/index.js";
 import { createReadPropertyTool } from "./tools/read_property/index.js";
@@ -107,6 +108,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     createPathsTool({ logger, queue }),
     createPatternSearchTool({ logger, queue }),
     createPropertiesTool({ logger, queue }),
+    createQueryBaseTool({ logger, queue, vaultRegistry }),
     createReadTool({ logger, queue }),
     createReadHeadingTool({ logger, queue }),
     createReadPropertyTool({ logger, queue }),

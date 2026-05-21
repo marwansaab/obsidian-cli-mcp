@@ -87,6 +87,7 @@ The server currently registers fifteen public tools. Call `help({ tool_name: "<n
 | `properties` | Vault-wide inventory of frontmatter property names. |
 | `links` | List outbound links in a note. |
 | `smart_connections_similar` | Find notes similar to a given source note (requires the Smart Connections plugin). |
+| `query_base` | Run a named view from an Obsidian Bases (`.base`) file; returns `{ columns, rows, truncated, total_rows? }` with reserved row-locator `path` at `columns[0]`. |
 | `obsidian_exec` | Escape hatch — invoke any Obsidian CLI subcommand directly. |
 | `help` | Progressive-disclosure documentation for the tools above. |
 

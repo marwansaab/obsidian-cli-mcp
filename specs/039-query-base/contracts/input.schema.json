@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/marwansaab/obsidian-cli-mcp/specs/039-query-base/contracts/input.schema.json",
+  "title": "query_base input schema",
+  "description": "Input contract for the query_base typed MCP tool. Authoritative source is the Zod schema in src/tools/query_base/schema.ts; this JSON Schema is the human-readable cross-reference and the form published via zodToJsonSchema at registration time.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["base_path", "view_name"],
+  "properties": {
+    "base_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "description": "Vault-relative path to the .base file. MUST end with .base (case-insensitive on the extension). MUST NOT contain path-traversal shapes (../, leading / or \\, drive-letter prefix, control characters). Validation rejects with VALIDATION_ERROR + details.code: INVALID_BASE_PATH + details.reason in {empty, too-long, wrong-extension, path-traversal}. Layer 2 canonical-path check (post-validation) rejects symlink-escape with PATH_ESCAPES_VAULT.",
+      "examples": [
+        "Indexes/Active BIs.base",
+        "Indexes/Type ID Index.base",
+        "Projects/Tasks.base"
+      ]
+    },
+    "view_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "description": "Name of the view inside the .base file to query. Matched exact case-sensitive against the views declared in the file; no whitespace trim, no case-folding, no fuzzy matching. Validation rejects with VALIDATION_ERROR + details.code: INVALID_VIEW_NAME + details.reason in {empty, too-long}. Unknown view name (after passing schema validation) surfaces CLI_REPORTED_ERROR + details.code: VIEW_NOT_FOUND.",
+      "examples": [
+        "All BIs",
+        "By Status",
+        "Open Questions"
+      ]
+    },
+    "vault": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional vault display name. When absent, routes to the focused vault (cohort default). When present, the supplied name is resolved via the project's lazy vault registry. Unknown vault surfaces CLI_REPORTED_ERROR + details.code: VAULT_NOT_FOUND + details.reason: unknown; closed-but-registered vault surfaces details.reason: not-open."
+    }
+  }
+}
