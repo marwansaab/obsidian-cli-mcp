@@ -235,6 +235,18 @@ zero-new-codes streak).
 | `CLI_DISPATCH_CAP_KILL` | Output exceeded the 10 MiB cap (rare for tag-index walks). | Use `total: true`, OR reduce vault scope. |
 | `CLI_DISPATCH_KILL` | Dispatch killed externally (signal / shutdown). | Retry. |
 
+### Dual validation envelope (BI-042 cohort acknowledgement)
+
+Field-level input rejections produce two distinct wire envelopes depending on the MCP client class:
+
+| Constraint family | Wrapped envelope (`UpstreamError`) | MCP transport envelope |
+|---|---|---|
+| String `min(1)` / `max(220)` on `tag`; boolean type on `total`; `vault` non-empty | `VALIDATION_ERROR` with `details.issues` — fires when the offending value reaches the wrapper (Cowork pathway, or strict-rich clients that forward un-validated input). | `-32602 Invalid Params` with a zod-issue body — fires when the strict-rich client validates against the published `inputSchema` and rejects before forwarding. |
+| Custom `superRefine` (leading-hash strip, empty hierarchical segments, post-strip length ≤ 200) | `VALIDATION_ERROR` — wrapped envelope only; the constraint does not render into the published JSON Schema. | Not produced — strict-rich clients pass through. |
+| Unknown top-level keys (`additionalProperties: false`) | `VALIDATION_ERROR(unrecognized_keys)` — strict-rich pathway only; Cowork strips client-side and never reaches the wrapper. | `-32602` — when the strict-rich client validates the published schema client-side. |
+
+The dual envelope is structurally inherent to the wrapper + MCP transport architecture and is uniform across the cohort (`search`, `context_search`, `pattern_search`, `find_and_replace`, `find_by_property`, `backlinks`, `query_base`, `tag`). See [BI-042 dual-envelope evidence](../../specs/042-close-audit-findings/contracts/dual-envelope-evidence.md) and [BI-042 dual-envelope contract](../../specs/042-close-audit-findings/contracts/dual-validation-envelope-roster.md).
+
 The canonical errors contract is at
 [specs/001-add-cli-bridge/contracts/errors.contract.md](../../specs/001-add-cli-bridge/contracts/errors.contract.md);
 `tag` propagates the adapter's classification verbatim with no
@@ -245,11 +257,17 @@ rewrites.
 ### Multi-vault basename ambiguity
 
 The CLI's `vault=` parameter routes correctly for `eval` (verified
-live), but multi-vault setups still suffer from basename ambiguity —
-two vaults sharing the same display name are indistinguishable by the
-`vault=` argument. **Recommendation**: open the target vault in
-Obsidian before invoking `tag`. Parity with the other eval-cohort
-members.
+live; unregistered vault names surface as `CLI_REPORTED_ERROR` with
+`details.code: "VAULT_NOT_FOUND"`, `details.reason: "unknown"` per
+the error-roster row above), but multi-vault setups still suffer
+from basename ambiguity — two vaults sharing the same display name
+are indistinguishable by the `vault=` argument.
+**Recommendation**: open the target vault in Obsidian before
+invoking `tag`. Parity with the other eval-cohort members.
+(Empirical anchor: probe captured 2026-05-21 against obsidian-cli
+1.12.7; see
+[specs/042-close-audit-findings/contracts/vault-probe-evidence.md](../../specs/042-close-audit-findings/contracts/vault-probe-evidence.md)
+T014; re-verify on next audit cycle.)
 
 ### ASCII-only lower-fold
 

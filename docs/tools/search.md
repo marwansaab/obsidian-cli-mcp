@@ -123,6 +123,10 @@ With truncation:
 | `matches[].text` | string | Matching-line content, capped at 500 chars + `…` (U+2026 ellipsis marker) if longer. |
 | `truncated` | `true` | OPTIONAL — present **only** when truncation fired. Absent === `false`. |
 
+### Truncation slice direction (BI-042 reconciliation)
+
+When `truncated: true`, the response carries the **FIRST `<cap>` entries** of the sorted result set (the **leading** subset). Sort key: `path` ascending, then `line` ascending (`src/tools/search/handler.ts:125-127`). The sibling cohort (`context_search`, `backlinks`) all slice the leading subset — the truncation direction is **uniform across the cohort**, so no per-tool divergence call-out is needed. Forward pointer: runtime standardisation of the cohort's slice direction is tracked separately and is out of scope for BI-042. Empirical anchor: code-read 2026-05-21 against the wrapper sources at the named line; see [BI-042 truncation-direction evidence](../../specs/042-close-audit-findings/contracts/truncation-direction-evidence.md).
+
 ### Zero-match handling
 
 `No matches found.` on upstream stdout returns the empty envelope —
@@ -322,6 +326,18 @@ The wrapper serves two MCP client classes:
 - **Strict-rich pathway** — Claude Desktop, MCP Inspector. Submits raw input; exercises the wrapper's full validation surface. The two carve-out codes fire as written.
 
 The roster's reachability claims are bounded by the Cowork pathway with explicit strict-rich-pathway-only flags for the BI-0086 carve-outs.
+
+### Dual validation envelope (BI-042 cohort acknowledgement)
+
+The pathway distinction above produces two distinct wire envelopes per validation rejection:
+
+| Constraint family | Wrapped envelope (`UpstreamError`) | MCP transport envelope |
+|---|---|---|
+| String / numeric `min`/`max`/`length` on `query`, `folder`, `limit`, `vault` | `VALIDATION_ERROR` with `details.issues` (zod issue body) — fires when the offending value reaches the wrapper (Cowork pathway, or strict-rich clients that forward un-validated input). | `-32602 Invalid Params` with a zod-issue body — fires when the strict-rich client validates against the published `inputSchema` and rejects before forwarding. |
+| Custom `superRefine` (e.g. `query` trim non-empty) | `VALIDATION_ERROR` — wrapped envelope only; the constraint does not render into the published JSON Schema. | Not produced — strict-rich clients pass through. |
+| Unknown top-level keys (`additionalProperties: false`) | `VALIDATION_ERROR(unrecognized_keys)` — strict-rich pathway only; Cowork strips client-side and never reaches the wrapper. | `-32602` — when the strict-rich client validates the published schema client-side. |
+
+The dual envelope is structurally inherent to the wrapper + MCP transport architecture and is uniform across the cohort (`search`, `context_search`, `pattern_search`, `find_and_replace`, `find_by_property`, `backlinks`, `query_base`, `tag`). See [BI-042 dual-envelope evidence](../../specs/042-close-audit-findings/contracts/dual-envelope-evidence.md) and [BI-042 dual-envelope contract](../../specs/042-close-audit-findings/contracts/dual-validation-envelope-roster.md).
 
 ## Behavioural notes
 

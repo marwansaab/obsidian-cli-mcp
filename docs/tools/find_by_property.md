@@ -184,6 +184,10 @@ Unknown vault names surface as `CLI_REPORTED_ERROR` with the verbatim
 response-inspection clause inherited from the prior typed tools). This
 is a contractually distinct failure surface from the zero-match outcome
 (`{ count: 0, paths: [] }`); callers should not conflate them.
+(Empirical anchor: probe captured 2026-05-21 against obsidian-cli
+1.12.7; see
+[specs/042-close-audit-findings/contracts/vault-probe-evidence.md](../../specs/042-close-audit-findings/contracts/vault-probe-evidence.md)
+T011; re-verify on next audit cycle.)
 
 ## Errors
 
@@ -196,6 +200,18 @@ Principle IV. `find_by_property` introduces zero new error codes.
 | `CLI_NON_ZERO_EXIT` | The Obsidian CLI exited with a non-zero code (eval syntax error, output-cap kill, dispatch timeout, dispatch kill on signal). | `details.{exitCode, signal, stdout, stderr}` carry the failure context. |
 | `CLI_REPORTED_ERROR` | The CLI exited 0 but reported a failure in-band — the unknown-vault response (`Vault not found.`) was matched by the cli-adapter's R5 inspection, OR the eval response was unparseable JSON (`details.stage = "json-parse"`), OR the eval response shape failed the output-schema check (`details.stage = "schema-parse"`), OR the defensive `count !== paths.length` invariant tripped (`details.stage = "count-paths-mismatch"`). | `details.message` and `details.stage` (when the wrapper added one) name the specific failure. |
 | `CLI_BINARY_NOT_FOUND` | The `obsidian` CLI binary is not on `PATH` and `OBSIDIAN_BIN` was unset/invalid. | Operator-side: install the Obsidian CLI, OR set `OBSIDIAN_BIN` to a valid path. |
+
+### Dual validation envelope (BI-042 cohort acknowledgement)
+
+Field-level input rejections produce two distinct wire envelopes depending on the MCP client class:
+
+| Constraint family | Wrapped envelope (`UpstreamError`) | MCP transport envelope |
+|---|---|---|
+| String `min(1)` / non-empty constraints on `property`, `vault`; discriminated-union `value` typing | `VALIDATION_ERROR` with `details.issues` — fires when the offending value reaches the wrapper (Cowork pathway, or strict-rich clients that forward un-validated input). | `-32602 Invalid Params` with a zod-issue body — fires when the strict-rich client validates against the published `inputSchema` and rejects before forwarding. |
+| Custom `superRefine` (e.g. `folder` path-traversal shape; `value` array paired with default `arrayMatch: true`) | `VALIDATION_ERROR` — wrapped envelope only; the constraint does not render into the published JSON Schema. | Not produced — strict-rich clients pass through. |
+| Unknown top-level keys (`additionalProperties: false`) | `VALIDATION_ERROR(unrecognized_keys)` — strict-rich pathway only; Cowork strips client-side and never reaches the wrapper. | `-32602` — when the strict-rich client validates the published schema client-side. |
+
+The dual envelope is structurally inherent to the wrapper + MCP transport architecture and is uniform across the cohort (`search`, `context_search`, `pattern_search`, `find_and_replace`, `find_by_property`, `backlinks`, `query_base`, `tag`). See [BI-042 dual-envelope evidence](../../specs/042-close-audit-findings/contracts/dual-envelope-evidence.md) and [BI-042 dual-envelope contract](../../specs/042-close-audit-findings/contracts/dual-validation-envelope-roster.md).
 
 The canonical errors contract is at
 [specs/001-add-cli-bridge/contracts/errors.contract.md](../../specs/001-add-cli-bridge/contracts/errors.contract.md);

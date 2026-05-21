@@ -257,12 +257,20 @@ rewrites.
 
 ### Multi-vault default ambiguity
 
-The Obsidian CLI's `vault=` parameter is silently honoured-as-noop
-for the `outline` subcommand (verified at plan stage per F8) — the
-focused vault is always used. In multi-vault setups, callers cannot
-specify which vault to target via `vault=`. **Recommendation**: open
-the target vault in Obsidian before invoking `outline`. Parity with
-`files` (BI-019).
+The Obsidian CLI's `vault=` parameter is honoured by upstream for the
+`outline` subcommand. Invocations against an unregistered vault name
+emit `"Vault not found."` on stdout (exit 0), which the cli-adapter's
+011-R5 inspection clause reclassifies as a structured
+`CLI_REPORTED_ERROR` envelope with `details.message: "Vault not
+found."` (see the error roster below). Invocations against a
+registered vault name target that vault. The previously-documented
+"silently honoured-as-noop" claim (spec-stage F8) is retired as of
+BI-042 (2026-05-21) per the empirical probe captured against upstream
+Obsidian CLI 1.12.7 — see
+[specs/042-close-audit-findings/contracts/vault-probe-evidence.md](../../specs/042-close-audit-findings/contracts/vault-probe-evidence.md)
+T006. (Empirical anchor: probe captured 2026-05-21 against
+obsidian-cli 1.12.7; re-verify on next audit cycle.) Parity with
+`files` (BI-019), which underwent the same reconciliation in this BI.
 
 ### Output-cap ceiling
 

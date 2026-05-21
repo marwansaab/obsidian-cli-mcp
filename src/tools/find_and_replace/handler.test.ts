@@ -717,7 +717,7 @@ describe("US3 — subfolder narrows the response", () => {
 });
 
 describe("US3 — unknown subfolder", () => {
-  it("ENOENT on subfolder realpath → VALIDATION_ERROR/INVALID_SUBFOLDER (no path-traversal reason)", async () => {
+  it("ENOENT on subfolder realpath → VALIDATION_ERROR/INVALID_SUBFOLDER (reason: not-found)", async () => {
     const files: MemFile[] = [
       { abs: relToAbs("Decisions/A.md"), content: "pat" },
     ];
@@ -731,7 +731,60 @@ describe("US3 — unknown subfolder", () => {
     expect(err).toBeInstanceOf(UpstreamError);
     expect((err as UpstreamError).code).toBe("VALIDATION_ERROR");
     expect((err as UpstreamError).details.code).toBe("INVALID_SUBFOLDER");
+    expect((err as UpstreamError).details.reason).toBe("not-found");
     expect((err as UpstreamError).details.subfolder).toBe("DoesNotExist");
+  });
+});
+
+describe("FR-013 symmetry — INVALID_SUBFOLDER closed union { 'path-traversal' | 'not-found' }", () => {
+  it("BOTH rejection branches carry details.reason narrowed to the closed union", async () => {
+    // Import the wrapped tool locally so this test exercises the full
+    // schema → handler → tool-error envelope pipeline for both branches.
+    // The path-traversal branch fires at the schema layer (superRefine);
+    // the not-found branch fires at the handler layer (fs.realpath ENOENT).
+    // This test fails until BI-042 US4 lands (the handler-layer branch
+    // gains its reason: "not-found" emission at T017).
+    const { createFindAndReplaceTool } = await import("./index.js");
+
+    // Branch A — schema-layer path-traversal rejection.
+    {
+      const tool = createFindAndReplaceTool(baseDeps({}));
+      const result = await tool.handler({
+        pattern: "x",
+        replacement: "y",
+        subfolder: "../escape",
+        vault: "V",
+      });
+      expect("isError" in result && result.isError).toBe(true);
+      const payload = JSON.parse((result as { content: Array<{ text: string }> }).content[0]!.text);
+      expect(payload.code).toBe("VALIDATION_ERROR");
+      expect(payload.details.code).toBe("INVALID_SUBFOLDER");
+      expect(payload.details.reason).toBe("path-traversal");
+      expect(["path-traversal", "not-found"]).toContain(payload.details.reason);
+    }
+
+    // Branch B — handler-layer ENOENT rejection.
+    {
+      const files: MemFile[] = [
+        { abs: relToAbs("Decisions/A.md"), content: "x" },
+      ];
+      const { fs } = inMemoryFs(files, VAULT_ROOT, {
+        missingSubfolders: new Set(["DoesNotExist"]),
+      });
+      const tool = createFindAndReplaceTool(baseDeps({ fs }));
+      const result = await tool.handler({
+        pattern: "x",
+        replacement: "y",
+        subfolder: "DoesNotExist",
+        vault: "V",
+      });
+      expect("isError" in result && result.isError).toBe(true);
+      const payload = JSON.parse((result as { content: Array<{ text: string }> }).content[0]!.text);
+      expect(payload.code).toBe("VALIDATION_ERROR");
+      expect(payload.details.code).toBe("INVALID_SUBFOLDER");
+      expect(payload.details.reason).toBe("not-found");
+      expect(["path-traversal", "not-found"]).toContain(payload.details.reason);
+    }
   });
 });
 

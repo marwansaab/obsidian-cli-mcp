@@ -375,10 +375,14 @@ test("total-mode integer parse failure → CLI_REPORTED_ERROR with details.stage
   expect(err.details.stdout).toBe("not-a-number");
 });
 
-// (22) unknown-vault silently honoured-as-noop (amended FR-016 / SC-005 per /speckit-analyze I1)
-test("unknown vault → silently honoured-as-noop (no wrapper CLI_REPORTED_ERROR per amended FR-016)", async () => {
-  // Per F8 / R5: `vault=` is honoured-as-noop for outline. Upstream returns the focused
-  // vault's outline; the wrapper does NOT impose a "Vault not found." classification.
+// (22) defence-in-depth pass-through regression guard.
+// Historical note: this test originated as the "silently honoured-as-noop per F8/R5" case for unknown-vault names. The BI-042
+// empirical probe (2026-05-21 against obsidian-cli 1.12.7) showed upstream now emits "Vault not found." on stdout for
+// unregistered vault names — the cli-adapter R5 inspection reclassifies to CLI_REPORTED_ERROR. This test now serves as the
+// inverse-direction regression guard: when upstream DOES return data (e.g. vault= was registered, or a future upstream
+// version changes back to silent-fallback), the wrapper does not impose extra classification on the data stdout.
+test("data-stdout pass-through regression guard (any vault name) — wrapper imposes no extra classification on JSON data stdout", async () => {
+  // The mock returns valid outline data despite the unregistered vault name; the wrapper passes it through.
   const upstream = JSON.stringify([{ level: 1, heading: "Focused vault top", line: 1 }]);
   const { spawnFn } = makeQueuedSpawn([{ stdout: upstream, exitCode: 0 }]);
   const result = await executeOutline(

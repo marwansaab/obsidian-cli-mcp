@@ -198,8 +198,13 @@ test("reserved Obsidian properties (tags, aliases, cssclasses) appear alongside 
   expect(result.properties.find((p) => p.name === "tags")!.noteCount).toBe(8);
 });
 
-// (9) unknown-vault per amended FR-015 — no wrapper-imposed error (silently honoured-as-noop per F4/R5)
-test("unknown vault — no wrapper CLI_REPORTED_ERROR (silently honoured-as-noop per amended FR-015)", async () => {
+// (9) defence-in-depth pass-through: when upstream returns data on stdout (any vault name), wrapper passes it through unchanged.
+// Historical note: this test originated as the "silently honoured-as-noop per F4/R5" case for unknown-vault names. The BI-042
+// empirical probe (2026-05-21 against obsidian-cli 1.12.7) showed upstream now emits "Vault not found." on stdout for
+// unregistered vault names — the cli-adapter R5 inspection reclassifies to CLI_REPORTED_ERROR (covered by case (9b) below).
+// This test now serves as the inverse-direction regression guard: when upstream DOES return data (e.g. the vault= was
+// registered, or a future upstream version changes back to silent-fallback), the wrapper does not impose extra classification.
+test("data-stdout pass-through regression guard (any vault name) — wrapper imposes no extra classification on JSON data stdout", async () => {
   const upstream = JSON.stringify([{ name: "focused_vault_prop", type: "text", count: 1 }]);
   const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: upstream, exitCode: 0 }]);
   const result = await executeProperties({ vault: "NonExistent" }, deps(spawnFn));

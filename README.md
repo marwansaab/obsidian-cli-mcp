@@ -68,14 +68,32 @@ Omit `OBSIDIAN_BIN` if the Obsidian CLI is already on `PATH`. On Linux, the Obsi
 
 ## Tool inventory
 
-The server currently registers fifteen public tools. Call `help({ tool_name: "<name>" })` at runtime for the full per-tool documentation (parameters, output shape, error roster, and worked examples) — the listing below is just the index.
+The server currently registers twenty-six public tools. Call `help({ tool_name: "<name>" })` at runtime for the full per-tool documentation (parameters, output shape, error roster, and worked examples) — the listing below is just the index.
+
+### Read (full + surgical)
 
 | Tool | Purpose |
 |---|---|
 | `read` | Read a note's full body. |
 | `read_heading` | Read the body under a single named heading. |
-| `read_property` | Read one frontmatter property. |
-| `find_by_property` | Find notes whose frontmatter field matches a value. |
+| `read_property` | Read one frontmatter property as a typed `{ value, type }` envelope. |
+
+### Search + discovery
+
+| Tool | Purpose |
+|---|---|
+| `search` | Vault-wide literal-string search; returns matching paths, or per-line matches when `context_lines: true`. Wraps the upstream CLI's `search` / `search:context` subcommands natively. |
+| `context_search` | Per-line literal-phrase search returning `{ path, line, text }` per match — collapses the "find file → read file → locate line" three-call pattern to one call. |
+| `pattern_search` | ECMAScript-regex search across notes; returns one entry per non-empty match with `{ path, line, offset, match, text }`. Regex companion to `context_search`. |
+| `find_by_property` | Find notes whose frontmatter field matches a value (scalar or list); type-faithful comparison. |
+| `tag` | Vault-relative paths of every Markdown note carrying a given tag, as `{ count, paths }`, or a bare integer in count-only mode. |
+| `backlinks` | Incoming-link inventory — every source note referencing a target note via wikilink. Inverse of [`links`](#); cohort-uniform LEADING truncation when the source cap fires. |
+| `links` | Outbound-link inventory for a single note (the outgoing-direction sibling of `backlinks`). |
+
+### Mutate (single note + property)
+
+| Tool | Purpose |
+|---|---|
 | `find_and_replace` | Preview-then-commit find-and-replace across a vault (or subfolder); code blocks + HTML comments skipped by default; bounded by `OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES`. |
 | `patch_heading` | Surgically rewrite the body under a named heading inside a note. Three placement modes (append, prepend, replace); heading addressed by its full hierarchical `#`-separated path. |
 | `write_note` | Create or overwrite a note. |
@@ -83,12 +101,33 @@ The server currently registers fifteen public tools. Call `help({ tool_name: "<n
 | `delete` | Delete a note. |
 | `rename` | Rename a note in place. |
 | `move` | Move a note (optionally renaming); honours the vault's auto-update-links setting. |
-| `files` | List files directly inside a folder. |
+
+### List + inventory
+
+| Tool | Purpose |
+|---|---|
+| `files` | List files directly inside a folder (single-level, no recursion). |
+| `paths` | Recursive enumeration of every file and folder under a vault or sub-folder; `{ count, paths }` envelope. |
 | `outline` | List headings in a note. |
-| `properties` | Vault-wide inventory of frontmatter property names. |
-| `links` | List outbound links in a note. |
-| `smart_connections_similar` | Find notes similar to a given source note (requires the Smart Connections plugin). |
+| `properties` | Vault-wide inventory of frontmatter property names with per-property note counts. |
+
+### Structured queries
+
+| Tool | Purpose |
+|---|---|
 | `query_base` | Run a named view from an Obsidian Bases (`.base`) file; returns `{ columns, rows, truncated, total_rows? }` with reserved row-locator `path` at `columns[0]`. |
+
+### Plugin-backed (require Smart Connections)
+
+| Tool | Purpose |
+|---|---|
+| `smart_connections_similar` | Find notes similar to a given source note via Smart Connections' embedding index. |
+| `smart_connections_query` | Free-text natural-language semantic search; returns the nearest block-level matches as `{ count, matches: [{ path, headingPath, score }] }`. |
+
+### Escape hatch + meta
+
+| Tool | Purpose |
+|---|---|
 | `obsidian_exec` | Escape hatch — invoke any Obsidian CLI subcommand directly. |
 | `help` | Progressive-disclosure documentation for the tools above. |
 
