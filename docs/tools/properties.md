@@ -33,7 +33,7 @@ top-level keys are rejected (`additionalProperties: false`).
 
 | Field | Type | Required | Constraint |
 |-------|------|----------|------------|
-| `vault` | string | OPTIONAL | length ≥ 1 — silently honoured-as-noop by upstream; see [Inherited limitations](#multi-vault-default-ambiguity) |
+| `vault` | string | OPTIONAL | length ≥ 1 — honoured by upstream; unregistered vault names surface as `CLI_REPORTED_ERROR` with `details.message: "Vault not found."` per [Inherited limitations](#multi-vault-default-ambiguity) |
 | `total` | boolean | OPTIONAL | defaults to `false` |
 
 ### Per-field policy
@@ -285,12 +285,19 @@ Principle IV. `properties` introduces **zero new error codes**.
 | `CLI_BINARY_NOT_FOUND` | The `obsidian` CLI binary is not on `PATH` and `OBSIDIAN_BIN` was unset/invalid. | Operator-side: install the Obsidian CLI, OR set `OBSIDIAN_BIN` to a valid path. |
 | `CLI_OUTPUT_TOO_LARGE` | The CLI's stdout exceeded the cli-adapter's 10 MiB output cap (cap-exceeded kill). | Use `total: true`, OR reduce vault scope. |
 
-**No `ERR_NO_ACTIVE_FILE`** — this tool has no active mode. **No
-`CLI_REPORTED_ERROR` for unknown vault** — upstream silently
-honours-as-noop the `vault=` parameter (FR-015 resolves to documented
-inherited limitation per R5 / F4); the 011-R5 cli-adapter
-unknown-vault inspection clause does NOT fire because no
-"Vault not found." stdout is ever emitted.
+**No `ERR_NO_ACTIVE_FILE`** — this tool has no active mode.
+**`CLI_REPORTED_ERROR` for unknown vault — BI-042 reconciliation
+(2026-05-21)**: contrary to the spec-stage F4 finding (which claimed
+upstream silently honoured `vault=` as a noop), upstream Obsidian
+CLI 1.12.7 DOES validate `vault=` and emit `"Vault not found."` on
+stdout (exit 0) for unregistered vault display names. The 011-R5
+cli-adapter unknown-vault inspection clause fires and reclassifies
+to `CLI_REPORTED_ERROR` with `details.message: "Vault not found."`
+The original spec-stage FR-015 amendment remains a useful historical
+record; the structurally-observable contract is now the
+`CLI_REPORTED_ERROR` envelope above. See
+[specs/042-close-audit-findings/contracts/vault-probe-evidence.md](../../specs/042-close-audit-findings/contracts/vault-probe-evidence.md)
+T007 for the probe record.
 
 The canonical errors contract is at
 [specs/001-add-cli-bridge/contracts/errors.contract.md](../../specs/001-add-cli-bridge/contracts/errors.contract.md);
@@ -301,12 +308,21 @@ rewrites.
 
 ### Multi-vault default ambiguity
 
-The Obsidian CLI's `vault=` parameter is silently honoured-as-noop
-for the `properties` subcommand (verified at plan stage per F4) — the
-focused vault is always used. In multi-vault setups, callers cannot
-specify which vault to target via `vault=`. **Recommendation**: open
-the target vault in Obsidian before invoking `properties`. Parity
-with `files`, `outline`, `read_heading`, `find_by_property`.
+The Obsidian CLI's `vault=` parameter is honoured by upstream for the
+`properties` subcommand. Invocations against an unregistered vault
+name emit `"Vault not found."` on stdout (exit 0), which the
+cli-adapter's 011-R5 inspection clause reclassifies as a structured
+`CLI_REPORTED_ERROR` envelope with `details.message: "Vault not
+found."` (see the error roster below). Invocations against a
+registered vault name target that vault. The previously-documented
+"silently honoured-as-noop" claim (spec-stage F4) is retired as of
+BI-042 (2026-05-21) per the empirical probe captured against upstream
+Obsidian CLI 1.12.7 — see
+[specs/042-close-audit-findings/contracts/vault-probe-evidence.md](../../specs/042-close-audit-findings/contracts/vault-probe-evidence.md)
+T007. (Empirical anchor: probe captured 2026-05-21 against
+obsidian-cli 1.12.7; re-verify on next audit cycle.) Parity with
+`files`, `outline`, `read_heading`, `find_by_property` — all
+underwent the same reconciliation in this BI.
 
 ### Output-cap ceiling
 
@@ -318,14 +334,19 @@ inventory size.
 
 ### Sort order is wrapper-locked
 
-The case-insensitive-primary + byte-order-tiebreak sort is applied
-wrapper-side post-fetch (per the 2026-05-13 clarifications session
-Q1 / FR-013). Upstream's order is not load-bearing for this tool — the
-wrapper re-imposes the rule regardless of upstream's default
-(`sort=name` ascending in the version probed at plan stage). Callers
-needing alternative sort orders (e.g. `sort=count` frequency-ordered)
-re-sort the `properties` list client-side, or fall through to
-`obsidian_exec` for the upstream-native `sort=count` view.
+The case-insensitive-primary sort is applied wrapper-side post-fetch
+(per the 2026-05-13 clarifications session Q1 / FR-013). The
+byte-order tiebreak from the original FR-013 text is structurally
+unobservable post-BI-041: upstream's case-insensitive collapse merges
+case-variant names before the wrapper sees them, so no two entries
+share a case-folded key and no secondary tiebreak operates in
+practice. Upstream's order is not load-bearing for this tool — the
+wrapper re-imposes the case-insensitive primary-key rule regardless
+of upstream's default (`sort=name` ascending in the version probed at
+plan stage). Callers needing alternative sort orders (e.g.
+`sort=count` frequency-ordered) re-sort the `properties` list
+client-side, or fall through to `obsidian_exec` for the
+upstream-native `sort=count` view.
 
 ### Type metadata is dropped
 

@@ -176,13 +176,23 @@ invocations serialise through the project's single-in-flight queue.
 
 ### Active-mode multi-vault inheritance
 
-The Obsidian CLI's `vault=` parameter is functionally ignored by `eval`
-in active mode — the eval always runs against whatever vault Obsidian
-currently has focused, regardless of the `vault=` argument. Same
-limitation inherited by 011 / 013 / 014 / 015 / 016. **Recommendation**:
-for setups with multiple registered vaults, prefer
-`target_mode: "specific"` with an explicit `vault` argument when the
-target vault is known.
+The Obsidian CLI's `vault=` parameter is honoured by upstream — an
+unregistered vault name emits `"Vault not found."` on stdout (exit
+0), which the cli-adapter's 011-R5 inspection clause reclassifies as
+a structured `CLI_REPORTED_ERROR` envelope with `details.message:
+"Vault not found."` (see error roster below). Within active mode, the eval body
+reads `app.workspace.getActiveFile()`, which resolves to whatever
+note Obsidian currently has focused in the resolved vault; agents
+cannot pin the focused-file selection through this tool. The
+previously-documented "functionally ignored by eval" phrasing is
+retired as of BI-042 (2026-05-21) per the empirical probe captured
+against upstream Obsidian CLI 1.12.7 — see
+[specs/042-close-audit-findings/contracts/vault-probe-evidence.md](../../specs/042-close-audit-findings/contracts/vault-probe-evidence.md)
+T010. (Empirical anchor: probe captured 2026-05-21 against
+obsidian-cli 1.12.7; re-verify on next audit cycle.)
+**Recommendation**: for setups with multiple registered vaults,
+prefer `target_mode: "specific"` with an explicit `vault` argument
+when the target vault is known.
 
 ### Cross-type overwrite — the resolved type wins
 
@@ -455,11 +465,19 @@ property".
 
 ### Active-mode `vault=` argument has no effect
 
-The Obsidian CLI's `vault=` parameter is functionally ignored by `eval`
-in active mode — same limitation inherited by 011 / 013 / 014 / 015 /
-016. For setups with multiple registered vaults, the active-mode write
-always targets the focused vault; the `vault=` field is not accepted in
-active mode at the schema layer.
+In active mode the `vault=` field is **not accepted at the schema
+layer** (the discriminator forbids `vault` when `target_mode:
+"active"`). The wrapper composes its eval invocation without a
+`vault=` argument in active mode, so the upstream eval runs against
+the currently-focused vault. (For specific mode, the schema requires
+`vault=`, and upstream validates the value — unregistered vault names
+surface as `CLI_REPORTED_ERROR` with `details.message: "Vault not
+found."` per the upper "Active-mode multi-vault inheritance" section
+and [BI-042 probe evidence T010](../../specs/042-close-audit-findings/contracts/vault-probe-evidence.md).)
+The previously-documented "functionally ignored by `eval`" phrasing
+is retired as of BI-042 (2026-05-21) — `eval` does NOT ignore
+`vault=`; the schema-layer omission in active mode is what makes the
+field structurally inert in active mode specifically.
 
 ## References
 

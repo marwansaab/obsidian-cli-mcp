@@ -82,6 +82,18 @@ Quick reference:
 | `OUTPUT_CAP_EXCEEDED`   | —                     | Upstream stdout exceeded 10 MiB                 |
 | `INTERNAL_ERROR`        | —                     | Wrapper invariant violation (file a bug)        |
 
+### Dual validation envelope (BI-042 cohort acknowledgement)
+
+Field-level input rejections produce two distinct wire envelopes depending on the MCP client class:
+
+| Constraint family | Wrapped envelope (`UpstreamError`) | MCP transport envelope |
+|---|---|---|
+| String `min`/`max`/`length` on `base_path`, `view`, `vault` | `VALIDATION_ERROR` with `details.code` (e.g. `INVALID_BASE_PATH`, `INVALID_VIEW_NAME`) — fires when the offending value reaches the wrapper (Cowork pathway, or strict-rich clients that forward un-validated input). | `-32602 Invalid Params` with a zod-issue body — fires when the strict-rich client validates against the published `inputSchema` and rejects before forwarding. |
+| Custom `superRefine` (path-traversal shape on `base_path`, wrong extension) | `VALIDATION_ERROR` — wrapped envelope only; the constraint does not render into the published JSON Schema. | Not produced — strict-rich clients pass through. |
+| Unknown top-level keys (`additionalProperties: false`) | `VALIDATION_ERROR(unrecognized_keys)` — strict-rich pathway only; Cowork strips client-side and never reaches the wrapper. | `-32602` — when the strict-rich client validates the published schema client-side. |
+
+The dual envelope is structurally inherent to the wrapper + MCP transport architecture and is uniform across the cohort (`search`, `context_search`, `pattern_search`, `find_and_replace`, `find_by_property`, `backlinks`, `query_base`, `tag`). See [BI-042 dual-envelope evidence](../../specs/042-close-audit-findings/contracts/dual-envelope-evidence.md) and [BI-042 dual-envelope contract](../../specs/042-close-audit-findings/contracts/dual-validation-envelope-roster.md).
+
 ## Examples
 
 See [specs/039-query-base/quickstart.md](../../specs/039-query-base/quickstart.md) for the eleven worked examples (happy path, empty view, truncation, reserved-key collision, missing file / malformed / missing view / case-mismatch / path-traversal / over-cap input / vault selection).

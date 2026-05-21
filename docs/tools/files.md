@@ -375,6 +375,20 @@ vault to enumerate via active mode. **Recommendation**: prefer
 `target_mode: "specific"` with an explicit `vault` argument when the
 target vault is known.
 
+### Specific-mode `vault=` is honoured by upstream (BI-042 reconciliation)
+
+In `target_mode: "specific"`, upstream Obsidian CLI 1.12.7 validates
+the `vault=` argument. Unregistered vault display names emit `"Vault
+not found."` on stdout (exit 0), which the cli-adapter's 011-R5
+inspection clause reclassifies as `CLI_REPORTED_ERROR` with
+`details.message: "Vault not found."` (already named on the error
+roster row above). The legacy "silently honoured-as-noop" cross-tool
+framing (referenced from `backlinks.md`) is retired as of BI-042
+(2026-05-21). (Empirical anchor: probe captured 2026-05-21 against
+obsidian-cli 1.12.7; see
+[specs/042-close-audit-findings/contracts/vault-probe-evidence.md](../../specs/042-close-audit-findings/contracts/vault-probe-evidence.md)
+T008; re-verify on next audit cycle.)
+
 ### Sub-folder and dotfile filters are defence-in-depth
 
 The live CLI does NOT currently emit sub-folder entries from the

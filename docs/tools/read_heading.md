@@ -31,7 +31,7 @@ subcommands.
 | Field | Type | Required | When forbidden | Notes |
 |-------|------|----------|----------------|-------|
 | `target_mode` | `"specific" \| "active"` | YES | never | Standard discriminator (ADR-003). Selects between named-file specific mode and focused-file active mode. |
-| `vault` | string (length ≥ 1) | in specific mode | in active mode | Vault display name. The CLI's `vault=` parameter is functionally ignored by the underlying `eval` subcommand — see "Multi-vault default ambiguity" below. |
+| `vault` | string (length ≥ 1) | in specific mode | in active mode | Vault display name. Honoured by upstream — unregistered vault names surface as `CLI_REPORTED_ERROR` with `details.message: "Vault not found."` (see "Multi-vault default ambiguity" below for the BI-042 reconciliation). |
 | `file` | string | specific mode (XOR with `path`) | active mode; or with `path` in specific mode | Wikilink form (no extension, no folder). Resolved in-eval via `app.metadataCache.getFirstLinkpathDest`. |
 | `path` | string | specific mode (XOR with `file`) | active mode; or with `file` in specific mode | Vault-relative path including `.md`. Used directly against `app.metadataCache.fileCache`. |
 | `heading` | string (length ≥ 1) | YES | never | `::`-separated heading path. Structural validator: ≥2 non-empty segments. Heading existence is checked at execution. |
@@ -126,17 +126,23 @@ this — surfacing it for security-conscious reviewers.
 
 ### Multi-vault default ambiguity
 
-The underlying CLI's `vault=` parameter is functionally **ignored** by
-the `eval` subcommand — verified live during plan stage. The eval runs
-against whichever vault Obsidian's running instance currently has
-focused. In single-vault setups this is unambiguous. In multi-vault
-setups, multi-vault users must **open the target vault** in Obsidian
-before invoking `read_heading`. Same inherited limitation as
+The underlying CLI's `vault=` parameter is **honoured** by upstream
+on the `eval` subcommand. Invocations against an unregistered vault
+name emit `"Vault not found."` on stdout (exit 0), which the
+cli-adapter's 011-R5 inspection clause reclassifies as a structured
+`CLI_REPORTED_ERROR` envelope with `details.message: "Vault not
+found."` (see the error roster below). Invocations against a
+registered vault name target that vault. The previously-documented "functionally ignored"
+claim is retired as of BI-042 (2026-05-21) per the empirical probe
+captured against upstream Obsidian CLI 1.12.7 — see
+[specs/042-close-audit-findings/contracts/vault-probe-evidence.md](../../specs/042-close-audit-findings/contracts/vault-probe-evidence.md)
+T009. (Empirical anchor: probe captured 2026-05-21 against
+obsidian-cli 1.12.7; re-verify on next audit cycle.) Same
+reconciliation applied to
 [`find_by_property`](./find_by_property.md),
-[`read_property`](./read_property.md), and the prior typed tools. The
-`vault` schema field is preserved for forward compatibility — if a
-future Obsidian release routes `eval` per-vault, the wrapper will
-already pass the parameter.
+[`read_property`](./read_property.md),
+[`set_property`](./set_property.md), and the rest of the cohort in
+this BI.
 
 ### Boundary rule (Q1)
 

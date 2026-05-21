@@ -122,7 +122,19 @@ Uniform envelope across all modes; `backlinks` array population and `truncated` 
 | `backlinks` | array | One entry per source note (NOT per occurrence — multiplicity goes into `count` under `with_counts: true`). Sorted by source path (UTF-16 ascending). Empty array under `total: true`. |
 | `backlinks[].source` | string | Vault-relative path of the source note. Always `.md` (`.canvas`/`.base`/plugin-config/attachment sources excluded per Q2). |
 | `backlinks[].count` | integer ≥ 1 OPTIONAL | Total reference count from this source to the target (body + frontmatter combined). Present only under `with_counts: true`. Never `0` — sources only appear when they reference the target at least once. |
-| `truncated` | `true` OPTIONAL | Present only when the underlying source set exceeded the applied cap AND `total: false`. Absent otherwise. |
+| `truncated` | `true` OPTIONAL | Present only when the underlying source set exceeded the applied cap AND `total: false`. Absent otherwise. When `truncated: true`, the response carries the **FIRST `<cap>` entries** of the sorted source list (the **leading** subset). Sort key: `source` path UTF-16 ascending (`src/tools/backlinks/_template.ts:20-23` — `allKeys.filter(...).sort()` then `sources.slice(0, cap)`). The sibling cohort (`search`, `context_search`) all slice the leading subset — the truncation direction is **uniform across the cohort** per the BI-042 reconciliation; no per-tool divergence call-out is needed. Forward pointer: runtime standardisation of the cohort's slice direction is tracked separately and is out of scope for BI-042. Empirical anchor: code-read 2026-05-21 against the wrapper sources at the named line; see [BI-042 truncation-direction evidence](../../specs/042-close-audit-findings/contracts/truncation-direction-evidence.md). |
+
+### Cross-folder reach (BI-042 reconciliation)
+
+When a target note's filename basename is **unique vault-wide**, `backlinks` returns every cross-folder source that references the target via the bare-basename wikilink syntax `[[<basename>]]`, NOT only sources in the same folder as the target.
+
+This is because the wrapper defers to Obsidian's underlying wikilink resolution mechanism, which is vault-scoped, not folder-scoped, when the basename is unique. The wrapper does NOT folder-scope the source set.
+
+**Basename-uniqueness gate**: Obsidian's wikilink resolver is case-insensitive at the basename level. When two notes share a case-folded basename (e.g. `target.md` and `Target.md` in different folders), the resolver picks a single canonical destination for `[[target]]`, and the non-canonical sibling receives zero backlinks via that bare-basename wikilink. Agents debugging zero-backlink responses on a note whose basename collides with a sibling must add a folder-prefixed wikilink (`[[Folder/target]]`) or rename the colliding files.
+
+**Folder-scoped recovery**: Agents writing folder-scoped recovery logic against the returned source list must filter the result themselves — for example, by keeping only sources whose `source` field shares a path prefix with the target. A folder-scoped backlink count cannot be derived without that filter.
+
+Empirical anchor: a fixture vault probe captured 2026-05-21 against upstream Obsidian CLI 1.12.7 confirmed both same-folder and different-folder sources return when the target basename is vault-unique; see [BI-042 cross-folder evidence](../../specs/042-close-audit-findings/contracts/backlinks-cross-folder-evidence.md).
 
 ### Per-source aggregation semantic
 
@@ -303,6 +315,18 @@ All failure surfaces flow through `UpstreamError` per Constitution Principle IV.
 | `CLI_NON_ZERO_EXIT` | The Obsidian CLI exited with a non-zero code (typical cause: output-cap kill on pathologically large source lists exceeding the 10 MiB stdout cap even after the 1000-source cap). | `details.{exitCode, signal, stdout, stderr}` carry the failure context. Use `total: true` to bypass the cap-risk entirely. |
 | `CLI_BINARY_NOT_FOUND` | The `obsidian` CLI binary is not on `PATH` and `OBSIDIAN_BIN` was unset/invalid. | Operator-side: install the Obsidian CLI, OR set `OBSIDIAN_BIN` to a valid path. |
 
+### Dual validation envelope (BI-042 cohort acknowledgement)
+
+Field-level input rejections produce two distinct wire envelopes depending on the MCP client class:
+
+| Constraint family | Wrapped envelope (`UpstreamError`) | MCP transport envelope |
+|---|---|---|
+| `target_mode` discriminator presence; `vault` / `file` / `path` string min-length; `limit` numeric range | `VALIDATION_ERROR` with `details.issues` — fires when the offending value reaches the wrapper (Cowork pathway, or strict-rich clients that forward un-validated input). | `-32602 Invalid Params` with a zod-issue body — fires when the strict-rich client validates against the published `inputSchema` and rejects before forwarding. |
+| Custom `superRefine` rules (file/path mutual exclusion in specific mode; vault/file/path forbidden in active mode) | `VALIDATION_ERROR` — wrapped envelope only; the custom-discriminator rules do not render into the published JSON Schema. | Not produced — strict-rich clients pass through. |
+| Unknown top-level keys (`additionalProperties: false`) | `VALIDATION_ERROR(unrecognized_keys)` — strict-rich pathway only; Cowork strips client-side and never reaches the wrapper. | `-32602` — when the strict-rich client validates the published schema client-side. |
+
+The dual envelope is structurally inherent to the wrapper + MCP transport architecture and is uniform across the cohort (`search`, `context_search`, `pattern_search`, `find_and_replace`, `find_by_property`, `backlinks`, `query_base`, `tag`). See [BI-042 dual-envelope evidence](../../specs/042-close-audit-findings/contracts/dual-envelope-evidence.md) and [BI-042 dual-envelope contract](../../specs/042-close-audit-findings/contracts/dual-validation-envelope-roster.md).
+
 The canonical errors contract is at [specs/001-add-cli-bridge/contracts/errors.contract.md](../../specs/001-add-cli-bridge/contracts/errors.contract.md); `backlinks` propagates the adapter's classification verbatim with no rewrites beyond the two parse-failure stages and the three envelope-error mappings documented above.
 
 ## Source-corpus restriction (`.md`-only, per the 2026-05-17 Q2 clarification)
@@ -327,9 +351,9 @@ References inside fenced or indented code blocks are EXCLUDED from the cache (Ob
 
 ## Multi-vault structured-error contract
 
-Unlike `outline` (BI-023), `properties` (BI-024), and `files` (BI-019) — where the upstream CLI silently honours `vault=` as a noop for the native subcommand — the `eval` subcommand DOES emit `Vault not found.` (plain text, exit 0) for an unregistered vault display name. The cli-adapter's 011-R5 unknown-vault response-inspection clause fires and reclassifies the response to `CLI_REPORTED_ERROR(code: 'VAULT_NOT_FOUND')`.
+The upstream Obsidian CLI emits `Vault not found.` (plain text, exit 0) for an unregistered vault display name. The cli-adapter's 011-R5 unknown-vault response-inspection clause fires and reclassifies the response to `CLI_REPORTED_ERROR` with `details.message: "Vault not found."`.
 
-Multi-vault callers MUST supply a registered display name; the wrapper will NOT silently route to the focused vault for an unrecognised name. This is the same contract as [`links`](./links.md), [`read_heading`](./read_heading.md), and [`find_by_property`](./find_by_property.md), all of which compose against `eval`.
+Multi-vault callers MUST supply a registered display name; the wrapper will NOT silently route to the focused vault for an unrecognised name. This is the same contract as [`links`](./links.md), [`read_heading`](./read_heading.md), and [`find_by_property`](./find_by_property.md), all of which compose against `eval`. The previously-documented contrast against `outline` (BI-023), `properties` (BI-024), and `files` (BI-019) — which claimed the native subcommands "silently honoured `vault=` as a noop" — is **retired as of BI-042 (2026-05-21)**: empirical probing against upstream Obsidian CLI 1.12.7 confirms that native subcommands now also emit `Vault not found.` for unregistered vault names; the cohort is uniform on this surface. (Empirical anchor: probe captured 2026-05-21 against obsidian-cli 1.12.7; see [specs/042-close-audit-findings/contracts/vault-probe-evidence.md](../../specs/042-close-audit-findings/contracts/vault-probe-evidence.md) T012; re-verify on next audit cycle.)
 
 ## Inherited limitations
 

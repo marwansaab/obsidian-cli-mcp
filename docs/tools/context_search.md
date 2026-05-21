@@ -97,6 +97,10 @@ With truncation:
 | `matches[].text` | string | Matching line content. Single trailing `\r` stripped (FR-012). Capped at 500 chars + `…` (U+2026 ellipsis marker) if longer (final length 501 for capped lines). |
 | `truncated` | `true` | OPTIONAL — present **only** when truncation fired (absent === `false`). |
 
+### Truncation slice direction (BI-042 reconciliation)
+
+When `truncated: true`, the response carries the **FIRST `<cap>` entries** of the sorted result set (the **leading** subset). Sort key: `path` ascending, then `line` ascending (`src/tools/context_search/handler.ts:147-149`). The sibling cohort (`search`, `backlinks`) all slice the leading subset — the truncation direction is **uniform across the cohort**, so no per-tool divergence call-out is needed. Forward pointer: runtime standardisation of the cohort's slice direction is tracked separately and is out of scope for BI-042. Empirical anchor: code-read 2026-05-21 against the wrapper sources at the named line; see [BI-042 truncation-direction evidence](../../specs/042-close-audit-findings/contracts/truncation-direction-evidence.md).
+
 ### Zero-match handling
 
 - `"No matches found."` on upstream stdout AND `folder` was **not**
@@ -318,6 +322,18 @@ zero-new-codes streak is preserved.
 | `CLI_BINARY_NOT_FOUND` | The `obsidian` CLI binary is not on `PATH` and `OBSIDIAN_BIN` was unset/invalid. | Operator-side: install the Obsidian CLI, OR set `OBSIDIAN_BIN` to a valid path. |
 | `CLI_TIMEOUT` | The CLI exceeded the 10-second typed-tool timeout. | Reduce scope with `folder`, `limit`, or a narrower `query`. |
 | `CLI_OUTPUT_TOO_LARGE` | The CLI's stdout exceeded the cli-adapter's 10 MiB output cap. | Reduce scope; raising `limit` is NOT a recovery (the cap is on bytes, not entries). |
+
+### Dual validation envelope (BI-042 cohort acknowledgement)
+
+Field-level input rejections produce two distinct wire envelopes depending on the MCP client class:
+
+| Constraint family | Wrapped envelope (`UpstreamError`) | MCP transport envelope |
+|---|---|---|
+| String / numeric `min`/`max`/`length` on `query`, `folder`, `limit`, `vault`, `before_context`, `after_context` | `VALIDATION_ERROR` with `details.issues` (zod issue body) — fires when the offending value reaches the wrapper (Cowork pathway, or strict-rich clients that forward un-validated input). | `-32602 Invalid Params` with a zod-issue body — fires when the strict-rich client validates against the published `inputSchema` and rejects before forwarding. |
+| Custom `superRefine` rules | `VALIDATION_ERROR` — wrapped envelope only; the constraint does not render into the published JSON Schema. | Not produced — strict-rich clients pass through. |
+| Unknown top-level keys (`additionalProperties: false`) | `VALIDATION_ERROR(unrecognized_keys)` — strict-rich pathway only; Cowork strips client-side and never reaches the wrapper. | `-32602` — when the strict-rich client validates the published schema client-side. |
+
+The dual envelope is structurally inherent to the wrapper + MCP transport architecture and is uniform across the cohort (`search`, `context_search`, `pattern_search`, `find_and_replace`, `find_by_property`, `backlinks`, `query_base`, `tag`). See [BI-042 dual-envelope evidence](../../specs/042-close-audit-findings/contracts/dual-envelope-evidence.md) and [BI-042 dual-envelope contract](../../specs/042-close-audit-findings/contracts/dual-validation-envelope-roster.md).
 
 ## Behavioural notes
 

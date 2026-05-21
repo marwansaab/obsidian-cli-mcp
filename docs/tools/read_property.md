@@ -215,6 +215,10 @@ shell-metacharacter injection structurally.
 - **Unknown vault names** surface as `CLI_REPORTED_ERROR` with the verbatim
   `Vault not found.` message (per the cli-adapter's R5 / T002
   response-inspection clause inherited from `write_note` and `delete`).
+  (Empirical anchor: probe captured 2026-05-21 against obsidian-cli
+  1.12.7; see
+  [specs/042-close-audit-findings/contracts/vault-probe-evidence.md](../../specs/042-close-audit-findings/contracts/vault-probe-evidence.md)
+  T013; re-verify on next audit cycle.)
 - **File not found** surfaces as `CLI_REPORTED_ERROR` with the verbatim
   `Error: File "<path>" not found.` message. The path quoting in the
   message is the CLI's own — agents should not strip it.
