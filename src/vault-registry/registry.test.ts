@@ -167,3 +167,39 @@ test("tolerates \\r\\n line endings and BOM", async () => {
   expect(await reg.resolveVaultPath("Alpha")).toBe("/abs/alpha");
   expect(await reg.resolveVaultPath("Beta")).toBe("/abs/beta");
 });
+
+// BI-040 / T024a — reverse lookup: basePath → displayName.
+test("resolveVaultDisplayName returns the registered display name for a known basePath", async () => {
+  const probe = vi.fn().mockResolvedValue(TWO_VAULT_STDOUT);
+  const reg = createVaultRegistry({ invokeProbe: probe });
+  // Prime the cache via a forward lookup first (the registry is lazy).
+  await reg.resolveVaultPath("The Setup");
+  expect(
+    reg.resolveVaultDisplayName!(
+      "C:\\Marwan-Saab-ADO\\Marwan at Metcash\\Obsidian\\TestVault-Obsidian-CLI-MCP",
+    ),
+  ).toBe("TestVault-Obsidian-CLI-MCP");
+  expect(
+    reg.resolveVaultDisplayName!(
+      "C:\\Marwan-Saab-ADO\\Marwan at Metcash\\Obsidian\\The Setup",
+    ),
+  ).toBe("The Setup");
+});
+
+test("resolveVaultDisplayName returns null for an unknown basePath", async () => {
+  const probe = vi.fn().mockResolvedValue(TWO_VAULT_STDOUT);
+  const reg = createVaultRegistry({ invokeProbe: probe });
+  await reg.resolveVaultPath("The Setup");
+  expect(reg.resolveVaultDisplayName!("/no/such/vault")).toBe(null);
+});
+
+test("resolveVaultDisplayName returns null when the cache has not been primed", async () => {
+  const probe = vi.fn().mockResolvedValue(TWO_VAULT_STDOUT);
+  const reg = createVaultRegistry({ invokeProbe: probe });
+  // No forward lookup performed yet — cache is null.
+  expect(
+    reg.resolveVaultDisplayName!(
+      "C:\\Marwan-Saab-ADO\\Marwan at Metcash\\Obsidian\\The Setup",
+    ),
+  ).toBe(null);
+});

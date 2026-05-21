@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "039-query-base",
-  "generatedAt": "2026-05-19",
+  "generatedFromBranch": "040-patch-heading",
+  "generatedAt": "2026-05-21",
   "tools": [
     {
       "name": "backlinks",
@@ -57,6 +57,11 @@
       "name": "outline",
       "descriptionFingerprint": "09b0b625b23ea8018bf5ab0c3229a2e3624b36685bb710f9602338fbb5f2b591",
       "schemaFingerprint": "3affa6b4260fc26466e0b52018a248ec0e9752bd49d1f65bd549db20ab77f642"
+    },
+    {
+      "name": "patch_heading",
+      "descriptionFingerprint": "c1ebd7883556d179ac03cd17ace6f8e181323720ff8ef296ee06c6869f63854a",
+      "schemaFingerprint": "9439a5d9fed62aa30a442c2111416d4e0abdce3e1531bae492ad27b608b05b5d"
     },
     {
       "name": "paths",
