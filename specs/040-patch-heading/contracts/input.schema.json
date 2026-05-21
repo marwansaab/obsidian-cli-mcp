@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/marwansaab/obsidian-cli-mcp/specs/040-patch-heading/contracts/input.schema.json",
+  "title": "patch_heading input schema",
+  "description": "Input contract for the patch_heading typed MCP tool. Authoritative source is the Zod schema in src/tools/patch_heading/schema.ts; this JSON Schema is the human-readable cross-reference and the form published via zodToJsonSchema at registration time. Uses the project's target_mode discriminator per ADR-003 — in specific mode, vault is required plus one of file/path; in active mode, none of vault/file/path may appear.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["target_mode", "heading_path", "mode", "content"],
+  "properties": {
+    "target_mode": {
+      "type": "string",
+      "enum": ["specific", "active"],
+      "description": "Locator-shape discriminator per ADR-003. 'specific' = caller supplies vault + file|path. 'active' = wrapper resolves the currently-focused note via a small obsidian eval; no vault/file/path may be supplied."
+    },
+    "vault": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Vault display name. REQUIRED when target_mode === 'specific'; FORBIDDEN when target_mode === 'active'. Resolved via the project's lazy vault registry. Unknown vault surfaces CLI_REPORTED_ERROR + details.code: VAULT_NOT_FOUND."
+    },
+    "file": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Vault-relative file path. Alternative to 'path'; exactly one of {file, path} required when target_mode === 'specific'. Subject to the project's structural path-safety refinement (no '../', no leading '/' or '\\\\', no drive-letter prefix, no control characters). Layer 2 canonical-path check (post-validation) rejects symlink-escape with PATH_ESCAPES_VAULT."
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Vault-relative file path. Alternative to 'file'; exactly one of {file, path} required when target_mode === 'specific'. Same constraints as 'file'."
+    },
+    "heading_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "description": "Hierarchical heading-path locator. Segments are joined by the literal '#' character per FR-004 (cohort parity with Obsidian wikilink anchors like [[note#Top#Sub]]). MUST contain at least two segments (a single-segment path that would address a top-level heading directly is out of scope per FR-002). No segment may be empty (no '##' or leading/trailing '#'). Validation rejects with VALIDATION_ERROR + details.code: INVALID_HEADING_PATH + details.reason in {empty, empty-segment, contains-hash, single-segment, too-long}. Headings whose literal text contains '#' are permanently unreachable through this tool (FR-005).",
+      "examples": [
+        "Daily Notes#2026-05-21",
+        "Projects#Active#Onboarding",
+        "Tasks#TODO"
+      ]
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["append", "prepend", "replace"],
+      "description": "Placement mode per FR-009. 'append' = insert at end of the heading's full reach (immediately before the next equal-or-higher-rank heading, or EOF), preserving body + child subtrees. 'prepend' = insert immediately after the heading marker line, preserving body + child subtrees. 'replace' = swap the direct body (content between marker line and first child heading, or marker line and next equal-or-higher-rank heading if no child), preserving marker line + child subtrees."
+    },
+    "content": {
+      "type": "string",
+      "description": "The text to insert (append/prepend) or to swap in as the new direct body (replace). For mode='append' or mode='prepend', MUST be non-empty (empty content surfaces VALIDATION_ERROR + details.code: EMPTY_CONTENT + details.reason: <mode>). For mode='replace', empty content is accepted as the legitimate 'clear the direct body' operation per FR-018a."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "target_mode": { "const": "specific" } } },
+      "then": {
+        "required": ["vault"],
+        "oneOf": [
+          { "required": ["file"], "not": { "required": ["path"] } },
+          { "required": ["path"], "not": { "required": ["file"] } }
+        ]
+      }
+    },
+    {
+      "if": { "properties": { "target_mode": { "const": "active" } } },
+      "then": {
+        "not": {
+          "anyOf": [
+            { "required": ["vault"] },
+            { "required": ["file"] },
+            { "required": ["path"] }
+          ]
+        }
+      }
+    }
+  ]
+}

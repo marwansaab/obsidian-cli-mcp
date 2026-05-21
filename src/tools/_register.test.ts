@@ -359,6 +359,20 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
     required_equals: ["target_mode"],
     additionalProperties: false,
   },
+  patch_heading: {
+    type: "object",
+    properties_equals_set: [
+      "target_mode",
+      "vault",
+      "file",
+      "path",
+      "heading_path",
+      "mode",
+      "content",
+    ],
+    required_equals: ["target_mode", "heading_path", "mode", "content"],
+    additionalProperties: false,
+  },
   properties: {
     type: "object",
     properties_equals_set: ["vault", "total"],
