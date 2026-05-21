@@ -606,7 +606,7 @@ test("US2: VIEW_NOT_FOUND — `View 'Open' not found` → VIEW_NOT_FOUND + detai
 
 test("US1: no-vault path exercises default FOCUSED_VAULT_TEMPLATE eval round-trip", async () => {
   const focusedResp = JSON.stringify(
-    JSON.stringify({ path: null, base: "C:\\Vault" }),
+    JSON.stringify({ path: null, base: TEST_VAULT_ROOT }),
   );
   const { spawnFn } = makeQueuedSpawn([
     // 1st spawn: focused-vault eval → returns the JSON-string-wrapped envelope.
