@@ -143,6 +143,13 @@ description: "Task list for Close Audit Findings (BI-042)"
 
 **Independent Test**: Each of `search`, `context_search`, `backlinks` documents its slice direction explicitly; any tool whose direction differs from a sibling carries a divergence call-out.
 
+**Conditional doc text per T028 outcome** (canonical wording from [contracts/truncation-direction-roster.md](contracts/truncation-direction-roster.md)):
+
+- **Branch A — backlinks slice is LEADING (uniform cohort).** Each tool's output-contract section gets only the slice-direction statement: `> When `truncated: true`, the response carries the FIRST <cap> entries of the sorted result set (the leading subset).` Divergence call-out is dropped.
+- **Branch B — backlinks slice is TRAILING (divergent cohort).** Each tool gets the slice-direction statement above PLUS a divergence call-out naming the sibling with the opposite direction: `> Sibling tool <name> uses the OPPOSITE slice direction (<leading|trailing> subset). Agents pinning page-direction expectations across tools must check per tool.`
+
+Both branches also include the forward-pointer note that runtime-standardisation of the cohort's slice direction ships separately on its own spec branch (Out-of-Scope per spec).
+
 - [ ] T028 [US6] Probe `backlinks` slice direction against a fixture target with cross-folder source count > the `backlinks` cap; record direction (leading vs trailing) in [contracts/truncation-direction-evidence.md](contracts/truncation-direction-evidence.md). Search and context_search are LEADING per code read at [src/tools/search/handler.ts:125](../../src/tools/search/handler.ts#L125) and [src/tools/context_search/handler.ts:147](../../src/tools/context_search/handler.ts#L147); only `backlinks` requires the empirical capture.
 - [ ] T029 [P] [US6] Doc edit at [docs/tools/search.md](../../docs/tools/search.md) — name LEADING slice direction in the output-contract section per [contracts/truncation-direction-roster.md](contracts/truncation-direction-roster.md). Divergence call-out included only if T028 returns TRAILING for backlinks (otherwise the cohort is uniform).
 - [ ] T030 [P] [US6] Doc edit at [docs/tools/context_search.md](../../docs/tools/context_search.md) — same as T029.
@@ -189,6 +196,7 @@ description: "Task list for Close Audit Findings (BI-042)"
 - [ ] T036 Run the merge-gating quality suite: `npm run lint`, `npm run typecheck`, `npm run build`, `npx vitest run`. All four MUST be green. Record outcomes in the final commit message of US4 (the only runtime-touching story).
 - [ ] T037 [P] Confirm [CLAUDE.md](../../CLAUDE.md) SPECKIT marker block points at `specs/042-close-audit-findings/plan.md`. No edit expected — already done during /speckit-plan; verify only.
 - [ ] T038 [P] Cross-check [audit-pass-record.md](audit-pass-record.md) against every story's checkpoint to confirm SC-001 / SC-002 / SC-003 / SC-004 / SC-005 / SC-006 are all satisfied.
+- [ ] T039 [P] Verify SC-005 scope invariant explicitly: (a) `git diff main` shows zero `src/tools/_register.ts` net additions of new tool registrations; (b) `git diff main -- 'src/tools/*/schema.ts'` shows zero input-shape changes (added/removed/renamed fields, changed `.min()`/`.max()`/`.optional()` declarations on existing fields); (c) the only runtime-code edit is the single `details.reason: "not-found"` addition at [src/tools/find_and_replace/handler.ts:512-523](../../src/tools/find_and_replace/handler.ts#L512-L523) plus the matching header-comment update at [src/tools/find_and_replace/index.ts:1](../../src/tools/find_and_replace/index.ts#L1). Record findings inline in [audit-pass-record.md](audit-pass-record.md) §SC-005 invariant check.
 
 ---
 
@@ -232,7 +240,7 @@ The following tasks touch the same file and MUST land in sequence (or be merged 
 - US5 dual-envelope probes (T020–T027) — 8 tools, all [P] EXCEPT T024 (find_and_replace conflict with T019) and T025/T027 (backlinks/tag conflict with US3/US6/US7).
 - US6 doc edits (T029, T030) — parallel (search, context_search); T031 sequential on backlinks.
 - US4 tests (T015, T016) — same file in most cases; sequential within US4.
-- Polish (T035, T037, T038) — parallel.
+- Polish (T035, T037, T038, T039) — parallel.
 
 ---
 
@@ -287,7 +295,7 @@ Each story adds value without breaking previous stories.
 
 If implemented sequentially by one developer:
 
-T001 → T002 → T003 → T004 → T005 → T006 → T007 → T008 → T009 → T010 → T011 → T012 → T013 → T014 → T015 → T016 → T017 → T018 → T019 → T020 → T021 → T022 → T023 → T024 → T025 → T026 → T027 → T028 → T029 → T030 → T031 → T032 → T033 → T034 → T035 → T036 → T037 → T038.
+T001 → T002 → T003 → T004 → T005 → T006 → T007 → T008 → T009 → T010 → T011 → T012 → T013 → T014 → T015 → T016 → T017 → T018 → T019 → T020 → T021 → T022 → T023 → T024 → T025 → T026 → T027 → T028 → T029 → T030 → T031 → T032 → T033 → T034 → T035 → T036 → T037 → T038 → T039.
 
 ---
 
