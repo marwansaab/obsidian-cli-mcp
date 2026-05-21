@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/marwansaab/obsidian-cli-mcp/specs/040-patch-heading/contracts/output.schema.json",
+  "title": "patch_heading success-response envelope",
+  "description": "Output contract for the patch_heading typed MCP tool. Returned on success; failures route through UpstreamError per Principle IV and are documented in errors.md. Authoritative source is the Zod schema in src/tools/patch_heading/schema.ts. Strict — additional properties forbidden.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["path", "vault", "heading_path", "mode", "bytes_written"],
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Vault-relative path of the note that was patched. Echoed for write-verification. For target_mode='specific', identical to the input's file/path. For target_mode='active', the focused-file path returned by the pre-write eval."
+    },
+    "vault": {
+      "type": "string",
+      "description": "Vault display name. Echoed for write-verification. For target_mode='specific', identical to the input's vault. For target_mode='active', the display name corresponding to the focused-file's vault root."
+    },
+    "heading_path": {
+      "type": "string",
+      "description": "The heading_path locator from the input, echoed verbatim. Caller cross-references against the request to confirm the intended target."
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["append", "prepend", "replace"],
+      "description": "The placement mode that was applied, echoed verbatim from the input."
+    },
+    "bytes_written": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total bytes written to disk (post-edit file size in UTF-8 bytes). Provides a coarse confirmation signal — a near-zero value when the caller intended a substantial write is a red flag worth surfacing in audit logs."
+    }
+  },
+  "examples": [
+    {
+      "path": "Daily Notes/2026-05-21.md",
+      "vault": "Knowledge",
+      "heading_path": "Tasks#TODO",
+      "mode": "append",
+      "bytes_written": 2487
+    },
+    {
+      "path": "Projects/Onboarding.md",
+      "vault": "Work",
+      "heading_path": "Overview#Goals",
+      "mode": "replace",
+      "bytes_written": 1923
+    }
+  ]
+}
