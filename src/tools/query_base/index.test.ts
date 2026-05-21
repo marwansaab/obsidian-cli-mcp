@@ -1,7 +1,11 @@
 // Original — no upstream. query_base registration tests.
+import { resolve as resolvePath } from "node:path";
 import { Writable } from "node:stream";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+// Platform-absolute vault root (POSIX: `/vault`, Windows: `<drive>:\vault`).
+const TEST_VAULT_ROOT = resolvePath("/vault");
 
 import {
   QUERY_BASE_DESCRIPTION,
@@ -27,7 +31,7 @@ const silentLogger = () =>
 function stubRegistry(): VaultRegistry {
   return {
     async resolveVaultPath(_n: string) {
-      return "C:\\Vault";
+      return TEST_VAULT_ROOT;
     },
   };
 }

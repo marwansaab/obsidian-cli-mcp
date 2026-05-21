@@ -1,9 +1,17 @@
 // Original — no upstream. query_base handler tests — US1 envelope/ordering/truncation/collision/empty/vault cohort plus US2 BASE_NOT_FOUND / BASE_MALFORMED (five reasons) / VIEW_NOT_FOUND / PATH_ESCAPES_VAULT classification cohort. Mock-only per project test-scope memory; T0 live captures live elsewhere.
 import { type SpawnOptions } from "node:child_process";
 import { EventEmitter } from "node:events";
+import { resolve as resolvePath } from "node:path";
 import { Readable, Writable } from "node:stream";
 
 import { afterEach, beforeEach, expect, test } from "vitest";
+
+// Platform-absolute vault root for cross-platform tests: `path.resolve("/vault")`
+// returns `/vault` on POSIX and `<drive>:\vault` on Windows. Using a non-absolute
+// stub like `"C:\\Vault"` triggers `path.resolve` to prepend the CWD on Linux,
+// which then trips the canonical-path check before the test's intended branch
+// fires (caught in CI 2026-05-21).
+const TEST_VAULT_ROOT = resolvePath("/vault");
 
 import { executeQueryBase, type ExecuteDeps } from "./handler.js";
 import {
@@ -108,7 +116,7 @@ function makeStubRegistry(vaultRoot: string): VaultRegistry {
 }
 
 function deps(opts: DepsOpts): ExecuteDeps {
-  const vaultRoot = opts.vaultRoot ?? "C:\\Vault";
+  const vaultRoot = opts.vaultRoot ?? TEST_VAULT_ROOT;
   return {
     logger: silentLogger(),
     queue: createQueue(),
@@ -353,7 +361,7 @@ test("US1: input.vault=undefined does NOT trigger closed-vault detection (single
     {
       ...deps({ spawnFn }),
       // For the no-vault path we inject a synthetic focused-vault response.
-      invokeEval: async () => ({ path: null, base: "C:\\Vault" }),
+      invokeEval: async () => ({ path: null, base: TEST_VAULT_ROOT }),
     },
   );
   expect(r.rows).toEqual([{ path: "x.md" }]);
