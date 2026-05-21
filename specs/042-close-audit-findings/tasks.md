@@ -29,7 +29,7 @@ description: "Task list for Close Audit Findings (BI-042)"
 
 **Purpose**: Capture the binary version + test-vault scaffolding referenced by every probe-using story (Stories 3, 5, 6, 7).
 
-- [ ] T001 Capture `obsidian --version` output and the authorised test-vault path; record both as the first line of [contracts/vault-probe-evidence.md](contracts/vault-probe-evidence.md) (the file is created here with only the header — per-tool records appended during Phase 5). Prerequisite read: [.memory/test-execution-instructions.md](../../.memory/test-execution-instructions.md).
+- [X] T001 Capture `obsidian --version` output and the authorised test-vault path; record both as the first line of [contracts/vault-probe-evidence.md](contracts/vault-probe-evidence.md) (the file is created here with only the header — per-tool records appended during Phase 5). Prerequisite read: [.memory/test-execution-instructions.md](../../.memory/test-execution-instructions.md).
 
 ---
 
@@ -47,8 +47,8 @@ description: "Task list for Close Audit Findings (BI-042)"
 
 **Independent Test**: Re-read [specs/013-read-property/spec.md](../013-read-property/spec.md) AC9 and confirm it describes `{ value: null, type: "unknown" }` (no structured-error language). Cross-check against the help-doc.
 
-- [ ] T002 [P] [US1] Edit [specs/013-read-property/spec.md](../013-read-property/spec.md) User Story 1 acceptance scenario 9 (line 35) per [contracts/predecessor-spec-retirements.md](contracts/predecessor-spec-retirements.md) §Story 1: replace the "fails with a structured error" text with the empty-value+`unknown` shape; add the BI-041 Principle IV authorisation cross-reference.
-- [ ] T003 [P] [US1] Confirm [docs/tools/read_property.md](../../docs/tools/read_property.md) malformed-frontmatter description matches the empty-value+`unknown` shape (no edit expected — BI-041 landed this surface; record verification in commit message). If a residual contradiction is found, fix in this same task.
+- [X] T002 [P] [US1] Edit [specs/013-read-property/spec.md](../013-read-property/spec.md) User Story 1 acceptance scenario 9 (line 35) per [contracts/predecessor-spec-retirements.md](contracts/predecessor-spec-retirements.md) §Story 1: replace the "fails with a structured error" text with the empty-value+`unknown` shape; add the BI-041 Principle IV authorisation cross-reference.
+- [X] T003 [P] [US1] Confirm [docs/tools/read_property.md](../../docs/tools/read_property.md) malformed-frontmatter description matches the empty-value+`unknown` shape (no edit expected — BI-041 landed this surface; record verification in commit message). If a residual contradiction is found, fix in this same task.
 
 **Checkpoint**: User Story 1 ships; AC9 retirement closes the predecessor partial-ship for `read_property`.
 
@@ -60,8 +60,8 @@ description: "Task list for Close Audit Findings (BI-042)"
 
 **Independent Test**: Re-read [specs/024-list-properties/spec.md](../024-list-properties/spec.md) and confirm no FR promises case-sensitive dedup. The byte-tiebreak is either removed or explicitly labelled structurally unobservable.
 
-- [ ] T004 [P] [US2] Edit [specs/024-list-properties/spec.md](../024-list-properties/spec.md) per [contracts/predecessor-spec-retirements.md](contracts/predecessor-spec-retirements.md) §Story 2: drop every "case-sensitive" promise; promote the case-insensitive collapse rule to the authoritative contract; either remove the byte-tiebreak rule or label it "structurally unobservable — upstream collapses the very inputs the tiebreak was designed to disambiguate."
-- [ ] T005 [P] [US2] Confirm [docs/tools/properties.md](../../docs/tools/properties.md) and [src/tools/properties/schema.ts](../../src/tools/properties/schema.ts) `.describe()` already align with the case-insensitive collapse contract (BI-041 surface; record verification in commit message). If a residual contradiction is found, fix in this same task.
+- [X] T004 [P] [US2] Edit [specs/024-list-properties/spec.md](../024-list-properties/spec.md) per [contracts/predecessor-spec-retirements.md](contracts/predecessor-spec-retirements.md) §Story 2: drop every "case-sensitive" promise; promote the case-insensitive collapse rule to the authoritative contract; either remove the byte-tiebreak rule or label it "structurally unobservable — upstream collapses the very inputs the tiebreak was designed to disambiguate."
+- [X] T005 [P] [US2] Confirm [docs/tools/properties.md](../../docs/tools/properties.md) and [src/tools/properties/schema.ts](../../src/tools/properties/schema.ts) `.describe()` already align with the case-insensitive collapse contract (BI-041 surface; record verification in commit message). If a residual contradiction is found, fix in this same task.
 
 **Checkpoint**: User Story 2 ships; dedup-FR retirement closes the predecessor partial-ship for `properties`.
 
@@ -77,15 +77,15 @@ description: "Task list for Close Audit Findings (BI-042)"
 
 > Each task below performs the three-invocation probe (A focused / B unfocused / C unregistered) per [contracts/vault-cohort-reconciliation.md](contracts/vault-cohort-reconciliation.md), classifies the result, records the probe payload to [contracts/vault-probe-evidence.md](contracts/vault-probe-evidence.md), AND edits the tool's per-tool surfaces per the classification's reconciliation rule.
 
-- [ ] T006 [P] [US3] Probe + reconcile `outline` (touches [docs/tools/outline.md](../../docs/tools/outline.md) at minimum; conditionally touches [src/tools/outline/schema.ts](../../src/tools/outline/schema.ts) `.describe()` if Branch A retraction crosses the schema text).
-- [ ] T007 [P] [US3] Probe + reconcile `properties` (touches [docs/tools/properties.md](../../docs/tools/properties.md); conditionally [src/tools/properties/schema.ts](../../src/tools/properties/schema.ts)).
-- [ ] T008 [P] [US3] Probe + reconcile `files` (touches [docs/tools/files.md](../../docs/tools/files.md); conditionally [src/tools/files/schema.ts](../../src/tools/files/schema.ts)).
-- [ ] T009 [P] [US3] Probe + reconcile `read_heading` (touches [docs/tools/read_heading.md](../../docs/tools/read_heading.md); conditionally [src/tools/read_heading/schema.ts](../../src/tools/read_heading/schema.ts)).
-- [ ] T010 [P] [US3] Probe + reconcile `set_property` (touches [docs/tools/set_property.md](../../docs/tools/set_property.md); conditionally [src/tools/set_property/schema.ts](../../src/tools/set_property/schema.ts)).
-- [ ] T011 [P] [US3] Probe + reconcile `find_by_property` (touches [docs/tools/find_by_property.md](../../docs/tools/find_by_property.md); conditionally [src/tools/find_by_property/schema.ts](../../src/tools/find_by_property/schema.ts)).
-- [ ] T012 [P] [US3] Probe `backlinks` (control case — already classified as response-inspection-reclassification path per [docs/tools/backlinks.md](../../docs/tools/backlinks.md) line 330; deliverable is an empirical anchor on the existing correct text — touches [docs/tools/backlinks.md](../../docs/tools/backlinks.md) only).
-- [ ] T013 [P] [US3] Probe + reconcile `read_property` (touches [docs/tools/read_property.md](../../docs/tools/read_property.md); conditionally [src/tools/read_property/schema.ts](../../src/tools/read_property/schema.ts)). Note: this task does NOT touch [specs/013-read-property/spec.md](../013-read-property/spec.md) — that AC9 retirement is owned by US1 (T002).
-- [ ] T014 [P] [US3] Probe + reconcile `tag` (touches [docs/tools/tag.md](../../docs/tools/tag.md); conditionally [src/tools/tag/schema.ts](../../src/tools/tag/schema.ts)).
+- [X] T006 [P] [US3] Probe + reconcile `outline` (touches [docs/tools/outline.md](../../docs/tools/outline.md) at minimum; conditionally touches [src/tools/outline/schema.ts](../../src/tools/outline/schema.ts) `.describe()` if Branch A retraction crosses the schema text).
+- [X] T007 [P] [US3] Probe + reconcile `properties` (touches [docs/tools/properties.md](../../docs/tools/properties.md); conditionally [src/tools/properties/schema.ts](../../src/tools/properties/schema.ts)).
+- [X] T008 [P] [US3] Probe + reconcile `files` (touches [docs/tools/files.md](../../docs/tools/files.md); conditionally [src/tools/files/schema.ts](../../src/tools/files/schema.ts)).
+- [X] T009 [P] [US3] Probe + reconcile `read_heading` (touches [docs/tools/read_heading.md](../../docs/tools/read_heading.md); conditionally [src/tools/read_heading/schema.ts](../../src/tools/read_heading/schema.ts)).
+- [X] T010 [P] [US3] Probe + reconcile `set_property` (touches [docs/tools/set_property.md](../../docs/tools/set_property.md); conditionally [src/tools/set_property/schema.ts](../../src/tools/set_property/schema.ts)).
+- [X] T011 [P] [US3] Probe + reconcile `find_by_property` (touches [docs/tools/find_by_property.md](../../docs/tools/find_by_property.md); conditionally [src/tools/find_by_property/schema.ts](../../src/tools/find_by_property/schema.ts)).
+- [X] T012 [P] [US3] Probe `backlinks` (control case — already classified as response-inspection-reclassification path per [docs/tools/backlinks.md](../../docs/tools/backlinks.md) line 330; deliverable is an empirical anchor on the existing correct text — touches [docs/tools/backlinks.md](../../docs/tools/backlinks.md) only).
+- [X] T013 [P] [US3] Probe + reconcile `read_property` (touches [docs/tools/read_property.md](../../docs/tools/read_property.md); conditionally [src/tools/read_property/schema.ts](../../src/tools/read_property/schema.ts)). Note: this task does NOT touch [specs/013-read-property/spec.md](../013-read-property/spec.md) — that AC9 retirement is owned by US1 (T002).
+- [X] T014 [P] [US3] Probe + reconcile `tag` (touches [docs/tools/tag.md](../../docs/tools/tag.md); conditionally [src/tools/tag/schema.ts](../../src/tools/tag/schema.ts)).
 
 **Checkpoint**: User Story 3 ships; every cohort tool's per-tool surface either carries the empirical surface (Branch A) or the empirical anchor (Branch B). No mixed states.
 
@@ -101,14 +101,14 @@ description: "Task list for Close Audit Findings (BI-042)"
 
 > **Write/update these tests FIRST. T015 currently passes (asserts absence); after T015 lands the assertion will fail until T017 runtime change ships. T016 is a new test that fails until T017 ships.**
 
-- [ ] T015 [US4] Update existing test at [src/tools/find_and_replace/handler.test.ts:720-733](../../src/tools/find_and_replace/handler.test.ts#L720-L733) — flip the assertion from `details.reason === undefined` to `details.reason === "not-found"`; rename the test description from "ENOENT on subfolder realpath → VALIDATION_ERROR/INVALID_SUBFOLDER (no path-traversal reason)" to "ENOENT on subfolder realpath → VALIDATION_ERROR/INVALID_SUBFOLDER (reason: not-found)". Verify the test now FAILS (the runtime still emits no `reason`).
-- [ ] T016 [US4] Add a new symmetry test in [src/tools/find_and_replace/handler.test.ts](../../src/tools/find_and_replace/handler.test.ts) (or co-located in [src/tools/find_and_replace/index.test.ts](../../src/tools/find_and_replace/index.test.ts) alongside the existing path-traversal-reason test at lines 134-148) that triggers both rejection branches and asserts both envelopes carry a `details.reason` field narrowed to the closed union `"path-traversal" | "not-found"`. Verify the test FAILS for the ENOENT branch.
+- [X] T015 [US4] Update existing test at [src/tools/find_and_replace/handler.test.ts:720-733](../../src/tools/find_and_replace/handler.test.ts#L720-L733) — flip the assertion from `details.reason === undefined` to `details.reason === "not-found"`; rename the test description from "ENOENT on subfolder realpath → VALIDATION_ERROR/INVALID_SUBFOLDER (no path-traversal reason)" to "ENOENT on subfolder realpath → VALIDATION_ERROR/INVALID_SUBFOLDER (reason: not-found)". Verify the test now FAILS (the runtime still emits no `reason`).
+- [X] T016 [US4] Add a new symmetry test in [src/tools/find_and_replace/handler.test.ts](../../src/tools/find_and_replace/handler.test.ts) (or co-located in [src/tools/find_and_replace/index.test.ts](../../src/tools/find_and_replace/index.test.ts) alongside the existing path-traversal-reason test at lines 134-148) that triggers both rejection branches and asserts both envelopes carry a `details.reason` field narrowed to the closed union `"path-traversal" | "not-found"`. Verify the test FAILS for the ENOENT branch.
 
 ### Implementation for User Story 4
 
-- [ ] T017 [US4] Runtime edit at [src/tools/find_and_replace/handler.ts:512-523](../../src/tools/find_and_replace/handler.ts#L512-L523) — add `reason: "not-found"` to the `details` object literal inside the `UpstreamError` instantiation in the ENOENT branch. After this edit, T015 + T016 both pass; the path-traversal regression test at [src/tools/find_and_replace/index.test.ts:134-148](../../src/tools/find_and_replace/index.test.ts#L134-L148) continues to pass.
-- [ ] T018 [P] [US4] Header-comment update at [src/tools/find_and_replace/index.ts:1](../../src/tools/find_and_replace/index.ts#L1) — extend the `details.reason` enumeration from `empty / too-long / regex-syntax / path-traversal` to `empty / too-long / regex-syntax / path-traversal / not-found`.
-- [ ] T019 [P] [US4] Doc update at [docs/tools/find_and_replace.md](../../docs/tools/find_and_replace.md) — error-roster row for `INVALID_SUBFOLDER` names both sub-discriminator values (`"path-traversal"`, `"not-found"`) per [contracts/find_and_replace-sub-discriminator.md](contracts/find_and_replace-sub-discriminator.md). The dual-envelope rows for this tool's other field-level constraints land in US5 (T024).
+- [X] T017 [US4] Runtime edit at [src/tools/find_and_replace/handler.ts:512-523](../../src/tools/find_and_replace/handler.ts#L512-L523) — add `reason: "not-found"` to the `details` object literal inside the `UpstreamError` instantiation in the ENOENT branch. After this edit, T015 + T016 both pass; the path-traversal regression test at [src/tools/find_and_replace/index.test.ts:134-148](../../src/tools/find_and_replace/index.test.ts#L134-L148) continues to pass.
+- [X] T018 [P] [US4] Header-comment update at [src/tools/find_and_replace/index.ts:1](../../src/tools/find_and_replace/index.ts#L1) — extend the `details.reason` enumeration from `empty / too-long / regex-syntax / path-traversal` to `empty / too-long / regex-syntax / path-traversal / not-found`.
+- [X] T019 [P] [US4] Doc update at [docs/tools/find_and_replace.md](../../docs/tools/find_and_replace.md) — error-roster row for `INVALID_SUBFOLDER` names both sub-discriminator values (`"path-traversal"`, `"not-found"`) per [contracts/find_and_replace-sub-discriminator.md](contracts/find_and_replace-sub-discriminator.md). The dual-envelope rows for this tool's other field-level constraints land in US5 (T024).
 
 **Checkpoint**: User Story 4 ships; the `(VALIDATION_ERROR, INVALID_SUBFOLDER)` pair carries a symmetric `details.reason` sub-discriminator with closed union `{ "path-traversal", "not-found" }`. Quality gates: `npm run lint`, `npm run typecheck`, `npm run build`, `vitest run` all green.
 
@@ -124,14 +124,14 @@ description: "Task list for Close Audit Findings (BI-042)"
 
 > Each task below probes one tool against both client classes (Cowork-class + strict-rich), records the per-envelope wire shape to [contracts/dual-envelope-evidence.md](contracts/dual-envelope-evidence.md), and edits the per-tool error-roster section in [docs/tools/<name>.md](../../docs/tools/) per [contracts/dual-validation-envelope-roster.md](contracts/dual-validation-envelope-roster.md).
 
-- [ ] T020 [P] [US5] Probe + reconcile dual envelope on `search` (touches [docs/tools/search.md](../../docs/tools/search.md)).
-- [ ] T021 [P] [US5] Probe + reconcile dual envelope on `context_search` (touches [docs/tools/context_search.md](../../docs/tools/context_search.md)).
-- [ ] T022 [P] [US5] Probe + reconcile dual envelope on `pattern_search` (touches [docs/tools/pattern_search.md](../../docs/tools/pattern_search.md)).
-- [ ] T023 [P] [US5] Probe + reconcile dual envelope on `find_by_property` (touches [docs/tools/find_by_property.md](../../docs/tools/find_by_property.md)).
-- [ ] T024 [US5] Probe + reconcile dual envelope on `find_and_replace` (touches [docs/tools/find_and_replace.md](../../docs/tools/find_and_replace.md)). NOT [P] — this task touches the same file as T019, so it MUST land after US4's doc edit OR be combined with T019 into a single multi-section doc edit. The probe records still go to [contracts/dual-envelope-evidence.md](contracts/dual-envelope-evidence.md).
-- [ ] T025 [P] [US5] Probe + reconcile dual envelope on `backlinks` (touches [docs/tools/backlinks.md](../../docs/tools/backlinks.md)). Coordinates with T012 (US3 anchor on same doc), T031 (US6 truncation on same doc), and T033 (US7 cross-folder caveat on same doc) — see Dependencies section below.
-- [ ] T026 [P] [US5] Probe + reconcile dual envelope on `query_base` (touches [docs/tools/query_base.md](../../docs/tools/query_base.md)).
-- [ ] T027 [P] [US5] Probe + reconcile dual envelope on `tag` (touches [docs/tools/tag.md](../../docs/tools/tag.md)). Coordinates with T014 (US3 vault= reconciliation on same doc).
+- [X] T020 [P] [US5] Probe + reconcile dual envelope on `search` (touches [docs/tools/search.md](../../docs/tools/search.md)).
+- [X] T021 [P] [US5] Probe + reconcile dual envelope on `context_search` (touches [docs/tools/context_search.md](../../docs/tools/context_search.md)).
+- [X] T022 [P] [US5] Probe + reconcile dual envelope on `pattern_search` (touches [docs/tools/pattern_search.md](../../docs/tools/pattern_search.md)).
+- [X] T023 [P] [US5] Probe + reconcile dual envelope on `find_by_property` (touches [docs/tools/find_by_property.md](../../docs/tools/find_by_property.md)).
+- [X] T024 [US5] Probe + reconcile dual envelope on `find_and_replace` (touches [docs/tools/find_and_replace.md](../../docs/tools/find_and_replace.md)). NOT [P] — this task touches the same file as T019, so it MUST land after US4's doc edit OR be combined with T019 into a single multi-section doc edit. The probe records still go to [contracts/dual-envelope-evidence.md](contracts/dual-envelope-evidence.md).
+- [X] T025 [P] [US5] Probe + reconcile dual envelope on `backlinks` (touches [docs/tools/backlinks.md](../../docs/tools/backlinks.md)). Coordinates with T012 (US3 anchor on same doc), T031 (US6 truncation on same doc), and T033 (US7 cross-folder caveat on same doc) — see Dependencies section below.
+- [X] T026 [P] [US5] Probe + reconcile dual envelope on `query_base` (touches [docs/tools/query_base.md](../../docs/tools/query_base.md)).
+- [X] T027 [P] [US5] Probe + reconcile dual envelope on `tag` (touches [docs/tools/tag.md](../../docs/tools/tag.md)). Coordinates with T014 (US3 vault= reconciliation on same doc).
 
 **Checkpoint**: User Story 5 ships; every cohort tool's error roster names both envelope shapes.
 
@@ -150,10 +150,10 @@ description: "Task list for Close Audit Findings (BI-042)"
 
 Both branches also include the forward-pointer note that runtime-standardisation of the cohort's slice direction ships separately on its own spec branch (Out-of-Scope per spec).
 
-- [ ] T028 [US6] Probe `backlinks` slice direction against a fixture target with cross-folder source count > the `backlinks` cap; record direction (leading vs trailing) in [contracts/truncation-direction-evidence.md](contracts/truncation-direction-evidence.md). Search and context_search are LEADING per code read at [src/tools/search/handler.ts:125](../../src/tools/search/handler.ts#L125) and [src/tools/context_search/handler.ts:147](../../src/tools/context_search/handler.ts#L147); only `backlinks` requires the empirical capture.
-- [ ] T029 [P] [US6] Doc edit at [docs/tools/search.md](../../docs/tools/search.md) — name LEADING slice direction in the output-contract section per [contracts/truncation-direction-roster.md](contracts/truncation-direction-roster.md). Divergence call-out included only if T028 returns TRAILING for backlinks (otherwise the cohort is uniform).
-- [ ] T030 [P] [US6] Doc edit at [docs/tools/context_search.md](../../docs/tools/context_search.md) — same as T029.
-- [ ] T031 [US6] Doc edit at [docs/tools/backlinks.md](../../docs/tools/backlinks.md) — name slice direction per T028 outcome; include divergence call-out if direction differs from search/context_search. NOT [P] with T025/T012/T033 (same file).
+- [X] T028 [US6] Probe `backlinks` slice direction against a fixture target with cross-folder source count > the `backlinks` cap; record direction (leading vs trailing) in [contracts/truncation-direction-evidence.md](contracts/truncation-direction-evidence.md). Search and context_search are LEADING per code read at [src/tools/search/handler.ts:125](../../src/tools/search/handler.ts#L125) and [src/tools/context_search/handler.ts:147](../../src/tools/context_search/handler.ts#L147); only `backlinks` requires the empirical capture.
+- [X] T029 [P] [US6] Doc edit at [docs/tools/search.md](../../docs/tools/search.md) — name LEADING slice direction in the output-contract section per [contracts/truncation-direction-roster.md](contracts/truncation-direction-roster.md). Divergence call-out included only if T028 returns TRAILING for backlinks (otherwise the cohort is uniform).
+- [X] T030 [P] [US6] Doc edit at [docs/tools/context_search.md](../../docs/tools/context_search.md) — same as T029.
+- [X] T031 [US6] Doc edit at [docs/tools/backlinks.md](../../docs/tools/backlinks.md) — name slice direction per T028 outcome; include divergence call-out if direction differs from search/context_search. NOT [P] with T025/T012/T033 (same file).
 
 **Checkpoint**: User Story 6 ships; truncation slice direction documented per tool. Cross-tool divergence is either called out or proved absent.
 
@@ -165,8 +165,8 @@ Both branches also include the forward-pointer note that runtime-standardisation
 
 **Independent Test**: A fixture vault probe confirms cross-folder sources are returned; the help-doc carries the canonical caveat text from [contracts/backlinks-cross-folder-caveat.md](contracts/backlinks-cross-folder-caveat.md).
 
-- [ ] T032 [US7] Probe `backlinks` against a fixture with `notes/target.md` (basename `target` unique vault-wide), `notes/local/source-a.md` carrying `[[target]]`, and `other/source-b.md` carrying `[[target]]`. Assert both sources appear in the response. Record in [contracts/backlinks-cross-folder-evidence.md](contracts/backlinks-cross-folder-evidence.md).
-- [ ] T033 [US7] Doc edit at [docs/tools/backlinks.md](../../docs/tools/backlinks.md) — add the "Cross-folder reach" subsection per [contracts/backlinks-cross-folder-caveat.md](contracts/backlinks-cross-folder-caveat.md). NOT [P] with T012/T025/T031 (same file).
+- [X] T032 [US7] Probe `backlinks` against a fixture with `notes/target.md` (basename `target` unique vault-wide), `notes/local/source-a.md` carrying `[[target]]`, and `other/source-b.md` carrying `[[target]]`. Assert both sources appear in the response. Record in [contracts/backlinks-cross-folder-evidence.md](contracts/backlinks-cross-folder-evidence.md).
+- [X] T033 [US7] Doc edit at [docs/tools/backlinks.md](../../docs/tools/backlinks.md) — add the "Cross-folder reach" subsection per [contracts/backlinks-cross-folder-caveat.md](contracts/backlinks-cross-folder-caveat.md). NOT [P] with T012/T025/T031 (same file).
 
 **Checkpoint**: User Story 7 ships; cross-folder reach caveat is in the help-doc.
 
@@ -178,7 +178,7 @@ Both branches also include the forward-pointer note that runtime-standardisation
 
 **Independent Test**: [audit-pass-record.md](audit-pass-record.md) exists with one row per cohort tool and zero residual findings within the cohort scope.
 
-- [ ] T034 [US8] Walk the cohort (`read_property`, `properties`, `outline`, `find_by_property`, `read_heading`, `files`, `search`, `context_search`, `pattern_search`, `find_and_replace`, `backlinks`, `query_base`, `tag`); for each, evaluate the five pass criteria:
+- [X] T034 [US8] Walk the cohort (`read_property`, `properties`, `outline`, `find_by_property`, `read_heading`, `files`, `search`, `context_search`, `pattern_search`, `find_and_replace`, `backlinks`, `query_base`, `tag`); for each, evaluate the five pass criteria:
   1. No rogue codes (grep `handler.ts` for `UpstreamError({ code:`; cross-check against the tool's error roster).
   2. No documented-but-never-produced codes (walk roster, attempt a probe per code, confirm production).
   3. No produced-but-never-documented codes (enumerate unique `code` instantiations; confirm in roster).
@@ -192,11 +192,11 @@ Both branches also include the forward-pointer note that runtime-standardisation
 
 ## Phase 11: Polish & Cross-Cutting Concerns
 
-- [ ] T035 [P] Run [quickstart.md](quickstart.md) verification walkthrough end-to-end for each user story; record pass/fail per block.
-- [ ] T036 Run the merge-gating quality suite: `npm run lint`, `npm run typecheck`, `npm run build`, `npx vitest run`. All four MUST be green. Record outcomes in the final commit message of US4 (the only runtime-touching story).
-- [ ] T037 [P] Confirm [CLAUDE.md](../../CLAUDE.md) SPECKIT marker block points at `specs/042-close-audit-findings/plan.md`. No edit expected — already done during /speckit-plan; verify only.
-- [ ] T038 [P] Cross-check [audit-pass-record.md](audit-pass-record.md) against every story's checkpoint to confirm SC-001 / SC-002 / SC-003 / SC-004 / SC-005 / SC-006 are all satisfied.
-- [ ] T039 [P] Verify SC-005 scope invariant explicitly: (a) `git diff main` shows zero `src/tools/_register.ts` net additions of new tool registrations; (b) `git diff main -- 'src/tools/*/schema.ts'` shows zero input-shape changes (added/removed/renamed fields, changed `.min()`/`.max()`/`.optional()` declarations on existing fields); (c) the only runtime-code edit is the single `details.reason: "not-found"` addition at [src/tools/find_and_replace/handler.ts:512-523](../../src/tools/find_and_replace/handler.ts#L512-L523) plus the matching header-comment update at [src/tools/find_and_replace/index.ts:1](../../src/tools/find_and_replace/index.ts#L1). Record findings inline in [audit-pass-record.md](audit-pass-record.md) §SC-005 invariant check.
+- [X] T035 [P] Run [quickstart.md](quickstart.md) verification walkthrough end-to-end for each user story; record pass/fail per block.
+- [X] T036 Run the merge-gating quality suite: `npm run lint`, `npm run typecheck`, `npm run build`, `npx vitest run`. All four MUST be green. Record outcomes in the final commit message of US4 (the only runtime-touching story).
+- [X] T037 [P] Confirm [CLAUDE.md](../../CLAUDE.md) SPECKIT marker block points at `specs/042-close-audit-findings/plan.md`. No edit expected — already done during /speckit-plan; verify only.
+- [X] T038 [P] Cross-check [audit-pass-record.md](audit-pass-record.md) against every story's checkpoint to confirm SC-001 / SC-002 / SC-003 / SC-004 / SC-005 / SC-006 are all satisfied.
+- [X] T039 [P] Verify SC-005 scope invariant explicitly: (a) `git diff main` shows zero `src/tools/_register.ts` net additions of new tool registrations; (b) `git diff main -- 'src/tools/*/schema.ts'` shows zero input-shape changes (added/removed/renamed fields, changed `.min()`/`.max()`/`.optional()` declarations on existing fields); (c) the only runtime-code edit is the single `details.reason: "not-found"` addition at [src/tools/find_and_replace/handler.ts:512-523](../../src/tools/find_and_replace/handler.ts#L512-L523) plus the matching header-comment update at [src/tools/find_and_replace/index.ts:1](../../src/tools/find_and_replace/index.ts#L1). Record findings inline in [audit-pass-record.md](audit-pass-record.md) §SC-005 invariant check.
 
 ---
 
