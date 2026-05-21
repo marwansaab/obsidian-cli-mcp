@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -31,8 +31,8 @@
 
 ## Notes
 
-- One open `[NEEDS CLARIFICATION]` marker remains at FR-004 (heading-path separator character). This is a scope-level choice: the chosen character is permanently excluded from heading text the tool can address (FR-005). The `/speckit-clarify` pass resolves it before planning.
-- The spec mentions tooling-cohort references (ADR-004 / ADR-013 for locator schema; Constitution Principle IV for error-code cohort parity) inside the Assumptions section. These describe contract inheritance from existing surfaces and do not prescribe implementation; they orient the planner to the relevant decision records rather than embedding implementation details in the spec body.
-- Empty-content writes for `append` / `prepend` are provisionally accepted as no-op-equivalent successes; this is flagged in Assumptions and may be revisited during `/speckit-clarify`.
-- ATX heading syntax assumed (per Markdown convention); setext headings flagged in Assumptions as out of scope for this BI.
-- Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`.
+- 2026-05-21 `/speckit-clarify` session resolved all five high-impact ambiguities (heading-path separator, external-editor unsaved-changes behaviour, heading-text race detection scope, empty-content semantics across modes, typed-error sub-discriminator naming). Full Q&A in the spec's `## Clarifications` section.
+- All `[NEEDS CLARIFICATION]` markers cleared. No provisional language remains in Assumptions; every assumption now states a committed contract decision or names a referenced ADR / BI.
+- Cohort-parity references retained in Assumptions (ADR-004 / ADR-013 for locator schema; BI-016 for reliable-writer substrate; Constitution Principle IV for error-code cohort). These orient the planner to existing decision records rather than re-stating their content.
+- ATX heading syntax remains the only supported marker form for this BI; setext is out of scope per Assumptions.
+- Ready for `/speckit-plan`.
