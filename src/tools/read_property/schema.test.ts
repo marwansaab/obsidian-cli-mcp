@@ -1,7 +1,34 @@
 // Original — no upstream. Tests for the read_property input schema — happy paths across both modes + name field rules + 9 Story 3 validation classes.
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { expect, test } from "vitest";
 
 import { readPropertyInputSchema } from "./schema.js";
+
+// BI-041 US5 — malformed-frontmatter contract text present in schema .describe()
+// (FR-010 / contracts/read_property-malformed-frontmatter.md Branch A — T0
+// captured the empty-value-`type:"unknown"` live shape on 2026-05-21).
+test("BI-041 FR-010: schema .describe() carries the malformed-frontmatter contract (Branch A)", () => {
+  const desc = readPropertyInputSchema.description ?? "";
+  expect(desc).toContain("Malformed YAML frontmatter");
+  expect(desc).toContain('{ value: null, type: "unknown" }');
+});
+
+// BI-041 US5 — spec ↔ help-doc agreement: both artefacts describe the same shape.
+test("BI-041 FR-010: schema .describe() and docs/tools/read_property.md agree on the malformed-frontmatter shape", () => {
+  const desc = readPropertyInputSchema.description ?? "";
+  const docsPath = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    "../../../docs/tools/read_property.md",
+  );
+  const docBody = readFileSync(docsPath, "utf8");
+  // Captured Branch A shape phrase must appear in both artefacts. Schema is the
+  // canonical source per Principle III; help-doc is the rendered companion.
+  expect(desc).toContain('{ value: null, type: "unknown" }');
+  expect(docBody).toContain('"value": null, "type": "unknown"');
+});
 
 // (a) Story 1 happy-path — specific mode with `path=` + `name`
 test("specific+path+name happy path (Story 1 AC#1)", () => {

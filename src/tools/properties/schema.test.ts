@@ -9,6 +9,29 @@ import {
   type PropertiesOutput,
 } from "./schema.js";
 
+// =====================================================================
+// BI-041 US6 — case-insensitive collapse contract (FR-011)
+// =====================================================================
+
+// Pre-edit verification: a grep of `src/tools/properties/schema.ts` for
+// "byte.?tiebreak|case.sensitive" returned ZERO hits (the byte-tiebreak claim
+// lives in docs/tools/properties.md and the handler.ts implementation comment,
+// not in schema.ts). Per contracts/properties-dedup.md "Test additions" branch
+// (b), the schema-side assertion is positive-only (case-insensitive + collapse
+// present); the help-doc byte-tiebreak retraction is reviewed by inspection in
+// the PR (docs/tools/properties.md updated alongside this schema .describe()).
+// Schema-side assertion (a) — defensively guards against future re-introduction.
+test("BI-041 FR-011: schema .describe() carries the case-insensitive collapse claim", () => {
+  const desc = propertiesInputSchema.description ?? "";
+  expect(desc).toContain("case-insensitive");
+  expect(desc.match(/collapse|merge/i)).not.toBeNull();
+});
+
+test("BI-041 FR-011: schema .describe() does NOT carry the retired byte-tiebreak claim", () => {
+  const desc = propertiesInputSchema.description ?? "";
+  expect(desc).not.toMatch(/byte.?tiebreak/i);
+});
+
 // (1) empty object → ✓ (both fields optional)
 test("empty object {} → accepted (both fields optional)", () => {
   const r = propertiesInputSchema.safeParse({});

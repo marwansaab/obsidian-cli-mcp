@@ -18,6 +18,27 @@ function paramsForPath(
 }
 
 // =====================================================================
+// BI-041 US3 — schema .describe() response-shape claims (FR-006/007/008)
+// =====================================================================
+
+test("BI-041 FR-006: schema .describe() acknowledges empty-view `columns: [\"path\"]` claim", () => {
+  const desc = queryBaseInputSchema.description ?? "";
+  expect(desc).toContain("zero rows");
+  expect(desc).toContain('`["path"]`');
+});
+
+test("BI-041 FR-007: schema .describe() acknowledges type-preservation passthrough (stringification)", () => {
+  const desc = queryBaseInputSchema.description ?? "";
+  expect(desc).toContain("stringified by upstream");
+});
+
+test("BI-041 FR-008: schema .describe() acknowledges `file.*` display-label emission with embedded space", () => {
+  const desc = queryBaseInputSchema.description ?? "";
+  expect(desc).toContain('`file.path` → `"file path"`');
+  expect(desc).toContain('`file.name` → `"file name"`');
+});
+
+// =====================================================================
 // Happy paths
 // =====================================================================
 

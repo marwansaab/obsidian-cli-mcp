@@ -321,12 +321,15 @@ test("active+to → argv has 'move', 'to=Archive/', NO vault/file/path tokens (S
   expect(recorded[0]!.argv.some((t) => t.startsWith("path="))).toBe(false);
 });
 
-// Case 15 — SC-014 LOAD-BEARING: capital-N CLI_REPORTED_ERROR classifier behaviour
-// The native `move` subcommand emits capital-N `Error: No active file.` on no-focused-note.
-// The bridge's dispatch-layer classifier targets lowercase only — the call surfaces as
-// CLI_REPORTED_ERROR, NOT ERR_NO_ACTIVE_FILE. Documents observable behaviour; future
-// bridge-classifier fix that flips this is caught here. (R9 / spec Background)
-test("active mode no-focused-note → CLI_REPORTED_ERROR with capital-N 'Error: No active file.' verbatim (SC-014 / R9 inherited)", async () => {
+// Case 15 — SC-014 LOAD-BEARING: capital-N typed-error classifier behaviour
+// (BI-041 FR-001 widening). The native `move` subcommand emits capital-N
+// `Error: No active file.` on no-focused-note. The bridge's dispatch-layer
+// classifier is case-insensitive (BI-041) — the call surfaces as the typed
+// ERR_NO_ACTIVE_FILE sub-discriminator with the documented recovery message,
+// no longer the bare CLI_REPORTED_ERROR. Documents observable behaviour;
+// regression-guards the BI-041 widening for the `move` cohort tool which shares
+// the dispatch classifier. (R9 / spec Background / BI-041 FR-001 / FR-002)
+test("active mode no-focused-note → ERR_NO_ACTIVE_FILE typed surface (SC-014 / R9 inherited / BI-041 FR-001)", async () => {
   const { spawnFn, recorded } = makeStubSpawn({
     stdout: "Error: No active file.\n",
     exitCode: 0,
@@ -338,7 +341,10 @@ test("active mode no-focused-note → CLI_REPORTED_ERROR with capital-N 'Error: 
     ),
   )) as UpstreamError;
   expect(err).toBeInstanceOf(UpstreamError);
-  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
+  expect(err.message).toBe(
+    'No active file in Obsidian. Open a note in the editor, or call this tool with target_mode: "specific" and an explicit vault/file.',
+  );
   expect(err.details.message).toBe("Error: No active file.");
   expect(recorded).toHaveLength(1);
 });

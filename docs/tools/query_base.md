@@ -35,11 +35,33 @@ Authoritative source: [specs/039-query-base/contracts/output.schema.json](../../
 ```
 
 - `columns` — view-declared column names; reserved `path` always at index 0; a view-defined `path` is renamed to `path_view` per the reserved-key collision rule.
-- `rows` — up to 1000 row objects keyed by the column names; native JSON types preserved.
+- `rows` — up to 1000 row objects keyed by the column names; **frontmatter values are stringified by upstream** regardless of their declared YAML type (see "Response-shape characterisation" below).
 - `truncated` — always present; `true` when the row set was sliced down to 1000.
 - `total_rows` — present only when `truncated: true`; reports upstream's full match count.
 
-Empty views return success with `rows: []` and `columns` still populated.
+### Response-shape characterisation (BI-041)
+
+The three claims below are empirically captured against the live `obsidian base:query` binary and pinned in [schema.ts](../../src/tools/query_base/schema.ts) `.describe()`. Agents writing parsing code MUST plan for them.
+
+#### Empty-view columns (FR-006)
+
+When a view matches **zero rows**, `columns` carries only `["path"]` — the wrapper has no signal for view-declared column names absent row data, and does NOT parse the `.base` YAML client-side to enumerate them. View-declared columns appear in `columns` only when at least one row matches. Empirical anchor: a `.base` view whose filter excludes all notes yields `{ columns: ["path"], rows: [], truncated: false }`.
+
+#### Type-preservation passthrough (FR-007)
+
+Frontmatter values are **stringified by upstream** regardless of their declared YAML type. The wrapper is passthrough — it does NOT coerce back to native JSON types. Empirical anchors: integer YAML `count: 42` surfaces as the string `"42"`; boolean YAML `done: true` surfaces as `"true"`. Agents must parse the string value if numeric or boolean semantics are required. The wrapper does NOT begin type-coercing values (out-of-scope per BI-041).
+
+#### `file.*` column-name emission (FR-008)
+
+Source-property column names declared as `file.X` are emitted by upstream as the display label `"file X"` (with **embedded space**) — including `file.path` → `"file path"` and `file.name` → `"file name"`. The wrapper does NOT remap these display labels back to YAML segment names (out-of-scope per BI-041).
+
+Independent of the view's column declarations, the wrapper always injects a reserved `path` column at index 0 of every row carrying the source note's vault-relative path. This reserved `path` is sourced from upstream's row metadata and is distinct from `file.path` (which yields `"file path"`).
+
+A view declaring `file.path` and `file.name` therefore produces three columns: `["path", "file path", "file name"]` — the wrapper's reserved locator plus both display labels. Agents indexing rows by column name MUST use the exact emitted string, including the embedded space for display labels.
+
+Empirical anchor: a `.base` view declaring `file.path` + `file.name` yields a row of the form `{ "path": "Sandbox/intval.md", "file path": "Sandbox/intval.md", "file name": "intval" }`.
+
+Empty views return success with `rows: []` and `columns: ["path"]` (the zero-row degenerate case above).
 
 ## Errors
 
