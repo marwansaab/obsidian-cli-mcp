@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/marwansaab/obsidian-cli-mcp/specs/043-patch-block/contracts/input.schema.json",
+  "title": "patch_block input schema",
+  "description": "Input contract for the patch_block typed MCP tool. Authoritative source is the Zod schema in src/tools/patch_block/schema.ts; this JSON Schema is the human-readable cross-reference and the form published via zodToJsonSchema at registration time. Uses the project's target_mode discriminator per ADR-003 — in specific mode, vault is required plus one of file/path; in active mode, none of vault/file/path may appear.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["target_mode", "block_id", "content"],
+  "properties": {
+    "target_mode": {
+      "type": "string",
+      "enum": ["specific", "active"],
+      "description": "Locator-shape discriminator per ADR-003. 'specific' = caller supplies vault + file|path. 'active' = wrapper resolves the currently-focused note via a small obsidian eval; no vault/file/path may be supplied."
+    },
+    "vault": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Vault display name. REQUIRED when target_mode === 'specific'; FORBIDDEN when target_mode === 'active'. Resolved via the project's lazy vault registry. Unknown vault surfaces CLI_REPORTED_ERROR + details.code: VAULT_NOT_FOUND."
+    },
+    "file": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Vault-relative file path. Alternative to 'path'; exactly one of {file, path} required when target_mode === 'specific'. Subject to the project's structural path-safety refinement (no '../', no leading '/' or '\\\\', no drive-letter prefix, no control characters). Layer 2 canonical-path check (post-validation) rejects symlink-escape with PATH_ESCAPES_VAULT."
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Vault-relative file path. Alternative to 'file'; exactly one of {file, path} required when target_mode === 'specific'. Same constraints as 'file'."
+    },
+    "block_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "pattern": "^[A-Za-z0-9-]+$",
+      "description": "Block-reference identifier (the bare id, NOT including the leading '^' delimiter). MUST match alphanumeric + hyphen-minus per FR-004 (Obsidian's documented block-id alphabet). MUST NOT begin with '^' — the caret is the wikilink delimiter, not part of the identifier. Length cap is 1000 UTF-16 code units (cohort parity with BI-033 / BI-038 / BI-039 / BI-040). Validation rejects with VALIDATION_ERROR + details.code: INVALID_BLOCK_ID + details.reason in {empty, contains-invalid-chars, leading-caret, too-long}. Case-sensitive throughout (consistent with Obsidian's own treatment). When the same id appears more than once in the same note, first-match-wins in document order per FR-002a (cohort parity with patch_heading FR-006).",
+      "examples": [
+        "intro-summary",
+        "table-row-3",
+        "callout-warning-2026-05-25",
+        "list-item-actionable-7"
+      ]
+    },
+    "content": {
+      "type": "string",
+      "description": "The replacement body for the targeted block. Single placement mode (replace per FR-007); empty content is accepted as the legitimate 'clear the body' operation (cohort parity with patch_heading FR-018a's replace-empty acceptance). Multi-line content into a single-line block shape (list item, table row) is accepted; structural validity of the resulting markdown is the caller's responsibility (the wrapper does not invent shape-specific structural validation)."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "target_mode": { "const": "specific" } } },
+      "then": {
+        "required": ["vault"],
+        "oneOf": [
+          { "required": ["file"], "not": { "required": ["path"] } },
+          { "required": ["path"], "not": { "required": ["file"] } }
+        ]
+      }
+    },
+    {
+      "if": { "properties": { "target_mode": { "const": "active" } } },
+      "then": {
+        "not": {
+          "anyOf": [
+            { "required": ["vault"] },
+            { "required": ["file"] },
+            { "required": ["path"] }
+          ]
+        }
+      }
+    }
+  ]
+}

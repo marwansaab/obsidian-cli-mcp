@@ -39,16 +39,16 @@ test("createServer constructs MCP Server with name and version metadata", () => 
   expect(server).toBeTruthy();
 });
 
-test("createServer registers exactly TWENTY-SIX tools — 'backlinks' + 'context_search' + 'delete' + 'files' + 'find_and_replace' + 'find_by_property' + 'help' + 'links' + 'move' + 'obsidian_exec' + 'outline' + 'patch_heading' + 'paths' + 'pattern_search' + 'properties' + 'query_base' + 'read' + 'read_heading' + 'read_property' + 'rename' + 'search' + 'set_property' + 'smart_connections_query' + 'smart_connections_similar' + 'tag' + 'write_note' (FR-001 + FR-007 + P8 aggregator + BI-003 + BI-011 + BI-012 + BI-013 + BI-014 + BI-015 + BI-018 + BI-019 + BI-021 + BI-022 + BI-023 + BI-024 + BI-025 + BI-026 + BI-027 + BI-028 + BI-029 + BI-030 + BI-033 + BI-035 + BI-036 + BI-037 + BI-038 + BI-039 + BI-040)", async () => {
+test("createServer registers exactly TWENTY-SEVEN tools — 'backlinks' + 'context_search' + 'delete' + 'files' + 'find_and_replace' + 'find_by_property' + 'help' + 'links' + 'move' + 'obsidian_exec' + 'outline' + 'patch_block' + 'patch_heading' + 'paths' + 'pattern_search' + 'properties' + 'query_base' + 'read' + 'read_heading' + 'read_property' + 'rename' + 'search' + 'set_property' + 'smart_connections_query' + 'smart_connections_similar' + 'tag' + 'write_note' (FR-001 + FR-007 + P8 aggregator + BI-003 + BI-011 + BI-012 + BI-013 + BI-014 + BI-015 + BI-018 + BI-019 + BI-021 + BI-022 + BI-023 + BI-024 + BI-025 + BI-026 + BI-027 + BI-028 + BI-029 + BI-030 + BI-033 + BI-035 + BI-036 + BI-037 + BI-038 + BI-039 + BI-040 + BI-043)", async () => {
   const { ctx } = makeContext();
   const { server } = createServer(ctx);
   const handlers = (server as unknown as { _requestHandlers: Map<string, (req: unknown) => Promise<unknown>> })._requestHandlers;
   const listHandler = handlers.get("tools/list");
   expect(listHandler).toBeTruthy();
   const result = (await listHandler!({ method: "tools/list", params: {} })) as { tools: { name: string }[] };
-  expect(result.tools.length).toBe(26);
+  expect(result.tools.length).toBe(27);
   const names = result.tools.map((t) => t.name).sort();
-  expect(names).toEqual(["backlinks", "context_search", "delete", "files", "find_and_replace", "find_by_property", "help", "links", "move", "obsidian_exec", "outline", "patch_heading", "paths", "pattern_search", "properties", "query_base", "read", "read_heading", "read_property", "rename", "search", "set_property", "smart_connections_query", "smart_connections_similar", "tag", "write_note"]);
+  expect(names).toEqual(["backlinks", "context_search", "delete", "files", "find_and_replace", "find_by_property", "help", "links", "move", "obsidian_exec", "outline", "patch_block", "patch_heading", "paths", "pattern_search", "properties", "query_base", "read", "read_heading", "read_property", "rename", "search", "set_property", "smart_connections_query", "smart_connections_similar", "tag", "write_note"]);
 });
 
 test("CallToolRequest dispatches by name with TOOL_NOT_FOUND fallback (P8 aggregator)", async () => {

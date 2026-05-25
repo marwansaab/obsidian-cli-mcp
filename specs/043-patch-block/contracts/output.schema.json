@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/marwansaab/obsidian-cli-mcp/specs/043-patch-block/contracts/output.schema.json",
+  "title": "patch_block success-response envelope",
+  "description": "Output contract for the patch_block typed MCP tool. Returned on success; failures route through UpstreamError per Principle IV and are documented in errors.md. Authoritative source is the Zod schema in src/tools/patch_block/schema.ts. Strict — additional properties forbidden.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["path", "vault", "block_id", "block_shape", "bytes_written"],
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Vault-relative path of the note that was patched. Echoed for write-verification. For target_mode='specific', identical to the input's file/path. For target_mode='active', the focused-file path returned by the pre-write eval."
+    },
+    "vault": {
+      "type": "string",
+      "description": "Vault display name. Echoed for write-verification. For target_mode='specific', identical to the input's vault. For target_mode='active', the display name corresponding to the focused-file's vault root."
+    },
+    "block_id": {
+      "type": "string",
+      "description": "The block-id locator from the input, echoed verbatim (bare identifier, no leading caret). Caller cross-references against the request to confirm the intended target."
+    },
+    "block_shape": {
+      "type": "string",
+      "enum": ["paragraph", "list-item", "separately-placed"],
+      "description": "Which surgery mechanic was applied by the wrapper. 'paragraph' = marker was the trailing token on a paragraph's final line; the body was replaced and the trailing ' ^block-id' was preserved. 'list-item' = marker was the trailing token on a list-item line; the list-marker bytes + indentation were preserved, the item content was replaced, and the trailing ' ^block-id' was preserved. 'separately-placed' = marker was a standalone line immediately following a table / callout / blockquote / indented-code block; the marker line was preserved verbatim and only the preceding block's content was replaced. The on-heading shapes (on-heading-atx / on-heading-setext) never appear in the success envelope because they short-circuit to BLOCK_ON_HEADING per FR-019a."
+    },
+    "bytes_written": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total bytes written to disk (post-edit file size in UTF-8 bytes). Provides a coarse confirmation signal — a near-zero value when the caller intended a substantial write is a red flag worth surfacing in audit logs."
+    }
+  },
+  "examples": [
+    {
+      "path": "Daily Notes/2026-05-25.md",
+      "vault": "Knowledge",
+      "block_id": "intro-summary",
+      "block_shape": "paragraph",
+      "bytes_written": 2487
+    },
+    {
+      "path": "Projects/Onboarding.md",
+      "vault": "Work",
+      "block_id": "list-item-actionable-7",
+      "block_shape": "list-item",
+      "bytes_written": 1923
+    },
+    {
+      "path": "Reference/Comparison Tables.md",
+      "vault": "Knowledge",
+      "block_id": "table-row-3",
+      "block_shape": "separately-placed",
+      "bytes_written": 4096
+    }
+  ]
+}
