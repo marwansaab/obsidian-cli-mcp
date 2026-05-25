@@ -22,11 +22,18 @@ Type alias: `type PatchBlockInput = z.infer<typeof patchBlockInputSchema>`.
 
 ### Validation order
 
-1. **Schema-level (Zod)** — runs first, before any filesystem access or subprocess invocation:
+The numbered list below is a categorical inventory of the validation layers, NOT a strict temporal order across all paths. The actual temporal order depends on `target_mode`:
+
+- **Specific mode**: Zod → Layer 2 path-safety → file read.
+- **Active mode**: Zod → Active-mode eval (resolves the focused-file path so Layer 2 has a path to canonicalise) → Layer 2 path-safety → file read.
+
+Layers:
+
+1. **Schema-level (Zod)** — always runs first, before any filesystem access or subprocess invocation:
    1. Target-mode discriminator + cohort-standard `vault` / `file` / `path` mutual-exclusion via `applyTargetModeRefinement`.
    2. `block_id` non-empty, length cap, alphabet, and leading-caret checks via Zod refinements. All four `details.reason` sub-states fire here.
-2. **Path-safety Layer 2 (canonical-path check)** — only after schema validation passes. Resolves the supplied vault-relative path to an absolute filesystem path via `fs.realpath` on the parent directory and verifies `startsWith(realVaultRoot + sep)`. Violations surface as `PATH_ESCAPES_VAULT` (existing top-level code per ADR-009).
-3. **Active-mode pre-write eval** — only for `target_mode === "active"`. A small bug-safe `obsidian eval` returns `{ base: vaultRoot, path: vaultRelativePath }` for the currently-focused file, or `path: null` if no file is focused. `null` → `ERR_NO_ACTIVE_FILE` (cohort reuse from `write_note` / `patch_heading`). Successful resolution proceeds to the file read.
+2. **Path-safety Layer 2 (canonical-path check)** — only after schema validation passes AND after the locator has been resolved (immediately after step 1 for specific mode; after step 3 for active mode). Resolves the supplied vault-relative path to an absolute filesystem path via `fs.realpath` on the parent directory and verifies `startsWith(realVaultRoot + sep)`. Violations surface as `PATH_ESCAPES_VAULT` (existing top-level code per ADR-009).
+3. **Active-mode pre-write eval** — only for `target_mode === "active"`; runs between step 1 and step 2 in temporal order. A small bug-safe `obsidian eval` returns `{ base: vaultRoot, path: vaultRelativePath }` for the currently-focused file, or `path: null` if no file is focused. `null` → `ERR_NO_ACTIVE_FILE` (cohort reuse from `write_note` / `patch_heading`). Successful resolution feeds the resolved path to step 2.
 
 No vault read, no block-id scan, and no fs.write occur before steps 1–3 complete.
 
@@ -36,7 +43,14 @@ The wrapper-private `block-scan.ts` implements two pure functions consumed by `h
 
 ### `scanBlocks(content: string): BlockMatch[]`
 
-Scans `content` once line-by-line, maintaining three pieces of state — `inFence: boolean` per the R3 fenced-code-opacity rule, the previous line's content (for setext-heading lookahead), and a parent-block-shape tracker (for separately-placed-marker classification). For each non-fence line containing a `^block-id` token matching the alphabet regex, emits a `BlockMatch` record describing the resolved marker:
+Scans `content` once line-by-line, maintaining four pieces of state:
+
+- **`inFrontmatter: boolean`** — enforces FR-014's "no frontmatter modification" rule explicitly at the scan layer (divergence from sibling BI-040 where frontmatter enforcement is incidental-only). Entered when line 0 is exactly `---`; exited at the next line that is exactly `---`. Inside the frontmatter region, no `^block-id` token is bound — the scanner treats every line as opaque content. A note without leading `---` has no frontmatter region; the flag stays `false` for the whole scan.
+- **`inFence: boolean`** — per the R3 fenced-code-opacity rule, toggled on any line whose lstripped form begins with ≥ 3 consecutive `` ` `` or `~`.
+- **A one-line buffer for setext-heading lookahead** — when line N carries a trailing `^block-id`, the scanner buffers the candidate `BlockMatch` and reads line N+1 before emitting. If line N+1's lstripped form is all-`=` or all-`-` with ≥ 1 character and nothing else, the buffered shape promotes from `paragraph` / `list-item` to `on-heading-setext`. Otherwise the buffered shape stays as line-N's original classification.
+- **A parent-block-shape tracker** — the previous-non-blank-non-fence line's shape, used for `separately-placed` classification when the current line is a standalone `^block-id` token whose preceding lines form a table / callout / blockquote / indented-code block.
+
+For each non-frontmatter non-fence line containing a `^block-id` token matching the alphabet regex, emits a `BlockMatch` record describing the resolved marker:
 
 ```typescript
 interface BlockMatch {
@@ -58,7 +72,7 @@ interface BlockMatch {
 }
 ```
 
-Setext detection requires single-line lookahead: when the scanner reads line N with a trailing `^block-id`, it buffers the candidate `BlockMatch` and reads line N+1 before emitting. If line N+1's lstripped form is composed entirely of `=` characters (≥ 1) with no other content, the buffered shape promotes to `on-heading-setext` (rank 1); if `-` characters (≥ 1) with no other content, also `on-heading-setext` (rank 2); otherwise the buffered shape stays as paragraph or list-item per the line-N classification.
+The setext lookahead is implemented as described above (one-line buffered classification); ditto the frontmatter scan-skip — once `inFrontmatter` is `true`, NO `BlockMatch` is emitted regardless of token content, including `^block-id` tokens that happen to appear inside YAML field values. A note where the same id appears once inside frontmatter and once in the body resolves to the BODY occurrence (first-match-wins applies only over the bound matches; frontmatter matches are never bound).
 
 Pure; deterministic; O(lines).
 
