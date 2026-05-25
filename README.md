@@ -95,6 +95,7 @@ The server currently registers twenty-six public tools. Call `help({ tool_name: 
 | Tool | Purpose |
 |---|---|
 | `find_and_replace` | Preview-then-commit find-and-replace across a vault (or subfolder); code blocks + HTML comments skipped by default; bounded by `OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES`. |
+| `patch_block` | Surgically replace the body tied to a named `^block-id` block-reference marker inside a note. Single placement mode (replace); three success shapes (paragraph, list-item, separately-placed); first-match-wins on duplicate ids. |
 | `patch_heading` | Surgically rewrite the body under a named heading inside a note. Three placement modes (append, prepend, replace); heading addressed by its full hierarchical `#`-separated path. |
 | `write_note` | Create or overwrite a note. |
 | `set_property` | Write a single frontmatter property. |

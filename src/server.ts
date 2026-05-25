@@ -22,6 +22,7 @@ import { createLinksTool } from "./tools/links/index.js";
 import { createMoveTool } from "./tools/move/index.js";
 import { createObsidianExecTool } from "./tools/obsidian_exec/index.js";
 import { createOutlineTool } from "./tools/outline/index.js";
+import { createPatchBlockTool } from "./tools/patch_block/index.js";
 import { createPatchHeadingTool } from "./tools/patch_heading/index.js";
 import { createPathsTool } from "./tools/paths/index.js";
 import { createPatternSearchTool } from "./tools/pattern_search/index.js";
@@ -106,6 +107,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     createMoveTool({ logger, queue }),
     createObsidianExecTool({ logger, queue }),
     createOutlineTool({ logger, queue }),
+    createPatchBlockTool({ logger, queue, vaultRegistry }),
     createPatchHeadingTool({ logger, queue, vaultRegistry }),
     createPathsTool({ logger, queue }),
     createPatternSearchTool({ logger, queue }),
