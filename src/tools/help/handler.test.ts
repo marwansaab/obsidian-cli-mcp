@@ -120,11 +120,11 @@ describe("executeHelp", () => {
   });
 
   it("returns content for orphaned doc files (Edge Case 'doc file with no registered tool', remediation L1c)", async () => {
-    // Stub doc files (append_note.md, write_note.md, etc.) are present in docs/tools/ but
-    // their tools are not registered yet — this is the orphan case in production. The handler
-    // must succeed and return the file content (FR-008 filesystem-as-source-of-truth).
-    // (Note: read shipped under BI-003; append_note remains an orphan stub at this BI.)
-    const result = await executeHelp({ tool_name: "append_note" });
+    // Stub doc files are present in docs/tools/ but their tools are not registered yet —
+    // this is the orphan case in production. The handler must succeed and return the file
+    // content (FR-008 filesystem-as-source-of-truth). The remaining orphan stubs at this
+    // BI are list_notes / list_vaults / search_vault.
+    const result = await executeHelp({ tool_name: "list_notes" });
     expect(result.content[0]!.text).toContain("<!-- TODO(BI-");
   });
 

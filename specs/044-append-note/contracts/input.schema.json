@@ -1,0 +1,68 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/marwansaab/obsidian-cli-mcp/specs/044-append-note/contracts/input.schema.json",
+  "title": "append_note input schema",
+  "description": "Input contract for the append_note typed MCP tool. Authoritative source is the Zod schema in src/tools/append_note/schema.ts; this JSON Schema is the human-readable cross-reference and the form published via zodToJsonSchema at registration time. Uses the project's target_mode discriminator per ADR-003 — in specific mode, vault is required plus one of file/path; in active mode, none of vault/file/path may appear.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["target_mode", "content"],
+  "properties": {
+    "target_mode": {
+      "type": "string",
+      "enum": ["specific", "active"],
+      "description": "Locator-shape discriminator per ADR-003. 'specific' = caller supplies vault + file|path. 'active' = wrapper resolves the currently-focused note via a small obsidian eval; no vault/file/path may be supplied. No additional opt-in flag is required for active mode (FR-004a — deliberate cohort exception to write_note's overwrite:true requirement, justified by append's additive-not-destructive safety profile)."
+    },
+    "vault": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Vault display name. REQUIRED when target_mode === 'specific'; FORBIDDEN when target_mode === 'active'. Resolved via the project's lazy vault registry. Unknown vault surfaces VAULT_NOT_FOUND."
+    },
+    "file": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Wikilink-form note locator (bare note name, the same shape the cohort's read-side tools accept under their 'file' parameter). MUST NOT contain '[[' or ']]' brackets (FR-001a — supply the bare note name, e.g. 'My Note', not '[[My Note]]'). Alternative to 'path'; exactly one of {file, path} required when target_mode === 'specific'. Subject to the project's structural path-safety refinement (no '../', no leading '/' or '\\\\', no drive-letter prefix, no control characters). Layer 2 canonical-path check (post-validation) rejects symlink-escape with PATH_ESCAPES_VAULT.",
+      "examples": ["My Note", "Daily Notes/2026-05-25"]
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Vault-relative file path. Alternative to 'file'; exactly one of {file, path} required when target_mode === 'specific'. Subject to the project's structural path-safety refinement. Brackets are NOT a special case under 'path' — vault-relative paths can in principle contain bracket characters; brackets are a wikilink-syntax artefact only.",
+      "examples": ["Sandbox/journal-2026-05-25.md", "Daily Notes/2026-05-25.md"]
+    },
+    "content": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The content to append at end-of-file. MUST be non-empty per FR-013 (empty content surfaces as VALIDATION_ERROR + details.code: CONTENT_EMPTY). No explicit max-length cap — bounded by available memory and the filesystem's max-file-size limit; for realistic notes the wrapper imposes no caller-visible ceiling. Preserved BYTE-FOR-BYTE VERBATIM per FR-010a — no trim, no normalisation, no auto-appended trailing newline. May contain line breaks; structural validity of the resulting markdown is the caller's responsibility.",
+      "examples": ["- new task to track", "## New section\n\nParagraph text.\n", "| 2026-05-25 | shipped append_note |\n"]
+    },
+    "inline": {
+      "type": "boolean",
+      "default": false,
+      "description": "When false (default), the wrapper applies the FR-006 / FR-006a default-separator rule — if the file's existing content does NOT end with '\\n' or '\\r\\n', a line-ending-convention-matching separator is inserted between the prior content and the new content; if the file already ends with a line break, that existing line break IS the separator and no additional one is inserted; if the file is 0 bytes, no leading separator is inserted. When true, the wrapper writes the content IMMEDIATELY AFTER the file's existing trailing byte with NO separator inserted (FR-007 — fuses onto a partial trailing line)."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "target_mode": { "const": "specific" } } },
+      "then": {
+        "required": ["vault"],
+        "oneOf": [
+          { "required": ["file"], "not": { "required": ["path"] } },
+          { "required": ["path"], "not": { "required": ["file"] } }
+        ]
+      }
+    },
+    {
+      "if": { "properties": { "target_mode": { "const": "active" } } },
+      "then": {
+        "not": {
+          "anyOf": [
+            { "required": ["vault"] },
+            { "required": ["file"] },
+            { "required": ["path"] }
+          ]
+        }
+      }
+    }
+  ]
+}

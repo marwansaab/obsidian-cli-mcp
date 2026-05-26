@@ -1,6 +1,6 @@
 {
   "name": "@marwansaab/obsidian-cli-mcp",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "description": "Cross-platform MCP server bridging MCP clients to the Obsidian Integrated CLI binary on macOS, Linux, and Windows hosts. Typed tools: backlinks, context_search, delete, files, find_by_property, links, move, obsidian_exec, outline, paths, pattern_search, properties, read, read_heading, read_property, rename, search, set_property, smart_connections_query, smart_connections_similar, tag, write_note + help.",
   "type": "module",
   "bin": {

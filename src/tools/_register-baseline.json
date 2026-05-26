@@ -1,8 +1,13 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "043-patch-block",
-  "generatedAt": "2026-05-25",
+  "generatedFromBranch": "044-append-note",
+  "generatedAt": "2026-05-26",
   "tools": [
+    {
+      "name": "append_note",
+      "descriptionFingerprint": "e072838469d7312d0d9a082b312f047b6c929a00e929d50929fba67634591891",
+      "schemaFingerprint": "1cfd2bb27c0cabc94a2983a8e891c13d5d6f9445c382f2f1a36de723ec8f5b9d"
+    },
     {
       "name": "backlinks",
       "descriptionFingerprint": "b0c788cf8f8fba0e330a008774f41f2f5bd6e093cd22ae8d9c1db62c168766bd",

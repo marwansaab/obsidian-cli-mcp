@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/marwansaab/obsidian-cli-mcp/specs/044-append-note/contracts/output.schema.json",
+  "title": "append_note success-response envelope",
+  "description": "Success response shape for the append_note typed MCP tool. The MCP transport wraps this object as { content: [{ type: 'text', text: JSON.stringify(<this object>) }] } per the project's responseFormat: 'json' convention. Authoritative source is the Zod schema in src/tools/append_note/schema.ts (AppendNoteOutput).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["path", "vault", "bytes_written", "inline"],
+  "properties": {
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Vault-relative path of the note that was written. ALWAYS the canonical resolved path regardless of the input locator shape (FR-003 canonicalisation): callers who supplied 'file: \"My Note\"' receive 'path: \"My Note.md\"' (or whatever shortform-resolution yields); callers who supplied 'path: \"Sandbox/journal.md\"' receive that path back; active-mode callers receive the focused note's vault-relative path.",
+      "examples": ["Sandbox/journal-2026-05-25.md", "Daily Notes/2026-05-25.md", "My Note.md"]
+    },
+    "vault": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Vault display name. In specific mode, the value from input.vault. In active mode, the vault display name of the currently-focused note (resolved via the cohort's FOCUSED_FILE_TEMPLATE eval).",
+      "examples": ["TestVault-Obsidian-CLI-MCP", "Knowledge"]
+    },
+    "bytes_written": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Total bytes the wrapper wrote in this call (post-edit file size minus pre-edit file size). For default-separator appends, equals content.length + 0 (FR-006a — no separator inserted) or content.length + sizeof(separator) (FR-006 — separator inserted; 1 byte for LF, 2 bytes for CRLF). For inline opt-in or 0-byte file cases, exactly equals content.length. Useful for caller-side accounting (total-bytes-per-session tracking, rate-limit budgets)."
+    },
+    "inline": {
+      "type": "boolean",
+      "description": "Echo of the inline mode that the wrapper actually applied. False for default-separator calls (no 'inline' in input or 'inline: false'); true for 'inline: true' input. Helps callers confirm the intended mode landed and detect schema-version drift."
+    }
+  }
+}
