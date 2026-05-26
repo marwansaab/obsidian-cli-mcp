@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/marwansaab/obsidian-cli-mcp/specs/045-prepend-note/contracts/output.schema.json",
+  "title": "prepend success-response envelope",
+  "description": "Success response shape for the prepend typed MCP tool. The MCP transport wraps this object as { content: [{ type: 'text', text: JSON.stringify(<this object>) }] } per the project's responseFormat: 'json' convention. Authoritative source is the Zod schema in src/tools/prepend/schema.ts (PrependOutput).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["path", "vault", "bytes_written", "inline"],
+  "properties": {
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Vault-relative path of the note that was written. ALWAYS the canonical resolved path regardless of the input locator shape (FR-003 canonicalisation): callers who supplied 'file: \"My Note\"' receive 'path: \"My Note.md\"' (or whatever shortform-resolution yields, resolved by the pre-flight 'obsidian file' TSV resolver before the actual prepend call); callers who supplied 'path: \"Sandbox/journal.md\"' receive that path back verbatim; active-mode callers receive the focused note's vault-relative path (resolved by the cohort's FOCUSED_FILE_TEMPLATE eval).",
+      "examples": ["Sandbox/journal-2026-05-26.md", "Daily Notes/2026-05-26.md", "My Note.md"]
+    },
+    "vault": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Vault display name. In specific mode, the value from input.vault. In active mode, the vault display name reverse-looked-up from the focused note's base path through the cohort's vault registry; falls back to the base path itself when the registry does not carry a display name for it.",
+      "examples": ["TestVault-Obsidian-CLI-MCP", "Knowledge"]
+    },
+    "bytes_written": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Total bytes the prepend operation added to the file (post-edit file size minus pre-edit file size). For default-separator prepends, equals content.length + 0 (FR-006a — content's trailing newline IS the separator; no additional one inserted) or content.length + sizeof(separator) (FR-006 — separator inserted by upstream; 1 byte for LF, 2 bytes for CRLF). For inline opt-in or 0-byte / frontmatter-only-no-body file cases, exactly equals content.length. Computed by the wrapper from a post-write stat or from upstream's response (pinned at T0 — see research.md R2). Cohort parity with append_note's output shape."
+    },
+    "inline": {
+      "type": "boolean",
+      "description": "Echo of the inline mode that the wrapper actually applied. False for default-separator calls (no 'inline' in input or 'inline: false'); true for 'inline: true' input. Helps callers confirm the intended mode landed and detect schema-version drift."
+    }
+  }
+}
