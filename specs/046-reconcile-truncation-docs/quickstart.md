@@ -17,7 +17,7 @@ Two text corrections in `docs/tools/search.md` and `docs/tools/context_search.md
 
 ### Step 1 — Run the FR-012 dual-mode empirical probe
 
-Per [research.md](research.md) Decision 3, run four probes against the BI-0011 fixture corpus with `limit: 2`:
+Per [research.md](research.md) Decision 3, run four probes against the BI-0011 fixture set with `limit: 2`:
 
 | # | Probe | Tool invocation | Records to |
 |---|---|---|---|
@@ -53,7 +53,7 @@ Replace the `### Truncation slice direction (BI-042 reconciliation)` section per
 - Write the per-tool description: engine pre-sort response → leading slice within that pre-sort → wrapper output-sort applied to the slice. Name the engine's natural sort order. Name the slice direction within the pre-sort.
 - Add the inline anchor (Entity 1 per data-model.md).
 - Add the cohort-divergence sentence (Entity 4 per data-model.md) — names `backlinks` by name, NO forward-pointer to runtime BI.
-- Rename the section heading: drop "(BI-042 reconciliation)" suffix, replace with "(BI-046 reconciliation)" or equivalent.
+- Rename the section heading to exactly `### Truncation slice direction (BI-046 reconciliation)`.
 
 ### Step 5 — Correct `docs/tools/context_search.md`
 
@@ -71,7 +71,7 @@ Exact prose to be finalized at implement time; the structural commitment is one 
 
 ### Step 7 — Verify `docs/tools/backlinks.md` is byte-identical
 
-Per FR-008, run `git diff docs/tools/backlinks.md` → expect zero output. If the file shows any change (including whitespace normalisation by an editor), revert it. The cohort-uniformity sentence inside `backlinks.md` is deliberately left in place per the spec's explicit out-of-scope decision.
+Per FR-008, run `git diff main -- docs/tools/backlinks.md` → expect zero output (the baseline is the branch's merge-base with `main`). If the file shows any change (including whitespace normalisation by an editor), revert via `git checkout main -- docs/tools/backlinks.md`. The cohort-uniformity sentence inside `backlinks.md` is deliberately left in place per the spec's explicit out-of-scope decision; the whole-file diff covers any collateral edit to it.
 
 ### Step 8 — Cross-entity invariant checks
 
@@ -107,6 +107,6 @@ A reader who wants to verify the corrected docs against the current shipped vers
 
 - **SC-001**: 0 truncation-section claims about the visible subset in `search.md` and `context_search.md` are empirically false on `v0.7.1`.
 - **SC-002**: Re-running the probes per Step 1 reproduces the inline-anchor-described behaviour.
-- **SC-003**: `git diff docs/tools/backlinks.md` is empty.
+- **SC-003**: `git diff main -- docs/tools/backlinks.md` is empty.
 - **SC-004**: Diff scope is bounded to the four paths in `plan.md` "Touched paths" — zero runtime / src / test files.
 - **SC-005**: An agent following the corrected truncation section picks a correct narrowing strategy on the first attempt (validated against the inline anchor's stated visible subset shape).

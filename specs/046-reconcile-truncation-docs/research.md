@@ -30,7 +30,7 @@ All five spec-level NEEDS CLARIFICATION items were resolved during `/speckit-cla
 
 ## Decision 3 — FR-012 dual-mode probe gate: methodology
 
-**Decision**: Before locking the `search.md` truncation-section structure, run two empirical probes against the BI-0011 fixture corpus at wrapper version `v0.7.1`, `limit: 2`, both recorded on `[[TC-00306]]` (extend with a v0.7.1 line-mode row) OR on a new TC dedicated to the line-mode probe:
+**Decision**: Before locking the `search.md` truncation-section structure, run two empirical probes against the BI-0011 fixture set at wrapper version `v0.7.1`, `limit: 2`, both recorded on `[[TC-00306]]` (extend with a v0.7.1 line-mode row) OR on a new TC dedicated to the line-mode probe:
 
 | Probe | Upstream command | Tool invocation | Expected pre-sort source |
 |---|---|---|---|

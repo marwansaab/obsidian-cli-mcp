@@ -16,7 +16,7 @@
 
 ## Methodology
 
-Empirical probe — NOT a code-read. Each probe invokes the MCP tool with the BI-0011 fixture corpus and `limit: 2`, captures the response (the "observed visible subset"), and separately re-runs the same probe with `limit` ≥ the full result set to derive (a) the engine pre-sort response and (b) the full sorted result set. The delta between the observed visible subset and the leading slice of the full sorted result set is what falsifies the BI-042 claim for `search` and `context_search`. See [../research.md](../research.md) Decision 1 for the why and Decision 3 for the dual-mode probe methodology.
+Empirical probe — NOT a code-read. Each probe invokes the MCP tool with the BI-0011 fixture set and `limit: 2`, captures the response (the "observed visible subset"), and separately re-runs the same probe with `limit` ≥ the full result set to derive (a) the engine pre-sort response and (b) the full sorted result set. The delta between the observed visible subset and the leading slice of the full sorted result set is what falsifies the BI-042 claim for `search` and `context_search`. See [../research.md](../research.md) Decision 1 for the why and Decision 3 for the dual-mode probe methodology.
 
 ## Per-probe rows
 
