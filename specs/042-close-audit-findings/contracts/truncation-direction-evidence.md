@@ -1,5 +1,7 @@
 # Probe evidence — Truncation slice direction (Story 6)
 
+> **Superseded by BI-046 for `search` and `context_search`** — current truth at [../../046-reconcile-truncation-docs/contracts/truncation-direction-evidence.md](../../046-reconcile-truncation-docs/contracts/truncation-direction-evidence.md). The leading-of-sorted-set claim recorded below is empirically false for `search` and `context_search` on the engine pre-sort response surface. The `backlinks` row below remains current (sort-then-slice template; leading-of-sorted-set holds by construction).
+
 **Probe date**: 2026-05-21
 **Binary version**: Obsidian CLI 1.12.7 (matches T001 anchor)
 **Contract**: [contracts/truncation-direction-roster.md](truncation-direction-roster.md)
