@@ -1,0 +1,380 @@
+﻿[
+  {
+    "id": "01",
+    "label": "content-file=<path>",
+    "subcommand": "prepend",
+    "argv": [
+      "vault=TestVault-Obsidian-CLI-MCP",
+      "prepend",
+      "path=Sandbox/upstream-file-input/probe-01-prepend-1779804552908.md",
+      "content-file=Sandbox/upstream-file-input/payload.txt"
+    ],
+    "stdinUsed": false,
+    "stdinPayload": null,
+    "exitCode": 0,
+    "signal": null,
+    "duration_ms": 215,
+    "stdout": "\r\nError: Missing required parameter: content=<text>\nUsage: prepend [file=<name>] [path=<path>] content=<text> [inline]\n",
+    "stderr": "",
+    "postSize": 20,
+    "postContent": "BASE_CONTENT_MARKER\n"
+  },
+  {
+    "id": "02",
+    "label": "content_file=<path>",
+    "subcommand": "prepend",
+    "argv": [
+      "vault=TestVault-Obsidian-CLI-MCP",
+      "prepend",
+      "path=Sandbox/upstream-file-input/probe-02-prepend-1779804552908.md",
+      "content_file=Sandbox/upstream-file-input/payload.txt"
+    ],
+    "stdinUsed": false,
+    "stdinPayload": null,
+    "exitCode": 0,
+    "signal": null,
+    "duration_ms": 203,
+    "stdout": "\r\nError: Missing required parameter: content=<text>\nUsage: prepend [file=<name>] [path=<path>] content=<text> [inline]\n",
+    "stderr": "",
+    "postSize": 20,
+    "postContent": "BASE_CONTENT_MARKER\n"
+  },
+  {
+    "id": "03",
+    "label": "contentFile=<path>",
+    "subcommand": "prepend",
+    "argv": [
+      "vault=TestVault-Obsidian-CLI-MCP",
+      "prepend",
+      "path=Sandbox/upstream-file-input/probe-03-prepend-1779804552908.md",
+      "contentFile=Sandbox/upstream-file-input/payload.txt"
+    ],
+    "stdinUsed": false,
+    "stdinPayload": null,
+    "exitCode": 0,
+    "signal": null,
+    "duration_ms": 201,
+    "stdout": "\r\nError: Missing required parameter: content=<text>\nUsage: prepend [file=<name>] [path=<path>] content=<text> [inline]\n",
+    "stderr": "",
+    "postSize": 20,
+    "postContent": "BASE_CONTENT_MARKER\n"
+  },
+  {
+    "id": "04",
+    "label": "--content-file=<path>",
+    "subcommand": "prepend",
+    "argv": [
+      "vault=TestVault-Obsidian-CLI-MCP",
+      "prepend",
+      "path=Sandbox/upstream-file-input/probe-04-prepend-1779804552908.md",
+      "--content-file=Sandbox/upstream-file-input/payload.txt"
+    ],
+    "stdinUsed": false,
+    "stdinPayload": null,
+    "exitCode": 0,
+    "signal": null,
+    "duration_ms": 205,
+    "stdout": "\r\nError: Missing required parameter: content=<text>\nUsage: prepend [file=<name>] [path=<path>] content=<text> [inline]\n",
+    "stderr": "",
+    "postSize": 20,
+    "postContent": "BASE_CONTENT_MARKER\n"
+  },
+  {
+    "id": "05",
+    "label": "--content-file <path>",
+    "subcommand": "prepend",
+    "argv": [
+      "vault=TestVault-Obsidian-CLI-MCP",
+      "prepend",
+      "path=Sandbox/upstream-file-input/probe-05-prepend-1779804552908.md",
+      "--content-file",
+      "Sandbox/upstream-file-input/payload.txt"
+    ],
+    "stdinUsed": false,
+    "stdinPayload": null,
+    "exitCode": 0,
+    "signal": null,
+    "duration_ms": 203,
+    "stdout": "\r\nError: Missing required parameter: content=<text>\nUsage: prepend [file=<name>] [path=<path>] content=<text> [inline]\n",
+    "stderr": "",
+    "postSize": 20,
+    "postContent": "BASE_CONTENT_MARKER\n"
+  },
+  {
+    "id": "06",
+    "label": "content=@<path>",
+    "subcommand": "prepend",
+    "argv": [
+      "vault=TestVault-Obsidian-CLI-MCP",
+      "prepend",
+      "path=Sandbox/upstream-file-input/probe-06-prepend-1779804552908.md",
+      "content=@Sandbox/upstream-file-input/payload.txt"
+    ],
+    "stdinUsed": false,
+    "stdinPayload": null,
+    "exitCode": 0,
+    "signal": null,
+    "duration_ms": 201,
+    "stdout": "\r\nPrepended to: Sandbox/upstream-file-input/probe-06-prepend-1779804552908.md\n",
+    "stderr": "",
+    "postSize": 61,
+    "postContent": "@Sandbox/upstream-file-input/payload.txt\nBASE_CONTENT_MARKER\n"
+  },
+  {
+    "id": "07",
+    "label": "stdin (no content arg)",
+    "subcommand": "prepend",
+    "argv": [
+      "vault=TestVault-Obsidian-CLI-MCP",
+      "prepend",
+      "path=Sandbox/upstream-file-input/probe-07-prepend-1779804552908.md"
+    ],
+    "stdinUsed": true,
+    "stdinPayload": "hello from temp file 12345",
+    "exitCode": 0,
+    "signal": null,
+    "duration_ms": 216,
+    "stdout": "\r\nError: Missing required parameter: content=<text>\nUsage: prepend [file=<name>] [path=<path>] content=<text> [inline]\n",
+    "stderr": "",
+    "postSize": 20,
+    "postContent": "BASE_CONTENT_MARKER\n"
+  },
+  {
+    "id": "08",
+    "label": "content=- + stdin",
+    "subcommand": "prepend",
+    "argv": [
+      "vault=TestVault-Obsidian-CLI-MCP",
+      "prepend",
+      "path=Sandbox/upstream-file-input/probe-08-prepend-1779804552908.md",
+      "content=-"
+    ],
+    "stdinUsed": true,
+    "stdinPayload": "hello from temp file 12345",
+    "exitCode": 0,
+    "signal": null,
+    "duration_ms": 214,
+    "stdout": "\r\nPrepended to: Sandbox/upstream-file-input/probe-08-prepend-1779804552908.md\n",
+    "stderr": "",
+    "postSize": 22,
+    "postContent": "-\nBASE_CONTENT_MARKER\n"
+  },
+  {
+    "id": "09",
+    "label": "content= (empty) + stdin",
+    "subcommand": "prepend",
+    "argv": [
+      "vault=TestVault-Obsidian-CLI-MCP",
+      "prepend",
+      "path=Sandbox/upstream-file-input/probe-09-prepend-1779804552908.md",
+      "content="
+    ],
+    "stdinUsed": true,
+    "stdinPayload": "hello from temp file 12345",
+    "exitCode": 0,
+    "signal": null,
+    "duration_ms": 205,
+    "stdout": "\r\nError: Missing required parameter: content\nUsage: prepend [file=<name>] [path=<path>] content=<text> [inline]\n",
+    "stderr": "",
+    "postSize": 20,
+    "postContent": "BASE_CONTENT_MARKER\n"
+  },
+  {
+    "id": "10",
+    "label": "file=<wikilink> + content-file=<path>",
+    "subcommand": "prepend",
+    "argv": [
+      "vault=TestVault-Obsidian-CLI-MCP",
+      "prepend",
+      "file=probe-wikilink-1779804552908",
+      "content-file=Sandbox/upstream-file-input/payload.txt"
+    ],
+    "stdinUsed": false,
+    "stdinPayload": null,
+    "exitCode": 0,
+    "signal": null,
+    "duration_ms": 209,
+    "stdout": "\r\nError: Missing required parameter: content=<text>\nUsage: prepend [file=<name>] [path=<path>] content=<text> [inline]\n",
+    "stderr": "",
+    "postSize": 20,
+    "postContent": "BASE_CONTENT_MARKER\n"
+  },
+  {
+    "id": "11",
+    "label": "content-file=<path>",
+    "subcommand": "append",
+    "argv": [
+      "vault=TestVault-Obsidian-CLI-MCP",
+      "append",
+      "path=Sandbox/upstream-file-input/probe-11-append-1779804552908.md",
+      "content-file=Sandbox/upstream-file-input/payload.txt"
+    ],
+    "stdinUsed": false,
+    "stdinPayload": null,
+    "exitCode": 0,
+    "signal": null,
+    "duration_ms": 216,
+    "stdout": "\r\nError: Missing required parameter: content=<text>\nUsage: append [file=<name>] [path=<path>] content=<text> [inline]\n",
+    "stderr": "",
+    "postSize": 20,
+    "postContent": "BASE_CONTENT_MARKER\n"
+  },
+  {
+    "id": "12",
+    "label": "content=@<path>",
+    "subcommand": "append",
+    "argv": [
+      "vault=TestVault-Obsidian-CLI-MCP",
+      "append",
+      "path=Sandbox/upstream-file-input/probe-12-append-1779804552908.md",
+      "content=@Sandbox/upstream-file-input/payload.txt"
+    ],
+    "stdinUsed": false,
+    "stdinPayload": null,
+    "exitCode": 0,
+    "signal": null,
+    "duration_ms": 214,
+    "stdout": "\r\nAppended to: Sandbox/upstream-file-input/probe-12-append-1779804552908.md\n",
+    "stderr": "",
+    "postSize": 61,
+    "postContent": "BASE_CONTENT_MARKER\n\n@Sandbox/upstream-file-input/payload.txt"
+  },
+  {
+    "id": "13",
+    "label": "stdin (no content arg)",
+    "subcommand": "append",
+    "argv": [
+      "vault=TestVault-Obsidian-CLI-MCP",
+      "append",
+      "path=Sandbox/upstream-file-input/probe-13-append-1779804552908.md"
+    ],
+    "stdinUsed": true,
+    "stdinPayload": "hello from temp file 12345",
+    "exitCode": 0,
+    "signal": null,
+    "duration_ms": 215,
+    "stdout": "\r\nError: Missing required parameter: content=<text>\nUsage: append [file=<name>] [path=<path>] content=<text> [inline]\n",
+    "stderr": "",
+    "postSize": 20,
+    "postContent": "BASE_CONTENT_MARKER\n"
+  },
+  {
+    "id": "14",
+    "label": "content=- + stdin",
+    "subcommand": "append",
+    "argv": [
+      "vault=TestVault-Obsidian-CLI-MCP",
+      "append",
+      "path=Sandbox/upstream-file-input/probe-14-append-1779804552908.md",
+      "content=-"
+    ],
+    "stdinUsed": true,
+    "stdinPayload": "hello from temp file 12345",
+    "exitCode": 0,
+    "signal": null,
+    "duration_ms": 205,
+    "stdout": "\r\nAppended to: Sandbox/upstream-file-input/probe-14-append-1779804552908.md\n",
+    "stderr": "",
+    "postSize": 22,
+    "postContent": "BASE_CONTENT_MARKER\n\n-"
+  },
+  {
+    "id": "15",
+    "label": "content-file=<path>",
+    "subcommand": "create",
+    "argv": [
+      "vault=TestVault-Obsidian-CLI-MCP",
+      "create",
+      "path=Sandbox/upstream-file-input/probe-15-create-1779804552908.md",
+      "content-file=Sandbox/upstream-file-input/payload.txt"
+    ],
+    "stdinUsed": false,
+    "stdinPayload": null,
+    "exitCode": 0,
+    "signal": null,
+    "duration_ms": 201,
+    "stdout": "\r\nCreated: Sandbox/upstream-file-input/probe-15-create-1779804552908.md\n",
+    "stderr": "",
+    "postSize": 0,
+    "postContent": ""
+  },
+  {
+    "id": "16",
+    "label": "content=@<path>",
+    "subcommand": "create",
+    "argv": [
+      "vault=TestVault-Obsidian-CLI-MCP",
+      "create",
+      "path=Sandbox/upstream-file-input/probe-16-create-1779804552908.md",
+      "content=@Sandbox/upstream-file-input/payload.txt"
+    ],
+    "stdinUsed": false,
+    "stdinPayload": null,
+    "exitCode": 0,
+    "signal": null,
+    "duration_ms": 205,
+    "stdout": "\r\nCreated: Sandbox/upstream-file-input/probe-16-create-1779804552908.md\n",
+    "stderr": "",
+    "postSize": 40,
+    "postContent": "@Sandbox/upstream-file-input/payload.txt"
+  },
+  {
+    "id": "17",
+    "label": "stdin (no content arg)",
+    "subcommand": "create",
+    "argv": [
+      "vault=TestVault-Obsidian-CLI-MCP",
+      "create",
+      "path=Sandbox/upstream-file-input/probe-17-create-1779804552908.md"
+    ],
+    "stdinUsed": true,
+    "stdinPayload": "hello from temp file 12345",
+    "exitCode": 0,
+    "signal": null,
+    "duration_ms": 215,
+    "stdout": "\r\nCreated: Sandbox/upstream-file-input/probe-17-create-1779804552908.md\n",
+    "stderr": "",
+    "postSize": 0,
+    "postContent": ""
+  },
+  {
+    "id": "18",
+    "label": "content=- + stdin",
+    "subcommand": "create",
+    "argv": [
+      "vault=TestVault-Obsidian-CLI-MCP",
+      "create",
+      "path=Sandbox/upstream-file-input/probe-18-create-1779804552908.md",
+      "content=-"
+    ],
+    "stdinUsed": true,
+    "stdinPayload": "hello from temp file 12345",
+    "exitCode": 0,
+    "signal": null,
+    "duration_ms": 204,
+    "stdout": "\r\nCreated: Sandbox/upstream-file-input/probe-18-create-1779804552908.md\n",
+    "stderr": "",
+    "postSize": 1,
+    "postContent": "-"
+  },
+  {
+    "id": "19",
+    "label": "BASELINE content=<text>",
+    "subcommand": "prepend",
+    "argv": [
+      "vault=TestVault-Obsidian-CLI-MCP",
+      "prepend",
+      "path=Sandbox/upstream-file-input/probe-19-prepend-1779804552908.md",
+      "content=BASELINE_PREPEND_OK\n"
+    ],
+    "stdinUsed": false,
+    "stdinPayload": null,
+    "exitCode": 0,
+    "signal": null,
+    "duration_ms": 207,
+    "stdout": "\r\nPrepended to: Sandbox/upstream-file-input/probe-19-prepend-1779804552908.md\n",
+    "stderr": "",
+    "postSize": 41,
+    "postContent": "BASELINE_PREPEND_OK\n\nBASE_CONTENT_MARKER\n"
+  }
+]
