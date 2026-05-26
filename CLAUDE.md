@@ -78,15 +78,35 @@ Grep remains correct for textual/lexical questions ("where is the string 'foo' u
 
 Spec Kit phases run on intent (the spec) and structure (the codebase). The graph is the bridge.
 
-- **`/speckit-clarify`**: when a clarification question concerns an existing pattern, cohort, or cross-cutting concern, ground the answer with `/graphify explain` or `/graphify query`. The Business Analyst / Solution Architect role becomes accurate (not just plausible) when graph-grounded.
-- **`/speckit-plan`**: before submitting a plan for approval, identify the affected communities and god-nodes via graph queries. Document them in the plan's research/decisions section. If the plan touches any of the four kernel nodes (`createLogger`, `createQueue`, `UpstreamError`, `createServer`), say so explicitly — these are high-blast-radius areas.
-- **`/speckit-analyze`**: after implementation but before marking the BI Complete, run `/graphify --update` to refresh semantic nodes, then verify:
-  1. No new top-level error codes were introduced (Constitution Principle IV) — there should be no new error-class nodes outside the errors.ts community.
-  2. No production handler imports the boot-time factories directly (`createLogger`, `createQueue`) — these should remain confined to `server.ts` per the project's DI discipline.
+**Cost awareness**. `/graphify explain`, `query`, and `path` are AST-only and near-zero token cost — invoke them liberally during clarify, plan, tasks, and analyze. `/graphify --update` refreshes semantic nodes via LLM extraction and has real token cost — batch it at phase boundaries (typically once post-implement), never per-edit.
+
+**Scope carve-outs**. The per-phase rules below assume a BI whose diff scope includes `src/**` or `*.test.ts`. For docs-only BIs (diff scope confined to documentation, specs, decisions, architecture notes, and similar prose surfaces — i.e., no `src/**` or `*.test.ts` files change), the clarify and plan rules still apply (the graph informs decisions about which existing symbols the docs describe), the tasks rule is N/A, the pre-implement analyze rule is N/A, and the post-implement structural-verification rule degrades to the orphan-check only on new spec-artifact files. Note the N/A explicitly in the relevant artifact (plan.md `### Graphify structural check` section, tasks.md Notes section, or the analyze artifact) so a reader sees the scope decision was made deliberately, not silently skipped.
+
+**Kernel nodes**. Rules below cite "the kernel nodes" without enumerating them inline; the single source of truth for that list is the `### Validated architectural facts the graph encodes` section below. Cite by name and role, not by degree count — degree counts drift as the codebase grows.
+
+- **`/speckit-clarify`**: before asking each clarification question, check the question text for any of these structural triggers:
+  - names an existing tool, handler, schema, error class, or any of the kernel nodes;
+  - names a cohort of more than one tool (e.g. "the search tools", "all handlers that ...");
+  - names an existing convention governed by an ADR (consult [.decisions/Decision Log.md](.decisions/Decision%20Log.md) for the live ADR set — do not hard-code ADR numbers in this rule, since the set grows);
+  - names a cross-module pattern (DI, error propagation via `UpstreamError`, attribution headers, plugin-lifecycle stage ordering, sub-discriminator routing, etc.).
+
+  If any trigger fires, run `/graphify explain <named-symbol>`, `/graphify query "..."`, or `/graphify path A B` BEFORE writing the question's options table. Cite at least one structural fact from the graph in the question's Context paragraph or in an option rationale. "Ground the answer" means: surface a graph fact, not just rely on prior code-reading. If no trigger fires (the question concerns prose / scope / methodology / wording only), skip the graph query and note the skip in the question framing if helpful.
+
+- **`/speckit-plan`**: before submitting the plan for approval, identify the affected communities via graph queries and the kernel-node touch surface via direct lookup. Document the findings in the plan's `### Graphify structural check` section (create one if the plan template doesn't yet include it). If the plan touches any of the kernel nodes, name them explicitly and call out the high-blast-radius surface — kernel-node touches warrant Constitution Compliance reviewer attention even when no principle is technically violated. If the plan touches none of the kernel nodes, say so explicitly — the explicit no-touch claim is what the post-implement structural-verification step verifies against.
+
+- **`/speckit-tasks`**: when the task list crosses two or more source modules, run `/graphify path <symbol-A> <symbol-B>` for each pair of symbols a task pair both touches. The path query surfaces transitive dependencies the prose plan may not have spelled out; add an explicit task-dependency note if a structural path exists that the task graph doesn't already reflect. For docs-only or single-source-file BIs, this rule is N/A — note the N/A in `tasks.md` Notes.
+
+- **`/speckit-analyze` (pre-implement, cross-artifact consistency)**: the analyze pass is read-only against the spec / plan / tasks / research / data-model / quickstart prose. Graph queries during this pass are OPTIONAL and serve one purpose: verify that the plan's named symbols, communities, and kernel-node-touch claims still hold at HEAD (the graph may have shifted since the plan-time queries if other BIs landed in the interim). Run `/graphify explain <symbol>` for each kernel-node the plan explicitly claims to avoid touching, and for any god-node the plan names by role. For docs-only BIs, this rule is N/A — note the N/A in the analyze artifact.
+
+- **Post-implement structural verification** (after `/speckit-implement` lands code, before marking the BI complete): run `/graphify --update` to refresh semantic nodes, then verify:
+  1. No new top-level error codes were introduced (Constitution Principle IV) — there should be no new error-class nodes outside the `src/errors.ts` community.
+  2. No production handler imports the boot-time DI factories directly — those factories (named in the `### Validated architectural facts` section below) must remain confined to `server.ts` per the project's DI discipline.
   3. New symbols land in expected communities — surprise community placement is a smell worth investigating before shipping.
   4. New production code is structurally connected, not orphaned (test files are expected to be weakly connected; production files are not).
 
-Document any structural deviations in the BI's analyze artifact with rationale. The graph is the structural truth-check on whether the plan's intent matches the implementation's reality.
+  For docs-only BIs (no `src/**` change shipped), checks 1–3 are trivially satisfied; check 4 reduces to confirming any new spec-artifact files (mirror files, evidence files under `specs/<BI>/contracts/`) land in a fresh BI-specific community and are not orphaned. Note the trivial-satisfaction status in the post-implement artifact rather than skipping the check entirely.
+
+Document any structural deviations in the BI's analyze artifact (or the post-implement artifact, depending on which phase surfaces them) with rationale. The graph is the structural truth-check on whether the plan's intent matches the implementation's reality.
 
 ### Validated architectural facts the graph encodes
 
@@ -94,17 +114,19 @@ The following facts have been verified empirically via graph traces and are stab
 
 - **Three spines, not one**: boot spine (`index.ts → server.ts → tools/_register.ts → createXTool() × N`), runtime spine (`handler.ts → invokeCli → spawn/Logger/Queue`), error spine (`handler.ts → UpstreamError`). `server.ts` owns the boot spine only and is absent from runtime and error spines.
 - **`server.ts` is the sole production file that constructs both `createLogger()` and `createQueue()`**. Every other production file receives them as injected deps via `RegisterDeps` / `ExecuteDeps`. Handlers must not reach back into the composition root at runtime.
-- **`UpstreamError` is a pure value type** — imported by ~33 files, called by zero. Every handler classifies its failures through one of its six codes. The fifteen-tool zero-new-codes streak (Principle IV) shows up structurally as a star with `UpstreamError` at the centre.
-- **The four god-nodes by degree** (raw, before dedup): `createLogger()` (~80), `createQueue()` (~57), `UpstreamError` (~47), `createServer()` (~30+). These have stayed stable across builds; treat changes to this list as architectural events worth attention.
+- **`UpstreamError` is a pure value type** — imported widely, called nowhere. Every handler classifies its failures through one of the codes enumerated in `src/errors.ts` (the exact count drifts as the surface grows; the constitutional zero-new-codes streak per Principle IV is what matters, not the count itself). The streak shows up structurally as a star with `UpstreamError` at the centre.
+- **The kernel nodes (single source of truth for "the kernel nodes" cited elsewhere in this document)**: `createLogger()` and `createQueue()` are the boot-time DI factories constructed in `server.ts` and injected into every handler; `UpstreamError` is the error-spine value type every handler classifies through; `createServer()` is the boot-spine entry point. These hold the highest centrality scores in the graph across builds and are the high-blast-radius set referenced by the `/speckit-plan` and post-implement rules above. Treat changes to this list as architectural events worth attention.
+
+**Do not cite specific degree counts, community IDs, or absolute node counts in CLAUDE.md, plan artifacts, ADRs, or BI artifacts.** Those numbers drift as the codebase grows. Cite relative position ("among the top god-nodes by degree", "in the runtime-spine community alongside the other handlers") and structural role ("the boot-time DI factory", "the error-spine value type") instead. Run `/graphify explain <node-name>` at plan-time to get the current degree if a one-off plan-time decision needs it; do not embed that number into a durable artifact.
 
 ### Graph hygiene notes
 
 Two known caveats when reading graph numbers:
 
-1. **Dedup imperfection on re-exported types**: TypeScript classes that are re-exported across module boundaries produce 2–3 separate nodes in the graph (one AST, one semantic, sometimes one external-marker). Centrality scores split across them. Mentally add the degrees together for top-level types when comparing across builds.
-2. **AST noise floor ~50–60%**: a large fraction of weakly-connected nodes are tokenisation artifacts (local variables, destructured fields, generic type params), not genuine documentation gaps. Test files run 80–90% weakly-connected by design — they construct one-use fixtures.
+1. **Dedup imperfection on re-exported types**: TypeScript classes that are re-exported across module boundaries produce multiple separate nodes in the graph (typically one AST node, one semantic node, sometimes one external-marker node). Centrality scores split across them. Mentally add the degrees together for top-level types when comparing across builds.
+2. **AST noise floor is substantial**: a large fraction of weakly-connected nodes are tokenisation artifacts (local variables, destructured fields, generic type params), not genuine documentation gaps. Test files are weakly-connected by design — they construct one-use fixtures. Treat unexpectedly weak connectivity on a *production* file as a signal worth investigating; weak connectivity on a test file or a tokenisation artifact is the noise floor and not a defect to fix.
 
-When citing graph numbers in plans, ADRs, or BI artifacts, prefer relative claims ("X is among the top god-nodes", "Y bridges N communities") over absolute counts when the absolute count is dedup-sensitive.
+When citing graph signals in plans, ADRs, or BI artifacts, prefer relative claims ("X is among the top god-nodes", "Y bridges multiple communities", "Z is the sole bridge between communities A and B") over absolute counts. Absolute counts are dedup-sensitive and drift as the codebase grows; relative claims survive both.
 
 ## graphify
 
