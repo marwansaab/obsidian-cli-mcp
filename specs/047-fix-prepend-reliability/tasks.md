@@ -70,7 +70,7 @@ Single-project layout per [plan.md](plan.md) `## Project Structure`. Per-surface
 ### Implementation for User Story 1
 
 - [ ] T011 [US1] Implement the post-stat byte-delta guard at `src/tools/prepend/handler.ts` lines 306-314. Insert (between the existing `const postCallSize = (await fs.stat(absPath)).size;` and `const bytesWritten = postCallSize - preCallSize;` lines OR immediately after the bytesWritten calculation): a guard that, when `bytesWritten <= 0`, raises a typed `UpstreamError` per the shape documented in [contracts/prepend-output.contract.md](contracts/prepend-output.contract.md) §"FR-003 structural enforcement" — `code: "FS_WRITE_FAILED"`, `cause: null`, `details: {reason: "post-stat-byte-delta-zero", path: relPath, vault: vaultDisplayName, preCallSize, postCallSize}`, descriptive `message`. The guard runs BEFORE the success envelope is constructed. Preserves the existing attribution header (`// Original — no upstream.`) byte-stable.
-- [ ] T012 [US1] Run `npx vitest run src/tools/prepend/handler.test.ts` and confirm T007 / T008 / T009 / T010 all pass green (red→green transition completed). If any test fails, debug the guard implementation against the test setup — do NOT weaken the test assertions. Capture the run output in a PR-description-ready summary.
+- [ ] T012 [US1] Run `npx vitest run src/tools/prepend/handler.test.ts` and confirm T007 / T008 / T009 / T010 / T010a all pass green (red→green transition completed). If any test fails, debug the guard implementation against the test setup — do NOT weaken the test assertions. Capture the run output in a PR-description-ready summary.
 
 **Checkpoint**: User Story 1 fully functional and testable independently. MVP delivered: prepend is reliable for in-cap payloads against registered vaults; silent no-ops surface as structured `FS_WRITE_FAILED.post-stat-byte-delta-zero` envelopes. Stop here if scope-limited.
 
@@ -169,7 +169,7 @@ Note: T013 / T014 cover discriminator surfaces NOT exercised by US1's tests (T00
 
 ### User Story Dependencies
 
-- **US1 (P1)**: MVP. Independent. Delivers the primary success-path repair and the FR-003 anti-pattern elimination.
+- **US1 (P1)**: MVP. Independent. Delivers the primary success-path repair and the FR-003 anti-pattern elimination. Note: T010a (FR-010 concurrent-call test) lives in US1 by FR mapping but exercises the EXISTING queue's last-write-wins semantics rather than T011's new guard — T010a has no dependency on T011 and can be authored / run independently of the guard's implementation.
 - **US2 (P2)**: Depends on US1 (T011 is the production surface; T013-T015 are tests against it).
 - **US3 (P3)**: Depends on US1 + US2 (the structured envelopes US3's tests assert against are produced by US1 + US2).
 - **US4 (P4)**: Independent of US1 / US2 / US3 — verifies an existing v0.7.4 surface (the schema cap).
@@ -184,7 +184,7 @@ Note: T013 / T014 cover discriminator surfaces NOT exercised by US1's tests (T00
 
 - T002 + T003 (Setup): independent, can run in parallel.
 - T004 + T005 (T0 probes): independent target shapes; can run in parallel.
-- T007 + T008 + T009 + T010 (US1 tests): different test cases in the same file; can be authored in parallel commits but lint may surface conflicts — author sequentially in the same file is safer.
+- T007 + T008 + T009 + T010 + T010a (US1 tests): different test cases in the same file; can be authored in parallel commits but lint may surface conflicts — author sequentially in the same file is safer.
 - T013 + T014 + T015 (US2 tests): same file + spread across handler.test.ts and schema.test.ts; T015 lives in a different file from T013 / T014.
 - T018 + T019 (US3 tests): same file.
 - T021 + T022 (US4 tests): different files (schema.test.ts vs handler.test.ts) — can run in parallel.
@@ -199,11 +199,12 @@ Once Phase 2 (T0 probes) confirms R1, US1 / US4 can be staffed in parallel (US4 
 ## Parallel Example: User Story 1
 
 ```bash
-# Author all four US1 tests in `src/tools/prepend/handler.test.ts` in sequence (same file):
+# Author all five US1 tests in `src/tools/prepend/handler.test.ts` in sequence (same file):
 Task: "T007 — silent no-op test"
 Task: "T008 — 50-call regression cohort test"
 Task: "T009 — boundary success test"
 Task: "T010 — p95 latency assertion"
+Task: "T010a — concurrent-call last-write-wins test"
 
 # Then implement the guard:
 Task: "T011 — post-stat byte-delta guard in handler.ts"
@@ -220,7 +221,7 @@ Task: "T012 — npx vitest run handler.test.ts; confirm green"
 
 1. Complete Phase 1: Setup (T001-T003).
 2. Complete Phase 2: T0 probes (T004-T006). If R1 is refuted, amend plan + research before proceeding.
-3. Complete Phase 3: US1 (T007-T012). Red → green → refactor.
+3. Complete Phase 3: US1 (T007-T010, T010a, T011-T012). Red → green → refactor.
 4. **STOP and VALIDATE**: run `npx vitest run src/tools/prepend/` and confirm the regression cohort + new tests pass. The fix is shippable at this point — silent no-ops are eliminated; the in-cap success contract holds.
 5. Demo / deploy if scope-bounded to US1.
 
@@ -241,7 +242,7 @@ For a multi-developer team:
 
 1. Team completes Phases 1 + 2 together.
 2. Once Phase 2 is done:
-   - Developer A: US1 (T007-T012). Blocks B and C.
+   - Developer A: US1 (T007-T010, T010a, T011-T012). Blocks B and C.
    - Developer B: US4 (T021-T023) — independent of US1, can run in parallel with A.
 3. When A finishes US1's checkpoint:
    - Developer C: US2 (T013-T017).
