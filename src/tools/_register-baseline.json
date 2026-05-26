@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "044-append-note",
+  "generatedFromBranch": "045-prepend-note",
   "generatedAt": "2026-05-26",
   "tools": [
     {
@@ -82,6 +82,11 @@
       "name": "pattern_search",
       "descriptionFingerprint": "665ffcdbbe984777086fea4ec371ac75a1631db5c6a0b75d73151155cbe1c249",
       "schemaFingerprint": "0a4b6d3e01caea82b1a89a3d16cd391b7ac87ed4ca167988a63eecd6ec3de053"
+    },
+    {
+      "name": "prepend",
+      "descriptionFingerprint": "e498fe4bb0f7fe1e8721dd58a4af2d42bea243e59d0cebd941c4b41b7adeace7",
+      "schemaFingerprint": "57db35270ed11f374009e5b38b61d37c27f9e89e26edf50c1b592c99f0965c70"
     },
     {
       "name": "properties",

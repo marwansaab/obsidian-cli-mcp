@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/marwansaab/obsidian-cli-mcp/specs/045-prepend-note/contracts/input.schema.json",
+  "title": "prepend input schema",
+  "description": "Input contract for the prepend typed MCP tool. Authoritative source is the Zod schema in src/tools/prepend/schema.ts; this JSON Schema is the human-readable cross-reference and the form published via zodToJsonSchema at registration time. Uses the project's target_mode discriminator per ADR-003 — in specific mode, vault is required plus one of file/path; in active mode, none of vault/file/path may appear.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["target_mode", "content"],
+  "properties": {
+    "target_mode": {
+      "type": "string",
+      "enum": ["specific", "active"],
+      "description": "Locator-shape discriminator per ADR-003. 'specific' = caller supplies vault + file|path. 'active' = wrapper resolves the currently-focused note via a small obsidian eval; no vault/file/path may be supplied. No additional opt-in flag is required for active mode (FR-004a — deliberate cohort exception to write_note's overwrite:true requirement, justified by prepend's additive-not-destructive safety profile; inherited from BI-044 / append_note)."
+    },
+    "vault": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "description": "Vault display name. REQUIRED when target_mode === 'specific'; FORBIDDEN when target_mode === 'active'. Resolved via the project's lazy vault registry. Unknown vault surfaces VAULT_NOT_FOUND."
+    },
+    "file": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "description": "Wikilink-form note locator (bare note name, the same shape the cohort's read-side tools accept under their 'file' parameter). MUST NOT contain '[[' or ']]' brackets (FR-001a — supply the bare note name, e.g. 'My Note', not '[[My Note]]'). Alternative to 'path'; exactly one of {file, path} required when target_mode === 'specific'. Subject to the project's structural path-safety refinement (no '../', no leading '/' or '\\\\', no drive-letter prefix, no control characters). The wrapper resolves the wikilink-form name to a canonical vault-relative path via a pre-flight 'obsidian file' TSV resolver call before invoking 'obsidian prepend', so the success-envelope response always names the resolved canonical path per FR-003.",
+      "examples": ["My Note", "Daily Notes/2026-05-25"]
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "description": "Vault-relative file path. Alternative to 'file'; exactly one of {file, path} required when target_mode === 'specific'. Subject to the project's structural path-safety refinement. Brackets are NOT a special case under 'path' — vault-relative paths can in principle contain bracket characters; brackets are a wikilink-syntax artefact only.",
+      "examples": ["Sandbox/journal-2026-05-25.md", "Daily Notes/2026-05-25.md"]
+    },
+    "content": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 24576,
+      "description": "The content to prepend at the LOGICAL top of the file. When the target note has a YAML frontmatter block (opening '---', body, closing '---'), the prepended content lands IMMEDIATELY AFTER the closing '---' per FR-005a — the frontmatter is preserved BYTE-FOR-BYTE; when the target note has no frontmatter, the prepended content lands at byte zero. Frontmatter detection is delegated to the upstream Obsidian CLI per FR-005b — no wrapper-side parser is introduced. Content MUST be non-empty per FR-013 (empty content surfaces as VALIDATION_ERROR + details.code: CONTENT_EMPTY, byte-stable with BI-044 / append_note). Content MUST NOT exceed 24576 UTF-16 code units (24 KiB) per FR-018 — the cap holds the total CLI argv envelope below the Windows ~32 767-char command-line maximum with safety headroom (oversized content surfaces as VALIDATION_ERROR + details.code: CONTENT_TOO_LARGE; rationale in research.md R3). Preserved BYTE-FOR-BYTE VERBATIM by upstream per FR-010a — no trim, no normalisation, no auto-appended trailing newline. May contain line breaks; structural validity of the resulting markdown is the caller's responsibility. Callers needing payloads above the cap use the full-replace write_note surface (which is fs-direct and cap-free).",
+      "examples": ["## TL;DR\n\nShipped append_note today.\n", "Status: in-progress\n", "Lead paragraph for the body."]
+    },
+    "inline": {
+      "type": "boolean",
+      "default": false,
+      "description": "When false (default), the wrapper applies the FR-006 / FR-006a default-separator rule via upstream — when the supplied content's last bytes do NOT form a line break, a separator matching the note's existing line-ending convention is inserted between the prepended content and the existing leading body line; when the supplied content already ends with '\\n' or '\\r\\n', that trailing line break IS the separator and no additional one is inserted (the prepend-direction symmetric of BI-044's FR-006a); when the file is 0 bytes (or has only frontmatter with no body), no separator is inserted. When true, upstream writes the content with NO wrapper- or upstream-inserted separator between the prepended content and the existing leading body line (FR-007 — fuses onto a partial leading line). The inline opt-in does NOT change the FR-005a frontmatter-aware insertion-point rule — the prepended content still lands after the closing '---' when frontmatter is present; the opt-in only suppresses the separator between the prepended content and the existing leading body line."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "target_mode": { "const": "specific" } } },
+      "then": {
+        "required": ["vault"],
+        "oneOf": [
+          { "required": ["file"], "not": { "required": ["path"] } },
+          { "required": ["path"], "not": { "required": ["file"] } }
+        ]
+      }
+    },
+    {
+      "if": { "properties": { "target_mode": { "const": "active" } } },
+      "then": {
+        "not": {
+          "anyOf": [
+            { "required": ["vault"] },
+            { "required": ["file"] },
+            { "required": ["path"] }
+          ]
+        }
+      }
+    }
+  ]
+}

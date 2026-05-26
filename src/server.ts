@@ -27,6 +27,7 @@ import { createPatchBlockTool } from "./tools/patch_block/index.js";
 import { createPatchHeadingTool } from "./tools/patch_heading/index.js";
 import { createPathsTool } from "./tools/paths/index.js";
 import { createPatternSearchTool } from "./tools/pattern_search/index.js";
+import { createPrependTool } from "./tools/prepend/index.js";
 import { createPropertiesTool } from "./tools/properties/index.js";
 import { createQueryBaseTool } from "./tools/query_base/index.js";
 import { createReadTool } from "./tools/read/index.js";
@@ -113,6 +114,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     createPatchHeadingTool({ logger, queue, vaultRegistry }),
     createPathsTool({ logger, queue }),
     createPatternSearchTool({ logger, queue }),
+    createPrependTool({ logger, queue, vaultRegistry }),
     createPropertiesTool({ logger, queue }),
     createQueryBaseTool({ logger, queue, vaultRegistry }),
     createReadTool({ logger, queue }),
