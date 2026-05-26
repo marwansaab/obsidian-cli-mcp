@@ -39,7 +39,7 @@
 |-------|------|------------|
 | `title` | H1 | "Probe evidence — Truncation visible-subset reconciliation (BI-046)" |
 | `probe_date` | ISO date | wall-clock date the probe ran |
-| `version_triple.wrapper` | string | `@marwansaab/obsidian-cli-mcp@x.y.z`, PR-time, MUST resolve to `v0.7.1` per FR-012 |
+| `version_triple.wrapper` | string | `@marwansaab/obsidian-cli-mcp@x.y.z`, PR-time, MUST resolve to `v0.7.5` per FR-012 |
 | `version_triple.obsidian_integrated_cli_plugin` | string \| `unknown` | probe-time host fact (Q3) |
 | `version_triple.obsidian_desktop_app` | string \| `unknown` | probe-time host fact (Q3) |
 | `canonical_backlinks` | wikilink list | `[[TC-00306]]`, `[[TC-00328]]` |
@@ -114,5 +114,5 @@
 1. **Mirror-pointer reciprocity**: Entity 1 (`mirror_pointer`) ↔ Entity 2 (`title` / file existence). The path each side names MUST resolve to the other.
 2. **Forward-pointer reciprocity**: Entity 3 (`current_truth_pointer`) ↔ Entity 2 (`superseded_artifact`). The two MUST name each other.
 3. **TC back-link reciprocity**: Entity 2 (`canonical_backlinks`) — the `[[TC-00306]]` and `[[TC-00328]]` wikilinks MUST resolve to live TC pages at PR-merge time. If a TC page is renamed, both ends update in the same PR.
-4. **Version-triple consistency**: Entity 2's `version_triple.wrapper` MUST match the `@marwansaab/obsidian-cli-mcp` `package.json` version at PR-merge time (`v0.7.1` for this BI).
+4. **Version-triple consistency**: Entity 2's `version_triple.wrapper` MUST match the `@marwansaab/obsidian-cli-mcp` `package.json` version at PR-merge time (`v0.7.5` for this BI).
 5. **No runtime entities**: No Zod schemas added, no error codes added, no MCP tool surfaces added. Constitution Principles II–V N/A is preserved.

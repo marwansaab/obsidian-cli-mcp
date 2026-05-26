@@ -30,7 +30,7 @@ All five spec-level NEEDS CLARIFICATION items were resolved during `/speckit-cla
 
 ## Decision 3 — FR-012 dual-mode probe gate: methodology
 
-**Decision**: Before locking the `search.md` truncation-section structure, run two empirical probes against the BI-0011 fixture set at wrapper version `v0.7.1`, `limit: 2`, both recorded on `[[TC-00306]]` (extend with a v0.7.1 line-mode row) OR on a new TC dedicated to the line-mode probe:
+**Decision**: Before locking the `search.md` truncation-section structure, run two empirical probes against the BI-0011 fixture set at wrapper version `v0.7.5`, `limit: 2`, both recorded on `[[TC-00306]]` (extend with a v0.7.5 line-mode row) OR on a new TC dedicated to the line-mode probe:
 
 | Probe | Upstream command | Tool invocation | Expected pre-sort source |
 |---|---|---|---|
@@ -39,7 +39,7 @@ All five spec-level NEEDS CLARIFICATION items were resolved during `/speckit-cla
 | P3 — context_search | `obsidian search:context query=<q> path=<folder> format=json limit=2` | `context_search` tool | Same as P2 — shared upstream subcommand |
 | P4 — backlinks parity check | `obsidian eval ...` (per backlinks template) | `backlinks` tool | Engine `allKeys.filter(...).sort()` output (pre-slice in this tool) |
 
-P1 and P2 cover the FR-012 gate. P3 confirms `context_search` behaviour matches the spec's already-stated divergence. P4 is a parity sanity check — if `backlinks` no longer slices leading-of-sorted-set at v0.7.1 (e.g., upstream changed `getBacklinksForFile()` semantics), FR-013's cohort-divergence sentence is itself wrong and FR-008's preservation rule needs re-examination.
+P1 and P2 cover the FR-012 gate. P3 confirms `context_search` behaviour matches the spec's already-stated divergence. P4 is a parity sanity check — if `backlinks` no longer slices leading-of-sorted-set at v0.7.5 (e.g., upstream changed `getBacklinksForFile()` semantics), FR-013's cohort-divergence sentence is itself wrong and FR-008's preservation rule needs re-examination.
 
 **Outcomes that drive the doc structure**:
 - *P1 == P2*: single block in `search.md` truncation section with "applies to both modes" sentence (FR-012 happy path).
@@ -51,12 +51,12 @@ P1 and P2 cover the FR-012 gate. P3 confirms `context_search` behaviour matches 
 **Rationale**: Probe-then-write discipline is the same shape the connector Best Practices "explicit `vault=<unfocused>` probe before locking a routing claim" rule applies — name the upstream subcommand, capture both modes, only then lock the doc structure. The shared `obsidian search:context` upstream subcommand between P2 and P3 means the engine pre-sort response should be identical for the same query+folder+limit; that's why running both is a cross-check, not redundant work.
 
 **Alternatives considered**:
-- *Trust P3 + the BI-042 code-read for P1/P2*: rejected — the BI-042 read concluded "LEADING" but missed that the slice operates on the pre-sort response. A v0.7.1 code-read at `src/tools/search/handler.ts` should re-confirm, but an empirical probe at v0.7.1 is the source of truth per the spec's "current shipped version" framing.
+- *Trust P3 + the BI-042 code-read for P1/P2*: rejected — the BI-042 read concluded "LEADING" but missed that the slice operates on the pre-sort response. A v0.7.5 code-read at `src/tools/search/handler.ts` should re-confirm, but an empirical probe at v0.7.5 is the source of truth per the spec's "current shipped version" framing.
 - *Probe only P1 (default mode) and infer P2 from P3*: rejected — P2 and P3 share the `obsidian search:context` upstream, but the wrapper-side handlers differ (`search` line mode flattens via its own handler at `src/tools/search/handler.ts`; `context_search` has its own handler at `src/tools/context_search/handler.ts`). The wrapper-side flatten may impose a different slice direction. Cannot infer.
 
 ## Decision 4 — Mirror file shape and mirror discipline
 
-**Decision**: `specs/046-reconcile-truncation-docs/contracts/truncation-direction-evidence.md` mirrors the relevant rows of canonical TC pages `[[TC-00306]]` and `[[TC-00328]]` for wrapper-repo cloners without vault access. It records: (a) the version triple (wrapper `@marwansaab/obsidian-cli-mcp@v0.7.1`, Obsidian Integrated CLI plugin version, Obsidian desktop app version — `unknown` permitted for any unobtainable component per Q3); (b) per-probe rows (probe inputs, observed visible subset, full sorted result set); (c) back-links to `[[TC-00306]]` and `[[TC-00328]]`. The file holds nothing the TC pages don't already carry.
+**Decision**: `specs/046-reconcile-truncation-docs/contracts/truncation-direction-evidence.md` mirrors the relevant rows of canonical TC pages `[[TC-00306]]` and `[[TC-00328]]` for wrapper-repo cloners without vault access. It records: (a) the version triple (wrapper `@marwansaab/obsidian-cli-mcp@v0.7.5`, Obsidian Integrated CLI plugin version, Obsidian desktop app version — `unknown` permitted for any unobtainable component per Q3); (b) per-probe rows (probe inputs, observed visible subset, full sorted result set); (c) back-links to `[[TC-00306]]` and `[[TC-00328]]`. The file holds nothing the TC pages don't already carry.
 
 **Rationale**: Mirror discipline is the explicit Q1 scope decision. The connector Architecture has the same rule for the wrapper-vault mirror — single source of truth lives vault-side, repo mirror is a convenience for cloners. Applying the same discipline here keeps the source-of-truth contract crisp and prevents three-way drift between `docs/tools/*.md` (where the inline summary lives), `specs/046-reconcile-truncation-docs/contracts/` (the repo mirror), and the canonical TC pages.
 
@@ -76,7 +76,7 @@ P1 and P2 cover the FR-012 gate. P3 confirms `context_search` behaviour matches 
 ## Decision 6 — No NEEDS CLARIFICATION items remain
 
 All Technical Context fields are resolved:
-- Language/version: Markdown + `@marwansaab/obsidian-cli-mcp@v0.7.1` anchor.
+- Language/version: Markdown + `@marwansaab/obsidian-cli-mcp@v0.7.5` anchor.
 - Dependencies: none for the diff; probe uses the host's Obsidian Integrated CLI plugin + desktop app.
 - Storage / Testing / Target Platform / Project Type / Performance / Constraints / Scale: all filled in `plan.md` without NEEDS CLARIFICATION markers.
 

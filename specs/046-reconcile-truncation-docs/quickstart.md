@@ -10,7 +10,7 @@ Two text corrections in `docs/tools/search.md` and `docs/tools/context_search.md
 ## Pre-flight (read first)
 
 1. Read [.memory/test-execution-instructions.md](../../.memory/test-execution-instructions.md) — names the authorised test vault, the scratch subdirectory, and the destructive-probe protocol. The FR-012 probe gate produces real CLI invocations against a real vault and falls under this gate.
-2. Verify the wrapper is on `v0.7.1` (the anchor pin per spec Q3 and FR-012). Run `npm run --silent version` from repo root or read `package.json` `version`. If the working copy is NOT `v0.7.1`, STOP — either bump the working copy to `v0.7.1` or rewrite the FR-012 anchor in `spec.md` Q4 + `research.md` Decision 3 + `data-model.md` Entity 2a's `version_triple.wrapper` constraint, then re-run `/speckit-plan`.
+2. Verify the wrapper is on `v0.7.5` (the anchor pin per spec Q3 and FR-012). Run `npm run --silent version` from repo root or read `package.json` `version`. If the working copy is NOT `v0.7.5`, STOP — either bump the working copy to `v0.7.5` or rewrite the FR-012 anchor in `spec.md` Q4 + `research.md` Decision 3 + `data-model.md` Entity 2a's `version_triple.wrapper` constraint, then re-run `/speckit-plan`.
 3. Confirm `[[TC-00306]]` (search) and `[[TC-00328]]` (context_search) exist as canonical TC pages in the user's external test tracker. The mirror file back-links to both per FR-007.
 
 ## Step-by-step walkthrough (implementer / `/speckit-implement`)
@@ -21,10 +21,10 @@ Per [research.md](research.md) Decision 3, run four probes against the BI-0011 f
 
 | # | Probe | Tool invocation | Records to |
 |---|---|---|---|
-| P1 | search default mode | `{ "name": "search", "arguments": { "query": "<BI-0011 query>", "folder": "<BI-0011 folder>", "limit": 2 } }` | `[[TC-00306]]` (extend with v0.7.1 default-mode row) |
-| P2 | search line mode | `{ "name": "search", "arguments": { "query": "<BI-0011 query>", "folder": "<BI-0011 folder>", "limit": 2, "context_lines": true } }` | `[[TC-00306]]` (extend with v0.7.1 line-mode row OR new TC) |
+| P1 | search default mode | `{ "name": "search", "arguments": { "query": "<BI-0011 query>", "folder": "<BI-0011 folder>", "limit": 2 } }` | `[[TC-00306]]` (extend with v0.7.5 default-mode row) |
+| P2 | search line mode | `{ "name": "search", "arguments": { "query": "<BI-0011 query>", "folder": "<BI-0011 folder>", "limit": 2, "context_lines": true } }` | `[[TC-00306]]` (extend with v0.7.5 line-mode row OR new TC) |
 | P3 | context_search | `{ "name": "context_search", "arguments": { "query": "<BI-0011 query>", "folder": "<BI-0011 folder>", "limit": 2 } }` | `[[TC-00328]]` |
-| P4 | backlinks parity | `{ "name": "backlinks", "arguments": { "target_mode": "specific", "vault": "<BI-0011 vault>", "path": "<BI-0011 target>", "limit": 2 } }` | local-only — confirms the cohort-divergence sentence (FR-013) is still accurate at v0.7.1 |
+| P4 | backlinks parity | `{ "name": "backlinks", "arguments": { "target_mode": "specific", "vault": "<BI-0011 vault>", "path": "<BI-0011 target>", "limit": 2 } }` | local-only — confirms the cohort-divergence sentence (FR-013) is still accurate at v0.7.5 |
 
 For each probe, capture:
 - The observed visible subset (the response's `paths[]` / `matches[]` / `backlinks[]` in response order).
@@ -79,7 +79,7 @@ Per [data-model.md](data-model.md) "Cross-entity invariants" section:
 - Mirror-pointer reciprocity (Entity 1 ↔ Entity 2): each inline anchor's `mirror_pointer` resolves to the mirror file.
 - Forward-pointer reciprocity (Entity 3 ↔ Entity 2): the BI-042 forward-pointer and the BI-046 mirror file `superseded_artifact` field name each other.
 - TC back-link liveness: `[[TC-00306]]` and `[[TC-00328]]` exist as TC pages and contain the same data the mirror file records.
-- Version-triple consistency: `package.json` version === `v0.7.1` === mirror file `version_triple.wrapper`.
+- Version-triple consistency: `package.json` version === `v0.7.5` === mirror file `version_triple.wrapper`.
 
 ## Re-verification (future reader / cloner without vault access)
 
@@ -105,7 +105,7 @@ A reader who wants to verify the corrected docs against the current shipped vers
 
 ## Done criteria (the 5 SCs from spec.md)
 
-- **SC-001**: 0 truncation-section claims about the visible subset in `search.md` and `context_search.md` are empirically false on `v0.7.1`.
+- **SC-001**: 0 truncation-section claims about the visible subset in `search.md` and `context_search.md` are empirically false on `v0.7.5`.
 - **SC-002**: Re-running the probes per Step 1 reproduces the inline-anchor-described behaviour.
 - **SC-003**: `git diff main -- docs/tools/backlinks.md` is empty.
 - **SC-004**: Diff scope is bounded to the four paths in `plan.md` "Touched paths" — zero runtime / src / test files.

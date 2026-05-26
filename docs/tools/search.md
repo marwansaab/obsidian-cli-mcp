@@ -123,9 +123,15 @@ With truncation:
 | `matches[].text` | string | Matching-line content, capped at 500 chars + `…` (U+2026 ellipsis marker) if longer. |
 | `truncated` | `true` | OPTIONAL — present **only** when truncation fired. Absent === `false`. |
 
-### Truncation slice direction (BI-042 reconciliation)
+### Truncation slice direction (BI-046 reconciliation)
 
-When `truncated: true`, the response carries the **FIRST `<cap>` entries** of the sorted result set (the **leading** subset). Sort key: `path` ascending, then `line` ascending (`src/tools/search/handler.ts:125-127`). The sibling cohort (`context_search`, `backlinks`) all slice the leading subset — the truncation direction is **uniform across the cohort**, so no per-tool divergence call-out is needed. Forward pointer: runtime standardisation of the cohort's slice direction is tracked separately and is out of scope for BI-042. Empirical anchor: code-read 2026-05-21 against the wrapper sources at the named line; see [BI-042 truncation-direction evidence](../../specs/042-close-audit-findings/contracts/truncation-direction-evidence.md).
+When `truncated: true`, the response carries the **leading N entries of the engine pre-sort response**, **re-sorted** by the wrapper's output sort key before being returned. This applies to both default mode and line mode (the FR-012 dual-mode probe at wrapper `v0.7.5` found the slice rule is identical across `obsidian search` and `obsidian search:context`).
+
+Concretely, the wrapper invokes the engine subcommand — `obsidian search` in default mode, `obsidian search:context` in line mode — and receives a pre-sort response from the engine. It takes the **leading N** of that pre-sort response (`mdOnly.slice(0, appliedCap)` in default mode; the file-cap + flatten path in line mode), then **re-sorts the slice** by `path` ascending (default mode) or `path` ascending then `line` ascending (line mode) for output. The engine's **natural sort order** in the pre-sort response is upstream-determined; on the BI-0011 fixture against this host it surfaced as reverse basename-numeric (`body-5, body-4, body-3, body-2, body-1`), but the engine emission order is unstable across upstream/vault state changes. The slice direction within the engine pre-sort response is **LEADING** (first N).
+
+**Cohort divergence**: `backlinks` slices the leading subset of the **sorted** result set — its eval template applies `allKeys.filter(...).sort()` before `sources.slice(0, cap)`, so the slice operates on an already-sorted array and the visible subset under truncation is the leading-of-sorted-set. `search` does NOT behave this way: it slices the engine pre-sort response first, then sorts the slice. See the inline anchor below for the empirical visible subset on the canonical fixture.
+
+> Probe (BI-0011 fixture, `query: "Zb1q9k2xBody"`, `folder: "Fixtures/BI-0011"`, `limit: 2`; captured 2026-05-26): default-mode visible subset = `["Fixtures/BI-0011/body-4.md", "Fixtures/BI-0011/body-5.md"]`; line-mode visible subset = `[{path: "Fixtures/BI-0011/body-4.md", line: 3}, {path: "Fixtures/BI-0011/body-5.md", line: 3}]`. Full sorted result set, engine pre-sort response, and version triple at [BI-046 truncation-direction evidence](../../specs/046-reconcile-truncation-docs/contracts/truncation-direction-evidence.md).
 
 ### Zero-match handling
 

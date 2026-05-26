@@ -97,9 +97,15 @@ With truncation:
 | `matches[].text` | string | Matching line content. Single trailing `\r` stripped (FR-012). Capped at 500 chars + `…` (U+2026 ellipsis marker) if longer (final length 501 for capped lines). |
 | `truncated` | `true` | OPTIONAL — present **only** when truncation fired (absent === `false`). |
 
-### Truncation slice direction (BI-042 reconciliation)
+### Truncation slice direction (BI-046 reconciliation)
 
-When `truncated: true`, the response carries the **FIRST `<cap>` entries** of the sorted result set (the **leading** subset). Sort key: `path` ascending, then `line` ascending (`src/tools/context_search/handler.ts:147-149`). The sibling cohort (`search`, `backlinks`) all slice the leading subset — the truncation direction is **uniform across the cohort**, so no per-tool divergence call-out is needed. Forward pointer: runtime standardisation of the cohort's slice direction is tracked separately and is out of scope for BI-042. Empirical anchor: code-read 2026-05-21 against the wrapper sources at the named line; see [BI-042 truncation-direction evidence](../../specs/042-close-audit-findings/contracts/truncation-direction-evidence.md).
+When `truncated: true`, the response carries the **leading N entries of the engine pre-sort response**, **re-sorted** by the wrapper's output sort key before being returned.
+
+Concretely, the wrapper invokes the engine subcommand `obsidian search:context` and receives a pre-sort response from the engine. It flattens the response to per-line entries, takes the **leading N** of the flattened or file-capped array (`flat.slice(0, appliedCap)` in `src/tools/context_search/handler.ts`), then **re-sorts the slice** by `path` ascending then `line` ascending for output. The engine's **natural sort order** in the pre-sort response is upstream-determined; on the BI-0011 fixture against this host it surfaced as reverse basename-numeric (`body-5, body-4, body-3, body-2, body-1` file order), but the engine emission order is unstable across upstream/vault state changes. The slice direction within the engine pre-sort response is **LEADING** (first N).
+
+**Cohort divergence**: `backlinks` slices the leading subset of the **sorted** result set — its eval template applies `allKeys.filter(...).sort()` before `sources.slice(0, cap)`, so the slice operates on an already-sorted array and the visible subset under truncation is the leading-of-sorted-set. `context_search` does NOT behave this way: it slices the engine pre-sort response first, then sorts the slice. See the inline anchor below for the empirical visible subset on the canonical fixture.
+
+> Probe (BI-0011 fixture, `query: "Zb1q9k2xBody"`, `folder: "Fixtures/BI-0011"`, `limit: 2`; captured 2026-05-26): visible subset = `[{path: "Fixtures/BI-0011/body-4.md", line: 3}, {path: "Fixtures/BI-0011/body-5.md", line: 3}]` (each `text` field carries `"Zb1q9k2xBody marker line in body-<N>."` — full mirror at the link below). Full sorted result set, engine pre-sort response, and version triple at [BI-046 truncation-direction evidence](../../specs/046-reconcile-truncation-docs/contracts/truncation-direction-evidence.md).
 
 ### Zero-match handling
 

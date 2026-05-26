@@ -9,14 +9,14 @@ Doc-only correction of two empirically false claims in the truncation sections o
 
 ## Technical Context
 
-**Language/Version**: Markdown documentation; underlying wrapper pinned at `@marwansaab/obsidian-cli-mcp@v0.7.1` (anchor pin per spec clarification Q3 — no wrapper code touched).
+**Language/Version**: Markdown documentation; underlying wrapper pinned at `@marwansaab/obsidian-cli-mcp@v0.7.5` (anchor pin per spec clarification Q3 — no wrapper code touched).
 **Primary Dependencies**: None for the doc diff itself. The empirical probe gate (FR-012) invokes the Obsidian Integrated CLI plugin and the Obsidian desktop app on the user's host; versions are recorded in the mirror file per Q3, with `unknown` permitted for any unobtainable component.
 **Storage**: N/A. All artifacts are text files under `docs/tools/` and `specs/046-reconcile-truncation-docs/contracts/`.
 **Testing**: No `*.test.ts` additions. Constitution Principle II is N/A for this PR (docs-only, no MCP surface added/renamed/modified). Project memory rule: this repo holds unit tests only — manual probe captures land on canonical TC pages in the user's external test tracker, not as TCs under `specs/`. Re-run discipline is enforced by the inline summary + mirror file being sufficient to reproduce the documented behaviour against the current shipped version.
 **Target Platform**: Published reference documentation at `docs/tools/*.md`, consumed by human readers and LLM agents that treat the docs as a behavioural contract.
 **Project Type**: Docs-only feature within a TypeScript MCP-server library (`@marwansaab/obsidian-cli-mcp`).
 **Performance Goals**: N/A.
-**Constraints**: (a) Mirror discipline — the contracts/ file holds no facts not present on the canonical TC pages, no divergence from them; (b) one-line inline anchor budget per Q1; (c) cohort-divergence sentence carries no forward-pointer to the adjacent runtime-reconciliation BI per Q5 (stale-link risk on BI renumbering); (d) FR-012 probe gate — `search.md` doc-structure decision (single-block vs per-mode subsections) is locked only after the dual-mode v0.7.1 probe runs and lands on `[[TC-00306]]`.
+**Constraints**: (a) Mirror discipline — the contracts/ file holds no facts not present on the canonical TC pages, no divergence from them; (b) one-line inline anchor budget per Q1; (c) cohort-divergence sentence carries no forward-pointer to the adjacent runtime-reconciliation BI per Q5 (stale-link risk on BI renumbering); (d) FR-012 probe gate — `search.md` doc-structure decision (single-block vs per-mode subsections) is locked only after the dual-mode v0.7.5 probe runs and lands on `[[TC-00306]]`.
 **Scale/Scope**: 4 file diffs total — 2 doc edits (`search.md`, `context_search.md`), 1 new mirror file (`specs/046-reconcile-truncation-docs/contracts/truncation-direction-evidence.md`), 1 single-line forward-pointer insertion (`specs/042-close-audit-findings/contracts/truncation-direction-evidence.md`).
 
 ## Constitution Check
