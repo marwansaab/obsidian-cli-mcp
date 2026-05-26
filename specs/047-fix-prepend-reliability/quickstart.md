@@ -9,7 +9,7 @@ This quickstart targets Windows (the empirically reproduced failure host per [re
 ## Prerequisites
 
 - **Node.js**: 22.11 LTS or newer (per [Constitution Technical Standards](../../.specify/memory/constitution.md)).
-- **Obsidian desktop application**: a build with the `Obsidian Integrated CLI` plugin installed and the `obsidian` binary on PATH. The empirical baseline was `Obsidian CLI` v1.12.7-equivalent (per the BI-0017 bisect file).
+- **Obsidian desktop application**: a build with the `Obsidian Integrated CLI` plugin installed and the `obsidian` binary on PATH. The empirical baseline was `Obsidian CLI` v1.12.7-equivalent (observed during the prior BI-0017 active-mode investigation).
 - **Authorised test vault**: `TestVault-Obsidian-CLI-MCP` registered with the Obsidian CLI. Path discipline and scratch-subdir conventions live in [.memory/test-execution-instructions.md](../../.memory/test-execution-instructions.md). DO NOT run these probes against a production vault.
 - **Repo state**: branch `047-fix-prepend-reliability` checked out; dependencies installed via `npm install`.
 
@@ -18,6 +18,12 @@ This quickstart targets Windows (the empirically reproduced failure host per [re
 This step is for empirical baseline only. Skip if you trust the spec's failure-mode description.
 
 ```powershell
+# Confirm the v0.7.4 tag exists before relying on it.
+git tag --list 'v0.7.4'
+# If empty, the release was published without a git tag — look up the pre-fix commit hash instead via
+#   git log --oneline --grep '0.7.4'
+# and substitute that hash for `v0.7.4` in the checkout command below.
+
 # Build the wrapper from the v0.7.4 tag (or whichever pre-fix commit you want as baseline).
 git checkout v0.7.4 -- src/tools/prepend/
 npm run build
