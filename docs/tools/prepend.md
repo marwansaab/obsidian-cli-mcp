@@ -67,7 +67,7 @@ The wrapper resolves the focused note via a small `obsidian eval`. **NO opt-in f
 | `vault` | string ≥ 1 char | iff specific | Resolved via the lazy vault registry. Unknown vault → `VAULT_NOT_FOUND`. |
 | `file` | string ≥ 1 char (structurally safe; no `[[` / `]]`) | XOR with `path`, iff specific | Wikilink-form bare name. Pre-flight `obsidian file` TSV resolver canonicalises the name to a vault-relative path. |
 | `path` | string ≥ 1 char (structurally safe) | XOR with `file`, iff specific | Vault-relative path. Brackets are NOT a special case here (legal in note names). |
-| `content` | string, ≥ 1 char and ≤ 24576 UTF-16 code units | YES | Non-empty per FR-013; cap per FR-018 (NEW in BI-045 — driven by the Windows command-line maximum). Preserved BYTE-FOR-BYTE VERBATIM by upstream (FR-010a — no trim, no normalisation). |
+| `content` | string, ≥ 1 char and ≤ 3072 UTF-16 code units | YES | Non-empty per FR-013; cap per FR-008a (lowered from 24576 to 3072 in BI-047 — driven by an upstream Obsidian.com argv-IPC defect that hangs the host process around 4 KB of content on Windows; see *Size ceiling* below). Preserved BYTE-FOR-BYTE VERBATIM by upstream (FR-010a — no trim, no normalisation). |
 | `inline` | boolean | NO (default `false`) | When `true`, suppresses the wrapper-or-upstream-inserted separator (FR-007). |
 
 ## Frontmatter-aware insertion-point rule (FR-005a — DEFINING CONTRACT)
@@ -175,7 +175,7 @@ Full enumeration cross-referenced to [`specs/045-prepend-note/contracts/errors.m
 | Top-level `code` | `details.code` | Trigger |
 |---|---|---|
 | `VALIDATION_ERROR` | `CONTENT_EMPTY` (reused from BI-044) | Empty content (FR-013). |
-| `VALIDATION_ERROR` | `CONTENT_TOO_LARGE` (**NEW** in BI-045, single state) | Content > 24576 UTF-16 code units (FR-018). |
+| `VALIDATION_ERROR` | `CONTENT_TOO_LARGE` | Content > 3072 UTF-16 code units (FR-008a — lowered from 24576 in BI-047). |
 | `VALIDATION_ERROR` | n/a (Zod-issue-path channel) | Bracket-rejection (FR-001a), locator-mutex (FR-014), unknown-extra-field (FR-015), structural-path-safety, inline-type-mismatch. |
 | `CLI_REPORTED_ERROR` | `NOTE_NOT_FOUND` (reused) | Upstream's `prepend` (or the pre-flight `obsidian file` resolver) signalled the target does not exist. No file created (FR-012 / FR-016 / FR-025). |
 | `CLI_REPORTED_ERROR` | `EXTERNAL_EDITOR_CONFLICT` (reused) | Upstream signalled the target is held open by an external editor. `details.reason: "file-locked"`; `"unsaved-changes"` is reserved per BI-040 R6 for a future detection mechanism. File on disk unchanged. |
@@ -184,15 +184,19 @@ Full enumeration cross-referenced to [`specs/045-prepend-note/contracts/errors.m
 | `VAULT_NOT_FOUND` | n/a | Vault registry rejection. |
 | `ERR_NO_ACTIVE_FILE` | n/a | Active mode but no note focused (FR-004). |
 
-**Notable absence**: `FS_WRITE_FAILED` is NOT in the roster (cohort divergence from BI-044's fs-direct classification). The wrapper does not write the filesystem directly — filesystem-level upstream failures (disk full, read-only filesystem, permission denied) surface as generic `CLI_REPORTED_ERROR` with `details.stage: "prepend-cli"` and the operator inspects `details.stdout` / `details.stderr` for diagnosis. Future cohort work may identify stable upstream stderr patterns for these conditions and surface them as a `details.code: "FS_WRITE_FAILED"` sub-discriminator without breaking existing callers.
+**FS_WRITE_FAILED with `details.reason: "post-stat-byte-delta-zero"`** (added in BI-047): the wrapper stats the target file before and after the upstream `prepend` call. When upstream returns exit 0 but the on-disk byte count is unchanged (the silent-no-op failure mode the upstream's argv-IPC defect can produce), the wrapper raises `FS_WRITE_FAILED` with `details.reason: "post-stat-byte-delta-zero"`, `details.preCallSize`, `details.postCallSize`, and a descriptive message instead of emitting a misleading `bytes_written: 0` success envelope. Recovery: usually transient lock contention or upstream IPC degradation; retry once after confirming the file is not held open by an external editor. If the failure repeats at the same payload size, you have likely hit the cap-boundary IPC defect — call `write_note` instead.
 
-## Size ceiling (FR-017 + FR-018)
+Other filesystem-level upstream failures (disk full, read-only filesystem, permission denied) still surface as generic `CLI_REPORTED_ERROR` with `details.stage: "prepend-cli"` and the operator inspects `details.stdout` / `details.stderr` for diagnosis. Future cohort work may consolidate these under additional `FS_WRITE_FAILED` sub-discriminators.
 
-Per [research.md §R3](../../specs/045-prepend-note/research.md) and FR-018: **explicit cap of 24576 UTF-16 code units (24 KiB)**. Driven by the Windows command-line maximum (~32 767 chars per Microsoft's `CreateProcess` documentation) minus the cohort's worst-case argv envelope overhead, with ~24% headroom to absorb escape-sequence inflation and UTF-8 byte expansion.
+## Size ceiling (FR-008a — superseded FR-017 / FR-018)
 
-The cap is enforced at the schema layer via `z.string().max(24576)`; oversized payloads surface as `(VALIDATION_ERROR, CONTENT_TOO_LARGE)` BEFORE any spawn occurs (FR-023). Callers needing payloads above the cap use the full-replace [`write_note`](./write_note.md) surface, which is fs-direct and cap-free.
+**Explicit cap of 3072 UTF-16 code units** (lowered from 24576 in BI-047 per the empirical T0-R1 bisect probe). The cap is NOT driven by the Windows `CreateProcess` command-line maximum (which sits around ~32 767 chars — six orders larger than this cap). The cap is bounded by an **upstream Obsidian.com argv-IPC defect** that hangs the host process around 4 KB of content on Windows. Bisect data: 10/10 trials succeed at 3584 chars; 0/10 succeed at 4096 chars (calls SIGTERM after 12 s, then Obsidian's CLI-receiving state degrades until the GUI is restarted). The 3072 cap leaves ~1 KB of safety margin for the `vault=` / `path=` argv-overhead a real prepend call adds on top of the content payload.
 
-**SC-008 traceability**: the docs state the 24576 number; the schema enforces the same number via the shared `MAX_CONTENT_LENGTH` constant; therefore docs match enforcement — SC-008 satisfied.
+The defect is upstream-side (matches [forum thread 113867](https://forum.obsidian.md/t/cli-content-parameter-corrupts-multi-byte-utf-8-at-8-kb-chunk-boundary-silent/113867), no Obsidian-team response). **Chunking the content does not help** — the defect re-fires on each call regardless of cumulative size. Callers needing payloads above the cap MUST use the full-replace [`write_note`](./write_note.md) surface, which is fs-direct and cap-free.
+
+The cap is enforced at the schema layer via `z.string().max(3072)`; oversized payloads surface as `(VALIDATION_ERROR, CONTENT_TOO_LARGE)` BEFORE any spawn occurs (FR-023). The cap MAY be ratcheted back up in a future BI if upstream Obsidian repairs the argv-IPC defect.
+
+**SC-008 traceability**: the docs state the 3072 number; the schema enforces the same number via the shared `MAX_CONTENT_LENGTH` constant in `src/tools/prepend/schema.ts`; the tool description string interpolates the same constant — therefore docs match enforcement, SC-008 satisfied.
 
 ## Detection-capability caveats (FR-022 platform variance)
 
