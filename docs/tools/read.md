@@ -2,26 +2,24 @@
 
 ## Overview
 
-Read a note's raw text from an Obsidian vault. Returns the note's UTF-8 content
-verbatim from the CLI's stdout — no transformation, no normalization.
+Read a note's raw text from an Obsidian vault. Returns the note's UTF-8 content from the CLI's stdout.
 
-The tool supports two target modes:
+**Trailing-newline caveat:** the upstream CLI may append a synthetic trailing `\n` when the file on disk does not already end with one. A file containing exactly `"first"` (5 bytes on disk) is returned as `"first\n"` (6 chars). A file ending with `\n` is returned unchanged. No other transformations are applied — no trim, no line-ending normalisation, no BOM strip. If you need byte-exact verification of a file's on-disk content, use the `bytes_written` field returned by the fs-direct write tools (`append_note`, `patch_heading`, `patch_block`) rather than reading-and-comparing.
 
-- **specific** — name the vault explicitly and locate the note by either a
-  wikilink (`file`) or a vault-relative `path`. Use this when the agent has the
-  vault and locator already in hand.
-- **active** — read whatever note is currently focused in Obsidian's editor.
-  Use this when the agent wants to inspect what the user is working on without
-  asking for a vault or filename.
+## When to use this tool
 
-The discriminator is `target_mode`. The schema is the shared
-[target-mode primitive](../../specs/004-target-mode-schema/spec.md) — read
-adds zero tool-specific fields beyond what the primitive defines.
+| You want to | Reach for |
+|---|---|
+| Full text of a named note | `read` |
+| Just one heading's body, not the whole file | [`read_heading`](./read_heading.md) |
+| One frontmatter property value | [`read_property`](./read_property.md) |
+| List all properties in a vault | [`properties`](./properties.md) |
+| Search for content matching a phrase | [`search`](./search.md) or [`context_search`](./context_search.md) |
+| Read whatever note is currently focused in Obsidian | `read` with `target_mode: "active"` |
 
-## Input Schema
+## Input schema
 
-`read` consumes the discriminated union below. Every field is rejected at
-the boundary as `VALIDATION_ERROR` if the constraints fail.
+`read` consumes a discriminated union on `target_mode`. Every field is rejected at the boundary as `VALIDATION_ERROR` if the constraints fail.
 
 ### Specific mode
 
@@ -40,11 +38,7 @@ the boundary as `VALIDATION_ERROR` if the constraints fail.
 | `file` | string | exactly one of `file`/`path` | wikilink form (e.g. `"Recipe"`) |
 | `path` | string | exactly one of `file`/`path` | vault-relative path (e.g. `"Templates/Recipe.md"`) |
 
-The schema enforces "exactly one of `file` or `path`": providing both is rejected
-with two issues (one per locator field), and providing neither is rejected with
-a root-level issue. Empty-string locators (`file: ""` or `path: ""`) are NOT
-rejected at the schema layer — they forward to the CLI verbatim and surface as
-`CLI_NON_ZERO_EXIT` or `CLI_REPORTED_ERROR` if the CLI rejects them.
+The schema enforces "exactly one of `file` or `path`": providing both is rejected with two issues (one per locator field), and providing neither is rejected with a root-level issue. Empty-string locators (`file: ""` or `path: ""`) are NOT rejected at the schema layer — they forward to the CLI and surface as `CLI_NON_ZERO_EXIT` or `CLI_REPORTED_ERROR`.
 
 ### Active mode
 
@@ -56,12 +50,7 @@ rejected at the schema layer — they forward to the CLI verbatim and surface as
 |-------|------|----------|------------|
 | `target_mode` | literal `"active"` | YES | discriminator |
 
-`vault`, `file`, and `path` are FORBIDDEN in active mode and rejected at the
-schema layer (one issue per forbidden key found, even if the value is
-explicitly `undefined`).
-
-For the discriminator's full contract see the
-[target-mode primitive spec](../../specs/004-target-mode-schema/spec.md).
+`vault`, `file`, and `path` are FORBIDDEN in active mode and rejected at the schema layer (one issue per forbidden key found, even if the value is explicitly `undefined`).
 
 ## Output
 
@@ -71,29 +60,17 @@ For the discriminator's full contract see the
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `content` | string | The note's UTF-8 raw text, verbatim from `stdout`. Empty strings are valid (empty notes succeed). |
-
-The bridge does not trim, transform, normalize line endings, strip BOMs, or
-post-process the body in any way. Whatever the Obsidian CLI emits to stdout is
-what the agent receives.
+| `content` | string | The note's UTF-8 text from the CLI's `stdout`. The upstream CLI may append a synthetic trailing `\n` if the file did not already end with one. Empty strings are valid (empty notes succeed). |
 
 ## Errors
 
-All failure surfaces flow through `UpstreamError` per Constitution Principle IV.
-Read_note introduces zero new error codes — the failure surface is fully covered
-by codes already defined by the foundation features.
-
 | Code | When | Recovery |
 |------|------|----------|
-| `VALIDATION_ERROR` | The input failed `readNoteInputSchema` validation (missing `target_mode`, missing `vault` in specific mode, neither/both `file` and `path`, forbidden key in active mode, etc.). | Agent retries with corrected input. `details.issues` carries the per-issue path + message + zod code. |
-| `CLI_NON_ZERO_EXIT` | The Obsidian CLI exited with a non-zero code (note doesn't exist, vault unknown, etc.). | `details.{exitCode, signal, stdout, stderr}` carry the failure context. Agent inspects `stderr` for diagnostic output. |
-| `CLI_REPORTED_ERROR` | The CLI exited 0 but stdout (after `.trimStart()`) starts with `Error:` (and is NOT the more-specific `Error: no active file` case). | `details.message` (the first line of stdout) names the specific failure. |
-| `ERR_NO_ACTIVE_FILE` | `target_mode: "active"` was used but no note is focused in Obsidian. | Operator-side: open a note in the editor, OR call again with `target_mode: "specific"` and explicit `vault` + `file`/`path`. |
+| `VALIDATION_ERROR` | The input failed schema validation (missing `target_mode`, missing `vault` in specific mode, neither/both `file` and `path`, forbidden key in active mode, etc.). | Retry with corrected input. `details.issues` carries the per-issue path + message + zod code. |
+| `CLI_NON_ZERO_EXIT` | The Obsidian CLI exited with a non-zero code (note doesn't exist, vault unknown, etc.). | `details.{exitCode, signal, stdout, stderr}` carry the failure context. Inspect `stderr` for diagnostic output. |
+| `CLI_REPORTED_ERROR` | The CLI exited 0 but stdout starts with `Error:` (and is NOT the more-specific `Error: no active file` case). | `details.message` (the first line of stdout) names the specific failure. |
+| `ERR_NO_ACTIVE_FILE` | `target_mode: "active"` was used but no note is focused in Obsidian. | Ask the user to open a note in the editor, OR call again with `target_mode: "specific"` and explicit `vault` + `file`/`path`. |
 | `CLI_BINARY_NOT_FOUND` | The `obsidian` CLI binary is not on `PATH` and `OBSIDIAN_BIN` was unset/invalid. | Operator-side: install the Obsidian CLI, OR set `OBSIDIAN_BIN` to a valid path. |
-
-The canonical errors contract is at
-[specs/001-add-cli-bridge/contracts/errors.contract.md](../../specs/001-add-cli-bridge/contracts/errors.contract.md);
-read propagates the adapter's classification verbatim with no rewrites.
 
 ## Examples
 
@@ -106,10 +83,7 @@ read propagates the adapter's classification verbatim with no rewrites.
 }
 ```
 
-Spawns `obsidian read vault=MyVault file=Recipe`. Returns
-`{ "content": "<the raw text of Recipe.md>" }`.
-
-The TypeScript-flavoured form: `read({ target_mode: "specific", vault: "MyVault", file: "Recipe" })`.
+Returns `{ "content": "<the raw text of Recipe.md>" }`.
 
 ### Specific mode by vault-relative path
 
@@ -124,8 +98,7 @@ The TypeScript-flavoured form: `read({ target_mode: "specific", vault: "MyVault"
 }
 ```
 
-Spawns `obsidian read vault=MyVault path=Templates/Recipe.md`. Returns the
-template's body in `content`.
+Returns the template's body in `content`.
 
 ### Active mode
 
@@ -133,17 +106,4 @@ template's body in `content`.
 { "name": "read", "arguments": { "target_mode": "active" } }
 ```
 
-The TypeScript-flavoured form: `read({ target_mode: "active" })`. Spawns
-`obsidian read` with no key=value tokens. Returns the focused note's body, OR
-raises `ERR_NO_ACTIVE_FILE` if no note is focused.
-
-## References
-
-- [cli-adapter spec](../../specs/003-cli-adapter/spec.md) — the centralised
-  adapter `invokeCli` that read routes every call through.
-- [target-mode primitive spec](../../specs/004-target-mode-schema/spec.md) —
-  the shared discriminated union read re-exports as its input schema.
-- [help tool spec](../../specs/005-help-tool/spec.md) — the schema-stripping
-  contract and `help({ tool_name })` lookup that surfaces this document.
-- [errors contract](../../specs/001-add-cli-bridge/contracts/errors.contract.md)
-  — the canonical roster of `UpstreamError` codes.
+Returns the focused note's body, OR raises `ERR_NO_ACTIVE_FILE` if no note is focused.

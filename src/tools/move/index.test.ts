@@ -80,7 +80,7 @@ describe("createMoveTool — descriptor", () => {
 
 describe("docs/tools/move.md exists and is non-stub (Story 7 AC#4 / FR-014 / SC-006 LOAD-BEARING)", () => {
   // Case 4 — docs file resolves, non-stub, contains required error codes + examples + caveats + to-shape rules
-  it("docs file resolves via import.meta.url, has no TODO/stub marker, contains 4 error codes + active-mode CLI_REPORTED_ERROR note + to-shape rules + source-`.md`-guard explanation + rename-equivalence + ≥4 examples + link-rewriting caveat (Story 7 AC#4)", () => {
+  it("docs file resolves via import.meta.url, has no TODO/stub marker, contains 5 error codes + active-mode ERR_NO_ACTIVE_FILE note + to-shape rules + source-`.md`-guard explanation + rename-equivalence + ≥4 examples + link-rewriting caveat (Story 7 AC#4)", () => {
     const docsPath = resolve(
       dirname(fileURLToPath(import.meta.url)),
       "../../../docs/tools/move.md",
@@ -89,19 +89,20 @@ describe("docs/tools/move.md exists and is non-stub (Story 7 AC#4 / FR-014 / SC-
     const body = readFileSync(docsPath, "utf8");
     expect(body).not.toContain("<!-- TODO");
     expect(body).not.toContain("<!-- stub");
-    // (a) all four propagated error codes
+    // (a) all five propagated error codes (BI-047 classifier fix moved active-mode
+    // no-focused-note from CLI_REPORTED_ERROR to ERR_NO_ACTIVE_FILE)
     for (const code of [
       "VALIDATION_ERROR",
       "CLI_BINARY_NOT_FOUND",
       "CLI_NON_ZERO_EXIT",
       "CLI_REPORTED_ERROR",
+      "ERR_NO_ACTIVE_FILE",
     ]) {
       expect(body).toContain(code);
     }
-    // (b) explicit active-mode CLI_REPORTED_ERROR note (NOT ERR_NO_ACTIVE_FILE)
-    // with capital-N verbatim wording and BI-0027 attribution
+    // (b) explicit active-mode ERR_NO_ACTIVE_FILE note with the capital-N
+    // verbatim upstream wording the dispatch classifier matches on
     expect(body).toMatch(/Error: No active file\./);
-    expect(body).toContain("BI-0027");
     // (c) ≥4 worked example shapes — counted as ≥8 code fences (4 examples × 2 fences)
     const fenceCount = (body.match(/```/g) ?? []).length;
     expect(fenceCount).toBeGreaterThanOrEqual(8);

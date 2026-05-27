@@ -1,7 +1,8 @@
-// Original — no upstream. Tests for smart_connections_query input/output/eval-envelope schemas — flat schema (NO target_mode per FR-001/R4); query trim+min(1)+max(4000); vault optional+min(1); limit integer 1..100 default 20; total optional boolean; strict additionalProperties rejection; matchEntrySchema strict three-field contract (.md path / heading array / finite score); discriminated-union envelope with three error codes. 16+ cases per data-model.md inventory.
+// Original — no upstream. Tests for smart_connections_query input/output/eval-envelope schemas — flat schema (NO target_mode per FR-001/R4); query trim+min(1)+max(MAX_QUERY_LENGTH=2000, lowered from 4000 in tool-docs audit to stay below the upstream Obsidian.com argv-IPC defect at ~4 KB); vault optional+min(1); limit integer 1..100 default 20; total optional boolean; strict additionalProperties rejection; matchEntrySchema strict three-field contract (.md path / heading array / finite score); discriminated-union envelope with three error codes. 16+ cases per data-model.md inventory.
 import { expect, test, vi } from "vitest";
 
 import {
+  MAX_QUERY_LENGTH,
   SMART_CONNECTIONS_QUERY_EVAL_ERROR_CODES,
   matchEntrySchema,
   smartConnectionsQueryEvalResponseSchema,
@@ -53,16 +54,16 @@ test("query whitespace-only: rejected by trim().min(1)", () => {
   expect(dispatcherSpy).not.toHaveBeenCalled();
 });
 
-// (5) query at 4000 chars OK
-test("query at 4000-char boundary: parses OK", () => {
-  const query = "a".repeat(4000);
+// (5) query at MAX_QUERY_LENGTH chars OK
+test("query at MAX_QUERY_LENGTH-char boundary: parses OK", () => {
+  const query = "a".repeat(MAX_QUERY_LENGTH);
   const result = smartConnectionsQueryInputSchema.safeParse({ query });
   expect(result.success).toBe(true);
 });
 
-// (6) query at 4001 chars rejected
-test("query 4001-char rejected (above max 4000)", () => {
-  const query = "a".repeat(4001);
+// (6) query at MAX_QUERY_LENGTH+1 chars rejected
+test("query MAX_QUERY_LENGTH+1-char rejected (above max)", () => {
+  const query = "a".repeat(MAX_QUERY_LENGTH + 1);
   const dispatcherSpy = vi.fn();
   const result = smartConnectionsQueryInputSchema.safeParse({ query });
   expect(result.success).toBe(false);

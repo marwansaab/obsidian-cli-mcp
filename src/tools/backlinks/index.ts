@@ -8,7 +8,26 @@ import type { RegisteredTool } from "../_shared.js";
 export const BACKLINKS_TOOL_NAME = "backlinks";
 
 export const BACKLINKS_DESCRIPTION =
-  "Return the flat ordered list of every source note that references a target Markdown note (returns { count, backlinks: [{ source, count? }], truncated? }) — link-graph primitive that replaces \"vault-wide body-text search\" for the inbound-reference case at one to two orders of magnitude less token cost. Inverse of the outgoing-links sibling `links`; together the two surfaces give complete 1-hop link-graph reads from any note. Discriminated by target_mode. Specific mode: target_mode + vault + exactly one of file/path. Active mode: target_mode only (operates on the focused note in the focused vault). Setting with_counts:true decorates each per-source entry with an integer count aggregating all references from that source. Setting total:true populates count and returns backlinks:[] for a token-economical pre-flight read; per the 2026-05-17 clarification, total:true BYPASSES the implicit 1000-source cap and reports the full pre-cap source-note count. The optional limit field (range 1..10000) overrides the implicit cap; when the underlying source set exceeds the applied cap (in entry-list modes only), the response includes truncated:true. Source corpus is restricted to .md files only (per the 2026-05-17 clarification); .canvas/.base/plugin-config/attachment sources are excluded even if upstream classifies them as link-carrying. Self-references are INCLUDED in the listing (matching Obsidian's Backlinks pane semantic). Aliased wikilinks are attributed to the resolved target, not the alias text. Frontmatter-declared references contribute uniformly with body references. Code-block-only references are excluded (defers to the host's link parser). Non-Markdown TARGET locators (.canvas, .pdf, attachments) are rejected as CLI_REPORTED_ERROR. Unknown vault display names emit a structured CLI_REPORTED_ERROR via the inherited cli-adapter classifier (multi-vault callers must supply a registered name; no silent routing to focused vault). Call help({ tool_name: \"backlinks\" }) for full parameter docs, the with_counts / total / capped / truncated examples, the self-reference note, the frontmatter-inclusion note, the multi-vault structured-error note, the cross-pointer to the outgoing-links sibling (links), and the error-code roster.";
+  `Return the flat ordered list of every source note that references a target Markdown note as a typed envelope \`{ count, backlinks: [{ source, count? }], truncated? }\`. Replaces "vault-wide body-text search for the target's name" at one to two orders of magnitude less token cost.
+
+Inverse of \`links\` (which returns outgoing references from a single note); together the two surfaces give complete 1-hop link-graph reads.
+
+Targeting: \`target_mode: "specific"\` + \`vault\` + EXACTLY ONE of \`file\` (wikilink) or \`path\` (vault-relative). Or \`target_mode: "active"\` for the currently-focused note.
+
+Options:
+- \`with_counts: true\` — decorates each per-source entry with an integer \`count\` aggregating all references from that source.
+- \`total: true\` — count-only mode (\`backlinks: []\`). BYPASSES the implicit 1000-source cap and reports the full pre-cap count. Use for hub notes referenced by thousands of sources where only the headline number matters.
+- \`limit\` (integer 1..10000) — overrides the implicit 1000-source cap on \`backlinks.length\` (entry-list modes only).
+
+When the underlying source set exceeds the applied cap (in entry-list modes), the response includes \`truncated: true\` and carries the FIRST cap-many entries (sorted by source path UTF-16 ascending).
+
+Source corpus is restricted to \`.md\` files only — \`.canvas\` / \`.base\` / plugin-config / attachment sources are excluded even if Obsidian's metadata cache lists them. Self-references ARE included (matching Obsidian's Backlinks pane). Aliased wikilinks attribute to the resolved target, not the alias text. Frontmatter-declared references contribute uniformly with body references. Code-block-only references are excluded (Obsidian's link parser does not extract them).
+
+Cross-folder reach: when the target's basename is unique vault-wide, bare-basename wikilinks (\`[[<basename>]]\`) from any folder resolve to the target. When two notes share a case-folded basename, Obsidian's resolver picks one canonical destination and the other receives zero bare-basename backlinks — use folder-prefixed wikilinks to disambiguate.
+
+Non-Markdown target locators (\`.canvas\`, \`.pdf\`, attachments) surface as \`CLI_REPORTED_ERROR\` with \`details.code: "NOT_MARKDOWN"\`. Unknown vault display names surface as \`CLI_REPORTED_ERROR\` with \`details.message: "Vault not found."\` (no silent routing to focused vault).
+
+Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\`, \`CLI_REPORTED_ERROR\` (with sub-discriminators \`VAULT_NOT_FOUND\` / \`FILE_NOT_FOUND\` / \`NOT_MARKDOWN\`), \`ERR_NO_ACTIVE_FILE\`, \`CLI_NON_ZERO_EXIT\`, \`CLI_BINARY_NOT_FOUND\`. Call \`help({ tool_name: "backlinks" })\` for worked examples (with_counts / total / capped / truncated), the self-reference + frontmatter-inclusion semantics, and the full error roster with recovery hints.`;
 
 export type RegisterDeps = ExecuteDeps;
 

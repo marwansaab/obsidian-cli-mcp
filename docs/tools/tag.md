@@ -235,23 +235,6 @@ zero-new-codes streak).
 | `CLI_DISPATCH_CAP_KILL` | Output exceeded the 10 MiB cap (rare for tag-index walks). | Use `total: true`, OR reduce vault scope. |
 | `CLI_DISPATCH_KILL` | Dispatch killed externally (signal / shutdown). | Retry. |
 
-### Dual validation envelope (BI-042 cohort acknowledgement)
-
-Field-level input rejections produce two distinct wire envelopes depending on the MCP client class:
-
-| Constraint family | Wrapped envelope (`UpstreamError`) | MCP transport envelope |
-|---|---|---|
-| String `min(1)` / `max(220)` on `tag`; boolean type on `total`; `vault` non-empty | `VALIDATION_ERROR` with `details.issues` — fires when the offending value reaches the wrapper (Cowork pathway, or strict-rich clients that forward un-validated input). | `-32602 Invalid Params` with a zod-issue body — fires when the strict-rich client validates against the published `inputSchema` and rejects before forwarding. |
-| Custom `superRefine` (leading-hash strip, empty hierarchical segments, post-strip length ≤ 200) | `VALIDATION_ERROR` — wrapped envelope only; the constraint does not render into the published JSON Schema. | Not produced — strict-rich clients pass through. |
-| Unknown top-level keys (`additionalProperties: false`) | `VALIDATION_ERROR(unrecognized_keys)` — strict-rich pathway only; Cowork strips client-side and never reaches the wrapper. | `-32602` — when the strict-rich client validates the published schema client-side. |
-
-The dual envelope is structurally inherent to the wrapper + MCP transport architecture and is uniform across the cohort (`search`, `context_search`, `pattern_search`, `find_and_replace`, `find_by_property`, `backlinks`, `query_base`, `tag`). See [BI-042 dual-envelope evidence](../../specs/042-close-audit-findings/contracts/dual-envelope-evidence.md) and [BI-042 dual-envelope contract](../../specs/042-close-audit-findings/contracts/dual-validation-envelope-roster.md).
-
-The canonical errors contract is at
-[specs/001-add-cli-bridge/contracts/errors.contract.md](../../specs/001-add-cli-bridge/contracts/errors.contract.md);
-`tag` propagates the adapter's classification verbatim with no
-rewrites.
-
 ## Inherited limitations
 
 ### Multi-vault basename ambiguity
@@ -305,34 +288,9 @@ Obsidian's metadata cache only indexes `.md` files. Tags in Canvas /
 PDF annotations / attachments are NOT surfaced. The wrapper guards
 this explicitly via an in-eval `path.endsWith('.md')` filter.
 
-### Why `eval` not native `tag`?
+### Latency
 
-Live-probe finding F3 (2026-05-15) surfaced three contract mismatches
-with the native `obsidian tag name=<>` subcommand:
-1. Plain-text-only output (no `format=json` support);
-2. `Error: Tag not found.` on zero-match (the wrapper contract is
-   `{count: 0, paths: []}` — never an error);
-3. No child-tag subsumption (querying `project` does NOT return
-   `project/alpha`-tagged notes).
-
-The wrapper routes through `eval` and walks the metadata cache
-directly to deliver the spec-locked contract.
-
-## Single-call architecture
-
-Each MCP request fires exactly ONE `invokeCli` invocation (default
-mode) OR up to TWO (when the closed-vault stage-0 detector fires).
-End-to-end latency is approximately 1× a single-call typed tool
-(~50–200 ms typical against a 1 000-note vault; ≤1 s against a
-10 000-note vault per SC-004).
-
-## Anti-injection guarantee
-
-User input (`tag`) flows through a base64-encoded JSON payload
-inside a frozen JS template. The base64 alphabet `[A-Za-z0-9+/=]`
-cannot break out of the JS string literal. Parity with the rest of
-the eval-driven typed-tool cohort (find_by_property / read_heading /
-links / smart_connections_similar / smart_connections_query).
+Approximately 50–200 ms typical against a 1 000-note vault; ≤1 s against a 10 000-note vault. The closed-vault recovery path may add one retry round-trip.
 
 ## Related tools
 
@@ -345,24 +303,3 @@ links / smart_connections_similar / smart_connections_query).
 - [outline](./outline.md) — heading structure of a single note.
 - [obsidian_exec](./obsidian_exec.md) — freeform escape hatch for
   `tag verbose` plain-text renderings.
-
-## References
-
-- [028-list-tagged-files spec](../../specs/028-list-tagged-files/spec.md)
-  — feature spec, clarifications session 2026-05-15 (Q1 case
-  case-equivalence; Q2 charset pass-through; Q3 frontmatter shape
-  defer-to-upstream; Q4 leading-`#` strip; Q5 byte-asc sort);
-  plan-stage amendments (amendment 1 case-insensitive wrapper-side
-  lower-fold; amendment 2 architecture pivot to eval).
-- [028-list-tagged-files research](../../specs/028-list-tagged-files/research.md)
-  — Phase 0 decisions R1..R15 + plan-stage findings F1..F8.
-- [028-list-tagged-files data-model](../../specs/028-list-tagged-files/data-model.md)
-  — schema shapes, frozen JS template, per-tool invariants, test
-  inventory (53 cases).
-- [errors contract](../../specs/001-add-cli-bridge/contracts/errors.contract.md)
-  — canonical roster of `UpstreamError` codes.
-- [ADR-010 Typed Tool Names Mirror Upstream CLI Subcommand](../../.decisions/ADR-010%20-%20Typed%20Tool%20Names%20Mirror%20Upstream%20CLI%20Subcommand.md)
-  — enforces the `tag` name.
-- [help tool spec](../../specs/005-help-tool/spec.md) — the
-  schema-stripping contract and `help({ tool_name })` lookup that
-  surfaces this document.

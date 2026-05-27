@@ -1,9 +1,19 @@
 // Original — no upstream. smart_connections_query input/output/eval-envelope schemas — flat schema (NO target_mode per FR-001/R4); strict per-entry matchEntrySchema locks the exhaustive three-field public contract {path, headingPath, score} (block-level per BI-026 R7 inheritance); discriminated-union eval-envelope wire format with 3 error codes (vs BI-026's 6) — the two NOT_READY sub-discriminators (`api-missing` / `embed-failed`) ride on separate envelope codes for parse-time discrimination; handler unflattens to `details.code='SMART_CONNECTIONS_NOT_READY'` + `details.reason='<sub>'` per ADR-015.
 import { z } from "zod";
 
+// Query cap lowered from 4000 to 2000 to stay safely below the upstream
+// Obsidian.com argv-IPC defect that hangs the host process around 4 KB of
+// content on Windows. The query is base64-encoded and embedded in an `eval`
+// JS template at request time; the encoded payload plus the template body
+// pushes the total argv size into the unsafe zone well before the raw query
+// reaches 4000 chars. 2000 chars is the empirical safe ceiling that keeps the
+// rendered argv comfortably under the upstream limit and matches the same
+// defensive-cap pattern used for `prepend`.
+export const MAX_QUERY_LENGTH = 2000;
+
 export const smartConnectionsQueryInputSchema = z
   .object({
-    query: z.string().trim().min(1).max(4000),
+    query: z.string().trim().min(1).max(MAX_QUERY_LENGTH),
     vault: z.string().min(1).optional(),
     limit: z.number().int().min(1).max(100).default(20),
     total: z.boolean().optional(),
