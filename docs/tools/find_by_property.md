@@ -2,15 +2,9 @@
 
 ## Overview
 
-Find every note in an Obsidian vault whose named frontmatter property
-matches a given value. Returns `{ count, paths }` — a JSON envelope
-carrying the integer match count and the sorted vault-relative paths of
-every match (for example, `Inbox/Notes.md`). Inverse direction of
-[`read_property`](./read_property.md): where `read_property` goes
-file → value (given a path, return the property's value), this tool goes
-value → file. Replaces the agent's "guess the path from convention"
-sequence (1–5 calls per identifier resolution) with a single typed call.
-Use [`obsidian_exec`](./obsidian_exec.md) only for unwrapped subcommands.
+Find every note in an Obsidian vault whose named frontmatter property matches a given value. Returns `{ count, paths }` — a JSON envelope carrying the integer match count and the sorted vault-relative paths of every match (for example, `Inbox/Notes.md`). Inverse direction of [`read_property`](./read_property.md): where `read_property` goes file → value (given a path, return the property's value), this tool goes value → file.
+
+> **NOTE — the property-name parameter is `property:`, not `name:`** (diverges from sibling [`read_property`](./read_property.md) / [`set_property`](./set_property.md) which use `name:`). A call passing `name:` instead fails with `VALIDATION_ERROR`.
 
 Unlike the other typed tools, `find_by_property` is **inherently
 vault-wide**: it has no notion of an "active file" or "single named
@@ -64,39 +58,9 @@ These behaviours are captured in
 findings F1–F8 + the T0 Live-CLI Capture 2026-05-09) and are observable
 by callers — agents should plan for them.
 
-### Single-call architecture
+### Latency
 
-The wrapper issues exactly **one** CLI invocation per `find_by_property`
-request: `obsidian [vault=<v>] eval code=<rendered-js>`. The frozen JS
-template walks Obsidian's in-memory `app.metadataCache.fileCache`,
-applies the matching logic in-process, and returns one
-`JSON.stringify({count, paths})` envelope. End-to-end latency is
-approximately 200 ms per call. The single-in-flight queue serialises all
-CLI invocations.
-
-### `eval`-as-CLI-entry-point stability concern
-
-There is no native find-by-property subcommand in the Obsidian CLI;
-`find_by_property` is implemented atop the developer-section `eval`
-subcommand. The wrapper reaches into Obsidian's internal
-`app.metadataCache.fileCache` + `app.metadataCache.metadataCache`
-structure. Future Obsidian updates may surface as test failures rather
-than silent drift; the wrapper's two-stage response parse
-(`JSON.parse` then output-schema validation) is the structural
-backstop — neither stage silently coerces.
-
-### Anti-injection structural guarantee
-
-User-supplied `property`, `value`, and `folder` flow through
-`JSON.stringify` → `Buffer.from(...).toString("base64")` → the frozen JS
-template's `atob('<base64>')` + `JSON.parse` chain. The JS template
-itself is a frozen string constant; the only insertion is a base64
-payload whose alphabet (`[A-Za-z0-9+/=]`) is structurally safe inside any
-JS string literal. No matter what bytes the user supplies, the rendered
-`code=<...>` argv contains exactly the frozen JS template + a base64
-string. There is no path for user input to escape into the JS source.
-Most callers do not need to think about this — surfacing it for
-security-conscious reviewers.
+Approximately 200 ms per call. All invocations serialise through the wrapper's single-in-flight queue.
 
 ### Multi-vault default ambiguity
 
@@ -201,22 +165,6 @@ Principle IV. `find_by_property` introduces zero new error codes.
 | `CLI_REPORTED_ERROR` | The CLI exited 0 but reported a failure in-band — the unknown-vault response (`Vault not found.`) was matched by the cli-adapter's R5 inspection, OR the eval response was unparseable JSON (`details.stage = "json-parse"`), OR the eval response shape failed the output-schema check (`details.stage = "schema-parse"`), OR the defensive `count !== paths.length` invariant tripped (`details.stage = "count-paths-mismatch"`). | `details.message` and `details.stage` (when the wrapper added one) name the specific failure. |
 | `CLI_BINARY_NOT_FOUND` | The `obsidian` CLI binary is not on `PATH` and `OBSIDIAN_BIN` was unset/invalid. | Operator-side: install the Obsidian CLI, OR set `OBSIDIAN_BIN` to a valid path. |
 
-### Dual validation envelope (BI-042 cohort acknowledgement)
-
-Field-level input rejections produce two distinct wire envelopes depending on the MCP client class:
-
-| Constraint family | Wrapped envelope (`UpstreamError`) | MCP transport envelope |
-|---|---|---|
-| String `min(1)` / non-empty constraints on `property`, `vault`; discriminated-union `value` typing | `VALIDATION_ERROR` with `details.issues` — fires when the offending value reaches the wrapper (Cowork pathway, or strict-rich clients that forward un-validated input). | `-32602 Invalid Params` with a zod-issue body — fires when the strict-rich client validates against the published `inputSchema` and rejects before forwarding. |
-| Custom `superRefine` (e.g. `folder` path-traversal shape; `value` array paired with default `arrayMatch: true`) | `VALIDATION_ERROR` — wrapped envelope only; the constraint does not render into the published JSON Schema. | Not produced — strict-rich clients pass through. |
-| Unknown top-level keys (`additionalProperties: false`) | `VALIDATION_ERROR(unrecognized_keys)` — strict-rich pathway only; Cowork strips client-side and never reaches the wrapper. | `-32602` — when the strict-rich client validates the published schema client-side. |
-
-The dual envelope is structurally inherent to the wrapper + MCP transport architecture and is uniform across the cohort (`search`, `context_search`, `pattern_search`, `find_and_replace`, `find_by_property`, `backlinks`, `query_base`, `tag`). See [BI-042 dual-envelope evidence](../../specs/042-close-audit-findings/contracts/dual-envelope-evidence.md) and [BI-042 dual-envelope contract](../../specs/042-close-audit-findings/contracts/dual-validation-envelope-roster.md).
-
-The canonical errors contract is at
-[specs/001-add-cli-bridge/contracts/errors.contract.md](../../specs/001-add-cli-bridge/contracts/errors.contract.md);
-`find_by_property` propagates the adapter's classification verbatim with
-no rewrites. **No new codes** are introduced.
 
 ## Examples
 

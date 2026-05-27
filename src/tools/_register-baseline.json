@@ -35,7 +35,7 @@
     },
     {
       "name": "find_by_property",
-      "descriptionFingerprint": "5b9757c43c745f3de531730d0411eb9901cc83433313c97ac680bf7caebec7ba",
+      "descriptionFingerprint": "359143ab15513ac343f1b5430680d710869e46f112624ad723502a894321d15b",
       "schemaFingerprint": "8e88ec7194ac91142e0bd337fabc926edb1de76cab8c77b654d398c699816835"
     },
     {
@@ -65,12 +65,12 @@
     },
     {
       "name": "patch_block",
-      "descriptionFingerprint": "36302b0777b4e684f7b824b23a0dbf86324435faed7c2a88986d0954c3cf328f",
+      "descriptionFingerprint": "53c3a7c89f8221fbd1c185052f3f81894a02fdc5df7ae670fab1b818444ddf28",
       "schemaFingerprint": "cd18557fba2f2dd70e87664ba7d7d7da39ec168a87cc3901b5bff0af2c051673"
     },
     {
       "name": "patch_heading",
-      "descriptionFingerprint": "c1ebd7883556d179ac03cd17ace6f8e181323720ff8ef296ee06c6869f63854a",
+      "descriptionFingerprint": "925e881ced168ce607ccd57570ee26a4e99b81ac4dc4b714531060877c2a86ca",
       "schemaFingerprint": "9439a5d9fed62aa30a442c2111416d4e0abdce3e1531bae492ad27b608b05b5d"
     },
     {
@@ -125,7 +125,7 @@
     },
     {
       "name": "set_property",
-      "descriptionFingerprint": "24a6da37b421391fca3ac33627904f90b9591c83cced20639f006a58e7cbf510",
+      "descriptionFingerprint": "4e3bc193880ec6f47bb54193d8342709270552104063eda49b983e6d24d56356",
       "schemaFingerprint": "d8308360fc90c594c8ebfd48bc3bec6070855a2241cb024f8e0e65205727f4ed"
     },
     {
