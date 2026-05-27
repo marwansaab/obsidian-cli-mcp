@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "051-tool-docs-rewrite-wave-2d",
+  "generatedFromBranch": "052-fix-residual-description-tokens",
   "generatedAt": "2026-05-27",
   "tools": [
     {
@@ -90,12 +90,12 @@
     },
     {
       "name": "properties",
-      "descriptionFingerprint": "afc6c443191d2ce50e52ea339cc83bf639633307852d7f4f0633374e9176c66e",
+      "descriptionFingerprint": "d0bc847648d7032ab6d07336a44a75309de80e4701f36d8c6d2341f0c6173701",
       "schemaFingerprint": "d3cee60e0d9118db2cdcd02241f2150141d3003d116e1090a89bf5685a55a70d"
     },
     {
       "name": "query_base",
-      "descriptionFingerprint": "ef2d73b7b22651615faf08cb777b79f4ac776d10ca58acbf3fabd9a347f46593",
+      "descriptionFingerprint": "7877c8478c90ebd7a7d1f97b6d62be87f153ec63e94c4b0df8f79302fa11c488",
       "schemaFingerprint": "a7b575adedc1ca0a698f7f0bbceaf428d10bd5bb917c7335e999ceefd75364d2"
     },
     {

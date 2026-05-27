@@ -8,7 +8,7 @@ import type { RegisteredTool } from "../_shared.js";
 export const QUERY_BASE_TOOL_NAME = "query_base";
 
 export const QUERY_BASE_DESCRIPTION =
-  `Run a named view from an Obsidian Bases (\`.base\`) file and return its matched rows as a structured JSON envelope. First member of the Bases-family cohort (siblings: \`bases\` to enumerate \`.base\` files, \`views_base\` to enumerate views inside one, \`create_base\` to create a new one).
+  `Run a named view from an Obsidian Bases (\`.base\`) file and return its matched rows as a structured JSON envelope. Siblings in the Bases family: \`bases\` (enumerate \`.base\` files), \`views_base\` (enumerate views inside one), \`create_base\` (create a new one).
 
 Required \`base_path\` (string, 1..1000 chars): vault-relative path to the \`.base\` file; MUST end with \`.base\` (case-insensitive on the extension). Required \`view_name\` (string, 1..1000 chars): exact case-sensitive match — no trim, no fuzzy. Optional \`vault\` (string): routes to a named vault; omitted routes to the focused vault.
 
