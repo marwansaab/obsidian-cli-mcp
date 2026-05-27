@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "049-tool-docs-rewrite",
+  "generatedFromBranch": "051-tool-docs-rewrite-wave-2d",
   "generatedAt": "2026-05-27",
   "tools": [
     {
@@ -145,7 +145,7 @@
     },
     {
       "name": "write_note",
-      "descriptionFingerprint": "8e9eddbd1d9414b447547154c3896b44590e32bead4f797065b0e492305f8640",
+      "descriptionFingerprint": "03c22f88d75f07959b0e519b31aa52faf45fda1091ce9287d0330493cb03de5a",
       "schemaFingerprint": "c314ed0eea4a8b9ba10007e1039c7b197af720fe95ce836db74745dd326acbc6"
     }
   ]
