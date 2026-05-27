@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "045-prepend-note",
-  "generatedAt": "2026-05-26",
+  "generatedFromBranch": "047-fix-prepend-reliability",
+  "generatedAt": "2026-05-27",
   "tools": [
     {
       "name": "append_note",
@@ -85,8 +85,8 @@
     },
     {
       "name": "prepend",
-      "descriptionFingerprint": "e498fe4bb0f7fe1e8721dd58a4af2d42bea243e59d0cebd941c4b41b7adeace7",
-      "schemaFingerprint": "57db35270ed11f374009e5b38b61d37c27f9e89e26edf50c1b592c99f0965c70"
+      "descriptionFingerprint": "354e6d4bfc9c37b0e24cecd9d8c01a3cf9a9438d31372ed6f91776fa0a9acb6a",
+      "schemaFingerprint": "9679db335eca46f88f5321604f7f428f55871f4f9e151c4ee2d2ba2f31776a8f"
     },
     {
       "name": "properties",

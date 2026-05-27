@@ -1,4 +1,6 @@
 // Original — no upstream. prepend schema-validation cohort per BI-045 / Principle II — happy paths × target-mode primitive interaction × CONTENT_EMPTY (FR-013) × CONTENT_TOO_LARGE (FR-018, NEW) × wikilink-form bracket rejection (FR-001a, single-bracket acceptance) × locator-mutex × unknown-extra-field × inline boolean × output strict-shape.
+import { performance } from "node:perf_hooks";
+
 import { describe, expect, it } from "vitest";
 
 import { MAX_CONTENT_LENGTH, prependInputSchema, prependOutputSchema } from "./schema.js";
@@ -83,7 +85,7 @@ describe("prependInputSchema — CONTENT_EMPTY (FR-013)", () => {
 });
 
 describe("prependInputSchema — CONTENT_TOO_LARGE (FR-018, NEW in BI-045)", () => {
-  it("content one char over cap → Zod too_big issue with maximum 24576", () => {
+  it("content one char over cap → Zod too_big issue with maximum = MAX_CONTENT_LENGTH", () => {
     const parsed = prependInputSchema.safeParse({
       target_mode: "specific",
       vault: "Knowledge",
@@ -128,8 +130,8 @@ describe("prependInputSchema — CONTENT_TOO_LARGE (FR-018, NEW in BI-045)", () 
     expect(parsed.success).toBe(true);
   });
 
-  it("multi-byte content exactly at cap (24576 UTF-16 code units of emojis) → ACCEPTED", () => {
-    // Each "🚀" is 2 UTF-16 code units (surrogate pair). 12288 * 2 = 24576.
+  it("multi-byte content exactly at cap (MAX_CONTENT_LENGTH UTF-16 code units of emojis) → ACCEPTED", () => {
+    // Each "🚀" is 2 UTF-16 code units (surrogate pair). MAX_CONTENT_LENGTH / 2 emojis = MAX_CONTENT_LENGTH code units.
     const parsed = prependInputSchema.safeParse({
       target_mode: "specific",
       vault: "Knowledge",
@@ -147,6 +149,28 @@ describe("prependInputSchema — CONTENT_TOO_LARGE (FR-018, NEW in BI-045)", () 
       content: "🚀".repeat(MAX_CONTENT_LENGTH / 2 + 1),
     });
     expect(parsed.success).toBe(false);
+  });
+
+  it("BI-047 US4 SC-003 — over-cap content rejected within 1 second (wall-clock)", () => {
+    // Per BI-047 SC-003 / FR-002: the schema-boundary rejection MUST complete
+    // well under 1 second. Schema parse on an over-cap string is a
+    // synchronous Zod check that completes in microseconds; this test pins
+    // the latency budget explicitly so a future refactor that introduces
+    // accidental O(n^2) behaviour at the cap boundary surfaces here.
+    const content = "x".repeat(MAX_CONTENT_LENGTH + 1);
+    const start = performance.now();
+    const parsed = prependInputSchema.safeParse({
+      target_mode: "specific",
+      vault: "Knowledge",
+      path: "n.md",
+      content,
+    });
+    const elapsedMs = performance.now() - start;
+    expect(parsed.success).toBe(false);
+    if (parsed.success) return;
+    const issue = parsed.error.issues.find((i) => i.path.join(".") === "content");
+    expect(issue?.code).toBe("too_big");
+    expect(elapsedMs).toBeLessThan(1_000);
   });
 });
 

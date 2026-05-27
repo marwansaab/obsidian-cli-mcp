@@ -306,6 +306,26 @@ export async function executePrepend(
   const postCallSize = (await fs.stat(absPath)).size;
   const bytesWritten = postCallSize - preCallSize;
 
+  // BI-047 / FR-003 — post-stat byte-delta guard. Upstream returned exit 0
+  // but the on-disk byte count is unchanged (or smaller): the write did not
+  // land. Surface as FS_WRITE_FAILED with the post-stat-byte-delta-zero
+  // sub-discriminator (ADR-015) rather than emitting a misleading success
+  // envelope with bytes_written: 0 (the FR-003 anti-pattern).
+  if (bytesWritten <= 0) {
+    throw new UpstreamError({
+      code: "FS_WRITE_FAILED",
+      cause: null,
+      details: {
+        reason: "post-stat-byte-delta-zero",
+        path: relPath,
+        vault: vaultDisplayName,
+        preCallSize,
+        postCallSize,
+      },
+      message: `prepend: upstream returned success but on-disk byte count is unchanged (pre=${preCallSize}, post=${postCallSize}); the write did not land. Possible silent-no-op from upstream — retry after confirming the target file is not held open by an external editor.`,
+    });
+  }
+
   return {
     path: relPath,
     vault: vaultDisplayName,

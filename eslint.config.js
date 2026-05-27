@@ -13,6 +13,7 @@ export default [
       "dist/**",
       "coverage/**",
       "node_modules/**",
+      "**/.scratch/**",
       "eslint.config.js",
       "vitest.config.ts",
       "tsup.config.ts",
