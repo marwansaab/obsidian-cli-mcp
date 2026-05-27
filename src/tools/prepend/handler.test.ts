@@ -551,19 +551,42 @@ describe("US2 schema-layer errors via registerTool boundary translator", () => {
     expect(issues.some((i) => i.code === "too_small" && i.path[0] === "content")).toBe(true);
   });
 
-  test("CONTENT_TOO_LARGE (FR-018) → VALIDATION_ERROR via registerTool", async () => {
+  test("CONTENT_TOO_LARGE: cap+1 → VALIDATION_ERROR with top-level details.code discriminator + contentLength + maxLength", async () => {
     const tool = buildTool();
+    const overByOne = MAX_CONTENT_LENGTH + 1;
     const result = await tool.handler({
       target_mode: "specific",
       vault: "TestVault",
       path: "n.md",
-      content: "x".repeat(MAX_CONTENT_LENGTH + 1),
+      content: "x".repeat(overByOne),
     });
     expect("isError" in result && result.isError).toBe(true);
     const payload = JSON.parse(result.content[0]!.text);
     expect(payload.code).toBe("VALIDATION_ERROR");
-    const issues = payload.details.issues as Array<{ code: string; path: string[] }>;
-    expect(issues.some((i) => i.code === "too_big" && i.path[0] === "content")).toBe(true);
+    expect(payload.details.code).toBe("CONTENT_TOO_LARGE");
+    expect(payload.details.contentLength).toBe(overByOne);
+    expect(payload.details.maxLength).toBe(MAX_CONTENT_LENGTH);
+    // No nested issues array — the discriminator carries everything.
+    expect(payload.details.issues).toBeUndefined();
+  });
+
+  test("CONTENT_TOO_LARGE: cap+N (many multiples over) produces same top-level discriminator", async () => {
+    const tool = buildTool();
+    const wayOver = MAX_CONTENT_LENGTH * 10;
+    const result = await tool.handler({
+      target_mode: "specific",
+      vault: "TestVault",
+      path: "n.md",
+      content: "x".repeat(wayOver),
+    });
+    expect("isError" in result && result.isError).toBe(true);
+    const payload = JSON.parse(result.content[0]!.text);
+    // Discriminator is STABLE across over-cap magnitudes — boundary+1 and
+    // boundary+N produce the same top-level shape.
+    expect(payload.code).toBe("VALIDATION_ERROR");
+    expect(payload.details.code).toBe("CONTENT_TOO_LARGE");
+    expect(payload.details.contentLength).toBe(wayOver);
+    expect(payload.details.maxLength).toBe(MAX_CONTENT_LENGTH);
   });
 
   test("CONTENT_TOO_LARGE boundary: exactly MAX_CONTENT_LENGTH → handler reached (no validation error)", async () => {
