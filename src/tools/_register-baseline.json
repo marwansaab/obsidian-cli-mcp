@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "047-fix-prepend-reliability",
+  "generatedFromBranch": "049-tool-docs-rewrite",
   "generatedAt": "2026-05-27",
   "tools": [
     {
@@ -130,8 +130,8 @@
     },
     {
       "name": "smart_connections_query",
-      "descriptionFingerprint": "af805ad06565ecbdf4ce789a089fd9665d32d368c93af593c6af8041c8df54b7",
-      "schemaFingerprint": "c43d8a2ddb5230e8a1e793f2585e54d136aa82ea6f6c9c7db53aac725a5eaaa8"
+      "descriptionFingerprint": "2e86a00221c897211e584e802d6bdc97a39c164ee6c058c906e456a0cc1bfde8",
+      "schemaFingerprint": "df801fd64a03d92af86ce412d232c9d988d8bb2ba58c16d765cef554bece01bd"
     },
     {
       "name": "smart_connections_similar",
