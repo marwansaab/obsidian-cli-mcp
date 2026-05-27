@@ -148,6 +148,28 @@ describe("prependInputSchema — CONTENT_TOO_LARGE (FR-018, NEW in BI-045)", () 
     });
     expect(parsed.success).toBe(false);
   });
+
+  it("BI-047 US4 SC-003 — 24577-char content rejected within 1 second (wall-clock)", () => {
+    // Per BI-047 SC-003 / FR-002: the schema-boundary rejection MUST complete
+    // well under 1 second. Schema parse on a 24577-char string is a
+    // synchronous Zod check that completes in microseconds; this test pins
+    // the latency budget explicitly so a future refactor that introduces
+    // accidental O(n^2) behaviour at the cap boundary surfaces here.
+    const content = "x".repeat(MAX_CONTENT_LENGTH + 1);
+    const start = performance.now();
+    const parsed = prependInputSchema.safeParse({
+      target_mode: "specific",
+      vault: "Knowledge",
+      path: "n.md",
+      content,
+    });
+    const elapsedMs = performance.now() - start;
+    expect(parsed.success).toBe(false);
+    if (parsed.success) return;
+    const issue = parsed.error.issues.find((i) => i.path.join(".") === "content");
+    expect(issue?.code).toBe("too_big");
+    expect(elapsedMs).toBeLessThan(1_000);
+  });
 });
 
 describe("prependInputSchema — wikilink-form bracket rejection (FR-001a)", () => {
