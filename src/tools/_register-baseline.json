@@ -5,17 +5,17 @@
   "tools": [
     {
       "name": "append_note",
-      "descriptionFingerprint": "e072838469d7312d0d9a082b312f047b6c929a00e929d50929fba67634591891",
+      "descriptionFingerprint": "62b4623c72825e4e950b021af3f4def2fd0d5ac74a8c1b1339e9e7c126bd87ce",
       "schemaFingerprint": "1cfd2bb27c0cabc94a2983a8e891c13d5d6f9445c382f2f1a36de723ec8f5b9d"
     },
     {
       "name": "backlinks",
-      "descriptionFingerprint": "b0c788cf8f8fba0e330a008774f41f2f5bd6e093cd22ae8d9c1db62c168766bd",
+      "descriptionFingerprint": "9740fc5f9f38638ef84a9ec9d511c060a1f5e59b85c6c38c08d410116d96bb94",
       "schemaFingerprint": "bd63e8cd884ef5278f1edd368de0b929f5886cd8bf0ef96f1110d219447328b5"
     },
     {
       "name": "context_search",
-      "descriptionFingerprint": "ea35771f6819e6f6808e838c5e760952f41cecc99f2794124689e3909c6180cb",
+      "descriptionFingerprint": "9faed98566094514612c08d364e587eb1b7e2f44f4ff92271c26b05a9f94d677",
       "schemaFingerprint": "e62a932890669fb86d6eecb056c6488ba643860f699fd7aec6ff96bc2e8ba3d4"
     },
     {
@@ -80,7 +80,7 @@
     },
     {
       "name": "pattern_search",
-      "descriptionFingerprint": "665ffcdbbe984777086fea4ec371ac75a1631db5c6a0b75d73151155cbe1c249",
+      "descriptionFingerprint": "b6081c03e065ace987f3c9f01b62a46d3baedb4957fa3f32653c886035b06cb1",
       "schemaFingerprint": "0a4b6d3e01caea82b1a89a3d16cd391b7ac87ed4ca167988a63eecd6ec3de053"
     },
     {
