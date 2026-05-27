@@ -10,10 +10,23 @@ import { applyTargetModeRefinement, targetModeBaseSchema } from "../../target-mo
 // FR-018 — single source of truth for the content cap. Both the schema's
 // `.max()` and the description string in `index.ts` interpolate this constant
 // so the published contract and the enforced ceiling cannot drift (SC-008).
-// 24576 UTF-16 code units (24 KiB) leaves ~24% headroom under the Windows
-// ~32 767-char CreateProcess command-line maximum after the cohort's argv
-// envelope overhead — see research.md R3.
-export const MAX_CONTENT_LENGTH = 24576;
+//
+// BI-047 (2026-05-27): cap lowered from 24576 to 3072 after empirical
+// bisect against the live Obsidian CLI on Windows. The upstream Obsidian.com
+// console launcher's IPC channel to the running Obsidian.exe GUI breaks
+// deterministically at content >= 4096 bytes (10/10 trials at 3584 succeed;
+// 0/10 at 4096 — SIGTERM after 12s, then Obsidian's CLI-receiving state
+// degrades until the GUI is restarted). 3072 leaves ~1 KB headroom for the
+// `path=` / `vault=` argv-overhead a real-world prepend call adds on top of
+// the content. Spec FR-008's original "MUST NOT be lowered" wording is
+// superseded by the BI-047 empirical findings — see spec.md FR-008
+// amendment and contracts/prepend-input.contract.md §"Cap unit reconciliation".
+//
+// Failure mode if upstream argv-IPC is repaired upstream: this constant can
+// be ratcheted back up (with a fresh bisect) without breaking any caller.
+// Lowering further is also safe — the structural enforcement is the schema's
+// `.max()` call.
+export const MAX_CONTENT_LENGTH = 3072;
 
 const WIKILINK_BRACKET_REJECTION_MESSAGE =
   "wikilink-form locator MUST NOT contain `[[` or `]]` brackets — supply the bare note name (e.g. `My Note` not `[[My Note]]`)";

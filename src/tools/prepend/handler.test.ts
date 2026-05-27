@@ -2,12 +2,14 @@
 import { type SpawnOptions } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { resolve } from "node:path";
+import { performance } from "node:perf_hooks";
 import { Readable, Writable } from "node:stream";
 
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { executePrepend, type ExecuteFs } from "./handler.js";
 import { createPrependTool } from "./index.js";
+import { MAX_CONTENT_LENGTH } from "./schema.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createLogger, type Logger } from "../../logger.js";
@@ -555,7 +557,7 @@ describe("US2 schema-layer errors via registerTool boundary translator", () => {
       target_mode: "specific",
       vault: "TestVault",
       path: "n.md",
-      content: "x".repeat(24577),
+      content: "x".repeat(MAX_CONTENT_LENGTH + 1),
     });
     expect("isError" in result && result.isError).toBe(true);
     const payload = JSON.parse(result.content[0]!.text);
@@ -564,7 +566,7 @@ describe("US2 schema-layer errors via registerTool boundary translator", () => {
     expect(issues.some((i) => i.code === "too_big" && i.path[0] === "content")).toBe(true);
   });
 
-  test("CONTENT_TOO_LARGE boundary: exactly 24576 → handler reached (no validation error)", async () => {
+  test("CONTENT_TOO_LARGE boundary: exactly MAX_CONTENT_LENGTH → handler reached (no validation error)", async () => {
     // Build a tool with a stub vault registry; even though we cannot easily
     // assert success without a real spawn pipeline, we can verify the
     // schema layer accepts the input and reaches the handler.
@@ -585,7 +587,7 @@ describe("US2 schema-layer errors via registerTool boundary translator", () => {
       target_mode: "specific",
       vault: "TestVault",
       path: "n.md",
-      content: "x".repeat(24576),
+      content: "x".repeat(MAX_CONTENT_LENGTH),
     });
     expect("isError" in result && result.isError).toBe(true);
     const payload = JSON.parse(result.content[0]!.text);
@@ -917,7 +919,7 @@ describe("US4 active-mode focused-file resolution", () => {
 
 describe("BI-047 US1 — post-stat byte-delta guard", () => {
   test("raises FS_WRITE_FAILED.post-stat-byte-delta-zero when upstream returns exit 0 but on-disk byte count is unchanged", async () => {
-    const fs = fakeFs({ sizes: [10240, 10240] });
+    const fs = fakeFs({ sizes: [MAX_CONTENT_LENGTH, MAX_CONTENT_LENGTH] });
     const { spawnFn } = makeQueuedSpawn([
       { stdout: "Prepended to: Sandbox/silent-noop.md\n", stderr: "", exitCode: 0 },
     ]);
@@ -926,7 +928,7 @@ describe("BI-047 US1 — post-stat byte-delta guard", () => {
         target_mode: "specific",
         vault: "TestVault",
         path: "Sandbox/silent-noop.md",
-        content: "x".repeat(10240),
+        content: "x".repeat(MAX_CONTENT_LENGTH),
         inline: false,
       },
       deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
@@ -936,17 +938,18 @@ describe("BI-047 US1 — post-stat byte-delta guard", () => {
     expect((err as UpstreamError).details.reason).toBe("post-stat-byte-delta-zero");
     expect((err as UpstreamError).details.path).toBe("Sandbox/silent-noop.md");
     expect((err as UpstreamError).details.vault).toBe("TestVault");
-    expect((err as UpstreamError).details.preCallSize).toBe(10240);
-    expect((err as UpstreamError).details.postCallSize).toBe(10240);
+    expect((err as UpstreamError).details.preCallSize).toBe(MAX_CONTENT_LENGTH);
+    expect((err as UpstreamError).details.postCallSize).toBe(MAX_CONTENT_LENGTH);
     expect((err as UpstreamError).message).toMatch(/upstream returned success but on-disk byte count is unchanged/i);
   });
 
-  test("50-call regression cohort at 10240 ASCII chars produces structured success envelope per call with byte-correct delta", async () => {
-    const content = "x".repeat(10240);
+  test("50-call regression cohort at MAX_CONTENT_LENGTH produces structured success envelope per call with byte-correct delta", async () => {
+    const content = "x".repeat(MAX_CONTENT_LENGTH);
+    const expectedDelta = MAX_CONTENT_LENGTH + 1;
     const reg = fakeRegistry({ TestVault: VAULT_ROOT });
     const bytesWrittenObservations: number[] = [];
     for (let i = 0; i < 50; i += 1) {
-      const fs = fakeFs({ sizes: [0, 10241] });
+      const fs = fakeFs({ sizes: [0, expectedDelta] });
       const { spawnFn } = makeQueuedSpawn([PREPEND_OK]);
       const result = await executePrepend(
         {
@@ -964,15 +967,15 @@ describe("BI-047 US1 — post-stat byte-delta guard", () => {
       expect(result.inline).toBe(false);
     }
     expect(bytesWrittenObservations.length).toBe(50);
-    expect(bytesWrittenObservations.every((b) => b === 10241)).toBe(true);
+    expect(bytesWrittenObservations.every((b) => b === expectedDelta)).toBe(true);
   });
 
-  test("in-cap success at 1 / 12288 / 24575 / 24576 chars produces structured success envelope with positive bytes_written", async () => {
+  test("in-cap success at boundary sizes produces structured success envelope with positive bytes_written", async () => {
     const cases = [
       { contentLen: 1, separator: 1 },
-      { contentLen: 12288, separator: 1 },
-      { contentLen: 24575, separator: 1 },
-      { contentLen: 24576, separator: 1 },
+      { contentLen: Math.floor(MAX_CONTENT_LENGTH / 2), separator: 1 },
+      { contentLen: MAX_CONTENT_LENGTH - 1, separator: 1 },
+      { contentLen: MAX_CONTENT_LENGTH, separator: 1 },
     ];
     const reg = fakeRegistry({ TestVault: VAULT_ROOT });
     for (const { contentLen, separator } of cases) {
@@ -997,11 +1000,12 @@ describe("BI-047 US1 — post-stat byte-delta guard", () => {
   });
 
   test("p95 wall-clock latency across 50-call cohort ≤ 500 ms (wrapper-overhead bound)", async () => {
-    const content = "x".repeat(10240);
+    const content = "x".repeat(MAX_CONTENT_LENGTH);
+    const expectedDelta = MAX_CONTENT_LENGTH + 1;
     const reg = fakeRegistry({ TestVault: VAULT_ROOT });
     const observations: number[] = [];
     for (let i = 0; i < 50; i += 1) {
-      const fs = fakeFs({ sizes: [0, 10241] });
+      const fs = fakeFs({ sizes: [0, expectedDelta] });
       const { spawnFn } = makeQueuedSpawn([PREPEND_OK]);
       const start = performance.now();
       await executePrepend(
@@ -1030,15 +1034,16 @@ describe("BI-047 US1 — post-stat byte-delta guard", () => {
     // a silent no-op envelope.
     const reg = fakeRegistry({ TestVault: VAULT_ROOT });
     // Each call does pre-stat (read current size) + post-stat (read new size).
-    // Call 1: pre=0, post=10241. Call 2: pre=10241, post=20482.
-    const fs = fakeFs({ sizes: [0, 10241, 10241, 20482] });
+    // Call 1: pre=0, post=delta. Call 2: pre=delta, post=2*delta.
+    const delta = MAX_CONTENT_LENGTH + 1;
+    const fs = fakeFs({ sizes: [0, delta, delta, 2 * delta] });
     const { spawnFn, recorded } = makeQueuedSpawn([PREPEND_OK, PREPEND_OK]);
     const d = deps({ spawnFn, vaultRegistry: reg, fs });
     const args = {
       target_mode: "specific" as const,
       vault: "TestVault",
       path: "Sandbox/concurrent.md",
-      content: "x".repeat(10240),
+      content: "x".repeat(MAX_CONTENT_LENGTH),
       inline: false,
     };
     const p1 = executePrepend(args, d);
@@ -1048,11 +1053,11 @@ describe("BI-047 US1 — post-stat byte-delta guard", () => {
     expect(r2.path).toBe("Sandbox/concurrent.md");
     expect(r1.bytes_written).toBeGreaterThanOrEqual(1);
     expect(r2.bytes_written).toBeGreaterThanOrEqual(1);
-    // FIFO serialisation: first invocation observes pre=0, post=10241; second
-    // observes pre=10241, post=20482. Both are positive deltas — no silent
+    // FIFO serialisation: first invocation observes pre=0, post=delta; second
+    // observes pre=delta, post=2*delta. Both are positive deltas — no silent
     // no-op produced.
-    expect(r1.bytes_written).toBe(10241);
-    expect(r2.bytes_written).toBe(10241);
+    expect(r1.bytes_written).toBe(delta);
+    expect(r2.bytes_written).toBe(delta);
     expect(recorded.length).toBe(2);
   });
 });
@@ -1116,9 +1121,9 @@ describe("BI-047 US2 — broadened FR-003 enforcement", () => {
 
 describe("BI-047 US3 — payload-size bucket coverage", () => {
   test.each([
-    { label: "well-under-cap (1 KB)", contentLen: 1024 },
-    { label: "at-cap-boundary (24575)", contentLen: 24575 },
-    { label: "exactly-at-cap (24576)", contentLen: 24576 },
+    { label: "well-under-cap (1024)", contentLen: 1024 },
+    { label: "at-cap-boundary (MAX-1)", contentLen: MAX_CONTENT_LENGTH - 1 },
+    { label: "exactly-at-cap (MAX)", contentLen: MAX_CONTENT_LENGTH },
   ])("$label produces structured success envelope", async ({ contentLen }) => {
     const pre = 100;
     const post = pre + contentLen + 1;
@@ -1137,7 +1142,7 @@ describe("BI-047 US3 — payload-size bucket coverage", () => {
     expect(result.bytes_written).toBe(contentLen + 1);
   });
 
-  test("above-cap (24577) rejected by schema before executePrepend reached", async () => {
+  test("above-cap (MAX+1) rejected by schema before executePrepend reached", async () => {
     // Per FR-002 / FR-004: over-cap rejection fires at the schema boundary
     // BEFORE the handler runs. This test verifies the schema-side gate; the
     // handler is not reached (no spawn invoked).
@@ -1146,7 +1151,7 @@ describe("BI-047 US3 — payload-size bucket coverage", () => {
       target_mode: "specific",
       vault: "TestVault",
       path: "Sandbox/over-cap.md",
-      content: "x".repeat(24577),
+      content: "x".repeat(MAX_CONTENT_LENGTH + 1),
       inline: false,
     });
     expect(parsed.success).toBe(false);
@@ -1201,7 +1206,7 @@ describe("BI-047 US4 — over-cap rejection at schema boundary", () => {
       target_mode: "specific",
       vault: "TestVault",
       path: "Sandbox/over-cap.md",
-      content: "x".repeat(24577),
+      content: "x".repeat(MAX_CONTENT_LENGTH + 1),
     });
     expect("isError" in result && result.isError).toBe(true);
     const payload = JSON.parse(result.content[0]!.text);

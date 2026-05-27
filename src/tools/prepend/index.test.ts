@@ -1,4 +1,4 @@
-// Original — no upstream. prepend tool registration tests per BI-045 / FR-027 / ADR-005 / ADR-010 — descriptor name (mirror-name convention, NOT prepend_note) + help-pointer + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate + content maxLength 24576.
+// Original — no upstream. prepend tool registration tests per BI-045 / FR-027 / ADR-005 / ADR-010 — descriptor name (mirror-name convention, NOT prepend_note) + help-pointer + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate + content maxLength tied to MAX_CONTENT_LENGTH (BI-047 lowered the cap from 24576 to 3072 per empirical upstream-defect bisect).
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { Writable } from "node:stream";
@@ -47,7 +47,7 @@ describe("createPrependTool — descriptor (BI-045 / ADR-005 / ADR-010)", () => 
     expect(tool.descriptor.description).toContain('help({ tool_name: "prepend" })');
   });
 
-  it("description names the 24576 content cap (SC-008 contract-and-implementation match)", () => {
+  it("description names the content cap (SC-008 contract-and-implementation match)", () => {
     const tool = build();
     expect(tool.descriptor.description).toContain(String(MAX_CONTENT_LENGTH));
   });
@@ -83,7 +83,7 @@ describe("createPrependTool — descriptor (BI-045 / ADR-005 / ADR-010)", () => 
     );
   });
 
-  it("inputSchema.properties.content carries maxLength 24576 (FR-018)", () => {
+  it("inputSchema.properties.content carries the schema's MAX_CONTENT_LENGTH (FR-018)", () => {
     const tool = build();
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
     const properties = schema.properties as Record<string, Record<string, unknown>>;
