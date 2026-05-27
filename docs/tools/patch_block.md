@@ -2,7 +2,7 @@
 
 ## Overview
 
-`patch_block` surgically replaces the body content tied to a specific `^block-id` block-reference marker inside a markdown note, leaving the marker itself byte-stable and every byte outside the targeted block unchanged. It is a typed write tool in the `write_note` / `patch_heading` lineage (ADR-009 direct-filesystem-write substrate): the wrapper performs a read-modify-write through Node `fs` after using a small bug-safe `eval` for active-mode focused-file resolution. User content never crosses the CLI argv pipe at any size — the upstream argv-IPC defect that crashes Obsidian above ~4 KB on Windows is bypassed.
+`patch_block` surgically replaces the body content tied to a specific `^block-id` block-reference marker inside a markdown note, leaving the marker itself byte-stable and every byte outside the targeted block unchanged. Writes go directly to the vault filesystem; no per-call content size cap.
 
 Block references are the only Obsidian anchor that survives heading renames, list-item reordering, and table edits. `patch_block` is the surgical equivalent for that anchor — when you need to update one paragraph, one list item, or one table without touching anything else.
 
@@ -13,13 +13,15 @@ Block references are the only Obsidian anchor that survives heading renames, lis
 | Replace the body **tied to a named `^block-id`** in an existing note | `patch_block` |
 | Replace the body **under a named heading** | [`patch_heading`](./patch_heading.md) |
 | Create a new note, or wholesale-replace an existing note's contents | [`write_note`](./write_note.md) |
+| Append at the end of an existing note | [`append_note`](./append_note.md) |
+| Prepend at the start of an existing note (frontmatter-aware) | [`prepend`](./prepend.md) |
 | Find/replace text patterns across many regions | [`find_and_replace`](./find_and_replace.md) |
 | Edit a value in YAML frontmatter | [`set_property`](./set_property.md) |
-| Patch a block whose marker is attached to a heading line (ATX or setext) | Out of scope — `patch_block` surfaces `BLOCK_ON_HEADING`. Use `patch_heading` instead. |
+| Patch a block whose marker is attached to a heading line (ATX or setext) | Out of scope — `patch_block` surfaces `BLOCK_ON_HEADING`. Use [`patch_heading`](./patch_heading.md) instead. |
 
 ## Input schema
 
-The schema is strict: `additionalProperties: false`. Cross-reference: [`specs/043-patch-block/contracts/input.schema.json`](../../specs/043-patch-block/contracts/input.schema.json).
+The schema is strict: `additionalProperties: false`. Unknown fields trigger `VALIDATION_ERROR`.
 
 ### Specific mode
 
@@ -35,12 +37,12 @@ The schema is strict: `additionalProperties: false`. Cross-reference: [`specs/04
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `target_mode` | `"specific" \| "active"` | YES | Discriminator per ADR-003. |
+| `target_mode` | `"specific" \| "active"` | YES | Discriminator. |
 | `vault` | string ≥ 1 char | iff specific | Resolved via the lazy vault registry. Unknown vault → `VALIDATION_ERROR`. |
-| `file` | string ≥ 1 char (structurally-safe) | XOR with `path`, iff specific | Vault-relative file path. |
-| `path` | string ≥ 1 char (structurally-safe) | XOR with `file`, iff specific | Vault-relative file path. |
+| `file` | string ≥ 1 char (structurally safe) | XOR with `path`, iff specific | Vault-relative file path. |
+| `path` | string ≥ 1 char (structurally safe) | XOR with `file`, iff specific | Vault-relative file path. |
 | `block_id` | string, 1–1000 chars, `^[A-Za-z0-9-]+$` | YES | See *The block-id locator* below. |
-| `content` | string | YES | Any string including empty (FR-007 replace-empty cohort parity). |
+| `content` | string | YES | Any string including empty (legitimate "clear the body" operation). |
 
 ### Active mode
 
@@ -52,7 +54,7 @@ The schema is strict: `additionalProperties: false`. Cross-reference: [`specs/04
 }
 ```
 
-The wrapper resolves the focused note via a small `obsidian eval` (cohort parity with `write_note` / `patch_heading` active mode). When no note is focused, `ERR_NO_ACTIVE_FILE` fires with no filesystem access.
+The wrapper resolves the focused note via a small `obsidian eval` call. When no note is focused, `ERR_NO_ACTIVE_FILE` fires with no filesystem access.
 
 ## Single placement mode (replace)
 
@@ -80,7 +82,7 @@ Replaced text. ^foo
 closing
 ```
 
-The marker `^foo` is preserved byte-stably with the single ASCII-space separator. Multi-line content lands as multiple lines with the marker token appended to the last line. Empty content yields the single-space marker line ` ^foo` (FR-008).
+The marker `^foo` is preserved byte-stably with the single ASCII-space separator. Multi-line content lands as multiple lines with the marker token appended to the last line. Empty content yields the single-space marker line ` ^foo`.
 
 ### `list-item` shape
 
@@ -100,7 +102,7 @@ After `content: "replaced"`:
 - sibling B
 ```
 
-Sibling items are untouched. The list-marker prefix (`-`, `*`, `+`, `N.`) and any leading indentation are byte-stable. Empty content yields `<list-marker> ^foo` (with the prefix's trailing space preserved — for `- ` prefix that means `-  ^foo` with two spaces between marker and `^`) per the cohort whitespace convention. Multi-line content into a list-item shape is accepted; subsequent lines do not auto-acquire a list marker — caller responsibility (FR-009).
+Sibling items are untouched. The list-marker prefix (`-`, `*`, `+`, `N.`) and any leading indentation are byte-stable. Empty content yields `<list-marker> ^foo` (with the prefix's trailing space preserved — for `- ` prefix that means `-  ^foo` with two spaces between marker and `^`). Multi-line content into a list-item shape is accepted; subsequent lines do not auto-acquire a list marker — caller responsibility.
 
 ### `separately-placed` shape
 
@@ -125,21 +127,21 @@ After `content: "| col1 | col2 |\n| ---- | ---- |\n| new1 | new2 |\n| new3 | new
 trailing
 ```
 
-The `^baz` line's bytes are unchanged; its position relative to the (possibly resized) block is unchanged. Empty content collapses the block to zero lines while keeping the marker line byte-stable (FR-010).
+The `^baz` line's bytes are unchanged; its position relative to the (possibly resized) block is unchanged. Empty content collapses the block to zero lines while keeping the marker line byte-stable.
 
 ## The block-id locator
 
-The `block_id` field is the **bare identifier** — no leading `^`. The schema-layer validation:
+The `block_id` field is the **bare identifier** — no leading `^`. Schema-layer validation:
 
-- **Alphabet**: alphanumeric + hyphen-minus only (`^[A-Za-z0-9-]+$`) per FR-004. Underscore, period, colon, and other punctuation are rejected.
-- **Case-sensitive**: `^Foo` does not match `block_id: "foo"` per FR-003.
-- **Length cap**: 1000 UTF-16 code units (cohort parity with BI-033 / BI-038 / BI-039 / BI-040).
+- **Alphabet**: alphanumeric + hyphen-minus only (`^[A-Za-z0-9-]+$`). Underscore, period, colon, and other punctuation are rejected.
+- **Case-sensitive**: `^Foo` does not match `block_id: "foo"`.
+- **Length cap**: 1000 UTF-16 code units.
 - **No leading caret**: passing `"^foo"` is rejected with `INVALID_BLOCK_ID details.reason: "leading-caret"`. Pass `"foo"` instead.
-- **First-match-wins**: when the same `block_id` appears more than once in a single note (e.g. through authoring error or imported content), the wrapper resolves to the FIRST occurrence in document order per FR-002a (cohort parity with `patch_heading` FR-006).
+- **First-match-wins**: when the same `block_id` appears more than once in a single note (through authoring error or imported content), the wrapper resolves to the FIRST occurrence in document order.
 
 ## Active-mode focused-note locator
 
-`target_mode: "active"` resolves the focused note via the same bug-safe eval pattern used by `write_note` and `patch_heading`. When no note is focused, `ERR_NO_ACTIVE_FILE` fires with the cohort-uniform remediation message: "Open a note in the editor, or call patch_block with target_mode=specific + vault + file/path." The filesystem is not touched in the no-focus path.
+`target_mode: "active"` resolves the focused note via the same bug-safe eval pattern used by `write_note` and `patch_heading`. When no note is focused, `ERR_NO_ACTIVE_FILE` fires with the remediation message "Open a note in the editor, or call patch_block with target_mode=specific + vault + file/path." The filesystem is not touched in the no-focus path.
 
 ## Output envelope
 
@@ -163,44 +165,42 @@ interface PatchBlockOutput {
 
 ## Error states
 
-Cross-reference: [`specs/043-patch-block/contracts/errors.md`](../../specs/043-patch-block/contracts/errors.md). Every failure routes through `UpstreamError`; zero new top-level codes per Constitution Principle IV.
+Every failure routes through `UpstreamError`.
 
-| Top-level `code` | `details.code` | `details.reason` | Driving FR |
+| Top-level `code` | `details.code` | `details.reason` | What triggered it |
 |---|---|---|---|
-| `VALIDATION_ERROR` | `INVALID_BLOCK_ID` | `empty` / `contains-invalid-chars` / `leading-caret` / `too-long` | FR-019 |
-| `CLI_REPORTED_ERROR` | `BLOCK_NOT_FOUND` | — | FR-017 |
-| `CLI_REPORTED_ERROR` | `BLOCK_ON_HEADING` | — (carries `details.heading_shape: "atx" \| "setext"`) | FR-019a |
-| `CLI_REPORTED_ERROR` | `NOTE_NOT_FOUND` | — | FR-018 |
-| `CLI_REPORTED_ERROR` | `EXTERNAL_EDITOR_CONFLICT` | `file-locked` (reserved: `unsaved-changes`) | FR-021 |
-| `VAULT_NOT_FOUND` | — | `unknown` / `not-open` | Cohort reuse |
-| `ERR_NO_ACTIVE_FILE` | — | — | FR-006 |
-| `PATH_ESCAPES_VAULT` | — | — | ADR-009 / Layer 2 |
-| `FS_WRITE_FAILED` | — | — (carries `details.errno`) | ADR-009 substrate |
+| `VALIDATION_ERROR` | `INVALID_BLOCK_ID` | `empty` / `contains-invalid-chars` / `leading-caret` / `too-long` | Schema-layer rejection of the `block_id` shape. |
+| `CLI_REPORTED_ERROR` | `BLOCK_NOT_FOUND` | — | The id was not present in the resolved file's body. |
+| `CLI_REPORTED_ERROR` | `BLOCK_ON_HEADING` | — (carries `details.heading_shape: "atx" \| "setext"`) | The id resolved to a marker attached to a heading line. Route to [`patch_heading`](./patch_heading.md). |
+| `CLI_REPORTED_ERROR` | `NOTE_NOT_FOUND` | — | The target file does not exist. |
+| `CLI_REPORTED_ERROR` | `EXTERNAL_EDITOR_CONFLICT` | `file-locked` (reserved: `unsaved-changes`) | An external editor holds the file (Windows). Ask the user to save and close, retry. |
+| `VAULT_NOT_FOUND` | — | `unknown` / `not-open` | Vault is not registered, or is registered but not currently open. |
+| `ERR_NO_ACTIVE_FILE` | — | — | Active mode but no note is focused. |
+| `PATH_ESCAPES_VAULT` | — | — | Resolved path escapes the vault root (symlink traversal, `..` segments). Fix the path. |
+| `FS_WRITE_FAILED` | — | — (carries `details.errno`) | Generic fs failure (ENOSPC, EACCES, etc.). Inspect `details.errno`. |
 
-`BLOCK_NOT_FOUND` includes the case where the id appears only inside a fenced code block (FR-011 fenced-code opacity — markers inside `\`\`\`` or `~~~` fences are content, not eligible targets). It also includes the case where the id appears only inside leading YAML frontmatter (FR-014 — frontmatter is never modified, and tokens inside it are not bound).
+`BLOCK_NOT_FOUND` includes the case where the id appears only inside a fenced code block (markers inside ```` ``` ```` or `~~~` fences are content, not eligible targets). It also includes the case where the id appears only inside leading YAML frontmatter — frontmatter is never modified, and tokens inside it are not bound.
 
 `BLOCK_ON_HEADING` carries `details.heading_shape` so callers can route shape-aware messages; both ATX and setext route to `patch_heading`'s `replace` mode.
 
-## Detection-capability caveats (FR-021 platform variance)
+## Platform-specific behaviour: EXTERNAL_EDITOR_CONFLICT
 
-`EXTERNAL_EDITOR_CONFLICT` detection depends on the platform's natural `fs.rename` / `fs.writeFile` error surfaces — the wrapper does NOT implement its own editor-state probe. Inherits BI-040's posture byte-stably:
+`EXTERNAL_EDITOR_CONFLICT` detection depends on the platform's natural `fs.rename` / `fs.writeFile` error surfaces — the wrapper does NOT implement its own editor-state probe:
 
-- **Windows**: when an editor holds the file with non-shared-delete access (Obsidian's editor does this), `fs.rename` throws `EBUSY` (some shares modes surface `EPERM`). The wrapper catches these errnos and classifies as `EXTERNAL_EDITOR_CONFLICT` with `details.reason: "file-locked"`.
+- **Windows**: when an editor holds the file with non-shared-delete access (Obsidian's editor does this), `fs.rename` throws `EBUSY` (some share modes surface `EPERM`). The wrapper catches these errnos and classifies as `EXTERNAL_EDITOR_CONFLICT` with `details.reason: "file-locked"`.
 - **Linux / macOS**: POSIX `rename(2)` does not honour open file handles. The rename succeeds; the editor sees a refreshed file on next focus. **No `EXTERNAL_EDITOR_CONFLICT` fires.** This is unavoidable given the substrate has no signal to fail on.
 
-Callers automating against multi-platform deployments must plan around the divergence. The `unsaved-changes` sub-reason is reserved in the contract per ADR-015's multi-state-from-day-one preference — the wrapper never emits it today.
+Callers automating against multi-platform deployments must plan around the divergence. The `unsaved-changes` sub-reason is reserved in the contract; the wrapper never emits it today.
 
-## Cross-invocation contract (FR-026)
+## Atomicity and concurrent calls
 
-`patch_block` publishes **last-write-wins** as its cross-invocation contract. Two concurrent `patch_block` calls against the same note both read the current file, compute their respective surgery in memory, and write atomically via temp-then-rename. The atomic rename absorbs the race — one rename wins, the other overwrites it; both edits "land" in serial order, last writer wins.
+A single `patch_block` invocation does not leave the note on disk in a half-written state at any observable instant within the wrapper's control. Writes go through a temp-then-rename atomic substrate.
 
-This is the load-bearing divergence from sibling `patch_heading`, which DOES publish a `HEADING_RACE` discriminator for in-wrapper race detection. `patch_block` does NOT publish a `BLOCK_RACE` discriminator — the marker preservation invariant (FR-008 / FR-009 / FR-010) already provides identity stability across the wrapper's own writes, and external-editor races are covered by `EXTERNAL_EDITOR_CONFLICT` where the platform supports detection.
+Two concurrent `patch_block` calls against the same note resolve **last-write-wins**. Both calls read the current file, compute their respective surgery in memory, and write atomically via temp-then-rename. The atomic rename absorbs the race — one rename wins, the other overwrites it; both edits "land" in serial order, last writer wins. `patch_heading` publishes a `HEADING_RACE` discriminator for in-wrapper race detection; `patch_block` does not. The marker preservation invariant already provides identity stability across the wrapper's own writes, and external-editor races are covered by `EXTERNAL_EDITOR_CONFLICT` where the platform supports detection.
 
 Callers needing stronger guarantees should coordinate externally.
 
-## Worked-example quickstart snippets
-
-Cross-reference: [`specs/043-patch-block/quickstart.md`](../../specs/043-patch-block/quickstart.md).
+## Worked examples
 
 ### Replace a paragraph by block-id
 
@@ -270,7 +270,7 @@ Cross-reference: [`specs/043-patch-block/quickstart.md`](../../specs/043-patch-b
 }
 ```
 
-→ `CLI_REPORTED_ERROR` with `details.code: "BLOCK_ON_HEADING"` and `details.heading_shape: "atx" | "setext"`. File on disk is not modified. Route to `patch_heading`.
+→ `CLI_REPORTED_ERROR` with `details.code: "BLOCK_ON_HEADING"` and `details.heading_shape: "atx" | "setext"`. File on disk is not modified. Route to [`patch_heading`](./patch_heading.md).
 
 ### Failure: malformed block-id
 

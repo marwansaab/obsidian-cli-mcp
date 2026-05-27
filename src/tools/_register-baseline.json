@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "049-tool-docs-rewrite",
+  "generatedFromBranch": "051-tool-docs-rewrite-wave-2d",
   "generatedAt": "2026-05-27",
   "tools": [
     {
@@ -25,7 +25,7 @@
     },
     {
       "name": "files",
-      "descriptionFingerprint": "38474bcf0652428f5e232a76135b63c4fa45088402529b131b2c76ae8dfed40a",
+      "descriptionFingerprint": "70ba88c4aa5170d02d2fd73a14d9b81cde82df07b1a309e88200de7ff832cc36",
       "schemaFingerprint": "053fa3cb78939dc6e23204250d0bc14727ae9e85fb93c6942a319bee78352908"
     },
     {
@@ -135,7 +135,7 @@
     },
     {
       "name": "smart_connections_similar",
-      "descriptionFingerprint": "5913a85df7b2da448f0018d8f9b9d01f6a6e4b78dd4db939feae41c1d08a6bdf",
+      "descriptionFingerprint": "ad1a733c7e79b2284b1d74481a03834964835ffee2ed6235d1258e82f3421733",
       "schemaFingerprint": "39e440e445fceee7945d49e6923d6c7e6ddef58a6ebf10775615a2ced77e1b7c"
     },
     {
@@ -145,7 +145,7 @@
     },
     {
       "name": "write_note",
-      "descriptionFingerprint": "8e9eddbd1d9414b447547154c3896b44590e32bead4f797065b0e492305f8640",
+      "descriptionFingerprint": "03c22f88d75f07959b0e519b31aa52faf45fda1091ce9287d0330493cb03de5a",
       "schemaFingerprint": "c314ed0eea4a8b9ba10007e1039c7b197af720fe95ce836db74745dd326acbc6"
     }
   ]
