@@ -2,21 +2,24 @@
 
 ## Overview
 
-`patch_heading` surgically rewrites the body under a named heading inside a markdown note, addressed by its full hierarchical path through the note's heading hierarchy. It is a typed write tool in the `write_note` lineage (ADR-009 direct-filesystem-write substrate): the wrapper performs a read-modify-write through Node `fs` after using a small bug-safe `eval` for active-mode focused-file resolution. User content never crosses the CLI argv pipe at any size — the upstream argv-IPC defect that crashes Obsidian above ~4 KB on Windows is bypassed.
+`patch_heading` surgically rewrites the body under a named heading inside a markdown note, addressed by its full hierarchical path through the note's heading hierarchy. Writes go directly to the vault filesystem; no per-call content size cap.
 
 ## When to use this tool
 
 | You want to | Reach for |
 |---|---|
 | Insert/replace text **under a specific heading** in an existing note | `patch_heading` |
+| Replace the body tied to a `^block-id` marker | [`patch_block`](./patch_block.md) |
 | Create a new note, or wholesale-replace an existing note's contents | [`write_note`](./write_note.md) |
+| Append at the end of an existing note | [`append_note`](./append_note.md) |
+| Prepend at the start of an existing note | [`prepend`](./prepend.md) |
 | Find/replace text patterns across many regions | [`find_and_replace`](./find_and_replace.md) |
 | Read a heading's body (no write) | [`read_heading`](./read_heading.md), [`outline`](./outline.md) |
 | Patch a top-level heading (1-segment path) | Out of scope — `patch_heading` requires ≥2 segments. Use `write_note` to rewrite the whole note, or wrap the top-level heading in a parent. |
 
 ## Input schema
 
-The schema is strict: `additionalProperties: false`. Cross-reference: [`specs/040-patch-heading/contracts/input.schema.json`](../../specs/040-patch-heading/contracts/input.schema.json).
+The schema is strict: `additionalProperties: false`. Unknown fields trigger `VALIDATION_ERROR`.
 
 ### Specific mode
 
@@ -33,13 +36,13 @@ The schema is strict: `additionalProperties: false`. Cross-reference: [`specs/04
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `target_mode` | `"specific" \| "active"` | YES | Discriminator per ADR-003. |
+| `target_mode` | `"specific" \| "active"` | YES | Discriminator. |
 | `vault` | string ≥ 1 char | iff specific | Resolved via the lazy vault registry. Unknown vault → `VALIDATION_ERROR`. |
-| `file` | string ≥ 1 char (structurally-safe) | XOR with `path`, iff specific | Vault-relative file path. |
-| `path` | string ≥ 1 char (structurally-safe) | XOR with `file`, iff specific | Vault-relative file path. |
+| `file` | string ≥ 1 char (structurally safe) | XOR with `path`, iff specific | Vault-relative file path. |
+| `path` | string ≥ 1 char (structurally safe) | XOR with `file`, iff specific | Vault-relative file path. |
 | `heading_path` | string, 1–1000 chars, ≥2 segments | YES | See *The heading_path locator* below. |
 | `mode` | `"append" \| "prepend" \| "replace"` | YES | See *Three placement modes* below. |
-| `content` | string | YES | Non-empty for append/prepend; any (including empty) for replace per FR-018a. |
+| `content` | string | YES | Non-empty for append/prepend; any (including empty) for replace. |
 
 ### Active mode
 
@@ -52,7 +55,7 @@ The schema is strict: `additionalProperties: false`. Cross-reference: [`specs/04
 }
 ```
 
-The wrapper resolves the focused note via a small `obsidian eval` (cohort parity with `write_note`'s active mode). When no note is focused, `ERR_NO_ACTIVE_FILE` fires with no filesystem access.
+The wrapper resolves the focused note via a small `obsidian eval` call. When no note is focused, `ERR_NO_ACTIVE_FILE` fires with no filesystem access.
 
 ## Three placement modes
 
@@ -118,11 +121,11 @@ After `mode: "replace"` with `content: "- new item\n"`:
 ### Archive
 ```
 
-**Asymmetric empty-content rule (FR-018a)**: `replace` accepts empty content as the legitimate "clear the body" operation. `append` and `prepend` reject empty content with `VALIDATION_ERROR + details.code: "EMPTY_CONTENT" + details.reason: <mode>`.
+**Asymmetric empty-content rule**: `replace` accepts empty content as the legitimate "clear the body" operation. `append` and `prepend` reject empty content with `VALIDATION_ERROR + details.code: "EMPTY_CONTENT" + details.reason: <mode>`.
 
 ## The heading_path locator
 
-The `heading_path` parameter is a single string addressing a heading by its full hierarchical path. Segments are joined by the literal `#` character (cohort parity with Obsidian wikilink anchors like `[[note#Top#Sub]]`):
+The `heading_path` parameter is a single string addressing a heading by its full hierarchical path. Segments are joined by the literal `#` character (matching Obsidian wikilink anchors like `[[note#Top#Sub]]`):
 
 ```
 "Daily#Tasks#TODO"   →  # Daily / ## Tasks / ### TODO
@@ -132,20 +135,20 @@ The `heading_path` parameter is a single string addressing a heading by its full
 
 Constraints:
 
-- **Minimum two segments** — top-level headings (a path that addresses a `# H1` directly) are out of scope per FR-002. To rewrite a top-level heading's body, use `write_note` to rewrite the whole note.
+- **Minimum two segments** — top-level headings (a path that addresses a `# H1` directly) are out of scope. To rewrite a top-level heading's body, use [`write_note`](./write_note.md) to rewrite the whole note.
 - **No segment may be empty** — `Top##Sub` (empty middle), `#Sub` (leading `#`), and `Top#Sub#` (trailing `#`) all surface `INVALID_HEADING_PATH + details.reason: "empty-segment"`.
 - **Maximum 1000 UTF-16 code units** — longer paths surface `INVALID_HEADING_PATH + details.reason: "too-long"`.
-- **Headings whose literal text contains `#` are permanently unreachable** through this tool. The `#` character is reserved as the path separator; no escaping mechanism is provided per FR-005. This matches Obsidian's own wikilink-anchor behaviour.
+- **Headings whose literal text contains `#` are permanently unreachable** through this tool. The `#` character is reserved as the path separator; no escaping mechanism is provided. This matches Obsidian's own wikilink-anchor behaviour.
 
-Matching is **case-sensitive and whitespace-strict** per FR-001. `## Tasks` and `## tasks` are different headings; `## Tasks ` (trailing space) and `## Tasks` are different headings.
+Matching is **case-sensitive and whitespace-strict**. `## Tasks` and `## tasks` are different headings; `## Tasks ` (trailing space) and `## Tasks` are different headings.
 
-**First-match-wins on duplicate siblings** per FR-006: if `## Notes` appears twice under `# Daily`, the path `Daily#Notes` resolves to the first occurrence in document order. The match commits forward; the second occurrence is not reconsidered. Use a more specific ancestor chain or rename the duplicate to disambiguate.
+**First-match-wins on duplicate siblings**: if `## Notes` appears twice under `# Daily`, the path `Daily#Notes` resolves to the first occurrence in document order. The match commits forward; the second occurrence is not reconsidered. Use a more specific ancestor chain or rename the duplicate to disambiguate.
 
-**ATX headings only** per research R2: `# Heading` syntax is supported; setext headings (text underlined with `===` or `---`) are NOT recognised. Fenced-code blocks are opaque to the walker per FR-013 — `#`-prefixed lines inside ` ``` ` or `~~~` fences are not interpreted as headings.
+**ATX headings only**: `# Heading` syntax is supported; setext headings (text underlined with `===` or `---`) are NOT recognised. Fenced-code blocks are opaque to the walker — `#`-prefixed lines inside ` ``` ` or `~~~` fences are not interpreted as headings.
 
 ## Active-mode focused-note locator
 
-In active mode, the wrapper resolves the focused note via the small `eval`:
+In active mode, the wrapper resolves the focused note via a small `eval`:
 
 ```javascript
 JSON.stringify({
@@ -154,7 +157,7 @@ JSON.stringify({
 })
 ```
 
-The returned `path` is the vault-relative path of the focused file (or `null` when nothing is focused). On `null`, `ERR_NO_ACTIVE_FILE` fires and no filesystem read occurs. On success, the rest of the chain (path-safety check, fs.readFile, heading walk, race-check, write) runs against the resolved path — identical to specific mode from that point.
+The returned `path` is the vault-relative path of the focused file (or `null` when nothing is focused). On `null`, `ERR_NO_ACTIVE_FILE` fires and no filesystem read occurs. On success, the rest of the chain (path-safety check, `fs.readFile`, heading walk, race-check, write) runs against the resolved path — identical to specific mode from that point.
 
 ## Output envelope
 
@@ -178,7 +181,7 @@ The returned `path` is the vault-relative path of the focused file (or `null` wh
 
 ## Error states
 
-Every failure routes through `UpstreamError` per Constitution Principle IV. Zero new top-level codes are introduced — new diagnostic states surface via `details.code` per ADR-015. Full contract: [`specs/040-patch-heading/contracts/errors.md`](../../specs/040-patch-heading/contracts/errors.md).
+Every failure routes through `UpstreamError`.
 
 | Top-level `code` | `details.code` | `details.reason` | Trigger |
 |---|---|---|---|
@@ -189,27 +192,25 @@ Every failure routes through `UpstreamError` per Constitution Principle IV. Zero
 | | | `contains-hash` | Defensive sentinel (unreachable via split-on-`#`) |
 | `VALIDATION_ERROR` | `EMPTY_CONTENT` | `append` | `mode: "append"` + `content: ""` |
 | | | `prepend` | `mode: "prepend"` + `content: ""` |
-| `CLI_REPORTED_ERROR` | `HEADING_NOT_FOUND` | — (single state) | The supplied `heading_path` does not resolve to any heading in the note |
-| `CLI_REPORTED_ERROR` | `HEADING_RACE` | — (single state) | The heading hierarchy along the resolved path changed between resolve and pre-write re-walk (FR-019). Carries `details.original_identity` and `details.current_identity` (3-tuples). |
-| `CLI_REPORTED_ERROR` | `EXTERNAL_EDITOR_CONFLICT` | `file-locked` | OS-level `fs.rename` / `fs.writeFile` failed with `EBUSY`/`EPERM`/`EACCES`. Carries `details.errno` and `details.path`. |
-| | | `unsaved-changes` | Reserved (encoded in the schema for forward compatibility per ADR-015's multi-state-from-day-one preference; the wrapper never emits it — no detection signal exists yet). |
-| `PATH_ESCAPES_VAULT` | — | — | Canonical-path check (Layer 2) detected a symlink escape. |
-| `FS_WRITE_FAILED` | — | — | Generic `fs` failure not classified as `EXTERNAL_EDITOR_CONFLICT` (e.g., `ENOSPC`, `EROFS`, or `ENOENT` on a non-existent target — `patch_heading` does not create files). |
-| `VALIDATION_ERROR` | — | — | Unknown vault, registry lookup failure (existing top-level surface; cohort behaviour). |
-| `ERR_NO_ACTIVE_FILE` | — | — | Active mode with no focused note (FR-008). |
+| `CLI_REPORTED_ERROR` | `HEADING_NOT_FOUND` | — | The supplied `heading_path` does not resolve to any heading in the note. Use [`outline`](./outline.md) to enumerate the file's actual headings, then retry with a valid path. |
+| `CLI_REPORTED_ERROR` | `HEADING_RACE` | — | The heading hierarchy along the resolved path changed between resolve and pre-write re-walk. Retry the call against the new state, or coordinate with the other writer externally. Carries `details.original_identity` and `details.current_identity` (3-tuples). |
+| `CLI_REPORTED_ERROR` | `EXTERNAL_EDITOR_CONFLICT` | `file-locked` | OS-level `fs.rename` / `fs.writeFile` failed with `EBUSY`/`EPERM`/`EACCES`. Ask the user to save and close the file in the external editor, then retry. Carries `details.errno` and `details.path`. |
+| | | `unsaved-changes` | Reserved for forward compatibility; the wrapper never emits it today. |
+| `PATH_ESCAPES_VAULT` | — | — | Canonical-path check detected a symlink escape. Fix the path. |
+| `FS_WRITE_FAILED` | — | — | Generic `fs` failure not classified as `EXTERNAL_EDITOR_CONFLICT` (e.g. `ENOSPC`, `EROFS`, or `ENOENT` on a non-existent target — `patch_heading` does not create files). |
+| `VALIDATION_ERROR` | — | — | Unknown vault, registry lookup failure (existing top-level surface). |
+| `ERR_NO_ACTIVE_FILE` | — | — | Active mode with no focused note. Open a note in the editor, or call again with `target_mode: "specific"` + an explicit `vault` + `file`/`path`. |
 
-## Detection-capability caveats (FR-021 platform variance)
+## Platform-specific behaviour: EXTERNAL_EDITOR_CONFLICT
 
-**Mandatory note** — the `EXTERNAL_EDITOR_CONFLICT` signal is **platform-dependent**:
+The `EXTERNAL_EDITOR_CONFLICT` signal is **platform-dependent**:
 
-- **Windows**: when an external editor (including Obsidian's main editor with unsaved changes) holds the target file with `CreateFile` flags that omit `FILE_SHARE_DELETE`, the substrate's `fs.rename` throws `EBUSY` (some shares modes surface `EPERM` instead). The wrapper catches this and surfaces `EXTERNAL_EDITOR_CONFLICT + details.reason: "file-locked" + details.errno`.
+- **Windows**: when an external editor (including Obsidian's main editor with unsaved changes) holds the target file with `CreateFile` flags that omit `FILE_SHARE_DELETE`, the substrate's `fs.rename` throws `EBUSY` (some share modes surface `EPERM` instead). The wrapper catches this and surfaces `EXTERNAL_EDITOR_CONFLICT + details.reason: "file-locked" + details.errno`.
 - **Linux / macOS**: POSIX `rename(2)` does not honour open file handles; the substrate's `fs.rename` succeeds even when an editor is holding the file with unsaved in-memory changes. The patch lands on disk and the editor sees a refreshed file on next focus — **no `EXTERNAL_EDITOR_CONFLICT` fires**.
 
-Callers automating against multi-platform deployments must plan around this divergence. The wrapper has no cross-platform signal to fail on for in-memory dirty editor state; honouring whatever the substrate surfaces is the cohort default.
+Callers automating against multi-platform deployments must plan around this divergence. The wrapper has no cross-platform signal to fail on for in-memory dirty editor state.
 
-## Worked-example quickstart snippets
-
-Full set: [`specs/040-patch-heading/quickstart.md`](../../specs/040-patch-heading/quickstart.md).
+## Worked examples
 
 ### Append a new TODO bullet
 
@@ -279,8 +280,8 @@ Full set: [`specs/040-patch-heading/quickstart.md`](../../specs/040-patch-headin
 ## Body-shape gotchas
 
 - **Multi-line content**: split on `\n` (or `\r\n` for CRLF) by the wrapper; the file's detected line ending is used on reassembly. Include a trailing `\n` in your content if you want it to occupy its own line(s); omit it if you want the inserted content to abut the next existing line.
-- **Trailing newline preservation**: a file that ended with `\n` still does after edit; a file that did not still does not (FR-014).
-- **Line-ending preservation**: CRLF files stay CRLF; LF files stay LF (FR-015). No platform normalisation.
-- **Frontmatter preservation**: the YAML frontmatter block (`---\n…\n---`) is byte-identical before and after patching (FR-016). The walker recognises ATX headings only and the splice operates strictly within the targeted heading's reach.
-- **No backups taken**: the wrapper writes via atomic temp+rename. No `.bak`/`.backup`/`.old` files are created (FR-024).
-- **No streaming**: whole-file read/write only (FR-025). For notes large enough to be a concern, `find_and_replace` or `write_note` may be better matches.
+- **Trailing newline preservation**: a file that ended with `\n` still does after edit; a file that did not still does not.
+- **Line-ending preservation**: CRLF files stay CRLF; LF files stay LF. No platform normalisation.
+- **Frontmatter preservation**: the YAML frontmatter block (`---\n…\n---`) is byte-identical before and after patching. The walker recognises ATX headings only and the splice operates strictly within the targeted heading's reach.
+- **No backups taken**: the wrapper writes via atomic temp+rename. No `.bak`/`.backup`/`.old` files are created.
+- **No streaming**: whole-file read/write only. For very large notes, `find_and_replace` or `write_note` may be better matches.
