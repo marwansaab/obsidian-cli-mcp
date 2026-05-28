@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "create_base",
+  "description": "Input and output schemas for the create_base tool (BI-0083)",
+
+  "input": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1000,
+        "description": "Vault-relative path to the .base file. Must end in .base (case-insensitive). Path-traversal sequences rejected."
+      },
+      "name": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1000,
+        "description": "Name for the new item (becomes the Markdown filename)"
+      },
+      "content": {
+        "type": "string",
+        "description": "Optional body text for the new item. Subject to platform argv-size ceiling pre-check."
+      },
+      "view": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Optional view name within the base. Not validated by CLI (R-006)."
+      },
+      "vault": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Vault display name for multi-vault routing. Note: silently ignored by current CLI (R-004)."
+      }
+    },
+    "required": ["path", "name"],
+    "additionalProperties": false
+  },
+
+  "output": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Vault-relative path of the created item (wrapper-constructed from base directory + CLI-returned filename)"
+      },
+      "name": {
+        "type": "string",
+        "description": "Actual filename of the created item (may differ from requested name due to auto-increment on collision)"
+      }
+    },
+    "required": ["path", "name"],
+    "additionalProperties": false
+  }
+}
