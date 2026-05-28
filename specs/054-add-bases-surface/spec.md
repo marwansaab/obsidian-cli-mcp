@@ -13,6 +13,17 @@
 - Q: Should `views_base` return just view names or richer per-view metadata (type, filter config, row count)? → A: **Names only — `{ views: string[], count: number }`.** Matches the stated discover→pick→`query_base` purpose. Richer per-view objects defer to a follow-on BI if agent need surfaces empirically. Avoids coupling the envelope to upstream metadata shape that may shift across Obsidian versions. Parity with `find_by_property` / `properties` pattern of minimal vault-wide discovery surfaces.
 - Q: Should `bases` apply a result-count cap (like `query_base`'s 1000-row cap) with truncation fields? → A: **No cap — return all paths unconditionally, no truncation fields in the envelope.** Vault `.base` file count is bounded by total file count; practical vaults sit in single-digit to low-double-digit range. Cohort-consistency argument doesn't carry — `query_base`'s cap exists because view rows scale independently of file count; that scaling property doesn't apply to base-file enumeration. The no-cap stance is documented in the tool's help doc so the cohort asymmetry vs `query_base` is explicit.
 
+### Research Findings 2026-05-28
+
+- R-001: `bases` CLI `vault=` parameter is silently ignored — returns bases from the active vault context regardless. Wrapper still accepts `vault` for cohort parity and forward compatibility; limitation documented.
+- R-002: `bases` CLI has no count-only mode — no parameters at all. FR-004 `total` flag resolved to "not exposed."
+- R-003: `base:views` CLI is active-mode-only — does not accept `path=` or `file=` parameters. `views_base` tool is therefore active-mode-only; `path` parameter removed from input schema. This is a significant limitation: agents can only enumerate views when the user has a `.base` file focused in Obsidian.
+- R-004: `base:create` CLI `vault=` parameter is silently ignored (same as `bases`).
+- R-005: `base:create` auto-increments on name collision (appends ` 1`, ` 2`, etc.) rather than erroring. Well-defined behaviour, not a silent overwrite. Wrapper surfaces actual created filename.
+- R-006: `base:create` does not validate the `view=` parameter — nonexistent view names are silently accepted.
+- R-007: `base:create` `content=` parameter is undocumented in CLI help but accepted. Content writing behaviour to be verified during implementation T0 probes.
+- R-008: `base:create` returns only filename (`Created: <filename>.md`), not vault-relative path. Wrapper constructs path from base directory + returned filename.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 — Discover available bases in the vault (Priority: P1)
@@ -29,26 +40,27 @@ An agent wants to discover every `.base` file in a vault before querying any of 
 
 1. **Given** a vault containing one or more `.base` files, **When** an agent calls `bases({})`, **Then** the response is a structured object containing `bases: string[]` (vault-relative paths) and `count: number` matching the array length.
 2. **Given** a vault containing no `.base` files, **When** an agent calls `bases({})`, **Then** the response is `{ bases: [], count: 0 }` — an empty list, not an error.
-3. **Given** the underlying CLI supports a count-only mode, **When** an agent calls `bases({ total: true })`, **Then** the response carries the count without the paths array. If the CLI does not support count-only mode, the `total` flag is not exposed in the schema.
+3. ~~Count-only mode~~ **Resolved R-002**: CLI has no count-only mode. The `total` flag is not exposed. Agents use `count` from the standard response.
 
 ---
 
 ### User Story 2 — Enumerate views within a base (Priority: P1)
 
-An agent has identified a `.base` file (from `bases()` or from prior knowledge) and needs to know which views it defines before issuing a `query_base` call. The agent calls `views_base({ path: "Projects.base" })` and receives the list of view names plus a count.
+An agent is working within Obsidian with a `.base` file focused and needs to know which views it defines before issuing a `query_base` call. The agent calls `views_base({})` and receives the list of view names plus a count from the currently focused base.
 
 **Tool**: `views_base` (BI-0082)
 
-**Why this priority**: Agents cannot safely call `query_base({ view: ... })` without knowing valid view names. Guessing causes `VIEW_NOT_FOUND` errors; `views_base` eliminates that gap.
+**Why this priority**: Agents cannot safely call `query_base({ view: ... })` without knowing valid view names. Guessing causes `VIEW_NOT_FOUND` errors; `views_base` eliminates that gap for the active-file workflow.
 
-**Independent Test**: Can be fully tested by calling `views_base({ path: <known-base> })` against a vault with a known `.base` file and verifying the returned view names. Delivers standalone value as a view-discovery endpoint.
+**Independent Test**: Can be fully tested by calling `views_base({})` when a `.base` file is focused in Obsidian. Delivers standalone value as a view-discovery endpoint in the active-mode workflow.
+
+**Inherited Limitation (R-003)**: The CLI `base:views` subcommand is active-mode-only — it does not accept `path=` or `file=` parameters. Agents can only enumerate views when the user has a `.base` file focused in Obsidian. This limitation is documented in the tool's description.
 
 **Acceptance Scenarios**:
 
-1. **Given** a `.base` file exists at the supplied vault-relative path, **When** an agent calls `views_base({ path: "Projects.base" })`, **Then** the response is a structured object containing `views: string[]` (view names in declaration order) and `count: number` matching the array length.
-2. **Given** a `.base` file exists at the focused path in Obsidian AND the underlying CLI supports active mode for this subcommand, **When** an agent calls `views_base({})` (no path), **Then** the response describes the focused base's views. If the CLI is specific-mode-only for this subcommand, active mode is unavailable and the limitation is documented.
-3. **Given** the supplied path does not exist, **When** an agent calls `views_base({ path: "nonexistent.base" })`, **Then** the response is a structured `UpstreamError` with `code: "CLI_REPORTED_ERROR"` and `details.code: "BASE_NOT_FOUND"`.
-4. **Given** the supplied path exists but is not a `.base` file, **When** an agent calls `views_base({ path: "README.md" })`, **Then** input validation rejects it with `code: "VALIDATION_ERROR"` and `details.code: "INVALID_BASE_PATH"`, `details.reason: "wrong-extension"`.
+1. **Given** a `.base` file is focused in Obsidian, **When** an agent calls `views_base({})`, **Then** the response is a structured object containing `views: string[]` (view names) and `count: number` matching the array length.
+2. **Given** the currently focused file is NOT a `.base` file, **When** an agent calls `views_base({})`, **Then** the response is a structured `UpstreamError` with `code: "CLI_REPORTED_ERROR"` and an appropriate `details.code` identifying the failure cause.
+3. **Given** no file is focused (or Obsidian is closed), **When** an agent calls `views_base({})`, **Then** the response is a structured error.
 
 ---
 
@@ -107,7 +119,7 @@ An agent calls any of the three tools with malformed inputs, a non-existent targ
 - **FR-001**: `bases` MUST enumerate all `.base` files in the vault, returning vault-relative paths.
 - **FR-002**: `bases` MUST return a `count` field reflecting the number of bases found.
 - **FR-003**: `bases` MUST return `{ bases: [], count: 0 }` when no `.base` files exist — not an error.
-- **FR-004**: `bases` MAY expose a `total: true` flag for count-only mode if and only if the underlying CLI supports it. If the CLI does not support count-only, the flag is omitted from the schema.
+- **FR-004**: ~~`bases` MAY expose a `total: true` flag for count-only mode.~~ **Resolved R-002**: CLI has no count-only mode; `total` flag is NOT exposed in the schema.
 - **FR-005**: `bases` MUST return the `bases` array sorted in path-ascending (lexicographic) order, regardless of upstream CLI emission order. Parity with `query_base`'s determinism discipline.
 - **FR-006**: `bases` MUST NOT apply a result-count cap or truncation fields. All paths are returned unconditionally. The tool's help doc MUST note the cohort asymmetry vs `query_base`'s 1000-row cap (base-file count is bounded by vault file count; view-row count is not).
 - **FR-007**: `bases` MUST accept an optional `vault` parameter for multi-vault routing, parity with `query_base`.
@@ -117,8 +129,8 @@ An agent calls any of the three tools with malformed inputs, a non-existent targ
 - **FR-008**: `views_base` MUST return a structured list of view names (strings only, no per-view metadata) defined within the specified `.base` file, in declaration order.
 - **FR-009**: `views_base` MUST return a `count` field reflecting the number of views found.
 - **FR-010**: `views_base` MUST return `{ views: [], count: 0 }` when the base defines zero views — not an error.
-- **FR-011**: `views_base` MUST accept a `path` parameter (vault-relative path to the `.base` file) subject to the same validation rules as `query_base`'s `base_path`: max 1000 UTF-16 code units, path-traversal rejection, `.base` extension enforcement.
-- **FR-012**: `views_base` MAY support active mode (no `path` parameter, operates on the currently focused `.base` file) if and only if the underlying CLI supports it for this subcommand. Mode availability is documented.
+- **FR-011**: ~~`views_base` MUST accept a `path` parameter.~~ **Resolved R-003**: `base:views` CLI is active-mode-only; no `path` or `file` parameter is accepted. The `views_base` tool has NO path input — it operates exclusively on the currently focused `.base` file. This limitation is documented in the tool's description and help doc.
+- **FR-012**: `views_base` operates in active mode ONLY (per R-003). The tool invokes `base:views` without any locator parameter. When the currently focused file is not a `.base` file, the CLI returns an error that the wrapper classifies as `CLI_REPORTED_ERROR` with `details.code: "BASE_NOT_FOUND"` or a new sub-discriminator `"NOT_A_BASE_FILE"`.
 - **FR-013**: `views_base` MUST accept an optional `vault` parameter for multi-vault routing.
 
 **Tool: `create_base` (BI-0083)**
@@ -130,7 +142,7 @@ An agent calls any of the three tools with malformed inputs, a non-existent targ
 - **FR-018**: `create_base` MAY accept an optional `view` parameter to target a specific view within the base. If omitted, behaviour follows whatever the underlying CLI specifies.
 - **FR-019**: `create_base` MUST return the created item's vault-relative path in the response.
 - **FR-020**: `create_base` MUST enforce a content size limit derived from the platform's argv-size ceiling and reject over-limit content with a structured error BEFORE invoking the CLI.
-- **FR-021**: `create_base` MUST NOT silently overwrite an existing item with the same name. Name collisions surface as a structured error or follow whatever well-defined behaviour the underlying CLI exposes.
+- **FR-021**: `create_base` MUST NOT silently overwrite an existing item with the same name. **Resolved R-005**: The CLI auto-increments the filename on collision (appends ` 1`, ` 2`, etc.). The wrapper surfaces the ACTUAL created filename (which may differ from the requested name) in the response. This is well-defined behaviour, not a silent overwrite.
 - **FR-022**: `create_base` MUST accept an optional `vault` parameter for multi-vault routing.
 - **FR-023**: `create_base` MUST NOT expose the `open` or `newtab` UI side-effect parameters — UI behaviour is out of scope for the typed agent surface.
 
@@ -164,9 +176,9 @@ An agent calls any of the three tools with malformed inputs, a non-existent targ
 
 ## Assumptions
 
-- The Obsidian CLI exposes `base:list` (or equivalent) for enumerating `.base` files, `base:views` for listing views within a base, and `base:create` for creating items. Exact subcommand names and flag sets will be confirmed during the research/clarify phase via CLI probes.
-- The three tools inherit the vault-selection discipline already established by `query_base` (ADR-008): optional `vault` parameter, focused-vault default when omitted.
+- **Confirmed**: The CLI exposes `bases` (standalone subcommand), `base:views`, and `base:create`. Subcommand names confirmed via T0 probes (research.md R-001 through R-008).
+- **Confirmed**: `bases` and `base:create` silently ignore the `vault=` parameter (R-001, R-004). `base:views` also ignores it (R-003). All three tools still accept `vault` in their schemas for cohort parity and forward compatibility; the limitation is documented.
+- **Confirmed**: `base:views` is active-mode-only (R-003). No `path=` or `file=` parameter. `views_base` operates exclusively on the currently focused file.
+- **Confirmed**: `base:create` auto-increments on name collision (R-005). No count-only mode for `bases` (R-002).
 - Content size limits for `create_base` derive from the platform's argv-size ceiling (typically ~32 KiB on Windows, ~2 MiB on Linux/macOS), consistent with existing bounds established in the CLI adapter.
-- The `total` flag for count-only mode in `bases` is conditional — it will be exposed only if the underlying CLI supports a dedicated count mode rather than full enumeration. This will be confirmed during CLI characterization.
-- Active mode for `views_base` (operating on the currently focused file) is conditional on CLI support for the `base:views` subcommand in active mode. This will be confirmed during CLI characterization.
 - Each tool follows the same DI pattern as `query_base`: receives `invokeCli`, `Logger`, and `Queue` via dependency injection, never importing boot-time factories directly.
