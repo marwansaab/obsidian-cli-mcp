@@ -143,20 +143,20 @@ No Constitution Check violations — table empty.
 2. **CLI invocation** — `invokeCli({ command: "base:views", parameters: {}, flags: [], target_mode: "active" })`. Parse stdout: split by `\n`, filter empty lines.
 3. **Post-process** — construct output envelope `{ views, count }`.
 
-**Error classification**: "Active file is not a base file:" pattern → `CLI_REPORTED_ERROR` with contextual `details.code`. Empty stdout → `{ views: [], count: 0 }`.
+**Error classification**: "Active file is not a base file:" pattern → `CLI_REPORTED_ERROR` / `BASE_NOT_FOUND` (reuse existing sub-discriminator). Empty stdout → `{ views: [], count: 0 }`.
 
 **Key limitation**: Active-mode-only. No path input. Tool description MUST state this limitation prominently.
 
 ### Tool 3: `create_base` (BI-0083)
 
 **Handler pipeline** (5 stages):
-1. **Input validation** — `path` (base path validation), `name` (1–1000 chars, non-empty), `content` size pre-check against platform argv ceiling.
+1. **Input validation** — `path` (base path validation), `name` (1–1000 chars, non-empty), `content` size pre-check against `MAX_CONTENT_LENGTH` (3072 UTF-16 code units, parity with `prepend`).
 2. **Vault resolution** — same as `bases`, noting R-004 silent-ignore.
 3. **CLI invocation** — `invokeCli({ command: "base:create", parameters: { path, name, content?, view? }, flags: [], target_mode: "specific" })`.
 4. **Parse response** — extract filename from `Created: <filename>.md` pattern.
 5. **Construct path** — derive vault-relative path from base directory + returned filename.
 
-**Error classification**: "Base file not found:" → `CLI_REPORTED_ERROR` / `BASE_NOT_FOUND`. Content over limit → `VALIDATION_ERROR` / `CONTENT_TOO_LARGE`.
+**Error classification**: "Base file not found:" → `CLI_REPORTED_ERROR` / `BASE_NOT_FOUND`. Content over 3072 chars → `VALIDATION_ERROR` / `CONTENT_TOO_LARGE`.
 
 ### Cross-cutting: server.ts wiring
 

@@ -97,7 +97,7 @@
 
 ### Handler (US3)
 
-- [ ] T021 [US3] Implement `executeCreateBase()` handler in `src/tools/create_base/handler.ts`: content size pre-check (platform argv ceiling) → vault resolution → `invokeCli({ command: "base:create", parameters: { path, name, content?, view? }, target_mode: "specific" })` → parse `Created: <filename>.md` response → construct vault-relative path from base directory + returned filename → output envelope `{ path, name }` — FR-014 through FR-023
+- [ ] T021 [US3] Implement `executeCreateBase()` handler in `src/tools/create_base/handler.ts`: content size pre-check (MAX_CONTENT_LENGTH = 3072, parity with `prepend`) → vault resolution → `invokeCli({ command: "base:create", parameters: { path, name, content?, view? }, target_mode: "specific" })` → parse `Created: <filename>.md` response → construct vault-relative path from base directory + returned filename → output envelope `{ path, name }` — FR-014 through FR-023. **T0 gate (R-007)**: Before testing content passthrough, run a T0 probe with `content=` to verify the CLI actually writes body text to the created file (R-007 unverified during plan-phase probes).
 - [ ] T022 [US3] Create handler tests in `src/tools/create_base/handler.test.ts`: happy-path (parsed filename + constructed path), name collision auto-increment (R-005: CLI returns `name 1.md`), content parameter passthrough, view parameter passthrough (not validated per R-006), `BASE_NOT_FOUND` error classification ("Base file not found:" pattern), content size limit pre-check rejection, upstream CLI failure classification, vault parameter passthrough (accepted but silently ignored per R-004)
 
 ### Registration (US3)
@@ -236,6 +236,7 @@ Agent C (US3 - create_base):
 
 - [P] tasks = different files, no dependencies
 - [Story] label maps task to specific tool/BI for traceability
+- **Principle V**: Every new production source file (schema.ts, handler.ts, index.ts) MUST carry a `// Original — no upstream.` attribution header. Test files carry the same header convention.
 - Each tool is independently completable, testable, and shippable
 - Constitution Principle II: tests are mandatory, not optional — every tool ships with happy-path + failure tests
 - Cross-module graphify path check: N/A — the three tools are independent modules touching no shared symbols beyond the existing `registerTool()` and `invokeCli()` patterns. The only cross-module touch is `server.ts` boot-spine wiring (Phase 5), which is additive and follows the 16-tool precedent.

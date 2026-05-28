@@ -68,7 +68,7 @@ Represents the response envelope for item creation within a base.
 |-------|------|----------|------------|
 | `path` | `string` | Yes | 1–1000 UTF-16 code units. Must end in `.base` (case-insensitive). Path-traversal rejected. |
 | `name` | `string` | Yes | 1–1000 UTF-16 code units. Non-empty. |
-| `content` | `string` | No | Content size limit enforced pre-CLI (platform argv ceiling). |
+| `content` | `string` | No | Max 3072 UTF-16 code units (`MAX_CONTENT_LENGTH`, parity with `prepend`). Over-limit rejected pre-CLI as `CONTENT_TOO_LARGE`. |
 | `view` | `string` | No | View name within the base. Not validated by CLI (R-006). |
 | `vault` | `string` | No | Min 1 char if provided. Note: silently ignored by CLI (R-004). |
 
@@ -81,8 +81,8 @@ All errors surface through existing top-level codes — no new codes introduced.
 | Tool | Error Scenario | `code` | `details.code` | `details.reason` |
 |------|---------------|--------|----------------|-------------------|
 | `bases` | Upstream CLI failure | `CLI_REPORTED_ERROR` | contextual | — |
-| `views_base` | Focused file is not a `.base` | `CLI_REPORTED_ERROR` | `BASE_NOT_FOUND` or contextual | — |
-| `views_base` | No file focused / Obsidian closed | `CLI_REPORTED_ERROR` | contextual | — |
+| `views_base` | Focused file is not a `.base` | `CLI_REPORTED_ERROR` | `BASE_NOT_FOUND` | — |
+| `views_base` | No file focused / Obsidian closed | `CLI_REPORTED_ERROR` | `BASE_NOT_FOUND` | — |
 | `create_base` | Base file not found | `CLI_REPORTED_ERROR` | `BASE_NOT_FOUND` | — |
 | `create_base` | Content exceeds size limit | `VALIDATION_ERROR` | `CONTENT_TOO_LARGE` | — |
 | Any | Path empty | `VALIDATION_ERROR` | `INVALID_BASE_PATH` | `empty` |

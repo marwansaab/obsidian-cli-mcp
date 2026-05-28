@@ -52,7 +52,7 @@ An agent is working within Obsidian with a `.base` file focused and needs to kno
 
 **Why this priority**: Agents cannot safely call `query_base({ view: ... })` without knowing valid view names. Guessing causes `VIEW_NOT_FOUND` errors; `views_base` eliminates that gap for the active-file workflow.
 
-**Independent Test**: Can be fully tested by calling `views_base({})` when a `.base` file is focused in Obsidian. Delivers standalone value as a view-discovery endpoint in the active-mode workflow.
+**Independent Test**: Functional scenario: call `views_base({})` when a `.base` file is focused in Obsidian. Unit tests use mocked `invokeCli` with representative CLI output. Delivers standalone value as a view-discovery endpoint in the active-mode workflow.
 
 **Inherited Limitation (R-003)**: The CLI `base:views` subcommand is active-mode-only — it does not accept `path=` or `file=` parameters. Agents can only enumerate views when the user has a `.base` file focused in Obsidian. This limitation is documented in the tool's description.
 
@@ -78,7 +78,7 @@ An agent wants to add a new item (a Markdown note) to a Bases view — for examp
 
 1. **Given** a `.base` file exists at the supplied path, **When** an agent calls `create_base({ path: "Tasks.base", name: "Fix login bug", content: "## Description\nThe login page throws a 500 error." })`, **Then** a new item is created and the response confirms the created item's vault-relative path.
 2. **Given** the agent also supplies an optional `view` parameter, **When** the call returns, **Then** the item is associated with the named view. If the `view` is omitted, the outcome (default view or structured error) matches whatever the underlying CLI specifies.
-3. **Given** an item with the requested name already exists within the base, **When** an agent calls `create_base`, **Then** the tool surfaces the collision as a structured error or follows whatever well-defined behaviour the underlying CLI exposes — never a silent overwrite.
+3. **Given** an item with the requested name already exists within the base, **When** an agent calls `create_base`, **Then** the CLI auto-increments the filename (appends ` 1`, ` 2`, etc.) and the wrapper surfaces the actual created filename in the response. No silent overwrite occurs. (Resolved R-005.)
 4. **Given** the supplied `content` exceeds the documented size limit (derived from the platform's argv-size ceiling), **When** an agent calls `create_base`, **Then** the tool returns a structured error explaining the limit before invoking the CLI.
 5. **Given** the supplied path does not exist or is not a `.base` file, **When** an agent calls `create_base({ path: "nonexistent.base", name: "x" })`, **Then** the response is a structured error identifying the failure cause.
 
@@ -126,11 +126,11 @@ An agent calls any of the three tools with malformed inputs, a non-existent targ
 
 **Tool: `views_base` (BI-0082)**
 
-- **FR-008**: `views_base` MUST return a structured list of view names (strings only, no per-view metadata) defined within the specified `.base` file, in declaration order.
+- **FR-008**: `views_base` MUST return a structured list of view names (strings only, no per-view metadata) defined within the focused `.base` file, in CLI emission order. (The wrapper passes through whatever order the CLI returns; "declaration order" is not verifiable since `base:views` success output was not observed during T0 probes.)
 - **FR-009**: `views_base` MUST return a `count` field reflecting the number of views found.
 - **FR-010**: `views_base` MUST return `{ views: [], count: 0 }` when the base defines zero views — not an error.
 - **FR-011**: ~~`views_base` MUST accept a `path` parameter.~~ **Resolved R-003**: `base:views` CLI is active-mode-only; no `path` or `file` parameter is accepted. The `views_base` tool has NO path input — it operates exclusively on the currently focused `.base` file. This limitation is documented in the tool's description and help doc.
-- **FR-012**: `views_base` operates in active mode ONLY (per R-003). The tool invokes `base:views` without any locator parameter. When the currently focused file is not a `.base` file, the CLI returns an error that the wrapper classifies as `CLI_REPORTED_ERROR` with `details.code: "BASE_NOT_FOUND"` or a new sub-discriminator `"NOT_A_BASE_FILE"`.
+- **FR-012**: `views_base` operates in active mode ONLY (per R-003). The tool invokes `base:views` without any locator parameter. When the currently focused file is not a `.base` file, the CLI returns an error that the wrapper classifies as `CLI_REPORTED_ERROR` with `details.code: "BASE_NOT_FOUND"`. Reuses the existing sub-discriminator — the agent's remediation path (focus a `.base` file) is the same regardless of whether the focused file is non-`.base` or no file is focused.
 - **FR-013**: `views_base` MUST accept an optional `vault` parameter for multi-vault routing.
 
 **Tool: `create_base` (BI-0083)**
@@ -141,7 +141,7 @@ An agent calls any of the three tools with malformed inputs, a non-existent targ
 - **FR-017**: `create_base` MUST accept an optional `content` parameter (the item's body text).
 - **FR-018**: `create_base` MAY accept an optional `view` parameter to target a specific view within the base. If omitted, behaviour follows whatever the underlying CLI specifies.
 - **FR-019**: `create_base` MUST return the created item's vault-relative path in the response.
-- **FR-020**: `create_base` MUST enforce a content size limit derived from the platform's argv-size ceiling and reject over-limit content with a structured error BEFORE invoking the CLI.
+- **FR-020**: `create_base` MUST enforce a content size limit and reject over-limit content with a structured `VALIDATION_ERROR` / `CONTENT_TOO_LARGE` BEFORE invoking the CLI. The limit reuses the precedent established by `prepend`'s `MAX_CONTENT_LENGTH` (3072 UTF-16 code units, bounded by an upstream Obsidian CLI defect that hangs the host process around 4 KB on Windows). The constant is defined in `create_base`'s own `schema.ts`.
 - **FR-021**: `create_base` MUST NOT silently overwrite an existing item with the same name. **Resolved R-005**: The CLI auto-increments the filename on collision (appends ` 1`, ` 2`, etc.). The wrapper surfaces the ACTUAL created filename (which may differ from the requested name) in the response. This is well-defined behaviour, not a silent overwrite.
 - **FR-022**: `create_base` MUST accept an optional `vault` parameter for multi-vault routing.
 - **FR-023**: `create_base` MUST NOT expose the `open` or `newtab` UI side-effect parameters — UI behaviour is out of scope for the typed agent surface.
@@ -168,7 +168,7 @@ An agent calls any of the three tools with malformed inputs, a non-existent targ
 ### Measurable Outcomes
 
 - **SC-001**: Agents can discover all `.base` files in a vault in a single call, receiving paths and count without fallback to generic file-listing tools.
-- **SC-002**: Agents can enumerate view names within any `.base` file in a single call, enabling exact-match `view_name` input to `query_base` without trial-and-error.
+- **SC-002**: Agents can enumerate view names within the currently focused `.base` file in a single call, enabling exact-match `view_name` input to `query_base` without trial-and-error. (Active-mode-only per R-003.)
 - **SC-003**: Agents can create new items within a base in a single call and receive the created item's vault path for use in subsequent tool calls.
 - **SC-004**: Each tool independently passes its co-located test suite covering happy paths and error classification — a failure in one tool's tests does not block the other two from shipping.
 - **SC-005**: Zero new top-level error codes introduced across all three tools — the existing error roster handles every failure mode via sub-discrimination.
@@ -180,5 +180,5 @@ An agent calls any of the three tools with malformed inputs, a non-existent targ
 - **Confirmed**: `bases` and `base:create` silently ignore the `vault=` parameter (R-001, R-004). `base:views` also ignores it (R-003). All three tools still accept `vault` in their schemas for cohort parity and forward compatibility; the limitation is documented.
 - **Confirmed**: `base:views` is active-mode-only (R-003). No `path=` or `file=` parameter. `views_base` operates exclusively on the currently focused file.
 - **Confirmed**: `base:create` auto-increments on name collision (R-005). No count-only mode for `bases` (R-002).
-- Content size limits for `create_base` derive from the platform's argv-size ceiling (typically ~32 KiB on Windows, ~2 MiB on Linux/macOS), consistent with existing bounds established in the CLI adapter.
+- Content size limit for `create_base` is 3072 UTF-16 code units, matching `prepend`'s `MAX_CONTENT_LENGTH`. This cap is bounded by an upstream Obsidian CLI defect that hangs the host process around 4 KB on Windows (BI-047 bisect). Defined as a local constant in `create_base/schema.ts`.
 - Each tool follows the same DI pattern as `query_base`: receives `invokeCli`, `Logger`, and `Queue` via dependency injection, never importing boot-time factories directly.
