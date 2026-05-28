@@ -68,7 +68,7 @@ Omit `OBSIDIAN_BIN` if the Obsidian CLI is already on `PATH`. On Linux, the Obsi
 
 ## Tool inventory
 
-The server currently registers twenty-six public tools. Call `help({ tool_name: "<name>" })` at runtime for the full per-tool documentation (parameters, output shape, error roster, and worked examples) — the listing below is just the index.
+The server currently registers thirty-two public tools. Call `help({ tool_name: "<name>" })` at runtime for the full per-tool documentation (parameters, output shape, error roster, and worked examples) — the listing below is just the index.
 
 ### Read (full + surgical)
 
@@ -114,11 +114,14 @@ The server currently registers twenty-six public tools. Call `help({ tool_name: 
 | `outline` | List headings in a note. |
 | `properties` | Vault-wide inventory of frontmatter property names with per-property note counts. |
 
-### Structured queries
+### Obsidian Bases
 
 | Tool | Purpose |
 |---|---|
+| `bases` | Enumerate all `.base` files in the vault; returns `{ bases, count }` with paths sorted lexicographically. |
+| `views_base` | List views inside the currently focused `.base` file (active-mode-only); returns `{ views, count }`. |
 | `query_base` | Run a named view from an Obsidian Bases (`.base`) file; returns `{ columns, rows, truncated, total_rows? }` with reserved row-locator `path` at `columns[0]`. |
+| `create_base` | Create a new item (Markdown note) within a `.base` file; returns `{ path, name }` with the actual filename (auto-increments on collision). |
 
 ### Plugin-backed (require Smart Connections)
 
