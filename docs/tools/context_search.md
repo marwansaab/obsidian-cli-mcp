@@ -80,9 +80,7 @@ With truncation:
 
 ### Truncation slice direction
 
-When `truncated: true`, the response carries the **leading N entries of the engine's pre-sort response**, **re-sorted** by the wrapper's output sort key before being returned. Concretely: the wrapper invokes the engine, takes the leading N of the flattened response (`flat.slice(0, appliedCap)`), then re-sorts the slice by `(path, line)` ascending for output.
-
-The engine's natural sort order in the pre-sort response is upstream-determined and unstable across upstream / vault state changes. **The visible subset under truncation is upstream-determined and unstable; consume the `truncated: true` flag, do not depend on the specific subset.**
+When `truncated: true`, the response carries the **first N entries of the wrapper's deterministic sort**. Concretely: the wrapper sorts the full flattened collection by `(path asc, line asc)`, then takes `.slice(0, appliedCap)`. The visible subset under truncation is the leading N of the deterministic ordering — stable across runs for the same vault state.
 
 ### Zero-match handling
 
