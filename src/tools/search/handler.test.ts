@@ -605,6 +605,49 @@ test("I-11 truncated encoding — field is literal true when fired, absent when 
   if ("truncated" in rYes) expect(rYes.truncated).toBe(true);
 });
 
+// =================== Leading-N identity — default mode ===================
+
+test("leading-N identity default mode — limit=2 with 4 reverse-sorted paths returns first 2 of UTF-16 ascending", async () => {
+  const paths = ["z.md", "m.md", "b.md", "a.md", "a.md"];
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: JSON.stringify(paths), exitCode: 0 },
+  ]);
+  const r = await executeSearch({ query: "foo", limit: 4 }, deps(spawnFn));
+  if ("paths" in r) {
+    expect(r.paths).toEqual(["a.md", "a.md", "b.md", "m.md"]);
+    expect(r.count).toBe(4);
+    expect(r.truncated).toBe(true);
+  } else {
+    throw new Error("expected default-mode response with `paths`");
+  }
+});
+
+// =================== Leading-N identity — line mode ===================
+
+test("leading-N identity line mode — limit=3 with 4 files in reverse order returns first 3 paths of (path asc, line asc)", async () => {
+  const wire = [
+    { file: "z.md", matches: [{ line: 1, text: "t1" }] },
+    { file: "m.md", matches: [{ line: 2, text: "t2" }, { line: 1, text: "t3" }] },
+    { file: "b.md", matches: [{ line: 1, text: "t4" }] },
+    { file: "a.md", matches: [{ line: 1, text: "t5" }] },
+  ];
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: JSON.stringify(wire), exitCode: 0 },
+  ]);
+  const r = await executeSearch({ query: "foo", context_lines: true, limit: 3 }, deps(spawnFn));
+  if ("matches" in r) {
+    expect(r.matches).toEqual([
+      { path: "a.md", line: 1, text: "t5" },
+      { path: "b.md", line: 1, text: "t4" },
+      { path: "m.md", line: 1, text: "t3" },
+    ]);
+    expect(r.count).toBe(3);
+    expect(r.truncated).toBe(true);
+  } else {
+    throw new Error("expected line-mode response with `matches`");
+  }
+});
+
 // =================== US5 case sensitivity ===================
 
 test("Q-15 case_sensitive: true → argv contains 'case' (presence-only flag)", async () => {

@@ -122,13 +122,13 @@ export async function executeSearch(
     const cliFileCapFired = mdOnly.length === appliedCap;
     const flatExceedsCap = flat.length > appliedCap;
     const truncated = cliFileCapFired || flatExceedsCap;
-    const trimmed = flatExceedsCap ? flat.slice(0, appliedCap) : flat;
-    const sorted = [...trimmed].sort((a, b) =>
+    const sorted = [...flat].sort((a, b) =>
       a.path < b.path ? -1 : a.path > b.path ? 1 : a.line - b.line,
     );
+    const trimmed = flatExceedsCap ? sorted.slice(0, appliedCap) : sorted;
     return searchLineOutputSchema.parse({
-      count: sorted.length,
-      matches: sorted,
+      count: trimmed.length,
+      matches: trimmed,
       ...(truncated ? { truncated: true as const } : {}),
     });
   } else {
@@ -144,11 +144,11 @@ export async function executeSearch(
     const wire = wireParsed.data;
     const mdOnly = wire.filter((p) => p.toLowerCase().endsWith(".md"));
     const truncated = mdOnly.length === appliedCap + 1;
-    const trimmed = truncated ? mdOnly.slice(0, appliedCap) : mdOnly;
-    const sorted = [...trimmed].sort();
+    const sorted = [...mdOnly].sort();
+    const trimmed = truncated ? sorted.slice(0, appliedCap) : sorted;
     return searchDefaultOutputSchema.parse({
-      count: sorted.length,
-      paths: sorted,
+      count: trimmed.length,
+      paths: trimmed,
       ...(truncated ? { truncated: true as const } : {}),
     });
   }

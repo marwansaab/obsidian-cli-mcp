@@ -10,8 +10,8 @@
 // CLI_REPORTED_ERROR(details.stage). Flatten file-grouped wire to per-line rows,
 // strip a single trailing \r per FR-012, cap text at 500 chars + U+2026 marker,
 // detect truncation via cliFileCapFired OR flatExceedsCap (R9 conservative line-mode
-// trade-off inherited from BI-033 R3), trim if needed, sort by (path, line)
-// ascending. Output boundary-validated via contextSearchOutputSchema.
+// trade-off inherited from BI-033 R3), sort by (path, line) ascending, trim if
+// needed. Output boundary-validated via contextSearchOutputSchema.
 import {
   contextSearchOutputSchema,
   type ContextSearchInput,
@@ -144,13 +144,13 @@ export async function executeContextSearch(
   const cliFileCapFired = mdOnly.length === appliedCap;
   const flatExceedsCap = flat.length > appliedCap;
   const truncated = cliFileCapFired || flatExceedsCap;
-  const trimmed = flatExceedsCap ? flat.slice(0, appliedCap) : flat;
-  const sorted = [...trimmed].sort((a, b) =>
+  const sorted = [...flat].sort((a, b) =>
     a.path < b.path ? -1 : a.path > b.path ? 1 : a.line - b.line,
   );
+  const trimmed = flatExceedsCap ? sorted.slice(0, appliedCap) : sorted;
   return contextSearchOutputSchema.parse({
-    count: sorted.length,
-    matches: sorted,
+    count: trimmed.length,
+    matches: trimmed,
     ...(truncated ? { truncated: true as const } : {}),
   });
 }

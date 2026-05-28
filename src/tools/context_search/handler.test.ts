@@ -509,6 +509,28 @@ test("H14 truncation — limit omitted, CLI returns 999 files × 1 match each �
   expect(Object.hasOwn(r, "truncated")).toBe(false);
 });
 
+// =================== Leading-N identity — context_search ===================
+
+test("leading-N identity — limit=3 with 4 files in reverse order returns first 3 paths of (path asc, line asc)", async () => {
+  const wire = [
+    { file: "z.md", matches: [{ line: 1, text: "t1" }] },
+    { file: "m.md", matches: [{ line: 2, text: "t2" }, { line: 1, text: "t3" }] },
+    { file: "b.md", matches: [{ line: 1, text: "t4" }] },
+    { file: "a.md", matches: [{ line: 1, text: "t5" }] },
+  ];
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: JSON.stringify(wire), exitCode: 0 },
+  ]);
+  const r = await executeContextSearch({ query: "foo", limit: 3 }, deps(spawnFn));
+  expect(r.matches).toEqual([
+    { path: "a.md", line: 1, text: "t5" },
+    { path: "b.md", line: 1, text: "t4" },
+    { path: "m.md", line: 1, text: "t3" },
+  ]);
+  expect(r.count).toBe(3);
+  expect(r.truncated).toBe(true);
+});
+
 // =================== T036a — Recursive subtree-prefix characterisation ===================
 
 test("T036a recursive subtree-prefix — nested subfolder rows forwarded verbatim, sorted (Clarification Q2=A)", async () => {
