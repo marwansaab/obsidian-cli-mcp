@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "052-fix-residual-description-tokens",
-  "generatedAt": "2026-05-27",
+  "generatedFromBranch": "054-add-bases-surface",
+  "generatedAt": "2026-05-28",
   "tools": [
     {
       "name": "append_note",
@@ -14,9 +14,19 @@
       "schemaFingerprint": "bd63e8cd884ef5278f1edd368de0b929f5886cd8bf0ef96f1110d219447328b5"
     },
     {
+      "name": "bases",
+      "descriptionFingerprint": "c6a5989f3b51d4cc2aba23ff376f11556163400d3642e0968f2c734975de88ed",
+      "schemaFingerprint": "79e583472908968d597de5e645af878488e670de8ba017f1312454ded95f1f70"
+    },
+    {
       "name": "context_search",
       "descriptionFingerprint": "9faed98566094514612c08d364e587eb1b7e2f44f4ff92271c26b05a9f94d677",
       "schemaFingerprint": "e62a932890669fb86d6eecb056c6488ba643860f699fd7aec6ff96bc2e8ba3d4"
+    },
+    {
+      "name": "create_base",
+      "descriptionFingerprint": "16a70b71b6d43b566b3ef4a58b2e1ae6ae584aeb3a12ea170d735b70bb4b5cc8",
+      "schemaFingerprint": "3363fd03d54d8c59c14f56e9f7d84b8eaee855a037528ef2e0b3ff8ded2b6dfb"
     },
     {
       "name": "delete",
@@ -142,6 +152,11 @@
       "name": "tag",
       "descriptionFingerprint": "eb804724538790f10a4ea863f62fdf640a317f8d5e58c235abbccd129a6beaa7",
       "schemaFingerprint": "d1f0426ea5439d8642d2dd4db1505209d9a3682f080f91b4985b7ba4aac4ac8a"
+    },
+    {
+      "name": "views_base",
+      "descriptionFingerprint": "64c32d23248509f167a424772df65f732ed8fb33328592a0ee909bf0899f2bb4",
+      "schemaFingerprint": "79e583472908968d597de5e645af878488e670de8ba017f1312454ded95f1f70"
     },
     {
       "name": "write_note",

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "bases",
+  "description": "Input and output schemas for the bases tool (BI-0049)",
+
+  "input": {
+    "type": "object",
+    "properties": {
+      "vault": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Vault display name for multi-vault routing. Note: silently ignored by current CLI (R-001)."
+      }
+    },
+    "additionalProperties": false
+  },
+
+  "output": {
+    "type": "object",
+    "properties": {
+      "bases": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Vault-relative paths to .base files, sorted path-ascending (lexicographic)"
+      },
+      "count": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "Number of .base files found (always equals bases.length)"
+      }
+    },
+    "required": ["bases", "count"],
+    "additionalProperties": false
+  }
+}
