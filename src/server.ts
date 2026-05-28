@@ -13,7 +13,9 @@ import { assertToolDocsExist } from "./tools/_register.js";
 import { asToolError, type RegisteredTool } from "./tools/_shared.js";
 import { createAppendNoteTool } from "./tools/append_note/index.js";
 import { createBacklinksTool } from "./tools/backlinks/index.js";
+import { createBasesTool } from "./tools/bases/index.js";
 import { createContextSearchTool } from "./tools/context_search/index.js";
+import { createCreateBaseTool } from "./tools/create_base/index.js";
 import { createDeleteTool } from "./tools/delete/index.js";
 import { createFilesTool } from "./tools/files/index.js";
 import { createFindAndReplaceTool } from "./tools/find_and_replace/index.js";
@@ -39,6 +41,7 @@ import { createSetPropertyTool } from "./tools/set_property/index.js";
 import { createSmartConnectionsQueryTool } from "./tools/smart_connections_query/index.js";
 import { createSmartConnectionsSimilarTool } from "./tools/smart_connections_similar/index.js";
 import { createTagTool } from "./tools/tag/index.js";
+import { createViewsBaseTool } from "./tools/views_base/index.js";
 import { createWriteNoteTool } from "./tools/write_note/index.js";
 import { createVaultRegistry } from "./vault-registry/registry.js";
 
@@ -100,7 +103,9 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
   const tools: RegisteredTool[] = [
     createAppendNoteTool({ logger, queue, vaultRegistry }),
     createBacklinksTool({ logger, queue }),
+    createBasesTool({ logger, queue }),
     createContextSearchTool({ logger, queue }),
+    createCreateBaseTool({ logger, queue }),
     createDeleteTool({ logger, queue }),
     createFilesTool({ logger, queue }),
     createFindAndReplaceTool({ logger, queue, vaultRegistry }),
@@ -126,6 +131,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     createSmartConnectionsQueryTool({ logger, queue }),
     createSmartConnectionsSimilarTool({ logger, queue }),
     createTagTool({ logger, queue }),
+    createViewsBaseTool({ logger, queue }),
     createWriteNoteTool({ logger, queue, vaultRegistry }),
   ];
 

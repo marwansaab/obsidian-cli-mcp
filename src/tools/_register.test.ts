@@ -446,10 +446,28 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
     required_equals: ["pattern"],
     additionalProperties: false,
   },
+  bases: {
+    type: "object",
+    properties_equals_set: ["vault"],
+    required_equals: [],
+    additionalProperties: false,
+  },
+  create_base: {
+    type: "object",
+    properties_equals_set: ["path", "name", "content", "view", "vault"],
+    required_equals: ["path", "name"],
+    additionalProperties: false,
+  },
   query_base: {
     type: "object",
     properties_equals_set: ["base_path", "view_name", "vault"],
     required_equals: ["base_path", "view_name"],
+    additionalProperties: false,
+  },
+  views_base: {
+    type: "object",
+    properties_equals_set: ["vault"],
+    required_equals: [],
     additionalProperties: false,
   },
   search: {
