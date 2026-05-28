@@ -80,7 +80,7 @@ With truncation:
 
 ### Truncation slice direction
 
-When `truncated: true`, the response carries the **first N entries of the wrapper's deterministic sort**. Concretely: the wrapper sorts the full flattened collection by `(path asc, line asc)`, then takes `.slice(0, appliedCap)`. The visible subset under truncation is the leading N of the deterministic ordering — stable across runs for the same vault state.
+The wrapper does **not** forward your `limit` to upstream — it requests the entire match set, then sorts the full flattened collection by `(path asc, line asc)` and takes `.slice(0, appliedCap)`. So the visible subset is always the **leading N of the deterministic ordering across the full match set**, never the leading N of upstream's own opaque result order. This holds whether or not truncation fired; when `truncated: true`, the slice dropped entries beyond position N. The ordering is stable across runs for the same vault state.
 
 ### Zero-match handling
 
@@ -162,7 +162,7 @@ Response (against a vault with > 50 hits):
 }
 ```
 
-Truncation is conservative — `truncated: true` fires when **either** the post-flatten match-count exceeds the applied cap, **or** the underlying file-count equals the applied cap.
+Truncation is conservative — `truncated: true` fires when the post-flatten match count is **greater than or equal to** the applied cap (so the boundary case of exactly `limit` matches with no actual drop still fires).
 
 ### Example 4 — Folder-not-found error path
 
@@ -174,7 +174,7 @@ Truncation is conservative — `truncated: true` fires when **either** the post-
 ```
 
 Sequence:
-1. First call: `obsidian search:context query=anything path=DoesNotExist format=json limit=1000`.
+1. First call: `obsidian search:context query=anything path=DoesNotExist format=json` (no `limit` is forwarded — the wrapper requests the full match set).
 2. Upstream returns the zero-match sentinel `"No matches found.\n"`.
 3. Handler detects sentinel AND `folder` was supplied → fires the second-call existence probe: `obsidian folder path=DoesNotExist`.
 4. Upstream `folder` returns stdout `Error: Folder "DoesNotExist" not found.` with exit 0.
@@ -260,9 +260,9 @@ Whitespace-only `query` fails the schema:
 |------|------|----------|
 | `VALIDATION_ERROR` | Input failed the schema: missing / empty / whitespace-only / oversize `query`; `limit` out of `1..10000` or non-integer; unknown top-level key; empty `vault` / `folder`. | Retry with corrected input. `details.issues` carries per-issue zod context. |
 | `CLI_REPORTED_ERROR` | (a) CLI stdout was not JSON AND not the zero-match sentinel (`details.stage: "json-parse"`); (b) CLI JSON failed wire-schema parse (`details.stage: "wire-parse"`); (c) folder-not-found (`details.message` starts `Error: Folder`); (d) unknown vault (`details.message: "Vault not found."`). | (a)+(b) investigate as an upstream-contract regression; (c) supply a valid folder, or use the no-`folder` form to scan the whole vault; (d) supply a valid vault name. |
-| `CLI_NON_ZERO_EXIT` | The Obsidian CLI exited with a non-zero code (typical cause: output-cap kill on extreme result sets). | `details.{exitCode, signal, stdout, stderr}` carry the failure context. Reduce scope with `folder`, `limit`, or a narrower `query`. |
+| `CLI_NON_ZERO_EXIT` | The Obsidian CLI exited with a non-zero code (typical cause: output-cap kill on extreme result sets). | `details.{exitCode, signal, stdout, stderr}` carry the failure context. Reduce scope with `folder` or a narrower `query` (lowering `limit` does not reduce upstream output bytes). |
 | `CLI_BINARY_NOT_FOUND` | The `obsidian` CLI binary is not on `PATH` and `OBSIDIAN_BIN` was unset/invalid. | Operator-side: install the Obsidian CLI, OR set `OBSIDIAN_BIN`. |
-| `CLI_TIMEOUT` | The CLI exceeded the 10-second typed-tool timeout. | Reduce scope with `folder`, `limit`, or a narrower `query`. |
+| `CLI_TIMEOUT` | The CLI exceeded the 10-second typed-tool timeout. | Reduce scope with `folder` or a narrower `query`. |
 | `CLI_OUTPUT_TOO_LARGE` | The CLI's stdout exceeded the 10 MiB output cap. | Reduce scope; raising `limit` is NOT a recovery (the cap is on bytes, not entries). |
 
 ## Behavioural notes
@@ -277,7 +277,7 @@ When `folder` is supplied AND the first call returns the zero-match sentinel, th
 
 ### Conservative truncation
 
-`truncated: true` fires when **either** the post-flatten match-count exceeds the applied cap, **or** the underlying file-count equals the applied cap. The second condition is conservative — it may fire when no actual drop occurred — but preserves correctness over precision.
+`truncated: true` fires when the post-flatten match count is **greater than or equal to** the applied cap. The boundary case — flattened match count exactly equal to the cap, with nothing actually dropped — still fires; this is conservative (it may report `truncated` when no entry was removed) but preserves correctness over precision. This is the same rule as [`search`](./search.md)'s line mode.
 
 ### Empty `matches: []` entries dropped
 
@@ -323,7 +323,7 @@ Same response shape; same `truncated` semantics; identical sort order. Two behav
 
 ### Output-cap ceiling
 
-Very large vaults may exceed the 10 MiB output cap and surface as `CLI_NON_ZERO_EXIT` or `CLI_OUTPUT_TOO_LARGE`. Narrow the scope with `folder`, tighten `query`, or lower `limit`.
+The wrapper requests the entire match set from upstream (it does **not** forward `limit`), so the full result set always crosses the CLI-to-wrapper pipe before the wrapper sorts and slices it. A common-term query against a very large vault may exceed the 10 MiB output cap and surface as `CLI_NON_ZERO_EXIT` or `CLI_OUTPUT_TOO_LARGE`. Narrow the scope with `folder` or a tighter `query`. Lowering `limit` does **not** help — the cap is on the bytes upstream emits, which the wrapper-side slice does not change.
 
 ### No relevance ranking
 

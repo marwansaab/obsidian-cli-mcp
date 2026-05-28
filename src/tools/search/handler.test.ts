@@ -93,7 +93,7 @@ afterEach(() => __resetInFlightRegistryForTests());
 
 // =================== Default mode — Q-1 happy path ===================
 
-test("Q-1 default-mode happy path — invokes `search` subcommand with format=json and limit=1001, returns sorted paths", async () => {
+test("Q-1 default-mode happy path — invokes `search` subcommand with format=json and NO upstream limit, returns sorted paths", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
     { stdout: JSON.stringify(["a.md", "b.md"]), exitCode: 0 },
   ]);
@@ -103,7 +103,7 @@ test("Q-1 default-mode happy path — invokes `search` subcommand with format=js
   expect(argv).toContain("search");
   expect(argv).toContain("query=foo");
   expect(argv).toContain("format=json");
-  expect(findKv(argv, "limit")).toBe("1001");
+  expect(findKv(argv, "limit")).toBeUndefined();
   expect(r).toEqual({ count: 2, paths: ["a.md", "b.md"] });
 });
 
@@ -276,7 +276,7 @@ test("vault flow-through — argv contains vault=X verbatim when set; absent whe
 
 // =================== Line mode — Q-2 happy path ===================
 
-test("Q-2 line-mode happy path — invokes `search:context`, limit=1000 (no +1), returns flattened matches", async () => {
+test("Q-2 line-mode happy path — invokes `search:context` with NO upstream limit, returns flattened matches", async () => {
   const wire = [{ file: "a.md", matches: [{ line: 3, text: "foo bar" }] }];
   const { spawnFn, recorded } = makeQueuedSpawn([
     { stdout: JSON.stringify(wire), exitCode: 0 },
@@ -284,7 +284,7 @@ test("Q-2 line-mode happy path — invokes `search:context`, limit=1000 (no +1),
   const r = await executeSearch({ query: "foo", context_lines: true }, deps(spawnFn));
   const argv = recorded[0]!.argv;
   expect(argv).toContain("search:context");
-  expect(findKv(argv, "limit")).toBe("1000");
+  expect(findKv(argv, "limit")).toBeUndefined();
   expect(r).toEqual({ count: 1, matches: [{ path: "a.md", line: 3, text: "foo bar" }] });
 });
 
@@ -490,21 +490,21 @@ test("stripBoundarySlashes — at most one leading and one trailing strip (//Pro
 
 // =================== US4 limit + truncated ===================
 
-test("Q-8 limit forwards +1 in default mode — input.limit=50 → CLI limit=51", async () => {
+test("Q-8 default mode never forwards a limit upstream — input.limit=50 → no CLI limit token", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
     { stdout: JSON.stringify(["a.md"]), exitCode: 0 },
   ]);
   await executeSearch({ query: "foo", limit: 50 }, deps(spawnFn));
-  expect(findKv(recorded[0]!.argv, "limit")).toBe("51");
+  expect(findKv(recorded[0]!.argv, "limit")).toBeUndefined();
 });
 
-test("Q-9 limit forwards as-is in line mode — input.limit=50 → CLI limit=50", async () => {
+test("Q-9 line mode never forwards a limit upstream — input.limit=50 → no CLI limit token", async () => {
   const wire: unknown[] = [];
   const { spawnFn, recorded } = makeQueuedSpawn([
     { stdout: JSON.stringify(wire), exitCode: 0 },
   ]);
   await executeSearch({ query: "foo", limit: 50, context_lines: true }, deps(spawnFn));
-  expect(findKv(recorded[0]!.argv, "limit")).toBe("50");
+  expect(findKv(recorded[0]!.argv, "limit")).toBeUndefined();
 });
 
 test("Q-10 default-mode cap-clip detection — CLI returns 51 paths with limit=50 → trim to 50 + truncated: true", async () => {
@@ -530,13 +530,13 @@ test("Q-11 default-mode no truncation when underlying <= cap — 49 paths with l
   expect(Object.hasOwn(r, "truncated")).toBe(false);
 });
 
-test("Q-12 implicit 1000 cap — no input.limit, CLI returns 1001 → 1000 trimmed + truncated: true; CLI limit=1001", async () => {
+test("Q-12 implicit 1000 cap — no input.limit, CLI returns 1001 → 1000 trimmed + truncated: true; NO upstream limit", async () => {
   const paths = Array.from({ length: 1001 }, (_, i) => `f${String(i).padStart(4, "0")}.md`);
   const { spawnFn, recorded } = makeQueuedSpawn([
     { stdout: JSON.stringify(paths), exitCode: 0 },
   ]);
   const r = await executeSearch({ query: "foo" }, deps(spawnFn));
-  expect(findKv(recorded[0]!.argv, "limit")).toBe("1001");
+  expect(findKv(recorded[0]!.argv, "limit")).toBeUndefined();
   if ("paths" in r) {
     expect(r.paths).toHaveLength(1000);
     expect(r.count).toBe(1000);
@@ -558,7 +558,7 @@ test("Q-13 line-mode flat-exceeds-cap — single file with 1500 matches, no inpu
   }
 });
 
-test("Q-14 line-mode CLI-file-cap-fired conservative — 1000 files × 1 match each → truncated: true (file-cap signal)", async () => {
+test("Q-14 line-mode conservative fire — 1000 files × 1 match each (flat === cap) → truncated: true", async () => {
   const wire = Array.from({ length: 1000 }, (_, i) => ({
     file: `f${String(i).padStart(4, "0")}.md`,
     matches: [{ line: 1, text: "x" }],
@@ -683,4 +683,127 @@ test("case flag propagates to line mode — argv contains both search:context AN
   );
   expect(recorded[0]!.argv).toContain("search:context");
   expect(recorded[0]!.argv).toContain("case=true");
+});
+
+// =================== BI-055 — leading-N over the FULL match set (scrambled upstream order) ===================
+// Upstream order is opaque and non-path-ascending (T0 §1: body-3, body-5, body-2, body-4, body-1).
+// The wrapper must return the path-ascending leading N across the full set, independent of that order.
+
+const SCRAMBLED_DEFAULT = ["body-3.md", "body-5.md", "body-2.md", "body-4.md", "body-1.md"];
+
+test("BI-055 default mode leading-N — limit=2 over scrambled 5 → [body-1, body-2], truncated true", async () => {
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: JSON.stringify(SCRAMBLED_DEFAULT), exitCode: 0 },
+  ]);
+  const r = await executeSearch({ query: "foo", limit: 2 }, deps(spawnFn));
+  if ("paths" in r) {
+    expect(r.paths).toEqual(["body-1.md", "body-2.md"]);
+    expect(r.count).toBe(2);
+    expect(r.truncated).toBe(true);
+  } else {
+    throw new Error("expected default-mode response with `paths`");
+  }
+});
+
+test("BI-055 default mode leading-N — limit=3 over scrambled 5 → [body-1, body-2, body-3], truncated true", async () => {
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: JSON.stringify(SCRAMBLED_DEFAULT), exitCode: 0 },
+  ]);
+  const r = await executeSearch({ query: "foo", limit: 3 }, deps(spawnFn));
+  if ("paths" in r) {
+    expect(r.paths).toEqual(["body-1.md", "body-2.md", "body-3.md"]);
+    expect(r.count).toBe(3);
+    expect(r.truncated).toBe(true);
+  } else {
+    throw new Error("expected default-mode response with `paths`");
+  }
+});
+
+test("BI-055 default mode truncated truth table — S > cap fires, count === cap", async () => {
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: JSON.stringify(SCRAMBLED_DEFAULT), exitCode: 0 },
+  ]);
+  const r = await executeSearch({ query: "foo", limit: 4 }, deps(spawnFn));
+  expect(r.count).toBe(4);
+  if ("truncated" in r) expect(r.truncated).toBe(true);
+  else throw new Error("expected truncated: true when S (5) > cap (4)");
+});
+
+test("BI-055 default mode precise — S === cap → truncated ABSENT (default mode never conservatively fires)", async () => {
+  const paths = ["c.md", "a.md", "b.md"];
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: JSON.stringify(paths), exitCode: 0 },
+  ]);
+  const r = await executeSearch({ query: "foo", limit: 3 }, deps(spawnFn));
+  expect(r.count).toBe(3);
+  if ("paths" in r) expect(r.paths).toEqual(["a.md", "b.md", "c.md"]);
+  expect(Object.hasOwn(r, "truncated")).toBe(false);
+});
+
+test("BI-055 default mode — S < cap → all path-ascending, no truncated, no drop", async () => {
+  const paths = ["c.md", "a.md", "b.md"];
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: JSON.stringify(paths), exitCode: 0 },
+  ]);
+  const r = await executeSearch({ query: "foo", limit: 10 }, deps(spawnFn));
+  if ("paths" in r) expect(r.paths).toEqual(["a.md", "b.md", "c.md"]);
+  expect(r.count).toBe(3);
+  expect(Object.hasOwn(r, "truncated")).toBe(false);
+});
+
+test("BI-055 line mode leading-N — limit=2 over scrambled 5 files → covers [body-1, body-2], truncated true", async () => {
+  const wire = SCRAMBLED_DEFAULT.map((file) => ({ file, matches: [{ line: 1, text: "m" }] }));
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: JSON.stringify(wire), exitCode: 0 },
+  ]);
+  const r = await executeSearch({ query: "foo", context_lines: true, limit: 2 }, deps(spawnFn));
+  if ("matches" in r) {
+    expect(r.matches.map((m) => m.path)).toEqual(["body-1.md", "body-2.md"]);
+    expect(r.count).toBe(2);
+    expect(r.truncated).toBe(true);
+  } else {
+    throw new Error("expected line-mode response with `matches`");
+  }
+});
+
+test("BI-055 line mode conservative — S > cap fires, count === cap", async () => {
+  const wire = [
+    { file: "a.md", matches: [{ line: 1, text: "x" }, { line: 2, text: "y" }, { line: 3, text: "z" }] },
+  ];
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: JSON.stringify(wire), exitCode: 0 },
+  ]);
+  const r = await executeSearch({ query: "x", context_lines: true, limit: 2 }, deps(spawnFn));
+  expect(r.count).toBe(2);
+  if ("truncated" in r) expect(r.truncated).toBe(true);
+  else throw new Error("expected truncated: true when flat (3) > cap (2)");
+});
+
+test("BI-055 line mode conservative — S === cap with NO drop → truncated true (fileCount < cap, flat === cap)", async () => {
+  // Single file with exactly `cap` matching lines: file count (1) is below cap, but the
+  // flattened match count equals cap. The rule keys on flattened match count, so it fires.
+  const wire = [
+    { file: "a.md", matches: [{ line: 1, text: "x" }, { line: 2, text: "y" }, { line: 3, text: "z" }] },
+  ];
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: JSON.stringify(wire), exitCode: 0 },
+  ]);
+  const r = await executeSearch({ query: "x", context_lines: true, limit: 3 }, deps(spawnFn));
+  expect(r.count).toBe(3);
+  if ("truncated" in r) expect(r.truncated).toBe(true);
+  else throw new Error("expected truncated: true at flat === cap (conservative fire on flattened match count)");
+});
+
+test("BI-055 line mode — S < cap → all path-ascending, no truncated, no drop", async () => {
+  const wire = [
+    { file: "b.md", matches: [{ line: 1, text: "x" }] },
+    { file: "a.md", matches: [{ line: 1, text: "y" }] },
+  ];
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: JSON.stringify(wire), exitCode: 0 },
+  ]);
+  const r = await executeSearch({ query: "x", context_lines: true, limit: 10 }, deps(spawnFn));
+  if ("matches" in r) expect(r.matches.map((m) => m.path)).toEqual(["a.md", "b.md"]);
+  expect(r.count).toBe(2);
+  expect(Object.hasOwn(r, "truncated")).toBe(false);
 });

@@ -106,7 +106,7 @@ test("H1 happy path — single file with two matches, single CLI call, sorted ou
   expect(argv).toContain("search:context");
   expect(argv).toContain("query=foo");
   expect(argv).toContain("format=json");
-  expect(findKv(argv, "limit")).toBe("1000");
+  expect(findKv(argv, "limit")).toBeUndefined();
   expect(r).toEqual({
     count: 2,
     matches: [
@@ -452,7 +452,7 @@ test("H14 truncation — limit=3, CLI returns 3 files × 1 match each → trunca
     { stdout: JSON.stringify(wire), exitCode: 0 },
   ]);
   const r = await executeContextSearch({ query: "x", limit: 3 }, deps(spawnFn));
-  expect(findKv(recorded[0]!.argv, "limit")).toBe("3");
+  expect(findKv(recorded[0]!.argv, "limit")).toBeUndefined();
   expect(r.count).toBe(3);
   expect(r.matches.length).toBe(3);
   if ("truncated" in r) expect(r.truncated).toBe(true);
@@ -492,7 +492,7 @@ test("H14 truncation — limit omitted, CLI returns 1000 files × 1 match each �
     { stdout: JSON.stringify(wire), exitCode: 0 },
   ]);
   const r = await executeContextSearch({ query: "x" }, deps(spawnFn));
-  expect(findKv(recorded[0]!.argv, "limit")).toBe("1000");
+  expect(findKv(recorded[0]!.argv, "limit")).toBeUndefined();
   expect(r.count).toBe(1000);
   expect(r.matches.length).toBe(1000);
   if ("truncated" in r) expect(r.truncated).toBe(true);
@@ -601,4 +601,56 @@ test("two-call path NOT triggered when folder absent — zero-match no-folder is
   const r = await executeContextSearch({ query: "x" }, deps(spawnFn));
   expect(recorded).toHaveLength(1);
   expect(r).toEqual({ count: 0, matches: [] });
+});
+
+// =================== BI-055 — leading-N over the FULL match set (scrambled upstream order) ===================
+// Upstream order is opaque and non-path-ascending (T0 §1: body-3, body-5, body-2, body-4, body-1).
+// The wrapper must return matches covering the path-ascending leading N across the full set.
+
+const SCRAMBLED_FILES = ["body-3.md", "body-5.md", "body-2.md", "body-4.md", "body-1.md"];
+
+test("BI-055 leading-N — limit=2 over scrambled 5 files (one match each) → covers [body-1, body-2], count 2, truncated true", async () => {
+  const wire = SCRAMBLED_FILES.map((file) => ({ file, matches: [{ line: 1, text: "m" }] }));
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const r = await executeContextSearch({ query: "foo", limit: 2 }, deps(spawnFn));
+  expect(r.matches.map((m) => m.path)).toEqual(["body-1.md", "body-2.md"]);
+  expect(r.count).toBe(2);
+  if ("truncated" in r) expect(r.truncated).toBe(true);
+  else throw new Error("expected truncated: true");
+});
+
+test("BI-055 conservative — S > cap fires, count === cap", async () => {
+  const wire = [
+    { file: "a.md", matches: [{ line: 1, text: "x" }, { line: 2, text: "y" }, { line: 3, text: "z" }] },
+  ];
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const r = await executeContextSearch({ query: "x", limit: 2 }, deps(spawnFn));
+  expect(r.count).toBe(2);
+  if ("truncated" in r) expect(r.truncated).toBe(true);
+  else throw new Error("expected truncated: true when flat (3) > cap (2)");
+});
+
+test("BI-055 conservative — S === cap with NO drop → truncated true (fileCount < cap, flat === cap)", async () => {
+  // Single file with exactly `cap` matching lines: file count (1) is below cap, but the
+  // flattened match count equals cap. The rule keys on flattened match count, so it fires.
+  const wire = [
+    { file: "a.md", matches: [{ line: 1, text: "x" }, { line: 2, text: "y" }, { line: 3, text: "z" }] },
+  ];
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const r = await executeContextSearch({ query: "x", limit: 3 }, deps(spawnFn));
+  expect(r.count).toBe(3);
+  if ("truncated" in r) expect(r.truncated).toBe(true);
+  else throw new Error("expected truncated: true at flat === cap (conservative fire on flattened match count)");
+});
+
+test("BI-055 — S < cap → all path-ascending, no truncated, no drop", async () => {
+  const wire = [
+    { file: "b.md", matches: [{ line: 1, text: "x" }] },
+    { file: "a.md", matches: [{ line: 1, text: "y" }] },
+  ];
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const r = await executeContextSearch({ query: "x", limit: 10 }, deps(spawnFn));
+  expect(r.matches.map((m) => m.path)).toEqual(["a.md", "b.md"]);
+  expect(r.count).toBe(2);
+  expect(Object.hasOwn(r, "truncated")).toBe(false);
 });

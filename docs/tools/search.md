@@ -101,7 +101,7 @@ With truncation:
 
 ### Truncation slice direction
 
-When `truncated: true`, the response carries the **first N entries of the wrapper's deterministic sort**. The wrapper sorts the full collection first (UTF-16 ascending for default mode; `(path asc, line asc)` for line mode), then takes `.slice(0, appliedCap)`. The visible subset under truncation is the leading N of the deterministic ordering — stable across runs for the same vault state.
+The wrapper does **not** forward your `limit` to upstream — it requests the entire match set, sorts it wrapper-side (UTF-16 ascending over paths for default mode; `(path asc, line asc)` for line mode), then takes `.slice(0, appliedCap)`. So the visible subset is always the **leading N of the deterministic ordering across the full match set**, never the leading N of upstream's own opaque result order. This holds whether or not truncation fired; when `truncated: true`, the slice dropped entries beyond position N. The ordering is stable across runs for the same vault state.
 
 ### Zero-match handling
 
@@ -216,7 +216,7 @@ Whitespace-only `query` fails the schema:
 |------|------|----------|
 | `VALIDATION_ERROR` | Input failed the schema (missing / empty / whitespace-only / oversize `query`; non-integer or out-of-range `limit`; empty `vault` / `folder`; unknown top-level key). | Retry with corrected input. `details.issues` carries per-issue zod context. |
 | `CLI_REPORTED_ERROR` | (a) Upstream stdout was not JSON AND not the zero-match sentinel (`details.stage: "json-parse"`); (b) CLI JSON failed wire-schema parse (`details.stage: "wire-parse"`); (c) unknown vault (`details.code: "VAULT_NOT_FOUND"`). | (a)+(b) investigate as an upstream-contract regression; (c) supply a valid vault name. |
-| `CLI_NON_ZERO_EXIT` | Output-cap kill on extreme result sets. | Reduce scope with `folder`, `limit`, or a narrower `query`. |
+| `CLI_NON_ZERO_EXIT` | Output-cap kill on extreme result sets. | Reduce scope with `folder` or a narrower `query` (lowering `limit` does not reduce upstream output bytes). |
 | `CLI_BINARY_NOT_FOUND` | The `obsidian` CLI binary is not on `PATH` and `OBSIDIAN_BIN` was unset/invalid. | Operator-side: install the Obsidian CLI, OR set `OBSIDIAN_BIN`. |
 | `CLI_TIMEOUT` | Exceeded the 10-second timeout. | Reduce scope. |
 | `CLI_OUTPUT_TOO_LARGE` | Output exceeded the 10 MiB cap. | Reduce scope; raising `limit` is NOT a recovery (the cap is on bytes, not entries). |
@@ -233,7 +233,7 @@ Line mode (`context_lines: true`) returns ONLY entries whose `matches` array was
 
 ### Conservative truncation in line mode
 
-`truncated: true` in line mode fires when **either** the post-flatten match-count exceeds the applied cap, **or** the underlying file-count equals the applied cap. The second condition is conservative — it may fire when no actual drop occurred — but preserves correctness over precision.
+`truncated: true` in line mode fires when the post-flatten match count is **greater than or equal to** the applied cap. The boundary case — flattened match count exactly equal to the cap, with nothing actually dropped — still fires; this is conservative (it may report `truncated` when no entry was removed) but preserves correctness over precision. Default mode is precise by contrast: it fires only when the match count **strictly exceeds** the cap.
 
 ### Non-`.md` files never appear
 
@@ -251,7 +251,7 @@ When `case_sensitive: false` (the default), folding is ASCII-only — Latin-1 ac
 
 ### Output-cap ceiling
 
-Very large vaults may exceed the 10 MiB output cap and surface as `CLI_NON_ZERO_EXIT`. Narrow the scope with `folder`, tighten `query`, or lower `limit`.
+The wrapper requests the entire match set from upstream (it does **not** forward `limit`), so the full result set always crosses the CLI-to-wrapper pipe before the wrapper sorts and slices it. A common-term query against a very large vault may exceed the 10 MiB output cap and surface as `CLI_NON_ZERO_EXIT` / `CLI_OUTPUT_TOO_LARGE`. Narrow the scope with `folder` or a tighter `query`. Lowering `limit` does **not** help — the cap is on the bytes upstream emits, which the wrapper-side slice does not change.
 
 ### No relevance ranking
 
