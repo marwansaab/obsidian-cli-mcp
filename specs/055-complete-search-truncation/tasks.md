@@ -48,7 +48,7 @@ Single project. Source under `src/tools/<surface>/`, co-located tests as `*.test
 
 ### Tests for User Story 1 ⚠️ (write first, confirm FAIL)
 
-- [ ] T002 [P] [US1] Add failing unit tests in `src/tools/search/handler.test.ts` for BOTH modes: (a) default-mode leading-N over scrambled upstream order — `limit: 2` → `paths: ["body-1.md","body-2.md"]`, `limit: 3` → `["body-1.md","body-2.md","body-3.md"]`; (b) default-mode truncated: `S > cap` → `truncated: true`, `count === cap`; `S === cap` → `truncated` absent; `S < cap` → all path-asc, no `truncated`; (c) line-mode leading-N over scrambled order; (d) line-mode conservative truncated: `S > cap` → true & `count === cap`, `S === cap` no-drop → `truncated: true`, `S < cap` → absent. Run `npx vitest run src/tools/search` and confirm the new assertions FAIL against current code.
+- [ ] T002 [P] [US1] Add failing unit tests in `src/tools/search/handler.test.ts` for BOTH modes: (a) default-mode leading-N over scrambled upstream order — `limit: 2` → `paths: ["body-1.md","body-2.md"]`, `limit: 3` → `["body-1.md","body-2.md","body-3.md"]`; (b) default-mode truncated: `S > cap` → `truncated: true`, `count === cap`; `S === cap` → `truncated` absent (default mode is **precise** per FR-005); `S < cap` → all path-asc, no `truncated`; (c) line-mode leading-N over scrambled order; (d) line-mode conservative truncated: `S > cap` → true & `count === cap`, `S === cap` no-drop → `truncated: true`, `S < cap` → absent; (e) line-mode conservative-fire edge (reviewer flag) — a single file producing exactly `cap` matching lines (file count `1 < cap`, flattened match count `=== cap`) → `truncated: true`, confirming the rule keys on flattened match count, not file count. Run `npx vitest run src/tools/search` and confirm the new assertions FAIL against current code.
 
 ### Implementation for User Story 1
 
@@ -66,7 +66,7 @@ Single project. Source under `src/tools/<surface>/`, co-located tests as `*.test
 
 ### Tests for User Story 2 ⚠️ (write first, confirm FAIL)
 
-- [ ] T004 [P] [US2] Add failing unit tests in `src/tools/context_search/handler.test.ts`: (a) leading-N over scrambled upstream order — `limit: 2` → matches cover `["body-1.md","body-2.md"]`; (b) conservative truncated — `S > cap` → `truncated: true` & `count === cap`, `S === cap` no-drop → `truncated: true`, `S < cap` → `truncated` absent, all path-asc, no drop. Run `npx vitest run src/tools/context_search`; confirm the new assertions FAIL.
+- [ ] T004 [P] [US2] Add failing unit tests in `src/tools/context_search/handler.test.ts`: (a) leading-N over scrambled upstream order — with one matching line per note (Assumption A7), `limit: 2` → matches cover exactly `["body-1.md","body-2.md"]`, `count === 2`; (b) conservative truncated — `S > cap` → `truncated: true` & `count === cap`, `S === cap` no-drop → `truncated: true`, `S < cap` → `truncated` absent, all path-asc, no drop; (c) conservative-fire edge (reviewer flag) — a single file with exactly `cap` matching lines (file count `1 < cap`, flattened match count `=== cap`) → `truncated: true`, confirming the rule keys on flattened match count, not file count. Run `npx vitest run src/tools/context_search`; confirm the new assertions FAIL.
 
 ### Implementation for User Story 2
 
