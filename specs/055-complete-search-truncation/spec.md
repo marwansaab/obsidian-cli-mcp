@@ -17,6 +17,12 @@ This was confirmed empirically by the 2026-05-28 T0 upstream-order probe, archiv
 
 This feature closes the gap between the BI-0084 sort-then-slice reorder (necessary) and the published `limit` contract (sufficient) by ensuring the wrapper-side sort-then-slice operates on the full match set rather than an upstream-clipped subset.
 
+## Clarifications
+
+### Session 2026-05-28
+
+- Q: When a query's full match set is large, what bounds the universe the leading-N is computed over? → A: The entire match set — no wrapper-side universe cap. The wrapper obtains every matching entry from upstream, sorts path-ascending, then slices to the caller's `limit`. Leading-N is correct regardless of match-set size. The retrieval mechanism (single over-fetch vs pagination) is a plan-phase decision and does not change this contract.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - `search` returns the leading N of the full match set (Priority: P1)
@@ -73,7 +79,7 @@ An MCP integrator reading the `search` and `context_search` help docs can run th
 - **Total matches less than `limit`**: every match appears in path-ascending order; no entry is dropped. The `truncated` flag follows the existing rule (see "Preserved invariants" below).
 - **Total matches exactly equals `limit`**: the response contains every match in path-ascending order; `truncated` is `true` per the existing conservative rule (preserved — see Out of Scope).
 - **Two matches with identical sort keys**: path-ascending order is a total order over vault paths, so identical sort keys do not arise in practice; if they did, the existing tiebreak rule applies (unchanged by this feature).
-- **Very large match set**: see Assumptions A3 and A4 — the wrapper obtains the full match set so the leading-N contract holds. Performance/scale of fetching the full set under common-term queries is a planning-phase concern, not a spec-phase scope question; the contract is "leading N of the full set" regardless of set size.
+- **Very large match set**: the wrapper obtains the entire match set with no wrapper-side universe cap (Clarification 2026-05-28, FR-010, Assumptions A3/A4), so the leading-N contract holds regardless of set size. Performance/scale of fetching and sorting the full set under common-term queries is addressed by retrieval/sort strategy at the planning phase, never by narrowing the contract.
 
 ## Requirements *(mandatory)*
 
@@ -88,6 +94,7 @@ An MCP integrator reading the `search` and `context_search` help docs can run th
 - **FR-007**: The `context_search` help doc's truncation-direction description MUST match runtime behaviour after this feature lands, under the same verbatim-match criterion as FR-006.
 - **FR-008**: The wrapper MUST NOT introduce any caller-facing parameter that exposes alternative orderings (no `sort`, `order`, or `direction` parameter on `search` or `context_search`).
 - **FR-009**: Path-ascending ordering on `search` and `context_search` MUST be the same ordering applied by BI-0084's sort-then-slice reorder — no new ordering is defined by this feature.
+- **FR-010**: The wrapper MUST NOT impose any wrapper-side universe cap that bounds the set over which the leading-N is computed. The full match set is obtained from upstream, sorted, and then sliced to the caller's `limit`. Leading-N correctness MUST hold regardless of match-set size (Clarification 2026-05-28). The existing `DEFAULT_CAP` value continues to govern only the default *output* slice when the caller omits `limit`; it is not a fetch-universe cap.
 
 ### Preserved invariants
 
@@ -119,8 +126,8 @@ The following pre-existing behaviours are explicitly preserved and MUST NOT chan
 
 - **A1**: BI-0084's path-ascending ordering remains the canonical truncation ordering for `search` and `context_search`. No new ordering is introduced by this feature.
 - **A2**: The existing `truncated`-flag firing rule (conservative; fires when returned count equals `limit` even with no drop) remains in place.
-- **A3**: The wrapper can obtain the full match set from upstream for typical caller queries. The exact mechanism (omit `limit` on the upstream call, pass a sentinel "unlimited" value, paginate, etc.) is a planning-phase decision, not a spec-phase one. If at plan time it emerges that upstream caps the achievable universe (e.g., a hard server-side maximum), that constraint will be surfaced and either accepted as a documented contract narrowing or addressed via paginated retrieval; either resolution is consistent with this spec's contract, which defines "leading N of the full match set" as the goal and treats any plan-time concession to upstream limits as a constraint to document at that phase.
-- **A4**: Vault-scale performance of fetching and sorting the full match set under common-term queries is acceptable for the typical caller. If at plan time it emerges that common-term queries produce unmanageably large match sets, the planning artifact will propose either (a) a documented effective-universe cap (with the contract narrowed accordingly) or (b) a streaming/paged retrieval strategy. The spec-level contract remains "leading N of the full match set".
+- **A3**: The wrapper obtains the entire match set from upstream — no wrapper-side universe cap (Clarification 2026-05-28, FR-010). The exact retrieval mechanism (omit `limit` on the upstream call, pass a sentinel "unlimited" value, paginate across upstream calls, etc.) is a planning-phase decision, not a spec-phase one. If at plan time it emerges that a single upstream call imposes a hard server-side maximum, the resolution is paginated retrieval (loop until the full set is obtained), not a wrapper-side cap — the no-cap contract from the clarification holds.
+- **A4**: Vault-scale performance of fetching and sorting the entire match set under common-term queries is accepted as a consequence of the no-cap contract (Clarification 2026-05-28). If the planning phase surfaces a performance concern, the response is a more efficient retrieval/sort strategy (e.g., streaming/paged fetch), not a contract narrowing. The spec-level contract is unconditionally "leading N of the full match set".
 - **A5**: The BI-0110 help-doc truncation-direction sections currently describe a now-stale contract. They will be rewritten — not reverted — in the same change set as this feature lands, per the user's explicit scope statement.
 - **A6**: Test execution against the five-note fixture follows the project's existing destructive-probe and test-vault protocol (see `.memory/test-execution-instructions.md`); no new fixture provisioning convention is introduced.
 
