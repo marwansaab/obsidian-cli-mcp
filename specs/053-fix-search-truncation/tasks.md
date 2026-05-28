@@ -45,7 +45,7 @@
 
 ### Implementation for User Story 2
 
-- [ ] T006 [P] [US2] Fix pipeline: swap sort and slice in `src/tools/context_search/handler.ts` (lines 144–150). Change from `flat → slice → sort(path,line)` to `flat → sort(path,line) → slice`. Same pattern as T001/T002.
+- [ ] T006 [P] [US2] Fix pipeline: swap sort and slice in `src/tools/context_search/handler.ts` (lines 135–150). Change from `flat → slice → sort(path,line)` to `flat → sort(path,line) → slice`. Same pattern as T001/T002.
 
 - [ ] T007 [P] [US2] Add leading-N identity test in `src/tools/context_search/handler.test.ts`. Construct a CLI stub returning 4 files with matches in reverse path order. Invoke `executeContextSearch` with `limit: 3`. Assert `matches` contains only entries from the first 3 paths of the `(path asc, line asc)` sort, `count` matches returned array length, and `truncated` is true.
 
@@ -131,3 +131,4 @@
 - [Story] label maps task to specific user story for traceability.
 - Constitution Principle II satisfied: each handler modification ships with co-located test additions in the same change.
 - Test scope: vitest unit tests only (per project convention). Manual/integration TC-XXX cases are tracked elsewhere.
+- FR-004 (count invariant), FR-005 (truncated flag), FR-006 (empty set), FR-007 (at-or-under-limit) have no dedicated new tasks because the pipeline reorder does not change these code paths. Existing tests cover them: Q-10..Q-14 / Q-3 / Q-11 (search), US3 truncation / H5 (context_search). The new leading-N identity tests (T003, T004, T007) additionally assert count and truncated values on every truncation-triggering invocation.
