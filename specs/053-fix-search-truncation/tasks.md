@@ -23,15 +23,15 @@
 
 ### Implementation for User Story 1
 
-- [ ] T001 [US1] Fix default-mode pipeline: swap sort and slice in `src/tools/search/handler.ts` (lines 144–148). Change from `mdOnly → slice → sort` to `mdOnly → sort → slice`. The sorted collection replaces `trimmed` as the sort target; `slice(0, appliedCap)` operates on the already-sorted array. Truncation detection (`mdOnly.length === appliedCap + 1`) remains before both operations and is unchanged.
+- [x] T001 [US1] Fix default-mode pipeline: swap sort and slice in `src/tools/search/handler.ts` (lines 144–148). Change from `mdOnly → slice → sort` to `mdOnly → sort → slice`. The sorted collection replaces `trimmed` as the sort target; `slice(0, appliedCap)` operates on the already-sorted array. Truncation detection (`mdOnly.length === appliedCap + 1`) remains before both operations and is unchanged.
 
-- [ ] T002 [US1] Fix line-mode pipeline: swap sort and slice in `src/tools/search/handler.ts` (lines 122–128). Change from `flat → slice → sort(path,line)` to `flat → sort(path,line) → slice`. Same pattern as T001: sort the full `flat` array, then slice the leading N. `cliFileCapFired` / `flatExceedsCap` detection is unchanged.
+- [x] T002 [US1] Fix line-mode pipeline: swap sort and slice in `src/tools/search/handler.ts` (lines 122–128). Change from `flat → slice → sort(path,line)` to `flat → sort(path,line) → slice`. Same pattern as T001: sort the full `flat` array, then slice the leading N. `cliFileCapFired` / `flatExceedsCap` detection is unchanged.
 
-- [ ] T003 [US1] Add leading-N identity test for default mode in `src/tools/search/handler.test.ts`. Construct a CLI stub returning 4 paths in reverse-sorted order (`["z.md", "m.md", "b.md", "a.md"]`). Invoke `executeSearch` with `limit: 2`. Assert `paths` is `["a.md", "b.md"]` (first 2 of UTF-16 ascending sort), `count` is 2, and `truncated` is true.
+- [x] T003 [US1] Add leading-N identity test for default mode in `src/tools/search/handler.test.ts`. Construct a CLI stub returning 4 paths in reverse-sorted order (`["z.md", "m.md", "b.md", "a.md"]`). Invoke `executeSearch` with `limit: 2`. Assert `paths` is `["a.md", "b.md"]` (first 2 of UTF-16 ascending sort), `count` is 2, and `truncated` is true.
 
-- [ ] T004 [US1] Add leading-N identity test for line mode in `src/tools/search/handler.test.ts`. Construct a CLI stub returning 4 files with matches in reverse path order. Invoke `executeSearch` with `context_lines: true` and `limit: 3`. Assert `matches` contains only entries from the first 3 paths of the `(path asc, line asc)` sort, `count` matches the returned array length, and `truncated` is true.
+- [x] T004 [US1] Add leading-N identity test for line mode in `src/tools/search/handler.test.ts`. Construct a CLI stub returning 4 files with matches in reverse path order. Invoke `executeSearch` with `context_lines: true` and `limit: 3`. Assert `matches` contains only entries from the first 3 paths of the `(path asc, line asc)` sort, `count` matches the returned array length, and `truncated` is true.
 
-- [ ] T005 [US1] Run `npm run typecheck && npm run lint && npx vitest run src/tools/search/handler.test.ts` — confirm all search tests pass including existing Q-10..Q-14 truncation tests and the new leading-N identity tests.
+- [x] T005 [US1] Run `npm run typecheck && npm run lint && npx vitest run src/tools/search/handler.test.ts` — confirm all search tests pass including existing Q-10..Q-14 truncation tests and the new leading-N identity tests.
 
 **Checkpoint**: `search` returns leading-N in both modes. Existing tests still green.
 
@@ -45,11 +45,11 @@
 
 ### Implementation for User Story 2
 
-- [ ] T006 [P] [US2] Fix pipeline: swap sort and slice in `src/tools/context_search/handler.ts` (lines 135–150). Change from `flat → slice → sort(path,line)` to `flat → sort(path,line) → slice`. Same pattern as T001/T002.
+- [x] T006 [P] [US2] Fix pipeline: swap sort and slice in `src/tools/context_search/handler.ts` (lines 135–150). Change from `flat → slice → sort(path,line)` to `flat → sort(path,line) → slice`. Same pattern as T001/T002.
 
-- [ ] T007 [P] [US2] Add leading-N identity test in `src/tools/context_search/handler.test.ts`. Construct a CLI stub returning 4 files with matches in reverse path order. Invoke `executeContextSearch` with `limit: 3`. Assert `matches` contains only entries from the first 3 paths of the `(path asc, line asc)` sort, `count` matches returned array length, and `truncated` is true.
+- [x] T007 [P] [US2] Add leading-N identity test in `src/tools/context_search/handler.test.ts`. Construct a CLI stub returning 4 files with matches in reverse path order. Invoke `executeContextSearch` with `limit: 3`. Assert `matches` contains only entries from the first 3 paths of the `(path asc, line asc)` sort, `count` matches returned array length, and `truncated` is true.
 
-- [ ] T008 [US2] Run `npm run typecheck && npm run lint && npx vitest run src/tools/context_search/handler.test.ts` — confirm all context_search tests pass including existing truncation tests and the new leading-N identity test.
+- [x] T008 [US2] Run `npm run typecheck && npm run lint && npx vitest run src/tools/context_search/handler.test.ts` — confirm all context_search tests pass including existing truncation tests and the new leading-N identity test.
 
 **Checkpoint**: `context_search` returns leading-N. Existing tests still green.
 
@@ -63,7 +63,7 @@
 
 ### Verification for User Story 3
 
-- [ ] T009 [US3] Verify help-doc consistency: read `docs/tools/search.md` Example 4 and `docs/tools/context_search.md` Example 3. Confirm the documented output subsets (`["a.md", "b.md", "c.md"]` for search; `Daily/2024-01-01.md`..`Worknotes/team.md` for context_search) are consistent with leading-N truncation of the stated sort orders. If any example contradicts the fixed runtime, update the example text. Document findings as a comment in this task.
+- [x] T009 [US3] Verify help-doc consistency: read `docs/tools/search.md` Example 4 and `docs/tools/context_search.md` Example 3. Confirm the documented output subsets (`["a.md", "b.md", "c.md"]` for search; `Daily/2024-01-01.md`..`Worknotes/team.md` for context_search) are consistent with leading-N truncation of the stated sort orders. If any example contradicts the fixed runtime, update the example text. Document findings as a comment in this task.
 
 **Checkpoint**: Help docs and runtime agree on truncation direction.
 
@@ -71,9 +71,9 @@
 
 ## Phase 4: Polish & Cross-Cutting Concerns
 
-- [ ] T010 Run full test suite: `npm run typecheck && npm run lint && npx vitest run` — confirm zero regressions across all tools.
-- [ ] T011 Run quickstart.md manual verification scenario if a test vault is available per `.memory/test-execution-instructions.md`.
-- [ ] T012 Update the `Original — no upstream` header comments in both handler files if the comment text references the old pipeline order (e.g., R3 truncation description). Keep the comment accurate to the new sort-then-slice order.
+- [x] T010 Run full test suite: `npm run typecheck && npm run lint && npx vitest run` — confirm zero regressions across all tools.
+- [x] T011 Run quickstart.md manual verification scenario if a test vault is available per `.memory/test-execution-instructions.md`.
+- [x] T012 Update the `Original — no upstream` header comments in both handler files if the comment text references the old pipeline order (e.g., R3 truncation description). Keep the comment accurate to the new sort-then-slice order.
 
 ---
 
