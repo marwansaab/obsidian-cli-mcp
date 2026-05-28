@@ -4,12 +4,16 @@
 // stdout returns the empty envelope for the active mode rather than an error
 // (FR-012 / R4 / F2). Staged parse — JSON.parse failures throw CLI_REPORTED_ERROR
 // with details.stage="json-parse"; wire-schema failures with details.stage=
-// "wire-parse" (I-7 / I-8). Default-mode pipeline: filter to `.md`, detect cap-clip
-// via the appliedCap+1 probe trick (R3), sort UTF-16 ascending. Line-mode pipeline:
-// file-level `.md` filter, flatMap to flat rows (drops empty `matches: []` entries
-// naturally — R9), cap each text at 500 chars + U+2026 ellipsis (FR-024 / R10),
-// detect truncation via cli-file-cap-fired OR flat-exceeds-cap (R3 conservative
-// trade-off), sort by path asc then line asc (FR-019 / R11). Output schemas
+// "wire-parse" (I-7 / I-8). No `limit` is forwarded upstream (BI-055): upstream
+// returns the full match set, the wrapper sorts it, then slices to appliedCap, so
+// the visible subset is the path-ascending leading N across the entire match set.
+// Default-mode pipeline: filter to `.md`, sort UTF-16 ascending, detect truncation
+// precisely via `mdOnly.length > appliedCap`, slice to appliedCap when truncated.
+// Line-mode pipeline: file-level `.md` filter, flatMap to flat rows (drops empty
+// `matches: []` entries naturally — R9), cap each text at 500 chars + U+2026 ellipsis
+// (FR-024 / R10), detect truncation conservatively via `flat.length >= appliedCap`
+// (fires on a real drop and at flat===cap with no drop — FR-005), sort by path asc
+// then line asc (FR-019 / R11), slice to appliedCap. Output schemas
 // validated at the boundary. `truncated` field present only when true (I-11 /
 // FR-023). Folder leading/trailing `/` normalised wrapper-side (FR-006 / I-5);
 // empty post-strip omits the `path` parameter from CLI invocation. Zero new
@@ -63,7 +67,6 @@ export async function executeSearch(
     const normalised = stripBoundarySlashes(input.folder);
     if (normalised.length > 0) parameters.path = normalised;
   }
-  parameters.limit = String(useLines ? appliedCap : appliedCap + 1);
   if (input.case_sensitive === true) parameters.case = true;
 
   const result = await invokeCli(
@@ -119,13 +122,11 @@ export async function executeSearch(
         text: m.text.length <= TEXT_CAP ? m.text : m.text.slice(0, TEXT_CAP) + ELLIPSIS,
       })),
     );
-    const cliFileCapFired = mdOnly.length === appliedCap;
-    const flatExceedsCap = flat.length > appliedCap;
-    const truncated = cliFileCapFired || flatExceedsCap;
+    const truncated = flat.length >= appliedCap;
     const sorted = [...flat].sort((a, b) =>
       a.path < b.path ? -1 : a.path > b.path ? 1 : a.line - b.line,
     );
-    const trimmed = flatExceedsCap ? sorted.slice(0, appliedCap) : sorted;
+    const trimmed = sorted.slice(0, appliedCap);
     return searchLineOutputSchema.parse({
       count: trimmed.length,
       matches: trimmed,
@@ -143,7 +144,7 @@ export async function executeSearch(
     }
     const wire = wireParsed.data;
     const mdOnly = wire.filter((p) => p.toLowerCase().endsWith(".md"));
-    const truncated = mdOnly.length === appliedCap + 1;
+    const truncated = mdOnly.length > appliedCap;
     const sorted = [...mdOnly].sort();
     const trimmed = truncated ? sorted.slice(0, appliedCap) : sorted;
     return searchDefaultOutputSchema.parse({

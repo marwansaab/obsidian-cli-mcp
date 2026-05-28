@@ -2,16 +2,18 @@
 // obsidian search:context with FR-013 post-empty folder-existence probe (R4) and
 // FR-012 CRLF strip (R5). Re-uses BI-033's stripBoundarySlashes + searchContextWireSchema
 // via direct imports (R6 / R8 — module direction context_search → search, no cycle).
-// Pipeline: assemble parameters (query, format=json, optional path, limit, optional
-// case) → invokeCli(search:context). Zero-match sentinel branch — if folder was
-// supplied and normalises non-empty, fire a second invokeCli(folder) probe so a
-// missing folder surfaces as the inherited dispatch-classifier CLI_REPORTED_ERROR
-// instead of count=0. JSON.parse / wire-parse failures emit
-// CLI_REPORTED_ERROR(details.stage). Flatten file-grouped wire to per-line rows,
-// strip a single trailing \r per FR-012, cap text at 500 chars + U+2026 marker,
-// detect truncation via cliFileCapFired OR flatExceedsCap (R9 conservative line-mode
-// trade-off inherited from BI-033 R3), sort by (path, line) ascending, trim if
-// needed. Output boundary-validated via contextSearchOutputSchema.
+// Pipeline: assemble parameters (query, format=json, optional path, optional case) →
+// invokeCli(search:context). No `limit` is forwarded upstream (BI-055): upstream
+// returns the full match set, the wrapper sorts it, then slices to appliedCap, so the
+// visible subset is the (path asc, line asc) leading N across the entire match set.
+// Zero-match sentinel branch — if folder was supplied and normalises non-empty, fire a
+// second invokeCli(folder) probe so a missing folder surfaces as the inherited
+// dispatch-classifier CLI_REPORTED_ERROR instead of count=0. JSON.parse / wire-parse
+// failures emit CLI_REPORTED_ERROR(details.stage). Flatten file-grouped wire to per-line
+// rows, strip a single trailing \r per FR-012, cap text at 500 chars + U+2026 marker,
+// detect truncation conservatively via `flat.length >= appliedCap` (fires on a real drop
+// and at flat===cap with no drop — FR-005), sort by (path, line) ascending, slice to
+// appliedCap. Output boundary-validated via contextSearchOutputSchema.
 import {
   contextSearchOutputSchema,
   type ContextSearchInput,
@@ -66,7 +68,6 @@ export async function executeContextSearch(
     }
   }
 
-  parameters.limit = String(appliedCap);
   if (input.case_sensitive === true) parameters.case = true;
 
   const result = await invokeCli(
@@ -141,13 +142,11 @@ export async function executeContextSearch(
       text: capLine(stripCr(m.text)),
     })),
   );
-  const cliFileCapFired = mdOnly.length === appliedCap;
-  const flatExceedsCap = flat.length > appliedCap;
-  const truncated = cliFileCapFired || flatExceedsCap;
+  const truncated = flat.length >= appliedCap;
   const sorted = [...flat].sort((a, b) =>
     a.path < b.path ? -1 : a.path > b.path ? 1 : a.line - b.line,
   );
-  const trimmed = flatExceedsCap ? sorted.slice(0, appliedCap) : sorted;
+  const trimmed = sorted.slice(0, appliedCap);
   return contextSearchOutputSchema.parse({
     count: trimmed.length,
     matches: trimmed,
