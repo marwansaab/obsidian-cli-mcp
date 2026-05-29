@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "054-add-bases-surface",
-  "generatedAt": "2026-05-28",
+  "generatedFromBranch": "057-open-vault-file",
+  "generatedAt": "2026-05-29",
   "tools": [
     {
       "name": "append_note",
@@ -67,6 +67,11 @@
       "name": "obsidian_exec",
       "descriptionFingerprint": "70234746fe95397e7f5000dcf25e42b9674d06117fed9279bf059d870af73b7a",
       "schemaFingerprint": "e6124549cb2a69cddaf74dea058a0c9dba3f1062bdc178decd916e9019ee385d"
+    },
+    {
+      "name": "open_file",
+      "descriptionFingerprint": "8fd9e35ba52dec5d1da42261ad46e8af857888c9e9005e63815c5260d20cc73d",
+      "schemaFingerprint": "c25dd9ffc4d41ad7b9f4ca388be08d3466aecb74dd8a680a34faa6c8953e5df5"
     },
     {
       "name": "outline",
