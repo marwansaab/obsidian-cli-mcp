@@ -45,7 +45,7 @@ Single project. All production changes are confined to `src/cli-adapter/`. The r
 - [ ] T007 Probe **P0-4 — THE FORM-(b) GATE** (OQ-005): force a `Stream closed` against a mutating command (`rename`/`move`/`delete`) targeting the closed vault under `Sandbox/`; inspect vault state for partial application (did the mutation land? did an append double?). **Decide: enable form (b) blanket only if `Stream closed` is proven to always fire pre-execution; otherwise DROP form (b) entirely.** Clean up fixtures + any `.trash/` residue per the destructive-probe protocol.
 - [ ] T008 Probe **P0-5** (OQ-004): issue a genuinely unknown command (a typo, or TUI-only `vault:open`) against the closed vault; confirm it still fails after exactly one retry with the original error preserved.
 - [ ] T009 Probe **P0-6** (OQ-006): confirm both a typed-tool path and the `obsidian_exec` passthrough exhibit the cold-start failure and both recover.
-- [ ] T010 Record all probe results verbatim in a `specs/059-retry-cold-start/contracts/t0-probe-findings.md` evidence file; note the pinned invariant, the form-(b) ship/drop decision, and the delay decision. These feed ADR-029 (T033) and the architecture doc (T034).
+- [ ] T010 Record all probe results verbatim in a `specs/059-retry-cold-start/contracts/t0-probe-findings.md` evidence file; note the pinned invariant, the form-(b) ship/drop decision, and the delay decision. Also record which cold-start manifestation each command kind produced (form a / form b / eval-envelope), explicitly documenting any eval-envelope manifestation (e.g. `open_file` `VAULT_NOT_FOCUSED`) as out-of-scope per FR-013 (closes the FR-013 doc-guard, L2). These feed ADR-029 (T033) and the architecture doc (T034).
 
 **Checkpoint**: `COLD_START_INVARIANT` pinned; form-(b) scope decided; `STREAM_CLOSED_SURFACE` characterized (or form (b) dropped). Implementation can now proceed with confidence.
 
@@ -123,7 +123,7 @@ Single project. All production changes are confined to `src/cli-adapter/`. The r
 ### Implementation for User Story 3
 
 - [ ] T028 [US3] In `src/cli-adapter/_dispatch.ts` (and `src/logger.ts` if a new channel is needed), emit a `dispatch.retry` log line via the injected `logger` when the retry fires, carrying both attempt `callId`s (research D7). Confirm `src/logger.ts` has or gains a `dispatchRetry(...)` structured method consistent with `dispatchTimeout`/`dispatchCap`/`dispatchKill`.
-- [ ] T029 [US3] In `src/cli-adapter/_dispatch.ts`, add a module-level `shuttingDown` flag set by the existing shutdown path (wire from `killInFlightChildren` / `server.ts` `triggerShutdown`), and check it before issuing the retry: if shutdown began, skip the retry and propagate the first attempt's error (research D6). Confine the change to `_dispatch.ts` unless the probe/wiring shows a `server.ts` hook is required; if so, keep it minimal.
+- [ ] T029 [US3] In `src/cli-adapter/_dispatch.ts`, add a module-level `shuttingDown` flag and set it **inside `killInFlightChildren`** — which already lives in `_dispatch.ts` and is already the shutdown entry invoked from `server.ts` `triggerShutdown`, so **NO `server.ts` edit is needed** and the plan's no-`createServer`-touch claim holds. Check the flag before issuing the retry: if shutdown began in the attempt-1→attempt-2 gap, skip the retry and propagate the first attempt's error (research D6).
 
 **Checkpoint**: all three stories functional; the no-bypass guarantee is build-enforced.
 
