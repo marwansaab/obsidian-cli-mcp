@@ -19,11 +19,13 @@ export interface ToolSpec<TSchema extends ZodTypeAny, TDeps = undefined> {
   responseFormat?: ResponseFormat;
   handler: (input: z.infer<TSchema>, deps: TDeps) => Promise<unknown | ToolCallResult>;
   /**
-   * Optional mapper from Zod issues to a structured VALIDATION_ERROR payload,
-   * applied to BOTH input-validation failures AND runtime ZodErrors thrown by the
-   * handler (e.g. a defensive output `schema.parse`). When absent, a generic
-   * envelope listing the raw issues is emitted. `rawArgs` is the unparsed input,
-   * for mappers that echo input-derived fields (e.g. prepend's contentLength).
+   * Optional mapper from Zod issues to a structured VALIDATION_ERROR payload for
+   * INPUT-validation failures (the schema `.parse` of the incoming args). When
+   * absent, a generic envelope listing the raw issues is emitted. `rawArgs` is the
+   * unparsed input, for mappers that echo input-derived fields (e.g. prepend's
+   * contentLength). A runtime ZodError thrown by the handler itself (a defensive
+   * output `schema.parse`) is an output-contract break, NOT input validation, so it
+   * surfaces as INTERNAL_ERROR and does NOT pass through this hook.
    */
   mapValidationError?: (issues: ZodIssue[], rawArgs: unknown) => ToolErrorPayload;
 }
@@ -35,8 +37,9 @@ export function registerTool<TSchema extends ZodTypeAny, TDeps = undefined>(
   const inputSchema = stripSchemaDescriptions(inputSchemaRaw as JsonSchemaObject) as Record<string, unknown>;
   const responseFormat: ResponseFormat = spec.responseFormat ?? "json";
 
-  // Input-validation failures and runtime ZodErrors share one mapping: the
-  // per-tool hook when supplied, else a generic issues-listing envelope.
+  // INPUT-validation mapping only: the per-tool hook when supplied, else a generic
+  // issues-listing envelope. A runtime/output ZodError thrown by the handler does
+  // NOT use this — it surfaces as INTERNAL_ERROR in the handler-execution catch below.
   const toValidationError = (issues: ZodIssue[], rawArgs: unknown): ToolErrorPayload =>
     spec.mapValidationError?.(issues, rawArgs) ?? {
       code: "VALIDATION_ERROR",
@@ -65,10 +68,21 @@ export function registerTool<TSchema extends ZodTypeAny, TDeps = undefined>(
       try {
         result = await spec.handler(parsed, spec.deps as TDeps);
       } catch (err) {
-        // A runtime ZodError (e.g. a handler's defensive output `schema.parse`)
-        // surfaces as the same structured VALIDATION_ERROR envelope instead of
-        // escaping the boundary unstructured.
-        if (err instanceof ZodError) return asToolError(toValidationError(err.issues, args));
+        // A runtime ZodError here is the handler's OWN output failing its defensive
+        // `schema.parse` — an output-contract break, NOT bad client input. Surface
+        // it as INTERNAL_ERROR (never VALIDATION_ERROR, and never through the
+        // input-shaped mapValidationError hook) so the client is not told to fix
+        // input that was valid. INTERNAL_ERROR is already in the code set — the
+        // Principle IV zero-new-codes streak holds.
+        if (err instanceof ZodError) {
+          return asToolError({
+            code: "INTERNAL_ERROR",
+            message: `${spec.name} produced a response that failed its output contract`,
+            details: {
+              issues: err.issues.map((i) => ({ path: i.path, message: i.message, code: i.code })),
+            },
+          });
+        }
         if (err instanceof UpstreamError) {
           return asToolError({
             code: err.code,

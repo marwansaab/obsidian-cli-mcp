@@ -238,13 +238,14 @@ describe("registerTool — wrapped handler runtime", () => {
     expect(seen).toEqual({ a: 123, extra: "raw" });
   });
 
-  it("runtime ZodError thrown inside the handler → VALIDATION_ERROR envelope (default mapper)", async () => {
+  it("runtime ZodError thrown inside the handler → INTERNAL_ERROR (output-contract break, not input)", async () => {
     const tool = registerTool({
       name: "wh_runtime_zod",
       description: "runtime zod",
       schema: z.object({}).strict(),
       handler: async () => {
-        // Simulate a defensive output parse that fails at runtime.
+        // Simulate a defensive output parse that fails at runtime — the handler's
+        // OWN output is malformed, the client's input was valid.
         z.object({ n: z.number() }).parse({ n: "not a number" });
         return {};
       },
@@ -253,13 +254,14 @@ describe("registerTool — wrapped handler runtime", () => {
     expect("isError" in result && result.isError).toBe(true);
     if ("isError" in result && result.isError) {
       const payload = JSON.parse(result.content[0]!.text);
-      expect(payload.code).toBe("VALIDATION_ERROR");
+      expect(payload.code).toBe("INTERNAL_ERROR");
       expect(payload.message).toContain("wh_runtime_zod");
+      expect(payload.message).toContain("output contract");
       expect(Array.isArray(payload.details.issues)).toBe(true);
     }
   });
 
-  it("runtime ZodError routes through mapValidationError when present", async () => {
+  it("runtime ZodError bypasses mapValidationError — an output-contract break is INTERNAL_ERROR even when an input hook is present", async () => {
     const tool = registerTool({
       name: "wh_runtime_hook",
       description: "runtime hook",
@@ -268,6 +270,8 @@ describe("registerTool — wrapped handler runtime", () => {
         z.object({ n: z.number() }).parse({ n: "nope" });
         return {};
       },
+      // The input hook must NOT fire for an output-contract ZodError — its issue
+      // shape is output-shaped, not input-shaped.
       mapValidationError: () => ({
         code: "VALIDATION_ERROR",
         message: "mapped runtime",
@@ -278,8 +282,9 @@ describe("registerTool — wrapped handler runtime", () => {
     expect("isError" in result && result.isError).toBe(true);
     if ("isError" in result && result.isError) {
       const payload = JSON.parse(result.content[0]!.text);
-      expect(payload.message).toBe("mapped runtime");
-      expect(payload.details.code).toBe("RUNTIME");
+      expect(payload.code).toBe("INTERNAL_ERROR");
+      expect(payload.message).not.toBe("mapped runtime");
+      expect(payload.details.code).not.toBe("RUNTIME");
     }
   });
 });
