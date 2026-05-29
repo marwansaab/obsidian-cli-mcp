@@ -1,7 +1,7 @@
 // Original — no upstream.
 import { type SpawnOptions } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { Readable, Writable } from "node:stream";
+import { Readable } from "node:stream";
 
 import { afterEach, beforeEach, expect, test } from "vitest";
 
@@ -11,8 +11,8 @@ import {
   type SpawnLike,
 } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
-import { createLogger, type Logger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
+import { silentLogger } from "../_handler-test-fixtures.js";
 
 interface StubResponse {
   stdout?: string;
@@ -49,12 +49,6 @@ function makeSpawn(responses: StubResponse[]): {
     return child as unknown as ReturnType<SpawnLike>;
   };
   return { spawnFn };
-}
-
-function silentLogger(): Logger {
-  return createLogger({
-    stream: new Writable({ write(_c, _e, cb) { cb(); } }),
-  });
 }
 
 function makeDeps(responses: StubResponse[]): ExecuteDeps {

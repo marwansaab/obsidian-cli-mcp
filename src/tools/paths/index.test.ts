@@ -1,38 +1,19 @@
 // Original — no upstream. Tests for the paths tool registration — descriptor name + description, stripped JSON Schema (ADR-005), docs file presence + content completeness, and the baseline drift-detector lock rolled forward by `npm run baseline:write` post-implementation.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createPathsTool, PATHS_DESCRIPTION, PATHS_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
-import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
+import { silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-
-const silentLogger = () =>
-  createLogger({
-    stream: new Writable({
-      write(_c, _e, cb) {
-        cb();
-      },
-    }),
-  });
+import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
-
-function walkSchema(node: unknown, fn: (n: Record<string, unknown>) => void): void {
-  if (!node || typeof node !== "object") return;
-  if (Array.isArray(node)) {
-    for (const item of node) walkSchema(item, fn);
-    return;
-  }
-  fn(node as Record<string, unknown>);
-  for (const value of Object.values(node as Record<string, unknown>)) walkSchema(value, fn);
-}
 
 describe("createPathsTool — descriptor", () => {
   // (1) descriptor.name === "paths"
@@ -46,27 +27,18 @@ describe("createPathsTool — descriptor", () => {
     expect(tool.descriptor.name).toBe("paths");
   });
 
-  // (2) inputSchema has descriptions stripped (ADR-005) and exact key set
-  it("emits inputSchema with descriptions stripped + properties set covering {target_mode, vault, folder, depth, ext, total} AND asserting file/path absence per FR-001", () => {
+  // (2) inputSchema has descriptions stripped (ADR-005) and excludes file/path per FR-001
+  it("emits inputSchema with descriptions stripped at every nested depth AND excluding file/path per FR-001", () => {
     const tool = createPathsTool({
       logger: silentLogger(),
       queue: createQueue(),
       spawnFn: makeStubSpawn(),
     });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    expect(schema.type).toBe("object");
-    expect(schema.additionalProperties).toBe(false);
     const props = schema.properties as Record<string, unknown>;
-    for (const key of ["target_mode", "vault", "folder", "depth", "ext", "total"]) {
-      expect(Object.hasOwn(props, key)).toBe(true);
-    }
     expect(Object.hasOwn(props, "file")).toBe(false);
     expect(Object.hasOwn(props, "path")).toBe(false);
-    let descriptionKeysFound = 0;
-    walkSchema(schema, (n) => {
-      if (Object.prototype.hasOwnProperty.call(n, "description")) descriptionKeysFound += 1;
-    });
-    expect(descriptionKeysFound).toBe(0);
+    expect(countDescriptionKeys(schema)).toBe(0);
   });
 
   // (3) PATHS_DESCRIPTION carries the trailing-slash promise + mentions help

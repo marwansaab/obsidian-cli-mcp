@@ -4,31 +4,19 @@
 // drift-detector lock (rolled forward by `npm run baseline:write`).
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createSearchTool, SEARCH_DESCRIPTION, SEARCH_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
-import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
+import { silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-
-const silentLogger = () => createLogger({ stream: new Writable({ write(_c, _e, cb) { cb(); } }) });
+import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
-
-function walkSchema(node: unknown, fn: (n: Record<string, unknown>) => void): void {
-  if (!node || typeof node !== "object") return;
-  if (Array.isArray(node)) {
-    for (const item of node) walkSchema(item, fn);
-    return;
-  }
-  fn(node as Record<string, unknown>);
-  for (const value of Object.values(node as Record<string, unknown>)) walkSchema(value, fn);
-}
 
 describe("createSearchTool — descriptor", () => {
   it("publishes name = 'search'", () => {
@@ -40,20 +28,13 @@ describe("createSearchTool — descriptor", () => {
   it("emits inputSchema with descriptions stripped at every nested depth (root description allowed per FR-003)", () => {
     const tool = createSearchTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    expect(schema.type).toBe("object");
-    expect(schema.additionalProperties).toBe(false);
     const props = schema.properties as Record<string, unknown>;
-    expect(Object.keys(props).sort()).toEqual(
-      ["case_sensitive", "context_lines", "folder", "limit", "query", "vault"],
-    );
-    // Walk children only — root description is preserved by stripSchemaDescriptions
+    // Count children only — root description is preserved by stripSchemaDescriptions
     // per FR-003 (BI-041 introduces a root-level description carrying the error roster).
-    let nestedDescriptionKeysFound = 0;
-    for (const child of Object.values(props)) {
-      walkSchema(child, (n) => {
-        if (Object.prototype.hasOwnProperty.call(n, "description")) nestedDescriptionKeysFound += 1;
-      });
-    }
+    const nestedDescriptionKeysFound = Object.values(props).reduce<number>(
+      (sum, child) => sum + countDescriptionKeys(child),
+      0,
+    );
     expect(nestedDescriptionKeysFound).toBe(0);
   });
 
@@ -61,13 +42,6 @@ describe("createSearchTool — descriptor", () => {
     const tool = createSearchTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     expect(tool.descriptor.description).toBe(SEARCH_DESCRIPTION);
     expect(SEARCH_DESCRIPTION).toContain('help({ tool_name: "search" })');
-  });
-
-  it("inputSchema declares 'query' required and 'query' min/max length", () => {
-    const tool = createSearchTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
-    const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    expect(Array.isArray(schema.required)).toBe(true);
-    expect((schema.required as string[])).toContain("query");
   });
 });
 

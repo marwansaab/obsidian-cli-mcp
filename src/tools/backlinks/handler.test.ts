@@ -1,90 +1,12 @@
 // Original — no upstream. backlinks handler tests — single-call argv assembly, base64 payload round-trip (R12 anti-injection lock), eval envelope parsing with => prefix, per-source response passthrough for default / with_counts / total modes, cap-and-truncated cases, .md-source filter, code-block exclusion, self-reference inclusion, alias / frontmatter attribution, NOT_MARKDOWN target rejection, FILE_NOT_FOUND envelopes, ERR_NO_ACTIVE_FILE mapping (BI-025 parity), unknown-vault inheritance (R5), CLI output-cap-kill propagation, deterministic order, structural anti-injection lock.
-import { type SpawnOptions } from "node:child_process";
-import { EventEmitter } from "node:events";
-import { Readable, Writable } from "node:stream";
-
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { JS_TEMPLATE } from "./_template.js";
 import { executeBacklinks } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
-import { createLogger, type Logger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
-
-interface StubResponse {
-  stdout?: string;
-  stderr?: string;
-  exitCode?: number | null;
-  signal?: NodeJS.Signals | null;
-  errorOnSpawn?: unknown;
-}
-
-interface SpawnRecording {
-  binary: string;
-  argv: string[];
-  options: SpawnOptions;
-}
-
-function makeQueuedSpawn(responses: StubResponse[]): {
-  spawnFn: SpawnLike;
-  recorded: SpawnRecording[];
-  getCount: () => number;
-} {
-  const recorded: SpawnRecording[] = [];
-  let idx = 0;
-  const spawnFn: SpawnLike = (binary, argv, options) => {
-    const spec = responses[idx++];
-    if (!spec) {
-      throw new Error(
-        `unexpected spawn invocation #${idx}; only ${responses.length} response(s) configured`,
-      );
-    }
-    if (spec.errorOnSpawn) {
-      throw spec.errorOnSpawn;
-    }
-    recorded.push({ binary, argv: [...argv], options });
-    const child = new EventEmitter() as EventEmitter & {
-      stdout: Readable;
-      stderr: Readable;
-      kill: (signal?: NodeJS.Signals) => boolean;
-      pid?: number;
-    };
-    child.stdout = new Readable({ read() {} });
-    child.stderr = new Readable({ read() {} });
-    child.pid = 4242;
-    child.kill = (signal?: NodeJS.Signals) => {
-      setImmediate(() => child.emit("exit", null, signal ?? "SIGTERM"));
-      return true;
-    };
-    setImmediate(() => {
-      if (spec.stdout) child.stdout.push(Buffer.from(spec.stdout, "utf8"));
-      child.stdout.push(null);
-      if (spec.stderr) child.stderr.push(Buffer.from(spec.stderr, "utf8"));
-      child.stderr.push(null);
-      setImmediate(() => {
-        const closeCode = "exitCode" in spec ? (spec.exitCode ?? null) : 0;
-        const closeSignal = "signal" in spec ? (spec.signal ?? null) : null;
-        child.emit("exit", closeCode, closeSignal);
-      });
-    });
-    return child as unknown as ReturnType<SpawnLike>;
-  };
-  return { spawnFn, recorded, getCount: () => idx };
-}
-
-function silentLogger(): Logger {
-  return createLogger({ stream: new Writable({ write(_c, _e, cb) { cb(); } }) });
-}
-
-async function captureRejection(promise: Promise<unknown>): Promise<unknown> {
-  try {
-    await promise;
-    throw new Error("expected rejection but promise resolved");
-  } catch (e) {
-    return e;
-  }
-}
+import { captureRejection, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };

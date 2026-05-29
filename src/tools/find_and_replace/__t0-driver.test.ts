@@ -4,14 +4,13 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import * as nodeFsPromises from "node:fs/promises";
 import { stat as statAsync, writeFile as writeFileAsync } from "node:fs/promises";
 import { resolve } from "node:path";
-import { Writable } from "node:stream";
 
 import { describe, expect, it } from "vitest";
 
 import { executeFindAndReplace } from "./handler.js";
-import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
 import { createVaultRegistry } from "../../vault-registry/registry.js";
+import { silentLogger } from "../_handler-test-fixtures.js";
 
 const T0_ENABLED = process.env.T0_LIVE === "1";
 
@@ -20,10 +19,6 @@ const VAULT_ROOT = "C:\\Marwan-Saab-ADO\\Marwan at Metcash\\Obsidian\\TestVault-
 const SANDBOX_REL = "Sandbox/038-find-replace-t0";
 const SANDBOX_ABS = resolve(VAULT_ROOT, "Sandbox", "038-find-replace-t0");
 const CAPTURE_DIR = resolve(import.meta.dirname, "..", "..", "..", "specs", "038-find-replace", "t0-capture");
-
-function silentLogger() {
-  return createLogger({ stream: new Writable({ write(_c, _e, cb) { cb(); } }) });
-}
 
 function realVaultRegistry() {
   return createVaultRegistry({

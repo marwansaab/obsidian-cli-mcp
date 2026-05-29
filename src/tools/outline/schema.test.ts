@@ -1,7 +1,8 @@
 // Original — no upstream. Tests for the outline input schema — 18 cases per data-model.md test inventory covering target-mode interactions (specific-requires-vault, specific file/path XOR, active forbids vault/file/path), total boolean field, additionalProperties strict, vault min(1), and inferred type compile checks.
-import { expectTypeOf, test } from "vitest";
+import { describe, expectTypeOf, it, test } from "vitest";
 import { expect } from "vitest";
 
+import { targetModeWiringCases } from "../_target-mode-test-cases.js";
 import {
   outlineInputSchema,
   outlineOutputSchema,
@@ -35,42 +36,6 @@ test("specific+vault+file happy", () => {
   if (r.success) expect(r.data.file).toBe("MyNote");
 });
 
-// (3) specific + both file AND path → XOR rejection
-test("specific+both file AND path → XOR rejection on ['file']", () => {
-  const r = outlineInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "Demo",
-    file: "MyNote",
-    path: "MyNote.md",
-  });
-  expect(r.success).toBe(false);
-  if (!r.success) {
-    expect(r.error.issues.some((i) => i.path.includes("file"))).toBe(true);
-    expect(r.error.issues.some((i) => i.path.includes("path"))).toBe(true);
-  }
-});
-
-// (4) specific + neither file NOR path → rejection
-test("specific without file or path → rejection", () => {
-  const r = outlineInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "Demo",
-  });
-  expect(r.success).toBe(false);
-});
-
-// (5) specific + no vault → rejection
-test("specific without vault → issue on ['vault']", () => {
-  const r = outlineInputSchema.safeParse({
-    target_mode: "specific",
-    path: "x.md",
-  });
-  expect(r.success).toBe(false);
-  if (!r.success) {
-    expect(r.error.issues.some((i) => i.path.includes("vault"))).toBe(true);
-  }
-});
-
 // (6) active mode happy
 test("active no-locator happy", () => {
   const r = outlineInputSchema.safeParse({ target_mode: "active" });
@@ -78,42 +43,6 @@ test("active no-locator happy", () => {
   if (r.success) {
     expect(r.data.target_mode).toBe("active");
     expect(r.data.vault).toBeUndefined();
-  }
-});
-
-// (7) active + vault → rejection
-test("active+vault → issue on ['vault']", () => {
-  const r = outlineInputSchema.safeParse({
-    target_mode: "active",
-    vault: "Demo",
-  });
-  expect(r.success).toBe(false);
-  if (!r.success) {
-    expect(r.error.issues.some((i) => i.path.includes("vault"))).toBe(true);
-  }
-});
-
-// (8) active + file → rejection
-test("active+file → issue on ['file']", () => {
-  const r = outlineInputSchema.safeParse({
-    target_mode: "active",
-    file: "X",
-  });
-  expect(r.success).toBe(false);
-  if (!r.success) {
-    expect(r.error.issues.some((i) => i.path.includes("file"))).toBe(true);
-  }
-});
-
-// (9) active + path → rejection
-test("active+path → issue on ['path']", () => {
-  const r = outlineInputSchema.safeParse({
-    target_mode: "active",
-    path: "x.md",
-  });
-  expect(r.success).toBe(false);
-  if (!r.success) {
-    expect(r.error.issues.some((i) => i.path.includes("path"))).toBe(true);
   }
 });
 
@@ -168,49 +97,6 @@ test("total 'true' (string) → invalid_type on ['total']", () => {
   }
 });
 
-// (15) unknown top-level key in specific → rejection
-test("unknown top-level key in specific → unrecognized_keys", () => {
-  const r = outlineInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "Demo",
-    path: "x.md",
-    foo: "bar",
-  });
-  expect(r.success).toBe(false);
-  if (!r.success) {
-    const unrecognized = r.error.issues.filter((i) => i.code === "unrecognized_keys");
-    expect(unrecognized.length).toBeGreaterThanOrEqual(1);
-    expect((unrecognized[0] as { keys: string[] }).keys).toContain("foo");
-  }
-});
-
-// (16) unknown top-level key in active → rejection
-test("unknown top-level key in active → unrecognized_keys", () => {
-  const r = outlineInputSchema.safeParse({
-    target_mode: "active",
-    foo: "bar",
-  });
-  expect(r.success).toBe(false);
-  if (!r.success) {
-    const unrecognized = r.error.issues.filter((i) => i.code === "unrecognized_keys");
-    expect(unrecognized.length).toBeGreaterThanOrEqual(1);
-  }
-});
-
-// (17) vault empty string → rejection
-test("vault '' empty → too_small on ['vault']", () => {
-  const r = outlineInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "",
-    path: "x.md",
-  });
-  expect(r.success).toBe(false);
-  if (!r.success) {
-    const vaultIssues = r.error.issues.filter((i) => i.path.includes("vault"));
-    expect(vaultIssues.length).toBeGreaterThanOrEqual(1);
-  }
-});
-
 // (18) inferred OutlineInput / OutlineOutput type compile checks
 test("inferred OutlineInput and OutlineOutput types compile to the expected shapes", () => {
   expectTypeOf<OutlineInput>().toMatchTypeOf<{
@@ -230,4 +116,19 @@ test("inferred OutlineInput and OutlineOutput types compile to the expected shap
     headings: [{ level: 1, text: "X", line: 1 }],
   });
   expect(ok.success).toBe(true);
+});
+
+describe("outlineInputSchema — target-mode refinement wiring (shared battery)", () => {
+  it.each(
+    targetModeWiringCases(
+      { target_mode: "specific", vault: "V", path: "n.md" },
+      { target_mode: "active" },
+    ),
+  )("$label", ({ input, valid, issuePath }) => {
+    const r = outlineInputSchema.safeParse(input);
+    expect(r.success).toBe(valid);
+    if (!valid && issuePath && !r.success) {
+      expect(r.error.issues.some((i) => i.path.includes(issuePath))).toBe(true);
+    }
+  });
 });

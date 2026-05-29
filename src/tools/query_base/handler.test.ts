@@ -1,8 +1,5 @@
 // Original — no upstream. query_base handler tests — US1 envelope/ordering/truncation/collision/empty/vault cohort plus US2 BASE_NOT_FOUND / BASE_MALFORMED (five reasons) / VIEW_NOT_FOUND / PATH_ESCAPES_VAULT classification cohort. Mock-only per project test-scope memory; T0 live captures live elsewhere.
-import { type SpawnOptions } from "node:child_process";
-import { EventEmitter } from "node:events";
 import { resolve as resolvePath } from "node:path";
-import { Readable, Writable } from "node:stream";
 
 import { afterEach, beforeEach, expect, test } from "vitest";
 
@@ -19,86 +16,11 @@ import {
   type SpawnLike,
 } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
-import { createLogger, type Logger } from "../../logger.js";
+import { type Logger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
+import { makeQueuedSpawn, silentLogger, captureRejection } from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
-
-interface StubResponse {
-  stdout?: string;
-  stderr?: string;
-  exitCode?: number | null;
-  signal?: NodeJS.Signals | null;
-}
-
-interface SpawnRecording {
-  binary: string;
-  argv: string[];
-  options: SpawnOptions;
-}
-
-function makeQueuedSpawn(responses: StubResponse[]): {
-  spawnFn: SpawnLike;
-  recorded: SpawnRecording[];
-  getCount: () => number;
-} {
-  const recorded: SpawnRecording[] = [];
-  let idx = 0;
-  const spawnFn: SpawnLike = (binary, argv, options) => {
-    const spec = responses[idx++];
-    if (!spec) {
-      throw new Error(
-        `unexpected spawn invocation #${idx}; only ${responses.length} response(s) configured`,
-      );
-    }
-    recorded.push({ binary, argv: [...argv], options });
-    const child = new EventEmitter() as EventEmitter & {
-      stdout: Readable;
-      stderr: Readable;
-      kill: (signal?: NodeJS.Signals) => boolean;
-      pid?: number;
-    };
-    child.stdout = new Readable({ read() {} });
-    child.stderr = new Readable({ read() {} });
-    child.pid = 7777;
-    child.kill = (signal?: NodeJS.Signals) => {
-      setImmediate(() => child.emit("exit", null, signal ?? "SIGTERM"));
-      return true;
-    };
-    setImmediate(() => {
-      if (spec.stdout) child.stdout.push(Buffer.from(spec.stdout, "utf8"));
-      child.stdout.push(null);
-      if (spec.stderr) child.stderr.push(Buffer.from(spec.stderr, "utf8"));
-      child.stderr.push(null);
-      setImmediate(() => {
-        const closeCode = "exitCode" in spec ? (spec.exitCode ?? null) : 0;
-        const closeSignal = "signal" in spec ? (spec.signal ?? null) : null;
-        child.emit("exit", closeCode, closeSignal);
-      });
-    });
-    return child as unknown as ReturnType<SpawnLike>;
-  };
-  return { spawnFn, recorded, getCount: () => idx };
-}
-
-function silentLogger(): Logger {
-  return createLogger({
-    stream: new Writable({
-      write(_c, _e, cb) {
-        cb();
-      },
-    }),
-  });
-}
-
-async function captureRejection(promise: Promise<unknown>): Promise<unknown> {
-  try {
-    await promise;
-    throw new Error("expected rejection but promise resolved");
-  } catch (e) {
-    return e;
-  }
-}
 
 interface DepsOpts {
   spawnFn: SpawnLike;

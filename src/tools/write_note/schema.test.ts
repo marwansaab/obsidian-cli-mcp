@@ -1,7 +1,23 @@
 // Original — no upstream. Tests for the write_note input/output schemas per ADR-009 — target_mode discriminator coverage; path-safety refinement; template strict rejection; active-mode rules; output envelope strict shape.
-import { expect, test } from "vitest";
+import { describe, expect, it, test } from "vitest";
 
+import { targetModeWiringCases } from "../_target-mode-test-cases.js";
 import { writeNoteInputSchema, writeNoteOutputSchema } from "./schema.js";
+
+describe("writeNoteInputSchema — target-mode refinement wiring (shared battery)", () => {
+  it.each(
+    targetModeWiringCases(
+      { target_mode: "specific", vault: "V", path: "n.md", content: "x" },
+      { target_mode: "active", content: "x", overwrite: true },
+    ),
+  )("$label", ({ input, valid, issuePath }) => {
+    const r = writeNoteInputSchema.safeParse(input);
+    expect(r.success).toBe(valid);
+    if (!valid && issuePath && !r.success) {
+      expect(r.error.issues.some((i) => i.path.includes(issuePath))).toBe(true);
+    }
+  });
+});
 
 // (1) Specific mode + vault + path + content + overwrite=true accepted
 test("specific + vault + path + content + overwrite=true accepted", () => {
@@ -26,41 +42,6 @@ test("specific + vault + file + content accepted", () => {
   expect(result.success).toBe(true);
 });
 
-// (3) Specific mode without vault → VALIDATION_ERROR
-test("specific without vault → fails", () => {
-  const result = writeNoteInputSchema.safeParse({
-    target_mode: "specific",
-    path: "Sandbox/note.md",
-    content: "x",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    expect(result.error.issues.some((i) => i.path.join(".") === "vault")).toBe(true);
-  }
-});
-
-// (4) Specific mode with both file and path → VALIDATION_ERROR
-test("specific with both file and path → fails", () => {
-  const result = writeNoteInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "TestVault",
-    file: "x.md",
-    path: "Sandbox/x.md",
-    content: "x",
-  });
-  expect(result.success).toBe(false);
-});
-
-// (5) Specific mode with neither file nor path → VALIDATION_ERROR
-test("specific with neither file nor path → fails", () => {
-  const result = writeNoteInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "TestVault",
-    content: "x",
-  });
-  expect(result.success).toBe(false);
-});
-
 // (6) Active mode + content + overwrite=true accepted
 test("active + content + overwrite=true accepted", () => {
   const result = writeNoteInputSchema.safeParse({
@@ -81,39 +62,6 @@ test("active without overwrite=true → fails", () => {
   if (!result.success) {
     expect(result.error.issues.some((i) => i.path.join(".") === "overwrite")).toBe(true);
   }
-});
-
-// (8) Active mode with vault → VALIDATION_ERROR
-test("active with vault → fails", () => {
-  const result = writeNoteInputSchema.safeParse({
-    target_mode: "active",
-    vault: "TestVault",
-    content: "x",
-    overwrite: true,
-  });
-  expect(result.success).toBe(false);
-});
-
-// (9) Active mode with file → VALIDATION_ERROR
-test("active with file → fails", () => {
-  const result = writeNoteInputSchema.safeParse({
-    target_mode: "active",
-    file: "x.md",
-    content: "x",
-    overwrite: true,
-  });
-  expect(result.success).toBe(false);
-});
-
-// (10) Active mode with path → VALIDATION_ERROR
-test("active with path → fails", () => {
-  const result = writeNoteInputSchema.safeParse({
-    target_mode: "active",
-    path: "Sandbox/x.md",
-    content: "x",
-    overwrite: true,
-  });
-  expect(result.success).toBe(false);
 });
 
 // (11) Active mode with open → VALIDATION_ERROR

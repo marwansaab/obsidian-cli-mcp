@@ -1,6 +1,7 @@
 // Original — no upstream. append_note schema-validation cohort per BI-044 / Principle II — happy paths × target-mode primitive interaction × CONTENT_EMPTY (FR-013) × wikilink-form bracket rejection (FR-001a, single-bracket acceptance) × locator-mutex × unknown-extra-field × inline boolean × output strict-shape.
 import { describe, expect, it } from "vitest";
 
+import { targetModeWiringCases } from "../_target-mode-test-cases.js";
 import { appendNoteInputSchema, appendNoteOutputSchema } from "./schema.js";
 
 describe("appendNoteInputSchema — happy paths", () => {
@@ -158,92 +159,18 @@ describe("appendNoteInputSchema — wikilink-form bracket rejection (FR-001a)", 
   });
 });
 
-describe("appendNoteInputSchema — target-mode interaction", () => {
-  it("specific mode without vault → fails", () => {
-    const parsed = appendNoteInputSchema.safeParse({
-      target_mode: "specific",
-      path: "n.md",
-      content: "x",
-    });
-    expect(parsed.success).toBe(false);
-  });
-
-  it("active mode with vault → fails ('vault is not allowed in active mode')", () => {
-    const parsed = appendNoteInputSchema.safeParse({
-      target_mode: "active",
-      vault: "Knowledge",
-      content: "x",
-    });
-    expect(parsed.success).toBe(false);
-  });
-
-  it("specific mode with both file AND path → fails ('got both')", () => {
-    const parsed = appendNoteInputSchema.safeParse({
-      target_mode: "specific",
-      vault: "Knowledge",
-      file: "f",
-      path: "p.md",
-      content: "x",
-    });
-    expect(parsed.success).toBe(false);
-  });
-
-  it("specific mode with neither file nor path → fails ('got neither')", () => {
-    const parsed = appendNoteInputSchema.safeParse({
-      target_mode: "specific",
-      vault: "Knowledge",
-      content: "x",
-    });
-    expect(parsed.success).toBe(false);
-  });
-
-  it("active mode with file → fails", () => {
-    const parsed = appendNoteInputSchema.safeParse({
-      target_mode: "active",
-      file: "tasks",
-      content: "x",
-    });
-    expect(parsed.success).toBe(false);
-  });
-
-  it("active mode with path → fails", () => {
-    const parsed = appendNoteInputSchema.safeParse({
-      target_mode: "active",
-      path: "n.md",
-      content: "x",
-    });
-    expect(parsed.success).toBe(false);
-  });
-});
-
-describe("appendNoteInputSchema — strict-mode unknown-extra-field rejection (FR-015)", () => {
-  it("unknown top-level 'force' field → rejected", () => {
-    const parsed = appendNoteInputSchema.safeParse({
-      target_mode: "specific",
-      vault: "Knowledge",
-      path: "n.md",
-      content: "x",
-      force: true,
-    });
-    expect(parsed.success).toBe(false);
-  });
-
-  it("'overwrite' (write_note's opt-in) → rejected (cohort divergence per FR-004a)", () => {
-    const parsed = appendNoteInputSchema.safeParse({
-      target_mode: "active",
-      content: "x",
-      overwrite: true,
-    });
-    expect(parsed.success).toBe(false);
-  });
-
-  it("'confirmActive' (hypothetical active-mode opt-in) → rejected (FR-004a)", () => {
-    const parsed = appendNoteInputSchema.safeParse({
-      target_mode: "active",
-      content: "x",
-      confirmActive: true,
-    });
-    expect(parsed.success).toBe(false);
+describe("appendNoteInputSchema — target-mode refinement wiring (shared battery)", () => {
+  it.each(
+    targetModeWiringCases(
+      { target_mode: "specific", vault: "V", path: "n.md", content: "x" },
+      { target_mode: "active", content: "x" },
+    ),
+  )("$label", ({ input, valid, issuePath }) => {
+    const r = appendNoteInputSchema.safeParse(input);
+    expect(r.success).toBe(valid);
+    if (!valid && issuePath && !r.success) {
+      expect(r.error.issues.some((i) => i.path.includes(issuePath))).toBe(true);
+    }
   });
 });
 
@@ -272,18 +199,6 @@ describe("appendNoteInputSchema — type mismatches", () => {
     expect(parsed.success).toBe(false);
     if (parsed.success) return;
     const issue = parsed.error.issues.find((i) => i.path.join(".") === "content");
-    expect(issue).toBeDefined();
-  });
-
-  it("missing target_mode → fails with target_mode path", () => {
-    const parsed = appendNoteInputSchema.safeParse({
-      vault: "Knowledge",
-      path: "n.md",
-      content: "x",
-    });
-    expect(parsed.success).toBe(false);
-    if (parsed.success) return;
-    const issue = parsed.error.issues.find((i) => i.path.join(".") === "target_mode");
     expect(issue).toBeDefined();
   });
 });

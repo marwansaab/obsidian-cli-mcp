@@ -1,7 +1,8 @@
 // Original — no upstream. Tests for the move input + output schemas — happy paths across both modes and both `to` shapes (folder-target trailing-`/`, full-path-target), validation failure roster (Story 4), UTF-8 byte-perfect, output literal-true gate.
-import { expectTypeOf, test, expect } from "vitest";
+import { describe, expectTypeOf, it, test, expect } from "vitest";
 
 import { moveInputSchema, moveOutputSchema, type MoveInput, type MoveOutput } from "./schema.js";
+import { targetModeWiringCases } from "../_target-mode-test-cases.js";
 
 // ---- Happy-path (6 cases) -----------------------------------------------
 
@@ -81,145 +82,24 @@ test("UTF-8 multi-byte path + to accepted byte-perfect", () => {
   }
 });
 
-// ---- Failure-path (target-mode primitive + `to` validation) ----
+// ---- Target-mode refinement wiring (shared battery) --------------------
 
-test("specific without file or path rejects with 'exactly one of' (Story 4 AC#1)", () => {
-  const result = moveInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "V",
-    to: "Archive/",
+describe("moveInputSchema — target-mode refinement wiring (shared battery)", () => {
+  it.each(
+    targetModeWiringCases(
+      { target_mode: "specific", vault: "MyVault", path: "Inbox/Tax-2026.md", to: "Archive/" },
+      { target_mode: "active", to: "Archive/" },
+    ),
+  )("$label", ({ input, valid, issuePath }) => {
+    const r = moveInputSchema.safeParse(input);
+    expect(r.success).toBe(valid);
+    if (!valid && issuePath && !r.success) {
+      expect(r.error.issues.some((i) => i.path.includes(issuePath))).toBe(true);
+    }
   });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const messages = result.error.issues.map((i) => i.message).join(" | ");
-    expect(messages).toContain("exactly one of");
-  }
 });
 
-test("specific with both file AND path rejects on both paths (Story 4 AC#2)", () => {
-  const result = moveInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "V",
-    file: "F",
-    path: "F.md",
-    to: "Archive/",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const fileIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["file"]),
-    );
-    const pathIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["path"]),
-    );
-    expect(fileIssues.length).toBeGreaterThanOrEqual(1);
-    expect(pathIssues.length).toBeGreaterThanOrEqual(1);
-  }
-});
-
-test("specific without vault rejects on path=['vault'] (Story 4 AC#3)", () => {
-  const result = moveInputSchema.safeParse({
-    target_mode: "specific",
-    path: "P.md",
-    to: "Archive/",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const vaultIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["vault"]),
-    );
-    expect(vaultIssues.length).toBeGreaterThanOrEqual(1);
-  }
-});
-
-test("specific with empty vault rejects (Edge Case)", () => {
-  const result = moveInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "",
-    path: "P.md",
-    to: "Archive/",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const vaultIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["vault"]),
-    );
-    expect(vaultIssues.some((i) => i.code === "too_small")).toBe(true);
-  }
-});
-
-test.each([
-  ["vault", { target_mode: "active", vault: "V", to: "Archive/" }],
-  ["file", { target_mode: "active", file: "F", to: "Archive/" }],
-  ["path", { target_mode: "active", path: "P.md", to: "Archive/" }],
-])("active mode forbids %s (Story 4 AC#4)", (key, input) => {
-  const result = moveInputSchema.safeParse(input);
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const matched = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify([key]),
-    );
-    expect(matched.length).toBeGreaterThanOrEqual(1);
-    expect(matched[0]!.message).toContain("active mode");
-  }
-});
-
-test("unknown top-level key rejected by strict mode (Story 4 AC#5)", () => {
-  const result = moveInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "V",
-    path: "P.md",
-    to: "Archive/",
-    pancakes: "yes",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const unrecognized = result.error.issues.filter((i) => i.code === "unrecognized_keys");
-    expect(unrecognized.length).toBeGreaterThanOrEqual(1);
-    expect((unrecognized[0] as unknown as { keys: string[] }).keys).toContain("pancakes");
-  }
-});
-
-test("invalid target_mode value rejects on path=['target_mode'] (Edge Case)", () => {
-  const result = moveInputSchema.safeParse({
-    target_mode: "all",
-    vault: "V",
-    path: "P.md",
-    to: "Archive/",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const tmIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["target_mode"]),
-    );
-    expect(tmIssues.length).toBeGreaterThanOrEqual(1);
-  }
-});
-
-test("missing target_mode rejects (Edge Case)", () => {
-  const result = moveInputSchema.safeParse({
-    vault: "V",
-    path: "P.md",
-    to: "Archive/",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const tmIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["target_mode"]),
-    );
-    expect(tmIssues.length).toBeGreaterThanOrEqual(1);
-  }
-});
-
-test("non-string target_mode (target_mode: 42) rejects", () => {
-  const result = moveInputSchema.safeParse({
-    target_mode: 42,
-    vault: "V",
-    path: "P.md",
-    to: "Archive/",
-  });
-  expect(result.success).toBe(false);
-});
+// ---- Failure-path (`to` validation) ----
 
 test("missing `to` rejects on path=['to'] (Story 4 AC#7a)", () => {
   const result = moveInputSchema.safeParse({

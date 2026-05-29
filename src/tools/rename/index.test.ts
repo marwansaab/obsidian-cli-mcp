@@ -1,32 +1,19 @@
 // Original — no upstream. Tests for the rename tool registration — descriptor shape, stripped schema, help mention + link-rewriting caveat, docs presence + non-stub, thin-handler logger drift lock (FR-009 / R1).
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createRenameTool, RENAME_DESCRIPTION, RENAME_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
-import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
+import { silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-
-const silentLogger = () =>
-  createLogger({ stream: new Writable({ write(_c, _e, cb) { cb(); } }) });
+import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
-
-function walkSchema(node: unknown, fn: (n: Record<string, unknown>) => void): void {
-  if (!node || typeof node !== "object") return;
-  if (Array.isArray(node)) {
-    for (const item of node) walkSchema(item, fn);
-    return;
-  }
-  fn(node as Record<string, unknown>);
-  for (const value of Object.values(node as Record<string, unknown>)) walkSchema(value, fn);
-}
 
 describe("createRenameTool — descriptor", () => {
   // (a) Story 8 AC#1 — descriptor name
@@ -41,25 +28,16 @@ describe("createRenameTool — descriptor", () => {
     expect(tool.descriptor.description).toBe(RENAME_DESCRIPTION);
   });
 
-  // (b) Story 8 AC#2 — emitted inputSchema shape: flat, additionalProperties:false, no description keys
-  it("emits a flat inputSchema with all 5 properties, additionalProperties:false, no description keys (Story 8 AC#2)", () => {
+  // (b) Story 8 AC#2 — emitted inputSchema strips descriptions at every nested depth
+  it("strips descriptions at every nested depth (Story 8 AC#2)", () => {
     const tool = createRenameTool({
       logger: silentLogger(),
       queue: createQueue(),
       spawnFn: makeStubSpawn(),
     });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    expect(schema.type).toBe("object");
     expect(schema.oneOf).toBeUndefined();
-    expect(schema.additionalProperties).toBe(false);
-    const props = schema.properties as Record<string, unknown>;
-    expect(Object.keys(props).sort()).toEqual(["file", "name", "path", "target_mode", "vault"]);
-    expect(schema.required).toEqual(expect.arrayContaining(["target_mode"]));
-    let descriptionKeysFound = 0;
-    walkSchema(schema, (n) => {
-      if (Object.prototype.hasOwnProperty.call(n, "description")) descriptionKeysFound += 1;
-    });
-    expect(descriptionKeysFound).toBe(0);
+    expect(countDescriptionKeys(schema)).toBe(0);
   });
 
   // (c) Story 8 AC#3 — description references help, the tool's own name, AND surfaces the link-rewriting caveat

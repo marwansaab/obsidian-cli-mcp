@@ -1,113 +1,26 @@
 // Original — no upstream. Tests for the read_heading input + output + eval-envelope schemas — target_mode discriminator + structural heading-path validator + additionalProperties + envelope discriminator.
-import { expect, test } from "vitest";
+import { describe, expect, it, test } from "vitest";
 
+import { targetModeWiringCases } from "../_target-mode-test-cases.js";
 import {
   readHeadingEvalResponseSchema,
   readHeadingInputSchema,
   readHeadingOutputSchema,
 } from "./schema.js";
 
-// (1) US3 AC#5 — specific without vault rejects on path=['vault']
-test("specific without vault rejects on path=['vault']", () => {
-  const result = readHeadingInputSchema.safeParse({
-    target_mode: "specific",
-    path: "x.md",
-    heading: "A::B",
+describe("readHeadingInputSchema — target-mode refinement wiring (shared battery)", () => {
+  it.each(
+    targetModeWiringCases(
+      { target_mode: "specific", vault: "V", path: "n.md", heading: "H::H" },
+      { target_mode: "active", heading: "H::H" },
+    ),
+  )("$label", ({ input, valid, issuePath }) => {
+    const r = readHeadingInputSchema.safeParse(input);
+    expect(r.success).toBe(valid);
+    if (!valid && issuePath && !r.success) {
+      expect(r.error.issues.some((i) => i.path.includes(issuePath))).toBe(true);
+    }
   });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const vaultIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["vault"]),
-    );
-    expect(vaultIssues.length).toBeGreaterThanOrEqual(1);
-  }
-});
-
-// (2) US3 AC#3 — specific without file AND without path rejects
-test("specific without file or path rejects with 'exactly one of'", () => {
-  const result = readHeadingInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "v",
-    heading: "A::B",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const messages = result.error.issues.map((i) => i.message).join(" | ");
-    expect(messages).toMatch(/exactly one of/);
-  }
-});
-
-// (3) US3 AC#4 — specific with both file AND path rejects on both keys
-test("specific with both file AND path rejects on both keys", () => {
-  const result = readHeadingInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "v",
-    file: "F",
-    path: "F.md",
-    heading: "A::B",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const fileIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["file"]),
-    );
-    const pathIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["path"]),
-    );
-    expect(fileIssues.length).toBeGreaterThanOrEqual(1);
-    expect(pathIssues.length).toBeGreaterThanOrEqual(1);
-  }
-});
-
-// (4) US3 AC#7 — active mode forbids vault
-test("active mode forbids vault", () => {
-  const result = readHeadingInputSchema.safeParse({
-    target_mode: "active",
-    vault: "v",
-    heading: "A::B",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const vaultIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["vault"]),
-    );
-    expect(vaultIssues.length).toBeGreaterThanOrEqual(1);
-    expect(vaultIssues[0]!.message).toContain("active mode");
-  }
-});
-
-// (5) US3 AC#8 — active mode forbids file
-test("active mode forbids file", () => {
-  const result = readHeadingInputSchema.safeParse({
-    target_mode: "active",
-    file: "F",
-    heading: "A::B",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const fileIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["file"]),
-    );
-    expect(fileIssues.length).toBeGreaterThanOrEqual(1);
-    expect(fileIssues[0]!.message).toContain("active mode");
-  }
-});
-
-// (6) US3 AC#9 — active mode forbids path
-test("active mode forbids path", () => {
-  const result = readHeadingInputSchema.safeParse({
-    target_mode: "active",
-    path: "x.md",
-    heading: "A::B",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const pathIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["path"]),
-    );
-    expect(pathIssues.length).toBeGreaterThanOrEqual(1);
-    expect(pathIssues[0]!.message).toContain("active mode");
-  }
 });
 
 // (7) Happy specific-path
@@ -241,21 +154,6 @@ test("valid 6-segment heading accepted", () => {
     heading: "A::B::C::D::E::F",
   });
   expect(result.success).toBe(true);
-});
-
-// (17) US3 AC#10 — unknown top-level key rejected
-test("unknown top-level key rejected with unrecognized_keys", () => {
-  const result = readHeadingInputSchema.safeParse({
-    target_mode: "active",
-    heading: "A::B",
-    foo: "bar",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const unrecognized = result.error.issues.filter((i) => i.code === "unrecognized_keys");
-    expect(unrecognized.length).toBeGreaterThanOrEqual(1);
-    expect((unrecognized[0] as { keys: string[] }).keys).toContain("foo");
-  }
 });
 
 // (18) Output schema rejects extra keys

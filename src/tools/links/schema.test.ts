@@ -1,5 +1,5 @@
 // Original — no upstream. Tests for the links input/output/eval-envelope schemas — target_mode discriminator inherited from targetModeBaseSchema, XOR locator + active-forbid refinements, optional total boolean, strict additionalProperties rejection, emitted JSON Schema round-trip via toMcpInputSchema.
-import { expect, test, vi } from "vitest";
+import { describe, expect, it, test, vi } from "vitest";
 
 import {
   LINKS_EVAL_ERROR_CODES,
@@ -10,6 +10,7 @@ import {
   linksOutputSchema,
 } from "./schema.js";
 import { toMcpInputSchema } from "../_shared.js";
+import { targetModeWiringCases } from "../_target-mode-test-cases.js";
 
 // (1) specific + vault + path happy
 test("specific + vault + path: parses OK", () => {
@@ -67,128 +68,7 @@ test("active + total:true: parses OK", () => {
   expect(result.success).toBe(true);
 });
 
-// (7) specific without vault rejects; dispatcher never called
-test("specific without vault: rejects with vault-path issue; dispatcher spy never called (FR-015)", () => {
-  const dispatcherSpy = vi.fn();
-  const result = linksInputSchema.safeParse({
-    target_mode: "specific",
-    path: "x.md",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const vaultIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["vault"]),
-    );
-    expect(vaultIssues.length).toBeGreaterThanOrEqual(1);
-  }
-  expect(dispatcherSpy).not.toHaveBeenCalled();
-});
-
-// (8) specific without file+path rejects (XOR violation: got neither)
-test("specific without file or path: rejects with 'exactly one of'", () => {
-  const dispatcherSpy = vi.fn();
-  const result = linksInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "Demo",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const messages = result.error.issues.map((i) => i.message).join(" | ");
-    expect(messages).toMatch(/exactly one of/);
-  }
-  expect(dispatcherSpy).not.toHaveBeenCalled();
-});
-
-// (9) specific with BOTH file+path rejects (XOR violation: got both)
-test("specific with BOTH file AND path: rejects on both keys (XOR)", () => {
-  const dispatcherSpy = vi.fn();
-  const result = linksInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "Demo",
-    file: "brief",
-    path: "Projects/brief.md",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const fileIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["file"]),
-    );
-    const pathIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["path"]),
-    );
-    expect(fileIssues.length).toBeGreaterThanOrEqual(1);
-    expect(pathIssues.length).toBeGreaterThanOrEqual(1);
-  }
-  expect(dispatcherSpy).not.toHaveBeenCalled();
-});
-
-// (10) active with vault rejects
-test("active with vault: rejects on vault key", () => {
-  const result = linksInputSchema.safeParse({
-    target_mode: "active",
-    vault: "Demo",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const vaultIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["vault"]),
-    );
-    expect(vaultIssues.length).toBeGreaterThanOrEqual(1);
-    expect(vaultIssues[0]!.message).toContain("active mode");
-  }
-});
-
-// (11) active with file rejects
-test("active with file: rejects on file key", () => {
-  const result = linksInputSchema.safeParse({
-    target_mode: "active",
-    file: "brief",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const fileIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["file"]),
-    );
-    expect(fileIssues.length).toBeGreaterThanOrEqual(1);
-    expect(fileIssues[0]!.message).toContain("active mode");
-  }
-});
-
-// (12) active with path rejects
-test("active with path: rejects on path key", () => {
-  const result = linksInputSchema.safeParse({
-    target_mode: "active",
-    path: "x.md",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const pathIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["path"]),
-    );
-    expect(pathIssues.length).toBeGreaterThanOrEqual(1);
-    expect(pathIssues[0]!.message).toContain("active mode");
-  }
-});
-
-// (13) unknown top-level key rejects (strict mode)
-test("unknown top-level key rejected (strict mode / FR-004)", () => {
-  const dispatcherSpy = vi.fn();
-  const result = linksInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "Demo",
-    path: "x.md",
-    filter: "wikilink",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const unrecognized = result.error.issues.filter((i) => i.code === "unrecognized_keys");
-    expect(unrecognized.length).toBeGreaterThanOrEqual(1);
-    expect((unrecognized[0] as { keys: string[] }).keys).toContain("filter");
-  }
-  expect(dispatcherSpy).not.toHaveBeenCalled();
-});
-
-// (14) total as string "true" rejects (type)
+// (7) tool-specific: total as string "true" rejects (type)
 test("total as string \"true\" rejected with invalid_type", () => {
   const result = linksInputSchema.safeParse({
     target_mode: "specific",
@@ -206,54 +86,25 @@ test("total as string \"true\" rejected with invalid_type", () => {
   }
 });
 
-// (15) target_mode missing rejects
-test("target_mode missing rejected", () => {
-  const result = linksInputSchema.safeParse({
-    vault: "Demo",
-    path: "x.md",
+// target-mode refinement wiring (shared battery) — the primitive is covered once
+// in target-mode/target-mode.test.ts; this only proves the refinement is wired
+// into linksInputSchema.
+describe("linksInputSchema — target-mode refinement wiring (shared battery)", () => {
+  it.each(
+    targetModeWiringCases(
+      { target_mode: "specific", vault: "V", path: "n.md" },
+      { target_mode: "active" },
+    ),
+  )("$label", ({ input, valid, issuePath }) => {
+    const r = linksInputSchema.safeParse(input);
+    expect(r.success).toBe(valid);
+    if (!valid && issuePath && !r.success) {
+      expect(r.error.issues.some((i) => i.path.includes(issuePath))).toBe(true);
+    }
   });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const targetModeIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["target_mode"]),
-    );
-    expect(targetModeIssues.length).toBeGreaterThanOrEqual(1);
-  }
 });
 
-// (16) target_mode unknown enum value rejected
-test("target_mode: 'focused' (unknown enum value) rejected", () => {
-  const result = linksInputSchema.safeParse({
-    target_mode: "focused",
-    vault: "Demo",
-    path: "x.md",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const targetModeIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["target_mode"]),
-    );
-    expect(targetModeIssues.length).toBeGreaterThanOrEqual(1);
-  }
-});
-
-// (17) vault empty string rejected
-test("vault empty string rejected (min(1))", () => {
-  const result = linksInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "",
-    path: "x.md",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const vaultIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["vault"]),
-    );
-    expect(vaultIssues.length).toBeGreaterThanOrEqual(1);
-  }
-});
-
-// (18) emitted JSON Schema preserves target_mode enum constraint
+// (8) emitted JSON Schema preserves target_mode enum constraint
 test("toMcpInputSchema(linksInputSchema) preserves target_mode enum constraint", () => {
   const emitted = toMcpInputSchema(linksInputSchema) as Record<string, unknown>;
   // The emitted shape may be wrapped (allOf/anyOf) due to superRefine; walk it.

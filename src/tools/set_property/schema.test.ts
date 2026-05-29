@@ -1,6 +1,7 @@
 // Original — no upstream. Tests for the set_property input schema — 17 cases per data-model.md test inventory covering target-mode happy paths, locator XOR, name min(1), value union (incl. negative cases for null/object/heterogeneous-array), six-label type enum, active-mode forbidden keys, and strict-mode unknown-key rejection.
-import { expect, test } from "vitest";
+import { describe, expect, it, test } from "vitest";
 
+import { targetModeWiringCases } from "../_target-mode-test-cases.js";
 import { setPropertyInputSchema } from "./schema.js";
 
 // (1) specific + path happy path
@@ -69,55 +70,6 @@ test("specific+path with explicit type (US1#5)", () => {
   expect(result.success).toBe(true);
   if (result.success) {
     expect(result.data.type).toBe("date");
-  }
-});
-
-// (5) specific without locator → VALIDATION_ERROR
-test("specific without file or path → exactly-one-of issue (US3#1)", () => {
-  const result = setPropertyInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "Demo",
-    name: "x",
-    value: "v",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const messages = result.error.issues.map((i) => i.message).join(" | ");
-    expect(messages).toMatch(/exactly one of/);
-  }
-});
-
-// (6) specific with both locators → VALIDATION_ERROR
-test("specific with both file AND path → two issues (US3#2)", () => {
-  const result = setPropertyInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "Demo",
-    file: "F",
-    path: "F.md",
-    name: "x",
-    value: "v",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const fileIssues = result.error.issues.filter((i) => JSON.stringify(i.path) === JSON.stringify(["file"]));
-    const pathIssues = result.error.issues.filter((i) => JSON.stringify(i.path) === JSON.stringify(["path"]));
-    expect(fileIssues.length).toBeGreaterThanOrEqual(1);
-    expect(pathIssues.length).toBeGreaterThanOrEqual(1);
-  }
-});
-
-// (7) specific without vault → VALIDATION_ERROR
-test("specific without vault → issue on ['vault'] (US3#3)", () => {
-  const result = setPropertyInputSchema.safeParse({
-    target_mode: "specific",
-    path: "x.md",
-    name: "x",
-    value: "v",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const vaultIssues = result.error.issues.filter((i) => JSON.stringify(i.path) === JSON.stringify(["vault"]));
-    expect(vaultIssues.length).toBeGreaterThanOrEqual(1);
   }
 });
 
@@ -230,60 +182,17 @@ test("type='bogus' rejected by six-label enum (US3#8)", () => {
   }
 });
 
-// (15) active mode forbids vault
-test("active mode forbids vault → issue on ['vault'] (US3#9)", () => {
-  const result = setPropertyInputSchema.safeParse({
-    target_mode: "active",
-    vault: "V",
-    name: "x",
-    value: "v",
+describe("setPropertyInputSchema — target-mode refinement wiring (shared battery)", () => {
+  it.each(
+    targetModeWiringCases(
+      { target_mode: "specific", vault: "V", path: "n.md", name: "prop", value: "v" },
+      { target_mode: "active", name: "prop", value: "v" },
+    ),
+  )("$label", ({ input, valid, issuePath }) => {
+    const r = setPropertyInputSchema.safeParse(input);
+    expect(r.success).toBe(valid);
+    if (!valid && issuePath && !r.success) {
+      expect(r.error.issues.some((i) => i.path.includes(issuePath))).toBe(true);
+    }
   });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const vaultIssues = result.error.issues.filter((i) => JSON.stringify(i.path) === JSON.stringify(["vault"]));
-    expect(vaultIssues.length).toBeGreaterThanOrEqual(1);
-    expect(vaultIssues[0]!.message).toContain("active mode");
-  }
-});
-
-// (16) active mode forbids file
-test("active mode forbids file → issue on ['file'] (US3#10)", () => {
-  const result = setPropertyInputSchema.safeParse({
-    target_mode: "active",
-    file: "F",
-    name: "x",
-    value: "v",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const fileIssues = result.error.issues.filter((i) => JSON.stringify(i.path) === JSON.stringify(["file"]));
-    expect(fileIssues.length).toBeGreaterThanOrEqual(1);
-  }
-});
-
-// (17) active mode forbids path AND unknown top-level key rejected by strict() base
-test("active mode forbids path AND unknown top-level key rejected (US3#11 + additionalProperties:false)", () => {
-  const pathResult = setPropertyInputSchema.safeParse({
-    target_mode: "active",
-    path: "P.md",
-    name: "x",
-    value: "v",
-  });
-  expect(pathResult.success).toBe(false);
-  if (!pathResult.success) {
-    const pathIssues = pathResult.error.issues.filter((i) => JSON.stringify(i.path) === JSON.stringify(["path"]));
-    expect(pathIssues.length).toBeGreaterThanOrEqual(1);
-  }
-  const unknownResult = setPropertyInputSchema.safeParse({
-    target_mode: "active",
-    name: "x",
-    value: "v",
-    foo: "bar",
-  });
-  expect(unknownResult.success).toBe(false);
-  if (!unknownResult.success) {
-    const unrecognized = unknownResult.error.issues.filter((i) => i.code === "unrecognized_keys");
-    expect(unrecognized.length).toBeGreaterThanOrEqual(1);
-    expect((unrecognized[0] as { keys: string[] }).keys).toContain("foo");
-  }
 });

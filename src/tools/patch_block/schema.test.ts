@@ -1,6 +1,7 @@
 // Original — no upstream. patch_block schema-validation cohort per BI-043 / Principle II — INVALID_BLOCK_ID four sub-reasons (FR-019), target-mode primitive interaction, single-mode replace with empty-content acceptance (FR-007 cohort parity with patch_heading FR-018a), output strict-shape.
 import { describe, expect, it } from "vitest";
 
+import { targetModeWiringCases } from "../_target-mode-test-cases.js";
 import { patchBlockInputSchema, patchBlockOutputSchema } from "./schema.js";
 
 import type { z } from "zod";
@@ -126,53 +127,22 @@ describe("patchBlockInputSchema — INVALID_BLOCK_ID cohort (FR-019)", () => {
   });
 });
 
-describe("patchBlockInputSchema — target-mode primitive interaction", () => {
-  it("specific mode without vault → fails", () => {
-    const parsed = patchBlockInputSchema.safeParse({
-      target_mode: "specific",
-      path: "n.md",
-      block_id: "foo",
-      content: "x",
-    });
-    expect(parsed.success).toBe(false);
-  });
-
-  it("active mode with vault → fails", () => {
-    const parsed = patchBlockInputSchema.safeParse({
-      target_mode: "active",
-      vault: "Knowledge",
-      block_id: "foo",
-      content: "x",
-    });
-    expect(parsed.success).toBe(false);
-  });
-
-  it("specific mode with both file and path → fails", () => {
-    const parsed = patchBlockInputSchema.safeParse({
-      target_mode: "specific",
-      vault: "Knowledge",
-      file: "f.md",
-      path: "p.md",
-      block_id: "foo",
-      content: "x",
-    });
-    expect(parsed.success).toBe(false);
+describe("patchBlockInputSchema — target-mode refinement wiring (shared battery)", () => {
+  it.each(
+    targetModeWiringCases(
+      { target_mode: "specific", vault: "V", path: "n.md", block_id: "b", content: "x" },
+      { target_mode: "active", block_id: "b", content: "x" },
+    ),
+  )("$label", ({ input, valid, issuePath }) => {
+    const r = patchBlockInputSchema.safeParse(input);
+    expect(r.success).toBe(valid);
+    if (!valid && issuePath && !r.success) {
+      expect(r.error.issues.some((i) => i.path.includes(issuePath))).toBe(true);
+    }
   });
 });
 
 describe("patchBlockInputSchema — misc validation", () => {
-  it("unknown top-level field → fails (strict mode)", () => {
-    const parsed = patchBlockInputSchema.safeParse({
-      target_mode: "specific",
-      vault: "Knowledge",
-      path: "n.md",
-      block_id: "foo",
-      content: "x",
-      extraField: "nope",
-    });
-    expect(parsed.success).toBe(false);
-  });
-
   it("missing required block_id → fails", () => {
     const parsed = patchBlockInputSchema.safeParse({
       target_mode: "specific",

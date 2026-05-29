@@ -1,155 +1,16 @@
 // Original — no upstream. Tests for the write_note handler per ADR-009 / US1 — direct-fs-write specific-mode happy path: vault-registry resolution, canonical-path safety, atomic temp+rename, content fidelity, argv anti-leak, lazy registry probe semantics. T002 decisions header: (d) DEL added to path-safety; (e) best-effort fs.unlink on rename failure; (f) FILE_EXISTS race-freeness covered by `wx` flag semantics — deterministic concurrency test omitted; (g) mid-write SIGTERM atomicity deferred to manual M-4 in quickstart.md.
-import { type SpawnOptions } from "node:child_process";
-import { EventEmitter } from "node:events";
 import { resolve } from "node:path";
-import { Readable, Writable } from "node:stream";
+import { Writable } from "node:stream";
 
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
-import { executeWriteNote, type ExecuteFs } from "./handler.js";
-import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
+import { BAR_ROOT, deps, EVAL_OK, fakeFs, fakeRegistry, FOO_ROOT, VAULT_ROOT } from "./_handler-fixtures.js";
+import { executeWriteNote } from "./handler.js";
+import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createLogger, type Logger } from "../../logger.js";
-import { createQueue } from "../../queue.js";
-import { createVaultRegistry, type VaultRegistry } from "../../vault-registry/registry.js";
-
-// Use path.resolve to make the test roots OS-portable absolute paths — POSIX hosts
-// (CI on Linux) treat Windows-style "C:\..." literals as relative names, so the
-// canonical-path check would resolve them under the cwd and trip PATH_ESCAPES_VAULT.
-const VAULT_ROOT = resolve("/test-vault");
-const FOO_ROOT = resolve("/foo-vault");
-const BAR_ROOT = resolve("/bar-vault");
-
-interface StubResponse {
-  stdout?: string;
-  stderr?: string;
-  exitCode?: number | null;
-  signal?: NodeJS.Signals | null;
-  errorOnSpawn?: unknown;
-}
-
-interface SpawnRecording {
-  binary: string;
-  argv: string[];
-  options: SpawnOptions;
-}
-
-function makeQueuedSpawn(
-  responses: StubResponse[],
-): { spawnFn: SpawnLike; recorded: SpawnRecording[] } {
-  const recorded: SpawnRecording[] = [];
-  let idx = 0;
-  const spawnFn: SpawnLike = (binary, argv, options) => {
-    const spec = responses[idx++];
-    if (!spec) {
-      throw new Error(
-        `unexpected spawn invocation #${idx}; only ${responses.length} response(s) configured`,
-      );
-    }
-    if (spec.errorOnSpawn) throw spec.errorOnSpawn;
-    recorded.push({ binary, argv: [...argv], options });
-    const child = new EventEmitter() as EventEmitter & {
-      stdout: Readable;
-      stderr: Readable;
-      kill: (signal?: NodeJS.Signals) => boolean;
-      pid?: number;
-    };
-    child.stdout = new Readable({ read() {} });
-    child.stderr = new Readable({ read() {} });
-    child.pid = 4242;
-    child.kill = (signal?: NodeJS.Signals) => {
-      setImmediate(() => child.emit("exit", null, signal ?? "SIGTERM"));
-      return true;
-    };
-    setImmediate(() => {
-      if (spec.stdout) child.stdout.push(Buffer.from(spec.stdout, "utf8"));
-      child.stdout.push(null);
-      if (spec.stderr) child.stderr.push(Buffer.from(spec.stderr, "utf8"));
-      child.stderr.push(null);
-      setImmediate(() => {
-        const closeCode = "exitCode" in spec ? (spec.exitCode ?? null) : 0;
-        const closeSignal = "signal" in spec ? (spec.signal ?? null) : null;
-        child.emit("exit", closeCode, closeSignal);
-      });
-    });
-    return child as unknown as ReturnType<SpawnLike>;
-  };
-  return { spawnFn, recorded };
-}
-
-function silentLogger(): Logger {
-  return createLogger({ stream: new Writable({ write(_c, _e, cb) { cb(); } }) });
-}
-
-function fakeFs(over: Partial<ExecuteFs> = {}): ExecuteFs & { writes: Array<[string, string]>; renames: Array<[string, string]>; mkdirs: string[]; unlinks: string[] } {
-  const writes: Array<[string, string]> = [];
-  const renames: Array<[string, string]> = [];
-  const mkdirs: string[] = [];
-  const unlinks: string[] = [];
-  const enoent = (): NodeJS.ErrnoException => {
-    const e = new Error("ENOENT") as NodeJS.ErrnoException;
-    e.code = "ENOENT";
-    return e;
-  };
-  const base: ExecuteFs = {
-    mkdir: vi.fn(async (p: string) => {
-      mkdirs.push(p);
-    }),
-    writeFile: vi.fn(async (p: string, c: string) => {
-      writes.push([p, c]);
-    }),
-    rename: vi.fn(async (from: string, to: string) => {
-      renames.push([from, to]);
-    }),
-    realpath: vi.fn(async (p: string) => {
-      // default: vault root identity; non-existent files throw ENOENT
-      if (p === VAULT_ROOT || p === FOO_ROOT || p === BAR_ROOT) return p;
-      // parent dirs are presumed-existing for mkdir target check; throw for the
-      // pre-write existence probe on the absPath itself
-      throw enoent();
-    }),
-    unlink: vi.fn(async (p: string) => {
-      unlinks.push(p);
-    }),
-  };
-  const merged: ExecuteFs = { ...base, ...over };
-  return Object.assign(merged, { writes, renames, mkdirs, unlinks });
-}
-
-function fakeRegistry(map: Record<string, string>): VaultRegistry {
-  return {
-    resolveVaultPath: vi.fn(async (name: string) => {
-      const path = map[name];
-      if (path === undefined) {
-        throw new UpstreamError({
-          code: "VALIDATION_ERROR",
-          cause: null,
-          details: { requestedVault: name, knownVaults: Object.keys(map) },
-          message: `Vault "${name}" is not registered.`,
-        });
-      }
-      return path;
-    }),
-  };
-}
-
-function deps(opts: {
-  spawnFn: SpawnLike;
-  vaultRegistry: VaultRegistry;
-  fs?: ExecuteFs;
-  logger?: Logger;
-}) {
-  return {
-    logger: opts.logger ?? silentLogger(),
-    queue: createQueue(),
-    vaultRegistry: opts.vaultRegistry,
-    spawnFn: opts.spawnFn,
-    env: {},
-    fs: opts.fs,
-  };
-}
-
-const EVAL_OK: StubResponse = { stdout: "=> undefined\n", exitCode: 0 };
+import { createVaultRegistry } from "../../vault-registry/registry.js";
+import { makeQueuedSpawn, type StubResponse } from "../_handler-test-fixtures.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());

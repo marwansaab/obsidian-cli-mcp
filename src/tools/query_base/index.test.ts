@@ -1,6 +1,5 @@
 // Original — no upstream. query_base registration tests.
 import { resolve as resolvePath } from "node:path";
-import { Writable } from "node:stream";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -13,20 +12,11 @@ import {
   createQueryBaseTool,
 } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
-import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
+import { silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
-
-const silentLogger = () =>
-  createLogger({
-    stream: new Writable({
-      write(_c, _e, cb) {
-        cb();
-      },
-    }),
-  });
 
 function stubRegistry(): VaultRegistry {
   return {

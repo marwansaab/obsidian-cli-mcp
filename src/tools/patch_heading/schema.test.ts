@@ -1,6 +1,7 @@
 // Original — no upstream. patch_heading schema-validation cohort per BI-040 / Principle II — INVALID_HEADING_PATH five sub-reasons (FR-018), EMPTY_CONTENT asymmetric per FR-018a, target-mode primitive interaction, output strict-shape.
 import { describe, expect, it } from "vitest";
 
+import { targetModeWiringCases } from "../_target-mode-test-cases.js";
 import { patchHeadingInputSchema, patchHeadingOutputSchema } from "./schema.js";
 
 import type { z } from "zod";
@@ -150,57 +151,22 @@ describe("patchHeadingInputSchema — EMPTY_CONTENT cohort (FR-018a)", () => {
   });
 });
 
-describe("patchHeadingInputSchema — target-mode primitive interaction", () => {
-  it("specific mode without vault → fails", () => {
-    const parsed = patchHeadingInputSchema.safeParse({
-      target_mode: "specific",
-      path: "n.md",
-      heading_path: "A#B",
-      mode: "append",
-      content: "x",
-    });
-    expect(parsed.success).toBe(false);
-  });
-
-  it("active mode with vault → fails", () => {
-    const parsed = patchHeadingInputSchema.safeParse({
-      target_mode: "active",
-      vault: "Knowledge",
-      heading_path: "A#B",
-      mode: "append",
-      content: "x",
-    });
-    expect(parsed.success).toBe(false);
-  });
-
-  it("specific mode with both file and path → fails", () => {
-    const parsed = patchHeadingInputSchema.safeParse({
-      target_mode: "specific",
-      vault: "Knowledge",
-      file: "f.md",
-      path: "p.md",
-      heading_path: "A#B",
-      mode: "append",
-      content: "x",
-    });
-    expect(parsed.success).toBe(false);
+describe("patchHeadingInputSchema — target-mode refinement wiring (shared battery)", () => {
+  it.each(
+    targetModeWiringCases(
+      { target_mode: "specific", vault: "V", path: "n.md", heading_path: "H#K", mode: "replace", content: "x" },
+      { target_mode: "active", heading_path: "H#K", mode: "replace", content: "x" },
+    ),
+  )("$label", ({ input, valid, issuePath }) => {
+    const r = patchHeadingInputSchema.safeParse(input);
+    expect(r.success).toBe(valid);
+    if (!valid && issuePath && !r.success) {
+      expect(r.error.issues.some((i) => i.path.includes(issuePath))).toBe(true);
+    }
   });
 });
 
 describe("patchHeadingInputSchema — misc validation", () => {
-  it("unknown top-level field → fails (strict mode)", () => {
-    const parsed = patchHeadingInputSchema.safeParse({
-      target_mode: "specific",
-      vault: "Knowledge",
-      path: "n.md",
-      heading_path: "A#B",
-      mode: "append",
-      content: "x",
-      extraField: "nope",
-    });
-    expect(parsed.success).toBe(false);
-  });
-
   it("missing required heading_path → fails", () => {
     const parsed = patchHeadingInputSchema.safeParse({
       target_mode: "specific",

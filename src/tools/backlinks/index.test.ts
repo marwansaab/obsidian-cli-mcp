@@ -1,7 +1,6 @@
 // Original — no upstream. backlinks registration tests — descriptor name + stripped emitted schema (target_mode/vault/file/path/with_counts/total/limit; additionalProperties:false; required={target_mode}; no description keys), help() / sibling-pointer / cap-bypass references in the description, docs presence + content completeness, baseline fingerprint roll-forward gate.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -12,24 +11,13 @@ import {
   createBacklinksTool,
 } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
-import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
+import { silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-
-const silentLogger = () => createLogger({ stream: new Writable({ write(_c, _e, cb) { cb(); } }) });
+import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
-
-function walkSchema(node: unknown, fn: (n: Record<string, unknown>) => void): void {
-  if (!node || typeof node !== "object") return;
-  if (Array.isArray(node)) {
-    for (const item of node) walkSchema(item, fn);
-    return;
-  }
-  fn(node as Record<string, unknown>);
-  for (const value of Object.values(node as Record<string, unknown>)) walkSchema(value, fn);
-}
 
 describe("createBacklinksTool — descriptor", () => {
   // (a) Descriptor name and description constant
@@ -46,32 +34,14 @@ describe("createBacklinksTool — descriptor", () => {
   });
 
   // (b) Stripped emitted schema — ADR-005
-  it("emits inputSchema with target_mode/vault/file/path/with_counts/total/limit, additionalProperties:false, required={target_mode}, no description keys", () => {
+  it("strips descriptions at every nested depth", () => {
     const tool = createBacklinksTool({
       logger: silentLogger(),
       queue: createQueue(),
       spawnFn: makeStubSpawn(),
     });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    expect(schema.type).toBe("object");
-    expect(schema.additionalProperties).toBe(false);
-    const props = schema.properties as Record<string, unknown>;
-    expect(Object.keys(props).sort()).toEqual([
-      "file",
-      "limit",
-      "path",
-      "target_mode",
-      "total",
-      "vault",
-      "with_counts",
-    ]);
-    const required = schema.required as string[];
-    expect([...required].sort()).toEqual(["target_mode"]);
-    let descriptionKeysFound = 0;
-    walkSchema(schema, (n) => {
-      if (Object.prototype.hasOwnProperty.call(n, "description")) descriptionKeysFound += 1;
-    });
-    expect(descriptionKeysFound).toBe(0);
+    expect(countDescriptionKeys(schema)).toBe(0);
   });
 
   // (c) Description references help(), the tool name, the sibling `links`, the .md-only and cap-bypass clarifications

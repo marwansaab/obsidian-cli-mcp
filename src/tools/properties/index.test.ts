@@ -1,31 +1,19 @@
 // Original — no upstream. Tests for the properties tool registration — descriptor name + description, stripped JSON Schema (ADR-005), help-facility doc presence + content completeness (≥4 worked examples + error roster), and the FR-018 baseline drift-detector lock (rolled forward by `npm run baseline:write` post-T009).
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createPropertiesTool, PROPERTIES_DESCRIPTION, PROPERTIES_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
-import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
+import { silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-
-const silentLogger = () => createLogger({ stream: new Writable({ write(_c, _e, cb) { cb(); } }) });
+import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
-
-function walkSchema(node: unknown, fn: (n: Record<string, unknown>) => void): void {
-  if (!node || typeof node !== "object") return;
-  if (Array.isArray(node)) {
-    for (const item of node) walkSchema(item, fn);
-    return;
-  }
-  fn(node as Record<string, unknown>);
-  for (const value of Object.values(node as Record<string, unknown>)) walkSchema(value, fn);
-}
 
 describe("createPropertiesTool — descriptor", () => {
   // (a) descriptor.name === "properties"
@@ -38,18 +26,15 @@ describe("createPropertiesTool — descriptor", () => {
   // (b) inputSchema has nested descriptions stripped (ADR-005); BI-041 introduces
   //     a root-level description carrying the case-insensitive collapse contract,
   //     preserved by stripSchemaDescriptions per FR-003.
-  it("emits inputSchema with nested descriptions stripped (root description allowed per FR-003)", () => {
+  it("strips descriptions at every nested depth (root description allowed per FR-003)", () => {
     const tool = createPropertiesTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    expect(schema.type).toBe("object");
-    expect(schema.additionalProperties).toBe(false);
     const props = schema.properties as Record<string, unknown>;
-    expect(Object.keys(props).sort()).toEqual(["total", "vault"]);
+    // Walk children only — root description is preserved by stripSchemaDescriptions
+    // per FR-003 (BI-041 introduces a root-level description carrying the collapse contract).
     let nestedDescriptionKeysFound = 0;
     for (const child of Object.values(props)) {
-      walkSchema(child, (n) => {
-        if (Object.prototype.hasOwnProperty.call(n, "description")) nestedDescriptionKeysFound += 1;
-      });
+      nestedDescriptionKeysFound += countDescriptionKeys(child);
     }
     expect(nestedDescriptionKeysFound).toBe(0);
   });
