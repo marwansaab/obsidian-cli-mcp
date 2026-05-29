@@ -1,7 +1,6 @@
 // Original — no upstream. Tests for the smart_connections_query tool registration — descriptor shape, stripped schema (ADR-005), help mention + plugin-namespace name + plugin-lifecycle codes + sub-discriminator reasons in description, docs presence + content completeness, FR-018 baseline drift detector entry. 5 cases per data-model.md inventory.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -12,18 +11,9 @@ import {
   SMART_CONNECTIONS_QUERY_TOOL_NAME,
 } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
-import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
+import { silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-
-const silentLogger = () =>
-  createLogger({
-    stream: new Writable({
-      write(_c, _e, cb) {
-        cb();
-      },
-    }),
-  });
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());

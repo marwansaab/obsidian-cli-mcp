@@ -1,6 +1,4 @@
 // Original — no upstream. find_and_replace registration tests — descriptor shape, name, inputSchema property set + additionalProperties:false + required keys, error-mapping path (Zod issues → typed details.code + details.reason envelope).
-import { Writable } from "node:stream";
-
 import { describe, expect, it } from "vitest";
 
 import {
@@ -8,14 +6,10 @@ import {
   FIND_AND_REPLACE_TOOL_NAME,
   createFindAndReplaceTool,
 } from "./index.js";
-import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
+import { silentLogger } from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
-
-function silentLogger() {
-  return createLogger({ stream: new Writable({ write(_c, _e, cb) { cb(); } }) });
-}
 
 function fakeRegistry(): VaultRegistry {
   return {

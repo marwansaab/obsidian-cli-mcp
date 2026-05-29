@@ -1,96 +1,12 @@
 // Original — no upstream. Tests for the smart_connections_similar handler — single-call argv assembly (with stage-0 closed-vault detection adding a second `vaults` spawn), base64 payload round-trip (R6 anti-injection lock), eval envelope parsing with => prefix, per-match shape transforms (source-level / nested-heading / frontmatter-sentinel / fallback {key, score}), non-finite-score filter (R10/Q2), source-path-keyed self-exclusion (R9/FR-010), three-level sort with secondary path-byte-asc + tertiary headingPath.join('#')-byte-asc tiebreak (R8/FR-008), cross-mode count invariant (FR-006a), limit cap, eight envelope error codes via R13 mapping table, FR-017b precedence-chain compound fixtures, json-parse / envelope-parse failures, cap-kill propagation.
-import { type SpawnOptions } from "node:child_process";
-import { EventEmitter } from "node:events";
-import { Readable, Writable } from "node:stream";
-
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { JS_TEMPLATE } from "./_template.js";
 import { executeSmartConnectionsSimilar } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
-import { createLogger, type Logger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
-
-interface StubResponse {
-  stdout?: string;
-  stderr?: string;
-  exitCode?: number | null;
-  signal?: NodeJS.Signals | null;
-  errorOnSpawn?: unknown;
-}
-
-interface SpawnRecording {
-  binary: string;
-  argv: string[];
-  options: SpawnOptions;
-}
-
-function makeQueuedSpawn(responses: StubResponse[]): {
-  spawnFn: SpawnLike;
-  recorded: SpawnRecording[];
-  getCount: () => number;
-} {
-  const recorded: SpawnRecording[] = [];
-  let idx = 0;
-  const spawnFn: SpawnLike = (binary, argv, options) => {
-    const spec = responses[idx++];
-    if (!spec) {
-      throw new Error(
-        `unexpected spawn invocation #${idx}; only ${responses.length} response(s) configured`,
-      );
-    }
-    if (spec.errorOnSpawn) {
-      throw spec.errorOnSpawn;
-    }
-    recorded.push({ binary, argv: [...argv], options });
-    const child = new EventEmitter() as EventEmitter & {
-      stdout: Readable;
-      stderr: Readable;
-      kill: (signal?: NodeJS.Signals) => boolean;
-      pid?: number;
-    };
-    child.stdout = new Readable({ read() {} });
-    child.stderr = new Readable({ read() {} });
-    child.pid = 4242;
-    child.kill = (signal?: NodeJS.Signals) => {
-      setImmediate(() => child.emit("exit", null, signal ?? "SIGTERM"));
-      return true;
-    };
-    setImmediate(() => {
-      if (spec.stdout) child.stdout.push(Buffer.from(spec.stdout, "utf8"));
-      child.stdout.push(null);
-      if (spec.stderr) child.stderr.push(Buffer.from(spec.stderr, "utf8"));
-      child.stderr.push(null);
-      setImmediate(() => {
-        const closeCode = "exitCode" in spec ? (spec.exitCode ?? null) : 0;
-        const closeSignal = "signal" in spec ? (spec.signal ?? null) : null;
-        child.emit("exit", closeCode, closeSignal);
-      });
-    });
-    return child as unknown as ReturnType<SpawnLike>;
-  };
-  return { spawnFn, recorded, getCount: () => idx };
-}
-
-function silentLogger(): Logger {
-  return createLogger({
-    stream: new Writable({
-      write(_c, _e, cb) {
-        cb();
-      },
-    }),
-  });
-}
-
-async function captureRejection(promise: Promise<unknown>): Promise<unknown> {
-  try {
-    await promise;
-    throw new Error("expected rejection but promise resolved");
-  } catch (e) {
-    return e;
-  }
-}
+import { captureRejection, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };

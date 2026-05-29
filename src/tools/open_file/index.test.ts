@@ -6,7 +6,6 @@
 // fingerprint roll-forward gate.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -16,14 +15,10 @@ import {
   OPEN_FILE_TOOL_NAME,
   createOpenFileTool,
 } from "./index.js";
-import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
+import { silentLogger } from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
-
-function silentLogger() {
-  return createLogger({ stream: new Writable({ write(_c, _e, cb) { cb(); } }) });
-}
 
 function fakeRegistry(): VaultRegistry {
   return {

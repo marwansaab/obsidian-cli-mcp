@@ -1,14 +1,14 @@
 // Original — no upstream. Co-located tests for the obsidian_exec tool's registered surface — descriptor + handler exercised via registerTool.
 import { type SpawnOptions } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { Readable, Writable } from "node:stream";
+import { Readable } from "node:stream";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createObsidianExecTool, OBSIDIAN_EXEC_DESCRIPTION, OBSIDIAN_EXEC_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
-import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
+import { silentLogger } from "../_handler-test-fixtures.js";
 
 
 function makeStubSpawn(opts: { stdout?: string; stderr?: string; exitCode?: number; errorOnSpawn?: NodeJS.ErrnoException } = {}): SpawnLike {
@@ -35,8 +35,6 @@ function makeStubSpawn(opts: { stdout?: string; stderr?: string; exitCode?: numb
     return child as unknown as ReturnType<SpawnLike>;
   };
 }
-
-const silentLogger = () => createLogger({ stream: new Writable({ write(_c, _e, cb) { cb(); } }) });
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());

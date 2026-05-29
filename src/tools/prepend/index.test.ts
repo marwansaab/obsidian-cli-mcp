@@ -1,7 +1,6 @@
 // Original — no upstream. prepend tool registration tests per BI-045 / FR-027 / ADR-005 / ADR-010 — descriptor name (mirror-name convention, NOT prepend_note) + help-pointer + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate + content maxLength tied to MAX_CONTENT_LENGTH (BI-047 lowered the cap from 24576 to 3072 per empirical upstream-defect bisect).
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -12,8 +11,8 @@ import {
   PREPEND_TOOL_NAME,
 } from "./index.js";
 import { MAX_CONTENT_LENGTH } from "./schema.js";
-import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
+import { silentLogger } from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -21,9 +20,6 @@ const stubRegistry: VaultRegistry = {
   resolveVaultPath: async () => "C:\\stub-vault",
   resolveVaultDisplayName: () => null,
 };
-
-const silentLogger = () =>
-  createLogger({ stream: new Writable({ write(_c, _e, cb) { cb(); } }) });
 
 function build(): ReturnType<typeof createPrependTool> {
   return createPrependTool({

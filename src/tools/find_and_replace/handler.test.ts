@@ -14,15 +14,12 @@ import {
 import { UpstreamError } from "../../errors.js";
 import { createLogger, type Logger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
+import { silentLogger } from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 import type { Dirent } from "node:fs";
 
 const VAULT_ROOT = resolve("/find-replace-vault");
-
-function silentLogger(): Logger {
-  return createLogger({ stream: new Writable({ write(_c, _e, cb) { cb(); } }) });
-}
 
 function captureLogger(events: Array<Record<string, unknown>>): Logger {
   return createLogger({

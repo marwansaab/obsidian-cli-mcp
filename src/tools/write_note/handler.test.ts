@@ -1,8 +1,6 @@
 // Original — no upstream. Tests for the write_note handler per ADR-009 / US1 — direct-fs-write specific-mode happy path: vault-registry resolution, canonical-path safety, atomic temp+rename, content fidelity, argv anti-leak, lazy registry probe semantics. T002 decisions header: (d) DEL added to path-safety; (e) best-effort fs.unlink on rename failure; (f) FILE_EXISTS race-freeness covered by `wx` flag semantics — deterministic concurrency test omitted; (g) mid-write SIGTERM atomicity deferred to manual M-4 in quickstart.md.
-import { type SpawnOptions } from "node:child_process";
-import { EventEmitter } from "node:events";
 import { resolve } from "node:path";
-import { Readable, Writable } from "node:stream";
+import { Writable } from "node:stream";
 
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
@@ -12,6 +10,7 @@ import { UpstreamError } from "../../errors.js";
 import { createLogger, type Logger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
 import { createVaultRegistry, type VaultRegistry } from "../../vault-registry/registry.js";
+import { makeQueuedSpawn, silentLogger, type StubResponse } from "../_handler-test-fixtures.js";
 
 // Use path.resolve to make the test roots OS-portable absolute paths — POSIX hosts
 // (CI on Linux) treat Windows-style "C:\..." literals as relative names, so the
@@ -19,67 +18,6 @@ import { createVaultRegistry, type VaultRegistry } from "../../vault-registry/re
 const VAULT_ROOT = resolve("/test-vault");
 const FOO_ROOT = resolve("/foo-vault");
 const BAR_ROOT = resolve("/bar-vault");
-
-interface StubResponse {
-  stdout?: string;
-  stderr?: string;
-  exitCode?: number | null;
-  signal?: NodeJS.Signals | null;
-  errorOnSpawn?: unknown;
-}
-
-interface SpawnRecording {
-  binary: string;
-  argv: string[];
-  options: SpawnOptions;
-}
-
-function makeQueuedSpawn(
-  responses: StubResponse[],
-): { spawnFn: SpawnLike; recorded: SpawnRecording[] } {
-  const recorded: SpawnRecording[] = [];
-  let idx = 0;
-  const spawnFn: SpawnLike = (binary, argv, options) => {
-    const spec = responses[idx++];
-    if (!spec) {
-      throw new Error(
-        `unexpected spawn invocation #${idx}; only ${responses.length} response(s) configured`,
-      );
-    }
-    if (spec.errorOnSpawn) throw spec.errorOnSpawn;
-    recorded.push({ binary, argv: [...argv], options });
-    const child = new EventEmitter() as EventEmitter & {
-      stdout: Readable;
-      stderr: Readable;
-      kill: (signal?: NodeJS.Signals) => boolean;
-      pid?: number;
-    };
-    child.stdout = new Readable({ read() {} });
-    child.stderr = new Readable({ read() {} });
-    child.pid = 4242;
-    child.kill = (signal?: NodeJS.Signals) => {
-      setImmediate(() => child.emit("exit", null, signal ?? "SIGTERM"));
-      return true;
-    };
-    setImmediate(() => {
-      if (spec.stdout) child.stdout.push(Buffer.from(spec.stdout, "utf8"));
-      child.stdout.push(null);
-      if (spec.stderr) child.stderr.push(Buffer.from(spec.stderr, "utf8"));
-      child.stderr.push(null);
-      setImmediate(() => {
-        const closeCode = "exitCode" in spec ? (spec.exitCode ?? null) : 0;
-        const closeSignal = "signal" in spec ? (spec.signal ?? null) : null;
-        child.emit("exit", closeCode, closeSignal);
-      });
-    });
-    return child as unknown as ReturnType<SpawnLike>;
-  };
-  return { spawnFn, recorded };
-}
-
-function silentLogger(): Logger {
-  return createLogger({ stream: new Writable({ write(_c, _e, cb) { cb(); } }) });
-}
 
 function fakeFs(over: Partial<ExecuteFs> = {}): ExecuteFs & { writes: Array<[string, string]>; renames: Array<[string, string]>; mkdirs: string[]; unlinks: string[] } {
   const writes: Array<[string, string]> = [];

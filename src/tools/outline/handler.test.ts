@@ -1,81 +1,11 @@
 // Original — no upstream. Tests for the outline handler — 29 cases per data-model.md handler-test inventory. Covers default-mode + count-only happy paths, empty-outline sentinel in both modes, field rename heading→text, byte-faithful level/text/line, Setext defer-to-upstream (R11/F10), indented-code defer-to-upstream (FR-012a/F12), fenced-block opacity (F2), frontmatter opacity (F11), level-skipping preserved (F13/FR-014), argv shape per mode (R3/F14 mutually exclusive), single-spawn invariant (R3/R12), JSON / integer parse failures with details.stage discriminator, dispatch-layer auto-classification (file-not-found, non-`.md`, no-focus, output-cap, binary-not-found, path-traversal, UpstreamError pass-through), and the SC-012 token-cost regression (5× threshold for fixture flexibility).
-import { type SpawnOptions } from "node:child_process";
-import { EventEmitter } from "node:events";
-import { Readable, Writable } from "node:stream";
-
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { EMPTY_OUTLINE_SENTINEL, executeOutline } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
-import { createLogger, type Logger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
-
-interface StubResponse {
-  stdout?: string;
-  stderr?: string;
-  exitCode?: number | null;
-  signal?: NodeJS.Signals | null;
-  errorOnSpawn?: unknown;
-}
-
-interface SpawnRecording {
-  binary: string;
-  argv: string[];
-  options: SpawnOptions;
-}
-
-function makeQueuedSpawn(responses: StubResponse[]): { spawnFn: SpawnLike; recorded: SpawnRecording[] } {
-  const recorded: SpawnRecording[] = [];
-  let idx = 0;
-  const spawnFn: SpawnLike = (binary, argv, options) => {
-    const spec = responses[idx++];
-    if (!spec) {
-      throw new Error(`unexpected spawn invocation #${idx}; only ${responses.length} response(s) configured`);
-    }
-    if (spec.errorOnSpawn) throw spec.errorOnSpawn;
-    recorded.push({ binary, argv: [...argv], options });
-    const child = new EventEmitter() as EventEmitter & {
-      stdout: Readable;
-      stderr: Readable;
-      kill: (signal?: NodeJS.Signals) => boolean;
-      pid?: number;
-    };
-    child.stdout = new Readable({ read() {} });
-    child.stderr = new Readable({ read() {} });
-    child.pid = 8080;
-    child.kill = (signal?: NodeJS.Signals) => {
-      setImmediate(() => child.emit("exit", null, signal ?? "SIGTERM"));
-      return true;
-    };
-    setImmediate(() => {
-      if (spec.stdout) child.stdout.push(Buffer.from(spec.stdout, "utf8"));
-      child.stdout.push(null);
-      if (spec.stderr) child.stderr.push(Buffer.from(spec.stderr, "utf8"));
-      child.stderr.push(null);
-      setImmediate(() => {
-        const closeCode = "exitCode" in spec ? (spec.exitCode ?? null) : 0;
-        const closeSignal = "signal" in spec ? (spec.signal ?? null) : null;
-        child.emit("exit", closeCode, closeSignal);
-      });
-    });
-    return child as unknown as ReturnType<SpawnLike>;
-  };
-  return { spawnFn, recorded };
-}
-
-function silentLogger(): Logger {
-  return createLogger({ stream: new Writable({ write(_c, _e, cb) { cb(); } }) });
-}
-
-async function captureRejection(promise: Promise<unknown>): Promise<unknown> {
-  try {
-    await promise;
-    throw new Error("expected rejection but promise resolved");
-  } catch (e) {
-    return e;
-  }
-}
+import { makeQueuedSpawn, silentLogger, captureRejection } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };

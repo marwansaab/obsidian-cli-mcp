@@ -1,7 +1,6 @@
 // Original — no upstream. append_note tool registration tests per BI-044 / FR-027 / ADR-005 — descriptor name + help-pointer + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate.
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -11,8 +10,8 @@ import {
   APPEND_NOTE_TOOL_NAME,
   createAppendNoteTool,
 } from "./index.js";
-import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
+import { silentLogger } from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -20,9 +19,6 @@ const stubRegistry: VaultRegistry = {
   resolveVaultPath: async () => "C:\\stub-vault",
   resolveVaultDisplayName: () => null,
 };
-
-const silentLogger = () =>
-  createLogger({ stream: new Writable({ write(_c, _e, cb) { cb(); } }) });
 
 function build(): ReturnType<typeof createAppendNoteTool> {
   return createAppendNoteTool({

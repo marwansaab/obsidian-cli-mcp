@@ -9,79 +9,16 @@
 // vault-not-found pass-through (US4); zero-match + folder exists + probe success
 // (US4); zero-match + folder missing + probe error (US4); two-call-path gate (US4).
 // All upstream mocked at the spawn boundary (parity with search/handler.test.ts).
-import { type SpawnOptions } from "node:child_process";
-import { EventEmitter } from "node:events";
-import { Readable, Writable } from "node:stream";
-
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { executeContextSearch } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
-import { createLogger, type Logger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
-
-interface StubResponse {
-  stdout?: string;
-  stderr?: string;
-  exitCode?: number | null;
-}
-
-interface SpawnRecording {
-  binary: string;
-  argv: string[];
-  options: SpawnOptions;
-}
-
-function makeQueuedSpawn(responses: StubResponse[]): { spawnFn: SpawnLike; recorded: SpawnRecording[] } {
-  const recorded: SpawnRecording[] = [];
-  let idx = 0;
-  const spawnFn: SpawnLike = (binary, argv, options) => {
-    const spec = responses[idx++];
-    if (!spec) {
-      throw new Error(`unexpected spawn invocation #${idx}; only ${responses.length} response(s) configured`);
-    }
-    recorded.push({ binary, argv: [...argv], options });
-    const child = new EventEmitter() as EventEmitter & {
-      stdout: Readable;
-      stderr: Readable;
-      kill: (signal?: NodeJS.Signals) => boolean;
-      pid?: number;
-    };
-    child.stdout = new Readable({ read() {} });
-    child.stderr = new Readable({ read() {} });
-    child.pid = 9090;
-    child.kill = (signal?: NodeJS.Signals) => {
-      setImmediate(() => child.emit("exit", null, signal ?? "SIGTERM"));
-      return true;
-    };
-    setImmediate(() => {
-      if (spec.stdout) child.stdout.push(Buffer.from(spec.stdout, "utf8"));
-      child.stdout.push(null);
-      if (spec.stderr) child.stderr.push(Buffer.from(spec.stderr, "utf8"));
-      child.stderr.push(null);
-      setImmediate(() => child.emit("exit", spec.exitCode ?? 0, null));
-    });
-    return child as unknown as ReturnType<SpawnLike>;
-  };
-  return { spawnFn, recorded };
-}
-
-function silentLogger(): Logger {
-  return createLogger({ stream: new Writable({ write(_c, _e, cb) { cb(); } }) });
-}
+import { captureRejection, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
-}
-
-async function captureRejection(promise: Promise<unknown>): Promise<unknown> {
-  try {
-    await promise;
-    throw new Error("expected rejection but promise resolved");
-  } catch (e) {
-    return e;
-  }
 }
 
 function findKv(argv: string[], key: string): string | undefined {

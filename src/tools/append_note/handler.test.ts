@@ -1,8 +1,6 @@
 // Original — no upstream. append_note handler tests per BI-044 / Principle II. US1 happy paths (4 file-tail shapes × both locator shapes, frontmatter preservation, byte-stability, content-verbatim, success envelope, file-TSV resolver pre-flight, PATH_ESCAPES_VAULT, no-write on read failure, EXTERNAL_EDITOR_CONFLICT folded in, tmp cleanup on rename failure, repeat-invocation determinism, metadataCache eval).
-import { type SpawnOptions } from "node:child_process";
-import { EventEmitter } from "node:events";
 import { resolve } from "node:path";
-import { Readable, Writable } from "node:stream";
+import { Writable } from "node:stream";
 
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -11,71 +9,11 @@ import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapt
 import { UpstreamError } from "../../errors.js";
 import { createLogger, type Logger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
+import { makeQueuedSpawn, silentLogger, type StubResponse } from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
 const VAULT_ROOT = resolve("/test-vault");
-
-interface StubResponse {
-  stdout?: string;
-  stderr?: string;
-  exitCode?: number | null;
-  signal?: NodeJS.Signals | null;
-  errorOnSpawn?: unknown;
-}
-
-interface SpawnRecording {
-  binary: string;
-  argv: string[];
-  options: SpawnOptions;
-}
-
-function makeQueuedSpawn(
-  responses: StubResponse[],
-): { spawnFn: SpawnLike; recorded: SpawnRecording[] } {
-  const recorded: SpawnRecording[] = [];
-  let idx = 0;
-  const spawnFn: SpawnLike = (binary, argv, options) => {
-    const spec = responses[idx++];
-    if (!spec) {
-      throw new Error(
-        `unexpected spawn invocation #${idx}; only ${responses.length} response(s) configured`,
-      );
-    }
-    if (spec.errorOnSpawn) throw spec.errorOnSpawn;
-    recorded.push({ binary, argv: [...argv], options });
-    const child = new EventEmitter() as EventEmitter & {
-      stdout: Readable;
-      stderr: Readable;
-      kill: (signal?: NodeJS.Signals) => boolean;
-      pid?: number;
-    };
-    child.stdout = new Readable({ read() {} });
-    child.stderr = new Readable({ read() {} });
-    child.pid = 4242;
-    child.kill = (signal?: NodeJS.Signals) => {
-      setImmediate(() => child.emit("exit", null, signal ?? "SIGTERM"));
-      return true;
-    };
-    setImmediate(() => {
-      if (spec.stdout) child.stdout.push(Buffer.from(spec.stdout, "utf8"));
-      child.stdout.push(null);
-      if (spec.stderr) child.stderr.push(Buffer.from(spec.stderr, "utf8"));
-      child.stderr.push(null);
-      setImmediate(() => {
-        const closeCode = "exitCode" in spec ? (spec.exitCode ?? null) : 0;
-        const closeSignal = "signal" in spec ? (spec.signal ?? null) : null;
-        child.emit("exit", closeCode, closeSignal);
-      });
-    });
-    return child as unknown as ReturnType<SpawnLike>;
-  };
-  return { spawnFn, recorded };
-}
-
-function silentLogger(): Logger {
-  return createLogger({ stream: new Writable({ write(_c, _e, cb) { cb(); } }) });
-}
 
 interface FakeFsHandle extends ExecuteFs {
   reads: string[];

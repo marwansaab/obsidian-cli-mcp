@@ -1,7 +1,6 @@
 // Original — no upstream. backlinks registration tests — descriptor name + stripped emitted schema (target_mode/vault/file/path/with_counts/total/limit; additionalProperties:false; required={target_mode}; no description keys), help() / sibling-pointer / cap-bypass references in the description, docs presence + content completeness, baseline fingerprint roll-forward gate.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -12,11 +11,9 @@ import {
   createBacklinksTool,
 } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
-import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
+import { silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-
-const silentLogger = () => createLogger({ stream: new Writable({ write(_c, _e, cb) { cb(); } }) });
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());

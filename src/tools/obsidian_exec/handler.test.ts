@@ -10,6 +10,7 @@ import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapt
 import { UpstreamError } from "../../errors.js";
 import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
+import { silentLogger, captureRejection } from "../_handler-test-fixtures.js";
 
 
 interface MockChildSpec {
@@ -55,20 +56,6 @@ function makeMockSpawn(spec: MockChildSpec): { spawnFn: SpawnLike; recorded: Spa
     return child as unknown as ReturnType<SpawnLike>;
   };
   return { spawnFn, recorded };
-}
-
-function silentLogger() {
-  const stream = new Writable({ write(_c, _e, cb) { cb(); } });
-  return createLogger({ stream });
-}
-
-async function captureRejection(promise: Promise<unknown>): Promise<unknown> {
-  try {
-    await promise;
-    throw new Error("expected rejection but promise resolved");
-  } catch (e) {
-    return e;
-  }
 }
 
 beforeEach(() => __resetInFlightRegistryForTests());

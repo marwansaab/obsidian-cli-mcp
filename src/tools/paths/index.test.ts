@@ -1,25 +1,15 @@
 // Original — no upstream. Tests for the paths tool registration — descriptor name + description, stripped JSON Schema (ADR-005), docs file presence + content completeness, and the baseline drift-detector lock rolled forward by `npm run baseline:write` post-implementation.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createPathsTool, PATHS_DESCRIPTION, PATHS_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
-import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
+import { silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-
-const silentLogger = () =>
-  createLogger({
-    stream: new Writable({
-      write(_c, _e, cb) {
-        cb();
-      },
-    }),
-  });
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
