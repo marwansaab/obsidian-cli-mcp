@@ -7,6 +7,10 @@
 
 ## Clarifications
 
+### Implementation outcome (2026-05-30) — T0 probe gate
+
+The implementation-phase T0 live-CLI probes (evidence: `contracts/t0-probe-findings.md`) resolved the deferred parameters: `COLD_START_INVARIANT = "not found. It may require a plugin to be enabled."` was pinned verbatim; the retry fires immediately (no delay — the immediate retry recovered); and **form (b) `Stream closed` was DROPPED** — no `Stream closed` manifestation was observed in any probe, so per the default-safe posture the shipped feature is **form (a) only** (the probe-gated form (b) of Q-below ships nothing). One empirical caveat (FR-013, out of scope): a cold *valid core* command (`read`/`search`) returned a well-formed empty `exitCode: 0` success, which `dispatchCli` resolves as success, so the retry does not fire for it — retrying an empty result would be indistinguishable from a legitimately empty read.
+
 ### Session 2026-05-30
 
 - Q: When attempt 1 shows the cold-start signature and the retry returns neither success nor the cold-start signature — the vault has launched, the command ran, and it returns a different real error (e.g. FILE_NOT_FOUND or a non-zero exit) — which result does the caller see? → A: The second attempt's outcome is authoritative — success → success; any failure → attempt 2's classified error. Attempt 1's cold-start signal is known-spurious and is discarded once the retry fires; it is never surfaced over a genuine post-launch error.
