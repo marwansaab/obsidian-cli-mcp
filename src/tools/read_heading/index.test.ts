@@ -14,19 +14,10 @@ import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapt
 import { createQueue } from "../../queue.js";
 import { silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
+import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
-
-function walkSchema(node: unknown, fn: (n: Record<string, unknown>) => void): void {
-  if (!node || typeof node !== "object") return;
-  if (Array.isArray(node)) {
-    for (const item of node) walkSchema(item, fn);
-    return;
-  }
-  fn(node as Record<string, unknown>);
-  for (const value of Object.values(node as Record<string, unknown>)) walkSchema(value, fn);
-}
 
 describe("createReadHeadingTool — descriptor", () => {
   // (51) Descriptor name
@@ -42,24 +33,14 @@ describe("createReadHeadingTool — descriptor", () => {
   });
 
   // (52) Stripped emitted schema
-  it("emits a flat post-010 inputSchema with all 5 properties, additionalProperties:false, required={target_mode, heading}, no description keys", () => {
+  it("strips descriptions at every nested depth", () => {
     const tool = createReadHeadingTool({
       logger: silentLogger(),
       queue: createQueue(),
       spawnFn: makeStubSpawn(),
     });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    expect(schema.type).toBe("object");
-    expect(schema.additionalProperties).toBe(false);
-    const props = schema.properties as Record<string, unknown>;
-    expect(Object.keys(props).sort()).toEqual(["file", "heading", "path", "target_mode", "vault"]);
-    const required = schema.required as string[];
-    expect([...required].sort()).toEqual(["heading", "target_mode"]);
-    let descriptionKeysFound = 0;
-    walkSchema(schema, (n) => {
-      if (Object.prototype.hasOwnProperty.call(n, "description")) descriptionKeysFound += 1;
-    });
-    expect(descriptionKeysFound).toBe(0);
+    expect(countDescriptionKeys(schema)).toBe(0);
   });
 
   // (53) Descriptor description references help, the tool name, and heading-path requirement

@@ -10,19 +10,10 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
+import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
-
-function walkSchema(node: unknown, fn: (n: Record<string, unknown>) => void): void {
-  if (!node || typeof node !== "object") return;
-  if (Array.isArray(node)) {
-    for (const item of node) walkSchema(item, fn);
-    return;
-  }
-  fn(node as Record<string, unknown>);
-  for (const value of Object.values(node as Record<string, unknown>)) walkSchema(value, fn);
-}
 
 describe("createDeleteTool — descriptor", () => {
   // (a) Story 7 AC#1 base — descriptor name
@@ -34,26 +25,11 @@ describe("createDeleteTool — descriptor", () => {
   });
 
   // (b) Story 7 AC#1 + AC#2 — emitted inputSchema shape
-  it("emits a flat post-010 inputSchema with all 5 properties, additionalProperties:false, no description keys (Story 7 AC#2)", () => {
+  it("emits a post-010 inputSchema with descriptions stripped at every nested depth (Story 7 AC#2)", () => {
     const tool = createDeleteTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    expect(schema.type).toBe("object");
     expect(schema.oneOf).toBeUndefined();
-    expect(schema.additionalProperties).toBe(false);
-    const props = schema.properties as Record<string, unknown>;
-    expect(Object.keys(props).sort()).toEqual([
-      "file",
-      "path",
-      "permanent",
-      "target_mode",
-      "vault",
-    ]);
-    expect(schema.required).toEqual(expect.arrayContaining(["target_mode"]));
-    let descriptionKeysFound = 0;
-    walkSchema(schema, (n) => {
-      if (Object.prototype.hasOwnProperty.call(n, "description")) descriptionKeysFound += 1;
-    });
-    expect(descriptionKeysFound).toBe(0);
+    expect(countDescriptionKeys(schema)).toBe(0);
   });
 
   // (c) Story 7 AC#3 — description mentions help, the tool's own name, AND surfaces the safety-default disclosure

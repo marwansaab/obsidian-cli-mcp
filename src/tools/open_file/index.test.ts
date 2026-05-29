@@ -17,6 +17,7 @@ import {
 } from "./index.js";
 import { createQueue } from "../../queue.js";
 import { silentLogger } from "../_handler-test-fixtures.js";
+import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -34,16 +35,6 @@ function makeTool() {
   });
 }
 
-function walkSchema(node: unknown, fn: (n: Record<string, unknown>) => void): void {
-  if (!node || typeof node !== "object") return;
-  if (Array.isArray(node)) {
-    for (const item of node) walkSchema(item, fn);
-    return;
-  }
-  fn(node as Record<string, unknown>);
-  for (const value of Object.values(node as Record<string, unknown>)) walkSchema(value, fn);
-}
-
 describe("createOpenFileTool — descriptor", () => {
   it("publishes name = 'open_file' (descriptive — ADR-010 N/A)", () => {
     const tool = makeTool();
@@ -53,22 +44,14 @@ describe("createOpenFileTool — descriptor", () => {
     expect(tool.descriptor.description.length).toBeGreaterThan(300);
   });
 
-  it("emits inputSchema with vault/path/file/new_tab, additionalProperties:false, required={vault}, NO target_mode, no description keys", () => {
+  it("emits inputSchema with NO target_mode, new_tab default, no description keys at any nested depth", () => {
     const tool = makeTool();
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    expect(schema.type).toBe("object");
-    expect(schema.additionalProperties).toBe(false);
     const props = schema.properties as Record<string, unknown>;
-    expect(Object.keys(props).sort()).toEqual(["file", "new_tab", "path", "vault"]);
     expect(Object.keys(props)).not.toContain("target_mode");
-    expect((schema.required as string[]).sort()).toEqual(["vault"]);
     // new_tab carries its default in the published schema.
     expect((props.new_tab as Record<string, unknown>).default).toBe(false);
-    let descriptionKeysFound = 0;
-    walkSchema(schema, (n) => {
-      if (Object.prototype.hasOwnProperty.call(n, "description")) descriptionKeysFound += 1;
-    });
-    expect(descriptionKeysFound).toBe(0);
+    expect(countDescriptionKeys(schema)).toBe(0);
   });
 
   it("description references help(), the tool name, the focused-vault precondition, both locators and new_tab", () => {

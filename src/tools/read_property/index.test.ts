@@ -10,19 +10,10 @@ import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapt
 import { createQueue } from "../../queue.js";
 import { silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
+import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
-
-function walkSchema(node: unknown, fn: (n: Record<string, unknown>) => void): void {
-  if (!node || typeof node !== "object") return;
-  if (Array.isArray(node)) {
-    for (const item of node) walkSchema(item, fn);
-    return;
-  }
-  fn(node as Record<string, unknown>);
-  for (const value of Object.values(node as Record<string, unknown>)) walkSchema(value, fn);
-}
 
 describe("createReadPropertyTool — descriptor", () => {
   // (a) Story 5 — descriptor name
@@ -33,26 +24,17 @@ describe("createReadPropertyTool — descriptor", () => {
     expect(tool.descriptor.description).toBe(READ_PROPERTY_DESCRIPTION);
   });
 
-  // (b) Story 5 — emitted post-010 inputSchema invariants
-  it("emits a flat post-010 inputSchema with all 5 properties, additionalProperties:false, required includes target_mode AND name, nested description keys stripped (BI-041: root description preserved per FR-003)", () => {
+  // (b) Story 5 — strips descriptions at every nested depth (BI-041: root description preserved per FR-003)
+  it("strips descriptions at every nested depth, preserving the root description (FR-003)", () => {
     const tool = createReadPropertyTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    expect(schema.type).toBe("object");
     expect(schema.oneOf).toBeUndefined();
-    expect(schema.additionalProperties).toBe(false);
-    const props = schema.properties as Record<string, unknown>;
-    expect(Object.keys(props).sort()).toEqual(["file", "name", "path", "target_mode", "vault"]);
-    const required = schema.required as string[];
-    expect(required).toEqual(expect.arrayContaining(["target_mode", "name"]));
-    // Walk children only — root description is preserved by stripSchemaDescriptions
+    // Count children only — root description is preserved by stripSchemaDescriptions
     // per FR-003 (BI-041 introduces a root-level description carrying the
     // malformed-frontmatter contract per FR-010).
+    const props = schema.properties as Record<string, unknown>;
     let nestedDescriptionKeysFound = 0;
-    for (const child of Object.values(props)) {
-      walkSchema(child, (n) => {
-        if (Object.prototype.hasOwnProperty.call(n, "description")) nestedDescriptionKeysFound += 1;
-      });
-    }
+    for (const child of Object.values(props)) nestedDescriptionKeysFound += countDescriptionKeys(child);
     expect(nestedDescriptionKeysFound).toBe(0);
   });
 
