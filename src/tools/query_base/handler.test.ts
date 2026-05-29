@@ -544,6 +544,27 @@ test("US2: BASE_MALFORMED/invalid-yaml — upstream emits YAMLException stderr �
   expect(err.details["message"]).toContain("YAMLException");
 });
 
+test("US2: BASE_MALFORMED/invalid-yaml — js-yaml structural error with no literal `yaml` token (BI-057 live T0 probe) → BASE_MALFORMED/invalid-yaml + verbatim message", async () => {
+  // Live 2026-05-29 probe: a syntactically broken `.base` surfaced as this exact
+  // string, which matches none of the pre-BI-057 invalid-yaml alternatives and
+  // previously fell through to the generic verbatim-message path.
+  const upstream =
+    "Error: Flow sequence in block collection must be sufficiently indented and end with a ]";
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: "", stderr: upstream, exitCode: 0 },
+  ]);
+  const err = (await captureRejection(
+    executeQueryBase(HAPPY_INPUT, deps({ spawnFn })),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toMatchObject({
+    code: "BASE_MALFORMED",
+    reason: "invalid-yaml",
+    base_path: "Indexes/Active.base",
+  });
+  expect(err.details["message"]).toContain("sufficiently indented");
+});
+
 test("US2: BASE_MALFORMED/missing-required-key — `views: is required` → BASE_MALFORMED/missing-required-key", async () => {
   const { spawnFn } = makeQueuedSpawn([
     { stdout: "", stderr: 'key "views" is required', exitCode: 0 },
