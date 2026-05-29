@@ -289,6 +289,26 @@ export function remapVaultNotFound(err: unknown, vault: string, toolName: string
   throw err;
 }
 
+/**
+ * Resolve a known vault display name to its absolute base path via the registry,
+ * remapping the registry's unknown-vault VALIDATION_ERROR to the cohort
+ * VAULT_NOT_FOUND/unknown triple (via {@link remapVaultNotFound}). The vault-known
+ * half of the resolve-or-remap pattern shared by find_and_replace (its
+ * vault-supplied branch) and open_file (vault always required). Always returns on
+ * success or throws — never undefined.
+ */
+export async function resolveVaultRootOrRemap(
+  vaultRegistry: VaultRegistry,
+  vault: string,
+  toolName: string,
+): Promise<string> {
+  try {
+    return await vaultRegistry.resolveVaultPath(vault);
+  } catch (err) {
+    remapVaultNotFound(err, vault, toolName);
+  }
+}
+
 /** Context for {@link assertCanonicalPath}. */
 export interface CanonicalGuardContext {
   realpath: (p: string) => Promise<string>;

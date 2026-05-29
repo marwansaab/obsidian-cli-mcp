@@ -18,7 +18,7 @@ import {
 } from "./schema.js";
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import { decodeEvalEnvelope, remapVaultNotFound } from "../_active-file.js";
+import { decodeEvalEnvelope, resolveVaultRootOrRemap } from "../_active-file.js";
 import { composeEvalCode } from "../_shared.js";
 
 import type { Logger } from "../../logger.js";
@@ -35,28 +35,14 @@ export interface ExecuteDeps {
 
 const TOOL_NAME = "open_file";
 
-/**
- * Stage 1 (FR-012a) — resolve the requested vault's absolute base path via the
- * registry. An unknown vault display name surfaces as the cohort
- * VAULT_NOT_FOUND/unknown triple BEFORE any eval is spawned (the guard fires
- * before file resolution). Mirrors find_and_replace's resolveVaultRoot.
- */
-async function resolveExpectedBase(
-  input: OpenFileInput,
-  deps: ExecuteDeps,
-): Promise<string> {
-  try {
-    return await deps.vaultRegistry.resolveVaultPath(input.vault);
-  } catch (err) {
-    remapVaultNotFound(err, input.vault, TOOL_NAME);
-  }
-}
-
 export async function executeOpenFile(
   input: OpenFileInput,
   deps: ExecuteDeps,
 ): Promise<OpenFileOutput> {
-  const expectedBase = await resolveExpectedBase(input, deps);
+  // Stage 1 (FR-012a) — resolve the requested vault's absolute base path via the
+  // registry. An unknown vault display name surfaces as the cohort
+  // VAULT_NOT_FOUND/unknown triple BEFORE any eval is spawned.
+  const expectedBase = await resolveVaultRootOrRemap(deps.vaultRegistry, input.vault, TOOL_NAME);
 
   const locator =
     input.path !== undefined
