@@ -76,6 +76,11 @@ function reassemble(
   if (trailingNewline && !out.endsWith(ending)) {
     out += ending;
   } else if (!trailingNewline && out.endsWith(ending)) {
+    // DEFENSIVE / unreachable through the public entry point: with trailingNewline === false
+    // the surgeries never produce an editedLines array ending in "" (applyDetachReattach always
+    // suffixes the ` ^id` marker token to the last segment; applyVerbatimMarkerPreserve always
+    // retains the marker-only line in the tail), so out.endsWith(ending) cannot hold here.
+    /* v8 ignore next */
     out = out.slice(0, -ending.length);
   }
   return out;

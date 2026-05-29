@@ -152,6 +152,28 @@ test("BASE_NOT_FOUND error classification (dispatch-layer catch)", async () => {
   }
 });
 
+test("BASE_NOT_FOUND on success envelope (post-success path, cause null)", async () => {
+  const { deps } = makeDeps([{
+    stdout: "Base file not found: x.base\n",
+    exitCode: 0,
+  }]);
+
+  try {
+    await executeCreateBase(
+      { path: "x.base", name: "x" },
+      deps,
+    );
+    throw new Error("expected rejection");
+  } catch (err) {
+    expect(err).toBeInstanceOf(UpstreamError);
+    const ue = err as UpstreamError;
+    expect(ue.code).toBe("CLI_REPORTED_ERROR");
+    expect(ue.details.code).toBe("BASE_NOT_FOUND");
+    expect(ue.details.path).toBe("x.base");
+    expect(ue.cause).toBeNull();
+  }
+});
+
 test("upstream CLI failure surfaces as UpstreamError", async () => {
   const { deps } = makeDeps([{ stdout: "", exitCode: 1, stderr: "Error: something failed" }]);
 

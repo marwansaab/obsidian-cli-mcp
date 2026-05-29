@@ -118,6 +118,35 @@ describe("stripSchemaDescriptions", () => {
     expect(flexibleBranches[1]?.description).toBeUndefined();
   });
 
+  it("strips description from every element of tuple-form (array) items (FR-002 + FR-004, L44-48 branch)", () => {
+    const raw: JsonSchemaObject = {
+      type: "array",
+      items: [
+        { type: "string", description: "a" },
+        { type: "number", description: "b" },
+        {
+          type: "object",
+          properties: {
+            nested: { type: "string", description: "deep within a tuple element" },
+          },
+        },
+      ],
+    };
+
+    const result = stripSchemaDescriptions(raw);
+
+    const items = result.items as JsonSchemaObject[];
+    expect(Array.isArray(items)).toBe(true);
+    expect(items[0]?.type).toBe("string");
+    expect(items[0]?.description).toBeUndefined();
+    expect(items[1]?.type).toBe("number");
+    expect(items[1]?.description).toBeUndefined();
+    const tupleObject = items[2] as JsonSchemaObject;
+    expect((tupleObject.properties?.nested as JsonSchemaObject).type).toBe("string");
+    expect((tupleObject.properties?.nested as JsonSchemaObject).description).toBeUndefined();
+    expect(JSON.stringify(result).includes('"description"')).toBe(false);
+  });
+
   it("strips description regardless of value type (non-string description Edge Case)", () => {
     const raw: JsonSchemaObject = {
       type: "object",

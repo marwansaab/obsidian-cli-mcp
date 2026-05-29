@@ -68,6 +68,28 @@ describe("createFindByPropertyTool — handler integration via registerTool", ()
   });
 });
 
+// Exercises the index.ts handler closure `async (input, d) => executeFindByProperty(input, d)`.
+// Case (d) above stops at _register's validation gate before the closure runs; this case
+// passes a schema-valid payload so the closure executes through to a success envelope.
+describe("createFindByPropertyTool — handler closure executes on VALID input", () => {
+  it("tool.handler(valid input) drives the closure → executeFindByProperty → { count, paths } envelope", async () => {
+    const tool = createFindByPropertyTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      spawnFn: makeStubSpawn({ stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 }),
+    });
+    const result = (await tool.handler({
+      vault: "Demo",
+      property: "id",
+      value: "BI-030",
+    })) as { isError?: boolean; content: { type: string; text: string }[] };
+    expect(result.isError).toBeUndefined();
+    expect(Array.isArray(result.content)).toBe(true);
+    const payload = JSON.parse(result.content[0]!.text);
+    expect(payload).toEqual({ count: 1, paths: ["x.md"] });
+  });
+});
+
 describe("docs/tools/find_by_property.md exists and is non-stub (FR-025)", () => {
   // (e) Story 7 / FR-025 docs presence + content completeness
   it("docs file resolves via import.meta.url, has no TODO marker, contains all 4 error codes + ≥4 example sections + multi-vault note", () => {

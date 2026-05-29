@@ -3,15 +3,17 @@ import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { type ExecuteFs } from "./handler.js";
 import {
   createPatchHeadingTool,
   PATCH_HEADING_DESCRIPTION,
   PATCH_HEADING_TOOL_NAME,
 } from "./index.js";
+import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -20,6 +22,57 @@ const stubRegistry: VaultRegistry = {
   resolveVaultDisplayName: () => null,
 };
 
+const VAULT_ROOT = resolve("/test-vault");
+
+const SAMPLE_NOTE =
+  "---\n" +
+  "date: 2026-05-21\n" +
+  "tags: [daily]\n" +
+  "---\n" +
+  "\n" +
+  "# Daily\n" +
+  "\n" +
+  "## Tasks\n" +
+  "\n" +
+  "### TODO\n" +
+  "\n" +
+  "- Buy groceries\n" +
+  "- Submit timesheet\n" +
+  "\n" +
+  "### Done\n" +
+  "\n" +
+  "- Reviewed PR #128\n" +
+  "\n" +
+  "## Notes\n" +
+  "\n" +
+  "A quick thought.\n";
+
+/** Minimal in-memory ExecuteFs mirroring handler.test.ts's fakeFs (vi-free). */
+function fakeFs(content: string): ExecuteFs {
+  const enoent = (): NodeJS.ErrnoException => {
+    const e = new Error("ENOENT") as NodeJS.ErrnoException;
+    e.code = "ENOENT";
+    return e;
+  };
+  return {
+    readFile: async () => content,
+    writeFile: async () => {},
+    rename: async () => {},
+    realpath: async (p: string) => {
+      if (p === VAULT_ROOT) return VAULT_ROOT;
+      throw enoent();
+    },
+    unlink: async () => {},
+  };
+}
+
+function successRegistry(): VaultRegistry {
+  return {
+    resolveVaultPath: async () => VAULT_ROOT,
+    resolveVaultDisplayName: () => null,
+  };
+}
+
 function build(): ReturnType<typeof createPatchHeadingTool> {
   return createPatchHeadingTool({
     logger: silentLogger(),
@@ -27,6 +80,51 @@ function build(): ReturnType<typeof createPatchHeadingTool> {
     vaultRegistry: stubRegistry,
   });
 }
+
+beforeEach(() => __resetInFlightRegistryForTests());
+afterEach(() => __resetInFlightRegistryForTests());
+
+describe("createPatchHeadingTool — handler closure (registered boundary)", () => {
+  // Handler-closure execution: VALID input passes Zod, so registerTool runs the
+  // `handler: async (input, d) => executePatchHeading(input, d)` closure (not the
+  // VALIDATION_ERROR short-circuit). Success fs + registry + eval fixtures copied
+  // from handler.test.ts's append case; the wrapped
+  // { path, vault, heading_path, mode, bytes_written } envelope proves the closure
+  // executed end-to-end.
+  it("tool.handler runs the executePatchHeading closure on VALID input and returns a content envelope", async () => {
+    const { spawnFn } = makeQueuedSpawn([{ stdout: "=> undefined\n", exitCode: 0 }]);
+    const tool = createPatchHeadingTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      vaultRegistry: successRegistry(),
+      fs: fakeFs(SAMPLE_NOTE),
+      spawnFn,
+    });
+    const result = await tool.handler({
+      target_mode: "specific",
+      vault: "TestVault",
+      path: "Daily Notes/2026-05-21.md",
+      heading_path: "Daily#Tasks#TODO",
+      mode: "append",
+      content: "- File expense report\n",
+    });
+    expect(Array.isArray(result.content)).toBe(true);
+    expect(result.content.length).toBeGreaterThanOrEqual(1);
+    expect("isError" in result).toBe(false);
+    const payload = JSON.parse(result.content[0]!.text) as {
+      path: string;
+      vault: string;
+      heading_path: string;
+      mode: string;
+      bytes_written: number;
+    };
+    expect(payload.path).toBe("Daily Notes/2026-05-21.md");
+    expect(payload.vault).toBe("TestVault");
+    expect(payload.heading_path).toBe("Daily#Tasks#TODO");
+    expect(payload.mode).toBe("append");
+    expect(payload.bytes_written).toBeGreaterThan(0);
+  });
+});
 
 describe("createPatchHeadingTool — descriptor (BI-040 / ADR-005)", () => {
   it("publishes name = 'patch_heading'", () => {

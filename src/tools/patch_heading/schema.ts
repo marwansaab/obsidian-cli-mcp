@@ -63,6 +63,9 @@ const headingPathField = z.string().superRefine((value, ctx) => {
       });
       return;
     }
+    // DEFENSIVE sentinel — unreachable: `segments` derives from value.split("#"), so no
+    // element can contain "#"; this guard can never fire through any constructible input.
+    /* v8 ignore start */
     if (segments[i]!.includes("#")) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -76,6 +79,7 @@ const headingPathField = z.string().superRefine((value, ctx) => {
       });
       return;
     }
+    /* v8 ignore stop */
   }
 });
 

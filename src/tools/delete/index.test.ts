@@ -57,6 +57,27 @@ describe("createDeleteTool — handler integration via registerTool", () => {
     expect(payload.code).toBe("VALIDATION_ERROR");
     expect(payload.message).toContain("delete");
   });
+
+  // (d2) VALID input drives the index.ts closure `async (input, d) => executeDeleteNote(input, d)`.
+  // Case (d) above stops at _register's validation gate before the closure runs; this case
+  // passes a schema-valid payload so the closure executes through to a success envelope.
+  it("valid input drives the handler closure → executeDeleteNote → success { deleted, path, toTrash } envelope", async () => {
+    const tool = createDeleteTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      spawnFn: makeStubSpawn({ stdout: "Moved to trash: Inbox/Old.md\n", exitCode: 0 }),
+    });
+    const result = (await tool.handler({
+      target_mode: "specific",
+      vault: "MyVault",
+      path: "Inbox/Old.md",
+      permanent: false,
+    })) as { isError?: boolean; content: { type: string; text: string }[] };
+    expect(result.isError).toBeUndefined();
+    expect(Array.isArray(result.content)).toBe(true);
+    const payload = JSON.parse(result.content[0]!.text);
+    expect(payload).toEqual({ deleted: true, path: "Inbox/Old.md", toTrash: true });
+  });
 });
 
 describe("docs/tools/delete.md exists and is non-stub (FR-014, FR-016 case e)", () => {

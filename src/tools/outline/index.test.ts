@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createOutlineTool, OUTLINE_DESCRIPTION, OUTLINE_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 import { countDescriptionKeys } from "../_schema-test-utils.js";
 
@@ -35,6 +35,40 @@ describe("createOutlineTool — descriptor", () => {
     const tool = createOutlineTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     expect(tool.descriptor.description).toBe(OUTLINE_DESCRIPTION);
     expect(OUTLINE_DESCRIPTION).toContain('help({ tool_name: "outline" })');
+  });
+
+  // (c2) Handler-closure execution: VALID input passes Zod, so registerTool runs the
+  // `handler: async (input, d) => executeOutline(input, d)` closure (not the
+  // VALIDATION_ERROR short-circuit). Success spawn fixture copied from handler.test.ts;
+  // the wrapped { count, headings } envelope proves the closure executed end-to-end.
+  it("tool.handler runs the executeOutline closure on VALID input and returns a content envelope", async () => {
+    const upstream = JSON.stringify([
+      { level: 1, heading: "Top", line: 1 },
+      { level: 2, heading: "Sub A", line: 3 },
+    ]);
+    const { spawnFn } = makeQueuedSpawn([{ stdout: upstream + "\n", exitCode: 0 }]);
+    const tool = createOutlineTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      spawnFn,
+    });
+    const result = await tool.handler({
+      target_mode: "specific",
+      vault: "Demo",
+      path: "Notes/x.md",
+    });
+    expect(Array.isArray(result.content)).toBe(true);
+    expect(result.content.length).toBeGreaterThanOrEqual(1);
+    expect("isError" in result).toBe(false);
+    const payload = JSON.parse(result.content[0]!.text) as {
+      count: number;
+      headings: Array<{ level: number; text: string; line: number }>;
+    };
+    expect(payload.count).toBe(2);
+    expect(payload.headings).toEqual([
+      { level: 1, text: "Top", line: 1 },
+      { level: 2, text: "Sub A", line: 3 },
+    ]);
   });
 });
 

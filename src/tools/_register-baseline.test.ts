@@ -1,6 +1,7 @@
 // Original — no upstream. Co-located tests for the FR-018 fingerprint helper module (BI-022).
 import { describe, expect, it } from "vitest";
 
+import { createServer } from "../server.js";
 import { canonicalJSON, fingerprintLiveRegistry, sha256 } from "./_register-baseline.js";
 
 describe("canonicalJSON", () => {
@@ -53,5 +54,17 @@ describe("fingerprintLiveRegistry", () => {
       expect(entry.descriptionFingerprint).toMatch(/^[0-9a-f]{64}$/);
       expect(entry.schemaFingerprint).toMatch(/^[0-9a-f]{64}$/);
     }
+  });
+
+  it("throws when the injected server has no tools/list handler registered (boundary — L57 defensive throw)", async () => {
+    // Inject a fake createServer whose Server exposes an empty _requestHandlers
+    // Map, so handlers.get("tools/list") is undefined and L57 fires.
+    const fakeCreateServer = (() => ({
+      server: { _requestHandlers: new Map() },
+    })) as unknown as typeof createServer;
+
+    await expect(fingerprintLiveRegistry({ createServer: fakeCreateServer })).rejects.toThrow(
+      "tools/list handler not registered",
+    );
   });
 });

@@ -109,4 +109,10 @@ describe("applyReplacement", () => {
       "bbb_aaa_$",
     );
   });
+
+  it("regex mode with a null regex throws the defensive guard", () => {
+    expect(() => applyReplacement("foo", null, "bar", "regex")).toThrow(
+      "applyReplacement: regex mode requires a non-null RegExp",
+    );
+  });
 });

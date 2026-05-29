@@ -14,7 +14,7 @@ import {
 import { UpstreamError } from "../../errors.js";
 import { createLogger, type Logger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 import type { Dirent } from "node:fs";
@@ -913,5 +913,127 @@ describe("US4 — second-scan bound recheck", () => {
       baseDeps({ fs, env: { OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES: "5" } }),
     ).catch((e) => e);
     expect((err as UpstreamError).details.code).toBe("OCCURRENCE_COUNT_EXCEEDED");
+  });
+});
+
+// =============================================================================
+// Coverage gaps — clipFullLine ellipsis, defaultInvokeEval (parse + throw),
+// listEligibleNotes readdir failure, subfolder realpath non-ENOENT rethrow.
+// =============================================================================
+
+describe("clipFullLine — full_line over FULL_LINE_CAP gets ellipsis (L189)", () => {
+  it("matched line longer than 500 chars reports a full_line ending with the ellipsis", async () => {
+    // 600-char prose line containing the pattern; clip at 500 + U+2026.
+    const longLine = "pat " + "x".repeat(600);
+    const files: MemFile[] = [{ abs: relToAbs("n.md"), content: longLine }];
+    const { fs } = inMemoryFs(files, VAULT_ROOT);
+    const r = await executeFindAndReplace(
+      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      baseDeps({ fs }),
+    );
+    expect(r.mode).toBe("preview");
+    if (r.mode === "preview") {
+      const fullLine = r.affected_notes[0]!.occurrences[0]!.full_line;
+      expect(fullLine.endsWith("…")).toBe(true);
+      expect(fullLine.length).toBe(501); // 500 cap + 1 ellipsis char
+    }
+  });
+});
+
+describe("defaultInvokeEval — default factory drives obsidian eval (L192-220)", () => {
+  // FOCUSED_VAULT_TEMPLATE returns JSON.stringify({...}); the `obsidian eval`
+  // echo lands as `=> "<json-encoded string>"`. parseFocusedVault strips the
+  // `=> ` echo + JSON.parse (outer string), then JSON.parse again (inner object).
+  function focusedVaultStdout(envelope: { path: string | null; base: string }): string {
+    return "=> " + JSON.stringify(JSON.stringify(envelope));
+  }
+
+  it("input.vault absent + no injected invokeEval → default eval round-trip resolves the focused vault root", async () => {
+    const files: MemFile[] = [{ abs: relToAbs("note.md"), content: "alpha" }];
+    const { fs } = inMemoryFs(files, VAULT_ROOT);
+    const { spawnFn, getCount } = makeQueuedSpawn([
+      { stdout: focusedVaultStdout({ path: null, base: VAULT_ROOT }), exitCode: 0 },
+    ]);
+    const result = await executeFindAndReplace(
+      { pattern: "alpha", replacement: "X", mode: "literal", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      baseDeps({ fs, spawnFn }), // invokeEval omitted → defaultInvokeEval runs
+    );
+    expect(getCount()).toBe(1); // exactly one `obsidian eval` spawn
+    expect(result.mode).toBe("preview");
+    if (result.mode === "preview") {
+      expect(result.total_occurrences).toBe(1);
+      expect(result.affected_notes[0]!.path).toBe("note.md");
+    }
+  });
+
+  it("default eval round-trip with UNPARSEABLE stdout → CLI_REPORTED_ERROR (L212-218 throw)", async () => {
+    const files: MemFile[] = [{ abs: relToAbs("note.md"), content: "alpha" }];
+    const { fs } = inMemoryFs(files, VAULT_ROOT);
+    const { spawnFn } = makeQueuedSpawn([
+      // `=> ` echo present but the body is not valid JSON → parseFocusedVault
+      // fails at the json-parse stage.
+      { stdout: "=> not-valid-json-at-all", exitCode: 0 },
+    ]);
+    const err = await executeFindAndReplace(
+      { pattern: "alpha", replacement: "X", mode: "literal", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      baseDeps({ fs, spawnFn }),
+    ).catch((e) => e);
+    expect(err).toBeInstanceOf(UpstreamError);
+    expect((err as UpstreamError).code).toBe("CLI_REPORTED_ERROR");
+    expect((err as UpstreamError).details.stage).toBe("json-parse");
+    expect((err as UpstreamError).details.stdout).toBe("=> not-valid-json-at-all");
+  });
+});
+
+describe("listEligibleNotes — readdir failure surfaces via mapFsError (L252)", () => {
+  it("readdirError seam set → FS_WRITE_FAILED with reason:read + errno", async () => {
+    const eio = Object.assign(new Error("EIO"), {
+      code: "EIO",
+      syscall: "scandir",
+    }) as NodeJS.ErrnoException;
+    const files: MemFile[] = [{ abs: relToAbs("a.md"), content: "pat" }];
+    const { fs, state } = inMemoryFs(files, VAULT_ROOT, { readdirError: eio });
+    const err = await executeFindAndReplace(
+      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      baseDeps({ fs }),
+    ).catch((e) => e);
+    expect(err).toBeInstanceOf(UpstreamError);
+    expect((err as UpstreamError).code).toBe("FS_WRITE_FAILED");
+    expect((err as UpstreamError).details.reason).toBe("read");
+    expect((err as UpstreamError).details.errno).toBe("EIO");
+    expect((err as UpstreamError).details.syscall).toBe("scandir");
+    expect(state.writes.length).toBe(0);
+  });
+});
+
+describe("subfolder realpath — non-ENOENT error rethrows raw (L436)", () => {
+  it("EACCES (not ENOENT) on the subfolder realpath probe bubbles unchanged", async () => {
+    const { dirname } = await import("node:path");
+    const parentOfVault = dirname(VAULT_ROOT);
+    const subAbs = resolve(VAULT_ROOT, "Sub");
+    const eacces = Object.assign(new Error("EACCES"), {
+      code: "EACCES",
+      syscall: "stat",
+    }) as NodeJS.ErrnoException;
+    const files: MemFile[] = [{ abs: relToAbs("Sub/a.md"), content: "pat" }];
+    // Path-discriminating override: canonical checks (vault root + its parent)
+    // succeed so assertCanonicalPath passes; only the direct L421 probe on the
+    // resolved subfolder path throws a NON-ENOENT error → the L436 raw rethrow.
+    const { fs } = inMemoryFs(files, VAULT_ROOT, {
+      realpathOverride: async (p: string) => {
+        if (p === subAbs) throw eacces;
+        if (p === VAULT_ROOT) return VAULT_ROOT;
+        if (p === parentOfVault) return parentOfVault;
+        return p;
+      },
+    });
+    const err = await executeFindAndReplace(
+      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", subfolder: "Sub", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      baseDeps({ fs }),
+    ).catch((e) => e);
+    // Raw rethrow — NOT wrapped in an UpstreamError, NOT the INVALID_SUBFOLDER branch.
+    expect(err).toBe(eacces);
+    expect((err as NodeJS.ErrnoException).code).toBe("EACCES");
+    expect(err).not.toBeInstanceOf(UpstreamError);
   });
 });

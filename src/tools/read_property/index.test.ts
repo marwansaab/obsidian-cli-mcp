@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createReadPropertyTool, READ_PROPERTY_DESCRIPTION, READ_PROPERTY_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 import { countDescriptionKeys } from "../_schema-test-utils.js";
 
@@ -68,6 +68,28 @@ describe("createReadPropertyTool — handler integration via registerTool", () =
     expect(payload.code).toBe("VALIDATION_ERROR");
     expect(payload.message).toContain("read_property");
     expect(spawnCalled).toBe(false);
+  });
+
+  // (closure) VALID input drives the `handler: async (input, d) => executeReadProperty(input, d)`
+  // closure in index.ts. The case above only feeds INVALID input, which short-circuits to
+  // VALIDATION_ERROR inside registerTool before the closure runs. A VALID active-mode read of
+  // an absent property reaches executeReadProperty → invokeCli (Call A success spawn) and
+  // short-circuits Call B → { value: null, type: "unknown" }. Reuses handler.test.ts's
+  // single-call short-circuit stdout.
+  it("VALID input drives the handler closure to a success envelope", async () => {
+    const { spawnFn } = makeQueuedSpawn([{ stdout: '{"other":"x"}\n', exitCode: 0 }]);
+    const tool = createReadPropertyTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      spawnFn,
+    });
+    const result = (await tool.handler({ target_mode: "active", name: "missing_in_active" })) as {
+      isError?: boolean;
+      content: { type: string; text: string }[];
+    };
+    expect(result.isError).toBeUndefined();
+    expect(Array.isArray(result.content)).toBe(true);
+    expect(JSON.parse(result.content[0]!.text)).toEqual({ value: null, type: "unknown" });
   });
 });
 

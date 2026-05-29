@@ -154,6 +154,51 @@ describe("walkHeadings — ATX-only (R2)", () => {
   });
 });
 
+describe("walkHeadings — parseAtxHeading rejection edges", () => {
+  it("rejects a 7+ '#' line (rank > 6) so its text never resolves", () => {
+    // '####### X' parses to rank 7, which fails the 1..6 bound — it is NOT a heading.
+    // A real rank-1 sibling carrying the same text DOES resolve, proving the 7-hash line was skipped.
+    const content =
+      "####### X\n" +
+      "# X\n" +
+      "body\n";
+    const r = walkHeadings(content, ["X"]);
+    expect(r).not.toBeNull();
+    expect(r!.markerLineIndex).toBe(1); // the '# X' line, not the '####### X' line
+    expect(r!.markerLineText).toBe("# X");
+    expect(r!.rank).toBe(1);
+  });
+
+  it("rejects a pure-'#' line with no text (rank === line.length)", () => {
+    // '###' is all hashes, no space/text — not a heading per CommonMark.
+    const content =
+      "###\n" +
+      "body\n";
+    // Neither the empty leaf nor a '###'-as-text segment resolves: '###' produced no ParsedHeading.
+    expect(walkHeadings(content, [""])).toBeNull();
+    expect(walkHeadings(content, ["###"])).toBeNull();
+  });
+
+  it("rejects a '#'-run immediately followed by a non-space char", () => {
+    // '#foo' and '##-x' have a non-space byte right after the '#'-run — not ATX headings.
+    const content =
+      "#foo\n" +
+      "##-x\n" +
+      "body\n";
+    expect(walkHeadings(content, ["foo"])).toBeNull();
+    expect(walkHeadings(content, ["-x"])).toBeNull();
+    // The literal lines must not resolve as their own text either.
+    expect(walkHeadings(content, ["#foo"])).toBeNull();
+  });
+});
+
+describe("walkHeadings — empty segments guard", () => {
+  it("returns null when segments is empty", () => {
+    const content = "# Top\n## Sub\nbody\n";
+    expect(walkHeadings(content, [])).toBeNull();
+  });
+});
+
 describe("resolveHeadingIdentity", () => {
   it("extracts the (markerLineText, rank, parentChainText) tuple", () => {
     const content = "# Top\n## Sub\nbody\n";

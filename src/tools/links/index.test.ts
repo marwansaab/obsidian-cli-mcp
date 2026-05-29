@@ -12,7 +12,7 @@ import {
 } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 import { countDescriptionKeys } from "../_schema-test-utils.js";
 
@@ -59,6 +59,37 @@ describe("createLinksTool — descriptor", () => {
     expect(lower).toContain("markdown");
     expect(lower).toContain("total");
     expect(desc.length).toBeGreaterThan(0);
+  });
+
+  // (f) Handler-closure execution: VALID input passes Zod, so registerTool runs the
+  // `handler: async (input, d) => executeLinks(input, d)` closure (not the
+  // VALIDATION_ERROR short-circuit). Success spawn fixture copied from handler.test.ts;
+  // the wrapped { count, links } envelope proves the closure executed end-to-end.
+  it("tool.handler runs the executeLinks closure on VALID input and returns a content envelope", async () => {
+    const envelope = {
+      ok: true,
+      count: 1,
+      links: [{ target: "Other-Note", line: 1, kind: "wikilink" }],
+    };
+    const { spawnFn } = makeQueuedSpawn([
+      { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    ]);
+    const tool = createLinksTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      spawnFn,
+    });
+    const result = await tool.handler({
+      target_mode: "specific",
+      vault: "Demo",
+      path: "Projects/brief.md",
+    });
+    expect(Array.isArray(result.content)).toBe(true);
+    expect(result.content.length).toBeGreaterThanOrEqual(1);
+    expect("isError" in result).toBe(false);
+    const payload = JSON.parse(result.content[0]!.text) as { count: number; links: unknown[] };
+    expect(payload.count).toBe(1);
+    expect(payload.links).toEqual(envelope.links);
   });
 });
 

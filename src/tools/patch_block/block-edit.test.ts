@@ -64,6 +64,17 @@ describe("applyDetachReattach — paragraph shape (FR-008)", () => {
     expect(out).toEqual(["Line 1.", "Line 2. ^foo"]);
   });
 
+  it("multi-line content with a trailing newline drops the empty tail line (no trailing blank segment)", () => {
+    const lines = ["Original. ^foo"];
+    const match = paragraphMatch("foo", lines[0]!, 0);
+    const out = applyDetachReattach(lines, match, "Line 1.\nLine 2.\n");
+    // splitContentLinesForDetach must pop the trailing "" so the marker lands on
+    // "Line 2.", not on an empty line; emitted count carries no trailing blank.
+    expect(out).toEqual(["Line 1.", "Line 2. ^foo"]);
+    expect(out).toHaveLength(2);
+    expect(out[out.length - 1]).toBe("Line 2. ^foo");
+  });
+
   it("empty content produces ' ^<id>' (single space + marker)", () => {
     const lines = ["Body. ^foo"];
     const match = paragraphMatch("foo", lines[0]!, 0);
@@ -169,6 +180,17 @@ describe("applyVerbatimMarkerPreserve — separately-placed shape (FR-010)", () 
     expect(out[1]).toBe("^foo");
     expect(out[2]).toBe("post-1");
     expect(out[3]).toBe("post-2");
+  });
+
+  it("block content with a trailing newline drops the empty tail line (no trailing blank segment before marker)", () => {
+    const lines = ["| a |", "^foo", "post-1"];
+    const match = separatelyPlacedMatch("foo", "^foo", 1, 0, 0);
+    // splitContentLinesForBlock must pop the trailing "" so no empty line is
+    // inserted between the new block and the verbatim marker line.
+    const out = applyVerbatimMarkerPreserve(lines, match, "| z |\n");
+    expect(out).toEqual(["| z |", "^foo", "post-1"]);
+    expect(out).toHaveLength(3);
+    expect(out[1]).toBe("^foo");
   });
 });
 

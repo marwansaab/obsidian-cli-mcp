@@ -12,7 +12,7 @@ import {
 } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 import { countDescriptionKeys } from "../_schema-test-utils.js";
 
@@ -86,6 +86,34 @@ describe("docs/tools/backlinks.md exists and is non-stub (FR-026)", () => {
     expect(body).toMatch(/multi-?vault|multiple vaults|focused vault/i);
     expect(body).toMatch(/frontmatter/i);
     expect(body).toMatch(/links\.md|\[links\]/i);
+  });
+});
+
+// Exercises the index.ts handler closure `async (input, d) => executeBacklinks(input, d)`.
+// The descriptor cases never call tool.handler; the existing suite has no VALID-input
+// call, so the closure line is otherwise uncovered.
+describe("createBacklinksTool — handler closure executes on VALID input", () => {
+  it("tool.handler(valid input) drives the closure → executeBacklinks → success envelope", async () => {
+    __resetInFlightRegistryForTests();
+    const envelope = {
+      ok: true,
+      count: 1,
+      backlinks: [{ source: "Notes/Alpha.md" }],
+    };
+    const { spawnFn } = makeQueuedSpawn([
+      { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    ]);
+    const tool = createBacklinksTool({ logger: silentLogger(), queue: createQueue(), spawnFn });
+    const result = (await tool.handler({
+      target_mode: "specific",
+      vault: "Demo",
+      path: "Target.md",
+    })) as { content: Array<{ type: string; text: string }>; isError?: boolean };
+    expect(Array.isArray(result.content)).toBe(true);
+    expect(result.isError).toBeUndefined();
+    const payload = JSON.parse(result.content[0]!.text);
+    expect(payload).toEqual({ count: 1, backlinks: [{ source: "Notes/Alpha.md" }] });
+    __resetInFlightRegistryForTests();
   });
 });
 

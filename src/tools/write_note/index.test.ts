@@ -3,11 +3,13 @@ import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { EVAL_OK, fakeFs, fakeRegistry, VAULT_ROOT } from "./_handler-fixtures.js";
 import { createWriteNoteTool, WRITE_NOTE_DESCRIPTION, WRITE_NOTE_TOOL_NAME } from "./index.js";
+import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -61,5 +63,40 @@ describe("createWriteNoteTool — descriptor (US5 / FR-022 / ADR-005)", () => {
     const tool = build();
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
     expect(schema.additionalProperties).toBe(false);
+  });
+});
+
+// (6) handler-closure execution — VALID input runs `handler: async (input, d) => executeWriteNote(...)`
+// (every other case here stops at the descriptor and never reaches the handler). A real fakeFs + a
+// resolvable fakeRegistry let the closure complete a fresh-file write and emit the JSON-wrapped
+// { created, path } envelope, proving the closure line executes.
+describe("createWriteNoteTool — handler closure (valid input)", () => {
+  beforeEach(() => __resetInFlightRegistryForTests());
+  afterEach(() => __resetInFlightRegistryForTests());
+
+  it("tool.handler runs the closure on valid input and returns a content array", async () => {
+    const fs = fakeFs();
+    const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
+    const tool = createWriteNoteTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }),
+      fs,
+      spawnFn,
+      env: {},
+    });
+    const result = await tool.handler({
+      target_mode: "specific",
+      vault: "TestVault",
+      path: "Sandbox/note.md",
+      content: "hello",
+      overwrite: true,
+    });
+    expect(Array.isArray(result.content)).toBe(true);
+    expect(result.content[0]).toMatchObject({ type: "text" });
+    expect(JSON.parse((result.content[0] as { text: string }).text)).toEqual({
+      created: true,
+      path: "Sandbox/note.md",
+    });
   });
 });

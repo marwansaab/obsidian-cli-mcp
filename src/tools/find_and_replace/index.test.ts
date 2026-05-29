@@ -142,4 +142,66 @@ describe("createFindAndReplaceTool — wrapped handler error mapping", () => {
       expect(payload.details.reason).toBe("path-traversal");
     }
   });
+
+  it("invalid mode enum → generic VALIDATION_ERROR fallback: details.issues present, NO details.code/details.reason", async () => {
+    const tool = createFindAndReplaceTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      vaultRegistry: fakeRegistry(),
+    });
+    // pattern + replacement are valid, so the only failing issue is the `mode`
+    // enum — it matches NO pattern/replacement/subfolder sub-discriminator branch
+    // in mapZodIssuesToToolError, exercising the L109-113 generic fallback.
+    const result = await tool.handler({
+      pattern: "x",
+      replacement: "y",
+      mode: "bogus",
+    });
+    expect("isError" in result && result.isError).toBe(true);
+    if ("isError" in result && result.isError) {
+      const payload = JSON.parse(result.content[0]!.text);
+      expect(payload.code).toBe("VALIDATION_ERROR");
+      expect(payload.message).toBe(
+        `${FIND_AND_REPLACE_TOOL_NAME} input failed schema validation`,
+      );
+      // Generic fallback carries the raw issues...
+      expect(Array.isArray(payload.details.issues)).toBe(true);
+      expect(payload.details.issues.length).toBeGreaterThan(0);
+      expect(
+        payload.details.issues.some(
+          (i: { path: unknown[] }) => i.path[0] === "mode",
+        ),
+      ).toBe(true);
+      // ...but NOT the branch-specific discriminators (this is what distinguishes
+      // the generic envelope from INVALID_PATTERN / INVALID_REPLACEMENT / INVALID_SUBFOLDER).
+      expect(payload.details.code).toBeUndefined();
+      expect(payload.details.reason).toBeUndefined();
+    }
+  });
+
+  it("unknown key (strict) → generic VALIDATION_ERROR fallback with no details.code", async () => {
+    const tool = createFindAndReplaceTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      vaultRegistry: fakeRegistry(),
+    });
+    // `.strict()` rejects the unrecognized `strict` key; that issue matches no
+    // sub-discriminator branch, so it too falls through to the generic fallback.
+    const result = await tool.handler({
+      pattern: "x",
+      replacement: "y",
+      strict: true,
+    });
+    expect("isError" in result && result.isError).toBe(true);
+    if ("isError" in result && result.isError) {
+      const payload = JSON.parse(result.content[0]!.text);
+      expect(payload.code).toBe("VALIDATION_ERROR");
+      expect(payload.message).toBe(
+        `${FIND_AND_REPLACE_TOOL_NAME} input failed schema validation`,
+      );
+      expect(Array.isArray(payload.details.issues)).toBe(true);
+      expect(payload.details.code).toBeUndefined();
+      expect(payload.details.reason).toBeUndefined();
+    }
+  });
 });
