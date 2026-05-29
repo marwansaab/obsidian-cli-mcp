@@ -20,7 +20,13 @@ import {
 } from "./schema.js";
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import { checkCanonicalPath } from "../../path-safety/canonical.js";
+import {
+  assertCanonicalPath,
+  FOCUSED_VAULT_TEMPLATE,
+  parseFocusedVault,
+  remapVaultNotFound,
+} from "../_active-file.js";
+import { writeAtomic } from "../_note-io.js";
 
 
 import type { Logger } from "../../logger.js";
@@ -69,9 +75,6 @@ const DEFAULT_FS: ExecuteFs = {
   unlink: (p) => nodeFs.unlink(p),
   realpath: (p) => nodeFs.realpath(p),
 };
-
-export const FOCUSED_VAULT_TEMPLATE =
-  "(async()=>JSON.stringify({path:app.workspace.getActiveFile()?.path??null,base:app.vault.adapter.basePath}))()";
 
 const DEFAULT_MAX_OCCURRENCES = 500;
 const MAX_OCCURRENCES_ENV_VAR = "OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES";
@@ -186,57 +189,6 @@ function clipFullLine(content: string): string {
   return stripped.slice(0, FULL_LINE_CAP) + FULL_LINE_ELLIPSIS;
 }
 
-interface FocusedVaultParseSuccess {
-  ok: true;
-  parsed: FocusedVaultResponse;
-}
-interface FocusedVaultParseFailure {
-  ok: false;
-  stage: "json-parse" | "envelope-parse";
-  cause: unknown;
-  raw: string;
-}
-
-function parseEvalResponse(
-  stdout: string,
-): FocusedVaultParseSuccess | FocusedVaultParseFailure {
-  const trimmed = stdout.trimStart();
-  const body = trimmed.startsWith("=> ") ? trimmed.slice(3) : trimmed;
-  let outer: unknown;
-  try {
-    outer = JSON.parse(body);
-  } catch (cause) {
-    return { ok: false, stage: "json-parse", cause, raw: stdout };
-  }
-  // The eval template returns JSON.stringify({path, base}), which when echoed
-  // through the CLI lands as `=> "{\"path\":null,\"base\":\"...\"}"`. We accept
-  // both the raw object and the JSON-encoded-string shape.
-  let parsed: unknown = outer;
-  if (typeof outer === "string") {
-    try {
-      parsed = JSON.parse(outer);
-    } catch (cause) {
-      return { ok: false, stage: "envelope-parse", cause, raw: stdout };
-    }
-  }
-  if (
-    typeof parsed === "object" &&
-    parsed !== null &&
-    "base" in parsed &&
-    typeof (parsed as { base: unknown }).base === "string"
-  ) {
-    const p = parsed as { path?: unknown; base: string };
-    return {
-      ok: true,
-      parsed: {
-        path: typeof p.path === "string" ? p.path : null,
-        base: p.base,
-      },
-    };
-  }
-  return { ok: false, stage: "envelope-parse", cause: null, raw: stdout };
-}
-
 async function defaultInvokeEval(
   deps: ExecuteDeps,
 ): Promise<FocusedVaultResponse> {
@@ -254,12 +206,14 @@ async function defaultInvokeEval(
       queue: deps.queue,
     },
   );
-  const out = parseEvalResponse(result.stdout);
+  // Shared double-decode + shape-check; find_and_replace keeps the json-parse /
+  // envelope-parse stage distinction (and the cause) the helper surfaces.
+  const out = parseFocusedVault(result.stdout);
   if (!out.ok) {
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
       cause: out.cause,
-      details: { stage: out.stage, stdout: out.raw.slice(0, 500) },
+      details: { stage: out.stage, stdout: result.stdout.slice(0, 500) },
       message: "find_and_replace: focused-vault eval returned unparseable response",
     });
   }
@@ -276,19 +230,7 @@ async function resolveVaultRoot(
     } catch (err) {
       // The registry surfaces unknown-vault via its own UpstreamError shape.
       // We re-throw with the spec-mandated triple per FR-013 / errors.md row 10.
-      if (err instanceof UpstreamError && err.code === "VALIDATION_ERROR") {
-        throw new UpstreamError({
-          code: "CLI_REPORTED_ERROR",
-          cause: err,
-          details: {
-            code: "VAULT_NOT_FOUND",
-            reason: "unknown",
-            vault: input.vault,
-          },
-          message: `find_and_replace: vault "${input.vault}" is not registered`,
-        });
-      }
-      throw err;
+      remapVaultNotFound(err, input.vault, "find_and_replace");
     }
   }
   const invokeEval = deps.invokeEval ?? (() => defaultInvokeEval(deps));
@@ -460,25 +402,11 @@ export async function executeFindAndReplace(
 
   // === Stage 1 — vault root resolution + Layer-2 canonical check on vault root ===
   const vaultRootRaw = await resolveVaultRoot(input, deps);
-  const vaultRootCheck = await checkCanonicalPath(vaultRootRaw, ".", {
+  const vaultRoot = await assertCanonicalPath(vaultRootRaw, ".", {
     realpath: fs.realpath,
+    logger: deps.logger,
+    vaultLabel,
   });
-  if (!vaultRootCheck.ok) {
-    deps.logger.pathEscapeAttempt({
-      vault: vaultLabel,
-      attemptedPath: ".",
-    });
-    throw new UpstreamError({
-      code: "PATH_ESCAPES_VAULT",
-      cause: null,
-      details: {
-        vault: vaultLabel,
-        attemptedPath: ".",
-        resolvedPath: vaultRootCheck.resolvedPath,
-      },
-    });
-  }
-  const vaultRoot = vaultRootCheck.resolvedPath;
 
   // === Stage 2 — scope resolution (subfolder OR whole-vault) ===
   let scanRoot = vaultRoot;
@@ -486,28 +414,15 @@ export async function executeFindAndReplace(
     ? input.subfolder
     : null;
   if (subfolder !== null) {
-    const subCheck = await checkCanonicalPath(vaultRoot, subfolder, {
+    const subResolved = await assertCanonicalPath(vaultRoot, subfolder, {
       realpath: fs.realpath,
+      logger: deps.logger,
+      vaultLabel,
     });
-    if (!subCheck.ok) {
-      deps.logger.pathEscapeAttempt({
-        vault: vaultLabel,
-        attemptedPath: subfolder,
-      });
-      throw new UpstreamError({
-        code: "PATH_ESCAPES_VAULT",
-        cause: null,
-        details: {
-          vault: vaultLabel,
-          attemptedPath: subfolder,
-          resolvedPath: subCheck.resolvedPath,
-        },
-      });
-    }
     // Verify the subfolder exists — checkCanonicalPath returns ok with the
     // lexical fallback when the path does not exist; we need to distinguish.
     try {
-      await fs.realpath(subCheck.resolvedPath);
+      await fs.realpath(subResolved);
     } catch (err) {
       if ((err as NodeJS.ErrnoException)?.code === "ENOENT") {
         throw new UpstreamError({
@@ -524,7 +439,7 @@ export async function executeFindAndReplace(
       }
       throw err;
     }
-    scanRoot = subCheck.resolvedPath;
+    scanRoot = subResolved;
   }
 
   // === Stage 3 — directory walk ===
@@ -607,35 +522,18 @@ export async function executeFindAndReplace(
   const changedNotes: string[] = [];
   let occurrencesReplaced = 0;
   for (const rel of orderedRelPaths) {
-    const noteCheck = await checkCanonicalPath(vaultRoot, rel.split("/").join(sep), {
+    const absPath = await assertCanonicalPath(vaultRoot, rel.split("/").join(sep), {
       realpath: fs.realpath,
+      logger: deps.logger,
+      vaultLabel,
+      attemptedPathLabel: rel,
     });
-    if (!noteCheck.ok) {
-      deps.logger.pathEscapeAttempt({ vault: vaultLabel, attemptedPath: rel });
-      throw new UpstreamError({
-        code: "PATH_ESCAPES_VAULT",
-        cause: null,
-        details: {
-          vault: vaultLabel,
-          attemptedPath: rel,
-          resolvedPath: noteCheck.resolvedPath,
-        },
-      });
-    }
-    const absPath = noteCheck.resolvedPath;
     const newContent = secondScan.counts.rewrittenContent.get(rel)!;
     const occurrenceCount = secondScan.counts.perNote.get(rel)!.length;
     try {
-      await deps.queue.run(async () => {
-        const tmp = `${absPath}.${randomUUIDFn()}.tmp`;
-        await fs.writeFile(tmp, newContent);
-        try {
-          await fs.rename(tmp, absPath);
-        } catch (renameErr) {
-          await fs.unlink(tmp).catch(() => {});
-          throw renameErr;
-        }
-      });
+      // Per-note atomic write through the injected queue (serialised); the shared
+      // writeAtomic substrate computes the tmp path inside the critical section.
+      await deps.queue.run(() => writeAtomic(fs, absPath, newContent, randomUUIDFn));
     } catch (err) {
       const fsErr = mapFsError(err, "write", rel, vaultLabel);
       fsErr.details.changed_notes = changedNotes;

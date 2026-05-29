@@ -72,7 +72,7 @@ export interface RegisteredTool {
   handler: ToolCallHandler;
 }
 
-interface ToolErrorPayload {
+export interface ToolErrorPayload {
   code: string;
   message: string;
   details: Record<string, unknown>;

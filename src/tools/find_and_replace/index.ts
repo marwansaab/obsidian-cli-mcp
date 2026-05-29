@@ -1,16 +1,10 @@
-// Original — no upstream. find_and_replace registration — custom RegisteredTool builder (not registerTool) so the handler can map Zod issues into VALIDATION_ERROR envelopes carrying details.code (INVALID_PATTERN / INVALID_REPLACEMENT / INVALID_SUBFOLDER) + details.reason (empty / too-long / regex-syntax / path-traversal / not-found) per ADR-015. Twelfth typed-tool wrap; zero new top-level error codes — Constitution Principle IV streak preserved.
-import { ZodError, type ZodIssue } from "zod";
+// Original — no upstream. find_and_replace registration via registerTool with a mapValidationError hook that maps Zod issues into VALIDATION_ERROR envelopes carrying details.code (INVALID_PATTERN / INVALID_REPLACEMENT / INVALID_SUBFOLDER) + details.reason (empty / too-long / regex-syntax / path-traversal / not-found) per ADR-015. Zero new top-level error codes — Constitution Principle IV streak preserved.
+import { type ZodIssue } from "zod";
 
 import { executeFindAndReplace, type ExecuteDeps } from "./handler.js";
 import { findAndReplaceInputSchema } from "./schema.js";
-import { UpstreamError } from "../../errors.js";
-import { stripSchemaDescriptions } from "../../help/strip-schema.js";
-import {
-  asToolError,
-  toMcpInputSchema,
-  type JsonSchemaObject,
-  type RegisteredTool,
-} from "../_shared.js";
+import { registerTool } from "../_register.js";
+import { type RegisteredTool, type ToolErrorPayload } from "../_shared.js";
 
 export const FIND_AND_REPLACE_TOOL_NAME = "find_and_replace";
 
@@ -43,11 +37,7 @@ Call \`help({ tool_name: "find_and_replace" })\` for worked examples (literal pr
 
 export type RegisterDeps = ExecuteDeps;
 
-function mapZodIssuesToToolError(issues: ZodIssue[]): {
-  code: string;
-  message: string;
-  details: Record<string, unknown>;
-} {
+function mapZodIssuesToToolError(issues: ZodIssue[]): ToolErrorPayload {
   const mappedIssues = issues.map((i) => ({
     path: i.path,
     message: i.message,
@@ -124,42 +114,12 @@ function mapZodIssuesToToolError(issues: ZodIssue[]): {
 }
 
 export function createFindAndReplaceTool(deps: RegisterDeps): RegisteredTool {
-  const inputSchemaRaw = toMcpInputSchema(findAndReplaceInputSchema);
-  const inputSchema = stripSchemaDescriptions(
-    inputSchemaRaw as JsonSchemaObject,
-  ) as Record<string, unknown>;
-
-  return {
-    descriptor: {
-      name: FIND_AND_REPLACE_TOOL_NAME,
-      description: FIND_AND_REPLACE_DESCRIPTION,
-      inputSchema,
-    },
-    handler: async (args: unknown) => {
-      const parsed = findAndReplaceInputSchema.safeParse(args);
-      if (!parsed.success) {
-        return asToolError(mapZodIssuesToToolError(parsed.error.issues));
-      }
-      try {
-        const result = await executeFindAndReplace(parsed.data, deps);
-        return {
-          content: [
-            { type: "text" as const, text: JSON.stringify(result) },
-          ],
-        };
-      } catch (err) {
-        if (err instanceof ZodError) {
-          return asToolError(mapZodIssuesToToolError(err.issues));
-        }
-        if (err instanceof UpstreamError) {
-          return asToolError({
-            code: err.code,
-            message: err.message,
-            details: err.details,
-          });
-        }
-        throw err;
-      }
-    },
-  };
+  return registerTool({
+    name: FIND_AND_REPLACE_TOOL_NAME,
+    description: FIND_AND_REPLACE_DESCRIPTION,
+    schema: findAndReplaceInputSchema,
+    deps,
+    handler: executeFindAndReplace,
+    mapValidationError: mapZodIssuesToToolError,
+  });
 }

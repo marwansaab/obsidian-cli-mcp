@@ -3,7 +3,12 @@ import * as nodeFs from "node:fs/promises";
 
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import { checkCanonicalPath } from "../../path-safety/canonical.js";
+import {
+  assertCanonicalPath,
+  resolveActiveLocatorWithVault,
+  resolveFileByTsv,
+} from "../_active-file.js";
+import { getErrno } from "../_fs-errors.js";
 
 import type { PrependInput, PrependOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
@@ -31,52 +36,6 @@ const DEFAULT_FS: ExecuteFs = {
     return { size: s.size };
   },
 };
-
-// R7 — byte-stable with BI-044's FOCUSED_FILE_TEMPLATE. Do not change without
-// also updating the cohort siblings; the duplication threshold is at three
-// consumers and BI-045 is the third — a follow-up cohort cleanup may lift this
-// to a shared module outside this BI's contract surface.
-const FOCUSED_FILE_TEMPLATE =
-  "(async()=>{const f=app.workspace.getActiveFile();return JSON.stringify({path:f?.path??null,base:app.vault.adapter.basePath});})()";
-
-interface FocusedFileResponse {
-  path: string | null;
-  base: string;
-}
-
-function parseEvalResponse(stdout: string): unknown {
-  const trimmed = stdout.trimStart();
-  const body = trimmed.startsWith("=> ") ? trimmed.slice(3) : trimmed;
-  return JSON.parse(body);
-}
-
-function isFocusedFileResponse(value: unknown): value is FocusedFileResponse {
-  if (typeof value !== "object" || value === null) return false;
-  const v = value as Record<string, unknown>;
-  return (
-    (typeof v.path === "string" || v.path === null) && typeof v.base === "string"
-  );
-}
-
-function parseFileTSV(stdout: string): { path: string } {
-  for (const line of stdout.split("\n")) {
-    if (line.startsWith("path\t")) {
-      return { path: line.slice("path\t".length).trim() };
-    }
-  }
-  throw new UpstreamError({
-    code: "CLI_REPORTED_ERROR",
-    cause: null,
-    details: { stage: "file-tsv-parse", stdout: stdout.slice(0, 500) },
-    message: "prepend: file subcommand stdout did not contain a path line",
-  });
-}
-
-function getErrno(e: unknown): string | undefined {
-  if (typeof e !== "object" || e === null) return undefined;
-  const code = (e as NodeJS.ErrnoException).code;
-  return typeof code === "string" ? code : undefined;
-}
 
 // FR-016 / R6 — placeholder pattern strings. T22's T0-P10 probe confirms the
 // byte-exact upstream stderr/stdout NOTE_NOT_FOUND signal for the `prepend`
@@ -169,56 +128,7 @@ async function resolveLocator(
   deps: ExecuteDeps,
 ): Promise<{ vaultRoot: string; relPath: string; vaultDisplayName: string }> {
   if (input.target_mode === "active") {
-    const focused = await invokeCli(
-      {
-        command: "eval",
-        parameters: { code: FOCUSED_FILE_TEMPLATE },
-        flags: [],
-        target_mode: "active",
-      },
-      { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
-    );
-    let parsed: unknown;
-    try {
-      parsed = parseEvalResponse(focused.stdout);
-    } catch (e) {
-      throw new UpstreamError({
-        code: "CLI_REPORTED_ERROR",
-        cause: e,
-        details: { stage: "json-parse", stdout: focused.stdout },
-        message: "active-mode focused-file eval returned unparseable response",
-      });
-    }
-    if (!isFocusedFileResponse(parsed)) {
-      throw new UpstreamError({
-        code: "CLI_REPORTED_ERROR",
-        cause: null,
-        details: { stage: "envelope-parse", parsed },
-        message: "active-mode focused-file eval returned unexpected shape",
-      });
-    }
-    if (parsed.path === null) {
-      throw new UpstreamError({
-        code: "ERR_NO_ACTIVE_FILE",
-        cause: null,
-        details: {},
-        message:
-          "No active file in Obsidian. Open a note in the editor, or call prepend with target_mode=specific + vault + file/path.",
-      });
-    }
-    const reverseLookup =
-      typeof (deps.vaultRegistry as VaultRegistry & {
-        resolveVaultDisplayName?: (basePath: string) => string | null;
-      }).resolveVaultDisplayName === "function"
-        ? (deps.vaultRegistry as VaultRegistry & {
-            resolveVaultDisplayName: (basePath: string) => string | null;
-          }).resolveVaultDisplayName(parsed.base)
-        : null;
-    return {
-      vaultRoot: parsed.base,
-      relPath: parsed.path,
-      vaultDisplayName: reverseLookup ?? parsed.base,
-    };
+    return resolveActiveLocatorWithVault(deps, "prepend");
   }
 
   const vaultRoot = await deps.vaultRegistry.resolveVaultPath(input.vault!);
@@ -227,22 +137,10 @@ async function resolveLocator(
   // `obsidian file file=<name>` TSV resolver call. `path` callers skip the
   // resolver and feed the input verbatim into Layer 2. Cohort parity with
   // append_note + set_property.
-  let relPath: string;
-  if (input.path !== undefined) {
-    relPath = input.path;
-  } else {
-    const fileInfo = await invokeCli(
-      {
-        command: "file",
-        vault: input.vault!,
-        parameters: { file: input.file! },
-        flags: [],
-        target_mode: "specific",
-      },
-      { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
-    );
-    relPath = parseFileTSV(fileInfo.stdout).path;
-  }
+  const relPath =
+    input.path !== undefined
+      ? input.path
+      : await resolveFileByTsv(deps, input.vault!, input.file!, "prepend");
 
   return { vaultRoot, relPath, vaultDisplayName: input.vault! };
 }
@@ -255,23 +153,11 @@ export async function executePrepend(
 
   const { vaultRoot, relPath, vaultDisplayName } = await resolveLocator(input, deps);
 
-  const check = await checkCanonicalPath(vaultRoot, relPath, { realpath: fs.realpath });
-  if (!check.ok) {
-    deps.logger.pathEscapeAttempt({
-      vault: input.vault ?? null,
-      attemptedPath: check.attemptedPath,
-    });
-    throw new UpstreamError({
-      code: "PATH_ESCAPES_VAULT",
-      cause: null,
-      details: {
-        vault: input.vault ?? null,
-        attemptedPath: check.attemptedPath,
-        resolvedPath: check.resolvedPath,
-      },
-    });
-  }
-  const absPath = check.resolvedPath;
+  const absPath = await assertCanonicalPath(vaultRoot, relPath, {
+    realpath: fs.realpath,
+    logger: deps.logger,
+    vaultLabel: input.vault ?? null,
+  });
 
   // Pre-call stat brackets the byte-count delta. ENOENT here means the target
   // doesn't exist; we don't fail eagerly because upstream's NOTE_NOT_FOUND

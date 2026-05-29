@@ -1,6 +1,5 @@
 // Original — no upstream. query_base handler — wraps the native `obsidian base:query` subcommand (R1) returning a structured `{columns, rows, truncated, total_rows?}` envelope; staged pipeline: vault root resolve → Layer-2 canonical-path check → fs.stat pre-flight (BASE_NOT_FOUND / BASE_MALFORMED/empty) → invokeCli → stderr/stdout error classification (R4) → JSON.parse → wire envelope safeParse → closed-but-registered vault detection (cohort reuse, conditional pending T0 probe) → row post-process (reserved `path` injection + collision rename to `path_view` + columns vector synthesis) → 1000-row cap with `truncated` / `total_rows` signal (FR-013) → output schema parse. Zero new top-level error codes; new states surface via `details.code` sub-discrimination per ADR-015 (Principle IV streak: sixteenth tool).
 import * as nodeFs from "node:fs/promises";
-import { sep } from "node:path";
 
 import {
   queryBaseOutputSchema,
@@ -13,7 +12,12 @@ import {
 } from "./schema.js";
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import { checkCanonicalPath } from "../../path-safety/canonical.js";
+import {
+  assertCanonicalPath,
+  FOCUSED_VAULT_TEMPLATE,
+  parseFocusedVault,
+  remapVaultNotFound,
+} from "../_active-file.js";
 import { detectIfClosed } from "../_eval-vault-closed-detection/index.js";
 
 import type { Logger } from "../../logger.js";
@@ -49,41 +53,6 @@ export interface ExecuteDeps {
   invokeEval?: () => Promise<FocusedVaultResponse>;
 }
 
-export const FOCUSED_VAULT_TEMPLATE =
-  "(async()=>JSON.stringify({path:app.workspace.getActiveFile()?.path??null,base:app.vault.adapter.basePath}))()";
-
-function parseFocusedVaultStdout(stdout: string): FocusedVaultResponse | null {
-  const trimmed = stdout.trimStart();
-  const body = trimmed.startsWith("=> ") ? trimmed.slice(3) : trimmed;
-  let outer: unknown;
-  try {
-    outer = JSON.parse(body);
-  } catch {
-    return null;
-  }
-  let parsed: unknown = outer;
-  if (typeof outer === "string") {
-    try {
-      parsed = JSON.parse(outer);
-    } catch {
-      return null;
-    }
-  }
-  if (
-    typeof parsed === "object" &&
-    parsed !== null &&
-    "base" in parsed &&
-    typeof (parsed as { base: unknown }).base === "string"
-  ) {
-    const p = parsed as { path?: unknown; base: string };
-    return {
-      path: typeof p.path === "string" ? p.path : null,
-      base: p.base,
-    };
-  }
-  return null;
-}
-
 async function defaultInvokeEval(deps: ExecuteDeps): Promise<FocusedVaultResponse> {
   const result = await invokeCli(
     {
@@ -99,8 +68,10 @@ async function defaultInvokeEval(deps: ExecuteDeps): Promise<FocusedVaultRespons
       queue: deps.queue,
     },
   );
-  const out = parseFocusedVaultStdout(result.stdout);
-  if (out === null) {
+  // Shared double-decode + shape-check; query_base collapses both failure stages
+  // into its single focused-vault-resolve stage and discards the cause.
+  const out = parseFocusedVault(result.stdout);
+  if (!out.ok) {
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
       cause: null,
@@ -108,7 +79,7 @@ async function defaultInvokeEval(deps: ExecuteDeps): Promise<FocusedVaultRespons
       message: "query_base: focused-vault eval returned unparseable response",
     });
   }
-  return out;
+  return out.parsed;
 }
 
 async function resolveVaultRoot(
@@ -119,19 +90,7 @@ async function resolveVaultRoot(
     try {
       return await deps.vaultRegistry.resolveVaultPath(input.vault);
     } catch (err) {
-      if (err instanceof UpstreamError && err.code === "VALIDATION_ERROR") {
-        throw new UpstreamError({
-          code: "CLI_REPORTED_ERROR",
-          cause: err,
-          details: {
-            code: "VAULT_NOT_FOUND",
-            reason: "unknown",
-            vault: input.vault,
-          },
-          message: `query_base: vault "${input.vault}" is not registered`,
-        });
-      }
-      throw err;
+      remapVaultNotFound(err, input.vault, "query_base");
     }
   }
   const invokeEval = deps.invokeEval ?? (() => defaultInvokeEval(deps));
@@ -189,25 +148,25 @@ function classifyUpstreamError(message: string): ClassifierResult {
   return null;
 }
 
-interface DispatchClassifierResult {
-  kind: ClassifierMatch["kind"] | ClassifierViewMatch["kind"];
-  reason?: ClassifierMatch["reason"];
-  upstreamMessage: string;
-}
-
 /**
- * Re-classify a dispatch-layer `CLI_REPORTED_ERROR` (priority c, stdout starts
- * with `Error:`) against the typed sub-discriminator cohort. Scans both stdout
- * and stderr from the dispatch error payload (BI-041 FR-003). Returns null when
- * no pattern matches — caller re-throws the original dispatch error preserving
- * chain-of-custody.
+ * Classify an upstream error string (combined stdout + stderr per BI-041 FR-003)
+ * onto the typed VIEW_NOT_FOUND / BASE_MALFORMED sub-discriminator cohort and
+ * throw the corresponding CLI_REPORTED_ERROR. Returns without throwing when no
+ * pattern matches, when both channels are empty, or when a channel carries a JSON
+ * array (the `[`-prefix short-circuit that defeats false-positive VIEW_NOT_FOUND
+ * when stdout is valid JSON) — the caller then continues (success path) or
+ * re-throws the original dispatch error (catch path). Shared by both
+ * classification sites: pass `cause = err` from the dispatch-error catch
+ * (preserving chain-of-custody) or `cause = null` from the success-path scan.
  */
-function classifyDispatchError(
-  dispatchStdout: string,
-  dispatchStderr: string,
-): DispatchClassifierResult | null {
-  const stderrTrimmed = dispatchStderr.trim();
-  const stdoutTrimmed = dispatchStdout.trim();
+function classifyAndThrow(
+  stdout: string,
+  stderr: string,
+  input: QueryBaseInput,
+  cause: unknown,
+): void {
+  const stderrTrimmed = stderr.trim();
+  const stdoutTrimmed = stdout.trim();
   const upstreamMessage =
     stderrTrimmed.length > 0 && stdoutTrimmed.length > 0
       ? `${stderrTrimmed}\n${stdoutTrimmed}`
@@ -217,14 +176,33 @@ function classifyDispatchError(
     upstreamMessage.startsWith("[") ||
     stdoutTrimmed.startsWith("[")
   ) {
-    return null;
+    return;
   }
   const classified = classifyUpstreamError(upstreamMessage);
-  if (classified === null) return null;
+  if (classified === null) return;
   if (classified.kind === "VIEW_NOT_FOUND") {
-    return { kind: "VIEW_NOT_FOUND", upstreamMessage };
+    throw new UpstreamError({
+      code: "CLI_REPORTED_ERROR",
+      cause,
+      details: {
+        code: "VIEW_NOT_FOUND",
+        view_name: input.view_name,
+        base_path: input.base_path,
+      },
+      message: "query_base: view not found in base file",
+    });
   }
-  return { kind: classified.kind, reason: classified.reason, upstreamMessage };
+  throw new UpstreamError({
+    code: "CLI_REPORTED_ERROR",
+    cause,
+    details: {
+      code: "BASE_MALFORMED",
+      reason: classified.reason,
+      base_path: input.base_path,
+      message: upstreamMessage,
+    },
+    message: "query_base: base file is structurally unusable",
+  });
 }
 
 interface RowPostProcessResult {
@@ -350,25 +328,11 @@ export async function executeQueryBase(
 
   // === Stage 1 — vault root resolution + Layer-2 canonical-path check on the .base file ===
   const vaultRootRaw = await resolveVaultRoot(input, deps);
-  const baseFileCheck = await checkCanonicalPath(vaultRootRaw, input.base_path, {
+  const resolvedBasePath = await assertCanonicalPath(vaultRootRaw, input.base_path, {
     realpath: fs.realpath,
+    logger: deps.logger,
+    vaultLabel,
   });
-  if (!baseFileCheck.ok) {
-    deps.logger.pathEscapeAttempt({
-      vault: vaultLabel,
-      attemptedPath: input.base_path,
-    });
-    throw new UpstreamError({
-      code: "PATH_ESCAPES_VAULT",
-      cause: null,
-      details: {
-        vault: vaultLabel,
-        attemptedPath: input.base_path,
-        resolvedPath: baseFileCheck.resolvedPath,
-      },
-    });
-  }
-  const resolvedBasePath = baseFileCheck.resolvedPath;
 
   // === Stage 2 — fs.stat pre-flight (R4 stage 1 + 2) ===
   let stats: { size: number };
@@ -434,32 +398,7 @@ export async function executeQueryBase(
         typeof err.details["stdout"] === "string" ? (err.details["stdout"] as string) : "";
       const dispatchStderr =
         typeof err.details["stderr"] === "string" ? (err.details["stderr"] as string) : "";
-      const classified = classifyDispatchError(dispatchStdout, dispatchStderr);
-      if (classified !== null) {
-        if (classified.kind === "VIEW_NOT_FOUND") {
-          throw new UpstreamError({
-            code: "CLI_REPORTED_ERROR",
-            cause: err,
-            details: {
-              code: "VIEW_NOT_FOUND",
-              view_name: input.view_name,
-              base_path: input.base_path,
-            },
-            message: "query_base: view not found in base file",
-          });
-        }
-        throw new UpstreamError({
-          code: "CLI_REPORTED_ERROR",
-          cause: err,
-          details: {
-            code: "BASE_MALFORMED",
-            reason: classified.reason,
-            base_path: input.base_path,
-            message: classified.upstreamMessage,
-          },
-          message: "query_base: base file is structurally unusable",
-        });
-      }
+      classifyAndThrow(dispatchStdout, dispatchStderr, input, err);
     }
     throw err;
   }
@@ -467,49 +406,20 @@ export async function executeQueryBase(
   // === Stage 4 — post-subprocess error classification (R4 stage 3 / R5) ===
   // Success-path classification: scan BOTH channels (BI-041 FR-003). Stderr-only
   // upstream emits reach this branch because dispatch priority (c) only inspects
-  // stdout. Stdout-only emits are intercepted in the catch above. The combined-
-  // channel scan keeps the classifier robust if upstream simultaneously emits an
-  // error phrase on stderr AND incidental output on stdout. The `[`-prefix guard
-  // on `stdoutTrimmed` preserves the JSON-array short-circuit even when stderr
-  // carries an unrelated warning.
+  // stdout. Stdout-only emits are intercepted in the catch above. Shares the
+  // classifier table + throw shapes with the catch path via classifyAndThrow;
+  // `cause` is null here (no originating dispatch error on the success path).
+  classifyAndThrow(cliResult.stdout, cliResult.stderr, input, null);
+
+  // upstreamMessage retained for the Stage 5 closed-vault guard below — its
+  // emptiness is part of the closed-but-registered signal. Recomputed from the
+  // same two channels classifyAndThrow inspected.
   const stderrTrimmed = cliResult.stderr.trim();
   const stdoutTrimmed = cliResult.stdout.trim();
   const upstreamMessage =
     stderrTrimmed.length > 0 && stdoutTrimmed.length > 0
       ? `${stderrTrimmed}\n${stdoutTrimmed}`
       : (stderrTrimmed.length > 0 ? stderrTrimmed : stdoutTrimmed);
-  if (
-    upstreamMessage.length > 0 &&
-    !upstreamMessage.startsWith("[") &&
-    !stdoutTrimmed.startsWith("[")
-  ) {
-    const classified = classifyUpstreamError(upstreamMessage);
-    if (classified !== null) {
-      if (classified.kind === "VIEW_NOT_FOUND") {
-        throw new UpstreamError({
-          code: "CLI_REPORTED_ERROR",
-          cause: null,
-          details: {
-            code: "VIEW_NOT_FOUND",
-            view_name: input.view_name,
-            base_path: input.base_path,
-          },
-          message: "query_base: view not found in base file",
-        });
-      }
-      throw new UpstreamError({
-        code: "CLI_REPORTED_ERROR",
-        cause: null,
-        details: {
-          code: "BASE_MALFORMED",
-          reason: classified.reason,
-          base_path: input.base_path,
-          message: upstreamMessage,
-        },
-        message: "query_base: base file is structurally unusable",
-      });
-    }
-  }
 
   // === Stage 5 — closed-but-registered vault detection (cohort reuse, conditional) ===
   // T012 in tasks.md: dead-code candidate pending T0 probe (R10 #2). If upstream
@@ -609,15 +519,7 @@ export async function executeQueryBase(
   // so, we lift the column names from there.
   const { rows: rowsOut, columns } = postProcessRows(capped, null);
 
-  // === Stage 8 — FR-005a view-name post-check ===
-  // R5 documents that upstream owns the case-sensitive matching contract; the
-  // wrapper passes view_name verbatim. No echo of view_name in upstream metadata
-  // exists in the current contract surface — this stage is a no-op until T0
-  // confirms an echo channel.
-  void resolvedBasePath; // resolved path captured for debugging; suppress unused warning.
-  void sep;
-
-  // === Stage 9 — output schema parse (defence-in-depth) ===
+  // === Stage 8 — output schema parse (defence-in-depth) ===
   return queryBaseOutputSchema.parse({
     columns,
     rows: rowsOut,

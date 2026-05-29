@@ -15,10 +15,11 @@ import {
   walkHeadings,
   type HeadingIdentity,
 } from "./heading-walk.js";
-import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
+import { type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import { checkCanonicalPath } from "../../path-safety/canonical.js";
-
+import { assertCanonicalPath, resolveActiveLocatorWithVault } from "../_active-file.js";
+import { getErrno, mapFsWriteError } from "../_fs-errors.js";
+import { invalidateMetadataCache, writeAtomic } from "../_note-io.js";
 
 import type { PatchHeadingInput, PatchHeadingOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
@@ -50,127 +51,21 @@ const DEFAULT_FS: ExecuteFs = {
   unlink: (p) => nodeFs.unlink(p),
 };
 
-const FOCUSED_FILE_TEMPLATE =
-  "(async()=>{const f=app.workspace.getActiveFile();return JSON.stringify({path:f?.path??null,base:app.vault.adapter.basePath});})()";
-
-function buildInvalidateTemplate(absPath: string): string {
-  return `(async()=>{const f=app.vault.getFileByPath(${JSON.stringify(absPath)});if(f)await app.metadataCache.computeMetadataAsync(f);})()`;
-}
-
-interface FocusedFileResponse {
-  path: string | null;
-  base: string;
-}
-
-function parseEvalResponse(stdout: string): unknown {
-  const trimmed = stdout.trimStart();
-  const body = trimmed.startsWith("=> ") ? trimmed.slice(3) : trimmed;
-  return JSON.parse(body);
-}
-
-function isFocusedFileResponse(value: unknown): value is FocusedFileResponse {
-  if (typeof value !== "object" || value === null) return false;
-  const v = value as Record<string, unknown>;
-  return (
-    (typeof v.path === "string" || v.path === null) && typeof v.base === "string"
-  );
-}
-
-function getErrno(e: unknown): string | undefined {
-  if (typeof e !== "object" || e === null) return undefined;
-  const code = (e as NodeJS.ErrnoException).code;
-  return typeof code === "string" ? code : undefined;
-}
-
 // FR-021 / R6 external-editor classification: EBUSY (Windows file-sharing violation
 // when an editor holds the file with non-shared-delete), EPERM (some Windows shares
 // modes surface this instead of EBUSY), EACCES (occasional surface on POSIX advisory
 // flock). Other errnos fall through to the generic FS_WRITE_FAILED catch-all.
+// patch_block diverges (no EACCES); the difference is the explicit conflictErrnos
+// arg. patch_heading additionally echoes the raw errno path as details.fsPath
+// (includeFsPath), unlike append_note / patch_block.
 const EDITOR_CONFLICT_ERRNOS = new Set(["EBUSY", "EPERM", "EACCES"]);
-
-function mapFsError(e: unknown, relPath: string): UpstreamError {
-  const errno = getErrno(e) ?? "UNKNOWN";
-  if (EDITOR_CONFLICT_ERRNOS.has(errno)) {
-    return new UpstreamError({
-      code: "CLI_REPORTED_ERROR",
-      cause: e,
-      details: {
-        code: "EXTERNAL_EDITOR_CONFLICT",
-        reason: "file-locked",
-        path: relPath,
-        errno,
-      },
-      // The "unsaved-changes" sub-reason is reserved for a future detection mechanism
-      // per ADR-015's multi-state-from-day-one preference; it is encoded in the
-      // contract but the wrapper never emits it (no detection signal exists yet).
-      message: `Cannot patch "${relPath}" — the file is held open by an external editor (${errno}). Save and close the file in the editor, then retry.`,
-    });
-  }
-  const syscall = (e as NodeJS.ErrnoException | null)?.syscall;
-  const path = (e as NodeJS.ErrnoException | null)?.path;
-  return new UpstreamError({
-    code: "FS_WRITE_FAILED",
-    cause: e,
-    details: { errno, syscall, path: relPath, ...(path !== undefined ? { fsPath: path } : {}) },
-    message: `Filesystem write failed: ${errno}${syscall ? ` on ${syscall}` : ""} for "${relPath}"`,
-  });
-}
 
 async function resolveLocator(
   input: PatchHeadingInput,
   deps: ExecuteDeps,
 ): Promise<{ vaultRoot: string; relPath: string; vaultDisplayName: string }> {
   if (input.target_mode === "active") {
-    const focused = await invokeCli(
-      {
-        command: "eval",
-        parameters: { code: FOCUSED_FILE_TEMPLATE },
-        flags: [],
-        target_mode: "active",
-      },
-      { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
-    );
-    let parsed: unknown;
-    try {
-      parsed = parseEvalResponse(focused.stdout);
-    } catch (e) {
-      throw new UpstreamError({
-        code: "CLI_REPORTED_ERROR",
-        cause: e,
-        details: { stage: "json-parse", stdout: focused.stdout },
-        message: "active-mode focused-file eval returned unparseable response",
-      });
-    }
-    if (!isFocusedFileResponse(parsed)) {
-      throw new UpstreamError({
-        code: "CLI_REPORTED_ERROR",
-        cause: null,
-        details: { stage: "envelope-parse", parsed },
-        message: "active-mode focused-file eval returned unexpected shape",
-      });
-    }
-    if (parsed.path === null) {
-      throw new UpstreamError({
-        code: "ERR_NO_ACTIVE_FILE",
-        cause: null,
-        details: {},
-        message:
-          "No active file in Obsidian. Open a note in the editor, or call patch_heading with target_mode=specific + vault + file/path.",
-      });
-    }
-    const reverseLookup =
-      typeof (deps.vaultRegistry as VaultRegistry & {
-        resolveVaultDisplayName?: (basePath: string) => string | null;
-      }).resolveVaultDisplayName === "function"
-        ? (deps.vaultRegistry as VaultRegistry & {
-            resolveVaultDisplayName: (basePath: string) => string | null;
-          }).resolveVaultDisplayName(parsed.base)
-        : null;
-    return {
-      vaultRoot: parsed.base,
-      relPath: parsed.path,
-      vaultDisplayName: reverseLookup ?? parsed.base,
-    };
+    return resolveActiveLocatorWithVault(deps, "patch_heading");
   }
   const vaultRoot = await deps.vaultRegistry.resolveVaultPath(input.vault!);
   const relPath = (input.file ?? input.path)!;
@@ -203,24 +98,19 @@ export async function executePatchHeading(
   const fs = deps.fs ?? DEFAULT_FS;
 
   const { vaultRoot, relPath, vaultDisplayName } = await resolveLocator(input, deps);
+  const mapWriteErr = (e: unknown): UpstreamError =>
+    mapFsWriteError(e, {
+      relPath,
+      conflictErrnos: EDITOR_CONFLICT_ERRNOS,
+      conflictVerb: "patch",
+      includeFsPath: true,
+    });
 
-  const check = await checkCanonicalPath(vaultRoot, relPath, { realpath: fs.realpath });
-  if (!check.ok) {
-    deps.logger.pathEscapeAttempt({
-      vault: input.vault ?? null,
-      attemptedPath: check.attemptedPath,
-    });
-    throw new UpstreamError({
-      code: "PATH_ESCAPES_VAULT",
-      cause: null,
-      details: {
-        vault: input.vault ?? null,
-        attemptedPath: check.attemptedPath,
-        resolvedPath: check.resolvedPath,
-      },
-    });
-  }
-  const absPath = check.resolvedPath;
+  const absPath = await assertCanonicalPath(vaultRoot, relPath, {
+    realpath: fs.realpath,
+    logger: deps.logger,
+    vaultLabel: input.vault ?? null,
+  });
 
   let originalContent: string;
   try {
@@ -235,7 +125,7 @@ export async function executePatchHeading(
         message: `Note file not found at "${relPath}". patch_heading does not create files; create the note via write_note first.`,
       });
     }
-    throw mapFsError(e, relPath);
+    throw mapWriteErr(e);
   }
 
   const lineEnding = detectLineEnding(originalContent);
@@ -287,7 +177,7 @@ export async function executePatchHeading(
   try {
     currentContent = await fs.readFile(absPath, "utf8");
   } catch (e) {
-    throw mapFsError(e, relPath);
+    throw mapWriteErr(e);
   }
   if (currentContent !== originalContent) {
     const currentResolved = walkHeadings(currentContent, segments);
@@ -330,36 +220,18 @@ export async function executePatchHeading(
     // edit will be overwritten.
   }
 
-  // ADR-009 §3 atomic write: tmp + rename on the same volume. UUID-uniquified tmp
-  // path avoids collisions between concurrent calls.
-  const tmpPath = `${absPath}.${randomUUID()}.tmp`;
+  // ADR-009 §3 atomic write (tmp + rename, UUID-uniquified) then best-effort
+  // metadataCache invalidation per ADR-009 §5 — both via the shared _note-io
+  // substrate. writeAtomic rethrows the raw fs error; the invalidation is silent
+  // on failure (write already landed).
   try {
-    await fs.writeFile(tmpPath, editedContent);
+    await writeAtomic(fs, absPath, editedContent, randomUUID);
   } catch (e) {
-    throw mapFsError(e, relPath);
-  }
-  try {
-    await fs.rename(tmpPath, absPath);
-  } catch (e) {
-    await fs.unlink(tmpPath).catch(() => {});
-    throw mapFsError(e, relPath);
+    throw mapWriteErr(e);
   }
   const bytesWritten = Buffer.byteLength(editedContent, "utf8");
 
-  // Best-effort metadataCache invalidation per ADR-009 §5 / cohort parity with write_note.
-  try {
-    await invokeCli(
-      {
-        command: "eval",
-        parameters: { code: buildInvalidateTemplate(absPath) },
-        flags: [],
-        target_mode: "active",
-      },
-      { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
-    );
-  } catch {
-    // Silent: write succeeded; cache freshness defers to Obsidian's file watcher.
-  }
+  await invalidateMetadataCache(deps, absPath);
 
   return {
     path: relPath,

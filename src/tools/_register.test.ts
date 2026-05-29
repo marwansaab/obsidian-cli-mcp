@@ -199,6 +199,94 @@ describe("registerTool — wrapped handler runtime", () => {
       expect(JSON.parse(result.content[0]!.text)).toEqual({ tag: "marker" });
     }
   });
+
+  it("mapValidationError hook customises the input VALIDATION_ERROR envelope", async () => {
+    const tool = registerTool({
+      name: "wh_hook",
+      description: "hook",
+      schema: z.object({ a: z.string() }).strict(),
+      handler: async () => ({}),
+      mapValidationError: (issues) => ({
+        code: "VALIDATION_ERROR",
+        message: "custom message",
+        details: { code: "CUSTOM_CODE", issueCount: issues.length },
+      }),
+    });
+    const result = await tool.handler({ a: 123 });
+    expect("isError" in result && result.isError).toBe(true);
+    if ("isError" in result && result.isError) {
+      const payload = JSON.parse(result.content[0]!.text);
+      expect(payload.message).toBe("custom message");
+      expect(payload.details.code).toBe("CUSTOM_CODE");
+      expect(payload.details.issueCount).toBeGreaterThan(0);
+    }
+  });
+
+  it("mapValidationError receives the raw unparsed args", async () => {
+    let seen: unknown;
+    const tool = registerTool({
+      name: "wh_hook_args",
+      description: "hook args",
+      schema: z.object({ a: z.string() }).strict(),
+      handler: async () => ({}),
+      mapValidationError: (_issues, rawArgs) => {
+        seen = rawArgs;
+        return { code: "VALIDATION_ERROR", message: "x", details: {} };
+      },
+    });
+    await tool.handler({ a: 123, extra: "raw" });
+    expect(seen).toEqual({ a: 123, extra: "raw" });
+  });
+
+  it("runtime ZodError thrown inside the handler → INTERNAL_ERROR (output-contract break, not input)", async () => {
+    const tool = registerTool({
+      name: "wh_runtime_zod",
+      description: "runtime zod",
+      schema: z.object({}).strict(),
+      handler: async () => {
+        // Simulate a defensive output parse that fails at runtime — the handler's
+        // OWN output is malformed, the client's input was valid.
+        z.object({ n: z.number() }).parse({ n: "not a number" });
+        return {};
+      },
+    });
+    const result = await tool.handler({});
+    expect("isError" in result && result.isError).toBe(true);
+    if ("isError" in result && result.isError) {
+      const payload = JSON.parse(result.content[0]!.text);
+      expect(payload.code).toBe("INTERNAL_ERROR");
+      expect(payload.message).toContain("wh_runtime_zod");
+      expect(payload.message).toContain("output contract");
+      expect(Array.isArray(payload.details.issues)).toBe(true);
+    }
+  });
+
+  it("runtime ZodError bypasses mapValidationError — an output-contract break is INTERNAL_ERROR even when an input hook is present", async () => {
+    const tool = registerTool({
+      name: "wh_runtime_hook",
+      description: "runtime hook",
+      schema: z.object({}).strict(),
+      handler: async () => {
+        z.object({ n: z.number() }).parse({ n: "nope" });
+        return {};
+      },
+      // The input hook must NOT fire for an output-contract ZodError — its issue
+      // shape is output-shaped, not input-shaped.
+      mapValidationError: () => ({
+        code: "VALIDATION_ERROR",
+        message: "mapped runtime",
+        details: { code: "RUNTIME" },
+      }),
+    });
+    const result = await tool.handler({});
+    expect("isError" in result && result.isError).toBe(true);
+    if ("isError" in result && result.isError) {
+      const payload = JSON.parse(result.content[0]!.text);
+      expect(payload.code).toBe("INTERNAL_ERROR");
+      expect(payload.message).not.toBe("mapped runtime");
+      expect(payload.details.code).not.toBe("RUNTIME");
+    }
+  });
 });
 
 describe("assertToolDocsExist — aggregated boot-failure message (FR-005 / Q4)", () => {

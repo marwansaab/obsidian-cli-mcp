@@ -34,6 +34,6 @@ export function createQueryBaseTool(deps: RegisterDeps): RegisteredTool {
     description: QUERY_BASE_DESCRIPTION,
     schema: queryBaseInputSchema,
     deps,
-    handler: async (input, d) => executeQueryBase(input, d),
+    handler: executeQueryBase,
   });
 }
