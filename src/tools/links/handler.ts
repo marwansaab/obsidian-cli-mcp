@@ -8,6 +8,7 @@ import {
 } from "./schema.js";
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
+import { decodeEvalEnvelope } from "../_active-file.js";
 import { composeEvalCode } from "../_shared.js";
 
 import type { Logger } from "../../logger.js";
@@ -42,36 +43,16 @@ export async function executeLinks(
     { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
   );
 
-  let stdout = result.stdout.trimStart();
-  if (stdout.startsWith("=> ")) stdout = stdout.slice(3);
+  const validated = decodeEvalEnvelope(result.stdout, linksEvalResponseSchema, {
+    toolName: "links",
+    malformedCode: "CLI_REPORTED_ERROR",
+  });
 
-  let parsedJson: unknown;
-  try {
-    parsedJson = JSON.parse(stdout);
-  } catch (err) {
-    throw new UpstreamError({
-      code: "CLI_REPORTED_ERROR",
-      cause: err,
-      details: { stage: "json-parse", stdout: result.stdout.slice(0, 500) },
-      message: `links: eval response is not JSON: ${result.stdout.slice(0, 200)}`,
-    });
+  if (validated.ok === true) {
+    return { count: validated.count, links: validated.links };
   }
 
-  const validated = linksEvalResponseSchema.safeParse(parsedJson);
-  if (!validated.success) {
-    throw new UpstreamError({
-      code: "CLI_REPORTED_ERROR",
-      cause: validated.error,
-      details: { stage: "envelope-parse", stdout: result.stdout.slice(0, 500) },
-      message: "links: eval response shape unexpected",
-    });
-  }
-
-  if (validated.data.ok === true) {
-    return { count: validated.data.count, links: validated.data.links };
-  }
-
-  throw mapEnvelopeError(validated.data.code, validated.data.detail);
+  throw mapEnvelopeError(validated.code, validated.detail);
 }
 
 function mapEnvelopeError(code: LinksEvalErrorCode, detail: string): UpstreamError {

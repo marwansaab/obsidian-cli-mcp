@@ -18,7 +18,7 @@ import {
 } from "./schema.js";
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import { parseEvalStdout, remapVaultNotFound } from "../_active-file.js";
+import { decodeEvalEnvelope, remapVaultNotFound } from "../_active-file.js";
 import { composeEvalCode } from "../_shared.js";
 
 import type { Logger } from "../../logger.js";
@@ -79,45 +79,24 @@ export async function executeOpenFile(
     { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
   );
 
-  // Single-stage decode (block-body async IIFE settles to one value, R2): strip
-  // the "=> " echo → JSON.parse → openEvalResponseSchema.safeParse. A malformed
-  // result is an INTERNAL_ERROR invariant violation, never a silent success.
-  let parsed: unknown;
-  try {
-    parsed = parseEvalStdout(result.stdout);
-  } catch (err) {
-    throw new UpstreamError({
-      code: "INTERNAL_ERROR",
-      cause: err,
-      details: { stage: "json-parse", stdout: result.stdout.slice(0, 500) },
-      message: `open_file: eval response is not JSON: ${result.stdout.slice(0, 200)}`,
-    });
-  }
+  // Single-stage decode via the shared eval-envelope decoder: strip the "=> " echo
+  // → JSON.parse → openEvalResponseSchema.safeParse. A malformed result is an
+  // INTERNAL_ERROR invariant violation (not the cohort's CLI_REPORTED_ERROR — open
+  // owns the envelope contract), never a silent success.
+  const data = decodeEvalEnvelope(result.stdout, openEvalResponseSchema, {
+    toolName: "open_file",
+    malformedCode: "INTERNAL_ERROR",
+  });
 
-  const validated = openEvalResponseSchema.safeParse(parsed);
-  if (!validated.success) {
-    throw new UpstreamError({
-      code: "INTERNAL_ERROR",
-      cause: validated.error,
-      details: { stage: "envelope-parse", stdout: result.stdout.slice(0, 500) },
-      message: "open_file: eval response shape unexpected",
-    });
-  }
-
-  if (validated.data.ok === true) {
+  if (data.ok === true) {
     return openFileOutputSchema.parse({
-      opened: validated.data.opened,
+      opened: data.opened,
       vault: input.vault,
-      new_tab: validated.data.new_tab,
+      new_tab: data.new_tab,
     });
   }
 
-  throw mapEvalError(
-    validated.data.code,
-    validated.data.detail,
-    input.vault,
-    locator.value,
-  );
+  throw mapEvalError(data.code, data.detail, input.vault, locator.value);
 }
 
 function mapEvalError(
