@@ -44,15 +44,15 @@ export async function executeOpenFile(
   // VAULT_NOT_FOUND/unknown triple BEFORE any eval is spawned.
   const expectedBase = await resolveVaultRootOrRemap(deps.vaultRegistry, input.vault, TOOL_NAME);
 
-  const locator =
-    input.path !== undefined
-      ? { kind: "path" as const, value: input.path }
-      : { kind: "name" as const, value: input.file! };
+  // Exactly one of path/file is present (schema superRefine, FR-005), so the eval
+  // payload carries both fields with the absent one nulled, and locatorLabel (used in
+  // the error path) is simply whichever locator was supplied.
+  const locatorLabel = input.path ?? input.file!;
 
   const code = composeEvalCode(JS_TEMPLATE, {
     expectedBase,
-    path: locator.kind === "path" ? locator.value : null,
-    file: locator.kind === "name" ? locator.value : null,
+    path: input.path ?? null,
+    file: input.file ?? null,
     new_tab: input.new_tab ?? false,
   });
 
@@ -82,7 +82,7 @@ export async function executeOpenFile(
     });
   }
 
-  throw mapEvalError(data.code, data.detail, input.vault, locator.value);
+  throw mapEvalError(data.code, data.detail, input.vault, locatorLabel);
 }
 
 function mapEvalError(
