@@ -15,7 +15,7 @@ import {
 } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 import { countDescriptionKeys } from "../_schema-test-utils.js";
 
@@ -61,6 +61,27 @@ describe("docs/tools/context_search.md exists and is non-stub", () => {
     }
     const exampleHeadings = (body.match(/### Example/g) ?? []).length;
     expect(exampleHeadings).toBeGreaterThanOrEqual(4);
+  });
+});
+
+// Exercises the index.ts handler closure `async (input, d) => executeContextSearch(input, d)`.
+// The descriptor/doc cases never call tool.handler with VALID input, so the closure
+// line is otherwise uncovered (invalid input short-circuits in _register).
+describe("createContextSearchTool — handler closure executes on VALID input", () => {
+  it("tool.handler(valid input) drives the closure → executeContextSearch → success envelope", async () => {
+    __resetInFlightRegistryForTests();
+    const wire = [{ file: "a.md", matches: [{ line: 2, text: "foo" }] }];
+    const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+    const tool = createContextSearchTool({ logger: silentLogger(), queue: createQueue(), spawnFn });
+    const result = (await tool.handler({ query: "foo" })) as {
+      content: Array<{ type: string; text: string }>;
+      isError?: boolean;
+    };
+    expect(Array.isArray(result.content)).toBe(true);
+    expect(result.isError).toBeUndefined();
+    const payload = JSON.parse(result.content[0]!.text);
+    expect(payload).toEqual({ count: 1, matches: [{ path: "a.md", line: 2, text: "foo" }] });
+    __resetInFlightRegistryForTests();
   });
 });
 

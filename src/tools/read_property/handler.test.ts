@@ -366,3 +366,44 @@ test("non-zero exit on Call A → CLI_NON_ZERO_EXIT verbatim (F5 / FR-021)", asy
   expect(err.details.exitCode).toBe(1);
   expect(err.details.stderr).toBe("permission denied");
 });
+
+// (23) parseOrThrow Call A — exit-0 non-JSON stdout (classified success by dispatch priority (d),
+// no NO_FRONTMATTER_PREFIX, no `Error:` prefix) → JSON.parse fails → CLI_REPORTED_ERROR (L29-34, call "A").
+test("Call A exit-0 non-JSON stdout → CLI_REPORTED_ERROR with call='A' details (parseOrThrow catch)", async () => {
+  const garbage = "not json at all";
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: garbage + "\n", exitCode: 0 },
+  ]);
+  const err = (await captureRejection(
+    executeReadProperty(
+      { target_mode: "specific", vault: "V", path: "x.md", name: "f" },
+      deps(spawnFn),
+    ),
+  )) as UpstreamError;
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details.call).toBe("A");
+  expect(err.details.stdout).toBe(garbage + "\n");
+  expect(err.message).toBe(`read_property could not parse Call A response: ${garbage}\n`);
+});
+
+// (24) parseOrThrow Call B — Call A parses + has key, Call B returns exit-0 non-JSON stdout
+// (classified success by dispatch priority (d)) → JSON.parse fails → CLI_REPORTED_ERROR (L29-34, call "B").
+test("Call B exit-0 non-JSON stdout → CLI_REPORTED_ERROR with call='B' details (parseOrThrow catch)", async () => {
+  const garbage = "garbage-not-an-array";
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: '{"f":"v"}\n', exitCode: 0 },
+    { stdout: garbage + "\n", exitCode: 0 },
+  ]);
+  const err = (await captureRejection(
+    executeReadProperty(
+      { target_mode: "specific", vault: "V", path: "x.md", name: "f" },
+      deps(spawnFn),
+    ),
+  )) as UpstreamError;
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details.call).toBe("B");
+  expect(err.details.stdout).toBe(garbage + "\n");
+  expect(err.message).toBe(`read_property could not parse Call B response: ${garbage}\n`);
+});

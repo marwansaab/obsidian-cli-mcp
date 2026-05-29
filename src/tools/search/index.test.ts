@@ -11,12 +11,37 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createSearchTool, SEARCH_DESCRIPTION, SEARCH_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
+
+describe("createSearchTool — handler closure execution", () => {
+  // Exercises the `handler: async (input, d) => executeSearch(input, d)` closure in
+  // index.ts: the descriptor tests only call createSearchTool (never tool.handler), so the
+  // closure never runs. A VALID default-mode query drives the closure → executeSearch →
+  // invokeCli (success spawn) and returns a JSON success envelope. Reuses handler.test.ts's
+  // Q-1 happy-path success stdout (flat array of paths).
+  it("VALID input drives the handler closure to a success envelope", async () => {
+    const { spawnFn } = makeQueuedSpawn([
+      { stdout: JSON.stringify(["a.md", "b.md"]), exitCode: 0 },
+    ]);
+    const tool = createSearchTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      spawnFn,
+    });
+    const result = (await tool.handler({ query: "foo" })) as {
+      isError?: boolean;
+      content: { type: string; text: string }[];
+    };
+    expect(result.isError).toBeUndefined();
+    expect(Array.isArray(result.content)).toBe(true);
+    expect(JSON.parse(result.content[0]!.text)).toEqual({ count: 2, paths: ["a.md", "b.md"] });
+  });
+});
 
 describe("createSearchTool — descriptor", () => {
   it("publishes name = 'search'", () => {

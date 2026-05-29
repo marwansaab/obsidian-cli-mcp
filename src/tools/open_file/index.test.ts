@@ -16,7 +16,7 @@ import {
   createOpenFileTool,
 } from "./index.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
@@ -75,6 +75,34 @@ describe("createOpenFileTool — schema-layer rejections route through the regis
       const payload = JSON.parse(result.content[0]!.text);
       expect(payload.code).toBe("VALIDATION_ERROR");
     }
+  });
+
+  // Handler-closure execution: VALID input passes Zod, so registerTool runs the
+  // `handler: async (input, d) => executeOpenFile(input, d)` closure (not the
+  // VALIDATION_ERROR short-circuit). Success eval-envelope fixture copied from
+  // handler.test.ts; the wrapped { opened, vault, new_tab } envelope proves the
+  // closure executed end-to-end.
+  it("tool.handler runs the executeOpenFile closure on VALID input and returns a content envelope", async () => {
+    const envelope = { ok: true, opened: "Projects/Roadmap.md", new_tab: false };
+    const { spawnFn } = makeQueuedSpawn([
+      { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    ]);
+    const tool = createOpenFileTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      vaultRegistry: { resolveVaultPath: async () => "/vaults/Work" },
+      spawnFn,
+    });
+    const result = await tool.handler({ vault: "Work", path: "Projects/Roadmap.md" });
+    expect(Array.isArray(result.content)).toBe(true);
+    expect(result.content.length).toBeGreaterThanOrEqual(1);
+    expect("isError" in result).toBe(false);
+    const payload = JSON.parse(result.content[0]!.text) as {
+      opened: string;
+      vault: string;
+      new_tab: boolean;
+    };
+    expect(payload).toEqual({ opened: "Projects/Roadmap.md", vault: "Work", new_tab: false });
   });
 });
 

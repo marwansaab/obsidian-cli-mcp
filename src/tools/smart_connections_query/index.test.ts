@@ -12,7 +12,7 @@ import {
 } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 import { countDescriptionKeys } from "../_schema-test-utils.js";
 
@@ -62,6 +62,30 @@ describe("createSmartConnectionsQueryTool — descriptor", () => {
     expect(desc).toContain("embed-failed");
     expect(desc).toContain("not-open");
     expect(desc.length).toBeGreaterThan(0);
+  });
+});
+
+// (3a) handler-closure execution — VALID input runs `handler: async (input, d) => executeSmartConnectionsQuery(...)`
+// (the closure short-circuited by VALIDATION_ERROR in every other case here). A success eval envelope
+// proves the closure executes and produces a JSON-wrapped { count, matches } envelope.
+describe("createSmartConnectionsQueryTool — handler closure (valid input)", () => {
+  it("tool.handler runs the closure on valid input and returns a content array", async () => {
+    const { spawnFn } = makeQueuedSpawn([
+      { stdout: '=> {"ok":true,"count":0,"matches":[]}\n', exitCode: 0 },
+    ]);
+    const tool = createSmartConnectionsQueryTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      spawnFn,
+      env: {},
+    });
+    const result = await tool.handler({ query: "deployment", vault: "Demo" });
+    expect(Array.isArray(result.content)).toBe(true);
+    expect(result.content[0]).toMatchObject({ type: "text" });
+    expect(JSON.parse((result.content[0] as { text: string }).text)).toEqual({
+      count: 0,
+      matches: [],
+    });
   });
 });
 

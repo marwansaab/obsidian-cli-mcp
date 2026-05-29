@@ -8,12 +8,36 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createPathsTool, PATHS_DESCRIPTION, PATHS_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
+
+describe("createPathsTool — handler closure execution", () => {
+  // Exercises the `handler: async (input, d) => executePaths(input, d)` closure in
+  // index.ts: the descriptor tests only call tool.handler with INVALID input, which
+  // short-circuits to VALIDATION_ERROR inside registerTool before the closure runs.
+  // A VALID input drives the closure → executePaths → invokeCli (success spawn) and
+  // returns a JSON success envelope. Reuses handler.test.ts's okEnv success stdout.
+  it("VALID input drives the handler closure to a success envelope", async () => {
+    const okEnv = `=> ${JSON.stringify({ ok: true, count: 1, paths: ["README.md"] })}\n`;
+    const { spawnFn } = makeQueuedSpawn([{ stdout: okEnv, exitCode: 0 }]);
+    const tool = createPathsTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      spawnFn,
+    });
+    const result = (await tool.handler({ target_mode: "specific", vault: "Demo" })) as {
+      isError?: boolean;
+      content: { type: string; text: string }[];
+    };
+    expect(result.isError).toBeUndefined();
+    expect(Array.isArray(result.content)).toBe(true);
+    expect(JSON.parse(result.content[0]!.text)).toEqual({ count: 1, paths: ["README.md"] });
+  });
+});
 
 describe("createPathsTool — descriptor", () => {
   // (1) descriptor.name === "paths"

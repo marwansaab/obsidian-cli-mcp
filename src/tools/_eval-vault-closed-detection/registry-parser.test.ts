@@ -51,3 +51,11 @@ test("multiple tabs per line: picks first tab as separator", () => {
 test("empty stdout: returns false", () => {
   expect(parseVaultRegistry("", "Demo")).toBe(false);
 });
+
+// (9) Non-empty line with no tab → skipped (L10 `if (tabIdx < 0) continue`), later valid line still resolves
+test("non-empty tabless line skipped; subsequent valid line still matches", () => {
+  const stdout = "garbage-no-tab\nDemo\tC:/x\n";
+  expect(parseVaultRegistry(stdout, "Demo")).toBe(true);
+  // the tabless token must never be treated as a vault name
+  expect(parseVaultRegistry(stdout, "garbage-no-tab")).toBe(false);
+});

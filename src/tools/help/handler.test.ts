@@ -119,6 +119,29 @@ describe("executeHelp", () => {
     }
   });
 
+  it("rethrows a non-ENOENT readFile error (L77 — unexpected I/O bubbles, Principle IV non-recovery path)", async () => {
+    const fixtureDir = await mkdtemp(join(tmpdir(), "help-eisdir-"));
+    try {
+      // Create a DIRECTORY literally named "<tool>.md" so readFile(candidate, "utf8")
+      // fails with EISDIR — a non-ENOENT error that must bubble through L77 unchanged,
+      // NOT be reclassified as HELP_TOOL_NOT_FOUND (which only the ENOENT branch does).
+      await mkdir(join(fixtureDir, "isdir.md"));
+      let caught: unknown;
+      try {
+        await executeHelp({ tool_name: "isdir" }, { docsDir: fixtureDir });
+      } catch (err) {
+        caught = err;
+      }
+      // L77 rethrows the raw cause, so it is NOT an UpstreamError and carries a non-ENOENT code.
+      expect(caught).not.toBeInstanceOf(UpstreamError);
+      const ioCode = (caught as NodeJS.ErrnoException).code;
+      expect(ioCode).toBeDefined();
+      expect(ioCode).not.toBe("ENOENT");
+    } finally {
+      await rm(fixtureDir, { recursive: true, force: true });
+    }
+  });
+
   it("returns content for orphaned doc files (Edge Case 'doc file with no registered tool', remediation L1c)", async () => {
     // Stub doc files are present in docs/tools/ but their tools are not registered yet —
     // this is the orphan case in production. The handler must succeed and return the file

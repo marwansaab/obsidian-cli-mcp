@@ -317,6 +317,23 @@ test("eval response shape violates output schema → CLI_REPORTED_ERROR (stage: 
   expect(err.details.stage).toBe("schema-parse");
 });
 
+// (20b) count !== paths.length → CLI_REPORTED_ERROR with stage='count-paths-mismatch' (JS template invariant)
+test("count !== paths.length → CLI_REPORTED_ERROR (stage: count-paths-mismatch)", async () => {
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: '=> {"count":2,"paths":["a.md"]}\n', exitCode: 0 },
+  ]);
+  const err = (await captureRejection(
+    executeFindByProperty(
+      { vault: "Demo", property: "id", value: "x", arrayMatch: true, caseSensitive: true },
+      deps(spawnFn),
+    ),
+  )) as UpstreamError;
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details.stage).toBe("count-paths-mismatch");
+  expect(err.cause).toBeNull();
+});
+
 // (21) R6 anti-injection — value with single quote / JS injection attempt survives base64 round-trip
 test("anti-injection (R6): hostile value survives base64 round-trip exactly (SC-017)", async () => {
   const hostile = "'; alert(1); //";

@@ -209,6 +209,79 @@ describe("US1 PATH_ESCAPES_VAULT", () => {
 // US1 EXTERNAL_EDITOR_CONFLICT (FR-022) — folded in
 // ─────────────────────────────────────────────────────────────────────
 
+describe("US1 pre-stat errno handling (FR-016 absent-target)", () => {
+  test("pre-stat ENOENT → preCallSize defaults to 0, call proceeds and succeeds (FR-016)", async () => {
+    // The pre-call stat throws ENOENT (target absent on disk). Per FR-016 the
+    // handler does NOT fail eagerly: it swallows ENOENT, defaults preCallSize
+    // to 0, and lets the upstream prepend land. The post-call stat then reports
+    // a positive size so bytes_written is the full post size.
+    let statIdx = 0;
+    const fs = fakeFs({
+      over: {
+        stat: vi.fn(async (_p: string) => {
+          statIdx += 1;
+          if (statIdx === 1) {
+            const e = new Error("ENOENT: no such file or directory") as NodeJS.ErrnoException;
+            e.code = "ENOENT";
+            throw e;
+          }
+          return { size: 42 };
+        }),
+      },
+    });
+    const { spawnFn, recorded } = makeQueuedSpawn([PREPEND_OK]);
+    const result = await executePrepend(
+      {
+        target_mode: "specific",
+        vault: "TestVault",
+        path: "Sandbox/new-note.md",
+        content: "Lead",
+        inline: false,
+      },
+      deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+    );
+    // ENOENT swallowed → preCallSize 0, post 42 → bytes_written 42; prepend ran.
+    expect(recorded.length).toBe(1);
+    expect(recorded[0]!.argv).toContain("prepend");
+    expect(result).toEqual({
+      path: "Sandbox/new-note.md",
+      vault: "TestVault",
+      bytes_written: 42,
+      inline: false,
+    });
+  });
+
+  test("pre-stat non-ENOENT errno (EACCES) → re-thrown verbatim (not swallowed, not reclassified)", async () => {
+    // A pre-call stat failure with any errno other than ENOENT is unexpected;
+    // the handler re-throws it verbatim (L170 `throw e`) rather than defaulting
+    // preCallSize. The raw NodeJS.ErrnoException surfaces — not an UpstreamError.
+    const fs = fakeFs({
+      over: {
+        stat: vi.fn(async (_p: string) => {
+          const e = new Error("EACCES: permission denied") as NodeJS.ErrnoException;
+          e.code = "EACCES";
+          throw e;
+        }),
+      },
+    });
+    const { spawnFn, recorded } = makeQueuedSpawn([PREPEND_OK]);
+    const err = await executePrepend(
+      {
+        target_mode: "specific",
+        vault: "TestVault",
+        path: "Sandbox/locked.md",
+        content: "Lead",
+        inline: false,
+      },
+      deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+    ).catch((e) => e);
+    expect(err).not.toBeInstanceOf(UpstreamError);
+    expect((err as NodeJS.ErrnoException).code).toBe("EACCES");
+    // Re-thrown before the prepend invokeCli call — no spawn issued.
+    expect(recorded.length).toBe(0);
+  });
+});
+
 describe("US1 + US2 EXTERNAL_EDITOR_CONFLICT (FR-022)", () => {
   // T22 post-consolidation NOTE: the upstream stderr pattern is captured at
   // T0-EBUSY against the live vault; this test cohort uses a placeholder

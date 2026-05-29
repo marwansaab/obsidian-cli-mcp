@@ -99,6 +99,48 @@ test("not a base file error classification (dispatch-layer catch)", async () => 
   }
 });
 
+test("not a base file error classification (success-path guard, clean stdout)", async () => {
+  // Clean exit-0 stdout WITHOUT an "Error:" prefix: dispatch priority (d)
+  // resolves it as success, so invokeCli returns cleanly and the handler's
+  // success-path NOT_A_BASE_FILE guard (L66-73) re-classifies. cause is null.
+  const deps = makeDeps([{
+    stdout: "Active file is not a base file: notes/x.md",
+    exitCode: 0,
+  }]);
+
+  try {
+    await executeViewsBase({}, deps);
+    throw new Error("expected rejection");
+  } catch (err) {
+    expect(err).toBeInstanceOf(UpstreamError);
+    const ue = err as UpstreamError;
+    expect(ue.code).toBe("CLI_REPORTED_ERROR");
+    expect(ue.details.code).toBe("BASE_NOT_FOUND");
+    expect(ue.cause).toBeNull();
+  }
+});
+
+test("not a base file error classification (success-path guard, stderr match)", async () => {
+  // Clean exit-0 with the phrase only on stderr: combined stdout\nstderr (L65)
+  // still matches NOT_A_BASE_FILE_PATTERN, exercising the stderr half.
+  const deps = makeDeps([{
+    stdout: "",
+    stderr: "active file is not a base file",
+    exitCode: 0,
+  }]);
+
+  try {
+    await executeViewsBase({}, deps);
+    throw new Error("expected rejection");
+  } catch (err) {
+    expect(err).toBeInstanceOf(UpstreamError);
+    const ue = err as UpstreamError;
+    expect(ue.code).toBe("CLI_REPORTED_ERROR");
+    expect(ue.details.code).toBe("BASE_NOT_FOUND");
+    expect(ue.cause).toBeNull();
+  }
+});
+
 test("upstream CLI failure surfaces as UpstreamError", async () => {
   const deps = makeDeps([{ stdout: "", exitCode: 1, stderr: "Error: something failed" }]);
 

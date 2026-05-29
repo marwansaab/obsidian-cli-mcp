@@ -338,6 +338,37 @@ describe("US1 line-ending + trailing-newline preservation (FR-014 / FR-015)", ()
     const written = fs.writes[0]![1];
     expect(written.endsWith("\n")).toBe(false);
   });
+
+  test("no-trailing-newline original + append content with embedded trailing blank strips the join's terminator (reassemble L89)", async () => {
+    // Original has NO trailing newline → trailingNewline=false. The append content
+    // "extra\n\n" splits to ["extra", ""], so the editedLines end with an empty
+    // segment; join(\n) therefore ENDS with "\n" even though the original did not.
+    // This is the only shape that drives reassemble's strip branch: !trailingNewline
+    // && out.endsWith(ending) → slice the trailing terminator back off (FR-014).
+    const noTrailing =
+      "# Top\n" +
+      "## A\n" +
+      "body\n" +
+      "## B"; // no trailing \n
+    const fs = fakeFs({ content: noTrailing });
+    const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
+    await executePatchHeading(
+      {
+        target_mode: "specific",
+        vault: "TestVault",
+        path: "n.md",
+        heading_path: "Top#B",
+        mode: "append",
+        content: "extra\n\n", // embedded trailing blank line on the LAST heading
+      },
+      deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+    );
+    const written = fs.writes[0]![1];
+    // Strip branch fired: the join produced "...## B\nextra\n", and L89 sliced the
+    // trailing "\n" because the original had none.
+    expect(written).toBe("# Top\n## A\nbody\n## B\nextra");
+    expect(written.endsWith("\n")).toBe(false);
+  });
 });
 
 describe("US1 PATH_ESCAPES_VAULT + FS_WRITE_FAILED", () => {
@@ -412,6 +443,43 @@ describe("US1 PATH_ESCAPES_VAULT + FS_WRITE_FAILED", () => {
     expect((err as UpstreamError).code).toBe("FS_WRITE_FAILED");
     expect((err as UpstreamError).details.errno).toBe("ENOENT");
     expect((err as UpstreamError).message).toContain("not found");
+  });
+
+  test("first readFile throws non-ENOENT (EBUSY) → mapWriteErr classifies EXTERNAL_EDITOR_CONFLICT (L128)", async () => {
+    // The first readFile's catch special-cases ENOENT (note-not-found). Any OTHER
+    // errno falls through to mapWriteErr, which classifies the cohort's conflict
+    // errnos (EBUSY/EPERM/EACCES) as EXTERNAL_EDITOR_CONFLICT.
+    const ebusy = Object.assign(new Error("EBUSY: resource busy"), {
+      code: "EBUSY",
+      errno: -4082,
+      syscall: "open",
+    });
+    const fs = fakeFs(
+      {},
+      {
+        readFile: vi.fn(async () => {
+          throw ebusy;
+        }),
+      },
+    );
+    const { spawnFn } = makeQueuedSpawn([]);
+    const err = await executePatchHeading(
+      {
+        target_mode: "specific",
+        vault: "TestVault",
+        path: "Daily Notes/2026-05-21.md",
+        heading_path: "Daily#Tasks#TODO",
+        mode: "append",
+        content: "x\n",
+      },
+      deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+    ).catch((e) => e);
+    expect((err as UpstreamError).code).toBe("CLI_REPORTED_ERROR");
+    expect((err as UpstreamError).details.code).toBe("EXTERNAL_EDITOR_CONFLICT");
+    expect((err as UpstreamError).details.reason).toBe("file-locked");
+    expect((err as UpstreamError).details.errno).toBe("EBUSY");
+    expect(fs.writes.length).toBe(0);
+    expect(fs.renames.length).toBe(0);
   });
 
   test("ENOSPC on writeFile → FS_WRITE_FAILED (not EXTERNAL_EDITOR_CONFLICT)", async () => {
@@ -670,6 +738,51 @@ describe("US2 HEADING_RACE", () => {
     // is at rank 3, but the walker expects rank 2 under # Top for the second segment.
     expect((err as UpstreamError).details.current_identity).toBeNull();
     expect(fs.writes.length).toBe(0);
+  });
+
+  test("race re-read (second readFile) throws EBUSY → mapWriteErr classifies EXTERNAL_EDITOR_CONFLICT (L180)", async () => {
+    // First readFile succeeds (so the heading walk resolves and we reach the FR-019
+    // race re-read). The second readFile throws EBUSY; the race-read catch routes it
+    // through mapWriteErr → EXTERNAL_EDITOR_CONFLICT. No write/rename happens.
+    const initial =
+      "# Top\n" +
+      "## A\n" +
+      "body\n" +
+      "## B\n";
+    const ebusy = Object.assign(new Error("EBUSY: resource busy"), {
+      code: "EBUSY",
+      errno: -4082,
+      syscall: "open",
+    });
+    let readCount = 0;
+    const fs = fakeFs(
+      {},
+      {
+        readFile: vi.fn(async () => {
+          readCount++;
+          if (readCount === 1) return initial;
+          throw ebusy;
+        }),
+      },
+    );
+    const { spawnFn } = makeQueuedSpawn([]);
+    const err = await executePatchHeading(
+      {
+        target_mode: "specific",
+        vault: "TestVault",
+        path: "n.md",
+        heading_path: "Top#A",
+        mode: "append",
+        content: "x\n",
+      },
+      deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+    ).catch((e) => e);
+    expect(readCount).toBe(2);
+    expect((err as UpstreamError).code).toBe("CLI_REPORTED_ERROR");
+    expect((err as UpstreamError).details.code).toBe("EXTERNAL_EDITOR_CONFLICT");
+    expect((err as UpstreamError).details.errno).toBe("EBUSY");
+    expect(fs.writes.length).toBe(0);
+    expect(fs.renames.length).toBe(0);
   });
 
   test("unrelated body edit (heading identity unchanged) is NOT a race; write proceeds", async () => {

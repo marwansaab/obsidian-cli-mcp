@@ -225,6 +225,51 @@ describe("dispatchCli — four-priority classification (FR-014)", () => {
     expect(attempts.at(-1)).toEqual({ source: "PATH", path: "obsidian", outcome: "not-found" });
   });
 
+  // child.on("error") non-ENOENT fallthrough (_dispatch.ts L213): a runtime spawn error
+  // whose code is NOT "ENOENT" rejects with the RAW Error verbatim — NOT an UpstreamError.
+  // captureRejection / pendingRejection assert instanceof UpstreamError, so catch raw here.
+  it("child.error EACCES (non-ENOENT) → rejects with the RAW Error, not UpstreamError", async () => {
+    const cap = captureLines();
+    const { spawnFn } = makeStubSpawn({ emitErrno: "EACCES" });
+    let caught: unknown;
+    try {
+      await dispatchCli(baseInput({ command: "v" }), { spawnFn, env: { PATH: "/x" }, logger: cap.logger });
+      throw new Error("expected rejection but promise resolved");
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught).not.toBeInstanceOf(UpstreamError);
+    expect((caught as NodeJS.ErrnoException).code).toBe("EACCES");
+  });
+
+  // settlePathAttempt identity return (_dispatch.ts L82): when the resolver's last attempt is
+  // NOT a pending PATH attempt (here an OBSIDIAN_BIN-resolved binary), settlePathAttempt returns
+  // the attempts array unchanged. Trip ENOENT on spawn so the classification reads the un-settled
+  // attempts through the L82 branch.
+  it("OBSIDIAN_BIN-resolved binary + spawn ENOENT → attempts returned unchanged (no PATH settle)", async () => {
+    const cap = captureLines();
+    const resolveBinaryFn = async () => ({
+      path: "/opt/obsidian",
+      attempts: [{ source: "OBSIDIAN_BIN" as const, path: "/opt/obsidian", outcome: "resolved" as const }],
+    });
+    const enoent: NodeJS.ErrnoException = new Error("ENOENT") as NodeJS.ErrnoException;
+    enoent.code = "ENOENT";
+    const { spawnFn } = makeStubSpawn({ errorOnSpawn: enoent });
+    const err = (await captureRejection(
+      dispatchCli(baseInput({ command: "v" }), {
+        spawnFn,
+        env: { PATH: "/x" },
+        logger: cap.logger,
+        resolveBinary: resolveBinaryFn,
+      }),
+    )) as UpstreamError;
+    expect(err.code).toBe("CLI_BINARY_NOT_FOUND");
+    const attempts = err.details.attempts as Array<{ source: string; path: string; outcome: string }>;
+    // Identity return: no trailing pending PATH attempt to settle, so unchanged.
+    expect(attempts).toEqual([{ source: "OBSIDIAN_BIN", path: "/opt/obsidian", outcome: "resolved" }]);
+  });
+
   it("OBSIDIAN_BIN set and not executable → resolveBinary throws → CLI_BINARY_NOT_FOUND propagates", async () => {
     const cap = captureLines();
     // Use a real non-existent path so the production fsPromises.access fires ENOENT —
@@ -457,6 +502,37 @@ describe("dispatchCli — bounds enforcement (FR-009 / FR-010)", () => {
     const parsed = JSON.parse(lines[0]!);
     expect(parsed.event).toBe("dispatch.cap");
     expect(parsed.stream).toBe("stdout");
+    expect(parsed.limitBytes).toBe(3_000);
+  });
+
+  // stderr output-cap mirror (_dispatch.ts L185-188): a single OVERSIZED spec.stderr string +
+  // a small outputCapBytes trips killChild({kind:"cap",stream:"stderr"}), settling as
+  // CLI_OUTPUT_TOO_LARGE with stream "stderr" and partial truncated to the cap.
+  it("CLI_OUTPUT_TOO_LARGE on stderr — partial truncated to outputCapBytes; emits ONE dispatch.cap line", async () => {
+    const cap = captureLines();
+    // 4_000 'B' bytes on stderr, cap 3_000. Single chunk via spec.stderr trips the cap.
+    const { spawnFn } = makeStubSpawn({
+      stderr: "B".repeat(4_000),
+      hold: true,
+    });
+    const err = await captureRejection(
+      dispatchCli(
+        baseInput({ command: "x", outputCapBytes: 3_000, timeoutMs: 60_000 }),
+        { spawnFn, env: {}, logger: cap.logger },
+      ),
+    );
+    expect(err.code).toBe("CLI_OUTPUT_TOO_LARGE");
+    expect(err.details).toMatchObject({
+      stream: "stderr",
+      limitBytes: 3_000,
+      capturedBytes: 4_000,
+    });
+    expect((err.details.partial as string).length).toBe(3_000);
+    const lines = cap.lines();
+    expect(lines.length).toBe(1);
+    const parsed = JSON.parse(lines[0]!);
+    expect(parsed.event).toBe("dispatch.cap");
+    expect(parsed.stream).toBe("stderr");
     expect(parsed.limitBytes).toBe(3_000);
   });
 });

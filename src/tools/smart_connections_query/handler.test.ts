@@ -618,3 +618,43 @@ test("BI-034: non-ASCII query (emoji) round-trips through base64 (FR-009)", asyn
   const payload = decodePayload(recorded[0]!.argv) as { query: unknown };
   expect(payload.query).toBe("🎉 launch notes");
 });
+
+// =====================================================================
+// R14 extraction fallbacks — no-preamble and no-marker (L84-85, L87)
+// =====================================================================
+
+// No-preamble fallback: stdout is a single "=> "-prefixed line with no
+// leading "\n=> " marker (lastIndexOf("\n=> ") === -1 but startsWith("=> ")).
+// Exercises the `else if (result.stdout.startsWith("=> "))` branch (L84-85):
+// payload = result.stdout.slice(3).
+test("R14 no-preamble fallback: '=> '-prefixed single line (no '\\n=> ' marker) → ok:true", async () => {
+  const envelope = { ok: true, count: 2, matches: [
+    { path: "A.md", headingPath: [], score: 0.9 },
+    { path: "B.md", headingPath: ["H"], score: 0.8 },
+  ] };
+  const { spawnFn, getCount } = makeQueuedSpawn([
+    { stdout: "=> " + JSON.stringify(envelope), exitCode: 0 },
+  ]);
+  const result = await executeSmartConnectionsQuery(
+    { query: "x", vault: "Demo", limit: defaultLimit },
+    deps(spawnFn),
+  );
+  expect(result).toEqual({ count: 2, matches: envelope.matches });
+  expect(getCount()).toBe(1);
+});
+
+// No-marker fallback: bare JSON stdout with neither "\n=> " nor a "=> " prefix.
+// Exercises the final `else { payload = result.stdout }` branch (L87): the
+// whole stdout is the payload. Non-empty so stage-0 is skipped (no
+// "Vault not found." prefix path either).
+test("R14 no-marker fallback: bare JSON stdout (no '=> ' anywhere) → ok:true", async () => {
+  const { spawnFn, getCount } = makeQueuedSpawn([
+    { stdout: '{"ok":true,"count":0,"matches":[]}', exitCode: 0 },
+  ]);
+  const result = await executeSmartConnectionsQuery(
+    { query: "x", vault: "Demo", limit: defaultLimit },
+    deps(spawnFn),
+  );
+  expect(result).toEqual({ count: 0, matches: [] });
+  expect(getCount()).toBe(1);
+});

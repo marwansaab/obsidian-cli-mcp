@@ -436,3 +436,26 @@ test("same-folder move: response carries renamed-equivalence marker (dirname(fro
   };
   expect(dirname(result.fromPath)).toBe(dirname(result.toPath));
 });
+
+// =========================================================================
+// parseMoveResponse — empty-stdout fallback (1 case)
+// =========================================================================
+
+// Case 25 — parseMoveResponse L38-40 empty-stdout synthesis: empty stdout + exit 0
+// is classified success (dispatch priority d). When the native `move` subcommand
+// returns no confirmation line, parseMoveResponse synthesizes the canonical
+// from/to from the resolved input: fromPath=input.path, toPath=resolvedTo
+// (resolveTo folder-target preserves source basename → Archive/Tax-2026.md).
+// No "Moved:" line, no two-line shape — the empty+specific+path branch.
+test("empty stdout + exit 0 (specific+path) → parseMoveResponse synthesizes fromPath=input.path, toPath=resolvedTo (L38-40)", async () => {
+  const { spawnFn } = makeStubSpawn({ stdout: "", exitCode: 0 });
+  const result = await executeMove(
+    { target_mode: "specific", vault: "V", path: "Inbox/Tax-2026.md", to: "Archive/" },
+    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+  );
+  expect(result).toEqual({
+    moved: true,
+    fromPath: "Inbox/Tax-2026.md",
+    toPath: "Archive/Tax-2026.md",
+  });
+});

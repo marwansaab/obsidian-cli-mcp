@@ -43,6 +43,27 @@ describe("createFilesTool — descriptor", () => {
   });
 });
 
+// Exercises the index.ts handler closure `async (input, d) => executeListFiles(input, d)`.
+// The descriptor/doc cases never call tool.handler, so the closure line is otherwise uncovered.
+describe("createFilesTool — handler closure executes on VALID input", () => {
+  it("tool.handler(valid input) drives the closure → executeListFiles → { count, paths } envelope", async () => {
+    const tool = createFilesTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      spawnFn: makeStubSpawn({ stdout: "Inbox/b.md\nInbox/a.md\n", exitCode: 0 }),
+    });
+    const result = (await tool.handler({
+      target_mode: "specific",
+      vault: "Demo",
+      folder: "Inbox",
+    })) as { isError?: boolean; content: { type: string; text: string }[] };
+    expect(result.isError).toBeUndefined();
+    expect(Array.isArray(result.content)).toBe(true);
+    const payload = JSON.parse(result.content[0]!.text);
+    expect(payload).toEqual({ count: 2, paths: ["Inbox/a.md", "Inbox/b.md"] });
+  });
+});
+
 // (4) help facility references files — the help tool reads from the docs index
 describe("help facility references files (registry-consistency)", () => {
   it("docs/tools/index.md mentions files", () => {

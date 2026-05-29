@@ -492,3 +492,62 @@ test("cross-type retype pair 3 — list → text (value:'scalar' on tags:['a','b
   expect(recorded[0]!.argv).toContain("type=text");
   // FR-033 invariant: no file-state peek; one spawn regardless of pre-write list-state.
 });
+
+// (35) specific+file — Call A exit-0 file stdout with NO "path\t" line → CLI_REPORTED_ERROR stage "file-tsv-parse"
+test("specific+file — file subcommand stdout lacks a path line → CLI_REPORTED_ERROR stage 'file-tsv-parse'", async () => {
+  // Call A is a valid exit-0 file-subcommand envelope (no "Error:" / "Vault not found." head,
+  // so neither the dispatch "Error:" classification nor the adapter unknown-vault re-classification
+  // fires) but carries no `path\t` line, so parseFileTSV throws before Call B is queued.
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    { stdout: "name\tWelcome\nextension\tmd\n", exitCode: 0 },
+  ]);
+  const err = (await captureRejection(
+    executeWriteProperty(
+      { target_mode: "specific", vault: "Demo", file: "Welcome", name: "status", value: "shipped" },
+      deps(spawnFn),
+    ),
+  )) as UpstreamError;
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details.stage).toBe("file-tsv-parse");
+  expect(err.details.stdout).toBe("name\tWelcome\nextension\tmd\n");
+  // property:set short-circuited — only Call A (file resolve) was spawned.
+  expect(recorded).toHaveLength(1);
+});
+
+// (36) active — Call A eval stdout body is unparseable JSON → CLI_REPORTED_ERROR stage "json-parse"
+test("active — eval stdout body is unparseable JSON → CLI_REPORTED_ERROR stage 'json-parse'", async () => {
+  // "=> " prefix is stripped by parseEvalResponse; the remaining body "not-json{{{" fails JSON.parse.
+  // Head does not start with "Error:" / "Vault not found.", so classification stays at exit-0 success
+  // and the handler's own json-parse guard is the throw site.
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    { stdout: "=> not-json{{{\n", exitCode: 0 },
+  ]);
+  const err = (await captureRejection(
+    executeWriteProperty({ target_mode: "active", name: "status", value: "review" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details.stage).toBe("json-parse");
+  expect(err.cause).toBeInstanceOf(SyntaxError);
+  // property:set short-circuited — only Call A (eval) was spawned.
+  expect(recorded).toHaveLength(1);
+});
+
+// (37) active — Call A eval stdout is valid JSON but fails isFocusedFileResponse shape → CLI_REPORTED_ERROR stage "envelope-parse"
+test("active — eval stdout is valid JSON of unexpected shape → CLI_REPORTED_ERROR stage 'envelope-parse'", async () => {
+  // Valid JSON parses cleanly (past the json-parse guard) but path:123 is neither string nor null,
+  // so isFocusedFileResponse returns false and the envelope-parse guard throws.
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    { stdout: '=> {"path":123,"vault":"V"}\n', exitCode: 0 },
+  ]);
+  const err = (await captureRejection(
+    executeWriteProperty({ target_mode: "active", name: "status", value: "review" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details.stage).toBe("envelope-parse");
+  expect(err.details.parsed).toEqual({ path: 123, vault: "V" });
+  // property:set short-circuited — only Call A (eval) was spawned.
+  expect(recorded).toHaveLength(1);
+});

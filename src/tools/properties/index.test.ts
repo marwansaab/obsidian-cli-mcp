@@ -8,12 +8,36 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createPropertiesTool, PROPERTIES_DESCRIPTION, PROPERTIES_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
+
+describe("createPropertiesTool — handler closure execution", () => {
+  // Exercises the `handler: async (input, d) => executeProperties(input, d)` closure in
+  // index.ts: the descriptor tests only call tool.handler with INVALID input, which
+  // short-circuits to VALIDATION_ERROR inside registerTool before the closure runs.
+  // A VALID input ({} — vault-only, no discriminator) drives the closure →
+  // executeProperties → invokeCli (success spawn) and returns a JSON success envelope.
+  // Reuses handler.test.ts's empty-array success stdout.
+  it("VALID input drives the handler closure to a success envelope", async () => {
+    const { spawnFn } = makeQueuedSpawn([{ stdout: "[]\n", exitCode: 0 }]);
+    const tool = createPropertiesTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      spawnFn,
+    });
+    const result = (await tool.handler({})) as {
+      isError?: boolean;
+      content: { type: string; text: string }[];
+    };
+    expect(result.isError).toBeUndefined();
+    expect(Array.isArray(result.content)).toBe(true);
+    expect(JSON.parse(result.content[0]!.text)).toEqual({ count: 0, properties: [] });
+  });
+});
 
 describe("createPropertiesTool — descriptor", () => {
   // (a) descriptor.name === "properties"

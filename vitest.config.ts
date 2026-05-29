@@ -9,7 +9,17 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/**"],
-      exclude: ["src/**/*.test.ts", "src/**/graphify-out/**"],
+      exclude: [
+        "src/**/*.test.ts",
+        "src/**/graphify-out/**",
+        // Non-production surface excluded from the coverage denominator (coverage-gap
+        // analysis 2026-05-30): static data fixtures and test-support helpers
+        // (fixtures / spawn stubs / schema utils) consumed only by *.test.ts.
+        "src/**/*.json",
+        "src/**/_*fixtures.ts",
+        "src/**/_registration-stub.ts",
+        "src/**/_schema-test-utils.ts",
+      ],
       reporter: ["text", "lcov", "json-summary"],
       reportsDirectory: "coverage",
       // SINGLE SOURCE OF TRUTH for the merge floor. Ratchet up (or down, intentionally)
@@ -17,7 +27,7 @@ export default defineConfig({
       // function / per-file thresholds are forbidden without a constitution amendment
       // (gate #5 — reviewers MUST flag any PR that adds those keys).
       thresholds: {
-        statements: 91.3,
+        statements: 96,
       },
     },
   },

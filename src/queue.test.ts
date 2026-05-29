@@ -92,3 +92,16 @@ test("queue.shutdown drops queued tasks without running them", async () => {
   expect(dropped1Started).toBe(false);
   expect(dropped2Started).toBe(false);
 });
+
+test("queue.run rejects when enqueued after shutdown (QUEUE_DROPPED)", async () => {
+  const q = createQueue();
+  q.shutdown();
+  let taskStarted = false;
+  await expect(
+    q.run(async () => {
+      taskStarted = true;
+      return 1;
+    }),
+  ).rejects.toBeDefined();
+  expect(taskStarted).toBe(false);
+});

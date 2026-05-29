@@ -154,6 +154,23 @@ test("exit-0 stdout 'Error: File not found' → CLI_REPORTED_ERROR with verbatim
   expect(err.details.message).toBe('Error: File "Inbox/Missing.md" not found.');
 });
 
+// (i2) parsePath fallthrow — exit-0 stdout matching NEITHER success RESPONSE_RE NOR any
+// upstream-classified error form (no "Error:" prefix, no no-active-file, not "Vault not
+// found.") reaches parsePath and throws CLI_REPORTED_ERROR with details.stdout (handler.ts L22-27)
+test("exit-0 stdout matching no known shape → parsePath throws CLI_REPORTED_ERROR with raw stdout in details", async () => {
+  const { spawnFn } = makeStubSpawn({ stdout: "Something unexpected\n", exitCode: 0 });
+  const err = (await captureRejection(
+    executeDeleteNote(
+      { target_mode: "specific", vault: "V", path: "P.md", permanent: false },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    ),
+  )) as UpstreamError;
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details.stdout).toBe("Something unexpected\n");
+  expect(err.message).toBe("delete_note could not parse CLI response: Something unexpected\n");
+});
+
 // (j) Story 4 AC#4 — ERR_NO_ACTIVE_FILE
 test("active mode no-active-file → ERR_NO_ACTIVE_FILE with recovery hint (Story 4 AC#4)", async () => {
   const { spawnFn } = makeStubSpawn({ stdout: "Error: no active file\n", exitCode: 0 });

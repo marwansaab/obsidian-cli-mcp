@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createMoveTool, MOVE_DESCRIPTION, MOVE_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import { makeStubSpawn as makeSuccessSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 import { countDescriptionKeys } from "../_schema-test-utils.js";
 
@@ -53,6 +53,41 @@ describe("createMoveTool — descriptor", () => {
     expect(lower).toContain("move");
     expect(desc).toMatch(/Automatically update internal links|link/i);
     expect(desc.length).toBeGreaterThan(0);
+  });
+
+  // Case 3b — Handler-closure execution: VALID input passes Zod, so registerTool runs the
+  // `handler: async (input, d) => executeMove(input, d)` closure (not the VALIDATION_ERROR
+  // short-circuit). Success spawn fixture copied from handler.test.ts; the wrapped
+  // { moved, fromPath, toPath } envelope proves the closure executed end-to-end.
+  it("tool.handler runs the executeMove closure on VALID input and returns a content envelope", async () => {
+    const { spawnFn } = makeSuccessSpawn({
+      stdout: "Moved: Inbox/Tax-2026.md → Archive/Tax-2026.md\n",
+      exitCode: 0,
+    });
+    const tool = createMoveTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      spawnFn,
+    });
+    const result = await tool.handler({
+      target_mode: "specific",
+      vault: "MyVault",
+      path: "Inbox/Tax-2026.md",
+      to: "Archive/",
+    });
+    expect(Array.isArray(result.content)).toBe(true);
+    expect(result.content.length).toBeGreaterThanOrEqual(1);
+    expect("isError" in result).toBe(false);
+    const payload = JSON.parse(result.content[0]!.text) as {
+      moved: boolean;
+      fromPath: string;
+      toPath: string;
+    };
+    expect(payload).toEqual({
+      moved: true,
+      fromPath: "Inbox/Tax-2026.md",
+      toPath: "Archive/Tax-2026.md",
+    });
   });
 });
 

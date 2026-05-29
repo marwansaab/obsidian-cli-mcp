@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createSetPropertyTool, SET_PROPERTY_DESCRIPTION, SET_PROPERTY_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 import { countDescriptionKeys } from "../_schema-test-utils.js";
 
@@ -39,6 +39,31 @@ describe("createSetPropertyTool — descriptor", () => {
     const tool = createSetPropertyTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
     expect(countDescriptionKeys(schema)).toBe(0);
+  });
+});
+
+// (3a) handler-closure execution — VALID input runs `handler: async (input, d) => executeWriteProperty(...)`
+// (the closure short-circuited by VALIDATION_ERROR in every other case here). Success spawn from
+// handler.test.ts proves the closure executes and produces a JSON-wrapped success envelope.
+describe("createSetPropertyTool — handler closure (valid input)", () => {
+  it("tool.handler runs the closure on valid input and returns a content array", async () => {
+    const { spawnFn } = makeQueuedSpawn([{ stdout: "Set k: v\n", exitCode: 0 }]);
+    const tool = createSetPropertyTool({ logger: silentLogger(), queue: createQueue(), spawnFn, env: {} });
+    const result = await tool.handler({
+      target_mode: "specific",
+      vault: "V",
+      path: "x.md",
+      name: "k",
+      value: "v",
+    });
+    expect(Array.isArray(result.content)).toBe(true);
+    expect(result.content[0]).toMatchObject({ type: "text" });
+    // Success envelope: { written: true, path, name } JSON-serialised on the wire.
+    expect(JSON.parse((result.content[0] as { text: string }).text)).toEqual({
+      written: true,
+      path: "x.md",
+      name: "k",
+    });
   });
 });
 
