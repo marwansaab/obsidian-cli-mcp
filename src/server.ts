@@ -24,6 +24,7 @@ import { createHelpTool } from "./tools/help/index.js";
 import { createLinksTool } from "./tools/links/index.js";
 import { createMoveTool } from "./tools/move/index.js";
 import { createObsidianExecTool } from "./tools/obsidian_exec/index.js";
+import { createOpenFileTool } from "./tools/open_file/index.js";
 import { createOutlineTool } from "./tools/outline/index.js";
 import { createPatchBlockTool } from "./tools/patch_block/index.js";
 import { createPatchHeadingTool } from "./tools/patch_heading/index.js";
@@ -114,6 +115,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     createLinksTool({ logger, queue }),
     createMoveTool({ logger, queue }),
     createObsidianExecTool({ logger, queue }),
+    createOpenFileTool({ logger, queue, vaultRegistry }),
     createOutlineTool({ logger, queue }),
     createPatchBlockTool({ logger, queue, vaultRegistry }),
     createPatchHeadingTool({ logger, queue, vaultRegistry }),

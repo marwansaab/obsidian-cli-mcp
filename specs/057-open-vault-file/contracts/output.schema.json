@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "open_file success output",
+  "description": "Success confirmation that the target file was opened and became the focused, active file. Identical shape across all recognised file types.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["opened", "vault", "new_tab"],
+  "properties": {
+    "opened": {
+      "type": "string",
+      "description": "Resolved vault-relative path of the file that was opened (canonicalised from whichever locator the caller supplied)."
+    },
+    "vault": {
+      "type": "string",
+      "description": "Echoed requested vault display name (the focused vault the open landed in)."
+    },
+    "new_tab": {
+      "type": "boolean",
+      "description": "The effective new-tab flag applied to the open."
+    }
+  }
+}

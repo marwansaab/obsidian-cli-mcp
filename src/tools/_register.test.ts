@@ -447,6 +447,12 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
     required_equals: ["command"],
     additionalProperties: false,
   },
+  open_file: {
+    type: "object",
+    properties_equals_set: ["vault", "path", "file", "new_tab"],
+    required_equals: ["vault"],
+    additionalProperties: false,
+  },
   outline: {
     type: "object",
     properties_equals_set: ["target_mode", "vault", "file", "path", "total"],
