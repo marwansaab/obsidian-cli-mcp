@@ -73,6 +73,45 @@ function makeStubSpawn(spec: StubChildSpec): { spawnFn: SpawnLike; recorded: Spa
   return { spawnFn, recorded };
 }
 
+// Per-call-varying spawn (ADR-029 facade-inheritance test): cold-start on call 1, success on
+// call 2. recorded.length is the spawn count; overflow replays the last spec.
+function makeScriptedSpawn(specs: StubChildSpec[]): { spawnFn: SpawnLike; recorded: SpawnRecording[] } {
+  const recorded: SpawnRecording[] = [];
+  let i = 0;
+  const spawnFn: SpawnLike = (binary, argv, options) => {
+    const spec = specs[i] ?? specs[specs.length - 1]!;
+    i += 1;
+    recorded.push({ binary, argv: [...argv], options });
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: Readable;
+      stderr: Readable;
+      kill: (signal?: NodeJS.Signals) => boolean;
+      pid?: number;
+    };
+    child.stdout = new Readable({ read() {} });
+    child.stderr = new Readable({ read() {} });
+    child.pid = 4242;
+    child.kill = (signal?: NodeJS.Signals) => {
+      setImmediate(() => child.emit("exit", null, signal ?? "SIGTERM"));
+      return true;
+    };
+    setImmediate(() => {
+      if (spec.stdout) child.stdout.push(Buffer.from(spec.stdout, "utf8"));
+      child.stdout.push(null);
+      if (spec.stderr) child.stderr.push(Buffer.from(spec.stderr, "utf8"));
+      child.stderr.push(null);
+      if (spec.hold) return;
+      setImmediate(() => {
+        const closeCode = "exitCode" in spec ? (spec.exitCode ?? null) : 0;
+        const closeSignal = "signal" in spec ? (spec.signal ?? null) : null;
+        child.emit("exit", closeCode, closeSignal);
+      });
+    });
+    return child as unknown as ReturnType<SpawnLike>;
+  };
+  return { spawnFn, recorded };
+}
+
 function captureLines(): { stream: Writable; logger: Logger; lines: () => string[] } {
   const chunks: Buffer[] = [];
   const stream = new Writable({
@@ -217,6 +256,27 @@ describe("invokeBoundedCli — timeout default and silent clamp (Q1 / FR-011)", 
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("invokeBoundedCli — ADR-029 cold-start retry inheritance", () => {
+  // T023 — the obsidian_exec passthrough facade inherits the dispatch-layer retry: cold-start
+  // on call 1 → success on call 2 → invokeBoundedCli resolves; spawn called exactly twice.
+  it("cold-start on call 1 → success on call 2 → invokeBoundedCli resolves; spawn called exactly twice", async () => {
+    const COLD_STDOUT = 'Error: Command "read" not found. It may require a plugin to be enabled.\n';
+    const cap = captureLines();
+    const { spawnFn, recorded } = makeScriptedSpawn([
+      { stdout: COLD_STDOUT, exitCode: 0 },
+      { stdout: "ok\n", exitCode: 0 },
+    ]);
+    const out = await invokeBoundedCli(
+      { command: "read" },
+      {},
+      { spawnFn, env: {}, logger: cap.logger, queue: createQueue() },
+    );
+    expect(out.exitCode).toBe(0);
+    expect(out.stdout).toBe("ok\n");
+    expect(recorded).toHaveLength(2);
   });
 });
 

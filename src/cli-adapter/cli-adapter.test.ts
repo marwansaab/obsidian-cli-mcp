@@ -72,6 +72,50 @@ function makeStubSpawn(spec: StubChildSpec): { spawnFn: SpawnLike; recorded: Spa
   return { spawnFn, recorded };
 }
 
+// Per-call-varying spawn (ADR-029 facade-inheritance tests): serves specs[i++] so the
+// dispatch-layer retry can see cold-start on call 1 and success on call 2. recorded.length
+// is the spawn count. On overflow it replays the last spec (an unexpected extra spawn shows
+// up as a recorded.length assertion failure rather than crashing).
+function makeScriptedSpawn(specs: StubChildSpec[]): { spawnFn: SpawnLike; recorded: SpawnRecording[] } {
+  const recorded: SpawnRecording[] = [];
+  let i = 0;
+  const spawnFn: SpawnLike = (binary, argv, options) => {
+    const spec = specs[i] ?? specs[specs.length - 1]!;
+    i += 1;
+    if (spec.errorOnSpawn) {
+      throw spec.errorOnSpawn;
+    }
+    recorded.push({ binary, argv: [...argv], options });
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: Readable;
+      stderr: Readable;
+      kill: (signal?: NodeJS.Signals) => boolean;
+      pid?: number;
+    };
+    child.stdout = new Readable({ read() {} });
+    child.stderr = new Readable({ read() {} });
+    child.pid = 4242;
+    child.kill = (signal?: NodeJS.Signals) => {
+      setImmediate(() => child.emit("exit", null, signal ?? "SIGTERM"));
+      return true;
+    };
+    setImmediate(() => {
+      if (spec.stdout) child.stdout.push(Buffer.from(spec.stdout, "utf8"));
+      child.stdout.push(null);
+      if (spec.stderr) child.stderr.push(Buffer.from(spec.stderr, "utf8"));
+      child.stderr.push(null);
+      if (spec.hold) return;
+      setImmediate(() => {
+        const closeCode = "exitCode" in spec ? (spec.exitCode ?? null) : 0;
+        const closeSignal = "signal" in spec ? (spec.signal ?? null) : null;
+        child.emit("exit", closeCode, closeSignal);
+      });
+    });
+    return child as unknown as ReturnType<SpawnLike>;
+  };
+  return { spawnFn, recorded };
+}
+
 async function captureRejection(promise: Promise<unknown>): Promise<UpstreamError> {
   try {
     await promise;
@@ -426,6 +470,46 @@ describe("invokeCli — queue serialization (research R6)", () => {
     expect(maxActive).toBe(1);
     expect(completions.length).toBe(2);
     expect(completions[1]!).toBeGreaterThanOrEqual(completions[0]!);
+  });
+});
+
+describe("invokeCli — ADR-029 cold-start retry inheritance", () => {
+  const COLD_STDOUT = 'Error: Command "read" not found. It may require a plugin to be enabled.\n';
+
+  // T014 — the typed-tool facade inherits the dispatch-layer retry with zero adaptation:
+  // cold-start on call 1 → success on call 2 → invokeCli resolves; spawn called exactly
+  // twice within the single queue.run slot.
+  it("cold-start on call 1 → success on call 2 → invokeCli resolves; spawn called exactly twice", async () => {
+    const { spawnFn, recorded } = makeScriptedSpawn([
+      { stdout: COLD_STDOUT, exitCode: 0 },
+      { stdout: "# Note body\n", exitCode: 0 },
+    ]);
+    const result = await invokeCli(
+      { command: "read", vault: "V", parameters: { file: "Note" }, flags: [], target_mode: "specific" },
+      defaultDeps({ spawnFn, env: {} }),
+    );
+    expect(result).toEqual({ stdout: "# Note body\n", stderr: "" });
+    expect(recorded).toHaveLength(2);
+  });
+
+  // T021 — NEGATIVE: the facade-level exit-0 `Vault not found.` re-classification is NOT the
+  // cold-start invariant, so it must NOT trigger the dispatch retry. dispatchCli RESOLVES the
+  // exit-0 stdout (no `Error:` prefix) → the facade re-classifies after the single attempt →
+  // spawn called exactly once. Guards against over-matching the adjacent R5 precedent.
+  it("NEGATIVE: exit-0 'Vault not found.' re-classification does NOT retry; spawn called exactly once", async () => {
+    const { spawnFn, recorded } = makeScriptedSpawn([
+      { stdout: "\nVault not found.\n", exitCode: 0 },
+      { stdout: "should-not-run\n", exitCode: 0 },
+    ]);
+    const err = await captureRejection(
+      invokeCli(
+        { command: "create", vault: "NoSuchVault", parameters: { path: "x.md", content: "x" }, flags: [], target_mode: "specific" },
+        defaultDeps({ spawnFn, env: {} }),
+      ),
+    );
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.message).toBe("Vault not found.");
+    expect(recorded).toHaveLength(1);
   });
 });
 

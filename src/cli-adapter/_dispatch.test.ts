@@ -10,6 +10,7 @@ import { createLogger, type Logger } from "../logger.js";
 import {
   __resetInFlightRegistryForTests,
   assembleArgv,
+  COLD_START_INVARIANT,
   dispatchCli,
   killInFlightChildren,
   SIGKILL_GRACE_MS,
@@ -29,6 +30,10 @@ interface StubChildSpec {
   hold?: boolean;
   // emitErrno: emit a child.on("error") with this code instead of normal exit.
   emitErrno?: NodeJS.ErrnoException["code"];
+  // emitError: emit a child.on("error") with this FULL raw Error verbatim (no synthetic
+  // code injection — distinct from emitErrno). Used by the form-(b) `Stream closed` retry
+  // probe-shape tests where the transport error arrives as a raw Error, not an UpstreamError.
+  emitError?: Error;
 }
 
 interface SpawnRecording {
@@ -90,6 +95,70 @@ function makeStubSpawn(spec: StubChildSpec): { spawnFn: SpawnLike; recorded: Spa
     return child as unknown as ReturnType<SpawnLike>;
   };
   return { spawnFn, recorded };
+}
+
+// Per-call-varying spawn stub: serves specs[callCount++] so attempt 1 and attempt 2 of the
+// ADR-029 single retry can differ (e.g. cold-start on call 1, success on call 2). The static
+// makeStubSpawn replays one spec for every call and so cannot exercise the retry. Exposes
+// calls() for exact spawn-count assertions (the bounded-retry invariant: calls() === 2 on a
+// trigger, === 1 otherwise). On overflow it replays the last spec so an accidental third call
+// surfaces as a calls() assertion failure rather than crashing the test.
+function makeScriptedSpawn(specs: StubChildSpec[]): { spawnFn: SpawnLike; calls: () => number } {
+  let callCount = 0;
+  const spawnFn: SpawnLike = (binary, argv, options) => {
+    const spec = specs[callCount] ?? specs[specs.length - 1]!;
+    callCount += 1;
+    if (spec.errorOnSpawn) {
+      throw spec.errorOnSpawn;
+    }
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: Readable;
+      stderr: Readable;
+      kill: (signal?: NodeJS.Signals) => boolean;
+      pid?: number;
+    };
+    child.stdout = new Readable({ read() {} });
+    child.stderr = new Readable({ read() {} });
+    child.pid = 4242;
+    let killSignal: NodeJS.Signals | undefined;
+    child.kill = (signal?: NodeJS.Signals) => {
+      killSignal = signal ?? "SIGTERM";
+      setImmediate(() => child.emit("exit", null, killSignal ?? "SIGTERM"));
+      return true;
+    };
+    void [binary, argv, options];
+
+    setImmediate(() => {
+      if (spec.emitError) {
+        child.emit("error", spec.emitError);
+        return;
+      }
+      if (spec.emitErrno) {
+        const e: NodeJS.ErrnoException = new Error("spawn error") as NodeJS.ErrnoException;
+        e.code = spec.emitErrno;
+        child.emit("error", e);
+        return;
+      }
+      if (spec.chunkedStdout) {
+        for (const chunk of spec.chunkedStdout) {
+          child.stdout.push(chunk);
+        }
+      } else if (spec.stdout) {
+        child.stdout.push(Buffer.from(spec.stdout, "utf8"));
+      }
+      child.stdout.push(null);
+      if (spec.stderr) child.stderr.push(Buffer.from(spec.stderr, "utf8"));
+      child.stderr.push(null);
+      if (spec.hold) return;
+      setImmediate(() => {
+        const closeCode = "exitCode" in spec ? (spec.exitCode ?? null) : 0;
+        const closeSignal = "signal" in spec ? (spec.signal ?? null) : null;
+        child.emit("exit", closeCode, closeSignal);
+      });
+    });
+    return child as unknown as ReturnType<SpawnLike>;
+  };
+  return { spawnFn, calls: () => callCount };
 }
 
 function captureLines(): { stream: Writable; logger: Logger; lines: () => string[] } {
@@ -620,5 +689,258 @@ describe("killInFlightChildren — public surface (FR-016)", () => {
 
   it("SIGKILL grace timer is set to SIGKILL_GRACE_MS (2 s)", () => {
     expect(SIGKILL_GRACE_MS).toBe(2_000);
+  });
+});
+
+// ADR-029 single cold-start retry. COLD_START_STDOUT is built from the production
+// COLD_START_INVARIANT (imported, single source of truth) so the test fixture and the
+// matcher can never drift. It mirrors the T0-pinned literal:
+//   Error: Command "<cmd>" not found. It may require a plugin to be enabled.
+// which dispatchCli priority (c) classifies as CLI_REPORTED_ERROR (stdout starts "Error:").
+const COLD_START_STDOUT = `Error: Command "read" ${COLD_START_INVARIANT}\n`;
+
+describe("dispatchCli — ADR-029 cold-start single retry", () => {
+  // US1 (T013) — the MVP: a form-(a) cold-start on attempt 1 is absorbed by one retry.
+  it("US1: form-(a) cold-start on attempt 1 → success on attempt 2; resolves call-2 output; calls()===2", async () => {
+    const cap = captureLines();
+    const { spawnFn, calls } = makeScriptedSpawn([
+      { stdout: COLD_START_STDOUT, exitCode: 0 },
+      { stdout: "ok\n", exitCode: 0 },
+    ]);
+    const out = await dispatchCli(baseInput({ command: "read" }), {
+      spawnFn,
+      env: {},
+      logger: cap.logger,
+      resolveBinary: stubResolveBinary,
+    });
+    expect(out.stdout).toBe("ok\n");
+    expect(out.exitCode).toBe(0);
+    expect(calls()).toBe(2);
+  });
+
+  // US2 (T017) — Q1 second-attempt-authoritative: cold-start → a DIFFERENT real error.
+  // The attempt-2 CLI_NON_ZERO_EXIT surfaces; attempt-1's CLI_REPORTED_ERROR is discarded
+  // (proven by the details parity: stderr "boom"/exitCode 1, not the cold-start stdout).
+  it("US2: cold-start → different real error → attempt-2 CLI_NON_ZERO_EXIT is authoritative; calls()===2", async () => {
+    const cap = captureLines();
+    const { spawnFn, calls } = makeScriptedSpawn([
+      { stdout: COLD_START_STDOUT, exitCode: 0 },
+      { stderr: "boom", exitCode: 1 },
+    ]);
+    const err = await captureRejection(
+      dispatchCli(baseInput({ command: "read" }), {
+        spawnFn,
+        env: {},
+        logger: cap.logger,
+        resolveBinary: stubResolveBinary,
+      }),
+    );
+    expect(err.code).toBe("CLI_NON_ZERO_EXIT");
+    expect(err.cause).toEqual({ exitCode: 1, signal: null });
+    expect(err.details).toMatchObject({ stderr: "boom", exitCode: 1 });
+    expect(err.details.stdout).not.toContain(COLD_START_INVARIANT); // attempt-1 discarded
+    expect(calls()).toBe(2);
+  });
+
+  // US2 (T018) — bounded, not a loop: cold-start twice propagates the attempt-2
+  // CLI_REPORTED_ERROR after EXACTLY one retry.
+  it("US2: cold-start → cold-start → propagates CLI_REPORTED_ERROR after one retry; calls()===2 exactly", async () => {
+    const cap = captureLines();
+    const { spawnFn, calls } = makeScriptedSpawn([
+      { stdout: COLD_START_STDOUT, exitCode: 0 },
+      { stdout: COLD_START_STDOUT, exitCode: 0 },
+    ]);
+    const err = await captureRejection(
+      dispatchCli(baseInput({ command: "read" }), {
+        spawnFn,
+        env: {},
+        logger: cap.logger,
+        resolveBinary: stubResolveBinary,
+      }),
+    );
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.details.stdout).toContain(COLD_START_INVARIANT);
+    expect(calls()).toBe(2);
+  });
+
+  // US2 (T019) — non-cold-start first failures are NEVER retried (single-shot).
+  it("US2: non-cold-start CLI_NON_ZERO_EXIT first failure → NO retry; calls()===1", async () => {
+    const cap = captureLines();
+    const { spawnFn, calls } = makeScriptedSpawn([{ stderr: "boom", exitCode: 1 }]);
+    const err = await captureRejection(
+      dispatchCli(baseInput({ command: "x" }), {
+        spawnFn,
+        env: {},
+        logger: cap.logger,
+        resolveBinary: stubResolveBinary,
+      }),
+    );
+    expect(err.code).toBe("CLI_NON_ZERO_EXIT");
+    expect(calls()).toBe(1);
+  });
+
+  it("US2: ERR_NO_ACTIVE_FILE first failure → NO retry; calls()===1", async () => {
+    const cap = captureLines();
+    const { spawnFn, calls } = makeScriptedSpawn([{ stdout: "Error: No active file.\n", exitCode: 0 }]);
+    const err = await captureRejection(
+      dispatchCli(baseInput({ command: "delete" }), {
+        spawnFn,
+        env: {},
+        logger: cap.logger,
+        resolveBinary: stubResolveBinary,
+      }),
+    );
+    expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
+    expect(calls()).toBe(1);
+  });
+
+  it("US2: a non-invariant exit-0 'Error:' (CLI_REPORTED_ERROR but not cold-start) → NO retry; calls()===1", async () => {
+    const cap = captureLines();
+    const { spawnFn, calls } = makeScriptedSpawn([{ stdout: "Error: File not found\n", exitCode: 0 }]);
+    const err = await captureRejection(
+      dispatchCli(baseInput({ command: "read" }), {
+        spawnFn,
+        env: {},
+        logger: cap.logger,
+        resolveBinary: stubResolveBinary,
+      }),
+    );
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.details.message).toBe("Error: File not found");
+    expect(calls()).toBe(1); // not the cold-start invariant → single-shot
+  });
+
+  it("US2: CLI_TIMEOUT first failure → NO retry; calls()===1", async () => {
+    vi.useFakeTimers();
+    try {
+      const cap = captureLines();
+      const { spawnFn, calls } = makeScriptedSpawn([{ hold: true }]);
+      const rejected = pendingRejection(
+        dispatchCli(baseInput({ command: "read", timeoutMs: 1_000 }), {
+          spawnFn,
+          env: {},
+          logger: cap.logger,
+          resolveBinary: stubResolveBinary,
+        }),
+      );
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(1_001);
+      const err = await rejected;
+      expect(err.code).toBe("CLI_TIMEOUT");
+      expect(calls()).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // US2 (T020) — zero-new-codes: the retry mints no top-level UpstreamError.code outside
+  // the known union; the persistent cold-start propagates an existing code.
+  it("US2: zero-new-codes — propagated code stays within the known UpstreamError union", async () => {
+    const known = new Set([
+      "CLI_BINARY_NOT_FOUND",
+      "CLI_TIMEOUT",
+      "CLI_OUTPUT_TOO_LARGE",
+      "CLI_NON_ZERO_EXIT",
+      "ERR_NO_ACTIVE_FILE",
+      "CLI_REPORTED_ERROR",
+    ]);
+    const cap = captureLines();
+    const { spawnFn } = makeScriptedSpawn([
+      { stdout: COLD_START_STDOUT, exitCode: 0 },
+      { stdout: COLD_START_STDOUT, exitCode: 0 },
+    ]);
+    const err = await captureRejection(
+      dispatchCli(baseInput({ command: "read" }), {
+        spawnFn,
+        env: {},
+        logger: cap.logger,
+        resolveBinary: stubResolveBinary,
+      }),
+    );
+    expect(known.has(err.code)).toBe(true);
+  });
+
+  // US3 (T024) — bounded/terminate: calls() never exceeds 2; "vault never available"
+  // (cold-start on both attempts) terminates by propagating after one retry (no hang/loop).
+  it("US3: bounded — vault-never-available terminates after exactly one retry; calls()===2 (<=2)", async () => {
+    const cap = captureLines();
+    const { spawnFn, calls } = makeScriptedSpawn([
+      { stdout: COLD_START_STDOUT, exitCode: 0 },
+      { stdout: COLD_START_STDOUT, exitCode: 0 },
+      { stdout: "ok\n", exitCode: 0 }, // a 3rd spec exists; a correct bounded retry never reaches it
+    ]);
+    await captureRejection(
+      dispatchCli(baseInput({ command: "read" }), {
+        spawnFn,
+        env: {},
+        logger: cap.logger,
+        resolveBinary: stubResolveBinary,
+      }),
+    );
+    expect(calls()).toBeLessThanOrEqual(2);
+    expect(calls()).toBe(2);
+  });
+
+  // US3 (T025) — observability: a retry emits one dispatch.retry line carrying both callIds.
+  it("US3: observability — retry emits a dispatch.retry line with both attempt callIds", async () => {
+    const cap = captureLines();
+    const { spawnFn } = makeScriptedSpawn([
+      { stdout: COLD_START_STDOUT, exitCode: 0 },
+      { stdout: "ok\n", exitCode: 0 },
+    ]);
+    await dispatchCli(baseInput({ command: "read" }), {
+      spawnFn,
+      env: {},
+      logger: cap.logger,
+      resolveBinary: stubResolveBinary,
+    });
+    const retryLines = cap.lines().filter((l) => JSON.parse(l).event === "dispatch.retry");
+    expect(retryLines.length).toBe(1);
+    const parsed = JSON.parse(retryLines[0]!);
+    expect(parsed.command).toBe("read");
+    expect(typeof parsed.firstCallId).toBe("string");
+    expect(typeof parsed.secondCallId).toBe("string");
+    expect(parsed.firstCallId.length).toBeGreaterThan(0);
+    expect(parsed.secondCallId.length).toBeGreaterThan(0);
+    expect(parsed.firstCallId).not.toBe(parsed.secondCallId); // fresh id per attempt (D7)
+  });
+
+  it("US3: no dispatch.retry line on a non-retried (single-shot) failure", async () => {
+    const cap = captureLines();
+    const { spawnFn } = makeScriptedSpawn([{ stderr: "boom", exitCode: 1 }]);
+    await captureRejection(
+      dispatchCli(baseInput({ command: "x" }), {
+        spawnFn,
+        env: {},
+        logger: cap.logger,
+        resolveBinary: stubResolveBinary,
+      }),
+    );
+    expect(cap.lines().filter((l) => JSON.parse(l).event === "dispatch.retry")).toEqual([]);
+  });
+
+  // US3 (T026) — shutdown race (research D6): if shutdown begins before the retry decision,
+  // the retry is skipped, attempt-1's error propagates, and NO second spawn happens. The
+  // module-level shuttingDown flag is set by killInFlightChildren() — the production shutdown
+  // entry point invoked from server.ts triggerShutdown — so this exercises the real path.
+  it("US3: shutdown before the retry → retry skipped, attempt-1 error propagates, calls()===1", async () => {
+    const cap = captureLines();
+    const { spawnFn, calls } = makeScriptedSpawn([
+      { stdout: COLD_START_STDOUT, exitCode: 0 },
+      { stdout: "ok\n", exitCode: 0 }, // would resolve IF the retry (wrongly) fired
+    ]);
+    killInFlightChildren(); // registry empty → returns false, but sets shuttingDown = true
+    const err = await captureRejection(
+      dispatchCli(baseInput({ command: "read" }), {
+        spawnFn,
+        env: {},
+        logger: cap.logger,
+        resolveBinary: stubResolveBinary,
+      }),
+    );
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.details.stdout).toContain(COLD_START_INVARIANT);
+    expect(calls()).toBe(1);
+    expect(cap.lines().filter((l) => JSON.parse(l).event === "dispatch.retry")).toEqual([]);
   });
 });

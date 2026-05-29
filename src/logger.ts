@@ -43,6 +43,12 @@ export interface DispatchKillEvent {
   durationMs: number;
 }
 
+export interface DispatchRetryEvent {
+  command: string;
+  firstCallId: string;
+  secondCallId: string;
+}
+
 export interface PathEscapeAttemptEvent {
   vault: string | null;
   attemptedPath: string;
@@ -53,6 +59,7 @@ export interface Logger {
   dispatchTimeout(event: DispatchTimeoutEvent): void;
   dispatchCap(event: DispatchCapEvent): void;
   dispatchKill(event: DispatchKillEvent): void;
+  dispatchRetry(event: DispatchRetryEvent): void;
   pathEscapeAttempt(event: PathEscapeAttemptEvent): void;
 }
 
@@ -108,6 +115,15 @@ export function createLogger(options: LoggerOptions = {}): Logger {
         command: event.command,
         pid: event.pid,
         durationMs: event.durationMs,
+      });
+    },
+    dispatchRetry(event: DispatchRetryEvent): void {
+      emit({
+        event: "dispatch.retry",
+        ts: new Date().toISOString(),
+        command: event.command,
+        firstCallId: event.firstCallId,
+        secondCallId: event.secondCallId,
       });
     },
     pathEscapeAttempt(event: PathEscapeAttemptEvent): void {

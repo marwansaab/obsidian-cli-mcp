@@ -93,6 +93,20 @@ test("logger dispatchKill emits dispatch.kill shape with PID + duration", () => 
   expect(parsed.durationMs).toBe(1_500);
 });
 
+test("logger dispatchRetry emits dispatch.retry shape with both attempt callIds (ADR-029)", () => {
+  const cap = captureStream();
+  const logger = createLogger({ stream: cap.stream });
+  logger.dispatchRetry({ command: "read", firstCallId: "id-1", secondCallId: "id-2" });
+  const lines = cap.lines();
+  expect(lines.length).toBe(1);
+  const parsed = JSON.parse(lines[0]!);
+  expect(parsed.event).toBe("dispatch.retry");
+  expect(parsed.command).toBe("read");
+  expect(parsed.firstCallId).toBe("id-1");
+  expect(parsed.secondCallId).toBe("id-2");
+  expect(parsed.ts).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+});
+
 test("logger pathEscapeAttempt emits pathEscapeAttempt shape with vault + attemptedPath", () => {
   const cap = captureStream();
   const logger = createLogger({ stream: cap.stream });
@@ -122,5 +136,6 @@ test("logger defaults to process.stderr when no stream injected (smoke)", () => 
   expect(typeof logger.dispatchTimeout).toBe("function");
   expect(typeof logger.dispatchCap).toBe("function");
   expect(typeof logger.dispatchKill).toBe("function");
+  expect(typeof logger.dispatchRetry).toBe("function");
   expect(typeof logger.pathEscapeAttempt).toBe("function");
 });
