@@ -2,10 +2,10 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { ZodError, type ZodTypeAny, type z } from "zod";
+import { ZodError, type ZodIssue, type ZodTypeAny, type z } from "zod";
 
 import { UpstreamError } from "../errors.js";
-import { asToolError, toMcpInputSchema, type RegisteredTool, type ToolCallResult } from "./_shared.js";
+import { asToolError, toMcpInputSchema, type RegisteredTool, type ToolCallResult, type ToolErrorPayload } from "./_shared.js";
 import { stripSchemaDescriptions, type JsonSchemaObject } from "../help/strip-schema.js";
 
 
@@ -18,6 +18,14 @@ export interface ToolSpec<TSchema extends ZodTypeAny, TDeps = undefined> {
   deps?: TDeps;
   responseFormat?: ResponseFormat;
   handler: (input: z.infer<TSchema>, deps: TDeps) => Promise<unknown | ToolCallResult>;
+  /**
+   * Optional mapper from Zod issues to a structured VALIDATION_ERROR payload,
+   * applied to BOTH input-validation failures AND runtime ZodErrors thrown by the
+   * handler (e.g. a defensive output `schema.parse`). When absent, a generic
+   * envelope listing the raw issues is emitted. `rawArgs` is the unparsed input,
+   * for mappers that echo input-derived fields (e.g. prepend's contentLength).
+   */
+  mapValidationError?: (issues: ZodIssue[], rawArgs: unknown) => ToolErrorPayload;
 }
 
 export function registerTool<TSchema extends ZodTypeAny, TDeps = undefined>(
@@ -26,6 +34,17 @@ export function registerTool<TSchema extends ZodTypeAny, TDeps = undefined>(
   const inputSchemaRaw = toMcpInputSchema(spec.schema);
   const inputSchema = stripSchemaDescriptions(inputSchemaRaw as JsonSchemaObject) as Record<string, unknown>;
   const responseFormat: ResponseFormat = spec.responseFormat ?? "json";
+
+  // Input-validation failures and runtime ZodErrors share one mapping: the
+  // per-tool hook when supplied, else a generic issues-listing envelope.
+  const toValidationError = (issues: ZodIssue[], rawArgs: unknown): ToolErrorPayload =>
+    spec.mapValidationError?.(issues, rawArgs) ?? {
+      code: "VALIDATION_ERROR",
+      message: `${spec.name} input failed schema validation`,
+      details: {
+        issues: issues.map((i) => ({ path: i.path, message: i.message, code: i.code })),
+      },
+    };
 
   return {
     descriptor: {
@@ -38,15 +57,7 @@ export function registerTool<TSchema extends ZodTypeAny, TDeps = undefined>(
       try {
         parsed = spec.schema.parse(args) as z.infer<TSchema>;
       } catch (err) {
-        if (err instanceof ZodError) {
-          return asToolError({
-            code: "VALIDATION_ERROR",
-            message: `${spec.name} input failed schema validation`,
-            details: {
-              issues: err.issues.map((i) => ({ path: i.path, message: i.message, code: i.code })),
-            },
-          });
-        }
+        if (err instanceof ZodError) return asToolError(toValidationError(err.issues, args));
         throw err;
       }
 
@@ -54,6 +65,10 @@ export function registerTool<TSchema extends ZodTypeAny, TDeps = undefined>(
       try {
         result = await spec.handler(parsed, spec.deps as TDeps);
       } catch (err) {
+        // A runtime ZodError (e.g. a handler's defensive output `schema.parse`)
+        // surfaces as the same structured VALIDATION_ERROR envelope instead of
+        // escaping the boundary unstructured.
+        if (err instanceof ZodError) return asToolError(toValidationError(err.issues, args));
         if (err instanceof UpstreamError) {
           return asToolError({
             code: err.code,

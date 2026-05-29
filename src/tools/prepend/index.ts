@@ -1,16 +1,10 @@
-// Original — no upstream. prepend tool registration — custom RegisteredTool builder (not registerTool) so the handler can intercept the schema-layer over-cap rejection and emit a stable top-level discriminator (VALIDATION_ERROR with details.code: CONTENT_TOO_LARGE + contentLength + maxLength) instead of the generic Zod issues envelope. Aligns the wire response with the published help-doc + description contract for the cap-rejection path; all other validation failures keep the generic envelope shape. responseFormat: "json" emits the { path, vault, bytes_written, inline } envelope on success.
-import { ZodError, type ZodIssue } from "zod";
+// Original — no upstream. prepend tool registration via registerTool with a mapValidationError hook that intercepts the schema-layer over-cap rejection and emits a stable top-level discriminator (VALIDATION_ERROR with details.code: CONTENT_TOO_LARGE + contentLength + maxLength) instead of the generic Zod issues envelope; all other validation failures keep the generic envelope shape. responseFormat: "json" emits the { path, vault, bytes_written, inline } envelope on success.
+import { type ZodIssue } from "zod";
 
 import { executePrepend, type ExecuteDeps } from "./handler.js";
 import { MAX_CONTENT_LENGTH, prependInputSchema } from "./schema.js";
-import { UpstreamError } from "../../errors.js";
-import { stripSchemaDescriptions } from "../../help/strip-schema.js";
-import {
-  asToolError,
-  toMcpInputSchema,
-  type JsonSchemaObject,
-  type RegisteredTool,
-} from "../_shared.js";
+import { registerTool } from "../_register.js";
+import { type RegisteredTool, type ToolErrorPayload } from "../_shared.js";
 
 export const PREPEND_TOOL_NAME = "prepend";
 
@@ -32,14 +26,7 @@ Typed errors via \`UpstreamError.code\`: \`NOTE_NOT_FOUND\`, \`EXTERNAL_EDITOR_C
 
 export type RegisterDeps = ExecuteDeps;
 
-function mapZodIssuesToToolError(
-  issues: ZodIssue[],
-  rawArgs: unknown,
-): {
-  code: string;
-  message: string;
-  details: Record<string, unknown>;
-} {
+function mapZodIssuesToToolError(issues: ZodIssue[], rawArgs: unknown): ToolErrorPayload {
   // Intercept the cap-rejection path (too_big on content) and emit the
   // documented top-level discriminator. The caller doesn't have to dig into
   // details.issues[] to identify what went wrong — details.code +
@@ -79,40 +66,12 @@ function mapZodIssuesToToolError(
 }
 
 export function createPrependTool(deps: RegisterDeps): RegisteredTool {
-  const inputSchemaRaw = toMcpInputSchema(prependInputSchema);
-  const inputSchema = stripSchemaDescriptions(
-    inputSchemaRaw as JsonSchemaObject,
-  ) as Record<string, unknown>;
-
-  return {
-    descriptor: {
-      name: PREPEND_TOOL_NAME,
-      description: PREPEND_DESCRIPTION,
-      inputSchema,
-    },
-    handler: async (args: unknown) => {
-      const parsed = prependInputSchema.safeParse(args);
-      if (!parsed.success) {
-        return asToolError(mapZodIssuesToToolError(parsed.error.issues, args));
-      }
-      try {
-        const result = await executePrepend(parsed.data, deps);
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify(result) }],
-        };
-      } catch (err) {
-        if (err instanceof ZodError) {
-          return asToolError(mapZodIssuesToToolError(err.issues, args));
-        }
-        if (err instanceof UpstreamError) {
-          return asToolError({
-            code: err.code,
-            message: err.message,
-            details: err.details,
-          });
-        }
-        throw err;
-      }
-    },
-  };
+  return registerTool({
+    name: PREPEND_TOOL_NAME,
+    description: PREPEND_DESCRIPTION,
+    schema: prependInputSchema,
+    deps,
+    handler: executePrepend,
+    mapValidationError: mapZodIssuesToToolError,
+  });
 }
