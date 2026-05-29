@@ -1,73 +1,92 @@
 # T0 Live-CLI Probe Findings — Retry Cold Start (ADR-029)
 
-**Run**: 2026-05-30 | **Host**: Windows 11 Pro | **Binary**: `C:\Program Files\Obsidian\obsidian.exe` (`Obsidian CLI`)
-**Vault**: `TestVault-Obsidian-CLI-MCP` (no plugins), driven in the **registered-but-closed** state per `.memory/test-execution-instructions.md`. The `obsidian` binary was invoked directly (not through `dist/index.js`); stdout/stderr/exit captured separately via `Start-Process -RedirectStandardOutput/-RedirectStandardError`.
+**Run**: 2026-05-30 | **Host**: Windows 11 Pro
+**Vault**: `TestVault-Obsidian-CLI-MCP` (no plugins), driven in the **registered-but-closed** state per `.memory/test-execution-instructions.md`. stdout/stderr/exit captured separately via `Start-Process -RedirectStandardOutput/-RedirectStandardError`.
 
-These findings close OQ-001..OQ-007, pin `COLD_START_INVARIANT`, decide the form-(b) ship/drop gate, and decide the pre-retry delay. They feed ADR-029 (flip Proposed → Decided, T033) and the architecture doc (T034).
+> ## Correction notice (binary): probes re-run against `Obsidian.com`
+>
+> The **first probe pass used `C:\Program Files\Obsidian\Obsidian.exe` directly** — the 210 MB GUI-subsystem Electron binary. That was wrong: per the project rule (Best Practices + CLI Tool Notes, 2026-05-27) direct-CLI probes must drive **`Obsidian.com`**, the 22 KB console shim, which is what the production `binary-resolver` actually spawns (`OBSIDIAN_BIN` unset → win32 skips platform-default → bare `"obsidian"` → PATH+PATHEXT resolves `.COM` ahead of `.EXE`). The GUI `.exe` detaches stdio in a console, producing a **misleading empty-stdout/exit-0** for cold commands and surfacing no errors — exactly the false-clean class the rule warns about (the same trap behind the reverted BI-0120 / ADR-009 / TC-00458 false-flips). All load-bearing findings below are from the **`.com` re-run**; the `.exe` empty-exit-0 is recorded only as the artifact it was.
+>
+> (`.memory/test-execution-instructions.md` states `obsidian` resolves to `…\obsidian.exe` on this host — that line is inaccurate and was flagged to the user for correction; not edited here.)
 
-## Pinned constant
+These findings close OQ-001..OQ-007, pin the cold-start signature, decide the form-(b) ship/drop gate, and decide the pre-retry delay. They feed ADR-029 (Decided) and the architecture doc.
 
-- **`COLD_START_INVARIANT = "not found. It may require a plugin to be enabled."`** — confirmed verbatim. Captured exit-0 stdout for an unknown command:
-  - `Error: Command "frobnicate" not found. It may require a plugin to be enabled.`
-  - `Error: Command "vault:open" not found. It may require a plugin to be enabled.`
-  - Both: `exitCode: 0`, literal on **stdout**, stderr empty. `dispatchCli` priority (c) classifies these as **`CLI_REPORTED_ERROR`** (stdout `trimStart()` begins `Error:`). The substring is command-name-independent (the interpolated command name precedes it), so the substring match (Q4) is correct; exact-equality would break FR-002.
+## Pinned signature — the command-not-found PREFIX (not a suffix)
+
+The cold-start of any command issued against a registered-but-closed vault is, on **exit 0, stdout**:
+
+```
+Error: Command "<cmd>" not found.<suffix>
+```
+
+The **suffix varies by edit-distance** to known commands, so it is NOT part of the invariant:
+
+| Command (state) | exit | stdout (verbatim, `.com`) |
+|---|---|---|
+| `read` (cold) | 0 | `Error: Command "read" not found. Did you mean: sync:read, daily:read, template:read?` |
+| `eval` (cold) | 0 | `Error: Command "eval" not found. It may require a plugin to be enabled.` |
+| `frobnicate` (unknown, warm) | 0 | `Error: Command "frobnicate" not found. It may require a plugin to be enabled.` |
+
+The invariant is the **prefix** `Error: Command "<cmd>" not found.`, matched by `COLD_START_PATTERN = /^\s*Error: Command "[^"]*" not found\./` (command- and suffix-independent, FR-002). `dispatchCli` priority (c) classifies it as **`CLI_REPORTED_ERROR`**. The pattern deliberately excludes the adjacent `File not found` / `Folder "x" not found.` / facade `Vault not found.` signatures (not command-registry misses).
+
+> An earlier (`.exe`-era) pin used the substring `"not found. It may require a plugin to be enabled."`. That **silently missed the `read`-style "Did you mean" cold-start** — a correctness bug, since `read` is a core MCP path. Corrected to the prefix pattern.
 
 ## Decisions
 
 | Decision | Outcome | Evidence |
 |---|---|---|
-| **Form (a) ship** | **SHIP, unconditional, all commands** | The `...not found. It may require a plugin to be enabled.` signature is real, exit-0, stdout, classified `CLI_REPORTED_ERROR`. Safe by registry-not-ready semantics. |
-| **Form (b) `Stream closed`** | **DROPPED** | `Stream closed` was **never observed** across all probes (read/search/eval/files/unknown, cold and warm). Per the research default-safe posture (inconclusive → drop), form (b) ships nothing. No `STREAM_CLOSED_SURFACE` constant is defined; no `emitError`-driven form-(b) tests are added. |
-| **Pre-retry delay** | **NONE (immediate)** | The immediate retry recovered (see P0-3). The ~1.0–1.04 s elapsed per call is the CLI's baseline round-trip overhead (present on warm `eval`/`files`/`unknown` calls too), not a cold-launch window the retry races. Default immediate retry stands. |
+| **Form (a) ship** | **SHIP, unconditional, all commands** | The `Error: Command "<cmd>" not found.` signature is real on `.com`, exit-0, stdout, classified `CLI_REPORTED_ERROR`; the registry was not loaded so the command did not execute → safe for mutating commands too. |
+| **Form (b) `Stream closed`** | **NOT retried (dropped)** | Decided on **safety**, not on a negative observation: a dropped transport pipe carries no evidence of *where* in the command lifecycle it fired, so retrying it could double-apply a non-idempotent mutation (research D5). The default-safe posture is to leave `Stream closed` single-shot. (No `Stream closed` was elicited in the `.com` probes either, but `Stream closed` is intermittent — a non-observation is explicitly NOT treated as evidence it cannot occur.) |
+| **Pre-retry delay** | **NONE (immediate)** | The immediate retry recovered on `.com` for both `read` and `eval` (attempt 2 returned real output). The ~1.0–1.04 s per-call cost is constant CLI round-trip overhead (warm calls cost the same), not a launch window the retry races. |
 
-## Probe results (verbatim)
+## Probe results (verbatim, `.com`)
 
-### P0-1 / P0-7 — form-(a) signature uniformity + command kinds (OQ-001, OQ-007)
+### Warm baseline (vault OPEN) — confirms commands are valid on `.com`
 
-| Command (state) | exit | stdout | manifestation |
-|---|---|---|---|
-| `read path=Welcome.md` (cold, attempt 1) | 0 | empty (bare `\n`) | **well-formed empty success** (index-not-ready), NOT form (a) |
-| `read path=Welcome.md` (warm, attempt 2) | 0 | full Welcome.md body | success |
-| `search query=vault` (cold) | 0 | empty | well-formed empty success |
-| `eval code=app.vault.getName()` (warm by then) | 0 | `=> TestVault-Obsidian-CLI-MCP` | success |
-| `eval code=1+1` (warm) | 0 | `=> 2` | success |
-| `files` (warm) | 0 | full file listing (325 files) | success |
-| `files total` (warm) | 0 | `325` | success |
-| `frobnicate` (unknown) | 0 | `Error: Command "frobnicate" not found. It may require a plugin to be enabled.` | **form (a)** → `CLI_REPORTED_ERROR` |
-| `vault:open` (unknown/TUI-only) | 0 | `Error: Command "vault:open" not found. It may require a plugin to be enabled.` | **form (a)** → `CLI_REPORTED_ERROR` |
+| Command | exit | stdout |
+|---|---|---|
+| `read path=Welcome.md` | 0 | full Welcome.md body (240 B) |
+| `files total` | 0 | `325` |
+| `search query=vault` | 0 | 7 matching paths |
+| `eval code=app.vault.getName()` | 0 | `=> TestVault-Obsidian-CLI-MCP` |
 
-**Key finding (honest scope note)**: on this host/version, a **valid core command** (`read`, `search`) issued against a cold (registered-but-closed) vault manifests as **empty stdout, exit 0** — the "well-formed empty/wrong success" manifestation, which `dispatchCli` resolves as **success**. The retry therefore does **not** fire for it — correctly, because retrying an exit-0 empty result is indistinguishable from a legitimately empty read/search and would risk masking a real empty result (the D4 PATH-4 danger). This manifestation is the **FR-013 out-of-scope** case (closes the FR-013 doc-guard, L2): it is the index-not-ready analogue of the focused-vault-mismatch eval envelope, handled — if at all — by a tool's own guards, never by the dispatch-layer retry.
+### P0-1 / P0-7 — cold manifestation + signature uniformity (OQ-001, OQ-007)
 
-The **form-(a) signature** (`Command "<cmd>" not found. It may require a plugin to be enabled.`) is the cold manifestation for commands **not in the active command registry** — genuinely unknown commands and, in the field, **plugin-backed commands whose plugin has not yet registered its command** on a freshly-loaded vault (e.g. the Smart Connections / Bases-backed tools). Those are exactly what form (a) recovers. The no-plugin test vault cannot exhibit a *valid* plugin command going from unregistered→registered, so the signature was elicited via unknown commands, which produce the byte-identical literal.
+From a freshly-closed vault, the **first** command (cold) then an immediate re-issue:
+
+| Probe | exit | stdout |
+|---|---|---|
+| `read path=Welcome.md` (attempt 1, cold) | 0 | `Error: Command "read" not found. Did you mean: sync:read, daily:read, template:read?` |
+| `read path=Welcome.md` (attempt 2, immediate) | 0 | full Welcome.md body → **recovered** |
+| `eval code=app.vault.getName()` (attempt 1, cold) | 0 | `Error: Command "eval" not found. It may require a plugin to be enabled.` |
+| `eval` (attempt 2, immediate) | 0 | `=> TestVault-Obsidian-CLI-MCP` → **recovered** |
+
+Three cold/unknown samples (`read`, `eval`, `frobnicate`) confirm the `Command "<cmd>" not found.` prefix is command-independent; the suffix is not. **No empty-exit-0 on `.com`** — that manifestation was purely an `.exe` stdio-detachment artifact.
 
 ### P0-2 — `Stream closed` surface form (OQ-002, D4)
 
-**Not observed.** No probe (cold or warm, read/search/eval/files/unknown) ever produced `Stream closed` on stdout, stderr, a raw rejection, or a non-zero exit. Form (b) cannot be characterized → **dropped** per the default-safe posture. `STREAM_CLOSED_SURFACE` is left undefined.
+**Not elicited** across the `.com` probes (read/eval/files/search/unknown, cold and warm). Because `Stream closed` is intermittent and the form-(b) drop rests on a *safety* argument (above), a non-observation neither clears nor is required to drop it. No `STREAM_CLOSED_SURFACE` constant is defined.
 
 ### P0-3 — pre-retry delay (OQ-003)
 
-**Immediate retry succeeds.** Clean two-attempt capture of the identical command `read path=Welcome.md` from a freshly-closed state:
-- Attempt 1: exit 0, **empty** stdout, 1028 ms.
-- Attempt 2 (immediate, no delay): exit 0, **full Welcome.md content**, 1018 ms.
-
-The vault load completed during/by the second attempt with no inserted delay. The ~1 s per-call cost is constant CLI overhead (warm calls cost the same), not a launch window. **Decision: immediate retry, no fixed delay.**
+**Immediate retry succeeds** (see P0-1: attempt 2 recovered for both `read` and `eval` with no inserted delay). ~1 s per call is constant overhead, not a launch window. **Decision: immediate, no delay.**
 
 ### P0-4 — form-(b) mutation safety (OQ-005, D5 gate)
 
-**N/A — not run.** The destructive `Stream closed`-against-a-mutating-command probe is only needed to *clear form (b) for shipping*. Since P0-2 found no `Stream closed` to force, form (b) is dropped regardless; running a destructive mutation probe would add risk with no decision value. No `Sandbox/` fixtures were seeded; no `.trash/` residue produced. (Default-safe posture: form (a) only.)
+**N/A — not run.** Needed only to *clear form (b) for shipping*; since form (b) is dropped on the safety argument regardless, no destructive `Stream closed`-vs-mutation probe was performed. No `Sandbox/` fixtures were seeded; no `.trash/` residue produced.
 
 ### P0-5 — no-masking on a genuine unknown (OQ-004)
 
-`frobnicate` and `vault:open` both return the form-(a) signature (exit 0, `Error: Command "..." not found. It may require a plugin to be enabled.`). A retry re-runs the identical command, which — the vault now warm — still yields `Command not found` for a genuinely unknown command, so the original `CLI_REPORTED_ERROR` propagates after exactly one retry. The bounded single-retry + second-attempt-authoritative behaviour is exercised deterministically in the unit suite (`_dispatch.test.ts` US2 cases T017–T020).
+`frobnicate` / `vault:open` return the form-(a) signature; a genuinely unknown command re-runs identically on retry (still "Command not found") and the original `CLI_REPORTED_ERROR` propagates after exactly one retry. Bounded single-retry + second-attempt-authoritative behaviour is exercised deterministically in the unit suite (`_dispatch.test.ts` US2 cases).
 
 ### P0-6 — both facades (OQ-006)
 
-Both facades (`invokeCli` typed tools, `invokeBoundedCli`/`obsidian_exec` passthrough) route every command through the single `dispatchCli` primitive (verified structurally: `dispatchCli` has exactly the two facade callers). The cold-start signature and the retry are therefore inherited identically by both; this is asserted in the unit suite via facade-inheritance tests (`cli-adapter.test.ts`, `invoke-bounded-cli.test.ts`) rather than re-elicited live per facade.
+Both facades route every command through the single `dispatchCli` primitive (verified structurally: exactly two facade callers). The retry is inherited identically; asserted in the unit suite via facade-inheritance tests using the verbatim `.com` "Did you mean" cold stdout (`cli-adapter.test.ts`, `invoke-bounded-cli.test.ts`).
 
 ## Net effect on the implementation
 
-- `COLD_START_INVARIANT = "not found. It may require a plugin to be enabled."` — exact, pinned.
-- `isColdStart` = **form (a) only**: `value instanceof UpstreamError && value.code === "CLI_REPORTED_ERROR" && typeof value.details?.stdout === "string" && value.details.stdout.includes(COLD_START_INVARIANT)`.
-- **No form (b)**: Phase 7 (T030/T031) is dropped; no `Stream closed` matcher, no PATH-4 resolved-stdout inspection, no `emitError`-driven form-(b) test. The `emitError` stub field (T002) remains as harmless unused test infrastructure for any future form-(b) characterization.
+- `COLD_START_PATTERN = /^\s*Error: Command "[^"]*" not found\./` — the command-not-found prefix, command- and suffix-independent.
+- `isColdStart` = **form (a) only**: `value instanceof UpstreamError && value.code === "CLI_REPORTED_ERROR" && typeof value.details?.stdout === "string" && COLD_START_PATTERN.test(value.details.stdout)`.
+- **No form (b)**: `Stream closed` is left single-shot on the mutation-safety argument; no matcher, no PATH-4 resolved-stdout inspection, no `Stream closed` test. The `emitError` stub (T002) remains as harmless infrastructure.
 - **No pre-retry delay.**
-- The empty-exit-0 cold manifestation of core read commands is documented as **FR-013 out-of-scope** and is intentionally **not** retried (success-path inspection for it is rejected — masking risk).
+- The `.exe` empty-exit-0 manifestation is an artifact of probing the wrong binary, not a real production behaviour; the earlier FR-013 "cold valid command returns empty success" claim is withdrawn. (FR-013's distinct eval-envelope focused-vault-mismatch case — a vault opens but the wrong one is focused, yielding a well-formed `VAULT_NOT_FOCUSED`/`VAULT_NOT_FOUND` envelope handled by the tool's own guard — remains real and out of dispatch-layer scope; it is unrelated to the `.exe` artifact.)

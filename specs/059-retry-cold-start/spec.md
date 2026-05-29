@@ -7,9 +7,14 @@
 
 ## Clarifications
 
-### Implementation outcome (2026-05-30) — T0 probe gate
+### Implementation outcome (2026-05-30) — T0 probe gate (against `Obsidian.com`)
 
-The implementation-phase T0 live-CLI probes (evidence: `contracts/t0-probe-findings.md`) resolved the deferred parameters: `COLD_START_INVARIANT = "not found. It may require a plugin to be enabled."` was pinned verbatim; the retry fires immediately (no delay — the immediate retry recovered); and **form (b) `Stream closed` was DROPPED** — no `Stream closed` manifestation was observed in any probe, so per the default-safe posture the shipped feature is **form (a) only** (the probe-gated form (b) of Q-below ships nothing). One empirical caveat (FR-013, out of scope): a cold *valid core* command (`read`/`search`) returned a well-formed empty `exitCode: 0` success, which `dispatchCli` resolves as success, so the retry does not fire for it — retrying an empty result would be indistinguishable from a legitimately empty read.
+The implementation-phase T0 live-CLI probes (evidence: `contracts/t0-probe-findings.md`) resolved the deferred parameters. The probes were re-run against the production-resolved **`Obsidian.com`** shim after an initial pass mistakenly drove the GUI `Obsidian.exe` (whose detached console stdio gave a misleading empty-exit-0):
+
+- **Trigger signature** is the command-not-found PREFIX `Error: Command "<cmd>" not found.` (matched by `COLD_START_PATTERN`), not a fixed suffix — the suffix varies by edit-distance (`Did you mean: …` for `read`; `It may require a plugin to be enabled.` for `eval`/unknowns). An earlier suffix-only pin missed the `read`-style cold-start (corrected).
+- **Retry fires immediately** (no delay — the immediate retry recovered for both `read` and `eval` on `.com`).
+- **Form (b) `Stream closed` is NOT retried** — left single-shot on the mutation-safety argument (a dropped pipe could fire post-mutation; retrying risks double-apply). This is the safe default, independent of any "never observed" negative (`Stream closed` is intermittent).
+- The earlier "cold valid command returns empty exit-0 success" caveat was an **`.exe` artifact and is withdrawn**; on `.com` the cold-start is the form-(a) command-not-found, which the retry recovers. FR-013's distinct eval-envelope focused-vault-mismatch case remains real and out of dispatch-layer scope.
 
 ### Session 2026-05-30
 

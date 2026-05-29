@@ -4,14 +4,14 @@ This feature is dispatch-layer control flow, not a data surface — it adds no s
 
 ## Constants
 
-- **`COLD_START_INVARIANT: string`** — the command-name-independent substring that identifies the form-(a) cold-start stdout. Working value `"not found. It may require a plugin to be enabled."` (pinned exactly by T0 probe P0-1 before freeze). Single source of truth; both the production matcher and the test fixture import it so they cannot drift.
+- **`COLD_START_PATTERN: RegExp`** — the command- and suffix-independent signature that identifies the form-(a) cold-start stdout. **Shipped value (pinned by T0 probe P0-1 against `Obsidian.com`, 2026-05-30): `/^\s*Error: Command "[^"]*" not found\./`.** The suffix varies by edit-distance (`Did you mean: …` vs `It may require a plugin to be enabled.`), so the invariant is the command-not-found PREFIX, not a suffix substring. *(An earlier working value `"not found. It may require a plugin to be enabled."` was a suffix substring that missed the `read`-style "Did you mean" cold-start — corrected.)* Single source of truth; the production matcher and the test fixtures import it so they cannot drift.
 - **`STREAM_CLOSED_SURFACE`** — the pinned surface form of form (b) (`Stream closed`). Shape is decided by T0 probe P0-2: one of `{ kind: "rawError"; messageIncludes: string }`, `{ kind: "nonZeroExit"; streamIncludes: string }`, or `{ kind: "exit0Stdout"; stdoutIncludes: string }` (the dangerous resolve-path form). **Only defined if probe P0-4 clears form (b)** (D5); otherwise form (b) is dropped and this constant does not exist.
 
 ## `ColdStartTriggerForm` (conceptual)
 
 | Form | Surfaces through `dispatchCli` as | Retry policy |
 |---|---|---|
-| **(a) command-not-found** | `UpstreamError{ code: "CLI_REPORTED_ERROR", details.stdout includes COLD_START_INVARIANT, exitCode: 0 }` (priority (c) classifier) | **Unconditional** — all commands, safe by registry-not-ready semantics (FR-011) |
+| **(a) command-not-found** | `UpstreamError{ code: "CLI_REPORTED_ERROR", details.stdout matches COLD_START_PATTERN, exitCode: 0 }` (priority (c) classifier) | **Unconditional** — all commands, safe by registry-not-ready semantics (FR-011) |
 | **(b) Stream closed** | raw `Error` (PATH 2) \| `CLI_NON_ZERO_EXIT` (PATH 3) \| exit-0 stdout success (PATH 4, dangerous) | **Probe-gated, all-or-nothing** — enabled blanket only if P0-4 proves pre-execution-only firing; else dropped (FR-001, D5) |
 
 ## `AttemptOutcome` (conceptual)
@@ -26,14 +26,11 @@ Pure predicate. Input is the caught throw value **or** the resolved `DispatchOut
 
 ```
 isColdStart(value):
-  // form (a) — always in scope
+  // form (a) only — form (b) Stream closed is NOT retried (mutation-safety, D5)
   if value instanceof UpstreamError
      && value.code === "CLI_REPORTED_ERROR"
      && typeof value.details?.stdout === "string"
-     && value.details.stdout.includes(COLD_START_INVARIANT):
-        return true
-  // form (b) — only if probe P0-4 cleared it (D5); shape per STREAM_CLOSED_SURFACE
-  if FORM_B_ENABLED && matchesStreamClosed(value):
+     && COLD_START_PATTERN.test(value.details.stdout):   // /^\s*Error: Command "[^"]*" not found\./
         return true
   return false
 ```
