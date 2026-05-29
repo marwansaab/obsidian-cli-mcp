@@ -73,7 +73,7 @@ Caller remediation: ensure Obsidian is running with the target vault focused, an
 
 ### `INTERNAL_ERROR`
 
-The eval returned a result the handler cannot interpret (malformed JSON, unrecognised `stage`). Should not occur in normal operation. `details.stage: string`; `details.cause: unknown`.
+The eval returned a result the handler cannot interpret (malformed JSON, or an envelope that fails `openEvalResponseSchema.safeParse`). Should not occur in normal operation. `details.stage: "json-parse" | "envelope-parse"`; `details.cause: unknown`.
 
 Caller remediation: report with the full payload; retry once for a transient eval failure, not indefinitely.
 

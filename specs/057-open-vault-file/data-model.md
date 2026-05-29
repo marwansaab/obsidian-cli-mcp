@@ -34,30 +34,30 @@ There is **no `target_mode` field** (R4). The schema shape diverges deliberately
 
 Identical shape across all recognised file types (FR-009). Echoed for write-verification (FR-016, R6). No file-type field (so callers do not branch on type).
 
-## Internal entity — `OpenEvalResult` (the discriminated eval return)
+## Internal entity — eval envelope (validated by `openEvalResponseSchema`)
 
-The composed eval (`composeOpenEval(expectedBase, relPath, newTab)`) returns one of:
+The eval is the frozen `JS_TEMPLATE` in `src/tools/open_file/_template.ts`, composed via the shared `composeEvalCode(JS_TEMPLATE, { expectedBase, path, file, new_tab })` (base64 payload, `_shared.ts`, R12 anti-injection — cohort parity with `backlinks/_template.ts`). It returns the cohort-standard `{ok}` discriminated envelope (parity with `backlinks`' `{ok:false, code, detail}`), validated by a zod `openEvalResponseSchema` in `schema.ts`:
 
-| `stage` | Extra fields | Handler maps to |
-|---------|--------------|-----------------|
-| `"ok"` | `opened: string`, `newTab: boolean` | `OpenFileOutput` success |
-| `"vault-not-focused"` | — | `CLI_REPORTED_ERROR` / `details.code: "VAULT_NOT_FOUND"` / `details.reason: "not-open"` |
-| `"file-not-found"` | — | `CLI_REPORTED_ERROR` / `details.code: "FILE_NOT_FOUND"` |
-| `"unsupported-type"` | `extension: string` | `CLI_REPORTED_ERROR` / `details.code: "UNSUPPORTED_FILE_TYPE"` |
+| Envelope | Extra fields | Handler maps to |
+|----------|--------------|-----------------|
+| `{ ok: true }` | `opened: string`, `new_tab: boolean` | `OpenFileOutput` success |
+| `{ ok: false, code: "VAULT_NOT_FOCUSED" }` | — | `CLI_REPORTED_ERROR` / `details.code: "VAULT_NOT_FOUND"` / `details.reason: "not-open"` + `details.vault` |
+| `{ ok: false, code: "FILE_NOT_FOUND" }` | `detail: string` (the attempted locator) | `CLI_REPORTED_ERROR` / `details.code: "FILE_NOT_FOUND"` + `details.path` + `details.vault` |
+| `{ ok: false, code: "UNSUPPORTED_FILE_TYPE" }` | `detail: string` (the extension) | `CLI_REPORTED_ERROR` / `details.code: "UNSUPPORTED_FILE_TYPE"` + `details.extension` + `details.path` + `details.vault` |
 
-The eval body (R2) in order: normalise+compare `app.vault.adapter.basePath` to `expectedBase` → `app.vault.getAbstractFileByPath(relPath)` (null or non-`TFile`/folder → `file-not-found`) → `app.viewRegistry` extension-registered check (unregistered → `unsupported-type`) → `app.workspace.openLinkText(relPath, "", newTab)` → `ok`. The `=> <json>` echo is stripped by the cohort's `parseEvalStdout`; a malformed/un-parseable result is an `INTERNAL_ERROR` (cohort invariant-violation path), never a silent success.
+The eval body (R2) — a block-body async IIFE — in order: read the base64 payload (`const a = JSON.parse(<b64-decode>)`) → normalise + compare `app.vault.adapter.basePath` to `a.expectedBase` (mismatch → `VAULT_NOT_FOCUSED`) → resolve the file: `path` locator via `app.vault.getFiles().find(x => x.path === a.path)`, `file` locator via `app.metadataCache.getFirstLinkpathDest(a.file, "")` (null / folder → `FILE_NOT_FOUND`) → `app.viewRegistry` extension-registered check (unregistered → `UNSUPPORTED_FILE_TYPE`) → `await app.workspace.openLinkText(f.path, "", a.new_tab)` → `{ ok: true, opened: f.path, new_tab: a.new_tab }`. The handler decodes single-stage (strip the `"=> "` echo → `JSON.parse` → `openEvalResponseSchema.safeParse`, parity with `backlinks`); a malformed/un-parseable result is an `INTERNAL_ERROR` (cohort invariant-violation path), never a silent success.
 
 ## Classifier stage order (FR-012a / ADR-014)
 
 ```
-1. resolveVaultPath(vault) throws (registry miss)  → VAULT_NOT_FOUND / unknown      [TS, before any eval]
-2. eval stage "vault-not-focused"                  → VAULT_NOT_FOUND / not-open     [guard, before file resolution]
-3. eval stage "file-not-found"                     → FILE_NOT_FOUND
-4. eval stage "unsupported-type"                   → UNSUPPORTED_FILE_TYPE
-5. eval stage "ok"                                 → success
+1. resolveVaultPath(vault) throws (registry miss)      → VAULT_NOT_FOUND / unknown   [TS, before any eval]
+2. eval {ok:false, code:"VAULT_NOT_FOCUSED"}           → VAULT_NOT_FOUND / not-open  [guard, before file resolution]
+3. eval {ok:false, code:"FILE_NOT_FOUND"}              → FILE_NOT_FOUND
+4. eval {ok:false, code:"UNSUPPORTED_FILE_TYPE"}       → UNSUPPORTED_FILE_TYPE
+5. eval {ok:true}                                      → success
 ```
 
-The guard (steps 1–2) precedes file resolution (steps 3–4) so a wrong/unfocused vault never probes the file in the wrong vault and never reports a wrong-vault `FILE_NOT_FOUND` (FR-012a). `file-not-found` precedes `unsupported-type` because a nonexistent file has no type to evaluate.
+The guard (steps 1–2) precedes file resolution (steps 3–4) so a wrong/unfocused vault never probes the file in the wrong vault and never reports a wrong-vault `FILE_NOT_FOUND` (FR-012a). `FILE_NOT_FOUND` precedes `UNSUPPORTED_FILE_TYPE` because a nonexistent file has no type to evaluate. The ordering is enforced inside the single eval (the `return`s are sequential), so it holds atomically.
 
 ## State / side effects
 
