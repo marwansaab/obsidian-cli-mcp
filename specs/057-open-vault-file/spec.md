@@ -1,0 +1,164 @@
+# Feature Specification: Open Vault File
+
+**Feature Branch**: `057-open-vault-file`
+**Created**: 2026-05-29
+**Status**: Draft
+**Input**: User description: "Open Vault File — a caller can open a file held in the vault so it becomes the focused, visible file in the active Obsidian workspace. The file may be any type the vault recognises — a markdown note, a canvas, a PDF, an image, or any other supported attachment — not markdown notes only. Surfaces an artifact to the person right after an automation creates or finds it, with an optional new-tab open, an existing-tab focus (no duplicate) when not opening a new tab, typed not-found / unsupported-type / vault-not-open diagnostics instead of a silent no-op, and the opened file left as the focused active file so subsequent focus-based actions act on it. Out of scope: external (non-vault) paths; tab management beyond opening; switching or opening a different vault; editing the file's content; scrolling to a heading or block."
+
+## User Scenarios & Testing *(mandatory)*
+
+### User Story 1 - Surface an existing vault file as the focused, active file (Priority: P1)
+
+An automation agent has produced or located a file in the vault and wants the person to see it immediately. The agent names the file by its location (vault plus the file's vault-relative path) and asks the tool to open it. The tool opens that file in the active Obsidian workspace so it becomes the focused, visible file, and returns a success confirmation that identifies the file that was opened. The person sees the artifact without navigating to it by hand.
+
+**Why this priority**: This is the whole point of the feature and the minimum viable slice. Without it there is no hand-off capability decoupled from writing — today the only way to surface a file is the `write_note` `open` parameter, which fires only when you are also writing the file (ADR-009). A caller that merely *found* an existing file, or wants to surface a file it did not write, has no surface at all. P1 stands alone: an agent that can point at a vault location and have that file become the focused file already delivers the core value, even before the non-markdown and new-tab refinements layer on.
+
+**Independent Test**: With a target vault open and focused in Obsidian, issue the open against an existing markdown note by its vault-relative path. Verify (a) that note becomes the focused, visible file in the workspace, (b) the response is a success confirmation identifying the opened file by its resolved vault-relative path, and (c) a subsequent focus-based action (an active-mode tool call) operates on the just-opened file — proving it is genuinely the active file, not merely loaded in the background.
+
+**Acceptance Scenarios**:
+
+1. **Given** a file exists at the given location in the focused vault, **When** the caller opens it, **Then** that file becomes the focused, visible file in the active workspace and the caller receives a success confirmation that identifies the opened file by its resolved vault-relative location.
+2. **Given** a successful open, **When** the open completes, **Then** the opened file is the focused, active file such that a subsequent focus-based action (an active-mode tool call) acts on it rather than on whatever was focused before.
+3. **Given** no file exists at the given location in the focused vault, **When** the caller tries to open it, **Then** nothing is opened, the workspace's current focus is unchanged, and the caller receives a typed not-found result that names the requested location.
+
+---
+
+### User Story 2 - Open any vault-supported file type, not markdown only (Priority: P1)
+
+An automation agent surfaces whatever artifact is relevant — a markdown note, a canvas, a PDF, an image, or any other attachment the vault recognises — and the tool opens each one in the workspace using Obsidian's native viewer for that type, producing the same success result a markdown note would. When the file's type is one the vault does not recognise or cannot display, the caller receives a result that is programmatically distinguishable from "file not found", so a wrong-type artifact is never reported as a silent success that opened nothing.
+
+**Why this priority**: Type-generality is the headline differentiator named in the feature ("any type the vault recognises … not markdown notes only"). An automation that produces a chart image, a rendered PDF, or a canvas map needs to surface that artifact, not only `.md` files. The open mechanism resolves the file and hands it to Obsidian, which already routes each recognised extension to its native view, so type-generality is close to free for recognised types; the distinct work is the "type not supported" diagnostic that keeps an unrenderable file from masquerading as a successful open. P1 alongside US1 because the feature's value proposition collapses to "markdown opener" without it.
+
+**Independent Test**: With a target vault open and focused, open in turn a canvas file, a PDF, and an image, each by its vault-relative path. Verify each opens in the workspace under Obsidian's native viewer for that type and returns the same success shape US1 produces. Then issue the open against a file whose extension the vault does not recognise and verify the result is a typed "type not supported" error, programmatically distinguishable from the not-found result of US1 scenario 3, and that nothing was opened.
+
+**Acceptance Scenarios**:
+
+1. **Given** a non-markdown file the vault supports (for example a canvas, a PDF, or an image) exists in the focused vault, **When** the caller opens it, **Then** it opens in the workspace using Obsidian's native viewer for that type and the caller receives the same success result shape a markdown note would produce.
+2. **Given** a file whose type the vault does not recognise or cannot display exists at the requested location, **When** the caller tries to open it, **Then** the caller receives a typed result that distinguishes "type not supported" from "file not found", nothing is opened, and the workspace focus is unchanged.
+3. **Given** the success result for a non-markdown file, **When** the caller inspects it, **Then** it identifies the opened file by the same resolved vault-relative location field used for a markdown note — the caller does not branch on file type to read the response.
+
+---
+
+### User Story 3 - Open in a new tab, or focus the existing tab without duplicating (Priority: P2)
+
+An automation agent that wants to preserve whatever the person already had open requests a new-tab open: the file opens in a new tab and the previously focused file stays open in its own tab. When the agent does not request a new tab and the file is already open somewhere in the workspace, the existing tab is brought into focus rather than a second tab for the same file being created.
+
+**Why this priority**: P1 already surfaces the file; P3 layers control over *how* it is surfaced. The new-tab opt-in protects the person's current context (an agent surfacing a reference artifact should not evict the note the person is editing). The reuse-existing-tab behaviour for the default (no new tab) case prevents tab clutter when an agent repeatedly surfaces the same file. Both are refinements on top of a working open, so they slice cleanly after US1/US2 without disturbing them; a caller that always accepts the default placement is unaffected.
+
+**Independent Test**: With file A focused, open file B requesting a new tab; verify B is focused in a new tab and A is still open in its own tab. Then, with B already open, open B again without requesting a new tab; verify the existing B tab is focused and no second B tab was created (the workspace tab count for B is unchanged).
+
+**Acceptance Scenarios**:
+
+1. **Given** the caller wants to preserve the current view, **When** the caller opens a file requesting a new tab, **Then** the file opens in a new tab, becomes the focused file, and the previously focused file stays open in its own tab.
+2. **Given** a file is already open in the workspace, **When** the caller opens it again without requesting a new tab, **Then** the existing tab for that file is brought into focus and no duplicate tab is created.
+3. **Given** the caller opens a file requesting a new tab while that same file is already open in another tab, **When** the open completes, **Then** the workspace follows Obsidian's native new-tab behaviour for an already-open file (a new tab/leaf is created and focused); the new-tab request is honoured literally rather than collapsing to the reuse-existing-tab behaviour of scenario 2.
+
+---
+
+### User Story 4 - Distinguish every failure mode through typed errors, never a silent no-op (Priority: P2)
+
+A caller that supplies a location with no file, a file whose type cannot be displayed, a location in a vault that is not the currently focused vault, a malformed or out-of-vault location, both location shapes at once, no location at all, or an unknown extra field, receives a typed, structured error identifying which failure mode occurred. Nothing is opened, the workspace focus is left unchanged, and the caller can switch on the failure mode directly without parsing prose.
+
+**Why this priority**: P1/P2 give the happy path and type-generality; P4 is the diagnostic contract that makes the surface safe to automate. The feature's "rather than a silent no-op" language across its acceptance criteria is a hard requirement: a hand-off tool that silently does nothing on a wrong location or a closed vault would leave the person staring at the wrong screen while the agent reports success. P4 makes "file not found", "type not supported", "vault must be open first", and the input-validation failures programmatically distinguishable states. It is P2 rather than P1 only because the happy path is demonstrable without the full failure taxonomy; in practice it ships together with US1/US2's individual not-found and unsupported-type scenarios.
+
+**Independent Test**: Drive each failure mode in turn — a path with no file, an unrenderable type, a location whose owning vault is registered but not the focused vault, an out-of-vault path, both a path and a name supplied together, neither supplied, and an unknown extra field — and verify each returns a typed error that is programmatically distinguishable from the others, that nothing is opened, and that the workspace focus is unchanged.
+
+**Acceptance Scenarios**:
+
+1. **Given** the vault that owns the target file is registered but is not the currently focused vault in Obsidian, **When** the caller tries to open a file in it, **Then** the caller receives a typed error indicating the vault must be open and focused first, nothing is opened, and the response is distinguishable from the not-found and unsupported-type results.
+2. **Given** the named vault is not registered with Obsidian at all, **When** the caller tries to open a file in it, **Then** the caller receives a typed not-found result for the vault, distinguishable from the registered-but-not-focused result of scenario 1.
+3. **Given** a location that resolves outside the vault root (for example a traversal-shaped or absolute path), **When** the caller submits it, **Then** the request is rejected at the input-validation / path-safety boundary with a typed error, before any open is attempted, and nothing is opened.
+4. **Given** both an explicit path location and a name location supplied in the same call, **When** the caller submits it, **Then** the request is rejected at the input-validation boundary with a typed mutually-exclusive-locators error and nothing is opened.
+5. **Given** neither a path nor a name location supplied, **When** the caller submits it, **Then** the request is rejected at the input-validation boundary with a typed missing-locator error and nothing is opened.
+6. **Given** an unknown extra input field, **When** the caller submits it, **Then** the request is rejected at the input-validation boundary with a typed error naming the offending field and nothing is opened (strict-mode schema, cohort parity).
+
+---
+
+### Edge Cases
+
+- **Location names no file (path, name, or a stale resolution)**: per FR-014, the operation fails with a typed not-found result that names the requested location; nothing is opened and the workspace focus is unchanged. Distinct from the unsupported-type result (FR-009).
+- **File exists but its type is unrecognised / cannot be displayed**: per FR-009, the operation fails with a typed "type not supported" result, programmatically distinguishable from not-found, rather than a silent success that opens nothing. The reliability of detecting this versus an empty open is a detection-capability caveat inherited from the eval-composed cohort (see Assumptions); when the substrate cannot signal the condition, the contract degrades to "no file became focused" and the tool reports the open as not having taken effect rather than fabricating success.
+- **Target vault registered but not the focused vault**: per FR-011, because the open acts on Obsidian's currently focused vault (upstream limitation B1 — `vault=` is a no-op on the eval substrate), a requested vault that is not the focused vault yields a typed "open and focus the vault first" error rather than mis-opening a like-named path in the wrong vault. This is the literal realisation of the feature's "vault must be open first" boundary, sharpened to "focused" because merely-open-in-a-background-window is not sufficient for the substrate to route correctly.
+- **Target vault not registered with Obsidian at all**: per FR-012, surfaces as the vault-unknown not-found result, distinguishable from the registered-but-not-focused case (cohort parity with `VAULT_NOT_FOUND` `details.reason` sub-discrimination per ADR-015).
+- **Obsidian is not running**: the open cannot be performed; the failure surfaces through the existing CLI-bridge failure path (the cohort's binary-not-found / CLI-reported failure), not a silent success. The tool does not launch Obsidian.
+- **Location resolves to a folder, not a file**: per FR-014, surfaces as not-found (or the substrate's equivalent "no openable file" signal); nothing is opened.
+- **Name location resolves to multiple files (ambiguous bare name)**: the tool inherits the cohort's existing name-resolution rule (the same rule the read-side `file` parameter follows); it introduces no new ambiguous-name error.
+- **Name location supplied with literal `[[…]]` brackets**: per FR-004, rejected at the input-validation boundary with a typed error naming the offending bracket characters and the expected bare-name shape — cohort parity with every existing `file`-parameter tool (none strip brackets). No open is attempted.
+- **Out-of-vault or traversal-shaped location**: per FR-013, rejected at the input-validation / path-safety boundary (`PATH_ESCAPES_VAULT` or the validation-layer reject), before any open; nothing is opened.
+- **File already open, new-tab requested**: per FR-008, the new-tab request is honoured literally — Obsidian's native behaviour creates and focuses a new tab/leaf even though the file is already open elsewhere. The reuse-existing-tab behaviour applies only to the default (no new tab) case.
+- **Open succeeds but the person then closes or moves the tab**: out of scope — the tool's contract ends when the file becomes the focused file; subsequent tab management by the person is not the tool's concern (Out of scope).
+
+## Requirements *(mandatory)*
+
+### Functional Requirements
+
+#### Locator and addressing
+
+- **FR-001**: System MUST accept a target file location consisting of a vault identifier plus exactly one of: an explicit vault-relative path, or a name location (the bare file/note name — the same shape the cohort's read-side tools accept under their `file` parameter). The path location and the name location are mutually exclusive.
+- **FR-002**: System MUST resolve the name location using the cohort's existing name-resolution rule (the same rule the read-side `file` parameter follows). The tool introduces no new resolution algorithm and no new ambiguous-name error.
+- **FR-003**: System MUST identify, in the success response, the opened file by its resolved vault-relative location regardless of which locator shape the caller supplied. A caller who supplies a name location receives the resolved vault-relative path in the response, not the name they supplied.
+- **FR-004**: System MUST reject a name location that contains the `[[` or `]]` bracket characters at the input-validation boundary, before any open is attempted, with a typed validation error naming the offending characters and the expected bare-name shape. The tool does not silently strip brackets — cohort parity with every existing `file`-parameter tool.
+- **FR-005**: System MUST reject, at the input-validation boundary, any call that supplies both locator shapes together, and any call that supplies neither, each with a typed validation error naming the violation. No open is attempted in either case.
+
+#### Open behaviour and focus
+
+- **FR-006**: System MUST, on success, cause the target file to become the focused, visible file in the active Obsidian workspace.
+- **FR-007**: After a successful open, the opened file MUST be the focused, active file such that a subsequent focus-based action (an active-mode tool call) operates on it. The open is the means by which an automation hands a file to the active-file surface used by the rest of the typed-tool family.
+- **FR-008**: System MUST accept an explicit "new tab" opt-in input. When enabled, the file opens in a new tab and the previously focused file stays open in its own tab. When not enabled and the file is already open in the workspace, System MUST bring the existing tab into focus rather than creating a duplicate tab. The opt-in defaults to off (reuse / focus existing). When the opt-in is enabled and the file is already open, the new-tab request is honoured literally per Obsidian's native behaviour (a new tab is created and focused).
+- **FR-009**: System MUST support opening any file type the vault recognises (markdown note, canvas, PDF, image, or other recognised attachment), each via Obsidian's native viewer for that type, returning the same success-response shape across all recognised types. When the file's type is one the vault does not recognise or cannot display, System MUST surface a typed result that is programmatically distinguishable from the not-found result (FR-014), rather than a silent success that opens nothing.
+
+#### Vault precondition and routing
+
+- **FR-010**: System MUST NOT switch to, focus, or open a different vault as part of the open operation. The open acts within the currently focused Obsidian vault; changing the focused vault is out of scope.
+- **FR-011**: When the vault named in the location is registered with Obsidian but is not the currently focused vault, System MUST fail with a typed error indicating the vault must be open and focused first, MUST NOT open anything, and MUST leave the workspace focus unchanged. This contract follows from the eval substrate routing every open to the focused vault regardless of the requested vault name (upstream limitation B1); the error is the cohort's `VAULT_NOT_FOUND` with the registered-but-not-currently-focused `details.reason` (ADR-015), introducing no new top-level error code.
+- **FR-012**: When the vault named in the location is not registered with Obsidian at all, System MUST fail with the vault-unknown not-found result, programmatically distinguishable (via `details.reason`) from the registered-but-not-focused result of FR-011.
+
+#### Input validation and path safety
+
+- **FR-013**: System MUST reject a location that resolves outside the vault root (traversal-shaped, absolute, drive-letter, or control-character inputs) at the input-validation / path-safety boundary, before any open is attempted, with the cohort's typed path-safety error (`PATH_ESCAPES_VAULT` or the validation-layer reject). Nothing is opened.
+- **FR-014**: When the resolved location names no existing file in the focused vault (whether the locator was a path, a name, or a folder rather than a file), System MUST fail with a typed not-found result that names the requested location and MUST NOT open anything. The not-found result MUST be programmatically distinguishable from the unsupported-type result (FR-009) and from the vault-precondition results (FR-011, FR-012).
+- **FR-015**: System MUST reject unknown extra input fields at the input-validation boundary with a typed validation error naming the offending field (strict-mode schema; cohort parity with `write_note`, `append_note`, and the strict-by-default discipline). Nothing is opened.
+
+#### Response shape and fail-loud guarantee
+
+- **FR-016**: On a successful open, System MUST return a success confirmation that identifies the opened file by its resolved vault-relative location and the vault it was opened in. Because opening mutates observable workspace state (what the person sees), the response echoes the resolved locator for write-verification — consistent with the project's read-vs-write echo convention (write/mutating tools echo the locator; pure-read tools do not).
+- **FR-017**: For every failure mode (FR-004, FR-005, FR-009 unsupported-type, FR-011, FR-012, FR-013, FR-014, FR-015), System MUST NOT open any file and MUST leave the workspace focus unchanged. "Failed loud" means the typed error is the only observable effect; no silent no-op and no fabricated success ever occurs. Every distinct failure mode is programmatically distinguishable by top-level error code plus, where two modes share a code, a `details` sub-discriminator (per ADR-015) — no new top-level error code is introduced (Constitution Principle IV streak preserved).
+
+#### Out of scope at the contract boundary
+
+- **FR-018**: System MUST NOT open files that live outside the vault (arbitrary external filesystem paths). Only vault-resident files are addressable.
+- **FR-019**: System MUST NOT perform tab management beyond opening — no closing, splitting, moving, or rearranging tabs. The only tab affordance is the new-tab opt-in of FR-008.
+- **FR-020**: System MUST NOT edit or otherwise modify the opened file's content. The feature only surfaces the file.
+- **FR-021**: System MUST NOT scroll to, or select, a specific heading or block within the opened file. The open targets the file as a whole; intra-file navigation is out of scope.
+
+### Key Entities
+
+- **Target file**: A file resident in the vault, of any type Obsidian recognises (markdown note, canvas, PDF, image, or other attachment). Addressed by a vault identifier plus either a vault-relative path or a bare name location. The entity that becomes the focused, active file on a successful open.
+- **Vault identifier**: The name of the vault that owns the target file. Must name the currently focused Obsidian vault for the open to land (FR-011); an unregistered name surfaces the vault-unknown not-found result (FR-012). The open never switches vaults (FR-010).
+- **New-tab opt-in**: A boolean input whose default (off) reuses / focuses an existing tab for an already-open file, and whose enabled value opens the file in a new tab while leaving the previously focused file open (FR-008).
+- **Open result**: The success confirmation. Identifies the opened file by its resolved vault-relative location and the vault, supporting caller verification of the hand-off (FR-016). Identical in shape across all recognised file types (FR-009).
+- **Focused / active file**: The file Obsidian currently treats as active. The open's purpose is to make the target file the focused/active file (FR-006) so that subsequent focus-based actions act on it (FR-007).
+
+## Success Criteria *(mandatory)*
+
+### Measurable Outcomes
+
+- **SC-001**: An automation can surface any existing vault file — of any type the vault recognises — to the person as the focused, visible file in a single call, without the person navigating to it by hand and without the open being coupled to a write operation.
+- **SC-002**: After a successful open, the opened file is the focused, active file: a subsequent focus-based (active-mode) action operates on the just-opened file in 100% of successful opens, with no manual focus step in between.
+- **SC-003**: Every failure mode (file not found, type not supported, vault registered-but-not-focused, vault unregistered, out-of-vault location, mutually-exclusive locators, missing locator, unknown field) surfaces as a typed, programmatically distinguishable result. No failure mode produces a silent no-op, a fabricated success, or an open of the wrong file.
+- **SC-004**: A new-tab open preserves the person's prior context — the previously focused file remains open in its own tab in 100% of new-tab opens.
+- **SC-005**: A default (no new tab) open of a file already open in the workspace creates zero duplicate tabs — the existing tab is focused instead.
+- **SC-006**: Repeat invocations of the same open request against an unchanged, focused vault produce identical outcomes (same focused file, same response) — the operation is deterministic given a fixed input and a fixed workspace/vault state.
+- **SC-007**: The success response identifies the opened file's resolved vault-relative location and vault, enabling the caller to verify the hand-off landed on the intended file without re-inspecting the workspace.
+
+## Assumptions
+
+- **Eval-composed open, no native subcommand (tool name `open_file`, plan-refinable)**: The upstream Obsidian Integrated CLI exposes no native `open` subcommand; opening a file is performed by a small, bug-safe `eval` against Obsidian's `app.workspace` (the same mechanism `write_note`'s existing `open` parameter uses per ADR-009 — `app.workspace.openLinkText` / a leaf `openFile`). The argv carries only the resolved path plus the new-tab flag, far below the ~4 KB IPC ceiling (ADR-009), so the open is bug-safe regardless of file size. The tool name is assumed `open_file` (descriptive, file-type-neutral — "open_note" would contradict the any-type intent); ADR-010 (mirror the upstream subcommand name) is N/A because there is no upstream subcommand to mirror, placing this tool in the eval-composed cohort rather than the CLI-wrapper cohort. The plan phase confirms the exact eval template and the final tool name against the authorised test vault per `.memory/test-execution-instructions.md`.
+- **Focused-vault routing (upstream limitation B1)**: The eval substrate ignores the `vault=` parameter and always executes against Obsidian's currently focused vault (`.architecture/Obsidian CLI - Upstream Issues and Limitations.md`, B1). The honest contract is therefore "the requested vault must be the currently focused vault" (FR-011), sharper than the feature's literal "must be open first" because a vault open in a background window but not focused would still mis-route. The tool detects the focused vault (the cohort's focused-vault eval template already returns the focused vault's base path) and compares it against the requested vault resolved through the vault registry; a mismatch is the FR-011 error. This focused-vs-merely-open distinction, the exact `details.reason` value, and whether an unregistered-vs-registered-but-not-focused split is surfaced as two reasons are the prime candidates for `/speckit-clarify`.
+- **Locator shapes — cohort parity (informed guess)**: The tool accepts both a vault-relative `path` and a bare `file` name (FR-001), matching the read-side cohort (`read`, `delete`, `rename`, `files`, `set_property`). The path is the universal locator for any file type; the name location is the cohort-parity convenience and follows the same bare-name, bracket-rejecting rule (FR-004). If the plan/clarify phase decides the any-type intent argues for path-only addressing (bare-name resolution is markdown-note-centric in the cohort), FR-001/FR-002/FR-004 narrow accordingly — this is a `/speckit-clarify` candidate.
+- **Specific-mode only — no active target mode (informed guess)**: Unlike the write/scan cohort, this tool has no `target_mode: "active"` variant, because "open the file that is already the focused/active file" is a no-op. The locator is always an explicit vault + path/name (specific mode). The plan phase confirms the discriminator shape; this assumption is recorded so the absence of active mode is a deliberate decision, not an omission.
+- **Unsupported-type detection is a capability caveat**: Whether a type-not-supported condition (FR-009) can be reliably distinguished from a no-op open depends on what the eval substrate can observe after attempting the open (e.g. whether a view was registered for the extension, or whether the workspace's active file actually changed to the target). When the substrate can signal the condition, the tool surfaces the typed unsupported-type result; when it cannot, the contract degrades to detecting that the target did not become the active file and reporting the open as not having taken effect rather than fabricating success. This detection-capability caveat is inherited from the eval-composed cohort (cf. the external-editor-conflict caveat in `append_note`/`patch_*`); the plan phase characterises the exact signal against the authorised test vault.
+- **Error vocabulary — zero new top-level codes (Constitution Principle IV)**: Every failure reuses an existing top-level code with `details` sub-discrimination per ADR-015 — `VAULT_NOT_FOUND` (`details.reason`: unregistered vs registered-but-not-focused) for FR-011/FR-012; `PATH_ESCAPES_VAULT` / `VALIDATION_ERROR` (with `details.code` sub-discriminators for mutually-exclusive-locators, missing-locator, bracketed-name, unknown-field) for FR-004/FR-005/FR-013/FR-015; `CLI_REPORTED_ERROR` (with a `details.code` such as `FILE_NOT_FOUND` and `UNSUPPORTED_FILE_TYPE`) for FR-009/FR-014 and the Obsidian-not-running path. The exact `details.code` / `details.reason` values are settled at the plan phase against the cohort's existing vocabulary; the spec fixes only that the modes are distinguishable.
+- **Response echoes the locator (read-vs-write echo convention)**: Opening mutates observable workspace state, so the success response echoes the resolved opened path and vault for write-verification (FR-016), consistent with the project convention that mutating tools echo the locator while pure-read tools do not.
+- **Obsidian must be running**: The open requires a running Obsidian with the target vault focused; the tool does not launch Obsidian or change the focused vault. With Obsidian not running, the failure surfaces through the existing CLI-bridge failure path, not a silent success.
+- **Out-of-scope boundaries are contract obligations, not deferred work**: External (non-vault) paths (FR-018), tab management beyond opening (FR-019), vault switching (FR-010), content editing (FR-020), and intra-file heading/block navigation (FR-021) are out of scope by the user's explicit statement and are enforced as negative requirements, not future increments.
