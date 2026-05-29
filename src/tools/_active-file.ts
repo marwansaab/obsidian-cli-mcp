@@ -64,6 +64,47 @@ function isFocusedFileResponse(value: unknown): value is FocusedFileResponse {
   return (typeof v.path === "string" || v.path === null) && typeof v.base === "string";
 }
 
+/** Discriminated result of {@link parseFocusedVault}: the validated `{path, base}` envelope or the failure stage. */
+export type FocusedVaultParse =
+  | { ok: true; parsed: FocusedFileResponse }
+  | { ok: false; stage: "json-parse" | "envelope-parse"; cause: unknown };
+
+/**
+ * Vault-cohort focused-vault parse: the double-decode + shape-check shared by find_and_replace and
+ * query_base. The `obsidian eval` of FOCUSED_VAULT_TEMPLATE lands as `=> "{\"path\":...,\"base\":...}"`
+ * — a JSON-encoded STRING — so after the outer {@link parseEvalStdout} an inner `JSON.parse` re-decodes
+ * the string form; the bare-object form is accepted too. Returns the failure STAGE rather than throwing,
+ * so each caller maps it to its own error contract: find_and_replace keeps the `json-parse` /
+ * `envelope-parse` distinction and the cause; query_base collapses both into its single
+ * `focused-vault-resolve` stage and discards the cause.
+ */
+export function parseFocusedVault(stdout: string): FocusedVaultParse {
+  let outer: unknown;
+  try {
+    outer = parseEvalStdout(stdout);
+  } catch (cause) {
+    return { ok: false, stage: "json-parse", cause };
+  }
+  let parsed: unknown = outer;
+  if (typeof outer === "string") {
+    try {
+      parsed = JSON.parse(outer);
+    } catch (cause) {
+      return { ok: false, stage: "envelope-parse", cause };
+    }
+  }
+  if (
+    typeof parsed === "object" &&
+    parsed !== null &&
+    "base" in parsed &&
+    typeof (parsed as { base: unknown }).base === "string"
+  ) {
+    const p = parsed as { path?: unknown; base: string };
+    return { ok: true, parsed: { path: typeof p.path === "string" ? p.path : null, base: p.base } };
+  }
+  return { ok: false, stage: "envelope-parse", cause: null };
+}
+
 /** The cohort-uniform ERR_NO_ACTIVE_FILE message for the file cohort. */
 function noActiveFileMessage(toolName: string): string {
   return `No active file in Obsidian. Open a note in the editor, or call ${toolName} with target_mode=specific + vault + file/path.`;
@@ -131,6 +172,30 @@ export async function resolveActiveFocusedFile(
  */
 export function resolveVaultDisplayName(vaultRegistry: VaultRegistry, base: string): string {
   return vaultRegistry.resolveVaultDisplayName?.(base) ?? base;
+}
+
+/** Resolved focused-file locator plus the resolved vault display name — the file-cohort write tools' full active-mode locator. */
+export interface ActiveLocatorWithVault extends ActiveFileLocator {
+  vaultDisplayName: string;
+}
+
+/**
+ * File-cohort active-mode resolution WITH the vault display name resolved — the common shape for the
+ * write/edit tools whose output envelope carries a `vault` field (append_note, prepend, patch_block,
+ * patch_heading). Composes {@link resolveActiveFocusedFile} + {@link resolveVaultDisplayName}; the
+ * no-active-file and parse-error throws are inherited verbatim. write_note opts out (its output has no
+ * `vault` field, so it consumes resolveActiveFocusedFile directly).
+ */
+export async function resolveActiveLocatorWithVault(
+  deps: EvalDeps & { vaultRegistry: VaultRegistry },
+  toolName: string,
+): Promise<ActiveLocatorWithVault> {
+  const { vaultRoot, relPath } = await resolveActiveFocusedFile(deps, toolName);
+  return {
+    vaultRoot,
+    relPath,
+    vaultDisplayName: resolveVaultDisplayName(deps.vaultRegistry, vaultRoot),
+  };
 }
 
 /**

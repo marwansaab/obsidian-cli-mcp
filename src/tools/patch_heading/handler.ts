@@ -15,14 +15,11 @@ import {
   walkHeadings,
   type HeadingIdentity,
 } from "./heading-walk.js";
-import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
+import { type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import {
-  assertCanonicalPath,
-  resolveActiveFocusedFile,
-  resolveVaultDisplayName,
-} from "../_active-file.js";
+import { assertCanonicalPath, resolveActiveLocatorWithVault } from "../_active-file.js";
 import { getErrno, mapFsWriteError } from "../_fs-errors.js";
+import { invalidateMetadataCache, writeAtomic } from "../_note-io.js";
 
 import type { PatchHeadingInput, PatchHeadingOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
@@ -54,10 +51,6 @@ const DEFAULT_FS: ExecuteFs = {
   unlink: (p) => nodeFs.unlink(p),
 };
 
-function buildInvalidateTemplate(absPath: string): string {
-  return `(async()=>{const f=app.vault.getFileByPath(${JSON.stringify(absPath)});if(f)await app.metadataCache.computeMetadataAsync(f);})()`;
-}
-
 // FR-021 / R6 external-editor classification: EBUSY (Windows file-sharing violation
 // when an editor holds the file with non-shared-delete), EPERM (some Windows shares
 // modes surface this instead of EBUSY), EACCES (occasional surface on POSIX advisory
@@ -72,12 +65,7 @@ async function resolveLocator(
   deps: ExecuteDeps,
 ): Promise<{ vaultRoot: string; relPath: string; vaultDisplayName: string }> {
   if (input.target_mode === "active") {
-    const { vaultRoot, relPath } = await resolveActiveFocusedFile(deps, "patch_heading");
-    return {
-      vaultRoot,
-      relPath,
-      vaultDisplayName: resolveVaultDisplayName(deps.vaultRegistry, vaultRoot),
-    };
+    return resolveActiveLocatorWithVault(deps, "patch_heading");
   }
   const vaultRoot = await deps.vaultRegistry.resolveVaultPath(input.vault!);
   const relPath = (input.file ?? input.path)!;
@@ -232,36 +220,18 @@ export async function executePatchHeading(
     // edit will be overwritten.
   }
 
-  // ADR-009 §3 atomic write: tmp + rename on the same volume. UUID-uniquified tmp
-  // path avoids collisions between concurrent calls.
-  const tmpPath = `${absPath}.${randomUUID()}.tmp`;
+  // ADR-009 §3 atomic write (tmp + rename, UUID-uniquified) then best-effort
+  // metadataCache invalidation per ADR-009 §5 — both via the shared _note-io
+  // substrate. writeAtomic rethrows the raw fs error; the invalidation is silent
+  // on failure (write already landed).
   try {
-    await fs.writeFile(tmpPath, editedContent);
+    await writeAtomic(fs, absPath, editedContent, randomUUID);
   } catch (e) {
-    throw mapWriteErr(e);
-  }
-  try {
-    await fs.rename(tmpPath, absPath);
-  } catch (e) {
-    await fs.unlink(tmpPath).catch(() => {});
     throw mapWriteErr(e);
   }
   const bytesWritten = Buffer.byteLength(editedContent, "utf8");
 
-  // Best-effort metadataCache invalidation per ADR-009 §5 / cohort parity with write_note.
-  try {
-    await invokeCli(
-      {
-        command: "eval",
-        parameters: { code: buildInvalidateTemplate(absPath) },
-        flags: [],
-        target_mode: "active",
-      },
-      { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
-    );
-  } catch {
-    // Silent: write succeeded; cache freshness defers to Obsidian's file watcher.
-  }
+  await invalidateMetadataCache(deps, absPath);
 
   return {
     path: relPath,

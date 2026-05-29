@@ -23,9 +23,10 @@ import { UpstreamError } from "../../errors.js";
 import {
   assertCanonicalPath,
   FOCUSED_VAULT_TEMPLATE,
-  parseEvalStdout,
+  parseFocusedVault,
   remapVaultNotFound,
 } from "../_active-file.js";
+import { writeAtomic } from "../_note-io.js";
 
 
 import type { Logger } from "../../logger.js";
@@ -188,55 +189,6 @@ function clipFullLine(content: string): string {
   return stripped.slice(0, FULL_LINE_CAP) + FULL_LINE_ELLIPSIS;
 }
 
-interface FocusedVaultParseSuccess {
-  ok: true;
-  parsed: FocusedVaultResponse;
-}
-interface FocusedVaultParseFailure {
-  ok: false;
-  stage: "json-parse" | "envelope-parse";
-  cause: unknown;
-  raw: string;
-}
-
-function parseEvalResponse(
-  stdout: string,
-): FocusedVaultParseSuccess | FocusedVaultParseFailure {
-  let outer: unknown;
-  try {
-    outer = parseEvalStdout(stdout);
-  } catch (cause) {
-    return { ok: false, stage: "json-parse", cause, raw: stdout };
-  }
-  // The eval template returns JSON.stringify({path, base}), which when echoed
-  // through the CLI lands as `=> "{\"path\":null,\"base\":\"...\"}"`. We accept
-  // both the raw object and the JSON-encoded-string shape.
-  let parsed: unknown = outer;
-  if (typeof outer === "string") {
-    try {
-      parsed = JSON.parse(outer);
-    } catch (cause) {
-      return { ok: false, stage: "envelope-parse", cause, raw: stdout };
-    }
-  }
-  if (
-    typeof parsed === "object" &&
-    parsed !== null &&
-    "base" in parsed &&
-    typeof (parsed as { base: unknown }).base === "string"
-  ) {
-    const p = parsed as { path?: unknown; base: string };
-    return {
-      ok: true,
-      parsed: {
-        path: typeof p.path === "string" ? p.path : null,
-        base: p.base,
-      },
-    };
-  }
-  return { ok: false, stage: "envelope-parse", cause: null, raw: stdout };
-}
-
 async function defaultInvokeEval(
   deps: ExecuteDeps,
 ): Promise<FocusedVaultResponse> {
@@ -254,12 +206,14 @@ async function defaultInvokeEval(
       queue: deps.queue,
     },
   );
-  const out = parseEvalResponse(result.stdout);
+  // Shared double-decode + shape-check; find_and_replace keeps the json-parse /
+  // envelope-parse stage distinction (and the cause) the helper surfaces.
+  const out = parseFocusedVault(result.stdout);
   if (!out.ok) {
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
       cause: out.cause,
-      details: { stage: out.stage, stdout: out.raw.slice(0, 500) },
+      details: { stage: out.stage, stdout: result.stdout.slice(0, 500) },
       message: "find_and_replace: focused-vault eval returned unparseable response",
     });
   }
@@ -577,16 +531,9 @@ export async function executeFindAndReplace(
     const newContent = secondScan.counts.rewrittenContent.get(rel)!;
     const occurrenceCount = secondScan.counts.perNote.get(rel)!.length;
     try {
-      await deps.queue.run(async () => {
-        const tmp = `${absPath}.${randomUUIDFn()}.tmp`;
-        await fs.writeFile(tmp, newContent);
-        try {
-          await fs.rename(tmp, absPath);
-        } catch (renameErr) {
-          await fs.unlink(tmp).catch(() => {});
-          throw renameErr;
-        }
-      });
+      // Per-note atomic write through the injected queue (serialised); the shared
+      // writeAtomic substrate computes the tmp path inside the critical section.
+      await deps.queue.run(() => writeAtomic(fs, absPath, newContent, randomUUIDFn));
     } catch (err) {
       const fsErr = mapFsError(err, "write", rel, vaultLabel);
       fsErr.details.changed_notes = changedNotes;

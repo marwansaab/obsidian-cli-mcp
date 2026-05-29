@@ -15,7 +15,7 @@ import { UpstreamError } from "../../errors.js";
 import {
   assertCanonicalPath,
   FOCUSED_VAULT_TEMPLATE,
-  parseEvalStdout,
+  parseFocusedVault,
   remapVaultNotFound,
 } from "../_active-file.js";
 import { detectIfClosed } from "../_eval-vault-closed-detection/index.js";
@@ -53,36 +53,6 @@ export interface ExecuteDeps {
   invokeEval?: () => Promise<FocusedVaultResponse>;
 }
 
-function parseFocusedVaultStdout(stdout: string): FocusedVaultResponse | null {
-  let outer: unknown;
-  try {
-    outer = parseEvalStdout(stdout);
-  } catch {
-    return null;
-  }
-  let parsed: unknown = outer;
-  if (typeof outer === "string") {
-    try {
-      parsed = JSON.parse(outer);
-    } catch {
-      return null;
-    }
-  }
-  if (
-    typeof parsed === "object" &&
-    parsed !== null &&
-    "base" in parsed &&
-    typeof (parsed as { base: unknown }).base === "string"
-  ) {
-    const p = parsed as { path?: unknown; base: string };
-    return {
-      path: typeof p.path === "string" ? p.path : null,
-      base: p.base,
-    };
-  }
-  return null;
-}
-
 async function defaultInvokeEval(deps: ExecuteDeps): Promise<FocusedVaultResponse> {
   const result = await invokeCli(
     {
@@ -98,8 +68,10 @@ async function defaultInvokeEval(deps: ExecuteDeps): Promise<FocusedVaultRespons
       queue: deps.queue,
     },
   );
-  const out = parseFocusedVaultStdout(result.stdout);
-  if (out === null) {
+  // Shared double-decode + shape-check; query_base collapses both failure stages
+  // into its single focused-vault-resolve stage and discards the cause.
+  const out = parseFocusedVault(result.stdout);
+  if (!out.ok) {
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
       cause: null,
@@ -107,7 +79,7 @@ async function defaultInvokeEval(deps: ExecuteDeps): Promise<FocusedVaultRespons
       message: "query_base: focused-vault eval returned unparseable response",
     });
   }
-  return out;
+  return out.parsed;
 }
 
 async function resolveVaultRoot(

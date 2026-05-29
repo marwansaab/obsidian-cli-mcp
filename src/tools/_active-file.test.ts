@@ -9,8 +9,10 @@ import {
   FOCUSED_FILE_TEMPLATE,
   FOCUSED_VAULT_TEMPLATE,
   parseEvalStdout,
+  parseFocusedVault,
   remapVaultNotFound,
   resolveActiveFocusedFile,
+  resolveActiveLocatorWithVault,
   resolveFileByTsv,
   resolveVaultDisplayName,
   type EvalDeps,
@@ -108,6 +110,72 @@ describe("resolveActiveFocusedFile", () => {
     await expect(resolveActiveFocusedFile(deps, "append_note")).rejects.toMatchObject({
       code: "CLI_REPORTED_ERROR",
       details: { stage: "envelope-parse" },
+    });
+  });
+});
+
+describe("parseFocusedVault", () => {
+  test("parses the JSON-encoded-string (double-encoded) envelope form", () => {
+    const r = parseFocusedVault('=> "{\\"path\\":\\"Notes/a.md\\",\\"base\\":\\"/vault\\"}"');
+    expect(r).toEqual({ ok: true, parsed: { path: "Notes/a.md", base: "/vault" } });
+  });
+
+  test("parses the bare-object form", () => {
+    const r = parseFocusedVault('=> {"path":null,"base":"/vault"}');
+    expect(r).toEqual({ ok: true, parsed: { path: null, base: "/vault" } });
+  });
+
+  test("coerces a non-string path to null", () => {
+    const r = parseFocusedVault('=> {"path":123,"base":"/vault"}');
+    expect(r).toEqual({ ok: true, parsed: { path: null, base: "/vault" } });
+  });
+
+  test("ok:false stage:json-parse when the outer stdout is unparseable", () => {
+    expect(parseFocusedVault("=> not json {")).toMatchObject({ ok: false, stage: "json-parse" });
+  });
+
+  test("ok:false stage:envelope-parse when the inner string is not JSON", () => {
+    expect(parseFocusedVault('=> "not json {"')).toMatchObject({ ok: false, stage: "envelope-parse" });
+  });
+
+  test("ok:false stage:envelope-parse on a wrong-shape object (no string base)", () => {
+    expect(parseFocusedVault('=> {"unexpected":true}')).toMatchObject({
+      ok: false,
+      stage: "envelope-parse",
+    });
+  });
+});
+
+describe("resolveActiveLocatorWithVault", () => {
+  function depsWithRegistry(stdout: string, registry: VaultRegistry): EvalDeps & { vaultRegistry: VaultRegistry } {
+    return { ...evalDeps(stdout), vaultRegistry: registry };
+  }
+
+  test("returns {vaultRoot, relPath, vaultDisplayName} with the registry display name", async () => {
+    const registry = {
+      resolveVaultPath: async () => "/vault",
+      resolveVaultDisplayName: (base: string) => (base === "/vault" ? "My Vault" : null),
+    } as unknown as VaultRegistry;
+    await expect(
+      resolveActiveLocatorWithVault(depsWithRegistry('=> {"path":"Notes/a.md","base":"/vault"}', registry), "patch_block"),
+    ).resolves.toEqual({ vaultRoot: "/vault", relPath: "Notes/a.md", vaultDisplayName: "My Vault" });
+  });
+
+  test("falls back to the base path when the registry has no display name", async () => {
+    const registry = { resolveVaultPath: async () => "/vault" } as unknown as VaultRegistry;
+    await expect(
+      resolveActiveLocatorWithVault(depsWithRegistry('=> {"path":"Notes/a.md","base":"/vault"}', registry), "append_note"),
+    ).resolves.toEqual({ vaultRoot: "/vault", relPath: "Notes/a.md", vaultDisplayName: "/vault" });
+  });
+
+  test("propagates ERR_NO_ACTIVE_FILE with the tool-named message when no file is focused", async () => {
+    const registry = { resolveVaultPath: async () => "/vault" } as unknown as VaultRegistry;
+    await expect(
+      resolveActiveLocatorWithVault(depsWithRegistry('=> {"path":null,"base":"/vault"}', registry), "prepend"),
+    ).rejects.toMatchObject({
+      code: "ERR_NO_ACTIVE_FILE",
+      message:
+        "No active file in Obsidian. Open a note in the editor, or call prepend with target_mode=specific + vault + file/path.",
     });
   });
 });

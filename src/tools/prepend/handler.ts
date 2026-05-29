@@ -5,9 +5,8 @@ import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import {
   assertCanonicalPath,
-  resolveActiveFocusedFile,
+  resolveActiveLocatorWithVault,
   resolveFileByTsv,
-  resolveVaultDisplayName,
 } from "../_active-file.js";
 import { getErrno } from "../_fs-errors.js";
 
@@ -129,12 +128,7 @@ async function resolveLocator(
   deps: ExecuteDeps,
 ): Promise<{ vaultRoot: string; relPath: string; vaultDisplayName: string }> {
   if (input.target_mode === "active") {
-    const { vaultRoot, relPath } = await resolveActiveFocusedFile(deps, "prepend");
-    return {
-      vaultRoot,
-      relPath,
-      vaultDisplayName: resolveVaultDisplayName(deps.vaultRegistry, vaultRoot),
-    };
+    return resolveActiveLocatorWithVault(deps, "prepend");
   }
 
   const vaultRoot = await deps.vaultRegistry.resolveVaultPath(input.vault!);

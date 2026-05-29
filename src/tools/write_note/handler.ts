@@ -6,6 +6,8 @@ import { dirname } from "node:path";
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import { assertCanonicalPath, resolveActiveFocusedFile } from "../_active-file.js";
+import { getErrno } from "../_fs-errors.js";
+import { invalidateMetadataCache, writeAtomic } from "../_note-io.js";
 
 import type { WriteNoteInput, WriteNoteOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
@@ -37,20 +39,8 @@ const DEFAULT_FS: ExecuteFs = {
   unlink: (p) => nodeFs.unlink(p),
 };
 
-function buildInvalidateTemplate(absPath: string): string {
-  return `(async()=>{const f=app.vault.getFileByPath(${JSON.stringify(absPath)});if(f)await app.metadataCache.computeMetadataAsync(f);})()`;
-}
-
 function buildOpenTemplate(absPath: string): string {
   return `app.workspace.openLinkText(${JSON.stringify(absPath)},"")`;
-}
-
-function isErrnoCode(e: unknown, code: string): boolean {
-  return (
-    typeof e === "object" &&
-    e !== null &&
-    (e as NodeJS.ErrnoException).code === code
-  );
 }
 
 // FR-001 / R2 canonical short-form predicate: file is canonical iff it has no
@@ -70,6 +60,10 @@ function resolveSpecificModePath(input: WriteNoteInput): string {
 }
 
 function mapFsError(e: unknown): UpstreamError {
+  // Raw-cast errno extraction (not getErrno) to stay byte-exact: getErrno's
+  // string-guard would remap a non-string `.code` to "UNKNOWN", changing
+  // details.errno + the message. The fixed-string predicate checks below use
+  // getErrno (provably equivalent for string literals).
   const errno = (e as NodeJS.ErrnoException | null)?.code ?? "UNKNOWN";
   if (errno === "EEXIST") {
     return new UpstreamError({
@@ -123,20 +117,13 @@ export async function executeWriteNote(
       await fs.realpath(absPath);
       existedBefore = true;
     } catch (e) {
-      if (!isErrnoCode(e, "ENOENT")) throw mapFsError(e);
+      if (getErrno(e) !== "ENOENT") throw mapFsError(e);
       existedBefore = false;
     }
 
-    const tmpPath = `${absPath}.${randomUUID()}.tmp`;
     try {
-      await fs.writeFile(tmpPath, input.content);
+      await writeAtomic(fs, absPath, input.content, randomUUID);
     } catch (e) {
-      throw mapFsError(e);
-    }
-    try {
-      await fs.rename(tmpPath, absPath);
-    } catch (e) {
-      await fs.unlink(tmpPath).catch(() => {});
       throw mapFsError(e);
     }
     created = !existedBefore;
@@ -147,7 +134,7 @@ export async function executeWriteNote(
     try {
       await fs.writeFile(absPath, input.content, { flag: "wx" });
     } catch (e) {
-      if (isErrnoCode(e, "EEXIST")) {
+      if (getErrno(e) === "EEXIST") {
         throw new UpstreamError({
           code: "FILE_EXISTS",
           cause: e,
@@ -160,20 +147,8 @@ export async function executeWriteNote(
     created = true;
   }
 
-  // Best-effort metadataCache invalidation per FR-011 — silent on failure.
-  try {
-    await invokeCli(
-      {
-        command: "eval",
-        parameters: { code: buildInvalidateTemplate(absPath) },
-        flags: [],
-        target_mode: "active",
-      },
-      { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
-    );
-  } catch {
-    // Silent: write succeeded; cache freshness defers to Obsidian's file watcher.
-  }
+  // Best-effort metadataCache invalidation per FR-011 — silent on failure (shared _note-io substrate).
+  await invalidateMetadataCache(deps, absPath);
 
   // Best-effort post-write editor-open per FR-017 — only in specific mode (schema forbids
   // `open` in active mode). Silent on failure: open is a UX nicety, not the contract.
