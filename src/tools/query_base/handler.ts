@@ -13,7 +13,12 @@ import {
 } from "./schema.js";
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import { checkCanonicalPath } from "../../path-safety/canonical.js";
+import {
+  assertCanonicalPath,
+  FOCUSED_VAULT_TEMPLATE,
+  parseEvalStdout,
+  remapVaultNotFound,
+} from "../_active-file.js";
 import { detectIfClosed } from "../_eval-vault-closed-detection/index.js";
 
 import type { Logger } from "../../logger.js";
@@ -49,15 +54,10 @@ export interface ExecuteDeps {
   invokeEval?: () => Promise<FocusedVaultResponse>;
 }
 
-export const FOCUSED_VAULT_TEMPLATE =
-  "(async()=>JSON.stringify({path:app.workspace.getActiveFile()?.path??null,base:app.vault.adapter.basePath}))()";
-
 function parseFocusedVaultStdout(stdout: string): FocusedVaultResponse | null {
-  const trimmed = stdout.trimStart();
-  const body = trimmed.startsWith("=> ") ? trimmed.slice(3) : trimmed;
   let outer: unknown;
   try {
-    outer = JSON.parse(body);
+    outer = parseEvalStdout(stdout);
   } catch {
     return null;
   }
@@ -119,19 +119,7 @@ async function resolveVaultRoot(
     try {
       return await deps.vaultRegistry.resolveVaultPath(input.vault);
     } catch (err) {
-      if (err instanceof UpstreamError && err.code === "VALIDATION_ERROR") {
-        throw new UpstreamError({
-          code: "CLI_REPORTED_ERROR",
-          cause: err,
-          details: {
-            code: "VAULT_NOT_FOUND",
-            reason: "unknown",
-            vault: input.vault,
-          },
-          message: `query_base: vault "${input.vault}" is not registered`,
-        });
-      }
-      throw err;
+      remapVaultNotFound(err, input.vault, "query_base");
     }
   }
   const invokeEval = deps.invokeEval ?? (() => defaultInvokeEval(deps));
@@ -350,25 +338,11 @@ export async function executeQueryBase(
 
   // === Stage 1 — vault root resolution + Layer-2 canonical-path check on the .base file ===
   const vaultRootRaw = await resolveVaultRoot(input, deps);
-  const baseFileCheck = await checkCanonicalPath(vaultRootRaw, input.base_path, {
+  const resolvedBasePath = await assertCanonicalPath(vaultRootRaw, input.base_path, {
     realpath: fs.realpath,
+    logger: deps.logger,
+    vaultLabel,
   });
-  if (!baseFileCheck.ok) {
-    deps.logger.pathEscapeAttempt({
-      vault: vaultLabel,
-      attemptedPath: input.base_path,
-    });
-    throw new UpstreamError({
-      code: "PATH_ESCAPES_VAULT",
-      cause: null,
-      details: {
-        vault: vaultLabel,
-        attemptedPath: input.base_path,
-        resolvedPath: baseFileCheck.resolvedPath,
-      },
-    });
-  }
-  const resolvedBasePath = baseFileCheck.resolvedPath;
 
   // === Stage 2 — fs.stat pre-flight (R4 stage 1 + 2) ===
   let stats: { size: number };

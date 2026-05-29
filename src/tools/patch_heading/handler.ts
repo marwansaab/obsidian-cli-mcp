@@ -17,7 +17,11 @@ import {
 } from "./heading-walk.js";
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import { checkCanonicalPath } from "../../path-safety/canonical.js";
+import {
+  assertCanonicalPath,
+  resolveActiveFocusedFile,
+  resolveVaultDisplayName,
+} from "../_active-file.js";
 
 
 import type { PatchHeadingInput, PatchHeadingOutput } from "./schema.js";
@@ -50,30 +54,8 @@ const DEFAULT_FS: ExecuteFs = {
   unlink: (p) => nodeFs.unlink(p),
 };
 
-const FOCUSED_FILE_TEMPLATE =
-  "(async()=>{const f=app.workspace.getActiveFile();return JSON.stringify({path:f?.path??null,base:app.vault.adapter.basePath});})()";
-
 function buildInvalidateTemplate(absPath: string): string {
   return `(async()=>{const f=app.vault.getFileByPath(${JSON.stringify(absPath)});if(f)await app.metadataCache.computeMetadataAsync(f);})()`;
-}
-
-interface FocusedFileResponse {
-  path: string | null;
-  base: string;
-}
-
-function parseEvalResponse(stdout: string): unknown {
-  const trimmed = stdout.trimStart();
-  const body = trimmed.startsWith("=> ") ? trimmed.slice(3) : trimmed;
-  return JSON.parse(body);
-}
-
-function isFocusedFileResponse(value: unknown): value is FocusedFileResponse {
-  if (typeof value !== "object" || value === null) return false;
-  const v = value as Record<string, unknown>;
-  return (
-    (typeof v.path === "string" || v.path === null) && typeof v.base === "string"
-  );
 }
 
 function getErrno(e: unknown): string | undefined {
@@ -121,55 +103,11 @@ async function resolveLocator(
   deps: ExecuteDeps,
 ): Promise<{ vaultRoot: string; relPath: string; vaultDisplayName: string }> {
   if (input.target_mode === "active") {
-    const focused = await invokeCli(
-      {
-        command: "eval",
-        parameters: { code: FOCUSED_FILE_TEMPLATE },
-        flags: [],
-        target_mode: "active",
-      },
-      { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
-    );
-    let parsed: unknown;
-    try {
-      parsed = parseEvalResponse(focused.stdout);
-    } catch (e) {
-      throw new UpstreamError({
-        code: "CLI_REPORTED_ERROR",
-        cause: e,
-        details: { stage: "json-parse", stdout: focused.stdout },
-        message: "active-mode focused-file eval returned unparseable response",
-      });
-    }
-    if (!isFocusedFileResponse(parsed)) {
-      throw new UpstreamError({
-        code: "CLI_REPORTED_ERROR",
-        cause: null,
-        details: { stage: "envelope-parse", parsed },
-        message: "active-mode focused-file eval returned unexpected shape",
-      });
-    }
-    if (parsed.path === null) {
-      throw new UpstreamError({
-        code: "ERR_NO_ACTIVE_FILE",
-        cause: null,
-        details: {},
-        message:
-          "No active file in Obsidian. Open a note in the editor, or call patch_heading with target_mode=specific + vault + file/path.",
-      });
-    }
-    const reverseLookup =
-      typeof (deps.vaultRegistry as VaultRegistry & {
-        resolveVaultDisplayName?: (basePath: string) => string | null;
-      }).resolveVaultDisplayName === "function"
-        ? (deps.vaultRegistry as VaultRegistry & {
-            resolveVaultDisplayName: (basePath: string) => string | null;
-          }).resolveVaultDisplayName(parsed.base)
-        : null;
+    const { vaultRoot, relPath } = await resolveActiveFocusedFile(deps, "patch_heading");
     return {
-      vaultRoot: parsed.base,
-      relPath: parsed.path,
-      vaultDisplayName: reverseLookup ?? parsed.base,
+      vaultRoot,
+      relPath,
+      vaultDisplayName: resolveVaultDisplayName(deps.vaultRegistry, vaultRoot),
     };
   }
   const vaultRoot = await deps.vaultRegistry.resolveVaultPath(input.vault!);
@@ -204,23 +142,11 @@ export async function executePatchHeading(
 
   const { vaultRoot, relPath, vaultDisplayName } = await resolveLocator(input, deps);
 
-  const check = await checkCanonicalPath(vaultRoot, relPath, { realpath: fs.realpath });
-  if (!check.ok) {
-    deps.logger.pathEscapeAttempt({
-      vault: input.vault ?? null,
-      attemptedPath: check.attemptedPath,
-    });
-    throw new UpstreamError({
-      code: "PATH_ESCAPES_VAULT",
-      cause: null,
-      details: {
-        vault: input.vault ?? null,
-        attemptedPath: check.attemptedPath,
-        resolvedPath: check.resolvedPath,
-      },
-    });
-  }
-  const absPath = check.resolvedPath;
+  const absPath = await assertCanonicalPath(vaultRoot, relPath, {
+    realpath: fs.realpath,
+    logger: deps.logger,
+    vaultLabel: input.vault ?? null,
+  });
 
   let originalContent: string;
   try {

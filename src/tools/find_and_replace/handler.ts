@@ -20,7 +20,12 @@ import {
 } from "./schema.js";
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import { checkCanonicalPath } from "../../path-safety/canonical.js";
+import {
+  assertCanonicalPath,
+  FOCUSED_VAULT_TEMPLATE,
+  parseEvalStdout,
+  remapVaultNotFound,
+} from "../_active-file.js";
 
 
 import type { Logger } from "../../logger.js";
@@ -69,9 +74,6 @@ const DEFAULT_FS: ExecuteFs = {
   unlink: (p) => nodeFs.unlink(p),
   realpath: (p) => nodeFs.realpath(p),
 };
-
-export const FOCUSED_VAULT_TEMPLATE =
-  "(async()=>JSON.stringify({path:app.workspace.getActiveFile()?.path??null,base:app.vault.adapter.basePath}))()";
 
 const DEFAULT_MAX_OCCURRENCES = 500;
 const MAX_OCCURRENCES_ENV_VAR = "OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES";
@@ -200,11 +202,9 @@ interface FocusedVaultParseFailure {
 function parseEvalResponse(
   stdout: string,
 ): FocusedVaultParseSuccess | FocusedVaultParseFailure {
-  const trimmed = stdout.trimStart();
-  const body = trimmed.startsWith("=> ") ? trimmed.slice(3) : trimmed;
   let outer: unknown;
   try {
-    outer = JSON.parse(body);
+    outer = parseEvalStdout(stdout);
   } catch (cause) {
     return { ok: false, stage: "json-parse", cause, raw: stdout };
   }
@@ -276,19 +276,7 @@ async function resolveVaultRoot(
     } catch (err) {
       // The registry surfaces unknown-vault via its own UpstreamError shape.
       // We re-throw with the spec-mandated triple per FR-013 / errors.md row 10.
-      if (err instanceof UpstreamError && err.code === "VALIDATION_ERROR") {
-        throw new UpstreamError({
-          code: "CLI_REPORTED_ERROR",
-          cause: err,
-          details: {
-            code: "VAULT_NOT_FOUND",
-            reason: "unknown",
-            vault: input.vault,
-          },
-          message: `find_and_replace: vault "${input.vault}" is not registered`,
-        });
-      }
-      throw err;
+      remapVaultNotFound(err, input.vault, "find_and_replace");
     }
   }
   const invokeEval = deps.invokeEval ?? (() => defaultInvokeEval(deps));
@@ -460,25 +448,11 @@ export async function executeFindAndReplace(
 
   // === Stage 1 — vault root resolution + Layer-2 canonical check on vault root ===
   const vaultRootRaw = await resolveVaultRoot(input, deps);
-  const vaultRootCheck = await checkCanonicalPath(vaultRootRaw, ".", {
+  const vaultRoot = await assertCanonicalPath(vaultRootRaw, ".", {
     realpath: fs.realpath,
+    logger: deps.logger,
+    vaultLabel,
   });
-  if (!vaultRootCheck.ok) {
-    deps.logger.pathEscapeAttempt({
-      vault: vaultLabel,
-      attemptedPath: ".",
-    });
-    throw new UpstreamError({
-      code: "PATH_ESCAPES_VAULT",
-      cause: null,
-      details: {
-        vault: vaultLabel,
-        attemptedPath: ".",
-        resolvedPath: vaultRootCheck.resolvedPath,
-      },
-    });
-  }
-  const vaultRoot = vaultRootCheck.resolvedPath;
 
   // === Stage 2 — scope resolution (subfolder OR whole-vault) ===
   let scanRoot = vaultRoot;
@@ -486,28 +460,15 @@ export async function executeFindAndReplace(
     ? input.subfolder
     : null;
   if (subfolder !== null) {
-    const subCheck = await checkCanonicalPath(vaultRoot, subfolder, {
+    const subResolved = await assertCanonicalPath(vaultRoot, subfolder, {
       realpath: fs.realpath,
+      logger: deps.logger,
+      vaultLabel,
     });
-    if (!subCheck.ok) {
-      deps.logger.pathEscapeAttempt({
-        vault: vaultLabel,
-        attemptedPath: subfolder,
-      });
-      throw new UpstreamError({
-        code: "PATH_ESCAPES_VAULT",
-        cause: null,
-        details: {
-          vault: vaultLabel,
-          attemptedPath: subfolder,
-          resolvedPath: subCheck.resolvedPath,
-        },
-      });
-    }
     // Verify the subfolder exists — checkCanonicalPath returns ok with the
     // lexical fallback when the path does not exist; we need to distinguish.
     try {
-      await fs.realpath(subCheck.resolvedPath);
+      await fs.realpath(subResolved);
     } catch (err) {
       if ((err as NodeJS.ErrnoException)?.code === "ENOENT") {
         throw new UpstreamError({
@@ -524,7 +485,7 @@ export async function executeFindAndReplace(
       }
       throw err;
     }
-    scanRoot = subCheck.resolvedPath;
+    scanRoot = subResolved;
   }
 
   // === Stage 3 — directory walk ===
@@ -607,22 +568,12 @@ export async function executeFindAndReplace(
   const changedNotes: string[] = [];
   let occurrencesReplaced = 0;
   for (const rel of orderedRelPaths) {
-    const noteCheck = await checkCanonicalPath(vaultRoot, rel.split("/").join(sep), {
+    const absPath = await assertCanonicalPath(vaultRoot, rel.split("/").join(sep), {
       realpath: fs.realpath,
+      logger: deps.logger,
+      vaultLabel,
+      attemptedPathLabel: rel,
     });
-    if (!noteCheck.ok) {
-      deps.logger.pathEscapeAttempt({ vault: vaultLabel, attemptedPath: rel });
-      throw new UpstreamError({
-        code: "PATH_ESCAPES_VAULT",
-        cause: null,
-        details: {
-          vault: vaultLabel,
-          attemptedPath: rel,
-          resolvedPath: noteCheck.resolvedPath,
-        },
-      });
-    }
-    const absPath = noteCheck.resolvedPath;
     const newContent = secondScan.counts.rewrittenContent.get(rel)!;
     const occurrenceCount = secondScan.counts.perNote.get(rel)!.length;
     try {
