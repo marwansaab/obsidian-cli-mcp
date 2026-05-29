@@ -68,7 +68,7 @@ Omit `OBSIDIAN_BIN` if the Obsidian CLI is already on `PATH`. On Linux, the Obsi
 
 ## Tool inventory
 
-The server currently registers thirty-two public tools. Call `help({ tool_name: "<name>" })` at runtime for the full per-tool documentation (parameters, output shape, error roster, and worked examples) — the listing below is just the index.
+The server currently registers thirty-three public tools. Call `help({ tool_name: "<name>" })` at runtime for the full per-tool documentation (parameters, output shape, error roster, and worked examples) — the listing below is just the index.
 
 ### Read (full + surgical)
 
@@ -89,6 +89,7 @@ The server currently registers thirty-two public tools. Call `help({ tool_name: 
 | `tag` | Vault-relative paths of every Markdown note carrying a given tag, as `{ count, paths }`, or a bare integer in count-only mode. |
 | `backlinks` | Incoming-link inventory — every source note referencing a target note via wikilink. Inverse of [`links`](#); cohort-uniform LEADING truncation when the source cap fires. |
 | `links` | Outbound-link inventory for a single note (the outgoing-direction sibling of `backlinks`). |
+| `open_file` | Surface an existing vault file (any recognised type — note, canvas, PDF, image, attachment) as the focused, active file in the running Obsidian workspace. Eval-composed; requires the target vault to be the currently focused vault; `new_tab` opt-in. |
 
 ### Mutate (single note + property)
 
