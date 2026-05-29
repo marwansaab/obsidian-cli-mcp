@@ -46,9 +46,18 @@ Per the project's plan-phase graph rule. Queried against the graph rebuilt 2026-
 - **Affected community**: the CLI-dispatch / runtime-spine community — the "Centralized CLI Dispatch Architecture" hyperedge (`adr_004, adr_007, dispatchCli, invokeCli, invokeBoundedCli, four_priority_classifier`). The change is confined to this community plus a new test node.
 - **Kernel-node touch surface** (single source of truth: CLAUDE.md "Validated architectural facts"):
   - `UpstreamError` (error-spine value type, a top god-node): **touched read-only** — `isColdStart` inspects an already-constructed `UpstreamError`'s `code`/`details`; `dispatchOnce` still constructs `UpstreamError` exactly as today. No new code, no new classification branch beyond the retry decision. This is a high-centrality node, so the touch warrants Constitution Compliance reviewer attention even though Principle IV is satisfied.
-  - `createLogger()`, `createQueue()`, `createServer()`: **explicitly NOT touched.** The retry uses the already-injected `logger` (for the `dispatch.retry` line) and constructs neither factory; it does not enter the boot spine. This explicit no-touch claim is what the post-implement structural verification checks against (no production handler constructs the DI factories; they stay confined to `server.ts`).
+  - `createLogger()`, `createQueue()`, `createServer()`: the **factories are not constructed outside `server.ts`** — the retry uses the already-injected `logger` (for the `dispatch.retry` line) and constructs neither factory; it does not enter the boot spine. The `Logger` *surface* may gain one `dispatch.retry` method in `src/logger.ts` (D7) — a method addition, not a factory construction — so the DI-confinement invariant the post-implement structural verification checks (no production handler constructs the DI factories; they stay confined to `server.ts`) still holds. The `shuttingDown` guard (D6) is set inside `killInFlightChildren` within `_dispatch.ts`, so `server.ts` is not modified.
 - **Blast radius**: high by reach (every command flows through `dispatchCli`), low by surface (one primitive, additive control flow). Flagged for reviewer attention per the kernel-adjacency rule, not because any principle is violated.
 - **Post-implement verification** (after `/speckit-implement`, before marking complete): run `/graphify --update` and confirm (1) no new top-level error-code node outside `src/errors.ts`; (2) no production handler imports the boot-time DI factories; (3) `dispatchOnce`/`isColdStart` land in the dispatch community (not a surprise community); (4) the new `architecture.test.ts` is weakly connected (expected for a test node) and `dispatchOnce`/`isColdStart` are structurally connected, not orphaned.
+
+### Post-implement structural verification (2026-05-30, recorded on ship)
+
+`/graphify --update` could not run on this host: the `graphify` Python package is not installed, and the skill's install step uses a typosquat-shaped package name that the safety classifier (correctly) blocked — not worked around. The graph's AST layer rebuilds automatically on the next commit via the project's post-commit hook; the four structural checks were therefore verified directly against the source (the graph is only a lens onto these facts):
+
+1. **No new top-level error code** — `src/cli-adapter/_dispatch.ts` carries exactly the six pre-existing `code:` literals (`CLI_BINARY_NOT_FOUND`, `CLI_TIMEOUT`, `CLI_OUTPUT_TOO_LARGE`, `CLI_NON_ZERO_EXIT`, `ERR_NO_ACTIVE_FILE`, `CLI_REPORTED_ERROR`); `src/errors.ts` is unchanged; the new `dispatch.retry` is a logger event (`DispatchRetryEvent`), not an `UpstreamError.code`, and was not added to `logger.ts`'s `ErrorCode` union. Asserted by the zero-new-codes regression test (T020). **PASS (Principle IV).**
+2. **DI factories confined to `server.ts`** — `createLogger(` / `createQueue(` construction appears only at `server.ts:78-79` (plus their definitions and test fixtures); the retry path constructs neither, using the injected `deps.logger.dispatchRetry(...)`. **PASS.**
+3. **`dispatchOnce` / `isColdStart` placement** — both live in `_dispatch.ts` (the CLI-dispatch module); `dispatchOnce` is called by `dispatchCli` (initial attempt + retry), `isColdStart` by `dispatchCli` and the co-located tests. Structurally connected, no surprise community, not orphaned. **PASS.**
+4. **`architecture.test.ts`** — a pure test node (imports `node:fs`/`path`/`url` + `vitest`, reads source as strings; no production imports). Weakly connected by design. **PASS.**
 
 ## Project Structure
 
@@ -79,9 +88,12 @@ src/cli-adapter/
 ├── invoke-bounded-cli.ts   # UNCHANGED (inherits retry through dispatchCli)
 ├── invoke-bounded-cli.test.ts  # MODIFIED — one facade inheritance test
 └── architecture.test.ts    # NEW — FR-012 guardrail: single spawn-import site + dispatchCli two-caller invariant
+
+src/
+└── logger.ts               # POSSIBLY MODIFIED — add a dispatch.retry structured log channel (D7), or reuse an existing one
 ```
 
-**Structure Decision**: Single project; the change is localized to `src/cli-adapter/`. No tool module changes — that locality is the whole point (FR-009). The shutdown guard touches the `_dispatch.ts` module-level state already used by `killInFlightChildren` (invoked from `server.ts` shutdown); the exact wiring (a module-level `shuttingDown` flag set by the existing shutdown path vs. a check inside `dispatchOnce`) is fixed in research.md decision D6, and is confined to `_dispatch.ts` unless the probe shows a `server.ts` hook is required.
+**Structure Decision**: Single project; the change is localized to `src/cli-adapter/` (plus a possible one-method addition to `src/logger.ts` for the `dispatch.retry` channel, per research D7). No tool module changes — that locality is the whole point (FR-009). The shutdown guard touches the `_dispatch.ts` module-level state already used by `killInFlightChildren` (invoked from `server.ts` shutdown); the exact wiring (a module-level `shuttingDown` flag set by the existing shutdown path vs. a check inside `dispatchOnce`) is fixed in research.md decision D6, and is confined to `_dispatch.ts` unless the probe shows a `server.ts` hook is required.
 
 ## Phase 0 — Outline & Research
 

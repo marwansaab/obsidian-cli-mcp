@@ -1,4 +1,4 @@
-// Original — no upstream. dispatchCli: the single spawn-and-collect primitive owning argv assembly, four-priority classification, always-on bounds, atomic in-flight registry, and failure-only stderr logging (ADR-007, FR-008..FR-018a).
+// Original — no upstream. dispatchCli: the single spawn-and-collect primitive owning argv assembly, four-priority classification, always-on bounds, atomic in-flight registry, and failure-only stderr logging (ADR-007, FR-008..FR-018a). Wraps one `dispatchOnce` attempt with the ADR-029 single cold-start retry: a form-(a) cold-start signature (`CLI_REPORTED_ERROR` whose stdout matches COLD_START_PATTERN, the registry-not-ready `Error: Command "<cmd>" not found.`) on the first attempt triggers exactly one re-spawn whose outcome is authoritative; all other outcomes are single-shot. Form (b) `Stream closed` is NOT retried — a dropped transport pipe carries no evidence of lifecycle position, so retrying it could double-apply a mutation; the default-safe posture leaves it single-shot (form (a) only). Signature pinned by 2026-05-30 T0 probes against the production `Obsidian.com` shim.
 import { spawn as nodeSpawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import * as fsPromises from "node:fs/promises";
@@ -55,6 +55,59 @@ interface InFlightContext {
 let inFlightChild: ChildProcess | null = null;
 let inFlightContext: InFlightContext | null = null;
 
+// Set by killInFlightChildren() (the server.ts triggerShutdown entry). Checked before the
+// ADR-029 retry so a shutdown landing in the gap between attempt-1 settle and attempt-2 spawn
+// skips the retry — otherwise attempt 2 would spawn AFTER the shutdown sweep saw an empty
+// registry, orphaning the child (research D6).
+let shuttingDown = false;
+
+/**
+ * The command-name-independent stdout signature that identifies a form-(a) cold-start: an
+ * Obsidian command issued against a registered-but-closed vault whose command registry has
+ * not loaded yet returns, on exit 0, `Error: Command "<cmd>" not found.` followed by an
+ * edit-distance-dependent suffix. T0 live-CLI probes (2026-05-30, driving the production
+ * `Obsidian.com` shim — NOT the GUI `.exe`, whose detached stdio produced a misleading
+ * empty-exit-0; see specs/059-retry-cold-start/contracts/t0-probe-findings.md) observed two
+ * suffixes for the same registry-not-ready state:
+ *   - `Error: Command "eval" not found. It may require a plugin to be enabled.`   (no near match)
+ *   - `Error: Command "read" not found. Did you mean: sync:read, daily:read, template:read?`
+ * The invariant is therefore the PREFIX `Command "<cmd>" not found.`, not either suffix — an
+ * earlier suffix-only literal silently missed the `read`-style cold-start. The anchored
+ * `Error: Command "..." not found.` form excludes the adjacent `File not found` /
+ * `Folder "x" not found.` / facade `Vault not found.` signatures, which are NOT command-registry
+ * misses and must stay single-shot. dispatchCli priority (c) classifies the cold-start as
+ * CLI_REPORTED_ERROR. Exported as the single source of truth shared with the co-located tests.
+ */
+export const COLD_START_PATTERN = /^\s*Error: Command "[^"]*" not found\./;
+
+/**
+ * Decides whether a first-attempt thrown value is a form-(a) cold-start eligible for one retry.
+ * Type-guards before reading `.code`/`.details` (the caught value is `unknown`). Form (a) only:
+ * form (b) `Stream closed` is NOT retried — a dropped transport pipe carries no evidence of
+ * where in the command lifecycle it fired, so retrying it could double-apply a mutation; the
+ * default-safe posture (research D5) is to leave it single-shot. Never matches CLI_TIMEOUT /
+ * CLI_OUTPUT_TOO_LARGE / CLI_NON_ZERO_EXIT / CLI_BINARY_NOT_FOUND / ERR_NO_ACTIVE_FILE, nor a
+ * non-command-not-found `Error:` stdout (e.g. File/Folder/Vault not-found) — those stay
+ * single-shot (FR-008).
+ *
+ * Bounded false-positive (accepted): a read whose file body *begins* with
+ * `Error: Command "<x>" not found.` is already classified CLI_REPORTED_ERROR by priority (c)
+ * — independent of this retry — and here triggers one extra (idempotent) re-read before the
+ * same error propagates. We deliberately do NOT anchor the pattern to end-of-line after the
+ * period: the real signature carries a trailing suffix (` Did you mean: ...` / ` It may
+ * require a plugin to be enabled.`), so an EOL anchor would FALSE-NEGATIVE genuine cold-starts
+ * — a far worse failure (the feature silently no-ops) than one bounded, non-masking extra
+ * spawn on pathological file content.
+ */
+export function isColdStart(value: unknown): boolean {
+  return (
+    value instanceof UpstreamError &&
+    value.code === "CLI_REPORTED_ERROR" &&
+    typeof value.details?.stdout === "string" &&
+    COLD_START_PATTERN.test(value.details.stdout)
+  );
+}
+
 type KillReason =
   | { kind: "timeout" }
   | { kind: "cap"; stream: "stdout" | "stderr"; capturedBytes: number };
@@ -83,6 +136,36 @@ function settlePathAttempt(
 }
 
 export async function dispatchCli(input: DispatchInput, deps: DispatchDeps): Promise<DispatchOutput> {
+  // ADR-029 single cold-start retry. Run one attempt; if it throws a form-(a) cold-start
+  // signature, run exactly ONE more — the second attempt is authoritative (its resolve OR
+  // throw is the final outcome; attempt 1's known-spurious error is discarded, Q1). Any other
+  // outcome (success, or a non-cold-start failure) is returned/thrown unchanged — single-shot.
+  let firstCallId = "";
+  try {
+    return await dispatchOnce(input, deps, (id) => {
+      firstCallId = id;
+    });
+  } catch (error: unknown) {
+    // Skip the retry when shutdown began in the attempt-1→attempt-2 gap, to avoid orphaning
+    // attempt 2 after the shutdown sweep already ran (research D6).
+    if (!isColdStart(error) || shuttingDown) throw error;
+    return dispatchOnce(input, deps, (secondCallId) => {
+      deps.logger.dispatchRetry({ command: input.command, firstCallId, secondCallId });
+    });
+  }
+}
+
+// One spawn-and-classify attempt. callId and startedAt are minted INSIDE so each attempt
+// (first or retry) carries its own identity/clock — two attempts sharing one callId would
+// collide in dispatch.timeout/cap/kill logs and double-count durationMs (research D7). The
+// optional onCallId callback fires synchronously when the id is minted, letting the retry
+// orchestrator capture both attempts' callIds for the dispatch.retry line without widening
+// DispatchOutput / UpstreamError.
+async function dispatchOnce(
+  input: DispatchInput,
+  deps: DispatchDeps,
+  onCallId?: (callId: string) => void,
+): Promise<DispatchOutput> {
   const env = deps.env ?? process.env;
   const resolveBinaryFn = deps.resolveBinary ?? resolveBinary;
   const resolved = await resolveBinaryFn({
@@ -96,6 +179,7 @@ export async function dispatchCli(input: DispatchInput, deps: DispatchDeps): Pro
   const spawnArgs = argv.slice(1);
   const spawnFn = deps.spawnFn ?? nodeSpawn;
   const callId = randomUUID();
+  onCallId?.(callId);
   const startedAt = Date.now();
 
   return new Promise<DispatchOutput>((resolve, reject) => {
@@ -337,6 +421,10 @@ export async function dispatchCli(input: DispatchInput, deps: DispatchDeps): Pro
 }
 
 export function killInFlightChildren(): boolean {
+  // Mark shutdown so an in-progress ADR-029 retry skips its second attempt (research D6).
+  // Set unconditionally — even when no child is mid-flight (the retry gap), the flag must
+  // latch so dispatchCli's retry guard sees it.
+  shuttingDown = true;
   if (!inFlightChild || !inFlightContext) return false;
   const child = inFlightChild;
   const ctx = inFlightContext;
@@ -362,8 +450,9 @@ export function killInFlightChildren(): boolean {
   return true;
 }
 
-/** Test-only: reset the module-level registry between tests. Not part of the public API. */
+/** Test-only: reset the module-level registry + shutdown flag between tests. Not part of the public API. */
 export function __resetInFlightRegistryForTests(): void {
   inFlightChild = null;
   inFlightContext = null;
+  shuttingDown = false;
 }
