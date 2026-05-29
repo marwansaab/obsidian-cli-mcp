@@ -18,7 +18,7 @@ import {
 } from "./schema.js";
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import { parseEvalStdout, remapVaultNotFound } from "../_active-file.js";
+import { decodeEvalEnvelope, resolveVaultRootOrRemap } from "../_active-file.js";
 import { composeEvalCode } from "../_shared.js";
 
 import type { Logger } from "../../logger.js";
@@ -35,38 +35,24 @@ export interface ExecuteDeps {
 
 const TOOL_NAME = "open_file";
 
-/**
- * Stage 1 (FR-012a) — resolve the requested vault's absolute base path via the
- * registry. An unknown vault display name surfaces as the cohort
- * VAULT_NOT_FOUND/unknown triple BEFORE any eval is spawned (the guard fires
- * before file resolution). Mirrors find_and_replace's resolveVaultRoot.
- */
-async function resolveExpectedBase(
-  input: OpenFileInput,
-  deps: ExecuteDeps,
-): Promise<string> {
-  try {
-    return await deps.vaultRegistry.resolveVaultPath(input.vault);
-  } catch (err) {
-    remapVaultNotFound(err, input.vault, TOOL_NAME);
-  }
-}
-
 export async function executeOpenFile(
   input: OpenFileInput,
   deps: ExecuteDeps,
 ): Promise<OpenFileOutput> {
-  const expectedBase = await resolveExpectedBase(input, deps);
+  // Stage 1 (FR-012a) — resolve the requested vault's absolute base path via the
+  // registry. An unknown vault display name surfaces as the cohort
+  // VAULT_NOT_FOUND/unknown triple BEFORE any eval is spawned.
+  const expectedBase = await resolveVaultRootOrRemap(deps.vaultRegistry, input.vault, TOOL_NAME);
 
-  const locator =
-    input.path !== undefined
-      ? { kind: "path" as const, value: input.path }
-      : { kind: "name" as const, value: input.file! };
+  // Exactly one of path/file is present (schema superRefine, FR-005), so the eval
+  // payload carries both fields with the absent one nulled, and locatorLabel (used in
+  // the error path) is simply whichever locator was supplied.
+  const locatorLabel = input.path ?? input.file!;
 
   const code = composeEvalCode(JS_TEMPLATE, {
     expectedBase,
-    path: locator.kind === "path" ? locator.value : null,
-    file: locator.kind === "name" ? locator.value : null,
+    path: input.path ?? null,
+    file: input.file ?? null,
     new_tab: input.new_tab ?? false,
   });
 
@@ -79,45 +65,24 @@ export async function executeOpenFile(
     { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
   );
 
-  // Single-stage decode (block-body async IIFE settles to one value, R2): strip
-  // the "=> " echo → JSON.parse → openEvalResponseSchema.safeParse. A malformed
-  // result is an INTERNAL_ERROR invariant violation, never a silent success.
-  let parsed: unknown;
-  try {
-    parsed = parseEvalStdout(result.stdout);
-  } catch (err) {
-    throw new UpstreamError({
-      code: "INTERNAL_ERROR",
-      cause: err,
-      details: { stage: "json-parse", stdout: result.stdout.slice(0, 500) },
-      message: `open_file: eval response is not JSON: ${result.stdout.slice(0, 200)}`,
-    });
-  }
+  // Single-stage decode via the shared eval-envelope decoder: strip the "=> " echo
+  // → JSON.parse → openEvalResponseSchema.safeParse. A malformed result is an
+  // INTERNAL_ERROR invariant violation (not the cohort's CLI_REPORTED_ERROR — open
+  // owns the envelope contract), never a silent success.
+  const data = decodeEvalEnvelope(result.stdout, openEvalResponseSchema, {
+    toolName: "open_file",
+    malformedCode: "INTERNAL_ERROR",
+  });
 
-  const validated = openEvalResponseSchema.safeParse(parsed);
-  if (!validated.success) {
-    throw new UpstreamError({
-      code: "INTERNAL_ERROR",
-      cause: validated.error,
-      details: { stage: "envelope-parse", stdout: result.stdout.slice(0, 500) },
-      message: "open_file: eval response shape unexpected",
-    });
-  }
-
-  if (validated.data.ok === true) {
+  if (data.ok === true) {
     return openFileOutputSchema.parse({
-      opened: validated.data.opened,
+      opened: data.opened,
       vault: input.vault,
-      new_tab: validated.data.new_tab,
+      new_tab: data.new_tab,
     });
   }
 
-  throw mapEvalError(
-    validated.data.code,
-    validated.data.detail,
-    input.vault,
-    locator.value,
-  );
+  throw mapEvalError(data.code, data.detail, input.vault, locatorLabel);
 }
 
 function mapEvalError(

@@ -1,4 +1,5 @@
-// Original — no upstream. Shared active/specific locator resolution for the write + vault-scan tool cohorts (F1 of the thermo-nuclear code-quality review). Centralises the focused-file / focused-vault `obsidian eval` round-trip, the `"=> "` stdout strip, the cohort-uniform ERR_NO_ACTIVE_FILE message, the registry VALIDATION_ERROR -> CLI_REPORTED_ERROR/VAULT_NOT_FOUND remap, the `obsidian file` TSV path resolver, the canonical-path / PATH_ESCAPES_VAULT guard, and the reverse vault display-name lookup that were previously copy-pasted across write_note, append_note, prepend, patch_block, patch_heading, find_and_replace, and query_base. Every helper preserves the prior inlined behaviour byte-for-byte (template strings, error codes, messages, and `details` shapes); divergences between consumers (tool name in messages, the no-active-file label, the per-note attempted-path label) surface as explicit parameters rather than forked copies.
+// Original — no upstream. Shared active/specific locator resolution for the write + vault-scan tool cohorts (F1 of the thermo-nuclear code-quality review). Centralises the focused-file / focused-vault `obsidian eval` round-trip, the `"=> "` stdout strip, the cohort-uniform ERR_NO_ACTIVE_FILE message, the registry VALIDATION_ERROR -> CLI_REPORTED_ERROR/VAULT_NOT_FOUND remap, the `obsidian file` TSV path resolver, the canonical-path / PATH_ESCAPES_VAULT guard, and the reverse vault display-name lookup that were previously copy-pasted across write_note, append_note, prepend, patch_block, patch_heading, find_and_replace, and query_base. Every helper preserves the prior inlined behaviour byte-for-byte (template strings, error codes, messages, and `details` shapes); divergences between consumers (tool name in messages, the no-active-file label, the per-note attempted-path label) surface as explicit parameters rather than forked copies. It also hosts `decodeEvalEnvelope` — the eval-composed cohort's shared `parseEvalStdout` + `safeParse` envelope decoder (backlinks, links, open_file), with the per-tool malformed-eval code (CLI_REPORTED_ERROR vs INTERNAL_ERROR) as an explicit parameter.
+
 import { invokeCli, type SpawnLike } from "../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../errors.js";
 import { checkCanonicalPath } from "../path-safety/canonical.js";
@@ -6,6 +7,7 @@ import { checkCanonicalPath } from "../path-safety/canonical.js";
 import type { Logger } from "../logger.js";
 import type { Queue } from "../queue.js";
 import type { VaultRegistry } from "../vault-registry/registry.js";
+import type { ZodType } from "zod";
 
 /**
  * Frozen `obsidian eval` template that resolves the focused FILE: returns the
@@ -56,6 +58,45 @@ export function parseEvalStdout(stdout: string): unknown {
   const trimmed = stdout.trimStart();
   const body = trimmed.startsWith("=> ") ? trimmed.slice(3) : trimmed;
   return JSON.parse(body);
+}
+
+/**
+ * Decode the stdout of an eval-composed tool's `obsidian eval` round-trip into its
+ * validated discriminated envelope. Strips the `"=> "` echo + JSON.parse (via
+ * {@link parseEvalStdout}), then `schema.safeParse`. On either failure throws an
+ * UpstreamError carrying `details.stage` ("json-parse" | "envelope-parse") + `stdout`
+ * (sliced to 500). `malformedCode` lets each caller keep its existing top-level
+ * classification: the eval-composed cohort historically uses CLI_REPORTED_ERROR
+ * (backlinks/links — a malformed eval reads as an upstream report), while open_file
+ * uses INTERNAL_ERROR (a malformed envelope is an internal invariant violation).
+ * Byte-identical to the three prior inlined copies.
+ */
+export function decodeEvalEnvelope<T>(
+  stdout: string,
+  schema: ZodType<T>,
+  opts: { toolName: string; malformedCode: "CLI_REPORTED_ERROR" | "INTERNAL_ERROR" },
+): T {
+  let parsed: unknown;
+  try {
+    parsed = parseEvalStdout(stdout);
+  } catch (err) {
+    throw new UpstreamError({
+      code: opts.malformedCode,
+      cause: err,
+      details: { stage: "json-parse", stdout: stdout.slice(0, 500) },
+      message: `${opts.toolName}: eval response is not JSON: ${stdout.slice(0, 200)}`,
+    });
+  }
+  const validated = schema.safeParse(parsed);
+  if (!validated.success) {
+    throw new UpstreamError({
+      code: opts.malformedCode,
+      cause: validated.error,
+      details: { stage: "envelope-parse", stdout: stdout.slice(0, 500) },
+      message: `${opts.toolName}: eval response shape unexpected`,
+    });
+  }
+  return validated.data;
 }
 
 function isFocusedFileResponse(value: unknown): value is FocusedFileResponse {
@@ -246,6 +287,26 @@ export function remapVaultNotFound(err: unknown, vault: string, toolName: string
     });
   }
   throw err;
+}
+
+/**
+ * Resolve a known vault display name to its absolute base path via the registry,
+ * remapping the registry's unknown-vault VALIDATION_ERROR to the cohort
+ * VAULT_NOT_FOUND/unknown triple (via {@link remapVaultNotFound}). The vault-known
+ * half of the resolve-or-remap pattern shared by find_and_replace (its
+ * vault-supplied branch) and open_file (vault always required). Always returns on
+ * success or throws — never undefined.
+ */
+export async function resolveVaultRootOrRemap(
+  vaultRegistry: VaultRegistry,
+  vault: string,
+  toolName: string,
+): Promise<string> {
+  try {
+    return await vaultRegistry.resolveVaultPath(vault);
+  } catch (err) {
+    remapVaultNotFound(err, vault, toolName);
+  }
 }
 
 /** Context for {@link assertCanonicalPath}. */

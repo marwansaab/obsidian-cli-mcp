@@ -24,7 +24,7 @@ import {
   assertCanonicalPath,
   FOCUSED_VAULT_TEMPLATE,
   parseFocusedVault,
-  remapVaultNotFound,
+  resolveVaultRootOrRemap,
 } from "../_active-file.js";
 import { writeAtomic } from "../_note-io.js";
 
@@ -225,13 +225,9 @@ async function resolveVaultRoot(
   deps: ExecuteDeps,
 ): Promise<string> {
   if (input.vault !== undefined) {
-    try {
-      return await deps.vaultRegistry.resolveVaultPath(input.vault);
-    } catch (err) {
-      // The registry surfaces unknown-vault via its own UpstreamError shape.
-      // We re-throw with the spec-mandated triple per FR-013 / errors.md row 10.
-      remapVaultNotFound(err, input.vault, "find_and_replace");
-    }
+    // The registry surfaces unknown-vault via its own UpstreamError shape; the helper
+    // re-throws it with the spec-mandated VAULT_NOT_FOUND/unknown triple per FR-013.
+    return resolveVaultRootOrRemap(deps.vaultRegistry, input.vault, "find_and_replace");
   }
   const invokeEval = deps.invokeEval ?? (() => defaultInvokeEval(deps));
   const focused = await invokeEval();
