@@ -1,4 +1,4 @@
-// Original — no upstream. dispatchCli: the single spawn-and-collect primitive owning argv assembly, four-priority classification, always-on bounds, atomic in-flight registry, and failure-only stderr logging (ADR-007, FR-008..FR-018a). Wraps one `dispatchOnce` attempt with the ADR-029 single cold-start retry: a form-(a) cold-start signature (`CLI_REPORTED_ERROR` whose stdout includes COLD_START_INVARIANT) on the first attempt triggers exactly one re-spawn whose outcome is authoritative; all other outcomes are single-shot. Form (b) `Stream closed` is NOT shipped — the 2026-05-30 T0 probe observed no Stream-closed manifestation, so it was dropped per the default-safe posture (form (a) only).
+// Original — no upstream. dispatchCli: the single spawn-and-collect primitive owning argv assembly, four-priority classification, always-on bounds, atomic in-flight registry, and failure-only stderr logging (ADR-007, FR-008..FR-018a). Wraps one `dispatchOnce` attempt with the ADR-029 single cold-start retry: a form-(a) cold-start signature (`CLI_REPORTED_ERROR` whose stdout matches COLD_START_PATTERN, the registry-not-ready `Error: Command "<cmd>" not found.`) on the first attempt triggers exactly one re-spawn whose outcome is authoritative; all other outcomes are single-shot. Form (b) `Stream closed` is NOT retried — a dropped transport pipe carries no evidence of lifecycle position, so retrying it could double-apply a mutation; the default-safe posture leaves it single-shot (form (a) only). Signature pinned by 2026-05-30 T0 probes against the production `Obsidian.com` shim.
 import { spawn as nodeSpawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import * as fsPromises from "node:fs/promises";
@@ -62,30 +62,49 @@ let inFlightContext: InFlightContext | null = null;
 let shuttingDown = false;
 
 /**
- * The command-name-independent stdout substring that identifies a form-(a) cold-start: an
+ * The command-name-independent stdout signature that identifies a form-(a) cold-start: an
  * Obsidian command issued against a registered-but-closed vault whose command registry has
- * not loaded yet returns, on exit 0, `Error: Command "<cmd>" not found. It may require a
- * plugin to be enabled.` (T0-pinned 2026-05-30 — see specs/059-retry-cold-start/contracts/
- * t0-probe-findings.md). dispatchCli priority (c) classifies that as CLI_REPORTED_ERROR.
- * Substring (not exact) match keeps it command-agnostic (FR-002). Exported as the single
- * source of truth shared with the co-located tests so the fixture and matcher cannot drift.
+ * not loaded yet returns, on exit 0, `Error: Command "<cmd>" not found.` followed by an
+ * edit-distance-dependent suffix. T0 live-CLI probes (2026-05-30, driving the production
+ * `Obsidian.com` shim — NOT the GUI `.exe`, whose detached stdio produced a misleading
+ * empty-exit-0; see specs/059-retry-cold-start/contracts/t0-probe-findings.md) observed two
+ * suffixes for the same registry-not-ready state:
+ *   - `Error: Command "eval" not found. It may require a plugin to be enabled.`   (no near match)
+ *   - `Error: Command "read" not found. Did you mean: sync:read, daily:read, template:read?`
+ * The invariant is therefore the PREFIX `Command "<cmd>" not found.`, not either suffix — an
+ * earlier suffix-only literal silently missed the `read`-style cold-start. The anchored
+ * `Error: Command "..." not found.` form excludes the adjacent `File not found` /
+ * `Folder "x" not found.` / facade `Vault not found.` signatures, which are NOT command-registry
+ * misses and must stay single-shot. dispatchCli priority (c) classifies the cold-start as
+ * CLI_REPORTED_ERROR. Exported as the single source of truth shared with the co-located tests.
  */
-export const COLD_START_INVARIANT = "not found. It may require a plugin to be enabled.";
+export const COLD_START_PATTERN = /^\s*Error: Command "[^"]*" not found\./;
 
 /**
  * Decides whether a first-attempt thrown value is a form-(a) cold-start eligible for one retry.
  * Type-guards before reading `.code`/`.details` (the caught value is `unknown`). Form (a) only:
- * form (b) `Stream closed` was dropped after the T0 probe found no Stream-closed manifestation
- * (default-safe posture). Never matches CLI_TIMEOUT / CLI_OUTPUT_TOO_LARGE / CLI_NON_ZERO_EXIT /
- * CLI_BINARY_NOT_FOUND / ERR_NO_ACTIVE_FILE, nor a non-invariant `Error:` stdout — those stay
+ * form (b) `Stream closed` is NOT retried — a dropped transport pipe carries no evidence of
+ * where in the command lifecycle it fired, so retrying it could double-apply a mutation; the
+ * default-safe posture (research D5) is to leave it single-shot. Never matches CLI_TIMEOUT /
+ * CLI_OUTPUT_TOO_LARGE / CLI_NON_ZERO_EXIT / CLI_BINARY_NOT_FOUND / ERR_NO_ACTIVE_FILE, nor a
+ * non-command-not-found `Error:` stdout (e.g. File/Folder/Vault not-found) — those stay
  * single-shot (FR-008).
+ *
+ * Bounded false-positive (accepted): a read whose file body *begins* with
+ * `Error: Command "<x>" not found.` is already classified CLI_REPORTED_ERROR by priority (c)
+ * — independent of this retry — and here triggers one extra (idempotent) re-read before the
+ * same error propagates. We deliberately do NOT anchor the pattern to end-of-line after the
+ * period: the real signature carries a trailing suffix (` Did you mean: ...` / ` It may
+ * require a plugin to be enabled.`), so an EOL anchor would FALSE-NEGATIVE genuine cold-starts
+ * — a far worse failure (the feature silently no-ops) than one bounded, non-masking extra
+ * spawn on pathological file content.
  */
 export function isColdStart(value: unknown): boolean {
   return (
     value instanceof UpstreamError &&
     value.code === "CLI_REPORTED_ERROR" &&
     typeof value.details?.stdout === "string" &&
-    value.details.stdout.includes(COLD_START_INVARIANT)
+    COLD_START_PATTERN.test(value.details.stdout)
   );
 }
 

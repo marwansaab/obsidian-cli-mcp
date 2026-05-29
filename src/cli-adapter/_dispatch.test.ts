@@ -10,8 +10,9 @@ import { createLogger, type Logger } from "../logger.js";
 import {
   __resetInFlightRegistryForTests,
   assembleArgv,
-  COLD_START_INVARIANT,
+  COLD_START_PATTERN,
   dispatchCli,
+  isColdStart,
   killInFlightChildren,
   SIGKILL_GRACE_MS,
   type DispatchInput,
@@ -692,12 +693,70 @@ describe("killInFlightChildren — public surface (FR-016)", () => {
   });
 });
 
-// ADR-029 single cold-start retry. COLD_START_STDOUT is built from the production
-// COLD_START_INVARIANT (imported, single source of truth) so the test fixture and the
-// matcher can never drift. It mirrors the T0-pinned literal:
-//   Error: Command "<cmd>" not found. It may require a plugin to be enabled.
-// which dispatchCli priority (c) classifies as CLI_REPORTED_ERROR (stdout starts "Error:").
-const COLD_START_STDOUT = `Error: Command "read" ${COLD_START_INVARIANT}\n`;
+// ADR-029 single cold-start retry. COLD_START_STDOUT is the verbatim T0-captured `.com`
+// cold-start of a VALID command (`read` against a registered-but-closed vault): the
+// registry-not-ready "Did you mean" suffix variant — the exact form an earlier suffix-only
+// invariant missed. dispatchCli priority (c) classifies it as CLI_REPORTED_ERROR (stdout
+// starts "Error:"); COLD_START_PATTERN (imported, single source of truth) matches the
+// command-not-found PREFIX regardless of suffix. A sanity assertion below guards the fixture.
+const COLD_START_STDOUT = `Error: Command "read" not found. Did you mean: sync:read, daily:read, template:read?\n`;
+// The other observed suffix (no near-match command, e.g. eval/unknown) — also a cold-start.
+const COLD_START_STDOUT_PLUGIN = `Error: Command "eval" not found. It may require a plugin to be enabled.\n`;
+
+describe("isColdStart — ADR-029 predicate (.com command-not-found signature)", () => {
+  const reported = (stdout: string) =>
+    new UpstreamError({ code: "CLI_REPORTED_ERROR", cause: null, details: { stdout } });
+
+  it("the test fixtures themselves match COLD_START_PATTERN (single source of truth)", () => {
+    expect(COLD_START_STDOUT).toMatch(COLD_START_PATTERN);
+    expect(COLD_START_STDOUT_PLUGIN).toMatch(COLD_START_PATTERN);
+  });
+
+  it("matches the 'Did you mean' suffix variant — the valid-command cold-start a suffix-only invariant missed", () => {
+    expect(
+      isColdStart(reported('Error: Command "read" not found. Did you mean: sync:read, daily:read, template:read?\n')),
+    ).toBe(true);
+  });
+
+  it("matches the 'It may require a plugin to be enabled' suffix variant (eval / unknown cold-start)", () => {
+    expect(isColdStart(reported('Error: Command "eval" not found. It may require a plugin to be enabled.\n'))).toBe(true);
+  });
+
+  it("is command-name independent (mutating command cold-start)", () => {
+    expect(isColdStart(reported('Error: Command "rename" not found. It may require a plugin to be enabled.\n'))).toBe(true);
+  });
+
+  it("tolerates a leading newline / CRLF / tab before the signature (\\s* anchor)", () => {
+    expect(isColdStart(reported('\nError: Command "read" not found. Did you mean: x?\n'))).toBe(true);
+    expect(isColdStart(reported('\r\nError: Command "read" not found. Did you mean: x?\r\n'))).toBe(true);
+    expect(isColdStart(reported('\tError: Command "eval" not found. It may require a plugin to be enabled.'))).toBe(true);
+  });
+
+  it("does NOT match File / Folder / Vault not-found (not command-registry misses — stay single-shot)", () => {
+    expect(isColdStart(reported("Error: File not found\n"))).toBe(false);
+    expect(isColdStart(reported('Error: Folder "x" not found.\n'))).toBe(false);
+    expect(isColdStart(reported("\nVault not found.\n"))).toBe(false);
+  });
+
+  it("does NOT match when the code is not CLI_REPORTED_ERROR, even if stdout matches", () => {
+    expect(
+      isColdStart(
+        new UpstreamError({
+          code: "CLI_NON_ZERO_EXIT",
+          cause: null,
+          details: { stdout: 'Error: Command "read" not found. It may require a plugin to be enabled.' },
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("type-guards non-UpstreamError values and missing stdout", () => {
+    expect(isColdStart(null)).toBe(false);
+    expect(isColdStart(new Error('Error: Command "x" not found.'))).toBe(false);
+    expect(isColdStart(reported("ok\n"))).toBe(false);
+    expect(isColdStart(new UpstreamError({ code: "CLI_REPORTED_ERROR", cause: null, details: {} }))).toBe(false);
+  });
+});
 
 describe("dispatchCli — ADR-029 cold-start single retry", () => {
   // US1 (T013) — the MVP: a form-(a) cold-start on attempt 1 is absorbed by one retry.
@@ -716,6 +775,49 @@ describe("dispatchCli — ADR-029 cold-start single retry", () => {
     expect(out.stdout).toBe("ok\n");
     expect(out.exitCode).toBe(0);
     expect(calls()).toBe(2);
+  });
+
+  // US1 — the other observed cold-start suffix ('It may require a plugin') also recovers,
+  // proving the retry triggers on the command-not-found PREFIX, not a specific suffix.
+  it("US1: 'plugin' suffix cold-start on attempt 1 → success on attempt 2; calls()===2", async () => {
+    const cap = captureLines();
+    const { spawnFn, calls } = makeScriptedSpawn([
+      { stdout: COLD_START_STDOUT_PLUGIN, exitCode: 0 },
+      { stdout: "=> ok\n", exitCode: 0 },
+    ]);
+    const out = await dispatchCli(baseInput({ command: "eval" }), {
+      spawnFn,
+      env: {},
+      logger: cap.logger,
+      resolveBinary: stubResolveBinary,
+    });
+    expect(out.stdout).toBe("=> ok\n");
+    expect(calls()).toBe(2);
+  });
+
+  // Bounded false-positive (documented): a successful exit-0 read whose BODY begins with the
+  // cold-start pattern is classified CLI_REPORTED_ERROR by priority (c) regardless of the retry
+  // (a pre-existing dispatch property), then retried once (idempotent re-read) before the same
+  // error propagates. Net cost: one extra spawn on pathological content — bounded, non-masking.
+  // The prefix pattern is intentionally NOT EOL-anchored (that would false-negative real
+  // cold-starts, whose suffix follows the period).
+  it("bounded false-positive: exit-0 body starting with the pattern → CLI_REPORTED_ERROR, retried once, propagates (calls()===2, no masking)", async () => {
+    const cap = captureLines();
+    const body = 'Error: Command "example" not found. (this is note content, not a real cold-start)\n\nbody text\n';
+    const { spawnFn, calls } = makeScriptedSpawn([
+      { stdout: body, exitCode: 0 },
+      { stdout: body, exitCode: 0 },
+    ]);
+    const err = await captureRejection(
+      dispatchCli(baseInput({ command: "read" }), {
+        spawnFn,
+        env: {},
+        logger: cap.logger,
+        resolveBinary: stubResolveBinary,
+      }),
+    );
+    expect(err.code).toBe("CLI_REPORTED_ERROR"); // priority (c), independent of the retry
+    expect(calls()).toBe(2); // retried once (bounded), then propagated unchanged
   });
 
   // US2 (T017) — Q1 second-attempt-authoritative: cold-start → a DIFFERENT real error.
@@ -738,7 +840,7 @@ describe("dispatchCli — ADR-029 cold-start single retry", () => {
     expect(err.code).toBe("CLI_NON_ZERO_EXIT");
     expect(err.cause).toEqual({ exitCode: 1, signal: null });
     expect(err.details).toMatchObject({ stderr: "boom", exitCode: 1 });
-    expect(err.details.stdout).not.toContain(COLD_START_INVARIANT); // attempt-1 discarded
+    expect(COLD_START_PATTERN.test(String(err.details.stdout ?? ""))).toBe(false); // attempt-1 discarded
     expect(calls()).toBe(2);
   });
 
@@ -759,7 +861,7 @@ describe("dispatchCli — ADR-029 cold-start single retry", () => {
       }),
     );
     expect(err.code).toBe("CLI_REPORTED_ERROR");
-    expect(err.details.stdout).toContain(COLD_START_INVARIANT);
+    expect(String(err.details.stdout)).toMatch(COLD_START_PATTERN);
     expect(calls()).toBe(2);
   });
 
@@ -939,7 +1041,7 @@ describe("dispatchCli — ADR-029 cold-start single retry", () => {
       }),
     );
     expect(err.code).toBe("CLI_REPORTED_ERROR");
-    expect(err.details.stdout).toContain(COLD_START_INVARIANT);
+    expect(String(err.details.stdout)).toMatch(COLD_START_PATTERN);
     expect(calls()).toBe(1);
     expect(cap.lines().filter((l) => JSON.parse(l).event === "dispatch.retry")).toEqual([]);
   });

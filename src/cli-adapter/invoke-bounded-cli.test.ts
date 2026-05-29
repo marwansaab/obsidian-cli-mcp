@@ -263,7 +263,8 @@ describe("invokeBoundedCli — ADR-029 cold-start retry inheritance", () => {
   // T023 — the obsidian_exec passthrough facade inherits the dispatch-layer retry: cold-start
   // on call 1 → success on call 2 → invokeBoundedCli resolves; spawn called exactly twice.
   it("cold-start on call 1 → success on call 2 → invokeBoundedCli resolves; spawn called exactly twice", async () => {
-    const COLD_STDOUT = 'Error: Command "read" not found. It may require a plugin to be enabled.\n';
+    // Verbatim .com cold-start of a valid command (T0 2026-05-30), "Did you mean" variant.
+    const COLD_STDOUT = 'Error: Command "read" not found. Did you mean: sync:read, daily:read, template:read?\n';
     const cap = captureLines();
     const { spawnFn, recorded } = makeScriptedSpawn([
       { stdout: COLD_STDOUT, exitCode: 0 },

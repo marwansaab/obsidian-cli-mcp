@@ -474,7 +474,9 @@ describe("invokeCli — queue serialization (research R6)", () => {
 });
 
 describe("invokeCli — ADR-029 cold-start retry inheritance", () => {
-  const COLD_STDOUT = 'Error: Command "read" not found. It may require a plugin to be enabled.\n';
+  // The verbatim .com cold-start of a valid command (T0 2026-05-30) — the "Did you mean"
+  // suffix variant, which an earlier suffix-only invariant missed. Matches COLD_START_PATTERN.
+  const COLD_STDOUT = 'Error: Command "read" not found. Did you mean: sync:read, daily:read, template:read?\n';
 
   // T014 — the typed-tool facade inherits the dispatch-layer retry with zero adaptation:
   // cold-start on call 1 → success on call 2 → invokeCli resolves; spawn called exactly
