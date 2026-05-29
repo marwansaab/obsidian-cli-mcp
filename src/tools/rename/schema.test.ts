@@ -1,6 +1,7 @@
 // Original — no upstream. Tests for the rename input + output schemas — happy paths across both modes, /speckit-clarify Q1 verbatim-`.md` forwarding accepted at schema layer, /speckit-clarify Q2 folder-separator rejection, Story 6 validation classes, UTF-8 byte-perfect, output literal-true gate.
-import { expectTypeOf, test, expect } from "vitest";
+import { describe, expectTypeOf, it, test, expect } from "vitest";
 
+import { targetModeWiringCases } from "../_target-mode-test-cases.js";
 import { renameInputSchema, renameNoteOutputSchema, type RenameNoteInput } from "./schema.js";
 
 import type { z } from "zod";
@@ -77,85 +78,24 @@ test("active+name happy path; no locator fields (Story 5 AC#1)", () => {
   }
 });
 
-// ---- Failure-path (target-mode primitive: locator XOR + vault + active forbidden keys) ----
+// ---- target-mode refinement wiring (shared battery) ---------------------
 
-// (f) Story 6 AC#1 — specific without locator
-test("specific without file or path rejects with 'exactly one of' (Story 6 AC#1)", () => {
-  const result = renameInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "V",
-    name: "Fixed",
+describe("renameInputSchema — target-mode refinement wiring (shared battery)", () => {
+  it.each(
+    targetModeWiringCases(
+      { target_mode: "specific", vault: "V", path: "n.md", name: "new" },
+      { target_mode: "active", name: "new" },
+    ),
+  )("$label", ({ input, valid, issuePath }) => {
+    const r = renameInputSchema.safeParse(input);
+    expect(r.success).toBe(valid);
+    if (!valid && issuePath && !r.success) {
+      expect(r.error.issues.some((i) => i.path.includes(issuePath))).toBe(true);
+    }
   });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const messages = result.error.issues.map((i) => i.message).join(" | ");
-    expect(messages).toContain("exactly one of");
-  }
 });
 
-// (g) Story 6 AC#2 — specific with both locators
-test("specific with both file AND path rejects on both paths (Story 6 AC#2)", () => {
-  const result = renameInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "V",
-    file: "F",
-    path: "F.md",
-    name: "Fixed",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const fileIssues = result.error.issues.filter((i) => JSON.stringify(i.path) === JSON.stringify(["file"]));
-    const pathIssues = result.error.issues.filter((i) => JSON.stringify(i.path) === JSON.stringify(["path"]));
-    expect(fileIssues.length).toBeGreaterThanOrEqual(1);
-    expect(pathIssues.length).toBeGreaterThanOrEqual(1);
-  }
-});
-
-// (h) Story 6 AC#3 — vault missing in specific
-test("specific without vault rejects on path=['vault'] (Story 6 AC#3)", () => {
-  const result = renameInputSchema.safeParse({
-    target_mode: "specific",
-    file: "F",
-    name: "Fixed",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const vaultIssues = result.error.issues.filter((i) => JSON.stringify(i.path) === JSON.stringify(["vault"]));
-    expect(vaultIssues.length).toBeGreaterThanOrEqual(1);
-  }
-});
-
-// (i) Story 6 AC#4 — active forbids vault / file / path
-test.each([
-  ["vault", { target_mode: "active", vault: "V", name: "X" }],
-  ["file", { target_mode: "active", file: "F", name: "X" }],
-  ["path", { target_mode: "active", path: "P.md", name: "X" }],
-])("active mode forbids %s (Story 6 AC#4)", (key, input) => {
-  const result = renameInputSchema.safeParse(input);
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const matched = result.error.issues.filter((i) => JSON.stringify(i.path) === JSON.stringify([key]));
-    expect(matched.length).toBeGreaterThanOrEqual(1);
-    expect(matched[0]!.message).toContain("active mode");
-  }
-});
-
-// (j) Story 6 AC#5 — unknown top-level key
-test("unknown top-level key rejected by strict mode (Story 6 AC#5)", () => {
-  const result = renameInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "V",
-    path: "P.md",
-    name: "Fixed",
-    pancakes: "yes",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const unrecognized = result.error.issues.filter((i) => i.code === "unrecognized_keys");
-    expect(unrecognized.length).toBeGreaterThanOrEqual(1);
-    expect((unrecognized[0] as unknown as { keys: string[] }).keys).toContain("pancakes");
-  }
-});
+// ---- Failure-path (tool-specific name validation) -----------------------
 
 // (k) Story 6 AC#6 — empty name
 test("specific with empty name rejects on path=['name'] with too_small (Story 6 AC#6)", () => {
@@ -268,36 +208,6 @@ test("name with trailing slash rejects (`Fixed/`)", () => {
     name: "Fixed/",
   });
   expect(result.success).toBe(false);
-});
-
-// (s) Invalid discriminator
-test("invalid target_mode value rejects on path=['target_mode']", () => {
-  const result = renameInputSchema.safeParse({
-    target_mode: "unknown",
-    vault: "V",
-    path: "P.md",
-    name: "Fixed",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const tmIssues = result.error.issues.filter((i) => JSON.stringify(i.path) === JSON.stringify(["target_mode"]));
-    expect(tmIssues.length).toBeGreaterThanOrEqual(1);
-  }
-});
-
-// (t) Empty-string vault
-test("vault: '' empty-string rejects with too_small (Edge Case)", () => {
-  const result = renameInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "",
-    path: "P.md",
-    name: "Fixed",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const vaultIssues = result.error.issues.filter((i) => JSON.stringify(i.path) === JSON.stringify(["vault"]));
-    expect(vaultIssues.some((i) => i.code === "too_small")).toBe(true);
-  }
 });
 
 // (u) Inferred TypeScript type compiles correctly

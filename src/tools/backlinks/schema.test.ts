@@ -1,5 +1,5 @@
 // Original — no upstream. backlinks schema tests — target_mode discriminator inherited from targetModeBaseSchema, XOR locator + active-forbid refinements, optional with_counts / total booleans, optional limit integer (range 1..10000), strict additionalProperties rejection, emitted JSON Schema round-trip via toMcpInputSchema, discriminated-union eval-envelope shape.
-import { expect, test, vi } from "vitest";
+import { describe, expect, it, test, vi } from "vitest";
 
 import {
   BACKLINKS_EVAL_ERROR_CODES,
@@ -9,6 +9,7 @@ import {
   backlinksOutputSchema,
 } from "./schema.js";
 import { toMcpInputSchema } from "../_shared.js";
+import { targetModeWiringCases } from "../_target-mode-test-cases.js";
 
 // (1) specific + vault + path happy
 test("specific + vault + path: parses OK", () => {
@@ -71,125 +72,19 @@ test("active (no other fields): parses OK", () => {
   expect(result.success).toBe(true);
 });
 
-// (7) specific without vault rejects; dispatcher spy never called (FR-021)
-test("specific without vault: rejects with vault-path issue; dispatcher spy never called (FR-021)", () => {
-  const dispatcherSpy = vi.fn();
-  const result = backlinksInputSchema.safeParse({
-    target_mode: "specific",
-    path: "x.md",
+describe("backlinksInputSchema — target-mode refinement wiring (shared battery)", () => {
+  it.each(
+    targetModeWiringCases(
+      { target_mode: "specific", vault: "V", path: "n.md" },
+      { target_mode: "active" },
+    ),
+  )("$label", ({ input, valid, issuePath }) => {
+    const r = backlinksInputSchema.safeParse(input);
+    expect(r.success).toBe(valid);
+    if (!valid && issuePath && !r.success) {
+      expect(r.error.issues.some((i) => i.path.includes(issuePath))).toBe(true);
+    }
   });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const vaultIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["vault"]),
-    );
-    expect(vaultIssues.length).toBeGreaterThanOrEqual(1);
-  }
-  expect(dispatcherSpy).not.toHaveBeenCalled();
-});
-
-// (8) specific without file+path rejects (US3-1 — "neither name nor focus")
-test("specific without file or path: rejects with 'exactly one of' (US3-1)", () => {
-  const dispatcherSpy = vi.fn();
-  const result = backlinksInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "Demo",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const messages = result.error.issues.map((i) => i.message).join(" | ");
-    expect(messages).toMatch(/exactly one of/);
-  }
-  expect(dispatcherSpy).not.toHaveBeenCalled();
-});
-
-// (9) specific with BOTH file+path rejects (US3-4 XOR conflict)
-test("specific with BOTH file AND path: rejects on both keys (XOR / US3-4)", () => {
-  const dispatcherSpy = vi.fn();
-  const result = backlinksInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "Demo",
-    file: "brief",
-    path: "Projects/brief.md",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const fileIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["file"]),
-    );
-    const pathIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["path"]),
-    );
-    expect(fileIssues.length).toBeGreaterThanOrEqual(1);
-    expect(pathIssues.length).toBeGreaterThanOrEqual(1);
-  }
-  expect(dispatcherSpy).not.toHaveBeenCalled();
-});
-
-// (10) active with file rejects (US3-2 — "both name and focus")
-test("active with file: rejects on file key (US3-2)", () => {
-  const result = backlinksInputSchema.safeParse({
-    target_mode: "active",
-    file: "brief",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const fileIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["file"]),
-    );
-    expect(fileIssues.length).toBeGreaterThanOrEqual(1);
-    expect(fileIssues[0]!.message).toContain("active mode");
-  }
-});
-
-// (11) active with path rejects
-test("active with path: rejects on path key", () => {
-  const result = backlinksInputSchema.safeParse({
-    target_mode: "active",
-    path: "x.md",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const pathIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["path"]),
-    );
-    expect(pathIssues.length).toBeGreaterThanOrEqual(1);
-    expect(pathIssues[0]!.message).toContain("active mode");
-  }
-});
-
-// (12) active with vault rejects
-test("active with vault: rejects on vault key", () => {
-  const result = backlinksInputSchema.safeParse({
-    target_mode: "active",
-    vault: "Demo",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const vaultIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["vault"]),
-    );
-    expect(vaultIssues.length).toBeGreaterThanOrEqual(1);
-    expect(vaultIssues[0]!.message).toContain("active mode");
-  }
-});
-
-// (13) unknown top-level key rejects (US3-5 — strict mode)
-test("unknown top-level key rejected (strict mode / US3-5)", () => {
-  const dispatcherSpy = vi.fn();
-  const result = backlinksInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "Demo",
-    path: "x.md",
-    filter: "wikilink",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const unrecognized = result.error.issues.filter((i) => i.code === "unrecognized_keys");
-    expect(unrecognized.length).toBeGreaterThanOrEqual(1);
-    expect((unrecognized[0] as { keys: string[] }).keys).toContain("filter");
-  }
-  expect(dispatcherSpy).not.toHaveBeenCalled();
 });
 
 // (14) with_counts as string "true" rejects (US3-6)
@@ -276,37 +171,6 @@ test("limit:1.5 rejected (non-integer)", () => {
     limit: 1.5,
   });
   expect(result.success).toBe(false);
-});
-
-// (20) target_mode:"focused" rejects (US3-9 — unknown enum)
-test("target_mode: 'focused' (unknown enum value) rejected (US3-9)", () => {
-  const result = backlinksInputSchema.safeParse({
-    target_mode: "focused",
-    vault: "Demo",
-    path: "x.md",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const issues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["target_mode"]),
-    );
-    expect(issues.length).toBeGreaterThanOrEqual(1);
-  }
-});
-
-// (21) target_mode missing rejects (US3-9)
-test("target_mode missing rejected (US3-9)", () => {
-  const result = backlinksInputSchema.safeParse({
-    vault: "Demo",
-    path: "x.md",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const issues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["target_mode"]),
-    );
-    expect(issues.length).toBeGreaterThanOrEqual(1);
-  }
 });
 
 // (22) JSON Schema round-trip emits additionalProperties:false

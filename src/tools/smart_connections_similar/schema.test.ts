@@ -1,5 +1,5 @@
 // Original — no upstream. Tests for the smart_connections_similar input/output/eval-envelope schemas — target_mode discriminator inherited from targetModeBaseSchema, XOR locator + active-forbid refinements, limit integer range 1..100 default 20, total optional boolean, strict additionalProperties rejection, emitted JSON Schema round-trip via toMcpInputSchema, matchEntrySchema strict three-field contract (path .md / headingPath array / score finite number), discriminated-union envelope with six error codes.
-import { expect, test, vi } from "vitest";
+import { describe, expect, it, test, vi } from "vitest";
 
 import {
   SMART_CONNECTIONS_SIMILAR_EVAL_ERROR_CODES,
@@ -9,6 +9,22 @@ import {
   smartConnectionsSimilarOutputSchema,
 } from "./schema.js";
 import { toMcpInputSchema } from "../_shared.js";
+import { targetModeWiringCases } from "../_target-mode-test-cases.js";
+
+describe("smartConnectionsSimilarInputSchema — target-mode refinement wiring (shared battery)", () => {
+  it.each(
+    targetModeWiringCases(
+      { target_mode: "specific", vault: "V", path: "n.md" },
+      { target_mode: "active" },
+    ),
+  )("$label", ({ input, valid, issuePath }) => {
+    const r = smartConnectionsSimilarInputSchema.safeParse(input);
+    expect(r.success).toBe(valid);
+    if (!valid && issuePath && !r.success) {
+      expect(r.error.issues.some((i) => i.path.includes(issuePath))).toBe(true);
+    }
+  });
+});
 
 // (1) specific + vault + path happy
 test("specific + vault + path: parses OK", () => {
@@ -117,125 +133,6 @@ test("active + total:true: parses OK", () => {
   expect(result.success).toBe(true);
 });
 
-// (11) specific without vault rejects; dispatcher never called
-test("specific without vault: rejects with vault-path issue; dispatcher spy never called (FR-019)", () => {
-  const dispatcherSpy = vi.fn();
-  const result = smartConnectionsSimilarInputSchema.safeParse({
-    target_mode: "specific",
-    path: "x.md",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const vaultIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["vault"]),
-    );
-    expect(vaultIssues.length).toBeGreaterThanOrEqual(1);
-  }
-  expect(dispatcherSpy).not.toHaveBeenCalled();
-});
-
-// (12) specific without file+path rejects (XOR violation: got neither)
-test("specific without file or path: rejects with 'exactly one of'", () => {
-  const dispatcherSpy = vi.fn();
-  const result = smartConnectionsSimilarInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "Demo",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const messages = result.error.issues.map((i) => i.message).join(" | ");
-    expect(messages).toMatch(/exactly one of/);
-  }
-  expect(dispatcherSpy).not.toHaveBeenCalled();
-});
-
-// (13) specific with BOTH file+path rejects (XOR violation: got both)
-test("specific with BOTH file AND path: rejects on both keys (XOR)", () => {
-  const result = smartConnectionsSimilarInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "Demo",
-    file: "brief",
-    path: "Projects/brief.md",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const fileIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["file"]),
-    );
-    const pathIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["path"]),
-    );
-    expect(fileIssues.length).toBeGreaterThanOrEqual(1);
-    expect(pathIssues.length).toBeGreaterThanOrEqual(1);
-  }
-});
-
-// (14) active with vault rejects
-test("active with vault: rejects on vault key", () => {
-  const result = smartConnectionsSimilarInputSchema.safeParse({
-    target_mode: "active",
-    vault: "Demo",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const vaultIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["vault"]),
-    );
-    expect(vaultIssues.length).toBeGreaterThanOrEqual(1);
-    expect(vaultIssues[0]!.message).toContain("active mode");
-  }
-});
-
-// (15) active with file rejects
-test("active with file: rejects on file key", () => {
-  const result = smartConnectionsSimilarInputSchema.safeParse({
-    target_mode: "active",
-    file: "brief",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const fileIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["file"]),
-    );
-    expect(fileIssues.length).toBeGreaterThanOrEqual(1);
-    expect(fileIssues[0]!.message).toContain("active mode");
-  }
-});
-
-// (16) active with path rejects
-test("active with path: rejects on path key", () => {
-  const result = smartConnectionsSimilarInputSchema.safeParse({
-    target_mode: "active",
-    path: "x.md",
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const pathIssues = result.error.issues.filter(
-      (i) => JSON.stringify(i.path) === JSON.stringify(["path"]),
-    );
-    expect(pathIssues.length).toBeGreaterThanOrEqual(1);
-    expect(pathIssues[0]!.message).toContain("active mode");
-  }
-});
-
-// (17) unknown top-level key rejects (strict mode)
-test("unknown top-level key rejected (strict mode / FR-005)", () => {
-  const dispatcherSpy = vi.fn();
-  const result = smartConnectionsSimilarInputSchema.safeParse({
-    target_mode: "specific",
-    vault: "Demo",
-    path: "x.md",
-    threshold: 0.5,
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const unrecognized = result.error.issues.filter((i) => i.code === "unrecognized_keys");
-    expect(unrecognized.length).toBeGreaterThanOrEqual(1);
-    expect((unrecognized[0] as { keys: string[] }).keys).toContain("threshold");
-  }
-  expect(dispatcherSpy).not.toHaveBeenCalled();
-});
-
 // (18) total as string "true" rejects (type)
 test('total as string "true" rejected with invalid_type', () => {
   const result = smartConnectionsSimilarInputSchema.safeParse({
@@ -309,23 +206,6 @@ test("limit:'20' (string) rejected", () => {
     vault: "Demo",
     path: "x.md",
     limit: "20",
-  });
-  expect(result.success).toBe(false);
-});
-
-test("target_mode missing rejected", () => {
-  const result = smartConnectionsSimilarInputSchema.safeParse({
-    vault: "Demo",
-    path: "x.md",
-  });
-  expect(result.success).toBe(false);
-});
-
-test("target_mode: 'focused' (unknown enum value) rejected", () => {
-  const result = smartConnectionsSimilarInputSchema.safeParse({
-    target_mode: "focused",
-    vault: "Demo",
-    path: "x.md",
   });
   expect(result.success).toBe(false);
 });

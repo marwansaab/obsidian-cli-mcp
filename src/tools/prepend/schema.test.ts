@@ -3,6 +3,7 @@ import { performance } from "node:perf_hooks";
 
 import { describe, expect, it } from "vitest";
 
+import { targetModeWiringCases } from "../_target-mode-test-cases.js";
 import { MAX_CONTENT_LENGTH, prependInputSchema, prependOutputSchema } from "./schema.js";
 
 describe("prependInputSchema — happy paths", () => {
@@ -250,92 +251,18 @@ describe("prependInputSchema — wikilink-form bracket rejection (FR-001a)", () 
   });
 });
 
-describe("prependInputSchema — target-mode interaction", () => {
-  it("specific mode without vault → fails", () => {
-    const parsed = prependInputSchema.safeParse({
-      target_mode: "specific",
-      path: "n.md",
-      content: "x",
-    });
-    expect(parsed.success).toBe(false);
-  });
-
-  it("active mode with vault → fails ('vault is not allowed in active mode')", () => {
-    const parsed = prependInputSchema.safeParse({
-      target_mode: "active",
-      vault: "Knowledge",
-      content: "x",
-    });
-    expect(parsed.success).toBe(false);
-  });
-
-  it("specific mode with both file AND path → fails ('got both')", () => {
-    const parsed = prependInputSchema.safeParse({
-      target_mode: "specific",
-      vault: "Knowledge",
-      file: "f",
-      path: "p.md",
-      content: "x",
-    });
-    expect(parsed.success).toBe(false);
-  });
-
-  it("specific mode with neither file nor path → fails ('got neither')", () => {
-    const parsed = prependInputSchema.safeParse({
-      target_mode: "specific",
-      vault: "Knowledge",
-      content: "x",
-    });
-    expect(parsed.success).toBe(false);
-  });
-
-  it("active mode with file → fails", () => {
-    const parsed = prependInputSchema.safeParse({
-      target_mode: "active",
-      file: "tasks",
-      content: "x",
-    });
-    expect(parsed.success).toBe(false);
-  });
-
-  it("active mode with path → fails", () => {
-    const parsed = prependInputSchema.safeParse({
-      target_mode: "active",
-      path: "n.md",
-      content: "x",
-    });
-    expect(parsed.success).toBe(false);
-  });
-});
-
-describe("prependInputSchema — strict-mode unknown-extra-field rejection (FR-015)", () => {
-  it("unknown top-level 'force' field → rejected", () => {
-    const parsed = prependInputSchema.safeParse({
-      target_mode: "specific",
-      vault: "Knowledge",
-      path: "n.md",
-      content: "x",
-      force: true,
-    });
-    expect(parsed.success).toBe(false);
-  });
-
-  it("'overwrite' (write_note's opt-in) → rejected (cohort divergence per FR-004a)", () => {
-    const parsed = prependInputSchema.safeParse({
-      target_mode: "active",
-      content: "x",
-      overwrite: true,
-    });
-    expect(parsed.success).toBe(false);
-  });
-
-  it("'confirmActive' (hypothetical active-mode opt-in) → rejected (FR-004a)", () => {
-    const parsed = prependInputSchema.safeParse({
-      target_mode: "active",
-      content: "x",
-      confirmActive: true,
-    });
-    expect(parsed.success).toBe(false);
+describe("prependInputSchema — target-mode refinement wiring (shared battery)", () => {
+  it.each(
+    targetModeWiringCases(
+      { target_mode: "specific", vault: "V", path: "n.md", content: "x" },
+      { target_mode: "active", content: "x" },
+    ),
+  )("$label", ({ input, valid, issuePath }) => {
+    const r = prependInputSchema.safeParse(input);
+    expect(r.success).toBe(valid);
+    if (!valid && issuePath && !r.success) {
+      expect(r.error.issues.some((i) => i.path.includes(issuePath))).toBe(true);
+    }
   });
 });
 
@@ -364,18 +291,6 @@ describe("prependInputSchema — type mismatches", () => {
     expect(parsed.success).toBe(false);
     if (parsed.success) return;
     const issue = parsed.error.issues.find((i) => i.path.join(".") === "content");
-    expect(issue).toBeDefined();
-  });
-
-  it("missing target_mode → fails with target_mode path", () => {
-    const parsed = prependInputSchema.safeParse({
-      vault: "Knowledge",
-      path: "n.md",
-      content: "x",
-    });
-    expect(parsed.success).toBe(false);
-    if (parsed.success) return;
-    const issue = parsed.error.issues.find((i) => i.path.join(".") === "target_mode");
     expect(issue).toBeDefined();
   });
 });
