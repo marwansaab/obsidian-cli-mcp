@@ -1,0 +1,150 @@
+# Feature Specification: Retry Cold Start
+
+**Feature Branch**: `059-retry-cold-start`
+**Created**: 2026-05-30
+**Status**: Draft
+**Input**: User description: "Retry Cold Start — when a command targets a vault that is registered but not currently running, the tool transparently absorbs the vault's one-time cold-launch failure and tries the command once more, so the caller receives the real result instead of a spurious 'command not found'. Implements ADR-029."
+
+## User Scenarios & Testing *(mandatory)*
+
+### User Story 1 - A valid command against a closed vault succeeds after launch (Priority: P1)
+
+An automation agent issues a valid command whose target vault is registered with Obsidian but is not currently running. The very act of issuing the command launches the vault as a side effect, and the command — invisibly to the agent — is retried once after the launch window closes. The agent receives the command's normal successful result on that single call, with no trace of the transient cold-launch failure.
+
+**Why this priority**: This is the whole point of the feature and the minimum viable slice. Today the first command against a not-yet-open vault returns a misleading "command not found" even though the command is valid and the vault launches anyway (ADR-029). An automation agent reading that message misdiagnoses a valid command — or the entire tool — as broken. Absorbing the one-time cold-start failure so the caller sees the real result is the core value; everything else refines or guards it.
+
+**Independent Test**: Against a registered-but-closed vault, issue a known-valid command (for example a read) as the first command. Verify the caller receives the command's normal successful result on a single call, and that the cold-start "command not found" failure is never surfaced to the caller.
+
+**Acceptance Scenarios**:
+
+1. **Given** a registered vault that is not currently open, **When** a caller issues a valid command targeting it, **Then** the command returns its normal successful result and the transient cold-start failure is not surfaced to the caller.
+2. **Given** that same scenario, **When** the cold-start window is encountered on the first attempt, **Then** the caller observes a single final outcome — the success — not an intermediate error followed by a result.
+
+---
+
+### User Story 2 - Genuine failures still surface unchanged (Priority: P2)
+
+An automation agent issues a command that is genuinely invalid — a command name that does not exist, a typo, a TUI-only command, or one that requires a capability/plugin that is unavailable — or a command that fails for a reason unrelated to cold-start. The retry behaviour never hides such failures: the original, real error reaches the caller intact.
+
+**Why this priority**: The retry is only safe if it cannot mask a real error. Because the cold-start failure and a genuinely-unknown-command failure are observably identical (ADR-029: the stdout string is the same for both), the retry must absorb only the transient window and then pass through whatever the second attempt produces. A no-masking guarantee that is verifiable in isolation is what makes the P1 recovery safe to ship; without it the feature would trade a misleading error for a hidden one. It is P2 rather than P1 only because the recovery path (US1) is demonstrable on its own — but in practice the two ship together, since the retry's behaviour on the second attempt is exactly what preserves genuine failures.
+
+**Independent Test**: Issue a genuinely unknown command (a typo, or a TUI-only command such as `vault:open`) against a closed vault. Verify it still fails after exactly one retry, with the original error preserved and programmatically unchanged. Separately, issue a command that fails for a non-cold-start reason (a missing target file, or a call that times out) and verify it surfaces on the first attempt without being retried.
+
+**Acceptance Scenarios**:
+
+1. **Given** a command name that does not exist or requires an unavailable capability, **When** a caller issues it, **Then** the caller still receives the failure unchanged after the retry — the behaviour does not mask it.
+2. **Given** a command that fails for a reason unrelated to cold-start (for example the target file does not exist, or the call times out), **When** a caller issues it, **Then** that error surfaces without being retried as if it were a cold-start.
+3. **Given** the retry's second attempt also returns the cold-start signature, **When** the outcome is classified, **Then** the original structured error is propagated unchanged rather than swallowed or defaulted.
+
+---
+
+### User Story 3 - One consistent behaviour for every command (Priority: P3)
+
+A tool author wants the cold-start retry handled once, in the shared command-dispatch layer, so that every command — whether issued through a purpose-built tool or through the general command passthrough — inherits the same behaviour with no per-command opt-in, and so that no tool re-implements retry logic and drifts.
+
+**Why this priority**: P1 and P2 define the behaviour for one command; P3 makes that behaviour uniform and bounded across the whole tool surface. Centralising the retry in the dispatch layer is the structural decision that keeps the behaviour consistent and prevents the per-tool retry duplication ADR-029 was written to avoid. It also fixes the latency and termination bounds — at most one extra attempt, and a guaranteed terminate-and-surface when the vault never becomes available. It is P3 because it is a generalisation/hardening of the single-command behaviour already established by US1/US2, not a separate user-facing capability.
+
+**Independent Test**: Confirm the retry fires identically for a command issued through a purpose-built tool and for the same command issued through the general command passthrough, with no per-command configuration. Confirm at most one extra attempt is ever made (worst-case latency is one additional round-trip). Confirm that when the vault never becomes available (Obsidian not running at all), the operation terminates after the single retry and surfaces the real error rather than hanging or retrying indefinitely.
+
+**Acceptance Scenarios**:
+
+1. **Given** any command in the tool surface, **When** it meets the cold-start condition, **Then** the same retry behaviour applies with no per-command opt-in.
+2. **Given** the cold-start condition, **When** the second attempt succeeds, **Then** no more than one additional attempt is made, so added latency is bounded.
+3. **Given** the vault never becomes available (for example the app is not running at all), **When** a caller issues a command, **Then** the operation terminates and surfaces the real error rather than hanging or retrying indefinitely.
+4. **Given** a command issued through the general command passthrough as opposed to a purpose-built tool, **When** it meets the cold-start condition, **Then** it inherits the identical retry behaviour.
+
+---
+
+### Edge Cases
+
+- **Cold-launch window outlasts a single round-trip**: if the vault is still launching when the retry fires, the retry also returns the cold-start signature. Because the retry is bounded to exactly one, that still-cold signature is then classified and propagated as the original error (no further retries). Whether a small fixed pre-retry delay is warranted to close the window reliably is a plan-settled parameter — see Open Questions.
+- **First attempt surfaces the transport-level variant instead of the not-found signature**: ADR-029 notes the first attempt occasionally surfaces as a transport-level `Stream closed` rather than the `exitCode: 0` + "command not found" stdout. Whether this variant triggers the same retry, and whether it occurs reliably or only intermittently, is a plan-settled decision — see Open Questions.
+- **Genuinely unknown command (typo, TUI-only `vault:open`, disabled-plugin command)**: fails identically on the retry; the original error is propagated unchanged after exactly one retry. The retry cannot — and does not attempt to — distinguish cold-start from genuine-unknown by signature, because the two are observably identical.
+- **Obsidian not running at all**: the first attempt may not produce a usable vault even after the launch side effect; the operation terminates after the single retry and surfaces the real error, never hanging or looping.
+- **Mutating command in the cold-start window**: the cold-start signature means the command registry was not ready and the command never executed against the vault, so the only side effect of the first attempt is the vault launch; the retry therefore does not double-apply a mutation. This side-effect-safety property is validated empirically — see Open Questions.
+- **Non-cold-start failure (file-not-found, timeout, validation, path-safety reject)**: never retried; surfaces on the first attempt with current single-shot latency.
+
+## Requirements *(mandatory)*
+
+### Functional Requirements
+
+#### Trigger detection
+
+- **FR-001**: System MUST detect the cold-start failure signature on the first attempt of a one-shot command — the observable signal produced when a valid command targets a registered-but-not-yet-running vault during the cold-launch window. The canonical signature (ADR-029) is `exitCode: 0` with stdout `Error: Command "<cmd>" not found. It may require a plugin to be enabled.`. The exact literal to match is a plan-settled parameter (see Open Questions), but the spec fixes that the trigger is this transient false-negative window and nothing else.
+- **FR-002**: System MUST treat trigger detection as command-agnostic — the same signature governs the retry regardless of which command (read, list, search, write/mutating, or tab/open) produced it. The system MUST NOT maintain a per-command signature table. Any command whose cold-start signature is found to differ from the canonical one is recorded as a divergence (see Open Questions) rather than special-cased silently.
+
+#### Retry behaviour
+
+- **FR-003**: On detecting the cold-start signature on the first attempt, System MUST issue exactly one additional attempt of the identical command before classifying or propagating any error. The retry relies on the vault-launch side effect of the first attempt: by the second attempt, the cold-launched vault is up and its command registry is ready.
+- **FR-004**: System MUST retry at most once. There MUST be no retry loop and no escalating backoff. After the single retry, the outcome — success or failure — is final.
+- **FR-005**: On a successful retry, System MUST return the second attempt's successful result as the caller's sole, single final outcome. The transient first-attempt failure MUST NOT be surfaced to the caller, and the caller MUST NOT observe an intermediate error followed by a result.
+- **FR-006**: System MUST keep total added latency bounded. In the success path (no cold-start signature on the first attempt), zero extra attempts are made. In the cold-start / genuine-unknown path, at most one extra attempt is made. If a short fixed pre-retry delay is found necessary to let the launch window close, it MUST be a small fixed bound (plan-settled; default is an immediate retry with no delay — see Open Questions), never an unbounded or growing wait.
+
+#### No-masking guarantee
+
+- **FR-007**: When the retry also returns the cold-start signature, or returns any other failure, System MUST classify and propagate the original error unchanged. A genuinely unknown command, a command behind a disabled plugin, a TUI-only command, or a typo MUST surface intact after exactly one retry. No failure is swallowed, defaulted, or rewritten by the retry (Constitution Principle IV).
+- **FR-008**: System MUST NOT retry any failure that is not the cold-start signature. File-not-found, timeouts, validation errors, path-safety rejects, and every other classified failure MUST keep their current single-shot behaviour and surface on the first attempt without an added retry.
+
+#### Scope of application
+
+- **FR-009**: System MUST apply the retry uniformly across the command-dispatch layer so that every command — those issued through a purpose-built tool and those issued through the general command passthrough — inherits the identical behaviour. There MUST be no per-command opt-in and no per-tool re-implementation of retry logic.
+- **FR-010**: System MUST bound termination. When the vault never becomes available (for example Obsidian is not running at all), the operation MUST terminate after the single retry and surface the real error, rather than hanging or retrying indefinitely.
+
+#### Side-effect safety
+
+- **FR-011**: System MUST rely on the cold-start signature meaning the command never executed against the vault (the command registry was not yet ready), so that retrying a mutating command does not double-apply its effect. The only side effect of a cold-start first attempt MUST be the vault launch. This property is asserted by the spec and validated empirically before implementation (see Open Questions); any evidence of partial application on the first attempt invalidates the unconditional-retry approach and is surfaced rather than ignored.
+
+### Key Entities
+
+- **Cold-start failure signature**: The observable signal that identifies the transient cold-launch window — the canonical form being `exitCode: 0` together with the stdout `Error: Command "<cmd>" not found. It may require a plugin to be enabled.` (ADR-029). The trigger for the retry. Possibly also the intermittent transport-level `Stream closed` first-attempt variant (plan-settled). Observably indistinguishable from a genuinely-unknown-command failure, which is why the retry must be self-limiting rather than signature-discriminating.
+- **One-shot command invocation**: The unit of work the retry wraps — a single command dispatched against a vault, whether on behalf of a purpose-built tool or the general command passthrough.
+- **Retry attempt**: The single additional invocation of the identical command, issued only when the first attempt returns the cold-start signature, and never more than once.
+- **Cold-launch window**: The short period (empirically a few hundred milliseconds — to be quantified, see Open Questions) during which the vault is launching as a side effect of the first command and its command registry is not yet ready.
+- **Command-dispatch layer**: The single shared layer through which both the purpose-built tools and the general command passthrough issue commands, and where the retry is centralised so the behaviour is consistent and not re-implemented per tool.
+
+## Success Criteria *(mandatory)*
+
+### Measurable Outcomes
+
+- **SC-001**: A valid command issued as the first command against a registered-but-closed vault returns its normal successful result on a single call — across a representative set of commands (a read, a list, a search, a write/mutating command, and a tab/open command), the spurious first-call "command not found" failure is surfaced to the caller in 0% of cases.
+- **SC-002**: The caller observes exactly one final outcome per command — never an intermediate error followed by a separate result.
+- **SC-003**: A genuinely unknown or unsupported command still fails, with its original error preserved unchanged, after no more than one extra attempt — 0% of genuine failures are masked by the retry.
+- **SC-004**: No more than one additional attempt is ever made for any command. Worst-case added latency is one extra command round-trip (plus at most a small fixed pre-retry delay if one proves necessary), incurred only on the cold-start / unknown-command path; the success path adds zero extra attempts.
+- **SC-005**: The retry behaviour is identical for a command issued through a purpose-built tool and the same command issued through the general command passthrough, with no per-command configuration in either path.
+- **SC-006**: When the target vault never becomes available, the operation terminates and surfaces the real error in bounded time, in 100% of such cases — it never hangs or retries indefinitely.
+- **SC-007**: Errors unrelated to cold-start (file-not-found, timeout, validation, path-safety) are retried as cold-start in 0% of cases — they surface on the first attempt with the current single-shot latency.
+
+## Assumptions
+
+- **Implements ADR-029 (proposed); this spec gates its ratification**: The decision to retry once on the cold-start signature in the dispatch layer is recorded in ADR-029 (status: Proposed). This feature turns that decision into behaviour. The empirical probes in Open Questions resolve ADR-029's open parameters (exact trigger-signature match, whether the transport-level `Stream closed` variant is folded in, any small fixed pre-retry delay) and gate its flip to Decided. The architecture description's error-mapping / dispatch pipeline is amended to record the retry step on ship, not before (per the connector documentation discipline cited in ADR-029).
+- **Centralised in the dispatch layer, not per tool**: The retry is placed in the shared command-dispatch / classification path (the locus ADR-029 names) so both dispatch facades — the typed tools and the general command passthrough — inherit it. This is the deliberate alternative to per-tool retry, which ADR-029 rejected as duplication-prone drift.
+- **No new top-level error code (Constitution Principle IV)**: The retry adds no new failure vocabulary. On persistent failure the existing structured error is propagated unchanged; the retry only suppresses the transient first-attempt cold-start failure when the second attempt succeeds. The zero-new-top-level-codes streak is preserved.
+- **Relies on the upstream lazy-launch contract**: The retry depends on the documented upstream behaviour that the first command against a closed/registered vault launches it as a side effect. If upstream ever stops launching-on-first-call, the retry would no longer self-resolve — it would simply pass the error through after one retry (safe, but the benefit would disappear). Pre-launching the vault before the first command is explicitly out of scope.
+- **The trigger is a string/exit-code match on upstream output**: The cold-start signature is matched against upstream stdout wording plus exit code. This is brittle if Obsidian changes the message; the matched literal must be kept in sync and covered by a test. The spec fixes the behaviour; the exact literal is plan-settled.
+- **Side-effect safety holds because the command never executed**: The cold-start signature is a false negative from a not-yet-ready command registry, so the first attempt is assumed not to have applied any mutation. This assumption is validated empirically (Open Questions) before implementation; the unconditional single retry is correct only while it holds.
+- **Test scope is unit-level plus empirical T0 probes**: Behavioural coverage is the project's vitest unit tests over the dispatch layer (cold-start signature → one retry → success; persistent signature → propagate unchanged; non-cold-start failure → no retry; both facades). The empirical probes in Open Questions are run against the authorised test vault per `.memory/test-execution-instructions.md` during clarify/plan, not encoded as in-repo integration tests.
+
+## Out of Scope
+
+- Proactively pre-launching or opening a vault before the first command is issued.
+- Retrying any error class other than the cold-start condition — timeouts, genuine not-found, validation errors, and the like keep their current single-shot behaviour.
+- Multi-attempt retry loops or exponential backoff — at most one extra attempt.
+- Changing which vault is focused, or any vault-switching behaviour.
+
+## Open Questions & Validation Probes
+
+These are empirical probes to run against a real closed vault during `/speckit-clarify` and the plan-phase T0 step, per `.memory/test-execution-instructions.md`. Their answers resolve ADR-029's open parameters (gating its flip to Decided) and are fed back into the architecture description on ship. They are recorded here rather than as `[NEEDS CLARIFICATION]` markers because ADR-029 explicitly defers them to clarify/plan and a reasonable default exists for each.
+
+- **OQ-001 — Signature uniformity across command kinds**: Confirm the cold-start failure signature is identical across a representative set (a read, a list, a search, a write/mutating command, and a tab/open command) issued against a closed vault, so the trigger can be matched reliably (FR-002). Note any command whose signature differs.
+- **OQ-002 — Transport-level variant**: Determine whether the alternative transport-level `Stream closed` first-attempt failure occurs reliably or only intermittently, and decide whether it should trigger the same retry (FR-001 trigger scope).
+- **OQ-003 — Cold-launch window timing**: Measure the cold-launch window — is an immediate second attempt sufficient, or is a short fixed wait needed before it succeeds? Quantify typical launch time and decide whether any pre-retry delay is warranted (FR-006).
+- **OQ-004 — No-masking proof**: Verify empirically that a genuinely unknown command (a TUI-only command, or a typo) still fails after exactly one retry, with the original error preserved (FR-007).
+- **OQ-005 — Mutating-command side-effect safety**: Verify it is side-effect-safe to retry a mutating command against a closed vault — confirm the failed first attempt did not partially apply (the failure means the command never executed) and that the first attempt's only side effect is the vault launch, so the retry does not double-apply (FR-011).
+- **OQ-006 — Both dispatch facades exhibit cold-start today**: Confirm the behaviour applies whether a command is issued through a purpose-built tool or the general command passthrough, and that both exhibit the cold-start failure today (FR-009).
+- **OQ-007 — Re-confirm ADR-029's empirical claims**: Re-confirm the empirical claims ADR-029 rests on (command-agnostic cold-start; a single retry succeeds once the vault is up) hold across the tested set; surface any divergence so the ADR is corrected before it is ratified.
+
+## Dependencies
+
+- **ADR-029 — Retry Once on Cold-Start Vault-Launch Failure** (Proposed): the decision this spec implements; ratified to Decided when the trigger signature locks (Open Questions resolved) and the retry ships.
+- **The shared command-dispatch / classification layer** (ADR-007 — Centralized CLI Bounds with Selective Override; ADR-004 — Centralized Obsidian CLI Adapter): the locus where the retry wraps the existing classification so both dispatch facades inherit it.
+- **The upstream lazy-launch behaviour** (Obsidian CLI — Upstream Issues and Limitations): the vault-launch-on-first-call side effect the retry depends on.
