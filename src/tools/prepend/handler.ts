@@ -9,6 +9,7 @@ import {
   resolveFileByTsv,
   resolveVaultDisplayName,
 } from "../_active-file.js";
+import { getErrno } from "../_fs-errors.js";
 
 import type { PrependInput, PrependOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
@@ -36,12 +37,6 @@ const DEFAULT_FS: ExecuteFs = {
     return { size: s.size };
   },
 };
-
-function getErrno(e: unknown): string | undefined {
-  if (typeof e !== "object" || e === null) return undefined;
-  const code = (e as NodeJS.ErrnoException).code;
-  return typeof code === "string" ? code : undefined;
-}
 
 // FR-016 / R6 — placeholder pattern strings. T22's T0-P10 probe confirms the
 // byte-exact upstream stderr/stdout NOTE_NOT_FOUND signal for the `prepend`

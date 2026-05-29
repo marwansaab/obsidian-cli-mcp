@@ -16,6 +16,7 @@ import {
   resolveActiveFocusedFile,
   resolveVaultDisplayName,
 } from "../_active-file.js";
+import { getErrno, mapFsWriteError } from "../_fs-errors.js";
 
 import type { PatchBlockInput, PatchBlockOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
@@ -51,47 +52,14 @@ function buildInvalidateTemplate(absPath: string): string {
   return `(async()=>{const f=app.vault.getFileByPath(${JSON.stringify(absPath)});if(f)await app.metadataCache.computeMetadataAsync(f);})()`;
 }
 
-function getErrno(e: unknown): string | undefined {
-  if (typeof e !== "object" || e === null) return undefined;
-  const code = (e as NodeJS.ErrnoException).code;
-  return typeof code === "string" ? code : undefined;
-}
-
 // FR-021 / R6 external-editor classification: EBUSY (Windows file-sharing
 // violation when an editor holds the file with non-shared-delete) and EPERM
 // (some Windows shares modes surface this instead of EBUSY). Other errnos
 // (ENOSPC, EACCES, EROFS, etc.) fall through to the generic FS_WRITE_FAILED
 // catch-all. Cohort divergence from patch_heading which classifies EACCES as
 // editor-conflict — patch_block treats EACCES as FS_WRITE_FAILED per T014/T016.
+// That divergence is the explicit `conflictErrnos` arg to mapFsWriteError.
 const EDITOR_CONFLICT_ERRNOS = new Set(["EBUSY", "EPERM"]);
-
-function mapFsWriteError(e: unknown, relPath: string): UpstreamError {
-  const errno = getErrno(e) ?? "UNKNOWN";
-  if (EDITOR_CONFLICT_ERRNOS.has(errno)) {
-    return new UpstreamError({
-      code: "CLI_REPORTED_ERROR",
-      cause: e,
-      details: {
-        code: "EXTERNAL_EDITOR_CONFLICT",
-        // The "unsaved-changes" sub-reason is reserved per BI-040 for a future
-        // detection mechanism; the wrapper never emits it (no detection
-        // signal exists yet). Encoded in the contract per ADR-015's
-        // multi-state-from-day-one preference.
-        reason: "file-locked",
-        path: relPath,
-        errno,
-      },
-      message: `Cannot patch "${relPath}" — the file is held open by an external editor (${errno}). Save and close the file in the editor, then retry.`,
-    });
-  }
-  const syscall = (e as NodeJS.ErrnoException | null)?.syscall;
-  return new UpstreamError({
-    code: "FS_WRITE_FAILED",
-    cause: e,
-    details: { errno, syscall, path: relPath },
-    message: `Filesystem write failed: ${errno}${syscall ? ` on ${syscall}` : ""} for "${relPath}"`,
-  });
-}
 
 async function resolveLocator(
   input: PatchBlockInput,
@@ -132,6 +100,8 @@ export async function executePatchBlock(
   const fs = deps.fs ?? DEFAULT_FS;
 
   const { vaultRoot, relPath, vaultDisplayName } = await resolveLocator(input, deps);
+  const mapWriteErr = (e: unknown): UpstreamError =>
+    mapFsWriteError(e, { relPath, conflictErrnos: EDITOR_CONFLICT_ERRNOS, conflictVerb: "patch" });
 
   const absPath = await assertCanonicalPath(vaultRoot, relPath, {
     realpath: fs.realpath,
@@ -156,7 +126,7 @@ export async function executePatchBlock(
         message: `Note "${relPath}" not found in vault.`,
       });
     }
-    throw mapFsWriteError(e, relPath);
+    throw mapWriteErr(e);
   }
 
   const lineEnding = detectLineEnding(originalContent);
@@ -218,13 +188,13 @@ export async function executePatchBlock(
   try {
     await fs.writeFile(tmpPath, editedContent);
   } catch (e) {
-    throw mapFsWriteError(e, relPath);
+    throw mapWriteErr(e);
   }
   try {
     await fs.rename(tmpPath, absPath);
   } catch (e) {
     await fs.unlink(tmpPath).catch(() => {});
-    throw mapFsWriteError(e, relPath);
+    throw mapWriteErr(e);
   }
   const bytesWritten = Buffer.byteLength(editedContent, "utf8");
 

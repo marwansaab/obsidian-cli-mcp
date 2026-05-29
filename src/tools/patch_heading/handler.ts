@@ -22,7 +22,7 @@ import {
   resolveActiveFocusedFile,
   resolveVaultDisplayName,
 } from "../_active-file.js";
-
+import { getErrno, mapFsWriteError } from "../_fs-errors.js";
 
 import type { PatchHeadingInput, PatchHeadingOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
@@ -58,45 +58,14 @@ function buildInvalidateTemplate(absPath: string): string {
   return `(async()=>{const f=app.vault.getFileByPath(${JSON.stringify(absPath)});if(f)await app.metadataCache.computeMetadataAsync(f);})()`;
 }
 
-function getErrno(e: unknown): string | undefined {
-  if (typeof e !== "object" || e === null) return undefined;
-  const code = (e as NodeJS.ErrnoException).code;
-  return typeof code === "string" ? code : undefined;
-}
-
 // FR-021 / R6 external-editor classification: EBUSY (Windows file-sharing violation
 // when an editor holds the file with non-shared-delete), EPERM (some Windows shares
 // modes surface this instead of EBUSY), EACCES (occasional surface on POSIX advisory
 // flock). Other errnos fall through to the generic FS_WRITE_FAILED catch-all.
+// patch_block diverges (no EACCES); the difference is the explicit conflictErrnos
+// arg. patch_heading additionally echoes the raw errno path as details.fsPath
+// (includeFsPath), unlike append_note / patch_block.
 const EDITOR_CONFLICT_ERRNOS = new Set(["EBUSY", "EPERM", "EACCES"]);
-
-function mapFsError(e: unknown, relPath: string): UpstreamError {
-  const errno = getErrno(e) ?? "UNKNOWN";
-  if (EDITOR_CONFLICT_ERRNOS.has(errno)) {
-    return new UpstreamError({
-      code: "CLI_REPORTED_ERROR",
-      cause: e,
-      details: {
-        code: "EXTERNAL_EDITOR_CONFLICT",
-        reason: "file-locked",
-        path: relPath,
-        errno,
-      },
-      // The "unsaved-changes" sub-reason is reserved for a future detection mechanism
-      // per ADR-015's multi-state-from-day-one preference; it is encoded in the
-      // contract but the wrapper never emits it (no detection signal exists yet).
-      message: `Cannot patch "${relPath}" — the file is held open by an external editor (${errno}). Save and close the file in the editor, then retry.`,
-    });
-  }
-  const syscall = (e as NodeJS.ErrnoException | null)?.syscall;
-  const path = (e as NodeJS.ErrnoException | null)?.path;
-  return new UpstreamError({
-    code: "FS_WRITE_FAILED",
-    cause: e,
-    details: { errno, syscall, path: relPath, ...(path !== undefined ? { fsPath: path } : {}) },
-    message: `Filesystem write failed: ${errno}${syscall ? ` on ${syscall}` : ""} for "${relPath}"`,
-  });
-}
 
 async function resolveLocator(
   input: PatchHeadingInput,
@@ -141,6 +110,13 @@ export async function executePatchHeading(
   const fs = deps.fs ?? DEFAULT_FS;
 
   const { vaultRoot, relPath, vaultDisplayName } = await resolveLocator(input, deps);
+  const mapWriteErr = (e: unknown): UpstreamError =>
+    mapFsWriteError(e, {
+      relPath,
+      conflictErrnos: EDITOR_CONFLICT_ERRNOS,
+      conflictVerb: "patch",
+      includeFsPath: true,
+    });
 
   const absPath = await assertCanonicalPath(vaultRoot, relPath, {
     realpath: fs.realpath,
@@ -161,7 +137,7 @@ export async function executePatchHeading(
         message: `Note file not found at "${relPath}". patch_heading does not create files; create the note via write_note first.`,
       });
     }
-    throw mapFsError(e, relPath);
+    throw mapWriteErr(e);
   }
 
   const lineEnding = detectLineEnding(originalContent);
@@ -213,7 +189,7 @@ export async function executePatchHeading(
   try {
     currentContent = await fs.readFile(absPath, "utf8");
   } catch (e) {
-    throw mapFsError(e, relPath);
+    throw mapWriteErr(e);
   }
   if (currentContent !== originalContent) {
     const currentResolved = walkHeadings(currentContent, segments);
@@ -262,13 +238,13 @@ export async function executePatchHeading(
   try {
     await fs.writeFile(tmpPath, editedContent);
   } catch (e) {
-    throw mapFsError(e, relPath);
+    throw mapWriteErr(e);
   }
   try {
     await fs.rename(tmpPath, absPath);
   } catch (e) {
     await fs.unlink(tmpPath).catch(() => {});
-    throw mapFsError(e, relPath);
+    throw mapWriteErr(e);
   }
   const bytesWritten = Buffer.byteLength(editedContent, "utf8");
 
