@@ -1,5 +1,5 @@
 // Original — no upstream. invokeBoundedCli escape-hatch facade: queue-wrapped dispatch with default 30 s / 10 MiB and silent 120 s clamp on timeoutMs override (ADR-007, Q1 / FR-011).
-import { dispatchCli, type DispatchInput, type DispatchOutput, type ResolveBinaryFn, type SpawnLike } from "./_dispatch.js";
+import { dispatchCli, type DispatchInput, type DispatchOutput, type LaunchFn, type ResolveBinaryFn, type SpawnLike } from "./_dispatch.js";
 
 import type { Logger } from "../logger.js";
 import type { Queue } from "../queue.js";
@@ -34,9 +34,11 @@ export interface InvokeBoundedCliDeps {
   queue: Queue;
   /** Test seam — passes through to dispatchCli. See DispatchDeps.resolveBinary. */
   resolveBinary?: ResolveBinaryFn;
+  /** Test seam — passes through to dispatchCli's BI-060 recovery. See DispatchDeps.launchFn. */
+  launchFn?: LaunchFn;
 }
 
-export type { ResolveBinaryFn, SpawnLike };
+export type { LaunchFn, ResolveBinaryFn, SpawnLike };
 
 export function invokeBoundedCli(
   input: InvokeBoundedCliInput,
@@ -66,6 +68,7 @@ export function invokeBoundedCli(
       env: deps.env,
       logger: deps.logger,
       resolveBinary: deps.resolveBinary,
+      launchFn: deps.launchFn,
     });
     return out;
   });
