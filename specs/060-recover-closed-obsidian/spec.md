@@ -5,6 +5,13 @@
 **Status**: Draft  
 **Input**: User description: "Recover Closed Obsidian — when the Obsidian application is not running, the connector recovers automatically so the caller's vault operation still completes, instead of failing and requiring a person to start Obsidian by hand."
 
+## Clarifications
+
+### Session 2026-05-30
+
+- Q: When Obsidian is closed, should auto-launch recovery always run or be gated by configuration? → A: On by default with an environment opt-out (e.g. `OBSIDIAN_AUTO_LAUNCH=0`, exact name fixed at plan-phase), following the existing `OBSIDIAN_BIN` env-config precedent in `binary-resolver`. When the opt-out is set, no launch is attempted and the operation surfaces the FR-007 distinct error rather than spawning the application.
+- Q: How should the distinct "cannot bring Obsidian to a ready state" error (FR-007) be encoded so callers can branch on it? → A: Reuse an existing top-level error code (the `CLI_NON_ZERO_EXIT` class that the application-down condition already classifies as) and distinguish it with a stable `details.reason` sub-discriminator (e.g. `obsidian-not-running`) per ADR-015 — preserving the zero-new-top-level-codes streak (Constitution Principle IV). No new top-level code; the exact code/reason literal is pinned at plan-phase.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Operations complete when Obsidian is closed (Priority: P1)
@@ -82,7 +89,7 @@ A user already has Obsidian open and ready. They issue a vault operation. The re
 
 #### Failure signalling
 
-- **FR-007**: When the system cannot bring the application to a ready state, it MUST return a distinct, documented error that states the cause (the application could not be brought to a ready state) and the action a person needs to take (start Obsidian), rather than passing through the raw underlying message. The error MUST be programmatically distinguishable from a normal success, from the ADR-029 in-application cold-start case, and from genuinely unrelated failures.
+- **FR-007**: When the system cannot bring the application to a ready state, it MUST return a distinct, documented error that states the cause (the application could not be brought to a ready state) and the action a person needs to take (start Obsidian), rather than passing through the raw underlying message. The error MUST be programmatically distinguishable from a normal success, from the ADR-029 in-application cold-start case, and from genuinely unrelated failures. The distinct error MUST reuse an existing top-level error code (no new top-level code) and be distinguished by a stable `details.reason` sub-discriminator per ADR-015 (Clarification 2026-05-30), preserving the zero-new-top-level-codes streak under Constitution Principle IV.
 - **FR-008**: When an operation depends on live-application features that cannot be served while Obsidian is closed and the application cannot be brought up, the system MUST return a clear error that identifies that limitation, rather than a misleading generic failure. (This feature does not redefine which operations are inherently dependent on the live application versus answerable from vault data on disk; it only requires that, where such an operation cannot be served, the limitation is stated clearly.)
 - **FR-009**: The recovery path MUST NOT mask or rewrite a genuine failure. Any first-attempt failure that is not the application-not-running condition MUST keep its current single-shot behaviour and surface unchanged, and after a successful recovery, a failure of the original operation for its own reasons MUST surface as that failure — not as an application-down error and not as a swallowed/defaulted result (Constitution Principle IV).
 
@@ -91,6 +98,7 @@ A user already has Obsidian open and ready. They issue a vault operation. The re
 - **FR-010**: The system MUST apply recovery uniformly across the command-dispatch layer, so every operation — those issued through a purpose-built tool and those issued through the general command passthrough — inherits the identical behaviour with no per-operation re-implementation.
 - **FR-011**: When the application is already running and ready, the system MUST take no recovery step and MUST leave behaviour and timing unchanged from today, incurring zero additional attempts and zero added delay on the success path.
 - **FR-012**: The system MUST NOT alter the upstream Obsidian CLI's own requirement that the application be running, MUST NOT attempt to repair, reinstall, or otherwise recover a missing/broken/uninstalled Obsidian (beyond surfacing the FR-007 distinct error), and MUST NOT re-handle the already-handled registered-but-closed-vault-inside-a-running-application case.
+- **FR-013**: The system MUST run recovery by default and MUST honour an environment opt-out (Clarification 2026-05-30) that disables auto-launch, following the existing `OBSIDIAN_BIN` environment-configuration precedent (the exact variable name is fixed at plan-phase). When the opt-out is set, the system MUST NOT attempt to launch the application and MUST instead surface the FR-007 distinct error — so the caller still receives an actionable signal — incurring no launch and no added attempt. The opt-out MUST NOT alter the normal (already-running) success path (FR-011).
 
 ### Key Entities *(include if feature involves data)*
 
@@ -107,12 +115,13 @@ A user already has Obsidian open and ready. They issue a vault operation. The re
 - **SC-003**: When the application cannot be brought to a ready state, the caller receives a distinct, documented error naming the cause and the required human action in 100% of such cases — never a raw underlying message — and that error is programmatically distinguishable from a success and from every other failure class.
 - **SC-004**: Recovery is bounded: an unrecoverable case terminates within a fixed time bound (no indefinite hang or loop), and at most one application launch is triggered per operation regardless of how many callers concurrently hit the application-down condition.
 - **SC-005**: The recovery path never masks a genuine failure: failures that are not the application-not-running condition surface unchanged on the first attempt (zero false recoveries), and a post-recovery failure of the original operation surfaces as itself.
+- **SC-006**: With the environment opt-out set (FR-013), a vault operation against a closed application triggers zero application launches and surfaces the distinct documented error (cause + action) — confirming the opt-out fully suppresses recovery while keeping the signal actionable.
 
 ## Assumptions
 
 - **Reactive detection, not pre-flight probing**: the application-not-running condition is recognised from the observable signal produced by the caller's own operation (mirroring ADR-029's reactive cold-start pattern), so the already-running success path is unchanged. The exact signal literal/shape is fixed at plan-phase against a live-CLI probe (see "Deferred to plan-phase").
 - **Composition with ADR-029**: this feature sits in front of the existing single cold-start retry. Bringing the application up is its job; absorbing the residual target-vault warm-up after the application is up is left to ADR-029 / BI 059. The two are sequential, not overlapping.
-- **Auto-recovery is on by default and unconditional in v1**: there is no configuration toggle to enable/disable auto-launch in this version; environments that must never spawn the application are not a v1 concern. A configuration gate is a possible later enhancement, explicitly out of scope here.
+- **Auto-recovery is on by default with an environment opt-out** (Clarification 2026-05-30): recovery runs by default; an environment variable (e.g. `OBSIDIAN_AUTO_LAUNCH=0`, exact name fixed at plan-phase) disables it, following the existing `OBSIDIAN_BIN` env-config precedent in `binary-resolver`. With the opt-out set, no launch is attempted and the FR-007 distinct error is surfaced. A richer configuration surface beyond this single on/off opt-out, headless operation, and window hiding all remain out of scope.
 - **"Ready" is defined operationally**: readiness means the original operation can complete against the target vault; it is observed by the operation succeeding (in concert with the ADR-029 retry for the post-launch vault window), not by a separate health endpoint or liveness API.
 - **Single-flight recovery**: concurrent operations that hit the application-down condition during one launch share that launch and its readiness wait rather than each starting an instance.
 - **Launched application is not torn down**: an application instance brought up by recovery (or left running after a recovery) is not killed afterward — a running Obsidian benefits subsequent calls and may be the user's own session; the connector does not terminate it.
@@ -126,7 +135,7 @@ These are timing/signature parameters, not scope questions; the spec fixes the b
 
 - The exact observable application-not-running signal literal/shape, and how it is told apart from the ADR-029 cold-start signal and from unrelated CLI failures.
 - The definition-in-practice of "ready" and the bounded wait/poll for readiness after launch (the fixed upper bound and any poll cadence), including whether an immediate post-launch attempt suffices or a small bounded wait is needed.
-- Whether the distinct FR-007 error is expressed as a sub-discriminator on an existing top-level error code (per ADR-015, preserving the zero-new-top-level-codes streak under Constitution Principle IV) or otherwise — the spec requires only that it be distinct, documented, and programmatically distinguishable.
+- The exact existing top-level error code and the precise `details.reason` literal for the distinct FR-007 error (the encoding mechanism — reuse-code + `details.reason` per ADR-015 — is decided per Clarification 2026-05-30; only the specific code/reason literal is plan-fixed), and the exact environment opt-out variable name (FR-013).
 
 ### Dependencies
 
@@ -139,5 +148,5 @@ These are timing/signature parameters, not scope questions; the spec fixes the b
 - The already-handled case of a registered-but-closed vault inside an already-running application (ADR-029 / BI 059).
 - Redefining which operations are inherently dependent on the live application versus answerable from vault data on disk.
 - Recovering from an Obsidian installation that is missing, broken, or not installed at all (only a clear FR-007/FR-008 error is required there).
-- A configuration toggle to enable/disable auto-recovery, headless operation, or hiding/minimising the launched application window.
+- Headless operation, or hiding/minimising the launched application window. (An environment opt-out to disable auto-recovery IS in scope per Clarification 2026-05-30 / FR-013; a richer configuration surface beyond a single on/off opt-out is not.)
 - Tearing down or managing the lifecycle of an application instance after it has been launched.
