@@ -44,13 +44,30 @@ function collectProductionFiles(dir: string, baseDir: string = dir): SourceFile[
   return out;
 }
 
+/**
+ * Extract every `import … from "…"` statement as a whole statement, tolerant of prettier-style
+ * multi-line wrapping (the clause may span newlines). The anchor `^[ \t]*import` (multiline flag)
+ * keeps comments out — a `// import …` / ` * import …` line never begins with `import` — while the
+ * newline-spanning clause closes the gap a per-physical-line scan left open: prettier wraps long
+ * import lists across lines BY DEFAULT, so a line-based detector silently misses exactly the future
+ * drift this guardrail exists to catch. Side-effect imports (`import "x"`, no `from`) bind nothing
+ * and so cannot satisfy either detector. `clause` is the text between `import` and `from`;
+ * `specifier` is the module path (unquoted).
+ */
+function extractImports(content: string): { clause: string; specifier: string }[] {
+  const out: { clause: string; specifier: string }[] = [];
+  const re = /^[ \t]*import\b([\s\S]*?)from\s*["']([^"']+)["']/gm;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(content)) !== null) {
+    out.push({ clause: match[1]!.trim(), specifier: match[2]! });
+  }
+  return out;
+}
+
 /** True iff `content` has a VALUE import of a spawn-family symbol from node:child_process. */
 function hasChildProcessSpawnValueImport(content: string): boolean {
-  for (const raw of content.split("\n")) {
-    const line = raw.trim();
-    if (!line.startsWith("import")) continue;
-    if (!/from\s+["']node:child_process["']/.test(line)) continue;
-    const clause = line.slice("import".length, line.lastIndexOf("from")).trim();
+  for (const { clause, specifier } of extractImports(content)) {
+    if (specifier !== "node:child_process") continue;
     if (clause.startsWith("type ")) continue; // `import type {...}` — type-only statement
     const brace = clause.match(/\{([\s\S]*)\}/);
     if (!brace) return true; // `import * as cp` / default — namespace value import exposes spawn
@@ -65,11 +82,9 @@ function hasChildProcessSpawnValueImport(content: string): boolean {
 
 /** True iff `content` imports the `dispatchCli` value binding from a `_dispatch` module. */
 function importsDispatchCli(content: string): boolean {
-  for (const raw of content.split("\n")) {
-    const line = raw.trim();
-    if (!line.startsWith("import")) continue;
-    if (!/from\s+["'][^"']*_dispatch(?:\.js)?["']/.test(line)) continue;
-    const brace = line.match(/\{([\s\S]*?)\}/);
+  for (const { clause, specifier } of extractImports(content)) {
+    if (!/_dispatch(?:\.js)?$/.test(specifier)) continue;
+    const brace = clause.match(/\{([\s\S]*)\}/);
     if (!brace) continue;
     for (const binding of brace[1]!.split(",").map((b) => b.trim()).filter(Boolean)) {
       const name = binding.replace(/^type\s+/, "").split(/\s+as\s+/)[0]!.trim();
@@ -128,5 +143,35 @@ describe("architecture guardrail (FR-012 / ADR-029 D8)", () => {
     expect(importsDispatchCli('import { dispatchCli } from "./_dispatch.js";')).toBe(true);
     expect(importsDispatchCli('import { dispatchCli, type DispatchInput } from "../cli-adapter/_dispatch.js";')).toBe(true);
     expect(importsDispatchCli('import { assembleArgv } from "./_dispatch.js";')).toBe(false);
+  });
+
+  // F1 hardening: prettier wraps long import lists across lines BY DEFAULT, so a bypass would
+  // most plausibly arrive multi-line. The detector MUST see a statement whose bindings span
+  // newlines — a per-physical-line scan missed these, and the single-line self-tests above could
+  // never surface that gap.
+  it("detects prettier-wrapped multi-line bypass imports (synthetic)", () => {
+    expect(
+      hasChildProcessSpawnValueImport(
+        ["import {", "  spawn,", "  type ChildProcess,", '} from "node:child_process";'].join("\n"),
+      ),
+    ).toBe(true);
+    expect(
+      importsDispatchCli(
+        ["import {", "  dispatchCli,", "  type DispatchInput,", '} from "./_dispatch.js";'].join("\n"),
+      ),
+    ).toBe(true);
+  });
+
+  it("does NOT flag a wrapped type-only child_process import (synthetic)", () => {
+    expect(
+      hasChildProcessSpawnValueImport(
+        ["import type {", "  SpawnOptions,", "  ChildProcess,", '} from "node:child_process";'].join("\n"),
+      ),
+    ).toBe(false);
+  });
+
+  it("does NOT treat `import` inside a comment as a real import (synthetic)", () => {
+    expect(hasChildProcessSpawnValueImport('// import { spawn } from "node:child_process";')).toBe(false);
+    expect(importsDispatchCli(' * import { dispatchCli } from "./_dispatch.js";')).toBe(false);
   });
 });
