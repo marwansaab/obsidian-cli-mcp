@@ -4,12 +4,24 @@ import { randomUUID } from "node:crypto";
 import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 
+import { launchObsidian } from "../app-launcher/app-launcher.js";
 import { resolveBinary, type ResolutionAttempt } from "../binary-resolver/binary-resolver.js";
 import { UpstreamError } from "../errors.js";
 
 import type { Logger } from "../logger.js";
 
 export const SIGKILL_GRACE_MS = 2_000;
+
+// BI-060 recovery constants (pinned by 2026-05-30 T0 probes; data-model §6).
+/** The CLI-emitted, OS-invariant clause identifying the application-not-running condition (research D1). */
+export const APP_NOT_RUNNING_PATTERN = /unable to find Obsidian/i;
+/** Total readiness budget after a launch — bound that guarantees termination (research D3; T0 ~3 s + margin). */
+export const OBSIDIAN_LAUNCH_READINESS_TIMEOUT_MS = 30_000;
+/** Interval between bounded re-attempts while waiting for the launched app to become ready (research D3). */
+export const LAUNCH_POLL_INTERVAL_MS = 750;
+
+/** The launcher seam type — the real `launchObsidian`, substitutable in tests. */
+export type LaunchFn = typeof launchObsidian;
 
 export type SpawnLike = (binary: string, args: string[], options: SpawnOptions) => ChildProcess;
 
@@ -43,6 +55,12 @@ export interface DispatchDeps {
    * Defaults to the production three-tier resolver in `binary-resolver/`.
    */
   resolveBinary?: ResolveBinaryFn;
+  /**
+   * BI-060 test seam: substitute the app launcher so the recovery loop can be driven without
+   * spawning a real opener. Defaults to the production `launchObsidian`. Injected here (not at
+   * `createServer`) so both facades inherit recovery and the composition root is untouched.
+   */
+  launchFn?: LaunchFn;
 }
 
 interface InFlightContext {
@@ -108,6 +126,67 @@ export function isColdStart(value: unknown): boolean {
   );
 }
 
+/**
+ * BI-060 recovery predicate — the structural sibling of `isColdStart`. Decides whether a thrown
+ * value is the application-not-running condition eligible for an auto-launch + bounded re-attempt.
+ * Keys off the `details.reason` sub-discriminator attached at classification time (priority (a),
+ * below) — NOT a fresh stderr match — so the predicate is a cheap, allocation-free read. Disjoint
+ * from `isColdStart` (app-down is a non-zero exit with the stderr signature; cold-start is exit 0
+ * with the command-not-found stdout signature). Never matches CLI_TIMEOUT / CLI_OUTPUT_TOO_LARGE /
+ * CLI_BINARY_NOT_FOUND / a generic CLI_NON_ZERO_EXIT without the reason (FR-009).
+ */
+export function isAppNotRunning(value: unknown): boolean {
+  return (
+    value instanceof UpstreamError &&
+    value.code === "CLI_NON_ZERO_EXIT" &&
+    value.details?.reason === "obsidian-not-running"
+  );
+}
+
+/** The closed disable-set for the auto-launch opt-out (research D5; data-model §6). */
+const AUTO_LAUNCH_DISABLE_SET = new Set(["0", "false", "no", "off"]);
+
+/**
+ * BI-060 opt-out (research D5) — auto-launch is ON by default; OFF only when `OBSIDIAN_AUTO_LAUNCH`,
+ * trimmed and lower-cased, is one of {0,false,no,off}. Any other value (including unset) leaves it
+ * on. Mirrors how `binary-resolver` reads `OBSIDIAN_BIN` (env vars are not a zod boundary surface).
+ */
+export function autoLaunchEnabled(env: NodeJS.ProcessEnv): boolean {
+  const raw = env.OBSIDIAN_AUTO_LAUNCH;
+  if (typeof raw !== "string") return true;
+  return !AUTO_LAUNCH_DISABLE_SET.has(raw.trim().toLowerCase());
+}
+
+const AUTO_LAUNCH_DISABLED_MESSAGE =
+  "Obsidian is not running and auto-launch is disabled (OBSIDIAN_AUTO_LAUNCH) — start Obsidian and try again.";
+
+function launchExhaustedMessage(): string {
+  return `Obsidian is not running and could not be auto-launched within ${OBSIDIAN_LAUNCH_READINESS_TIMEOUT_MS / 1000}s — start Obsidian and try again.`;
+}
+
+/**
+ * Re-shape an app-not-running `CLI_NON_ZERO_EXIT` into the distinct, actionable error surfaced when
+ * recovery cannot succeed. Reuses the existing top-level code (Principle IV — no new code) and the
+ * `details` bag (preserving argv/stdout/stderr and the `reason` sub-discriminator), changing only
+ * the human-facing `message`.
+ */
+function enrichAppNotRunning(error: UpstreamError, message: string): UpstreamError {
+  return new UpstreamError({
+    code: error.code,
+    cause: error.cause,
+    details: { ...error.details, reason: "obsidian-not-running" },
+    message,
+  });
+}
+
+/** Bounded sleep used by the readiness poll loop; unref'd so it never keeps the process alive. */
+function sleep(ms: number): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    timer.unref?.();
+  });
+}
+
 type KillReason =
   | { kind: "timeout" }
   | { kind: "cap"; stream: "stdout" | "stderr"; capturedBytes: number };
@@ -135,8 +214,8 @@ function settlePathAttempt(
   return attempts;
 }
 
-export async function dispatchCli(input: DispatchInput, deps: DispatchDeps): Promise<DispatchOutput> {
-  // ADR-029 single cold-start retry. Run one attempt; if it throws a form-(a) cold-start
+async function dispatchWithColdStartRetry(input: DispatchInput, deps: DispatchDeps): Promise<DispatchOutput> {
+  // ADR-029 single cold-start retry (BI 059). Run one attempt; if it throws a form-(a) cold-start
   // signature, run exactly ONE more — the second attempt is authoritative (its resolve OR
   // throw is the final outcome; attempt 1's known-spurious error is discarded, Q1). Any other
   // outcome (success, or a non-cold-start failure) is returned/thrown unchanged — single-shot.
@@ -152,6 +231,71 @@ export async function dispatchCli(input: DispatchInput, deps: DispatchDeps): Pro
     return dispatchOnce(input, deps, (secondCallId) => {
       deps.logger.dispatchRetry({ command: input.command, firstCallId, secondCallId });
     });
+  }
+}
+
+/**
+ * BI-060 outer recovery layer, wrapping the ADR-029 cold-start retry. The inner path
+ * (`dispatchWithColdStartRetry`) is run first; its outcome is authoritative for everything EXCEPT
+ * an application-not-running throw (`isAppNotRunning`). Only that condition routes into recovery:
+ * launch Obsidian exactly once, then re-attempt the original command in a bounded poll until it
+ * resolves (or returns a non-app-down outcome), the bound elapses, or shutdown intervenes. The
+ * already-running success path and every non-app-down failure (FR-009) are untouched — the recovery
+ * branch is reached only after an app-not-running throw, so the success path adds zero overhead.
+ * Re-attempting is side-effect-safe: app-down means the CLI errored before connecting, so the
+ * command provably never executed (no double-apply, even for mutations). Single-flight (FR-006) is
+ * provided structurally by `createQueue` (both facades wrap this in `queue.run`), not by new code.
+ */
+export async function dispatchCli(input: DispatchInput, deps: DispatchDeps): Promise<DispatchOutput> {
+  const env = deps.env ?? process.env;
+  try {
+    return await dispatchWithColdStartRetry(input, deps);
+  } catch (error: unknown) {
+    if (!isAppNotRunning(error)) throw error; // FR-009 — non-app-down failures are never recovered.
+    const appDown = error as UpstreamError;
+
+    // D5 opt-out: skip the launch entirely; surface the distinct disabled error with zero added delay.
+    if (!autoLaunchEnabled(env)) {
+      deps.logger.dispatchRecovery({ command: input.command, launched: false, outcome: "disabled", attempts: 0 });
+      throw enrichAppNotRunning(appDown, AUTO_LAUNCH_DISABLED_MESSAGE);
+    }
+    // Shutdown guard: a launch + poll started during teardown would orphan a child after the sweep.
+    // Propagate the original app-down error unchanged (mirrors the cold-start retry's shutdown skip).
+    if (shuttingDown) throw appDown;
+
+    const launchFn = deps.launchFn ?? launchObsidian;
+    const launchStartedAt = Date.now();
+    // Launch exactly once (FR-003). An opener failure (ENOENT etc.) is swallowed here — the readiness
+    // bound below governs the eventual distinct error, so a missing opener degrades to the same
+    // bounded "could not auto-launch" outcome as a launch that simply never becomes ready.
+    await launchFn({ vault: input.vault }).catch(() => undefined);
+
+    const deadline = launchStartedAt + OBSIDIAN_LAUNCH_READINESS_TIMEOUT_MS;
+    let attempts = 0;
+    // Every app-down error in this loop is structurally identical (same input → same argv/stderr/
+    // reason), so the initial `appDown` is the canonical one to enrich on exhaustion — no need to
+    // track the latest re-attempt's error separately.
+    while (Date.now() < deadline) {
+      if (shuttingDown) throw appDown; // don't spawn a fresh re-attempt during teardown.
+      attempts += 1;
+      try {
+        const out = await dispatchWithColdStartRetry(input, deps);
+        deps.logger.dispatchRecovery({
+          command: input.command,
+          launched: true,
+          outcome: "recovered",
+          attempts,
+          readyMs: Date.now() - launchStartedAt,
+        });
+        return out;
+      } catch (reError: unknown) {
+        if (!isAppNotRunning(reError)) throw reError; // first non-app-down outcome is authoritative.
+        await sleep(LAUNCH_POLL_INTERVAL_MS);
+      }
+    }
+    // Bound exhausted (FR-004/FR-010): surface the distinct, actionable could-not-launch error.
+    deps.logger.dispatchRecovery({ command: input.command, launched: true, outcome: "unrecoverable", attempts });
+    throw enrichAppNotRunning(appDown, launchExhaustedMessage());
   }
 }
 
@@ -362,11 +506,15 @@ async function dispatchOnce(
       // Priority (a): non-zero exit (or signal-only termination via code === null → exitCode -1 sentinel).
       if (code !== 0) {
         const exitCode = code ?? -1;
+        // BI-060: tag the application-not-running condition with the ADR-015 sub-discriminator so the
+        // outer recovery layer (and callers) can distinguish it from a generic non-zero exit. The
+        // CLI emits this clause identically across commands and OSes (research D1) — command-agnostic.
+        const appDown = APP_NOT_RUNNING_PATTERN.test(stderr) ? { reason: "obsidian-not-running" } : {};
         reject(
           new UpstreamError({
             code: "CLI_NON_ZERO_EXIT",
             cause: { exitCode, signal },
-            details: { argv, command: input.command, stdout, stderr, exitCode, signal },
+            details: { argv, command: input.command, stdout, stderr, exitCode, signal, ...appDown },
           }),
         );
         return;

@@ -107,6 +107,46 @@ test("logger dispatchRetry emits dispatch.retry shape with both attempt callIds 
   expect(parsed.ts).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
 });
 
+test("logger dispatchRecovery emits dispatch.recovery shape with readyMs for outcome 'recovered' (BI-060)", () => {
+  const cap = captureStream();
+  const logger = createLogger({ stream: cap.stream });
+  logger.dispatchRecovery({ command: "read", launched: true, outcome: "recovered", attempts: 3, readyMs: 2_900 });
+  const lines = cap.lines();
+  expect(lines.length).toBe(1);
+  const parsed = JSON.parse(lines[0]!);
+  expect(parsed.event).toBe("dispatch.recovery");
+  expect(parsed.command).toBe("read");
+  expect(parsed.launched).toBe(true);
+  expect(parsed.outcome).toBe("recovered");
+  expect(parsed.attempts).toBe(3);
+  expect(parsed.readyMs).toBe(2_900);
+  expect(parsed.ts).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+});
+
+test("logger dispatchRecovery emits outcome 'unrecoverable' (launch attempted, bound exhausted) with NO readyMs", () => {
+  const cap = captureStream();
+  const logger = createLogger({ stream: cap.stream });
+  logger.dispatchRecovery({ command: "files", launched: true, outcome: "unrecoverable", attempts: 40 });
+  const parsed = JSON.parse(cap.lines()[0]!);
+  expect(parsed.event).toBe("dispatch.recovery");
+  expect(parsed.launched).toBe(true);
+  expect(parsed.outcome).toBe("unrecoverable");
+  expect(parsed.attempts).toBe(40);
+  expect("readyMs" in parsed).toBe(false); // omitted unless recovered
+});
+
+test("logger dispatchRecovery emits outcome 'disabled' (opt-out, no launch) with launched:false", () => {
+  const cap = captureStream();
+  const logger = createLogger({ stream: cap.stream });
+  logger.dispatchRecovery({ command: "version", launched: false, outcome: "disabled", attempts: 0 });
+  const parsed = JSON.parse(cap.lines()[0]!);
+  expect(parsed.event).toBe("dispatch.recovery");
+  expect(parsed.launched).toBe(false);
+  expect(parsed.outcome).toBe("disabled");
+  expect(parsed.attempts).toBe(0);
+  expect("readyMs" in parsed).toBe(false);
+});
+
 test("logger pathEscapeAttempt emits pathEscapeAttempt shape with vault + attemptedPath", () => {
   const cap = captureStream();
   const logger = createLogger({ stream: cap.stream });
@@ -137,5 +177,6 @@ test("logger defaults to process.stderr when no stream injected (smoke)", () => 
   expect(typeof logger.dispatchCap).toBe("function");
   expect(typeof logger.dispatchKill).toBe("function");
   expect(typeof logger.dispatchRetry).toBe("function");
+  expect(typeof logger.dispatchRecovery).toBe("function");
   expect(typeof logger.pathEscapeAttempt).toBe("function");
 });

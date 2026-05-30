@@ -66,6 +66,26 @@ Example configuration for Claude Desktop (the same shape works for other MCP cli
 
 Omit `OBSIDIAN_BIN` if the Obsidian CLI is already on `PATH`. On Linux, the Obsidian AppImage typically needs its CLI entry point exposed on `~/.local/bin`.
 
+### Auto-launch when Obsidian is closed
+
+If the Obsidian **application** is not running when a tool is called, the server recovers automatically: it detects the app-not-running condition, launches Obsidian via the OS-registered `obsidian://` URI (Windows `start` / macOS `open` / Linux `xdg-open`), waits a bounded period (up to 30 seconds) for the app to become ready, and re-runs the original command so the caller gets the normal result from a single call. The already-running path is untouched — recovery is strictly reactive and adds no overhead when Obsidian is open. Re-running is side-effect-safe even for mutating commands, because an app-not-running failure means the CLI errored before the command ever executed.
+
+Auto-launch is **on by default**. To disable it (for headless, CI, or locked-down hosts where starting a GUI app is undesirable), set the `OBSIDIAN_AUTO_LAUNCH` environment variable to one of `0`, `false`, `no`, or `off` (case-insensitive). With auto-launch disabled, a call made while Obsidian is closed fails fast with a distinct, actionable error (`CLI_NON_ZERO_EXIT` carrying `details.reason: "obsidian-not-running"`) instead of launching the app. The same distinct error surfaces when a launch is attempted but the app does not become ready within the bound.
+
+```json
+{
+  "mcpServers": {
+    "obsidian-cli": {
+      "command": "npx",
+      "args": ["-y", "@marwansaab/obsidian-cli-mcp"],
+      "env": {
+        "OBSIDIAN_AUTO_LAUNCH": "off"
+      }
+    }
+  }
+}
+```
+
 ## Tool inventory
 
 The server currently registers thirty-three public tools. Call `help({ tool_name: "<name>" })` at runtime for the full per-tool documentation (parameters, output shape, error roster, and worked examples) — the listing below is just the index.

@@ -14,6 +14,7 @@ import {
   OBSIDIAN_EXEC_DEFAULT_TIMEOUT_MS,
   OBSIDIAN_EXEC_MAX_TIMEOUT_MS,
   OBSIDIAN_EXEC_OUTPUT_CAP_BYTES,
+  type LaunchFn,
   type SpawnLike,
 } from "./invoke-bounded-cli.js";
 
@@ -277,6 +278,30 @@ describe("invokeBoundedCli — ADR-029 cold-start retry inheritance", () => {
     );
     expect(out.exitCode).toBe(0);
     expect(out.stdout).toBe("ok\n");
+    expect(recorded).toHaveLength(2);
+  });
+});
+
+describe("invokeBoundedCli — BI-060 app-not-running recovery inheritance (T014)", () => {
+  // The escape-hatch facade inherits the dispatch-layer recovery with zero adaptation: app-down on
+  // call 1 → launch (injected) → success on call 2 → invokeBoundedCli resolves; exactly one launch.
+  const APP_DOWN = "The CLI is unable to find Obsidian. Please make sure Obsidian is running and try again.\n";
+  it("app-down on call 1 → launch → success on call 2 → resolves; one launch, spawn called twice", async () => {
+    const cap = captureLines();
+    const { spawnFn, recorded } = makeScriptedSpawn([{ stderr: APP_DOWN, exitCode: 1 }, { stdout: "ok\n", exitCode: 0 }]);
+    let launches = 0;
+    const launchFn: LaunchFn = () => {
+      launches += 1;
+      return Promise.resolve();
+    };
+    const out = await invokeBoundedCli(
+      { command: "read" },
+      {},
+      { spawnFn, env: {}, logger: cap.logger, queue: createQueue(), resolveBinary: stubResolveBinary, launchFn },
+    );
+    expect(out.exitCode).toBe(0);
+    expect(out.stdout).toBe("ok\n");
+    expect(launches).toBe(1);
     expect(recorded).toHaveLength(2);
   });
 });

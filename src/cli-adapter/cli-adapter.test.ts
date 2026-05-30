@@ -13,6 +13,7 @@ import {
   TYPED_TOOL_OUTPUT_CAP_BYTES,
   TYPED_TOOL_TIMEOUT_MS,
   UpstreamError,
+  type LaunchFn,
   type SpawnLike,
 } from "./cli-adapter.js";
 
@@ -512,6 +513,32 @@ describe("invokeCli — ADR-029 cold-start retry inheritance", () => {
     expect(err.code).toBe("CLI_REPORTED_ERROR");
     expect(err.message).toBe("Vault not found.");
     expect(recorded).toHaveLength(1);
+  });
+});
+
+describe("invokeCli — BI-060 app-not-running recovery inheritance (T014)", () => {
+  // The verbatim T0-captured app-down stderr (Windows, Obsidian.com, app fully closed, 2026-05-30).
+  const APP_DOWN = "The CLI is unable to find Obsidian. Please make sure Obsidian is running and try again.\n";
+
+  // The typed-tool facade inherits the dispatch-layer recovery with zero adaptation: app-down on
+  // call 1 → launch (injected) → success on call 2 → invokeCli resolves; exactly one launch.
+  it("app-down on call 1 → launch → success on call 2 → invokeCli resolves; one launch, spawn twice", async () => {
+    const { spawnFn, recorded } = makeScriptedSpawn([
+      { stderr: APP_DOWN, exitCode: 1 },
+      { stdout: "# Note body\n", exitCode: 0 },
+    ]);
+    let launches = 0;
+    const launchFn: LaunchFn = () => {
+      launches += 1;
+      return Promise.resolve();
+    };
+    const result = await invokeCli(
+      { command: "read", vault: "V", parameters: { file: "Note" }, flags: [], target_mode: "specific" },
+      { ...defaultDeps({ spawnFn, env: {} }), launchFn },
+    );
+    expect(result).toEqual({ stdout: "# Note body\n", stderr: "" });
+    expect(launches).toBe(1);
+    expect(recorded).toHaveLength(2);
   });
 });
 

@@ -7,15 +7,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UpstreamError } from "../errors.js";
 import { createLogger, type Logger } from "../logger.js";
+import { createQueue } from "../queue.js";
 import {
   __resetInFlightRegistryForTests,
+  APP_NOT_RUNNING_PATTERN,
   assembleArgv,
+  autoLaunchEnabled,
   COLD_START_PATTERN,
   dispatchCli,
+  isAppNotRunning,
   isColdStart,
   killInFlightChildren,
+  LAUNCH_POLL_INTERVAL_MS,
+  OBSIDIAN_LAUNCH_READINESS_TIMEOUT_MS,
   SIGKILL_GRACE_MS,
   type DispatchInput,
+  type LaunchFn,
   type SpawnLike,
 } from "./_dispatch.js";
 
@@ -1044,5 +1051,463 @@ describe("dispatchCli — ADR-029 cold-start single retry", () => {
     expect(String(err.details.stdout)).toMatch(COLD_START_PATTERN);
     expect(calls()).toBe(1);
     expect(cap.lines().filter((l) => JSON.parse(l).event === "dispatch.retry")).toEqual([]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BI-060 — recover closed Obsidian. The verbatim T0-captured app-not-running stderr
+// (Windows, Obsidian.com, app fully closed, 2026-05-30): exit 1, empty stdout, this stderr —
+// byte-identical across commands and OS-invariant (research D1).
+// ─────────────────────────────────────────────────────────────────────────────
+const APP_DOWN_STDERR = "The CLI is unable to find Obsidian. Please make sure Obsidian is running and try again.\n";
+const appDownSpec = (): StubChildSpec => ({ stderr: APP_DOWN_STDERR, exitCode: 1 });
+
+/** A launchFn test double — counts invocations, records the vault, resolves (default) or rejects. */
+function makeLaunchSpy(opts: { reject?: Error; onLaunch?: () => void } = {}): {
+  launchFn: LaunchFn;
+  count: () => number;
+  lastVault: () => string | undefined;
+} {
+  let n = 0;
+  let lastVault: string | undefined;
+  const launchFn: LaunchFn = (input) => {
+    n += 1;
+    lastVault = input.vault;
+    opts.onLaunch?.();
+    return opts.reject ? Promise.reject(opts.reject) : Promise.resolve();
+  };
+  return { launchFn, count: () => n, lastVault: () => lastVault };
+}
+
+function recoveryLines(cap: { lines: () => string[] }): Record<string, unknown>[] {
+  return cap
+    .lines()
+    .map((l) => JSON.parse(l) as Record<string, unknown>)
+    .filter((e) => e.event === "dispatch.recovery");
+}
+
+describe("BI-060 detection — classification, isAppNotRunning, autoLaunchEnabled (T008)", () => {
+  it("APP_NOT_RUNNING_PATTERN matches the verbatim stderr (case-insensitive) and not cold-start/generic", () => {
+    expect(APP_NOT_RUNNING_PATTERN.test(APP_DOWN_STDERR)).toBe(true);
+    expect(APP_NOT_RUNNING_PATTERN.test("UNABLE TO FIND OBSIDIAN")).toBe(true); // case-insensitive
+    expect(APP_NOT_RUNNING_PATTERN.test('Error: Command "read" not found.')).toBe(false);
+    expect(APP_NOT_RUNNING_PATTERN.test("boom")).toBe(false);
+  });
+
+  it("classification attaches details.reason on the app-down stderr signature (priority (a))", async () => {
+    // Opt-out so the classified error surfaces directly (no recovery), preserving the reason tag.
+    const cap = captureLines();
+    const { spawnFn } = makeStubSpawn(appDownSpec());
+    const err = await captureRejection(
+      dispatchCli(baseInput({ command: "version" }), {
+        spawnFn,
+        env: { OBSIDIAN_AUTO_LAUNCH: "off" },
+        logger: cap.logger,
+        resolveBinary: stubResolveBinary,
+      }),
+    );
+    expect(err.code).toBe("CLI_NON_ZERO_EXIT");
+    expect(err.details.reason).toBe("obsidian-not-running");
+  });
+
+  it("a generic non-zero exit whose stderr does NOT match the pattern carries NO reason", async () => {
+    const cap = captureLines();
+    const { spawnFn } = makeStubSpawn({ stderr: "boom", exitCode: 1 });
+    const err = await captureRejection(
+      dispatchCli(baseInput({ command: "x" }), {
+        spawnFn,
+        env: {},
+        logger: cap.logger,
+        resolveBinary: stubResolveBinary,
+      }),
+    );
+    expect(err.code).toBe("CLI_NON_ZERO_EXIT");
+    expect(err.details.reason).toBeUndefined();
+  });
+
+  it("isAppNotRunning truth matrix — app-down ✓; cold-start ✗; generic non-zero-exit ✗; CLI_TIMEOUT ✗; non-UpstreamError ✗", () => {
+    const appDown = new UpstreamError({
+      code: "CLI_NON_ZERO_EXIT",
+      cause: { exitCode: 1, signal: null },
+      details: { stderr: APP_DOWN_STDERR, reason: "obsidian-not-running" },
+    });
+    const coldStart = new UpstreamError({
+      code: "CLI_REPORTED_ERROR",
+      cause: null,
+      details: { stdout: COLD_START_STDOUT },
+    });
+    const genericExit = new UpstreamError({
+      code: "CLI_NON_ZERO_EXIT",
+      cause: { exitCode: 1, signal: null },
+      details: { stderr: "boom" },
+    });
+    const timeout = new UpstreamError({ code: "CLI_TIMEOUT", cause: null, details: {} });
+    expect(isAppNotRunning(appDown)).toBe(true);
+    expect(isAppNotRunning(coldStart)).toBe(false);
+    expect(isAppNotRunning(genericExit)).toBe(false);
+    expect(isAppNotRunning(timeout)).toBe(false);
+    expect(isAppNotRunning(null)).toBe(false);
+    expect(isAppNotRunning(new Error("unable to find Obsidian"))).toBe(false);
+  });
+
+  it("autoLaunchEnabled — default ON; OFF only for the trimmed/lower-cased disable-set", () => {
+    expect(autoLaunchEnabled({})).toBe(true); // unset → on
+    expect(autoLaunchEnabled({ OBSIDIAN_AUTO_LAUNCH: "1" })).toBe(true);
+    expect(autoLaunchEnabled({ OBSIDIAN_AUTO_LAUNCH: "yes" })).toBe(true);
+    expect(autoLaunchEnabled({ OBSIDIAN_AUTO_LAUNCH: "true" })).toBe(true);
+    for (const v of ["0", "false", "no", "off", "OFF", " Off ", "FALSE"]) {
+      expect(autoLaunchEnabled({ OBSIDIAN_AUTO_LAUNCH: v })).toBe(false);
+    }
+  });
+});
+
+describe("BI-060 recovery loop — launch + bounded re-attempt (T013)", () => {
+  it("app-down → exactly one launch → success on re-attempt resolves (recovered, vault forwarded)", async () => {
+    const cap = captureLines();
+    const { spawnFn, calls } = makeScriptedSpawn([appDownSpec(), { stdout: "ok\n", exitCode: 0 }]);
+    const launch = makeLaunchSpy();
+    const out = await dispatchCli(baseInput({ command: "read", vault: "MyVault" }), {
+      spawnFn,
+      env: {},
+      logger: cap.logger,
+      resolveBinary: stubResolveBinary,
+      launchFn: launch.launchFn,
+    });
+    expect(out.stdout).toBe("ok\n");
+    expect(launch.count()).toBe(1);
+    expect(launch.lastVault()).toBe("MyVault"); // the triggering op's vault primes the launch URI
+    expect(calls()).toBe(2);
+    const rec = recoveryLines(cap);
+    expect(rec).toHaveLength(1);
+    expect(rec[0]).toMatchObject({ command: "read", launched: true, outcome: "recovered", attempts: 1 });
+    expect(typeof rec[0]!.readyMs).toBe("number");
+  });
+
+  it("bounded poll stops at the deadline → unrecoverable CLI_NON_ZERO_EXIT (no infinite loop)", async () => {
+    vi.useFakeTimers();
+    try {
+      const cap = captureLines();
+      const { spawnFn, recorded } = makeStubSpawn(appDownSpec()); // always app-down
+      const launch = makeLaunchSpy();
+      const rejected = pendingRejection(
+        dispatchCli(baseInput({ command: "files" }), {
+          spawnFn,
+          env: {},
+          logger: cap.logger,
+          resolveBinary: stubResolveBinary,
+          launchFn: launch.launchFn,
+        }),
+      );
+      await vi.advanceTimersByTimeAsync(OBSIDIAN_LAUNCH_READINESS_TIMEOUT_MS + LAUNCH_POLL_INTERVAL_MS * 2);
+      const err = await rejected;
+      expect(err.code).toBe("CLI_NON_ZERO_EXIT");
+      expect(err.details.reason).toBe("obsidian-not-running");
+      expect(err.message).toContain("could not be auto-launched within 30s");
+      expect(launch.count()).toBe(1); // at most one launch per operation (FR-003)
+      // 1 initial attempt + 40 bounded re-attempts (30000ms / 750ms) = 41 total spawns.
+      expect(recorded.length).toBe(41);
+      const rec = recoveryLines(cap);
+      expect(rec).toHaveLength(1);
+      expect(rec[0]).toMatchObject({ launched: true, outcome: "unrecoverable", attempts: 40 });
+      expect("readyMs" in rec[0]!).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("cold-start on a re-attempt is absorbed by the inner ADR-029 retry (composition, not duplication)", async () => {
+    const cap = captureLines();
+    const { spawnFn, calls } = makeScriptedSpawn([
+      appDownSpec(), // initial — app down
+      { stdout: COLD_START_STDOUT, exitCode: 0 }, // re-attempt: cold-start…
+      { stdout: "ok\n", exitCode: 0 }, // …absorbed by the inner retry → success
+    ]);
+    const launch = makeLaunchSpy();
+    const out = await dispatchCli(baseInput({ command: "read" }), {
+      spawnFn,
+      env: {},
+      logger: cap.logger,
+      resolveBinary: stubResolveBinary,
+      launchFn: launch.launchFn,
+    });
+    expect(out.stdout).toBe("ok\n");
+    expect(launch.count()).toBe(1);
+    expect(calls()).toBe(3); // initial(app-down) + reattempt(cold-start) + inner-retry(success)
+    expect(recoveryLines(cap)[0]).toMatchObject({ outcome: "recovered", attempts: 1 });
+  });
+
+  it("a real (non-app-down) error on a re-attempt is authoritative — propagated, not retried", async () => {
+    const cap = captureLines();
+    const { spawnFn, calls } = makeScriptedSpawn([appDownSpec(), { stderr: "boom", exitCode: 1 }]);
+    const launch = makeLaunchSpy();
+    const err = await captureRejection(
+      dispatchCli(baseInput({ command: "read" }), {
+        spawnFn,
+        env: {},
+        logger: cap.logger,
+        resolveBinary: stubResolveBinary,
+        launchFn: launch.launchFn,
+      }),
+    );
+    expect(err.code).toBe("CLI_NON_ZERO_EXIT");
+    expect(err.details.reason).toBeUndefined(); // the authoritative error is NOT app-down
+    expect(err.details.stderr).toBe("boom");
+    expect(launch.count()).toBe(1);
+    expect(calls()).toBe(2);
+    expect(recoveryLines(cap)).toEqual([]); // neither recovered nor unrecoverable was logged
+  });
+
+  it("mutation-safety: launch once, original re-run once on success — no double-apply", async () => {
+    // A `rename` issued while the app is down: the app-down attempt errored BEFORE the CLI connected,
+    // so the mutation provably never executed. Recovery launches once and re-runs the command once.
+    const cap = captureLines();
+    const { spawnFn, calls } = makeScriptedSpawn([appDownSpec(), { stdout: "renamed\n", exitCode: 0 }]);
+    const launch = makeLaunchSpy();
+    const out = await dispatchCli(baseInput({ command: "rename" }), {
+      spawnFn,
+      env: {},
+      logger: cap.logger,
+      resolveBinary: stubResolveBinary,
+      launchFn: launch.launchFn,
+    });
+    expect(out.stdout).toBe("renamed\n");
+    expect(launch.count()).toBe(1); // exactly one launch
+    expect(calls()).toBe(2); // exactly one app-down attempt (never executed) + one successful re-run
+  });
+
+  it("single-flight (FR-006/SC-004): two app-down ops through the queue trigger launchFn once total", async () => {
+    // Single-flight is provided structurally by createQueue (which serializes), NOT by new code:
+    // the second op runs only after the first completes, by which point the app is already up.
+    const cap = captureLines();
+    let appUp = false;
+    const spawnFn: SpawnLike = (binary, argv, options) => {
+      const up = appUp;
+      const child = new EventEmitter() as EventEmitter & {
+        stdout: Readable;
+        stderr: Readable;
+        kill: (signal?: NodeJS.Signals) => boolean;
+        pid?: number;
+      };
+      child.stdout = new Readable({ read() {} });
+      child.stderr = new Readable({ read() {} });
+      child.pid = 4242;
+      child.kill = (signal?: NodeJS.Signals) => {
+        setImmediate(() => child.emit("exit", null, signal ?? "SIGTERM"));
+        return true;
+      };
+      void [binary, argv, options];
+      setImmediate(() => {
+        if (up) {
+          child.stdout.push(Buffer.from("ok\n", "utf8"));
+        } else {
+          child.stderr.push(Buffer.from(APP_DOWN_STDERR, "utf8"));
+        }
+        child.stdout.push(null);
+        child.stderr.push(null);
+        setImmediate(() => child.emit("exit", up ? 0 : 1, null));
+      });
+      return child as unknown as ReturnType<SpawnLike>;
+    };
+    const launch = makeLaunchSpy({
+      onLaunch: () => {
+        appUp = true;
+      },
+    });
+    const queue = createQueue();
+    const deps = {
+      spawnFn,
+      env: {},
+      logger: cap.logger,
+      resolveBinary: stubResolveBinary,
+      launchFn: launch.launchFn,
+    };
+    const [a, b] = await Promise.all([
+      queue.run(() => dispatchCli(baseInput({ command: "read" }), deps)),
+      queue.run(() => dispatchCli(baseInput({ command: "files" }), deps)),
+    ]);
+    expect(a.stdout).toBe("ok\n");
+    expect(b.stdout).toBe("ok\n");
+    expect(launch.count()).toBe(1); // one shared launch — the queue serialized the two ops
+  });
+});
+
+describe("BI-060 error paths — unrecoverable & opt-out (T016)", () => {
+  it("opt-out set → zero launches, disabled message naming OBSIDIAN_AUTO_LAUNCH, outcome 'disabled'", async () => {
+    const cap = captureLines();
+    const { spawnFn, recorded } = makeStubSpawn(appDownSpec());
+    const launch = makeLaunchSpy();
+    const err = await captureRejection(
+      dispatchCli(baseInput({ command: "read" }), {
+        spawnFn,
+        env: { OBSIDIAN_AUTO_LAUNCH: "false" },
+        logger: cap.logger,
+        resolveBinary: stubResolveBinary,
+        launchFn: launch.launchFn,
+      }),
+    );
+    expect(err.code).toBe("CLI_NON_ZERO_EXIT");
+    expect(err.details.reason).toBe("obsidian-not-running");
+    expect(err.message).toContain("auto-launch is disabled (OBSIDIAN_AUTO_LAUNCH)");
+    expect(launch.count()).toBe(0); // no launch attempted
+    expect(recorded.length).toBe(1); // no re-attempt either — single classified attempt
+    const rec = recoveryLines(cap);
+    expect(rec).toHaveLength(1);
+    expect(rec[0]).toMatchObject({ launched: false, outcome: "disabled", attempts: 0 });
+  });
+
+  it("the app-not-running error is programmatically distinguishable from a generic CLI_NON_ZERO_EXIT", async () => {
+    const cap = captureLines();
+    // generic non-zero exit (no reason) → NOT routed into recovery, NOT distinguishable as app-down
+    const generic = makeStubSpawn({ stderr: "boom", exitCode: 1 });
+    const launch = makeLaunchSpy();
+    const genErr = await captureRejection(
+      dispatchCli(baseInput({ command: "x" }), {
+        spawnFn: generic.spawnFn,
+        env: {},
+        logger: cap.logger,
+        resolveBinary: stubResolveBinary,
+        launchFn: launch.launchFn,
+      }),
+    );
+    expect(genErr.code).toBe("CLI_NON_ZERO_EXIT");
+    expect(genErr.details.reason).toBeUndefined();
+    expect(isAppNotRunning(genErr)).toBe(false);
+    expect(launch.count()).toBe(0);
+  });
+
+  it("FR-008: a live-app-dependent command (eval) while closed-and-unlaunchable surfaces the SAME reason error", async () => {
+    // FR-008 is the launch-impossible branch of FR-007, not a separate code: the command-agnostic
+    // app-down signal yields the same reason:"obsidian-not-running" distinct error.
+    const cap = captureLines();
+    const { spawnFn } = makeStubSpawn(appDownSpec());
+    const launch = makeLaunchSpy();
+    const err = await captureRejection(
+      dispatchCli(baseInput({ command: "eval" }), {
+        spawnFn,
+        env: { OBSIDIAN_AUTO_LAUNCH: "off" },
+        logger: cap.logger,
+        resolveBinary: stubResolveBinary,
+        launchFn: launch.launchFn,
+      }),
+    );
+    expect(err.code).toBe("CLI_NON_ZERO_EXIT");
+    expect(err.details.reason).toBe("obsidian-not-running");
+    expect(isAppNotRunning(err)).toBe(true);
+    expect(launch.count()).toBe(0);
+  });
+});
+
+describe("BI-060 no-overhead / no-false-fire — strictly reactive recovery (T017)", () => {
+  it("already-running success returns from the first attempt — recovery branch never entered", async () => {
+    const cap = captureLines();
+    const { spawnFn, recorded } = makeStubSpawn({ stdout: "ok\n", exitCode: 0 });
+    const launch = makeLaunchSpy();
+    const out = await dispatchCli(baseInput({ command: "read" }), {
+      spawnFn,
+      env: {},
+      logger: cap.logger,
+      resolveBinary: stubResolveBinary,
+      launchFn: launch.launchFn,
+    });
+    expect(out.stdout).toBe("ok\n");
+    expect(launch.count()).toBe(0); // SC-002/SC-005: zero added overhead on the success path
+    expect(recorded.length).toBe(1); // exactly one spawn — no recovery re-attempt
+    expect(recoveryLines(cap)).toEqual([]); // no dispatch.recovery emitted
+  });
+
+  it("FR-009: a generic non-zero exit is NOT routed into recovery", async () => {
+    const cap = captureLines();
+    const { spawnFn } = makeStubSpawn({ stderr: "boom", exitCode: 1 });
+    const launch = makeLaunchSpy();
+    await captureRejection(
+      dispatchCli(baseInput({ command: "x" }), {
+        spawnFn,
+        env: {},
+        logger: cap.logger,
+        resolveBinary: stubResolveBinary,
+        launchFn: launch.launchFn,
+      }),
+    );
+    expect(launch.count()).toBe(0);
+    expect(recoveryLines(cap)).toEqual([]);
+  });
+
+  it("FR-009: a cold-start is absorbed by the inner retry — recovery is never entered", async () => {
+    const cap = captureLines();
+    const { spawnFn } = makeScriptedSpawn([{ stdout: COLD_START_STDOUT, exitCode: 0 }, { stdout: "ok\n", exitCode: 0 }]);
+    const launch = makeLaunchSpy();
+    const out = await dispatchCli(baseInput({ command: "read" }), {
+      spawnFn,
+      env: {},
+      logger: cap.logger,
+      resolveBinary: stubResolveBinary,
+      launchFn: launch.launchFn,
+    });
+    expect(out.stdout).toBe("ok\n");
+    expect(launch.count()).toBe(0);
+    expect(recoveryLines(cap)).toEqual([]);
+  });
+
+  it("FR-009: CLI_REPORTED_ERROR / CLI_BINARY_NOT_FOUND / CLI_OUTPUT_TOO_LARGE are NOT routed into recovery", async () => {
+    const launch = makeLaunchSpy();
+    // CLI_REPORTED_ERROR (exit 0 'Error: File not found')
+    {
+      const cap = captureLines();
+      const { spawnFn } = makeStubSpawn({ stdout: "Error: File not found\n", exitCode: 0 });
+      const err = await captureRejection(
+        dispatchCli(baseInput({ command: "read" }), {
+          spawnFn, env: {}, logger: cap.logger, resolveBinary: stubResolveBinary, launchFn: launch.launchFn,
+        }),
+      );
+      expect(err.code).toBe("CLI_REPORTED_ERROR");
+      expect(recoveryLines(cap)).toEqual([]);
+    }
+    // CLI_BINARY_NOT_FOUND (spawn error ENOENT)
+    {
+      const cap = captureLines();
+      const { spawnFn } = makeStubSpawn({ emitErrno: "ENOENT" });
+      const err = await captureRejection(
+        dispatchCli(baseInput({ command: "read" }), {
+          spawnFn, env: {}, logger: cap.logger, resolveBinary: stubResolveBinary, launchFn: launch.launchFn,
+        }),
+      );
+      expect(err.code).toBe("CLI_BINARY_NOT_FOUND");
+      expect(recoveryLines(cap)).toEqual([]);
+    }
+    // CLI_OUTPUT_TOO_LARGE (output exceeds the cap)
+    {
+      const cap = captureLines();
+      const { spawnFn } = makeStubSpawn({ chunkedStdout: [Buffer.alloc(64, 0x61)], exitCode: 0 });
+      const err = await captureRejection(
+        dispatchCli(baseInput({ command: "read", outputCapBytes: 8 }), {
+          spawnFn, env: {}, logger: cap.logger, resolveBinary: stubResolveBinary, launchFn: launch.launchFn,
+        }),
+      );
+      expect(err.code).toBe("CLI_OUTPUT_TOO_LARGE");
+      expect(recoveryLines(cap)).toEqual([]);
+    }
+    expect(launch.count()).toBe(0); // none of the above ever triggered a launch
+  });
+
+  it("FR-009: CLI_TIMEOUT is NOT routed into recovery", async () => {
+    vi.useFakeTimers();
+    try {
+      const cap = captureLines();
+      const { spawnFn } = makeScriptedSpawn([{ hold: true }]);
+      const launch = makeLaunchSpy();
+      const rejected = pendingRejection(
+        dispatchCli(baseInput({ command: "read", timeoutMs: 1_000 }), {
+          spawnFn, env: {}, logger: cap.logger, resolveBinary: stubResolveBinary, launchFn: launch.launchFn,
+        }),
+      );
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(1_001);
+      const err = await rejected;
+      expect(err.code).toBe("CLI_TIMEOUT");
+      expect(launch.count()).toBe(0);
+      expect(recoveryLines(cap)).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

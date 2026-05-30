@@ -49,6 +49,17 @@ export interface DispatchRetryEvent {
   secondCallId: string;
 }
 
+export interface DispatchRecoveryEvent {
+  command: string;
+  /** false only in the disabled (opt-out) path — no launch is attempted there. */
+  launched: boolean;
+  outcome: "recovered" | "unrecoverable" | "disabled";
+  /** Re-attempts made during the readiness poll loop. */
+  attempts: number;
+  /** Present only when outcome === "recovered" — ms from launch to a successful re-attempt. */
+  readyMs?: number;
+}
+
 export interface PathEscapeAttemptEvent {
   vault: string | null;
   attemptedPath: string;
@@ -60,6 +71,7 @@ export interface Logger {
   dispatchCap(event: DispatchCapEvent): void;
   dispatchKill(event: DispatchKillEvent): void;
   dispatchRetry(event: DispatchRetryEvent): void;
+  dispatchRecovery(event: DispatchRecoveryEvent): void;
   pathEscapeAttempt(event: PathEscapeAttemptEvent): void;
 }
 
@@ -124,6 +136,18 @@ export function createLogger(options: LoggerOptions = {}): Logger {
         command: event.command,
         firstCallId: event.firstCallId,
         secondCallId: event.secondCallId,
+      });
+    },
+    dispatchRecovery(event: DispatchRecoveryEvent): void {
+      emit({
+        event: "dispatch.recovery",
+        ts: new Date().toISOString(),
+        command: event.command,
+        launched: event.launched,
+        outcome: event.outcome,
+        attempts: event.attempts,
+        // Omit readyMs entirely unless present (only the "recovered" outcome carries it).
+        ...(event.readyMs !== undefined ? { readyMs: event.readyMs } : {}),
       });
     },
     pathEscapeAttempt(event: PathEscapeAttemptEvent): void {
