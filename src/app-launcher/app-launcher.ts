@@ -27,8 +27,6 @@ export interface LaunchDeps {
   platform?: NodeJS.Platform;
   /** Test seam — defaults to `node:child_process` spawn. */
   spawnFn?: SpawnLike;
-  /** Reserved (e.g. a future opener override); currently unread. */
-  env?: NodeJS.ProcessEnv;
 }
 
 function buildObsidianUri(vault: string | undefined): string {

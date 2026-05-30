@@ -38,7 +38,6 @@ interface LaunchInput {
 interface LaunchDeps {
   platform?: NodeJS.Platform;        // defaults to process.platform — test seam
   spawnFn?: SpawnLike;               // defaults to node:child_process spawn — test seam
-  env?: NodeJS.ProcessEnv;           // reserved (e.g. future opener override)
 }
 launchObsidian(input: LaunchInput, deps?: LaunchDeps): Promise<void>
 ```

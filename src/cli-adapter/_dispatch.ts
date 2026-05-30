@@ -272,9 +272,11 @@ export async function dispatchCli(input: DispatchInput, deps: DispatchDeps): Pro
 
     const deadline = launchStartedAt + OBSIDIAN_LAUNCH_READINESS_TIMEOUT_MS;
     let attempts = 0;
-    let lastAppDown = appDown;
+    // Every app-down error in this loop is structurally identical (same input → same argv/stderr/
+    // reason), so the initial `appDown` is the canonical one to enrich on exhaustion — no need to
+    // track the latest re-attempt's error separately.
     while (Date.now() < deadline) {
-      if (shuttingDown) throw lastAppDown; // don't spawn a fresh re-attempt during teardown.
+      if (shuttingDown) throw appDown; // don't spawn a fresh re-attempt during teardown.
       attempts += 1;
       try {
         const out = await dispatchWithColdStartRetry(input, deps);
@@ -288,13 +290,12 @@ export async function dispatchCli(input: DispatchInput, deps: DispatchDeps): Pro
         return out;
       } catch (reError: unknown) {
         if (!isAppNotRunning(reError)) throw reError; // first non-app-down outcome is authoritative.
-        lastAppDown = reError as UpstreamError;
         await sleep(LAUNCH_POLL_INTERVAL_MS);
       }
     }
     // Bound exhausted (FR-004/FR-010): surface the distinct, actionable could-not-launch error.
     deps.logger.dispatchRecovery({ command: input.command, launched: true, outcome: "unrecoverable", attempts });
-    throw enrichAppNotRunning(lastAppDown, launchExhaustedMessage());
+    throw enrichAppNotRunning(appDown, launchExhaustedMessage());
   }
 }
 
