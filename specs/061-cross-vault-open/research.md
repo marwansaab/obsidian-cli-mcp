@@ -16,7 +16,7 @@ Phase 0 decisions, aligned to **canonical ADR-031** (eval-composed reactive focu
 - Reuses the already-sanctioned `launchObsidian` opener (ADR-030) — **no third spawn site**.
 - Realises ADR-029's FR-013 carve-out (the eval cold-launch "wrong vault focused" case, left to the tool's own guard) as designed — the dispatch layer stays frozen.
 
-**Why not the native route (the safe-default choice)**: a live probe (below) shows native `open`/`tab:open` can switch focus cross-vault and (for `open`) reuse tabs — a strictly simpler route. The canonical ADR-031 nonetheless keeps the eval switch as the default because the native route's full-contract satisfaction (placement reporting, unsupported-type, cross-platform) is not yet confirmed; it is OQ-1, and a follow-up ADR may simplify to native once OQ-1 clears.
+**Why not the native route (RESOLVED against it)**: a forcing-gate probe (D8) showed native `open`/`tab:open` switch focus cross-vault — but native `open` (no flag) opens in the **active leaf (replace)** and has **no focus-existing affordance**, so it cannot deliver `existing_tab_reused` (FR-008/FR-010/US4-AC2). Only an eval can (`iterateAllLeaves → setActiveLeaf`). OQ-1 is therefore resolved against native; the eval switch is the mechanism, not a placeholder.
 
 ---
 
@@ -35,7 +35,7 @@ Phase 0 decisions, aligned to **canonical ADR-031** (eval-composed reactive focu
 - `new_tab:false` & a leaf already shows `f.path` → `app.workspace.setActiveLeaf(thatLeaf,{focus:true})` → `existing_tab_reused` (no duplicate — proven in the probe).
 - `new_tab:false` & not open → `openLinkText(f.path,'',false)` (active leaf) → `active_tab_used`.
 
-`alreadyOpen` and the existing leaf are found in-eval via `getLeavesOfType('markdown')` (full paths — confirmed). This is the only route that can deliver `existing_tab_reused`; it needs no extra CLI round-trip and fixes the BI-057 reuse bug. The signal is what BI-0129 (TC-00488/TC-00489) requires. **Probe OQ-3** (now largely answered) pins the exact leaf-iteration API across view types (markdown + non-markdown).
+`alreadyOpen` and the existing leaf are found in-eval by iterating **all** leaves (`app.workspace.iterateAllLeaves`, comparing `leaf.view?.file?.path === f.path`) — **not** `getLeavesOfType('markdown')`, which would miss a non-markdown file (PDF/canvas/base/image) already open and mis-report `active_tab_used` instead of `existing_tab_reused`. Since `open_file` opens any recognised type, the search MUST be type-agnostic. The probe confirmed the markdown case; the all-view-types iteration is the production form. This is the only route that can deliver `existing_tab_reused`; it needs no extra CLI round-trip and fixes the BI-057 reuse bug. The signal is what BI-0129 (TC-00488/TC-00489) requires.
 
 ---
 
@@ -104,7 +104,7 @@ Phase 0 decisions, aligned to **canonical ADR-031** (eval-composed reactive focu
 
 Run at the `/speckit-implement` T0 step per `.memory/test-execution-instructions.md` (authorised `TestVault-Obsidian-CLI-MCP`, `Sandbox/` scratch, drive `Obsidian.com`). Defaults below ship if inconclusive.
 
-- **OQ-1 — Native route full-contract re-probe** (see D8): confirm a native command meets *all* of vault=/placement/typed-errors/reuse/any-type/cross-platform before any follow-up ADR. *Default*: eval-composed reactive switch (D1).
+- **OQ-1 — RESOLVED (2026-06-01, forcing-gate probe — D8)**: native route rejected (native `open` is replace-active, cannot focus-existing → fails `existing_tab_reused`). Eval is the mechanism. No further re-probe needed.
 - **OQ-2 — Focus-switch landing window**: time from `obsidian://open?vault=X` to an `active` eval seeing `basePath==X` (open-but-unfocused; closed). *Default*: poll at `LAUNCH_POLL_INTERVAL_MS`, ceiling `OBSIDIAN_LAUNCH_READINESS_TIMEOUT_MS`.
 - **OQ-3 — Placement detection**: confirm the (new_tab, alreadyOpen) → placement mapping (D2); pin the leaf-inspection API; re-confirm `openLinkText` reuse/new semantics. *Default*: D2.
 - **OQ-4 — Locator scoping**: `getFirstLinkpathDest`/`getFiles` resolve in the focused target vault post-switch; a miss → `FILE_NOT_FOUND`. *Default*: D5.

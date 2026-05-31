@@ -1,6 +1,6 @@
 # Data Model: Open Cross-Vault Files
 
-Types, schemas, and the focus-switch state machine for the **eval-composed reactive focus-switch** design (ADR-031). All in `src/tools/open_file/`. The Zod schema is the single source of truth (Principle III). (The native `open`/`tab:open` route is OQ-1 — research D8 — not modelled here.)
+Types, schemas, and the focus-switch state machine for the **eval-composed reactive focus-switch** design (ADR-031). All in `src/tools/open_file/`. The Zod schema is the single source of truth (Principle III). (The native `open`/`tab:open` route was probed and rejected — OQ-1 / research D8 — so it is not modelled here.)
 
 ---
 
@@ -72,7 +72,7 @@ Three changes (exact string pinned at T0; tests assert the recorded code):
 2. **Locator in the verified-focused target vault** (FR-006a): resolution (`getFiles().find` for `path`; `getFirstLinkpathDest` for `file`) runs only after the guard passes (target vault).
 3. **Explicit placement open** (D2; T0-confirmed — `openLinkText(…,false)` replaces the active leaf and does NOT focus-existing, so the open is branched, not a single `openLinkText(new_tab)`):
    ```
-   existing = <workspace leaf whose view file path === f.path>   # getLeavesOfType, full path
+   existing = <workspace leaf whose view.file.path === f.path>   # iterateAllLeaves — ALL view types, not markdown-only
    if (new_tab)            { open f in a NEW leaf;            placement = "new_tab_created" }
    else if (existing)      { setActiveLeaf(existing,{focus}); placement = "existing_tab_reused" }  # no duplicate
    else                    { openLinkText(f.path,'',false);  placement = "active_tab_used" }        # active leaf

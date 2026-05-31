@@ -3,7 +3,7 @@
 **Branch**: `061-cross-vault-open` | **Date**: 2026-06-01 | **Spec**: [spec.md](spec.md)
 **Input**: Feature specification from `specs/061-cross-vault-open/spec.md`
 
-> **Aligned to canonical ADR-031** (vault-authored 2026-06-01). The chosen mechanism is the **eval-composed reactive focus-switch** (reuse ADR-030's vault-targeted opener); the native `open`/`tab:open` route is **OQ-1** (T0 re-probe, with strong preliminary evidence — research D8/OQ-1), not the default. An earlier same-day draft pivoted to the native route after a live probe; the canonical ADR reverted that to the conservative eval default with native as a documented follow-up-ADR candidate.
+> **Aligned to canonical ADR-031** (vault-authored 2026-06-01). The mechanism is the **eval-composed reactive focus-switch** (reuse ADR-030's vault-targeted opener). **OQ-1 is RESOLVED (forcing-gate T0 probe, 2026-06-01 — [contracts/t0-probe-findings.md](contracts/t0-probe-findings.md)): the native `open`/`tab:open` route is REJECTED** — native `open` opens in the active leaf (`openLinkText(…,false)`) with no focus-existing affordance, so it cannot deliver `existing_tab_reused` (FR-008/FR-010/US4-AC2); only an eval can. The same probe exposed a latent `new_tab:false` reuse bug in the shipped `open_file` (BI-0065), fixed by the explicit placement branch.
 
 ## Summary
 
@@ -11,7 +11,7 @@
 
 **Technical approach** (per ADR-031, confined to `src/tools/open_file/**`, no kernel-node touch): **demote the in-eval focused-vault guard from a hard error to a `VAULT_NOT_FOCUSED` switch-signal**. On that signal the handler fires ADR-030's vault-targeted `obsidian://open?vault=<requested>` opener (reusing `launchObsidian` via an injected `launchFn` seam — a function-value import, **no new spawn site**) and re-runs the eval in a **bounded verify-poll** (reusing BI-060/BI-0133's `LAUNCH_POLL_INTERVAL_MS` / `OBSIDIAN_LAUNCH_READINESS_TIMEOUT_MS`) until the focused base path matches the requested vault or the bound elapses. App-down launch (ADR-030) and cold-start retry (ADR-029) are **inherited from `dispatchCli`**; the focus-switch for the app-up-but-wrong-vault case is the one genuinely new tool-level piece (ADR-029 FR-013 carved exactly this out for the tool's own guard). The locator resolves **inside the verified-focused target vault** (FR-006a); a bare name never resolves against the pre-switch vault. `placement` is derived **in-eval** from `new_tab` + a pre-open already-open check (the eval runs in the target vault after the switch, so it can inspect `app.workspace` directly — a property the external native route lacks). Error vocabulary unchanged: `VAULT_NOT_FOUND/reason:"unknown"` stays the sole hard vault error; unrecoverable focus/launch reuses `CLI_NON_ZERO_EXIT/reason:"obsidian-not-running"` (ADR-030); **no new top-level code, no new `details.reason`** (`reason:"not-open"` retires from emission, ADR-015 additive-only).
 
-This supersedes BI-057 FR-010/FR-011 (ADR-031). The native `open`/`tab:open` route is tracked as **OQ-1**: a live probe (2026-06-01) confirmed native `open` honours `vault=` cross-vault and reuses on `new_tab:false`, but the eval-composed switch remains the safe default until cross-platform + unsupported-type are confirmed at T0; if OQ-1 fully clears, a **follow-up ADR** may simplify to the native route. Other parameters (placement detection, switch-landing window, cross-window focus, app-down vault targeting) are pinned by implement-T0 probes ([contracts/t0-probe-plan.md](contracts/t0-probe-plan.md)).
+This supersedes BI-057 FR-010/FR-011 (ADR-031). **OQ-1 resolved — native route rejected** (it cannot focus an existing tab → fails `existing_tab_reused`; the eval's `iterateAllLeaves → setActiveLeaf` is the only no-duplicate-reuse mechanism). Placement is derived in-eval via an explicit three-way branch (`new_tab`→new leaf; else-already-open→`setActiveLeaf`; else→`openLinkText` active). The remaining deferred probes (switch-landing window, cross-window/cross-platform focus, app-down requested-vault targeting, closed-vault cold-start signature) are recovery/timing details inherited regardless of route ([contracts/t0-probe-plan.md](contracts/t0-probe-plan.md)).
 
 ## Technical Context
 
@@ -25,7 +25,7 @@ This supersedes BI-057 FR-010/FR-011 (ADR-031). The native `open`/`tab:open` rou
 **Constraints**: Bounded recovery (inherited BI-060 bound, then `obsidian-not-running`); no new top-level code or `details.reason` (Principle IV / ADR-015); locator resolved in the verified target vault (FR-006a); no Obsidian settings/config change (FR-021); no vault creation (FR-022); single placement value, no pane/leaf ids (FR-012/FR-023).
 **Scale/Scope**: Changes confined to `src/tools/open_file/**` — `schema.ts` (+`placement` on output & eval envelope), `_template.ts` (guard→switch-signal, locator-in-target-vault, in-eval placement derivation), `handler.ts` (focus-switch + verify-poll; demote `VAULT_NOT_FOCUSED`; map unrecoverable→`obsidian-not-running`; inject `launchFn`), `index.ts` (description rewrite; thread `launchFn` default) + their co-located tests. One new import edge `open_file → app-launcher`. **No edits to `_dispatch.ts`, `cli-adapter.ts`, `logger.ts`, `server.ts`, `errors.ts`.**
 
-**Resolved unknowns**: the contract was settled by the 2026-06-01 clarification; the mechanism is settled by ADR-031 (eval-composed reactive switch). Remaining items are implement-T0 probes (OQ-1 native re-probe + the placement/timing/targeting OQs), each with a stated default — **no NEEDS CLARIFICATION remains**.
+**Resolved unknowns**: the contract was settled by the 2026-06-01 clarification; the mechanism is settled by ADR-031 (eval-composed reactive switch) with OQ-1 resolved against native (forcing-gate T0 probe). Remaining items are deferred implement-T0 probes (switch-landing timing, cross-platform/cross-window focus, app-down vault targeting, closed-vault cold-start signature), each with a stated default — **no NEEDS CLARIFICATION remains**.
 
 ## Constitution Check
 
@@ -38,7 +38,7 @@ This supersedes BI-057 FR-010/FR-011 (ADR-031). The native `open`/`tab:open` rou
 | **III. Boundary Input Validation with Zod** | **Y** | Input Zod schema **structurally unchanged** (vault required; exactly-one-of path/file; new_tab bool) — locator acceptance independent of runtime focus (FR-006a / Principle III). Output gains a `placement` closed enum (`z.infer`). |
 | **IV. Explicit Upstream Error Propagation** | **Y** | No new top-level code. `VAULT_NOT_FOUND/reason:"unknown"` (sole hard vault error), `FILE_NOT_FOUND`, `UNSUPPORTED_FILE_TYPE` (retained), `VALIDATION_ERROR`/`INTERNAL_ERROR` (retained), unrecoverable focus/launch reuses `CLI_NON_ZERO_EXIT/reason:"obsidian-not-running"`. The demoted `VAULT_NOT_FOCUSED` is an internal eval-envelope signal, never a swallowed success. |
 | **V. Attribution & Layered Composition** | **Y** | `open_file` files keep `// Original — no upstream.` headers (updated). The reused `obsidian://` opener is a BI-060/ADR-030 facility, cited. |
-| **ADR-010** (native-CLI-wrapper tool naming) | **N/A** | `open_file` stays **eval-composed** (no native subcommand wrapped under this ADR; the native route is OQ-1). No tool renamed/added. |
+| **ADR-010** (native-CLI-wrapper tool naming) | **N/A** | `open_file` stays **eval-composed** (the native-subcommand route was probed and rejected — OQ-1, tab-reuse). No tool renamed/added. |
 | **ADR-013 / ADR-014** (plugin cohort) | **N/A** | Not plugin-backed. |
 | **ADR-015** (sub-discriminators via `details.reason`) | **Y / N/A** | No new `(code, details.code)` pair and no new `details.reason` (reuses `unknown` / `obsidian-not-running`; stops emitting `not-open`). Additive-only respected. |
 
@@ -54,13 +54,14 @@ This supersedes BI-057 FR-010/FR-011 (ADR-031). The native `open`/`tab:open` rou
 
 ```text
 specs/061-cross-vault-open/
-├── plan.md              # This file (eval-composed reactive switch; native = OQ-1)
-├── research.md          # Phase 0 — decisions D1–D8 + OQ-1 (native re-probe, with live-probe evidence)
+├── plan.md              # This file (eval-composed reactive switch; native rejected — OQ-1)
+├── research.md          # Phase 0 — decisions D1–D8 + OQ-1 RESOLVED (native rejected; forcing-gate probe)
 ├── data-model.md        # Phase 1 — eval schema/envelope/error/deps + focus-switch state machine
 ├── quickstart.md        # Phase 1 — manual validation (Win reference; macOS/Linux flagged)
 ├── contracts/
 │   ├── open-file-cross-vault-contract.md   # behavioural contract (switch, placement, locator scoping, errors)
-│   └── t0-probe-plan.md                     # implement-T0 probes (OQ-1 native re-probe + placement/timing/targeting)
+│   ├── t0-probe-plan.md                     # implement-T0 probes (deferred: timing/targeting/cross-platform)
+│   └── t0-probe-findings.md                 # forcing-gate probe (2026-06-01) — OQ-1 resolved, native rejected
 ├── checklists/requirements.md               # spec quality checklist
 └── tasks.md             # Phase 2 — created by /speckit-tasks (NOT here)
 ```

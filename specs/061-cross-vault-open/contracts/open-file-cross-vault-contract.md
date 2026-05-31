@@ -2,7 +2,7 @@
 
 The behavioural contract for the modified `open_file` tool. Supersedes the BI-057 focused-vault-precondition contract. Maps each clause to spec FRs.
 
-**Mechanism (ADR-031)**: `open_file` stays eval-composed; the in-eval focused-vault guard is demoted to a `VAULT_NOT_FOCUSED` switch-signal, on which the handler fires ADR-030's `obsidian://open?vault=<requested>` opener (reused `launchObsidian`) + a bounded verify-poll until focus lands. App-down/cold-start recovery is inherited from `dispatchCli`; the locator resolves in the verified-focused target vault; `placement` is derived in-eval. The native `open`/`tab:open` route (which a 2026-06-01 probe showed honours `vault=` and reuses tabs) is **OQ-1** — a T0 re-probe that may simplify to a native wrapper via a follow-up ADR. See research.md D1/D8.
+**Mechanism (ADR-031)**: `open_file` stays eval-composed; the in-eval focused-vault guard is demoted to a `VAULT_NOT_FOCUSED` switch-signal, on which the handler fires ADR-030's `obsidian://open?vault=<requested>` opener (reused `launchObsidian`) + a bounded verify-poll until focus lands. App-down/cold-start recovery is inherited from `dispatchCli`; the locator resolves in the verified-focused target vault; `placement` is derived in-eval via an explicit three-way branch. The native `open`/`tab:open` route was probed and **rejected (OQ-1, 2026-06-01)** — native `open` opens in the active leaf and cannot focus an existing tab, so it cannot deliver `existing_tab_reused`; only an eval can. See research.md D1/D8 + contracts/t0-probe-findings.md.
 
 ## Input (unchanged from BI-057)
 
