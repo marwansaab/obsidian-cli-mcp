@@ -42,3 +42,36 @@
 - `new_tab:false` & not open → open in the active leaf (`openLinkText(…, false)`) → `active_tab_used`.
 
 This both delivers the placement contract and fixes the BI-057 reuse bug.
+
+---
+
+# Controlled-session probes (2026-06-01) — recovery, `vault=X eval`, non-md reuse
+
+User-approved controlled session (Obsidian fully quit/relaunched as needed). Started from **all vaults closed**; restored to all-closed afterward. Drive `Obsidian.com`. Target B = `TestVault-Obsidian-CLI-MCP`; other vault A = `The Setup`. Forcing-gate: cross-vault files exist only in B.
+
+## Results table
+
+| Probe | Setup | Command | Observed | Pass/Fail | Closes |
+|-------|-------|---------|----------|-----------|--------|
+| **2a app-down signature** | Obsidian fully closed (0 procs) | `vault=B eval code=1+1` | exit **1**, stdout empty, stderr `The CLI is unable to find Obsidian. Please make sure Obsidian is running…` (matches `/unable to find Obsidian/i`) | **PASS** | app-down signature the eval route inherits (ADR-030 `isAppNotRunning`) |
+| **2b vault-targeted launch** | from app-down | fire `obsidian://open?vault=B`, poll | Obsidian launched **focused on B** (basePath = …\TestVault) | **PASS** | specific-mode launcher opens **directly on the requested vault** — no default-vault detour → §3 extra round eliminated |
+| **3 `vault=X eval` routing** | A focused, B open (bg) | `vault=B eval code=basePath` | returned **B's** basePath (not A's); active focus stayed **A** before & after | **PASS (overturns B1)** | **B1 is FALSE for an open named vault**: `vault=X eval` routes to X's window (no focus change for a read) |
+| **3a open-via-`vault=X eval` focuses X** | A focused, B open (bg) | `vault=B eval await openLinkText('<B-only file>','',false)` | opened the file in B **and focus moved A→B** | **PASS** | one `vault=X eval` opening a file **runs in X AND focuses X** |
+| **1 closed-vault cold-start** | A focused, **B closed** | `vault=B eval code=basePath` ×2 | attempt-1 exit 0 stdout `Error: Command "eval" not found. It may require a plugin to be enabled.` (**matches `COLD_START_PATTERN`**); attempt-2 → B's basePath; focus→B | **PASS** | eval-route cold-start signature = ADR-029 trigger (inherited retry recovers); `vault=X eval` cold-launches a closed X and runs in it |
+| **4 non-md reuse (iterateAllLeaves)** | B focused, `.base` open in a non-active leaf | eval: `getLeavesOfType('markdown').find(base)` vs `iterateAllLeaves`→`setActiveLeaf` | base leaf view type `bases`, `view.file.path` present; markdown scan **MISSED**; `iterateAllLeaves` **found + focused** it, active→`sample.base`, no dup | **PASS** | Decision §5 / D2 — the reuse search **must** be `iterateAllLeaves`, not markdown-only |
+| **E2E** | A focused, **B closed** | one `vault=B eval` doing resolve + iterateAllLeaves-reuse-or-open of a **B-only** file, ×2 (retry) | attempt-1 cold-start; attempt-2 `OPEN:{base:B, active:<file>}`; focus→B | **PASS** | the whole cross-vault open in one `vault=X eval`, cold-start absorbed by the inherited retry |
+
+## MAJOR finding — B1 is false in the current CLI; a simpler design is available
+
+The documented upstream limitation **B1 ("`eval` ignores `vault=`, always runs against the focused vault")** does **not** hold in the current CLI: `vault=X eval` **routes to X's window** (X open → runs in X's bg window; X closed → cold-launches X then runs in it; app down → app-not-running → ADR-030 launch targets X). Opening a file via `vault=X eval` (`openLinkText`) **also brings X to focus**. `vault=X open`/`tab:open` likewise honour `vault=` (prior session).
+
+This enables a design **much simpler than ADR-031's** guard-demote + `obsidian://` focus-switch + verify-poll:
+
+- **`open_file` = `invokeCli({command:"eval", vault:X, target_mode:"specific", code})`** — the eval runs **in X**, resolves the file in X, does the explicit reuse-aware open (iterateAllLeaves → setActiveLeaf / openLinkText), which opens the file **and focuses X** — all in one call.
+- **No focused-vault guard, no `VAULT_NOT_FOCUSED`, no focus-switch URI, no verify-poll, no `launchObsidian` import in `open_file`.** (D6's architecture-test caller-constraint concern evaporates — the tool imports nothing from `app-launcher`.)
+- **Recovery fully inherited and vault-targeted, zero per-tool code**: cold-start (X closed) → ADR-029 retry (attempt-1 = `COLD_START_PATTERN`); app-down → ADR-030 launch of `obsidian://open?vault=X` (specific mode → `dispatchInput.vault=X`). The §3 extra-round caveat does not arise.
+- Errors unchanged: unknown vault `Vault not found.`→`VAULT_NOT_FOUND/unknown`; file-not-found `Error: File "…" not found.`→`FILE_NOT_FOUND` (disjoint from `COLD_START_PATTERN`); unsupported-type via `viewRegistry`.
+
+**Recommendation**: re-probe B1's original documented context (single-window? older CLI version?) to reconcile *why* B1 was recorded, then — if confirmed obsolete — supersede ADR-031's mechanism with the `vault=X eval` specific-mode design. This is a decision for the canonical ADR (not edited here).
+
+**Caveat to pin at implement**: in probe 4 the `iterateAllLeaves` snapshot showed only 3 leaves and omitted a just-opened markdown tab — possibly a multi-window enumeration gap. The placement `alreadyOpen` check runs in X's own eval/window, so X's leaves should be fully visible; confirm the enumeration is complete within the target window during implement.

@@ -35,7 +35,7 @@ Phase 0 decisions, aligned to **canonical ADR-031** (eval-composed reactive focu
 - `new_tab:false` & a leaf already shows `f.path` → `app.workspace.setActiveLeaf(thatLeaf,{focus:true})` → `existing_tab_reused` (no duplicate — proven in the probe).
 - `new_tab:false` & not open → `openLinkText(f.path,'',false)` (active leaf) → `active_tab_used`.
 
-`alreadyOpen` and the existing leaf are found in-eval by iterating **all** leaves (`app.workspace.iterateAllLeaves`, comparing `leaf.view?.file?.path === f.path`) — **not** `getLeavesOfType('markdown')`, which would miss a non-markdown file (PDF/canvas/base/image) already open and mis-report `active_tab_used` instead of `existing_tab_reused`. Since `open_file` opens any recognised type, the search MUST be type-agnostic. The probe confirmed the markdown case; the all-view-types iteration is the production form. This is the only route that can deliver `existing_tab_reused`; it needs no extra CLI round-trip and fixes the BI-057 reuse bug. The signal is what BI-0129 (TC-00488/TC-00489) requires.
+`alreadyOpen` and the existing leaf are found in-eval by iterating **all** leaves (`app.workspace.iterateAllLeaves`, comparing `leaf.view?.file?.path === f.path`) — **not** `getLeavesOfType('markdown')`, which would miss a non-markdown file (PDF/canvas/base/image) already open and mis-report `active_tab_used` instead of `existing_tab_reused`. Since `open_file` opens any recognised type, the search MUST be type-agnostic. The probe confirmed the markdown case; the all-view-types iteration is the production form. This is the only route that can deliver `existing_tab_reused`; it needs no extra CLI round-trip and fixes the BI-057 reuse bug. The signal is what BI-0129 (TC-00488/TC-00489) requires. **Validated (controlled session 2026-06-01)**: a `.base` (view type `bases`) exposes `view.file.path`; `getLeavesOfType('markdown')` **missed** it while `iterateAllLeaves`→`setActiveLeaf` **found + focused** it with no duplicate — so `iterateAllLeaves` (all view types) is mandatory. (Caveat: one snapshot omitted a just-opened markdown tab — confirm complete leaf enumeration within the target window at implement.)
 
 ---
 
@@ -72,7 +72,7 @@ Phase 0 decisions, aligned to **canonical ADR-031** (eval-composed reactive focu
 
 ## D6 — Focus-switch seam & module boundary
 
-**Decision**: add `launchFn?: LaunchFn` to `open_file`'s `ExecuteDeps`, defaulting to `launchObsidian` (`src/app-launcher/`); the handler calls `deps.launchFn({vault: input.vault})` on `VAULT_NOT_FOCUSED`. Injection is a test seam; the default is wired in the `open_file` module (not the composition root) → `createServer` untouched. One one-directional `open_file → app-launcher` import edge; the imported `launchObsidian` is a function value, not `spawn`, so ADR-030's two-spawn-site invariant holds. **Implement-phase check**: confirm `architecture.test.ts` constrains spawn imports + `dispatchCli` callers only (not launcher callers); if it constrains launcher callers, wire the default one level up.
+**Decision**: add `launchFn?: LaunchFn` to `open_file`'s `ExecuteDeps`, defaulting to `launchObsidian` (`src/app-launcher/`); the handler calls `deps.launchFn({vault: input.vault})` on `VAULT_NOT_FOCUSED`. Injection is a test seam; the default is wired in the `open_file` module (not the composition root) → `createServer` untouched. One one-directional `open_file → app-launcher` import edge; the imported `launchObsidian` is a function value, not `spawn`, so ADR-030's two-spawn-site invariant holds. **Implement-phase check**: confirm `architecture.test.ts` constrains spawn imports + `dispatchCli` callers only (not launcher callers); if it constrains launcher callers, wire the default one level up. **Update (controlled session 2026-06-01)**: under the simpler `vault=X eval` design (D9), this seam is **not needed at all** — `open_file` imports nothing from `app-launcher`, app-down recovery is fully inherited in `dispatchCli`, and this caller-constraint question is moot.
 
 ---
 
@@ -96,7 +96,23 @@ Phase 0 decisions, aligned to **canonical ADR-031** (eval-composed reactive focu
 - Placement observability: in-eval `getLeavesOfType('markdown').map(l=>l.view?.file?.path)` returns full paths of open files → reuse-vs-active derivable in-eval, one round-trip. Native route would need a cross-vault `tabs` snapshot (not cleanly available).
 - Errors: `Vault not found.` → `VAULT_NOT_FOUND/unknown`; `Error: File "x" not found.` → `FILE_NOT_FOUND` (disjoint from `COLD_START_PATTERN`). Unsupported-type detectable in-eval via `viewRegistry.isExtensionRegistered` (`xyz:false`). Type-agnostic confirmed (`open path=…sample.base`).
 
-**OQ-1 verdict**: native meets *vault=*/*cross-vault*/*typed-errors*/*any-type* but **FAILS tab-reuse** (architecturally — no focus-existing affordance) and is weaker on placement detection. The eval route satisfies the full contract. **Eval is the mechanism; the canonical ADR-031 choice holds, the disqualifier being tab-reuse (not placement-reporting as originally framed).** Deferred sub-probes (closed-vault cold-start signature #5, app-down vault targeting #6) need a controlled session but are recovery-composition details inherited regardless of route.
+**OQ-1 verdict**: native meets *vault=*/*cross-vault*/*typed-errors*/*any-type* but **FAILS tab-reuse** (architecturally — no focus-existing affordance) and is weaker on placement detection. The eval route satisfies the full contract. **Eval is the mechanism; the canonical ADR-031 choice holds, the disqualifier being tab-reuse (not placement-reporting as originally framed).** The deferred sub-probes (closed-vault cold-start, app-down targeting) were run in the controlled session — see D9.
+
+---
+
+## D9 — Controlled-session findings (2026-06-01): B1 is false; a simpler design is available
+
+Recovery sub-probes + the `vault=X eval` gate were run in a user-approved controlled session (Obsidian quit/relaunched). Raw data + table in [contracts/t0-probe-findings.md](contracts/t0-probe-findings.md). **This is a decision-critical finding for the canonical ADR — recorded here, not unilaterally applied (the user folds it in).**
+
+**Recovery signatures confirmed (eval route inherits cleanly):**
+- App-down: `vault=B eval` with Obsidian closed → exit 1, empty stdout, stderr `/unable to find Obsidian/i` — the ADR-030 `isAppNotRunning` trigger. The vault-targeted launch `obsidian://open?vault=B` opens **directly on B** (no default-vault detour) → the §3 extra-round caveat does not arise when the dispatch input carries `vault=B`.
+- Closed-vault cold-start: `vault=B eval` with B closed → attempt-1 `Error: Command "eval" not found. It may require a plugin to be enabled.` — **matches `COLD_START_PATTERN`** exactly; attempt-2 runs in B. The ADR-029 retry recovers it. (Disjoint from `Error: File … not found.`.)
+
+**B1 is FALSE in the current CLI (overturns BI-057's premise):** `vault=X eval` **routes to X's window** — X open → runs in X's background window; X closed → cold-launches X then runs in it; app down → ADR-030 launch targets X. Opening a file via `vault=X eval` (`openLinkText`) **also focuses X**. Forcing-gate held (B-only files; focus moved A→B). End-to-end confirmed: a single `vault=X eval` from a foreign focused vault with X closed cold-starts then opens the file in X and focuses X.
+
+**Implication — a much simpler design than D1/ADR-031:** `open_file` = `invokeCli({command:"eval", vault:X, target_mode:"specific", code})`. The eval runs **in X**, resolves the file in X, does the explicit reuse-aware open (iterateAllLeaves → setActiveLeaf / openLinkText) which opens **and focuses** X — one call. **No focused-vault guard, no `VAULT_NOT_FOCUSED`, no `obsidian://` focus-switch, no verify-poll, no `launchObsidian` import** (D6 moot). Recovery inherited and vault-targeted with zero per-tool code (cold-start ADR-029; app-down ADR-030 via specific-mode `vault=X` → `dispatchInput.vault=X`).
+
+**Recommendation**: reconcile *why* B1 was originally documented (older CLI version? single-window?), then — if obsolete — supersede ADR-031's mechanism with this `vault=X eval` specific-mode design. Lower risk: it deletes machinery rather than adding it, and the placement/reuse/error/recovery pieces are all probe-confirmed. Decision belongs to the canonical ADR (not edited here).
 
 ---
 
