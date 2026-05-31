@@ -1,21 +1,28 @@
 # T0 Probe Plan: Open Cross-Vault Files
 
-Implement-phase live-CLI probes. Run at the `/speckit-implement` T0 step, **before** freezing the eval template and the poll/placement logic. Per `.memory/test-execution-instructions.md`: authorised vault `TestVault-Obsidian-CLI-MCP`, scratch under `Sandbox/`, **drive `Obsidian.com`** (never `Obsidian.exe`), capture raw stdout/stderr separately. A second registered vault is required to exercise cross-vault focus — stage/confirm one with the user before the cross-vault probes (do not register vaults unprompted).
+Live-CLI probes per `.memory/test-execution-instructions.md` (authorised `TestVault-Obsidian-CLI-MCP`, `Sandbox/` scratch, **drive `Obsidian.com`**, capture stdout/stderr separately).
 
-Each probe resolves a parameter the spec fixed behaviourally. Findings are recorded back here (and any divergence flagged before the predicate/template freezes), mirroring BI-059/BI-060's `t0-probe-findings.md` discipline.
+## Plan-time findings already captured (2026-06-01)
 
-| Probe | Question | Reasonable default if inconclusive |
-|-------|----------|-----------------------------------|
-| **OQ-1** | Is there a native vault-addressed open command (`open`/`tab:open`/…) that opens a file in a *named* vault and reports placement? Does `obsidian vault=X eval code=…` run the eval unchanged (B1) without a `vault=`-prefix error? | No native open command (BI-057) → eval-composed route (research D1); keep `target_mode:"active"`, adapter untouched. |
-| **OQ-2** | After `obsidian://open?vault=X`, how long until an `active` eval observes `basePath==X` for (a) open-but-unfocused X, (b) closed X? | Poll at `LAUNCH_POLL_INTERVAL_MS` (750 ms), ceiling `OBSIDIAN_LAUNCH_READINESS_TIMEOUT_MS` (30 s). |
-| **OQ-3** | Does `(new_tab, alreadyOpen)` → placement hold? Pin the leaf-inspection API; re-confirm `openLinkText(path,'',false)` reuses an existing leaf (no duplicate) and `(path,'',true)` always opens a fresh leaf. | research D2 mapping; iterate `app.workspace` leaves reading `leaf.view?.file?.path`. |
-| **OQ-4** | Does the URI switch focus to a vault open in a **separate OS window**? | Yes; if a platform cannot, document the limitation (quickstart) — spec edge case already flags it. |
-| **OQ-5** | Do `getFiles()`/`getFirstLinkpathDest` resolve in the focused (target) vault post-switch? Does a miss yield `FILE_NOT_FOUND` (never a wrong-vault open)? | research D5 (resolution gated behind the verified focus). |
-| **OQ-6** | Does an app-down open inherit the dispatch launch (and land on the requested vault without the D3 optimization)? Does `OBSIDIAN_AUTO_LAUNCH=0` yield `obsidian-not-running` with no launch? | research D3/D4; if app-down lands on the wrong vault, enable the D3 optimization (thread `vault=requested` into the dispatch input). |
+A user-requested probe was run at plan-time (unusually early) and **settled the mechanism**. Captured in research.md "T0 FINDINGS"; summary:
+
+- Native `open` / `tab:open` commands exist and **honour `vault=`, switching focus cross-vault** (B1 applies only to `eval`). `open` (no `newtab`) reuses an open tab; `newtab` creates a new one; `tab:open` always new.
+- Success stdout: `Opened: <resolved path>` (exit 0) — **no placement reported**.
+- Errors: `Vault not found.` (→ `VAULT_NOT_FOUND/unknown`), `Error: File "…" not found.` (→ `FILE_NOT_FOUND`) — both disjoint from the cold-start signature.
+- Spaced vault names pass verbatim as one `vault=<name>` argv token (production uses a spawn argv array).
+
+## Remaining implement-phase probes (defaults stated)
+
+| Probe | Question | Reasonable default |
+|-------|----------|--------------------|
+| **OQ-A** | Placement detection: does `tabs`/`tabs ids` honour `vault=` cross-vault (lists a non-focused vault's tabs; empty for a closed vault)? How to identify the target leaf from `[type] basename\t<id>` (basename-only, no active marker)? Reuse-vs-active reliability for `new_tab=false`. | before/after `tabs ids` diff in the requested vault; match resolved basename + leaf-id set; `new_tab=true` skips the check (deterministic `new_tab_created`). |
+| **OQ-B** | Does native `open` surface a distinct **unsupported-file-type** signal vs `FILE_NOT_FOUND` (open a `.unknownext`)? | No distinct signal → drop `UNSUPPORTED_FILE_TYPE`; native viewer handles every recognised type (FR-020 holds). |
+| **OQ-C** | Does `Opened: <path>` return the resolved vault-relative path for both `path=` and bare `file=` (incl. attachments — image/PDF/canvas)? | Yes → `opened` is canonical regardless of locator (FR-003 parity). |
+| **OQ-D** | Cross-window focus: does `open vault=X` switch to a vault open in a **separate OS window** (plan-time probe used same-window switching)? macOS/Linux equivalence. | Yes; document any platform divergence (quickstart, spec edge case). |
+| **OQ-E** | App-down: does the native `open` inherit the dispatch launch and land on the **requested** vault (specific-mode `vault=` threads into `obsidian://open?vault=`)? `OBSIDIAN_AUTO_LAUNCH=0` → `obsidian-not-running`, no launch? | Yes (specific mode sets `dispatchInput.vault`); opt-out → reused `obsidian-not-running`. |
 
 ## Safety / scope
 
-- Cross-vault and closed-vault probes change which vault Obsidian shows — coordinate with the user (this may move their working window). Do not close or reconfigure any vault.
-- Bare-name wrong-vault probe (OQ-5): stage a same-named note in **both** the target `Sandbox/` and a second vault, request it cross-vault, and assert the **target** copy opened (or `FILE_NOT_FOUND`) — never the other vault's copy.
-- Clean up `Sandbox/` fixtures after the run; leave `Welcome.md` untouched.
-- Re-confirm any negative observation against `Obsidian.com` (the `.exe` false-clean artifact has reverted false-flips before).
+- Cross-vault and closed-vault probes change which vault Obsidian shows — coordinate with the user (the plan-time probe switched the focused vault and was restored afterward). Do not close or reconfigure any vault. Repeated `open newtab` accumulates tabs in the test vault — harmless, closeable; note any residue.
+- Bare-name wrong-vault probe (OQ-C/FR-006a): stage a same-named note in the target `Sandbox/` and a second vault; request it cross-vault; assert the **target** copy opened, never the other vault's.
+- Clean up `Sandbox/` fixtures; leave `Welcome.md` untouched. Re-confirm any negative against `Obsidian.com` (`.exe` false-clean artifact).

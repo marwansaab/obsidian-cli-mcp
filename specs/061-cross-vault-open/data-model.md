@@ -1,23 +1,23 @@
 # Data Model: Open Cross-Vault Files
 
-Types, schemas, and the focus-switch state machine. All in `src/tools/open_file/`. The Zod schema is the single source of truth (Principle III); downstream types are `z.infer`.
+Types, schemas, and control flow for the **native-CLI-wrapper** reimplementation of `open_file` (revised 2026-06-01 after the T0 native-command probe — research "T0 FINDINGS"). All in `src/tools/open_file/`. The Zod schema is the single source of truth (Principle III).
 
 ---
 
 ## 1. Input schema — UNCHANGED (`openFileInputSchema`)
 
-No change from BI-057 (FR-006a / Principle III — locator acceptance must not depend on runtime focus):
+No change from BI-057 (FR-006a / Principle III — locator acceptance independent of runtime focus):
 
 ```text
 {
-  vault:   string (1..1000)              // required — the REQUESTED vault (may be focused, open-unfocused, or closed)
-  path?:   safePathField                 // vault-relative; structural path-safety; exactly-one-of with file
-  file?:   safeFileField                 // bare name; rejects [[ ]]; exactly-one-of with path
-  new_tab: boolean = false               // opt-in; drives placement (§3)
+  vault:   string (1..1000)              // required — the REQUESTED vault; passed as native `vault=<name>`
+  path?:   safePathField                 // vault-relative; → native `path=`; exactly-one-of with file
+  file?:   safeFileField                 // bare name; rejects [[ ]]; → native `file=`; exactly-one-of with path
+  new_tab: boolean = false               // → native `newtab` flag when true; drives placement (§4)
 }  // .strict(); superRefine enforces exactly-one-of path|file
 ```
 
-**Semantic change only**: `vault` no longer means "must be the focused vault." It now means "the vault to switch focus to and open in." The schema shape, validation messages, and `exactly-one-of` logic are byte-stable.
+**Semantic change only**: `vault` is the vault to switch focus to and open in (not "must already be focused"). Shape/messages byte-stable.
 
 ---
 
@@ -25,116 +25,106 @@ No change from BI-057 (FR-006a / Principle III — locator acceptance must not d
 
 ```text
 {
-  opened:    string                      // resolved vault-relative path (canonical), regardless of locator shape
-  vault:     string                      // the vault the file was opened in (the requested vault) — FR-019, US1-AC2
+  opened:    string                      // resolved vault-relative path, parsed from native `Opened: <path>` stdout
+  vault:     string                      // the requested vault (echoed) — FR-019, US1-AC2
   new_tab:   boolean                     // echo of the honored opt-in
-  placement: "new_tab_created"           // NEW — FR-008..FR-011; exactly one value
-           | "existing_tab_reused"
-           | "active_tab_used"
+  placement: "new_tab_created" | "existing_tab_reused" | "active_tab_used"   // NEW — FR-008..FR-011
 }  // .strict()
 ```
 
-`placement` is a closed Zod enum: `z.enum(["new_tab_created", "existing_tab_reused", "active_tab_used"])`. No pane/leaf ids or split geometry (FR-012/FR-023).
+`placement` = `z.enum(["new_tab_created","existing_tab_reused","active_tab_used"])`.
+
+**Removed**: the eval-envelope schema (`openEvalResponseSchema`, `OPEN_FILE_EVAL_ERROR_CODES`, `VAULT_NOT_FOCUSED`) — there is no eval.
 
 ---
 
-## 3. Eval envelope — `openEvalResponseSchema` (discriminated on `ok`)
+## 3. Native invocation
+
+`open_file` issues, via `invokeCli` (→ `dispatchCli`):
 
 ```text
-ok:true  → { ok:true, opened:string, new_tab:boolean, placement: PlacementEnum }   // + placement (NEW)
-ok:false → { ok:false, code: "VAULT_NOT_FOCUSED" | "FILE_NOT_FOUND" | "UNSUPPORTED_FILE_TYPE", detail?: string }
+invokeCli({
+  command: "open",
+  vault: input.vault,                    // top-level → dispatchInput.vault → argv `vault=<name>` (specific mode)
+  parameters: input.path ? { path: input.path } : { file: input.file },
+  flags: input.new_tab ? ["newtab"] : [],
+  target_mode: "specific",
+})
 ```
 
-- `placement` added to the `ok:true` arm (derived in-eval, §5).
-- `VAULT_NOT_FOCUSED` stays in the `ok:false` enum but its **handler meaning changes** from "throw `VAULT_NOT_FOUND/not-open`" to "**fire focus-switch + re-poll**" (§4, §6). It is never surfaced to the caller as an error.
-- `FILE_NOT_FOUND` / `UNSUPPORTED_FILE_TYPE` arms unchanged.
+Resulting argv (per `assembleArgv`): `[binary, vault=<name>, open, path=<x>|file=<x>, (newtab?)]`. The native command switches focus to `<name>` and opens — confirmed cross-vault at T0 (B1 does not apply to `open`/`tab:open`).
+
+**Success stdout**: `Opened: <resolved vault-relative path>` (exit 0) → parse the path after `Opened: ` → `opened`.
+
+`tab:open` is the always-new-tab sibling; `open … newtab` is equivalent and keeps a single command. (Plan/T0 may swap to `tab:open` for the new_tab path if OQ-A shows a placement-reporting advantage; default `open`+`newtab`.)
 
 ---
 
-## 4. Error triples (thrown `UpstreamError`) — reuse only
+## 4. Placement derivation (D2)
 
-| # | Condition | `code` | `details.code` / `.reason` | Stage |
-|---|-----------|--------|-----------------------------|-------|
-| 1 | Unknown/unregistered vault | `CLI_REPORTED_ERROR` | `code:"VAULT_NOT_FOUND"`, `reason:"unknown"` | pre-eval (`resolveVaultRootOrRemap`) — **sole hard vault error** |
-| 2 | File absent in requested vault | `CLI_REPORTED_ERROR` | `code:"FILE_NOT_FOUND"` | post-switch eval |
-| 3 | No registered view for type | `CLI_REPORTED_ERROR` | `code:"UNSUPPORTED_FILE_TYPE"`, `extension` | post-switch eval (retained) |
-| 4 | Focus-switch/launch unrecoverable (bound exhausted, or app-down + `OBSIDIAN_AUTO_LAUNCH` opt-out) | `CLI_NON_ZERO_EXIT` | `reason:"obsidian-not-running"` | handler (reused from ADR-030; app-down arm inherited from `dispatchCli`) |
-| 5 | Input validation | `VALIDATION_ERROR` | (field paths) | boundary (Zod) — retained |
-| 6 | Malformed eval envelope | `INTERNAL_ERROR` | `stage` | decode — retained |
+The native command reports only `Opened: <path>` (no placement). Derive:
 
-**Removed from the thrown surface**: the BI-057 `VAULT_NOT_FOUND/reason:"not-open"` mapping (case `VAULT_NOT_FOCUSED` in `mapEvalError`). `reason:"not-open"` is **not** deleted from the ADR-015 enum (additive-only) — it simply has no emitter in this tool. **No new top-level code; no new reason.**
+| `new_tab` | target already open in requested vault | `placement` | how known |
+|-----------|----------------------------------------|-------------|-----------|
+| `true`    | (any)                                  | `new_tab_created` | deterministic — `newtab`/`tab:open` always creates a tab (T0) |
+| `false`   | yes                                    | `existing_tab_reused` | `open` reuses, no duplicate (T0) |
+| `false`   | no                                     | `active_tab_used` | `open` uses the active tab (T0) |
 
----
-
-## 5. Eval template (`JS_TEMPLATE`) — behavioural changes
-
-The frozen IIFE changes in three places (exact string pinned at T0; tests assert the recorded code):
-
-1. **Guard → switch-signal**: `if (norm(basePath) !== norm(expectedBase)) return {ok:false, code:"VAULT_NOT_FOCUSED"}` — same comparison, same envelope code, but now a *retry trigger* not a terminal error.
-2. **Locator in the verified-focused target vault** (FR-006a): resolution (`getFiles().find` for `path`; `getFirstLinkpathDest` for `file`) runs only after the guard passes, i.e. in the target vault. (Structurally unchanged code; its correctness now depends on the guard-passed ordering.)
-3. **Placement derivation** (D2), before `openLinkText`:
-   ```
-   alreadyOpen = <any workspace leaf whose view file path === f.path>
-   placement   = new_tab ? "new_tab_created"
-                : alreadyOpen ? "existing_tab_reused"
-                : "active_tab_used"
-   await app.workspace.openLinkText(f.path, '', new_tab)
-   return {ok:true, opened:f.path, new_tab, placement}
-   ```
-
-Type-check (`viewRegistry.isExtensionRegistered`) stays between resolution and open (UNSUPPORTED_FILE_TYPE).
+`new_tab=true` needs **no** extra call. `new_tab=false` needs a target-vault "already open?" check — primary: a `tabs ids` snapshot of `vault=<requested>` before vs after the open (or a single pre-check). Exact mechanism (cross-vault `tabs vault=`, leaf identification) pinned at OQ-A; the closed-set contract (exactly one value) is held regardless.
 
 ---
 
-## 6. Handler control flow — focus-switch state machine
+## 5. Error mapping (thrown `UpstreamError`) — reuse only, via native strings
+
+| # | Native CLI surface (T0) | `code` | `details` | Stage |
+|---|--------------------------|--------|-----------|-------|
+| 1 | `Vault not found.` (exit 0) | `CLI_REPORTED_ERROR` | `code:"VAULT_NOT_FOUND"`, `reason:"unknown"`, `vault` | pre-resolved via `resolveVaultRootOrRemap` (clean typed shape); native string is the backstop (`invokeCli` `UNKNOWN_VAULT_PREFIX` re-classifies) — **sole hard vault error** |
+| 2 | `Error: File "<x>" not found.` (exit 0) | `CLI_REPORTED_ERROR` | `code:"FILE_NOT_FOUND"`, `path`, `vault` | dispatch priority (c) → handler maps |
+| 3 | app-down (inherited) | `CLI_NON_ZERO_EXIT` | `reason:"obsidian-not-running"` | `dispatchCli` (ADR-030); reused |
+| 4 | input invalid | `VALIDATION_ERROR` | field paths | Zod boundary — retained |
+
+**Removed**: `VAULT_NOT_FOCUSED`, `INTERNAL_ERROR` (malformed eval) — no eval. **`UNSUPPORTED_FILE_TYPE`**: pending OQ-B — if native `open` gives no distinct unrenderable-type signal, this case is dropped (native viewer handles every recognised type; FR-020 holds). **No new top-level code; no new `details.reason`.** `reason:"not-open"` retires from emission (ADR-015 additive-only).
+
+**Cold-start disjointness (T0)**: file-not-found is `Error: File …` and unknown-vault is `Vault not found.` — neither matches `COLD_START_PATTERN` (`Error: Command "…" not found.`), so neither is mis-retried; a genuine warming-vault cold-start (`Error: Command "open" not found.`) *is* retried (ADR-029, inherited).
+
+---
+
+## 6. Handler control flow
 
 ```
 executeOpenFile(input):
-  expectedBase = resolveVaultRootOrRemap(registry, input.vault)   # unknown → throw (triple #1), pre-eval
-  result = runOpenEval(expectedBase, input)                       # invokeCli eval; inherits dispatch app-down + cold-start recovery
-  envelope = decodeEvalEnvelope(result)                           # INTERNAL_ERROR on malformed (triple #6)
-
-  switch envelope:
-    ok:true                       → return {opened, vault: input.vault, new_tab, placement}
-    FILE_NOT_FOUND                → throw triple #2
-    UNSUPPORTED_FILE_TYPE         → throw triple #3
-    VAULT_NOT_FOCUSED             → focus-switch loop ↓
-
-  # ---- focus-switch loop (cross-vault) — only reached when the app ran the eval (app is UP) ----
-  deadline = now + OBSIDIAN_LAUNCH_READINESS_TIMEOUT_MS
-  launchFn({ vault: input.vault })                                # obsidian://open?vault=requested (open/bring-up + focus)
-  loop while now < deadline:
-    sleep(LAUNCH_POLL_INTERVAL_MS)
-    envelope = decodeEvalEnvelope(runOpenEval(expectedBase, input))
-    switch envelope:
-      ok:true                     → return {opened, vault, new_tab, placement}   # switch landed
-      FILE_NOT_FOUND              → throw triple #2                              # landed; file genuinely absent
-      UNSUPPORTED_FILE_TYPE       → throw triple #3
-      VAULT_NOT_FOCUSED           → continue                                     # not landed yet
-  throw triple #4 (obsidian-not-running, "could not focus requested vault within bound")
+  expectedBase = resolveVaultRootOrRemap(registry, input.vault)   # unknown → throw #1 (typed), pre-call
+  # placement pre-check only when new_tab is false (D2):
+  alreadyOpen = (input.new_tab) ? null : isOpenInVault(input.vault, locator)   # OQ-A mechanism
+  out = invokeCli({command:"open", vault: input.vault,
+                   parameters: locatorParams, flags: input.new_tab?["newtab"]:[],
+                   target_mode:"specific"})                        # inherits app-down + cold-start recovery
+        → on `Error: File … not found.` (CLI_REPORTED_ERROR) → throw #2
+        → on app-down (inherited) → #3
+  opened = parseOpened(out.stdout)                                 # after "Opened: "
+  placement = input.new_tab ? "new_tab_created"
+            : alreadyOpen ? "existing_tab_reused"
+            : "active_tab_used"
+  return { opened, vault: input.vault, new_tab: input.new_tab, placement }
 ```
 
-**Notes**:
-- The **app-down** arm never enters this loop: a down app makes `runOpenEval` *throw* the app-not-running error, which `dispatchCli` recovers (launch + poll) or surfaces as `obsidian-not-running` (triple #4) — both *before* an envelope reaches the handler. So `launchFn` here only ever focuses an already-running app (never launches a down one → opt-out stays enforced upstream).
-- **Single-flight**: each `runOpenEval` is wrapped by `invokeCli` in `queue.run`, so concurrent opens serialize through the existing queue (no new concurrency primitive).
-- **Bound**: at most `OBSIDIAN_LAUNCH_READINESS_TIMEOUT_MS / LAUNCH_POLL_INTERVAL_MS` re-evals; guaranteed termination (FR-005, SC-009).
+- **No eval, no focus-switch poll, no `launchObsidian` import** — the native `open` does the switch; recovery is inside `dispatchCli`.
+- **Single-flight** via the existing `queue.run` in `invokeCli`.
+- The `isOpenInVault` pre-check (OQ-A) is the only added round-trip, and only for `new_tab=false`.
 
 ---
 
-## 7. Dependencies — `ExecuteDeps` (+ `launchFn`)
+## 7. Dependencies — `ExecuteDeps` (unchanged shape)
 
 ```text
 ExecuteDeps {
-  logger:        Logger              # existing (injected; not constructed here)
-  queue:         Queue               # existing
-  vaultRegistry: VaultRegistry       # existing
-  spawnFn?:      SpawnLike           # existing test seam
-  env?:          ProcessEnv          # existing
-  launchFn?:     LaunchFn            # NEW — focus-switch seam; default launchObsidian (app-launcher)
-}
+  logger:        Logger              # injected (not constructed here)
+  queue:         Queue               # injected
+  vaultRegistry: VaultRegistry       # injected — unknown-vault pre-resolve
+  spawnFn?:      SpawnLike           # test seam (→ dispatchCli)
+  env?:          ProcessEnv
+}  // NO launchFn — recovery inherited in dispatchCli
 ```
-
-`launchFn` defaults to `launchObsidian` in the `open_file` module (not the composition root) → `createServer` untouched. `LaunchFn = typeof launchObsidian`.
 
 ---
 
@@ -142,10 +132,10 @@ ExecuteDeps {
 
 | Vault state at request | Path to success | Recovery owner |
 |------------------------|-----------------|----------------|
-| Requested = focused | eval#1 guard matches → open | none (same as BI-057) |
-| Requested open-but-unfocused | eval#1 `VAULT_NOT_FOCUSED` → focus-switch + verify-poll → open | **handler** (new) |
-| Requested closed, app running | eval#1 `VAULT_NOT_FOCUSED` → focus-switch (brings up + focuses) + verify-poll → open | **handler** (new) |
-| App down | eval#1 throws app-not-running → dispatch launch + poll → (then guard matches or focus-switch) → open | **dispatch** (inherited, ADR-030) |
-| App down + opt-out, or launch never ready | `obsidian-not-running` (triple #4) | dispatch/handler bound |
-| Unknown vault | pre-eval throw (triple #1) | n/a |
-| File absent (correct vault) | post-switch `FILE_NOT_FOUND` (triple #2) | n/a |
+| Requested = focused | native `open` opens (switch is a no-op) | none |
+| Requested open-but-unfocused | native `open vault=X` switches focus + opens | **native command** |
+| Requested closed, app running | native `open vault=X` brings up + focuses + opens (cold-start retry if warming) | native + **inherited** ADR-029 |
+| App down | native `open` → app-down → dispatch launches `obsidian://open?vault=X` + polls → opens | **inherited** ADR-030 |
+| App down + opt-out / launch never ready | `obsidian-not-running` (#3) | inherited bound |
+| Unknown vault | pre-resolve throw (#1) | n/a |
+| File absent (correct vault) | native `Error: File … not found.` → `FILE_NOT_FOUND` (#2) | n/a |

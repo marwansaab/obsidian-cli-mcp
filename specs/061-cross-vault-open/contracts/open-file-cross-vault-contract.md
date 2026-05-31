@@ -2,6 +2,8 @@
 
 The behavioural contract for the modified `open_file` tool. Supersedes the BI-057 focused-vault-precondition contract. Maps each clause to spec FRs.
 
+**Mechanism (revised 2026-06-01, T0-confirmed)**: `open_file` is reimplemented as a native-CLI wrapper over the `open` subcommand (`vault=<requested> open path=|file= [newtab]`) routed through `dispatchCli`. The native command honours `vault=` and switches focus cross-vault (B1 does not apply to it), so recovery (app-down/cold-start) is inherited and the locator resolves in the target vault. See research.md "T0 FINDINGS".
+
 ## Input (unchanged from BI-057)
 
 - `vault` (string, required) — the **requested** vault to open in (focused, open-but-unfocused, or closed-but-registered).
@@ -37,8 +39,8 @@ Locator acceptance is **static** — it never depends on which vault is focused 
 | Condition | `code` | `details` |
 |-----------|--------|-----------|
 | Unknown/unregistered vault (FR-013) — **sole hard vault error** | `CLI_REPORTED_ERROR` | `code:"VAULT_NOT_FOUND"`, `reason:"unknown"`, `vault` |
-| File not found in requested vault (FR-014) | `CLI_REPORTED_ERROR` | `code:"FILE_NOT_FOUND"`, `path`, `vault` |
-| Unsupported file type (retained) | `CLI_REPORTED_ERROR` | `code:"UNSUPPORTED_FILE_TYPE"`, `extension`, `path`, `vault` |
+| File not found in requested vault (FR-014) — native `Error: File "…" not found.` | `CLI_REPORTED_ERROR` | `code:"FILE_NOT_FOUND"`, `path`, `vault` |
+| Unsupported file type (pending OQ-B) | `CLI_REPORTED_ERROR` | `code:"UNSUPPORTED_FILE_TYPE"` — kept only if native `open` surfaces a distinct unrenderable-type signal; else dropped (native viewer handles every recognised type; FR-020 holds) |
 | Requested vault could not be focused/brought up within bound, or app-down + `OBSIDIAN_AUTO_LAUNCH` opt-out (FR-016) | `CLI_NON_ZERO_EXIT` | `reason:"obsidian-not-running"` |
 | Input validation (missing vault; both/neither locator; bracketed `file`; unsafe `path`/`file`; unknown field; non-bool `new_tab`) | `VALIDATION_ERROR` | field paths |
 | Malformed eval envelope | `INTERNAL_ERROR` | `stage` |
