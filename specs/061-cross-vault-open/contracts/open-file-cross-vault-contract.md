@@ -2,7 +2,7 @@
 
 The behavioural contract for the modified `open_file` tool. Supersedes the BI-057 focused-vault-precondition contract. Maps each clause to spec FRs.
 
-**Mechanism (revised 2026-06-01, T0-confirmed)**: `open_file` is reimplemented as a native-CLI wrapper over the `open` subcommand (`vault=<requested> open path=|file= [newtab]`) routed through `dispatchCli`. The native command honours `vault=` and switches focus cross-vault (B1 does not apply to it), so recovery (app-down/cold-start) is inherited and the locator resolves in the target vault. See research.md "T0 FINDINGS".
+**Mechanism (ADR-031)**: `open_file` stays eval-composed; the in-eval focused-vault guard is demoted to a `VAULT_NOT_FOCUSED` switch-signal, on which the handler fires ADR-030's `obsidian://open?vault=<requested>` opener (reused `launchObsidian`) + a bounded verify-poll until focus lands. App-down/cold-start recovery is inherited from `dispatchCli`; the locator resolves in the verified-focused target vault; `placement` is derived in-eval. The native `open`/`tab:open` route (which a 2026-06-01 probe showed honours `vault=` and reuses tabs) is **OQ-1** — a T0 re-probe that may simplify to a native wrapper via a follow-up ADR. See research.md D1/D8.
 
 ## Input (unchanged from BI-057)
 
@@ -39,8 +39,8 @@ Locator acceptance is **static** — it never depends on which vault is focused 
 | Condition | `code` | `details` |
 |-----------|--------|-----------|
 | Unknown/unregistered vault (FR-013) — **sole hard vault error** | `CLI_REPORTED_ERROR` | `code:"VAULT_NOT_FOUND"`, `reason:"unknown"`, `vault` |
-| File not found in requested vault (FR-014) — native `Error: File "…" not found.` | `CLI_REPORTED_ERROR` | `code:"FILE_NOT_FOUND"`, `path`, `vault` |
-| Unsupported file type (pending OQ-B) | `CLI_REPORTED_ERROR` | `code:"UNSUPPORTED_FILE_TYPE"` — kept only if native `open` surfaces a distinct unrenderable-type signal; else dropped (native viewer handles every recognised type; FR-020 holds) |
+| File not found in requested vault (FR-014) | `CLI_REPORTED_ERROR` | `code:"FILE_NOT_FOUND"`, `path`, `vault` |
+| Unsupported file type (retained from BI-057) | `CLI_REPORTED_ERROR` | `code:"UNSUPPORTED_FILE_TYPE"`, `extension`, `path`, `vault` |
 | Requested vault could not be focused/brought up within bound, or app-down + `OBSIDIAN_AUTO_LAUNCH` opt-out (FR-016) | `CLI_NON_ZERO_EXIT` | `reason:"obsidian-not-running"` |
 | Input validation (missing vault; both/neither locator; bracketed `file`; unsafe `path`/`file`; unknown field; non-bool `new_tab`) | `VALIDATION_ERROR` | field paths |
 | Malformed eval envelope | `INTERNAL_ERROR` | `stage` |
