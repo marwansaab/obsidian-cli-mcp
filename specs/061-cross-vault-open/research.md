@@ -1,22 +1,23 @@
 # Research: Open Cross-Vault Files
 
-Phase 0 decisions, aligned to **canonical ADR-031** (eval-composed reactive focus-switch as the chosen mechanism; native `open`/`tab:open` route as **OQ-1**, a T0 re-probe). The spec's 2026-06-01 clarification settled the contract; this file records the mechanism decisions (D1–D8) and the implement-phase T0 probe plan. Every probe has a reasonable default, so none is a `[NEEDS CLARIFICATION]`.
+Phase 0 decisions, aligned to **canonical ADR-031** (single vault-targeted eval; B1 falsified; native `open`/`tab:open` rejected on tab-reuse). The spec's 2026-06-01 clarification settled the contract; this file records the mechanism decisions (D1–D9, with D9 the controlled-session/B1-false finding that collapsed the design). Every probe has a reasonable default, so none is a `[NEEDS CLARIFICATION]`.
 
 > **History note**: an earlier same-day draft pivoted the whole design to the native `open`/`tab:open` route after a live probe. The canonical ADR-031 reverted that to the conservative eval default, keeping the native route as OQ-1 (with the probe evidence as strong preliminary signal — see "Live probe findings"). The native findings are preserved below as OQ-1 evidence, not as the chosen mechanism.
 
 ---
 
-## D1 — Mechanism: eval-composed reactive vault-targeted focus-switch + verify-poll
+## D1 — Mechanism: single vault-targeted eval (B1 false)
 
-**Decision** (ADR-031): Keep `open_file` eval-composed and `target_mode:"active"`. Demote the in-eval focused-vault guard's mismatch branch from a hard error (`VAULT_NOT_FOCUSED` → thrown `VAULT_NOT_FOUND/not-open`) to an **internal switch-signal**. The handler reacts by firing the vault-targeted focus-switch (`launchObsidian({vault: requested})` → `obsidian://open?vault=<requested>`) and re-running the eval in a bounded verify-poll until the focused base path matches the requested vault (success) or the bound elapses (`obsidian-not-running`).
+**Decision** (ADR-031, rewritten 2026-06-01 after the controlled-session probe falsified B1 — see D9): `open_file` issues **one vault-targeted eval** — `invokeCli({command:"eval", vault: input.vault, target_mode:"specific", code})`. Because `eval` honours `vault=` (B1 false), the eval **runs in the requested vault**: it resolves the locator there, type-checks, and opens via the explicit placement branch (D2) — which also switches Obsidian's focus to that vault. **No focused-vault guard, no `VAULT_NOT_FOCUSED`, no `obsidian://` focus-switch, no verify-poll, no `launchObsidian` import.**
 
 **Rationale**:
-- Overcomes B1 (eval ignores `vault=`) by making the requested vault *focused* before the eval resolves/opens.
-- **Reactive** (switch only on the mismatch signal) keeps the same-vault open untouched — one eval, guard matches, zero extra spawn/latency.
-- Reuses the already-sanctioned `launchObsidian` opener (ADR-030) — **no third spawn site**.
-- Realises ADR-029's FR-013 carve-out (the eval cold-launch "wrong vault focused" case, left to the tool's own guard) as designed — the dispatch layer stays frozen.
+- B1 false collapses the design: cross-vault opening is just a vault-targeted eval (D9 evidence — `vault=X eval` routes to X and an `openLinkText` in X focuses X).
+- Recovery is **inherited and vault-correct** because the call carries `vault=requested` (D3): cold-start (ADR-029) and app-down (ADR-030) both recover onto the requested vault, no per-tool code, no extra round. ADR-029's FR-013 "wrong vault focused" residual does not arise for a vault-targeted eval.
+- Smallest blast radius: removes machinery rather than adding it; no spawn site; no new edge.
 
-**Why not the native route (RESOLVED against it)**: a forcing-gate probe (D8) showed native `open`/`tab:open` switch focus cross-vault — but native `open` (no flag) opens in the **active leaf (replace)** and has **no focus-existing affordance**, so it cannot deliver `existing_tab_reused` (FR-008/FR-010/US4-AC2). Only an eval can (`iterateAllLeaves → setActiveLeaf`). OQ-1 is therefore resolved against native; the eval switch is the mechanism, not a placeholder.
+**Why not the native route (RESOLVED against it)**: a forcing-gate probe (D8) showed native `open`/`tab:open` switch focus cross-vault — but native `open` (no flag) opens in the **active leaf (replace)** and has **no focus-existing affordance**, so it cannot deliver `existing_tab_reused` (FR-008/FR-010/US4-AC2). Only an eval can (`iterateAllLeaves → setActiveLeaf`). OQ-1 resolved against native.
+
+**Superseded same-day draft**: the first D1 (reactive focus-switch: guard-demote → `VAULT_NOT_FOCUSED` switch-signal → `launchObsidian` URI → verify-poll) assumed B1 held. Once B1 was falsified the switch/poll/launcher became dead machinery; preserved in ADR-031's Alternatives Considered.
 
 ---
 
@@ -41,11 +42,12 @@ Phase 0 decisions, aligned to **canonical ADR-031** (eval-composed reactive focu
 
 ## D3 — Closed-vault / app-down recovery: inherited at the dispatch chokepoint
 
-**Decision**: no bespoke launcher; `open_file` routes its eval through `dispatchCli` and inherits ADR-030 app-down launch + ADR-029 cold-start retry. The three vault states (per ADR-031 Decision §3):
-- **App fully down** → `dispatchCli` launches before the eval runs (ADR-030, inherited).
-- **App up, requested vault closed-but-registered** → cold-launch window absorbed by ADR-029's retry (inherited).
-- **App up, wrong vault focused** → the residual ADR-029 FR-013 carve-out; the handler's reactive focus-switch (D1) handles it — the one genuinely new, **tool-level** dimension (honestly surfaced; not inherited).
-- **Caveat (OQ-5)**: if the app-down launch brings up the *default* vault rather than the requested one, the eval lands on the wrong vault and the D1 focus-switch corrects it (one extra round). The `OBSIDIAN_AUTO_LAUNCH` opt-out stays enforced upstream either way; the focus-switch branch is unreachable while the app is down (it only fires on a `VAULT_NOT_FOCUSED` envelope, which requires the app to have run the eval).
+**Decision**: no bespoke launcher and **no per-tool recovery at all** — `open_file` routes its `vault=requested` eval through `dispatchCli` and inherits both mechanisms, **vault-correctly** (the call carries `vault=requested`):
+- **App fully down** → `dispatchCli` detects app-not-running and ADR-030 launches `obsidian://open?vault=requested`, bringing up the **requested** vault focused; the retry then runs the eval in it (probes 2a/2b confirmed). No default-vault detour, no extra round (the eval is specific-mode).
+- **Requested vault closed-but-registered** → the first `vault=requested eval` cold-launches it (attempt-1 `COLD_START_PATTERN`); ADR-029's retry re-runs in the now-open vault (probe 1 / E2E confirmed).
+- **Requested vault open-but-unfocused** → the routed eval simply runs in it and opens + focuses there (D9) — no recovery needed.
+
+The ADR-029 FR-013 "eval cold-launch focuses the *wrong* vault" residual **does not arise** for a vault-targeted eval — the eval routes to the requested vault directly. `OBSIDIAN_AUTO_LAUNCH` opt-out enforced upstream. **The superseded focus-switch design's app-up-wrong-vault dimension and its extra-round caveat are gone** (no focus-switch).
 
 ---
 
@@ -56,17 +58,17 @@ Phase 0 decisions, aligned to **canonical ADR-031** (eval-composed reactive focu
 | Unknown/unregistered vault | `CLI_REPORTED_ERROR` + `details.code:"VAULT_NOT_FOUND"` + `reason:"unknown"` — **sole hard vault error** (pre-eval via `resolveVaultRootOrRemap`) |
 | File absent in requested vault | `CLI_REPORTED_ERROR` + `details.code:"FILE_NOT_FOUND"` |
 | Type with no registered view | `CLI_REPORTED_ERROR` + `details.code:"UNSUPPORTED_FILE_TYPE"` (retained from BI-057) |
-| Focus/launch unrecoverable (bound exhausted, or app-down + opt-out) | `CLI_NON_ZERO_EXIT` + `details.reason:"obsidian-not-running"` (reused, ADR-030) |
+| App down, unrecoverable (launch suppressed/fails) | `CLI_NON_ZERO_EXIT` + `details.reason:"obsidian-not-running"` (reused, ADR-030 — **inherited** from `dispatchCli`) |
 | Input validation | `VALIDATION_ERROR` (retained) |
 | Malformed eval envelope | `INTERNAL_ERROR` (retained) |
 
-`VAULT_NOT_FOCUSED` is removed from the *thrown* surface — internal switch-discriminator only. `reason:"not-open"` stops being emitted but stays in the enum (ADR-015 additive-only). **No new top-level code; no new reason.**
+`VAULT_NOT_FOCUSED` is **removed entirely** (no guard). `reason:"not-open"` stops being emitted but stays in the enum (ADR-015 additive-only). **No new top-level code; no new reason.** The `obsidian-not-running` case is inherited from `dispatchCli` (not a tool-level verify-poll exhaustion).
 
 ---
 
 ## D5 — Locator resolution scoped to the requested (target) vault (FR-006a)
 
-**Decision**: input schema unchanged (exactly-one-of `path`/`file`; static per ADR-003 / Principle III). Resolve the locator **only after** the guard passes (focused base == requested): `path` → `getFiles().find`; `file` → `getFirstLinkpathDest` in the target vault. A miss → `FILE_NOT_FOUND`, never a wrong-vault open. The verify-poll only proceeds past the guard when focus has landed, so resolution is structurally guaranteed to run in the target vault. **Probe OQ-4** confirms `getFirstLinkpathDest` resolves in the target vault post-switch.
+**Decision**: input schema unchanged (exactly-one-of `path`/`file`; static per ADR-003 / Principle III). Resolution runs **inside the vault-targeted eval** (which routes to the requested vault, B1 false): `path` → `getFiles().find`; `file` → `getFirstLinkpathDest`. Both run in the requested vault by construction (the eval executes there), so a bare name never resolves against another vault; a miss → `FILE_NOT_FOUND`. **Validated (controlled session 2026-06-01)**: `getFirstLinkpathDest('alpha')` resolved the requested vault's file; a `vault=B eval` opened a B-only file in B (forcing-gate held).
 
 ---
 
@@ -76,9 +78,9 @@ Phase 0 decisions, aligned to **canonical ADR-031** (eval-composed reactive focu
 
 ---
 
-## D7 — Bound & verify-poll reuse
+## D7 — Bound & verify-poll reuse — **MOOT** (no verify-poll)
 
-**Decision**: reuse BI-060/BI-0133's `LAUNCH_POLL_INTERVAL_MS` (750 ms) and `OBSIDIAN_LAUNCH_READINESS_TIMEOUT_MS` (30 s) for the verify-poll; on exhaustion throw the reused `obsidian-not-running`. One source of truth for the readiness bound. **Probe OQ-2** measures the focus-switch landing window; a smaller poll interval may be adopted if it is reliably sub-second (still bounded; 30 s ceiling kept).
+**Superseded**: under the vault-targeted-eval design (D1) there is **no verify-poll** — recovery is the inherited `dispatchCli` mechanisms (ADR-029 cold-start retry; ADR-030 app-down launch + its readiness bound). `open_file` introduces no bound of its own. (The superseded focus-switch draft reused BI-060's `LAUNCH_POLL_INTERVAL_MS` / `OBSIDIAN_LAUNCH_READINESS_TIMEOUT_MS` for its poll; not needed now.)
 
 ---
 

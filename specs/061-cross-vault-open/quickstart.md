@@ -50,11 +50,11 @@ Each placement is read from the response alone — no visual inspection needed. 
 ## S7 — Same-vault open unchanged (regression — performance/behaviour)
 
 1. With **A** focused, `open_file({ vault:"A", path:"Sandbox/cv-s7.md" })`.
-2. **Expect**: opens immediately with no focus-switch/poll overhead (one eval, guard matches) — behaviour identical to BI-057 plus the new `placement` field. (Technical Context "same-vault untouched")
+2. **Expect**: opens immediately with no extra overhead (one vault-targeted eval) — behaviour identical to BI-057 plus the new `placement` field. (Technical Context "same-vault untouched")
 
 ## macOS / Linux flag
 
-The focus-switch reuses BI-060's per-OS URI opener (`open` / `xdg-open`). Re-run S1–S3 on macOS/Linux to confirm cross-vault focus and app-launch behave equivalently; record any platform divergence (esp. OQ-4 cross-window focus).
+Cross-vault open is a plain `vault=X eval` through `dispatchCli`; app-down/cold-start recovery rides ADR-029/030 (already cross-platform). Re-run S1–S3 on macOS/Linux to confirm cross-vault routing and recovery behave equivalently; record any platform divergence.
 
 ## Cleanup
 

@@ -2,7 +2,7 @@
 
 The behavioural contract for the modified `open_file` tool. Supersedes the BI-057 focused-vault-precondition contract. Maps each clause to spec FRs.
 
-**Mechanism (ADR-031)**: `open_file` stays eval-composed; the in-eval focused-vault guard is demoted to a `VAULT_NOT_FOCUSED` switch-signal, on which the handler fires ADR-030's `obsidian://open?vault=<requested>` opener (reused `launchObsidian`) + a bounded verify-poll until focus lands. App-down/cold-start recovery is inherited from `dispatchCli`; the locator resolves in the verified-focused target vault; `placement` is derived in-eval via an explicit three-way branch. The native `open`/`tab:open` route was probed and **rejected (OQ-1, 2026-06-01)** — native `open` opens in the active leaf and cannot focus an existing tab, so it cannot deliver `existing_tab_reused`; only an eval can. See research.md D1/D8 + contracts/t0-probe-findings.md.
+**Mechanism (ADR-031; B1 false)**: `open_file` issues **one vault-targeted eval** — `invokeCli({command:"eval", vault:requested, target_mode:"specific", code})`. Because `eval` honours `vault=` (B1 falsified 2026-06-01), the eval **runs in the requested vault**, resolves the locator there, and opens the file (switching focus to that vault) via the explicit placement branch. **No focused-vault guard, no `VAULT_NOT_FOCUSED`, no `obsidian://` focus-switch, no verify-poll, no launcher import.** App-down/cold-start recovery is inherited from `dispatchCli`, vault-correctly (the call carries `vault=requested`). The native `open`/`tab:open` route was probed and **rejected (OQ-1, 2026-06-01)** — native `open` opens in the active leaf and cannot focus an existing tab, so it cannot deliver `existing_tab_reused`; only an eval can. See research.md D1/D8/D9 + contracts/t0-probe-findings.md.
 
 ## Input (unchanged from BI-057)
 
@@ -26,7 +26,7 @@ Locator acceptance is **static** — it never depends on which vault is focused 
 
 1. **Cross-vault focus switch** (FR-001, FR-002, FR-003): the open switches Obsidian's focus to the requested vault regardless of which vault was focused at call time — open-but-unfocused vaults are re-focused, closed-but-registered vaults are brought up and focused. No human pre-switch.
 2. **Previously-focused vault preserved** (FR-004): focus moves; the prior vault stays open; no Obsidian setting/config is changed (FR-021).
-3. **Transient-failure recovery** (FR-005, FR-006, US2-AC2): the switch-landing/cold-launch window is absorbed automatically — the handler's bounded verify-poll for the app-up case, the inherited `dispatchCli` recovery (ADR-030 launch / ADR-029 cold-start) for the app-down/warm-up case. Bounded; no caller retry; no hang (SC-009).
+3. **Transient-failure recovery** (FR-005, FR-006, US2-AC2): the cold-launch window is absorbed automatically and **fully inherited** from `dispatchCli` — ADR-029 cold-start retry for a closed-but-registered vault; ADR-030 app-launch (`obsidian://open?vault=requested`) for the app-down case. Vault-correct (the eval carries `vault=requested`); no per-tool retry/poll; bounded; no caller retry; no hang (SC-009).
 4. **Placement reporting** (FR-008..FR-011):
    - `new_tab:true` → `new_tab_created`.
    - `new_tab:false` & file already open in the target vault → `existing_tab_reused` (no duplicate).
