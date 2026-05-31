@@ -52,6 +52,11 @@ Each placement is read from the response alone — no visual inspection needed. 
 1. With **A** focused, `open_file({ vault:"A", path:"Sandbox/cv-s7.md" })`.
 2. **Expect**: opens immediately with no extra overhead (one vault-targeted eval) — behaviour identical to BI-057 plus the new `placement` field. (Technical Context "same-vault untouched")
 
+## S8 — Type-agnostic open cross-vault (FR-020 / SC-008)
+
+1. With **A** focused, open a **non-markdown** recognised type in **B** by path — e.g. `open_file({ vault:"B", path:"Fixtures/BI-0065/sample.base" })` (a `.base`; T0-confirmed openable). If a PDF/image fixture is available in B, repeat with it.
+2. **Expect**: focus switches to B, the file opens in its native viewer, and the response has the **identical** shape as a markdown open (`{ opened, vault, new_tab, placement }`) — no per-type branching, no new error for a recognised type. (FR-020; SC-008 — every type already openable stays openable.)
+
 ## macOS / Linux flag
 
 Cross-vault open is a plain `vault=X eval` through `dispatchCli`; app-down/cold-start recovery rides ADR-029/030 (already cross-platform). Re-run S1–S3 on macOS/Linux to confirm cross-vault routing and recovery behave equivalently; record any platform divergence.
