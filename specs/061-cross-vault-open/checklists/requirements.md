@@ -40,10 +40,17 @@
   BI-057 contract inversion rather than silently override it. The WHAT/WHY of each FR remains
   implementation-agnostic; the named artifacts sit in the rationale layer.
 - **Deliberate supersession flagged for plan-phase ADR**: this feature inverts BI-057 FR-010
-  (no vault switching) and FR-011 (focused-vault guard). Per the project rule, the supersession
-  must be recorded in a new ADR during `/speckit-plan`, not enacted silently. Surfaced in
-  Assumptions and Dependencies.
-- **Plan-phase probes (not spec ambiguities)**: placement observability (new tab vs reuse vs
-  active), cross-window focus reliability, the recovery bound, and the exact error-code/reason
-  literals are deferred to plan-phase T0 probes with reasonable defaults stated — they are
-  parameters to pin, not unresolved scope decisions, so no [NEEDS CLARIFICATION] markers are used.
+  (no vault switching) and FR-011 (focused-vault guard). Clarification 2026-06-01 confirmed the
+  inversion is **unconditional** (no opt-in flag). Per the project rule, the supersession must be
+  recorded in a new ADR during `/speckit-plan`, not enacted silently. Surfaced in the
+  Clarifications session, Assumptions, and Dependencies.
+- **Error vocabulary settled (was deferred)**: Clarification 2026-06-01 pinned the literals —
+  unknown-vault → `VAULT_NOT_FOUND/reason:"unknown"` (sole hard error); file-not-found →
+  `FILE_NOT_FOUND`; unrecoverable launch → reused `CLI_NON_ZERO_EXIT/reason:"obsidian-not-running"`
+  (ADR-030). No new top-level code and no new reason; the BI-057 `reason:"not-open"` is not
+  repurposed (ADR-015 additive-only) — it stops being emitted as its case becomes a success.
+- **Remaining plan-phase probes (not spec ambiguities)**: placement observability (new tab vs
+  reuse vs active), cross-window focus reliability, the recovery bound, and the open mechanism
+  that satisfies both recovery-inheritance (route through `dispatchCli`) and placement reporting
+  are deferred to plan-phase T0 probes with reasonable defaults stated — parameters to pin, not
+  unresolved scope decisions, so no [NEEDS CLARIFICATION] markers are used.
