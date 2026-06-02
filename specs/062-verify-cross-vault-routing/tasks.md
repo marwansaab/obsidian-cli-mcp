@@ -26,9 +26,9 @@ Eval-composed read/query, specific/`vault=` path only: `backlinks`, `links`, `re
 
 **Purpose**: Stand up the two-vault forcing-gate environment and fixtures per `.memory/test-execution-instructions.md`.
 
-- [ ] T001 Read `.memory/test-execution-instructions.md`; confirm a **clean git working tree** (`git status` clean — mandatory before any doc edit, rollback `git restore .`); confirm the driver is `Obsidian.com` (production-resolved shim), never the GUI `Obsidian.exe`.
-- [ ] T002 Bring up the environment: vault **A** (the "other" vault, e.g. `The Setup`) **focused**; vault **B** = `TestVault-Obsidian-CLI-MCP` open but **not** focused. Confirm both are registered and open via `obsidian vaults verbose`.
-- [ ] T003 [P] Stage per-tool B-only discriminators in `TestVault-Obsidian-CLI-MCP/Sandbox/` per `specs/062-verify-cross-vault-routing/contracts/t0-probe-plan.md` (a B-only backlink/forward-link target; a note with a B-only heading body; a B-only frontmatter property/value; a B-only tag; a B-only file path + content pattern; a note indexed by Smart Connections in B). Confirm the Smart Connections index covers B for the `smart_connections_*` probes.
+- [X] T001 Read `.memory/test-execution-instructions.md`; confirm a **clean git working tree** (`git status` clean — mandatory before any doc edit, rollback `git restore .`); confirm the driver is `Obsidian.com` (production-resolved shim), never the GUI `Obsidian.exe`.
+- [X] T002 Bring up the environment: vault **A** (the "other" vault, e.g. `The Setup`) **focused**; vault **B** = `TestVault-Obsidian-CLI-MCP` open but **not** focused. Confirm both are registered and open via `obsidian vaults verbose`.
+- [X] T003 [P] Stage per-tool B-only discriminators in `TestVault-Obsidian-CLI-MCP/Sandbox/` per `specs/062-verify-cross-vault-routing/contracts/t0-probe-plan.md` (a B-only backlink/forward-link target; a note with a B-only heading body; a B-only frontmatter property/value; a B-only tag; a B-only file path + content pattern; a note indexed by Smart Connections in B). Confirm the Smart Connections index covers B for the `smart_connections_*` probes.
 
 ---
 
@@ -38,8 +38,8 @@ Eval-composed read/query, specific/`vault=` path only: `backlinks`, `links`, `re
 
 **⚠️ CRITICAL**: No probe (US1) may run until the classification is re-confirmed and the findings ledger exists.
 
-- [ ] T004 Re-confirm Step-0 classification: re-grep `src/tools/*/handler.ts` for the issued `command:` and verify the nine-tool at-risk eval read/query set is unchanged since plan time (research.md D1). If a handler drifted (e.g. a tool now issues `eval` that did not, or vice-versa), update the at-risk set and note it before probing.
-- [ ] T005 Scaffold `specs/062-verify-cross-vault-routing/contracts/t0-probe-findings.md` with one empty row per at-risk tool: `tool | focused vault | target vault | discriminator | exact call | returned-from (B/A/error) | verdict`.
+- [X] T004 Re-confirm Step-0 classification: re-grep `src/tools/*/handler.ts` for the issued `command:` and verify the nine-tool at-risk eval read/query set is unchanged since plan time (research.md D1). If a handler drifted (e.g. a tool now issues `eval` that did not, or vice-versa), update the at-risk set and note it before probing.
+- [X] T005 Scaffold `specs/062-verify-cross-vault-routing/contracts/t0-probe-findings.md` with one empty row per at-risk tool: `tool | focused vault | target vault | discriminator | exact call | returned-from (B/A/error) | verdict`.
 
 **Checkpoint**: At-risk set settled, ledger ready — probing can begin.
 
@@ -53,16 +53,16 @@ Eval-composed read/query, specific/`vault=` path only: `backlinks`, `links`, `re
 
 > Probes serialize (shared focus state + single-in-flight CLI) — run T006–T014 back-to-back without re-setup. **Do NOT probe active mode** — focused-by-design, must not be flipped (research.md D3).
 
-- [ ] T006 [US1] Probe `backlinks` specific-mode `vault=B` against the B-only link target; assert B's backlink set; record the row in `contracts/t0-probe-findings.md`.
-- [ ] T007 [US1] Probe `links` specific-mode `vault=B`; assert B's forward-link set; record.
-- [ ] T008 [US1] Probe `read_heading` specific-mode `vault=B` against the B-only heading note; assert B's heading body; record.
-- [ ] T009 [US1] Probe `paths` specific-mode `vault=B` against the B-only path; assert B's path set; record.
-- [ ] T010 [US1] Probe `tag` vault-named `vault=B` against the B-only tag; assert B's tagged-file set; record.
-- [ ] T011 [US1] Probe `find_by_property` vault-named `vault=B` against the B-only property/value; assert it is found in B; record.
-- [ ] T012 [US1] Probe `pattern_search` vault-named `vault=B` against the B-only content pattern; assert B's matches; record.
-- [ ] T013 [US1] Probe `smart_connections_query` vault-named `vault=B` against the B-indexed note; assert B's results; record.
-- [ ] T014 [US1] Probe `smart_connections_similar` specific-mode `vault=B` against the B-indexed source; assert B's similar set; record.
-- [ ] T015 [US1] Aggregate verdicts in `contracts/t0-probe-findings.md`: assign each tool a `ToolVerdict` (expected `ROUTING_CONFIRMED`). Any `returned-from = A` is a hard stop (FR-012) — flag that tool for Phase 5 (US3); do NOT proceed to its doc correction as `ROUTING_CONFIRMED`.
+- [X] T006 [US1] Probe `backlinks` specific-mode `vault=B` against the B-only link target; assert B's backlink set; record the row in `contracts/t0-probe-findings.md`.
+- [X] T007 [US1] Probe `links` specific-mode `vault=B`; assert B's forward-link set; record.
+- [X] T008 [US1] Probe `read_heading` specific-mode `vault=B` against the B-only heading note; assert B's heading body; record.
+- [X] T009 [US1] Probe `paths` specific-mode `vault=B` against the B-only path; assert B's path set; record.
+- [X] T010 [US1] Probe `tag` vault-named `vault=B` against the B-only tag; assert B's tagged-file set; record.
+- [X] T011 [US1] Probe `find_by_property` vault-named `vault=B` against the B-only property/value; assert it is found in B; record.
+- [X] T012 [US1] Probe `pattern_search` vault-named `vault=B` against the B-only content pattern; assert B's matches; record.
+- [X] T013 [US1] Probe `smart_connections_query` vault-named `vault=B` against the B-indexed note; assert B's results; record.
+- [X] T014 [US1] Probe `smart_connections_similar` specific-mode `vault=B` against the B-indexed source; assert B's similar set; record.
+- [X] T015 [US1] Aggregate verdicts in `contracts/t0-probe-findings.md`: assign each tool a `ToolVerdict` (expected `ROUTING_CONFIRMED`). Any `returned-from = A` is a hard stop (FR-012) — flag that tool for Phase 5 (US3); do NOT proceed to its doc correction as `ROUTING_CONFIRMED`.
 
 **Checkpoint**: Every at-risk tool has its own recorded verdict. MVP delivered — cross-vault routing confirmed (or a genuine limitation isolated) per tool.
 
