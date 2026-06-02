@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "061-cross-vault-open",
-  "generatedAt": "2026-05-31",
+  "generatedFromBranch": "063-correct-cross-vault-docs",
+  "generatedAt": "2026-06-02",
   "tools": [
     {
       "name": "append_note",
@@ -75,7 +75,7 @@
     },
     {
       "name": "outline",
-      "descriptionFingerprint": "09b0b625b23ea8018bf5ab0c3229a2e3624b36685bb710f9602338fbb5f2b591",
+      "descriptionFingerprint": "d0f014b94449279e835626ce8a0b13b6caeaeade6567307fd289bf3cbf3953c6",
       "schemaFingerprint": "3affa6b4260fc26466e0b52018a248ec0e9752bd49d1f65bd549db20ab77f642"
     },
     {
@@ -155,7 +155,7 @@
     },
     {
       "name": "tag",
-      "descriptionFingerprint": "eb804724538790f10a4ea863f62fdf640a317f8d5e58c235abbccd129a6beaa7",
+      "descriptionFingerprint": "eedb37f29cee65a89f2a5a5a2a8654438401db60100a12d5bd3770cd67893612",
       "schemaFingerprint": "d1f0426ea5439d8642d2dd4db1505209d9a3682f080f91b4985b7ba4aac4ac8a"
     },
     {

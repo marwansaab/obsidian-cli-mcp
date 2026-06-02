@@ -22,7 +22,7 @@ Required \`tag\` (string): wrapper trims whitespace, strips a single leading \`#
 
 Both body inline tags (\`#tag\`) and frontmatter tag arrays (\`tags: [...]\`) contribute equally. Per-note de-duplication — a body that says \`#dup #dup\` contributes once.
 
-Optional \`vault\` (string): routes to a named vault; omitted routes to the focused vault. Multi-vault basename ambiguity inherited — open the target vault in Obsidian to disambiguate.
+Optional \`vault\` (string): routes to a named vault even when it is open but unfocused (B1 falsified — BI-0134 / ADR-031); omitted routes to the focused vault. Residual limit: genuine same-display-name collision (focus does not fix it — give colliding vaults distinct display names).
 
 Optional \`total: true\` returns the bare integer count (token-economical pre-flight); the count is invariant across both modes for the same vault state.
 
