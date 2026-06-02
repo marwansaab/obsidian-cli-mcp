@@ -51,8 +51,10 @@ top-level keys are rejected (`additionalProperties: false`).
   R14 amendment 1 — Obsidian's native `tag` subcommand is
   case-sensitive; the wrapper restores the tag-pane UX expectation).
 - **`vault`** — the vault display name. When omitted, the focused
-  vault is used. **Inherited limitation**: multi-vault basename
-  ambiguity (open the target vault first in Obsidian).
+  vault is used; pass it explicitly to route to a named vault — this
+  routes correctly even when that vault is open but unfocused
+  (BI-0134). **Residual limit**: genuine same-display-name collision,
+  not fixed by focusing.
 - **`total`** — when `true`, the response is a bare integer count
   with no `paths` array surfaced (token-economical pre-flight read).
   The count is invariant across both modes for the same vault state.
@@ -245,12 +247,15 @@ live; unregistered vault names surface as `CLI_REPORTED_ERROR` with
 the error-roster row above), but multi-vault setups still suffer
 from basename ambiguity — two vaults sharing the same display name
 are indistinguishable by the `vault=` argument.
-**Recommendation**: open the target vault in Obsidian before
-invoking `tag`. Parity with the other eval-cohort members.
-(Empirical anchor: probe captured 2026-05-21 against obsidian-cli
-1.12.7; see
-[specs/042-close-audit-findings/contracts/vault-probe-evidence.md](../../specs/042-close-audit-findings/contracts/vault-probe-evidence.md)
-T014; re-verify on next audit cycle.)
+**Focus is not required**: a `vault=` read routes into the named
+vault even when it is open but unfocused — re-verified per-tool by
+the BI-0134 forcing gate
+([t0-probe-findings.md](../../specs/062-verify-cross-vault-routing/contracts/t0-probe-findings.md),
+2026-06-02; supersedes the earlier 2026-05-21 anchor). The residual
+limit is genuine same-display-name collision: two vaults with
+identical display names are indistinguishable by `vault=`, and
+focusing one does not fix that. Disambiguate by giving them distinct
+display names.
 
 ### ASCII-only lower-fold
 

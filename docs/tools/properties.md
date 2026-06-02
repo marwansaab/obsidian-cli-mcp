@@ -224,7 +224,7 @@ The reported casing (`aatest` vs `AaTest` vs `AATEST`) is upstream's choice, not
 
 ### Multi-vault basename ambiguity
 
-Multi-vault setups suffer from basename ambiguity — two vaults sharing the same display name are indistinguishable by the `vault=` argument. **Recommendation**: open the target vault in Obsidian before invoking `properties` to disambiguate.
+Multi-vault setups can suffer from basename ambiguity: two vaults sharing the **same display name** are indistinguishable by the `vault=` argument. This is a genuine name-collision limit — **focusing a vault does not fix it, and focus is not required**: `properties` is a native CLI command that honours `vault=` and routes to the named vault even when it is open but unfocused (confirmed live 2026-06-02). To disambiguate genuinely same-named vaults, give them distinct display names.
 
 ### Output-cap ceiling
 
