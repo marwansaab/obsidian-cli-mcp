@@ -75,3 +75,40 @@ This enables a design **much simpler than ADR-031's** guard-demote + `obsidian:/
 **Recommendation**: re-probe B1's original documented context (single-window? older CLI version?) to reconcile *why* B1 was recorded, then — if confirmed obsolete — supersede ADR-031's mechanism with the `vault=X eval` specific-mode design. This is a decision for the canonical ADR (not edited here).
 
 **Caveat to pin at implement**: in probe 4 the `iterateAllLeaves` snapshot showed only 3 leaves and omitted a just-opened markdown tab — possibly a multi-window enumeration gap. The placement `alreadyOpen` check runs in X's own eval/window, so X's leaves should be fully visible; confirm the enumeration is complete within the target window during implement.
+
+---
+
+# Implement-T0 + post-implementation live validation (2026-06-01) — frozen string pinned; leaf enumeration confirmed; quickstart S1–S8 green
+
+Run during `/speckit-implement` per `.memory/test-execution-instructions.md` (drive `Obsidian.com`). Backdrop focused A = `The Setup` (read-only); target B = `TestVault-Obsidian-CLI-MCP` (authorised scratch). Fixtures seeded under `B/Sandbox/` (`cv-live-md.md`, `cv-live-reuse.md`) + pre-existing `B/Fixtures/BI-0065/sample.base`; all removed afterward; Obsidian restored to all-closed. Validation drove the **real `obsidian` CLI through the production handler** (`executeOpenFile`, no spawn stub) via a temporary uncommitted vitest integration test (deleted post-run).
+
+## T002 — frozen eval string PINNED (byte-stable)
+
+`src/tools/open_file/_template.ts` `JS_TEMPLATE` is now frozen as the single block-body async IIFE: locator resolution (`app.vault.getFiles().find` for `path`; `app.metadataCache.getFirstLinkpathDest(a.file,'')` for `file`) → `FILE_NOT_FOUND`; `app.viewRegistry.isExtensionRegistered(f.extension)` → `UNSUPPORTED_FILE_TYPE`; explicit placement branch (`new_tab`→`openLinkText(f.path,'',true)`=`new_tab_created`; else existing-leaf via `app.workspace.iterateAllLeaves` matching `l.view.file.path===f.path` → `setActiveLeaf(existing,{focus:true})`=`existing_tab_reused`; else `openLinkText(f.path,'',false)`=`active_tab_used`); returns `{ok:true,opened,new_tab,placement}`. **No focused-vault guard, no `expectedBase`, no `VAULT_NOT_FOCUSED`.** The handler base64-encodes the `{path,file,new_tab}` payload; raw spawn-trace of the composed argv confirmed the exact code reaching the CLI.
+
+## D9 caveat RESOLVED — intra-window leaf enumeration is complete
+
+The probe-4 concern (an `iterateAllLeaves` snapshot omitting a just-opened tab) does **not** reproduce when the scan runs in the target window's own `vault=X eval`:
+
+| Reuse case | Setup | Observed placement | Verdict |
+|------------|-------|--------------------|---------|
+| **markdown** | `Sandbox/cv-live-reuse.md` opened, then re-opened `new_tab:false` | `existing_tab_reused` (no duplicate) | **PASS** — `iterateAllLeaves` saw the just-opened md tab |
+| **non-md `.base`** (D2) | `Fixtures/BI-0065/sample.base` opened, then re-opened `new_tab:false` | `existing_tab_reused` | **PASS** — `iterateAllLeaves` found the `bases`-view leaf a markdown-only scan would miss |
+
+Both stable across two consecutive runs. The earlier probe-4 omission was a multi-window snapshot artifact, not a gap in the in-window scan the design relies on.
+
+## T016 — quickstart S1–S8 results (live, through the handler)
+
+| Scenario | Call | Result | FR/SC |
+|----------|------|--------|-------|
+| **S1/S2** cross-vault forcing-gate + cold-start | `open_file({vault:B, path:"Sandbox/cv-live-md.md"})` with A focused, B closed | success; `vault:B`, file resolved in B (absent from A → forcing-gate held); cold-launch absorbed (inherited ADR-029); placement ∈ enum | FR-001/003/005/019; SC-001/002/006 |
+| **S4** new-tab control | `… new_tab:true` | `placement:"new_tab_created"` (force-new) | FR-009; SC-004 |
+| **S4** reuse | re-open already-open file `new_tab:false` | `placement:"existing_tab_reused"`, no duplicate | FR-010; SC-005 |
+| **S5** unknown vault | `open_file({vault:"NoSuchVault-zzz-061", …})` | `CLI_REPORTED_ERROR` / `VAULT_NOT_FOUND` / `reason:"unknown"` (pre-eval) | FR-013; SC-004 |
+| **S5** missing file | `open_file({vault:B, path:"Sandbox/does-not-exist-xyz-061.md"})` | `CLI_REPORTED_ERROR` / `FILE_NOT_FOUND` | FR-014; SC-005 |
+| **S8** type-agnostic | `open_file({vault:B, path:"Fixtures/BI-0065/sample.base"})` | success, identical shape `{opened,vault,new_tab,placement}`, native viewer | FR-020; SC-008 |
+| **regression** | open unfocused/closed B | `VAULT_NOT_FOCUSED`/`reason:"not-open"` **never** emitted — closed/unfocused is a success path | ADR-031; Principle IV |
+
+**7/7 passed, 0 failures, two consecutive stable runs.** S3 (app fully down) recovery is already proven inherited in the controlled-session probes above (2a/2b) and the opt-out branch is unit-tested (`handler.test.ts` `obsidian-not-running`); not re-driven here.
+
+**Single-flight note**: an initial temp-test version using a per-call `createQueue()` produced two intermittent cross-response failures (a success decoded under the wrong call). Switching the temp test to one shared queue — mirroring production, where the server constructs a single queue for all tool calls — eliminated the flake. This is a test-harness fidelity note, not a handler bug; the spawn-trace confirmed each call's CLI output was individually correct.
