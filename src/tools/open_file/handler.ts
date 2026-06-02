@@ -1,13 +1,20 @@
-// Original — no upstream. open_file handler (BI-057) — single invokeCli wrapper around the eval
-// subcommand with the frozen JS template + base64 JSON payload (R12 anti-injection). Eval-composed
-// (no fs syscalls): resolveVaultPath(vault) → expectedBase (unknown → VAULT_NOT_FOUND/unknown via
-// remapVaultNotFound) → composeEvalCode(JS_TEMPLATE,{expectedBase,path,file,new_tab}) → one
-// target_mode:"active" eval → strip "=> " + JSON.parse + openEvalResponseSchema.safeParse (single
-// decode, parity with backlinks) → classify {ok:false,code} → UpstreamError | {ok:true} → typed
-// { opened, vault, new_tab }. Stage order FR-012a/ADR-014: unknown (TS, pre-eval) → not-open (guard)
-// → FILE_NOT_FOUND → UNSUPPORTED_FILE_TYPE → success. The open IS the contract (FR-017): the eval
-// result is classified, never best-effort-swallowed (the deliberate divergence from write_note's
-// silent openLinkText). The open-eval mechanism shares write_note's openLinkText lineage (ADR-009).
+// Original — no upstream. open_file handler (BI-057; cross-vault rewrite ADR-031) — single
+// vault-targeted eval. resolveVaultRootOrRemap(vault) provides the typed unknown-vault pre-eval
+// check (VAULT_NOT_FOUND/unknown via remapVaultNotFound); its base path is no longer used (no guard).
+// composeEvalCode(JS_TEMPLATE,{path,file,new_tab}) → ONE target_mode:"specific" eval with
+// vault=requested. Because `eval` honours vault= (B1 false, ADR-031) the eval runs in the requested
+// vault: it resolves the locator there and opens the file (switching focus to that vault) via the
+// explicit placement branch. decodeEvalEnvelope (strip "=> " + JSON.parse + safeParse) → on ok:true
+// return typed { opened, vault, new_tab, placement }; on ok:false classify FILE_NOT_FOUND /
+// UNSUPPORTED_FILE_TYPE → UpstreamError. The open IS the contract (FR-017): the eval result is
+// classified, never best-effort-swallowed.
+//
+// Recovery is fully INHERITED and vault-correct from dispatchCli (ADR-029/030) — the call carries
+// vault=requested, so a closed vault cold-launches and an app-down launch targets obsidian://open?vault=requested.
+// open_file adds NO per-tool retry/poll/launch and imports no spawn site / app-launcher. The BI-057
+// focused-vault guard, the VAULT_NOT_FOCUSED → VAULT_NOT_FOUND/not-open mapping, the focus-switch, the
+// verify-poll, and any launchFn are all DELETED. No new top-level code, no new details.reason
+// (reason:"not-open" retires from emission, ADR-015 additive-only).
 import { JS_TEMPLATE } from "./_template.js";
 import {
   openEvalResponseSchema,
@@ -39,10 +46,12 @@ export async function executeOpenFile(
   input: OpenFileInput,
   deps: ExecuteDeps,
 ): Promise<OpenFileOutput> {
-  // Stage 1 (FR-012a) — resolve the requested vault's absolute base path via the
-  // registry. An unknown vault display name surfaces as the cohort
-  // VAULT_NOT_FOUND/unknown triple BEFORE any eval is spawned.
-  const expectedBase = await resolveVaultRootOrRemap(deps.vaultRegistry, input.vault, TOOL_NAME);
+  // Stage 1 (pre-eval) — resolve the requested vault via the registry purely for
+  // the typed unknown-vault error: an unknown display name surfaces as the cohort
+  // VAULT_NOT_FOUND/unknown triple BEFORE any eval is spawned. The returned base
+  // path is intentionally discarded — there is no focused-vault guard (ADR-031), so
+  // the eval payload no longer carries `expectedBase`.
+  await resolveVaultRootOrRemap(deps.vaultRegistry, input.vault, TOOL_NAME);
 
   // Exactly one of path/file is present (schema superRefine, FR-005), so the eval
   // payload carries both fields with the absent one nulled, and locatorLabel (used in
@@ -50,18 +59,20 @@ export async function executeOpenFile(
   const locatorLabel = input.path ?? input.file!;
 
   const code = composeEvalCode(JS_TEMPLATE, {
-    expectedBase,
     path: input.path ?? null,
     file: input.file ?? null,
     new_tab: input.new_tab ?? false,
   });
 
-  // target_mode:"active" — the eval runs against the focused vault regardless of
-  // vault= (upstream B1); the in-eval guard does the vault verification. An
-  // invokeCli throw (Obsidian not running / binary missing) propagates unchanged
-  // as the cohort's CLI_* error — never a fabricated success.
+  // target_mode:"specific" with vault=requested — `eval` honours vault= (B1 false,
+  // ADR-031), so the eval runs IN the requested vault: it resolves the locator there
+  // and opens the file, switching focus to that vault. Recovery (closed vault →
+  // ADR-029 cold-start retry; app down → ADR-030 vault-targeted launch) is inherited
+  // from dispatchCli and is vault-correct because the call carries vault=requested. An
+  // invokeCli throw (Obsidian not running / binary missing) propagates unchanged as
+  // the cohort's CLI_* error — never a fabricated success.
   const result = await invokeCli(
-    { command: "eval", parameters: { code }, flags: [], target_mode: "active" },
+    { command: "eval", vault: input.vault, parameters: { code }, flags: [], target_mode: "specific" },
     { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
   );
 
@@ -79,6 +90,7 @@ export async function executeOpenFile(
       opened: data.opened,
       vault: input.vault,
       new_tab: data.new_tab,
+      placement: data.placement,
     });
   }
 
@@ -92,13 +104,6 @@ function mapEvalError(
   locator: string,
 ): UpstreamError {
   switch (code) {
-    case "VAULT_NOT_FOCUSED":
-      return new UpstreamError({
-        code: "CLI_REPORTED_ERROR",
-        cause: null,
-        details: { code: "VAULT_NOT_FOUND", reason: "not-open", vault },
-        message: `open_file: vault "${vault}" is registered but is not the currently focused vault`,
-      });
     case "FILE_NOT_FOUND":
       return new UpstreamError({
         code: "CLI_REPORTED_ERROR",
