@@ -80,23 +80,23 @@ Eval-composed read/query, specific/`vault=` path only: `backlinks`, `links`, `re
 
 > **Anchor note (analyze A1):** the `~L` line numbers below are approximate and may have drifted. Locate each edit by the **caveat text** in the doc's **"Multi-vault basename ambiguity"** section, not the line number.
 
-- [ ] T016 [P] [US2] `docs/tools/read_heading.md` (~L95): remove the "open the target vault in Obsidian before invoking `read_heading`" precondition; reword the same-display-name collision as the real, scoped limit (focus does not fix a true name collision). Active-mode `ERR_NO_ACTIVE_FILE` rows untouched.
-- [ ] T017 [P] [US2] `docs/tools/tag.md` (~L248): remove the focus-first precondition; surface the doc's own "`vault=` routes correctly for eval (verified live)" as the headline; keep the collision note.
-- [ ] T018 [P] [US2] `docs/tools/paths.md` (~L268): remove the focus-first precondition; keep the collision note; active-mode lines untouched.
-- [ ] T019 [P] [US2] `docs/tools/backlinks.md` (~L351): remove the focus-first precondition; keep the collision note; active-mode rows untouched.
-- [ ] T020 [P] [US2] `docs/tools/links.md` (~L281): remove the focus-first precondition; keep the collision note; active-mode rows untouched.
+- [X] T016 [P] [US2] `docs/tools/read_heading.md` (~L95): remove the "open the target vault in Obsidian before invoking `read_heading`" precondition; reword the same-display-name collision as the real, scoped limit (focus does not fix a true name collision). Active-mode `ERR_NO_ACTIVE_FILE` rows untouched.
+- [X] T017 [P] [US2] `docs/tools/tag.md` (~L248): remove the focus-first precondition; surface the doc's own "`vault=` routes correctly for eval (verified live)" as the headline; keep the collision note.
+- [X] T018 [P] [US2] `docs/tools/paths.md` (~L268): remove the focus-first precondition; keep the collision note; active-mode lines untouched.
+- [X] T019 [P] [US2] `docs/tools/backlinks.md` (~L351): remove the focus-first precondition; keep the collision note; active-mode rows untouched.
+- [X] T020 [P] [US2] `docs/tools/links.md` (~L281): remove the focus-first precondition; keep the collision note; active-mode rows untouched.
 
 ### Group 2 — confirm already-accurate framing (light/no edit)
 
-- [ ] T021 [P] [US2] `docs/tools/find_by_property.md` (~L68): confirm the "pass `vault` explicitly / omit → focused default" framing; tighten only if any wording implies the named-`vault` path needs focus. No false caveat to remove.
-- [ ] T022 [P] [US2] `docs/tools/pattern_search.md`: confirm the "routes to a named vault; omit → focused" framing; no focus-first caveat present.
-- [ ] T023 [P] [US2] `docs/tools/smart_connections_query.md`: confirm "omit → focused vault"; plugin-index caveats untouched.
-- [ ] T024 [P] [US2] `docs/tools/smart_connections_similar.md`: confirm the specific-mode `vault=` cross-vault behaviour; active-mode (focused-by-design) row and the basename "use `path`" note unchanged.
+- [X] T021 [P] [US2] `docs/tools/find_by_property.md` (~L68): confirm the "pass `vault` explicitly / omit → focused default" framing; tighten only if any wording implies the named-`vault` path needs focus. No false caveat to remove.
+- [X] T022 [P] [US2] `docs/tools/pattern_search.md`: confirm the "routes to a named vault; omit → focused" framing; no focus-first caveat present.
+- [X] T023 [P] [US2] `docs/tools/smart_connections_query.md`: confirm "omit → focused vault"; plugin-index caveats untouched.
+- [X] T024 [P] [US2] `docs/tools/smart_connections_similar.md`: confirm the specific-mode `vault=` cross-vault behaviour; active-mode (focused-by-design) row and the basename "use `path`" note unchanged.
 
 ### Native-wrapper sweep + shared register
 
-- [ ] T025 [US2] Native-wrapper doc sweep: grep `docs/tools/{read,read_property,outline,search,context_search,bases,files,properties,views_base,query_base}.md` for any focus-first line; correct any found one **without** the eval/B1 framing (native commands honour `vault=`). `views_base`'s focused-`.base` requirement is correct-by-design and stays; `query_base`'s `eval`-based closed-vault `not-open` signal stays (out of positive scope).
-- [ ] T026 [US2] Update the B1 affected-features list + mitigation status in `.architecture/Obsidian CLI - Upstream Issues and Limitations.md`: mark B1 removed per `ROUTING_CONFIRMED` tool; record native-wrappers as never-a-B1-victim (not B1-resolved); leave B1 standing only where a tool's own probe genuinely confirmed it (expected: none).
+- [X] T025 [US2] Native-wrapper doc sweep: grep `docs/tools/{read,read_property,outline,search,context_search,bases,files,properties,views_base,query_base}.md` for any focus-first line; correct any found one **without** the eval/B1 framing (native commands honour `vault=`). `views_base`'s focused-`.base` requirement is correct-by-design and stays; `query_base`'s `eval`-based closed-vault `not-open` signal stays (out of positive scope).
+- [X] T026 [US2] Update the B1 affected-features list + mitigation status in `.architecture/Obsidian CLI - Upstream Issues and Limitations.md`: mark B1 removed per `ROUTING_CONFIRMED` tool; record native-wrappers as never-a-B1-victim (not B1-resolved); leave B1 standing only where a tool's own probe genuinely confirmed it (expected: none).
 
 **Checkpoint**: Every cohort + native-wrapper doc matches its tool's evidence; the shared register is reconciled.
 

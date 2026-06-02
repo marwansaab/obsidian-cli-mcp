@@ -278,4 +278,4 @@ Approximately 80–200 ms per call. All invocations serialise through the wrappe
 
 ### Multi-vault basename ambiguity
 
-Multi-vault setups suffer from basename ambiguity — two vaults sharing the same display name are indistinguishable by the `vault=` argument. **Recommendation**: open the target vault in Obsidian before invoking `links`.
+Multi-vault setups can still suffer from basename ambiguity: two vaults sharing the **same display name** are indistinguishable by the `vault=` argument, so a call may resolve to the wrong same-named vault. This is a genuine name-collision limit, and **focusing a vault neither fixes it nor is required for routing** — a specific-mode `vault=` read routes into the named vault even when that vault is open but unfocused (verified live per-tool by the BI-0134 forcing gate — [t0-probe-findings.md](../../specs/062-verify-cross-vault-routing/contracts/t0-probe-findings.md)). To disambiguate, give the colliding vaults distinct display names.

@@ -65,7 +65,7 @@ Approximately 200 ms per call. All invocations serialise through the wrapper's s
 
 ### Multi-vault default ambiguity
 
-When `vault` is omitted, the underlying Obsidian CLI resolves to its **focused-vault default** — the vault whose window is currently foregrounded. In single-vault setups this is unambiguous. In multi-vault setups it may resolve to whichever vault Obsidian last focused, or fail unpredictably if no vault is foregrounded. **Recommendation**: callers that require deterministic vault scoping pass `vault` explicitly.
+When `vault` is omitted, the underlying Obsidian CLI resolves to its **focused-vault default** — the vault whose window is currently foregrounded. In single-vault setups this is unambiguous. In multi-vault setups it may resolve to whichever vault Obsidian last focused, or fail unpredictably if no vault is foregrounded. **Recommendation**: callers that require deterministic vault scoping pass `vault` explicitly — a named `vault` routes to that vault even when it is open but unfocused (focus is not required; verified per-tool by the BI-0134 forcing gate, [t0-probe-findings.md](../../specs/062-verify-cross-vault-routing/contracts/t0-probe-findings.md)).
 
 ### Order-sensitive exact-array equality
 
