@@ -78,6 +78,8 @@ Eval-composed read/query, specific/`vault=` path only: `backlinks`, `links`, `re
 
 ### Group 1 — remove the false focus-first caveat (per doc-correction-contract.md)
 
+> **Anchor note (analyze A1):** the `~L` line numbers below are approximate and may have drifted. Locate each edit by the **caveat text** in the doc's **"Multi-vault basename ambiguity"** section, not the line number.
+
 - [ ] T016 [P] [US2] `docs/tools/read_heading.md` (~L95): remove the "open the target vault in Obsidian before invoking `read_heading`" precondition; reword the same-display-name collision as the real, scoped limit (focus does not fix a true name collision). Active-mode `ERR_NO_ACTIVE_FILE` rows untouched.
 - [ ] T017 [P] [US2] `docs/tools/tag.md` (~L248): remove the focus-first precondition; surface the doc's own "`vault=` routes correctly for eval (verified live)" as the headline; keep the collision note.
 - [ ] T018 [P] [US2] `docs/tools/paths.md` (~L268): remove the focus-first precondition; keep the collision note; active-mode lines untouched.
@@ -108,8 +110,8 @@ Eval-composed read/query, specific/`vault=` path only: `backlinks`, `links`, `re
 
 > **Expected empty** (research.md D5 — B1 already false for the shared read-eval mechanism). Execute only for tools flagged by T015.
 
-- [ ] T027 [US3] `LIMITATION_SIGNALLED`: for a flagged tool whose signal can be produced by reusing an **already-emitted sibling** signal, wire that existing signal in `src/tools/<tool>/handler.ts` — **zero new top-level code, zero new `details.reason`** (FR-013) — and add the co-located failure-path case in `src/tools/<tool>/handler.test.ts` in the same change (Principle II). Update the tool's doc to state the real limitation.
-- [ ] T028 [US3] `LIMITATION_DEFERRED`: for a flagged tool whose signal would require **net-new detection**, state the real limitation in its doc, file a dedicated BI (per FR-014 / BI-0134's own out-of-scope), and link it from `spec.md` and `research.md`. Do NOT mark the tool failed (FR-009c).
+- [ ] T027 [US3] `LIMITATION_SIGNALLED`: for a flagged tool whose signal can be produced by reusing an **already-emitted sibling** signal, wire that existing signal in `src/tools/<tool>/handler.ts` — **zero new top-level code, zero new `details.reason`** (FR-013) — and add the co-located failure-path case in `src/tools/<tool>/handler.test.ts` in the same change (Principle II). Update the tool's doc to state the real limitation. **Caution (analyze I1):** the only existing reachability signal, `VAULT_NOT_FOUND`/`reason:"not-open"`, is closed-vault-semantic — do NOT force-fit it onto an open-but-unfocused mis-route; if no already-emitted signal genuinely fits that state, use T028 instead.
+- [ ] T028 [US3] `LIMITATION_DEFERRED`: for a flagged tool whose signal would require **net-new detection**, state the real limitation in its doc, file a dedicated BI (per FR-014 / BI-0134's own out-of-scope), and link it from `spec.md` and `research.md`. Do NOT mark the tool failed (FR-009c). This is the **expected contingency** for an open-but-unfocused mis-route (no true-fit existing signal to reuse — analyze I1).
 
 **Checkpoint**: No tool is left silently wrong; every genuine limitation is either signalled (reuse) or recorded as deferred.
 
@@ -132,7 +134,7 @@ Eval-composed read/query, specific/`vault=` path only: `backlinks`, `links`, `re
 
 - [ ] T031 [P] Run the `quickstart.md` §5 acceptance mapping end-to-end (US1→SC-002, US2→SC-003/SC-004, US3→SC-005, US4→SC-001/SC-006).
 - [ ] T032 `git diff` audit: confirm `src/errors.ts` is unchanged (zero new top-level error codes) and no new `details.reason` literal was introduced (FR-013 / SC-007). If any handler was touched in Phase 5, run `npm run lint && npm run typecheck && npm run build`, then the Windows-safe coverage run: `mkdir -p coverage/.tmp && npx vitest run --coverage --pool=forks --no-file-parallelism`.
-- [ ] T033 Restore vault A's focus; clean up `Sandbox/` fixtures; confirm no vault was closed or reconfigured and no Obsidian setting changed (FR-021 parity / SC-007).
+- [ ] T033 Restore vault A's focus; clean up `Sandbox/` fixtures; confirm no vault was closed or reconfigured and no Obsidian setting changed (FR-021 parity / SC-007). **Confirm FR-015**: no Obsidian plugin was changed, suppressed, or special-cased — the `smart_connections_*` plugin caveats are left untouched.
 
 ---
 

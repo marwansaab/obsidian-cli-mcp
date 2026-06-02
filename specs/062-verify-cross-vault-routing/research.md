@@ -74,6 +74,8 @@ This feature carries no open NEEDS CLARIFICATION (the two 2026-06-02 clarificati
 
 **Rationale.** Closed-vault recovery is the open_file path (ADR-029/030) and is net-new behaviour for a read; building it here would over-scope. The error-vocabulary cap preserves Constitution Principle IV's zero-new-codes streak and ADR-015's additive-only rule. Because B1 is already known false for the shared read-eval mechanism, the expected genuine-limitation set is empty-or-near-empty, so the realistic outcome is documentation-only.
 
+**Signal-semantics caution (analyze I1).** The only existing reachability signal in the cohort is `VAULT_NOT_FOUND` / `reason:"not-open"`, which is **closed-vault-semantic**. US3's contingency concerns an *open-but-unfocused mis-route* — a different state. `not-open` MUST NOT be force-fit onto it. Absent a signal the cohort already emits that genuinely fits the open-but-unfocused mis-route, the verdict is `LIMITATION_DEFERRED` (state the limitation, defer the signal to a dedicated BI), not `LIMITATION_SIGNALLED`.
+
 **Alternatives considered.** Recovery parity with `open_file` for the cohort, or a uniform closed-vault signal across all nine — both rejected at clarification as net-new work belonging to a dedicated BI.
 
 ---

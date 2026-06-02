@@ -68,6 +68,8 @@ Each tool resolves to exactly one terminal state (FR-009). The documentation cor
 | `LIMITATION_SIGNALLED` | Replace the blanket caveat with the real, confirmed limitation. | Wire an **already-emitted sibling** signal only (zero new code/reason). | FR-007, FR-009b, FR-010, FR-013 |
 | `LIMITATION_DEFERRED` | State the real, confirmed limitation; note the signal is deferred to a dedicated BI. | None in-feature; file a dedicated BI. | FR-009c, FR-014 |
 
+**Signal-fit caution (analyze I1):** the cohort's only existing reachability signal — `VAULT_NOT_FOUND` / `reason:"not-open"` — is **closed-vault-semantic**. It MUST NOT be reused for an *open-but-unfocused mis-route* (US3's actual state). If no already-emitted sibling signal genuinely fits that state, the verdict is `LIMITATION_DEFERRED`, not `LIMITATION_SIGNALLED`.
+
 **Expected distribution (research.md D5):** Given B1 is already false for the shared read-eval mechanism, `ROUTING_CONFIRMED` is the expected verdict for most or all nine tools → documentation-only outcome. `LIMITATION_SIGNALLED` / `LIMITATION_DEFERRED` apply only if a specific tool's own probe contradicts that expectation.
 
 ### CaveatCorrection

@@ -7,6 +7,8 @@ Two caveat shapes exist in the cohort today (confirmed by grep at plan time):
 - **Shape 1 — the false "focus-first" precondition** (the real drift target): *"Recommendation: open the target vault in Obsidian before invoking `<tool>`."* Lives in the doc's **"Multi-vault basename ambiguity"** section and conflates a genuine same-display-name collision with the now-falsified routing assumption.
 - **Shape 2 — already-accurate "omit → focused default / pass `vault` to scope"**: states that omitting `vault` uses the focused default and passing `vault` scopes to a named vault. This is *correct* and is confirmed, not removed.
 
+> **Locator note (analyze A1).** The line numbers below are **approximate** and may drift before implement. The authoritative locator for each edit is the quoted **caveat text** within the doc's **"Multi-vault basename ambiguity"** section heading — anchor edits on that text/heading, not the `:NN` line number.
+
 ## Group 1 — carries the false focus-first caveat (Shape 1) → expected `ROUTING_CONFIRMED`
 
 | Tool | Caveat locus (before) | Required after (on `ROUTING_CONFIRMED`) |
@@ -42,7 +44,7 @@ After the sweep, update the **B1 affected-features list** and **mitigation statu
 
 If any tool's probe returns A (silent wrong-vault) instead of B:
 
-- `LIMITATION_SIGNALLED` — state the real, confirmed limitation in its doc; wire **only** an already-emitted sibling signal (zero new code/reason, FR-013). Ships with its co-located `*.test.ts` failure-path case (Principle II).
-- `LIMITATION_DEFERRED` — state the real limitation; note the structured signal is deferred to a dedicated BI (FR-014); do not mark the tool failed.
+- `LIMITATION_SIGNALLED` — state the real, confirmed limitation in its doc; wire **only** an already-emitted sibling signal (zero new code/reason, FR-013). Ships with its co-located `*.test.ts` failure-path case (Principle II). **Caution (analyze I1):** the cohort's only existing reachability signal, `VAULT_NOT_FOUND`/`reason:"not-open"`, is **closed-vault-semantic** — do NOT force-fit it onto an open-but-unfocused mis-route. If no already-emitted signal genuinely fits that state, use `LIMITATION_DEFERRED` instead.
+- `LIMITATION_DEFERRED` — state the real limitation; note the structured signal is deferred to a dedicated BI (FR-014); do not mark the tool failed. This is the expected contingency for an open-but-unfocused mis-route (no true-fit existing signal to reuse).
 
 In both, the no-silent-wrong-vault guarantee (FR-012) still holds — the doc states the limitation rather than leaving the false "focus first" line.
