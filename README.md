@@ -19,7 +19,7 @@ Each typed tool has:
 
 - A `zod`-validated input schema, surfaced as JSON Schema to the MCP client.
 - A stable output shape — strings, structured arrays, or `{ count, items }` envelopes — defined once and verified by co-located tests.
-- Structured failures via a small set of error codes (`VALIDATION_ERROR`, `CLI_REPORTED_ERROR`, `FILE_NOT_FOUND`, `NO_ACTIVE_FILE`, `CLI_BINARY_NOT_FOUND`, `CLI_TIMEOUT`, etc.), so clients can pattern-match instead of parsing free-text stderr.
+- Structured failures via a small set of error codes (`VALIDATION_ERROR`, `CLI_REPORTED_ERROR`, `FILE_NOT_FOUND`, `ERR_NO_ACTIVE_FILE`, `CLI_BINARY_NOT_FOUND`, `CLI_TIMEOUT`, etc.), so clients can pattern-match instead of parsing free-text stderr.
 
 ## Vision
 
@@ -68,7 +68,7 @@ Omit `OBSIDIAN_BIN` if the Obsidian CLI is already on `PATH`. On Linux, the Obsi
 
 ### Auto-launch when Obsidian is closed
 
-If the Obsidian **application** is not running when a tool is called, the server recovers automatically: it detects the app-not-running condition, launches Obsidian via the OS-registered `obsidian://` URI (Windows `start` / macOS `open` / Linux `xdg-open`), waits a bounded period (up to 30 seconds) for the app to become ready, and re-runs the original command so the caller gets the normal result from a single call. The already-running path is untouched — recovery is strictly reactive and adds no overhead when Obsidian is open. Re-running is side-effect-safe even for mutating commands, because an app-not-running failure means the CLI errored before the command ever executed.
+If the Obsidian **application** is not running when a tool is called, the server recovers automatically: it detects the app-not-running condition, launches Obsidian via the OS-registered `obsidian://` URI (Windows `start` / macOS `open` / Linux `xdg-open`) — targeting the requested vault when one is named, so recovery lands on the right vault — waits a bounded period (up to 30 seconds) for the app to become ready, and re-runs the original command so the caller gets the normal result from a single call. The already-running path is untouched — recovery is strictly reactive and adds no overhead when Obsidian is open. Re-running is side-effect-safe even for mutating commands, because an app-not-running failure means the CLI errored before the command ever executed.
 
 Auto-launch is **on by default**. To disable it (for headless, CI, or locked-down hosts where starting a GUI app is undesirable), set the `OBSIDIAN_AUTO_LAUNCH` environment variable to one of `0`, `false`, `no`, or `off` (case-insensitive). With auto-launch disabled, a call made while Obsidian is closed fails fast with a distinct, actionable error (`CLI_NON_ZERO_EXIT` carrying `details.reason: "obsidian-not-running"`) instead of launching the app. The same distinct error surfaces when a launch is attempted but the app does not become ready within the bound.
 
@@ -85,6 +85,37 @@ Auto-launch is **on by default**. To disable it (for headless, CI, or locked-dow
   }
 }
 ```
+
+## Multi-vault support
+
+The Obsidian Integrated CLI can address any vault registered in Obsidian, and this server exposes that directly. You do **not** need to manually switch Obsidian to the vault you want to act on — every tool that accepts a `vault` argument routes to that vault by display name, whether it is the focused vault, an open-but-unfocused vault in another window, or a registered vault that is currently closed.
+
+### Two ways to target a vault
+
+- **Specific mode** — pass `vault: "<display name>"` (the name as it appears in Obsidian's vault switcher). The call runs against that vault regardless of which vault is focused. Vault-wide tools (`tag`, `find_by_property`, `paths`, `properties`, `pattern_search`, …) take an optional `vault`; file-targeted tools take `target_mode: "specific"` + `vault` + a `file`/`path` locator.
+- **Active mode** — omit `vault` (or pass `target_mode: "active"`). The call runs against whichever note/vault Obsidian currently has **focused**. Convenient for "act on what I'm looking at", but it depends on Obsidian's live focus state — prefer specific mode for unattended or multi-vault automation.
+
+### What to expect
+
+| Scenario | Behaviour |
+|---|---|
+| `vault=` names the **focused** vault | Runs against it. |
+| `vault=` names an **open but unfocused** vault | Runs against it. For reads/queries/writes the focus does **not** move, so your current view is undisturbed — no need to switch vaults first. |
+| `vault=` names a **registered but closed** vault | The server transparently opens it and retries once, then returns the normal result from the single call. The first call on a cold vault pays a short startup delay. |
+| Obsidian **application is not running** | Auto-launch recovery opens Obsidian on the requested vault and re-runs the command (see [Auto-launch when Obsidian is closed](#auto-launch-when-obsidian-is-closed)). |
+| `vault=` names an **unregistered / unknown** vault | Fails fast with a structured `CLI_REPORTED_ERROR` (`details.code: "VAULT_NOT_FOUND"`, `details.reason: "unknown"`) — never a silent wrong-vault answer. |
+| **Active mode**, no note focused | `ERR_NO_ACTIVE_FILE` — open a note, or use specific mode. |
+
+### Opening files across vaults
+
+`open_file` is the one tool that intentionally changes focus: it opens the requested file **in the vault you name** and switches Obsidian's focus to that vault, reporting how the file was placed (`new_tab_created`, `existing_tab_reused`, or `active_tab_used`). It works against the focused vault, an open-but-unfocused vault, or a closed-but-registered vault (which it opens first) — so an automation can surface any file in any registered vault without a human pre-switching vaults.
+
+### Vault names and discovery
+
+Use the **exact** Obsidian display name. The server has no in-band vault-enumeration tool yet, so supply the names your workflow needs out-of-band (e.g. in your client config or session context).
+
+> [!NOTE]
+> **Duplicate display names.** If two registered vaults share the *same* display name, `vault=` cannot tell them apart, and focusing one does not help. Give colliding vaults distinct display names to disambiguate.
 
 ## Tool inventory
 
@@ -109,7 +140,7 @@ The server currently registers thirty-three public tools. Call `help({ tool_name
 | `tag` | Vault-relative paths of every Markdown note carrying a given tag, as `{ count, paths }`, or a bare integer in count-only mode. |
 | `backlinks` | Incoming-link inventory — every source note referencing a target note via wikilink. Inverse of [`links`](#); cohort-uniform LEADING truncation when the source cap fires. |
 | `links` | Outbound-link inventory for a single note (the outgoing-direction sibling of `backlinks`). |
-| `open_file` | Surface an existing vault file (any recognised type — note, canvas, PDF, image, attachment) as the focused, active file in the running Obsidian workspace. Eval-composed; requires the target vault to be the currently focused vault; `new_tab` opt-in. |
+| `open_file` | Surface an existing vault file (any recognised type — note, canvas, PDF, image, attachment) as the focused, active file in the running Obsidian workspace. Opens in the vault you name — focused, open-but-unfocused, or closed-but-registered (opened on demand) — and switches focus to it, reporting tab placement (`new_tab_created` / `existing_tab_reused` / `active_tab_used`); `new_tab` opt-in. |
 
 ### Mutate (single note + property)
 
