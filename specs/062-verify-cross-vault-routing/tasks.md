@@ -134,7 +134,7 @@ Eval-composed read/query, specific/`vault=` path only: `backlinks`, `links`, `re
 
 - [X] T031 [P] Run the `quickstart.md` §5 acceptance mapping end-to-end (US1→SC-002, US2→SC-003/SC-004, US3→SC-005, US4→SC-001/SC-006).
 - [X] T032 `git diff` audit: confirm `src/errors.ts` is unchanged (zero new top-level error codes) and no new `details.reason` literal was introduced (FR-013 / SC-007). If any handler was touched in Phase 5, run `npm run lint && npm run typecheck && npm run build`, then the Windows-safe coverage run: `mkdir -p coverage/.tmp && npx vitest run --coverage --pool=forks --no-file-parallelism`.
-- [X] T033 (fixtures + harness cleaned; no vault closed/reconfigured; A-focus restore + SC-revert are user-side, see report) Restore vault A's focus; clean up `Sandbox/` fixtures; confirm no vault was closed or reconfigured and no Obsidian setting changed (FR-021 parity / SC-007). **Confirm FR-015**: no Obsidian plugin was changed, suppressed, or special-cased — the `smart_connections_*` plugin caveats are left untouched.
+- [X] T033 (fixtures + harness cleaned; A-focus confirmed restored; no vault closed/reconfigured; Smart Connections stays enabled — it backs the `smart_connections_*` tools, part of the baseline, not a deviation, so FR-015 holds) Restore vault A's focus; clean up `Sandbox/` fixtures; confirm no vault was closed or reconfigured and no Obsidian setting changed (FR-021 parity / SC-007). **Confirm FR-015**: no Obsidian plugin was changed, suppressed, or special-cased — the `smart_connections_*` plugin caveats are left untouched.
 
 ---
 

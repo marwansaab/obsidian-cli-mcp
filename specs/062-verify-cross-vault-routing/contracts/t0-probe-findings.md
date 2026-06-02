@@ -58,6 +58,6 @@ All nine at-risk eval read/query tools route `vault=B` into B while A holds focu
 
 ## Notes
 
-- SC probes ran against Smart Connections **enabled + indexed** in TestVault (plugin already installed at `.obsidian/plugins/smart-connections/`). Bare-vault deviation accepted for this BI (user decision); to be cleaned up at T033.
+- SC probes ran against Smart Connections **enabled + indexed** in TestVault (installed at `.obsidian/plugins/smart-connections/`). This is **not** a bare-vault deviation: Smart Connections backs the `smart_connections_query` / `smart_connections_similar` MCP tools, so it is part of the legitimate test baseline. The "no plugins" rule targets *unrelated* third-party extensions that could mutate state mid-test, not the plugin the MCP surface under test depends on. No revert at cleanup (FR-015 — the backing plugin is neither changed nor special-cased).
 - All probes drove `Obsidian.com` (not `.exe`), so no detached-stdio false-clean risk. No negatives to re-confirm — every verdict is a positive B-content return.
 - SC results also surfaced other B-vault notes (e.g. `Sandbox/BI-0016/...`, `Fixtures/BI-038/...`, `Sandbox/BI-047/...`) — all B paths, reinforcing that the query/index ran against B, not A.
