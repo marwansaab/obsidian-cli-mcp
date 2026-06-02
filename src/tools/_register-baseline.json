@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "057-open-vault-file",
-  "generatedAt": "2026-05-29",
+  "generatedFromBranch": "061-cross-vault-open",
+  "generatedAt": "2026-05-31",
   "tools": [
     {
       "name": "append_note",
@@ -70,7 +70,7 @@
     },
     {
       "name": "open_file",
-      "descriptionFingerprint": "8fd9e35ba52dec5d1da42261ad46e8af857888c9e9005e63815c5260d20cc73d",
+      "descriptionFingerprint": "03872bf62d37a3a897ba167a98b43214329aeffd6e0de4a049846a5a3e58bd17",
       "schemaFingerprint": "c25dd9ffc4d41ad7b9f4ca388be08d3466aecb74dd8a680a34faa6c8953e5df5"
     },
     {

@@ -1,9 +1,9 @@
-// Original — no upstream. open_file registration tests (BI-057) — descriptor name = "open_file"
-// (ADR-010 N/A descriptive name asserted so the choice reads as designed); stripped emitted
-// inputSchema (vault/path/file/new_tab; additionalProperties:false; required={vault}; NO target_mode;
-// new_tab default; no description keys); description references the focused-vault precondition, both
-// locator shapes, new_tab, the error roster and help(); docs presence + completeness; baseline
-// fingerprint roll-forward gate.
+// Original — no upstream. open_file registration tests (BI-057; cross-vault rewrite ADR-031) —
+// descriptor name = "open_file" (ADR-010 N/A descriptive name asserted so the choice reads as
+// designed); stripped emitted inputSchema (vault/path/file/new_tab; additionalProperties:false;
+// required={vault}; NO target_mode; new_tab default; no description keys); description references the
+// cross-vault contract + placement, both locator shapes, new_tab, the error roster and help(), and the
+// stale B1 focused-vault precondition is GONE; docs presence + completeness; baseline fingerprint gate.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -54,16 +54,25 @@ describe("createOpenFileTool — descriptor", () => {
     expect(countDescriptionKeys(schema)).toBe(0);
   });
 
-  it("description references help(), the tool name, the focused-vault precondition, both locators and new_tab", () => {
+  it("description references help(), the tool name, the cross-vault contract + placement, both locators and new_tab", () => {
     const desc = makeTool().descriptor.description;
     const lower = desc.toLowerCase();
     expect(lower).toContain("help");
     expect(lower).toContain("open_file");
-    expect(lower).toContain("focused vault");
+    expect(lower).toContain("cross-vault");
+    expect(lower).toContain("placement");
+    expect(lower).toContain("switches focus");
     expect(lower).toContain("new_tab");
     expect(lower).toContain("path");
     expect(lower).toContain("file");
     expect(lower).toContain("unsupported_file_type");
+  });
+
+  it("the stale BI-057 focused-vault precondition is gone (ADR-031 — closed/unfocused is a success path)", () => {
+    const lower = makeTool().descriptor.description.toLowerCase();
+    expect(lower).not.toContain("precondition");
+    expect(lower).not.toContain("not-open");
+    expect(lower).not.toContain("vault_not_focused");
   });
 });
 
@@ -83,7 +92,7 @@ describe("createOpenFileTool — schema-layer rejections route through the regis
   // handler.test.ts; the wrapped { opened, vault, new_tab } envelope proves the
   // closure executed end-to-end.
   it("tool.handler runs the executeOpenFile closure on VALID input and returns a content envelope", async () => {
-    const envelope = { ok: true, opened: "Projects/Roadmap.md", new_tab: false };
+    const envelope = { ok: true, opened: "Projects/Roadmap.md", new_tab: false, placement: "active_tab_used" };
     const { spawnFn } = makeQueuedSpawn([
       { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
     ]);
@@ -101,13 +110,19 @@ describe("createOpenFileTool — schema-layer rejections route through the regis
       opened: string;
       vault: string;
       new_tab: boolean;
+      placement: string;
     };
-    expect(payload).toEqual({ opened: "Projects/Roadmap.md", vault: "Work", new_tab: false });
+    expect(payload).toEqual({
+      opened: "Projects/Roadmap.md",
+      vault: "Work",
+      new_tab: false,
+      placement: "active_tab_used",
+    });
   });
 });
 
 describe("docs/tools/open_file.md exists and is non-stub", () => {
-  it("docs file exists, has no TODO marker, lists every error code + ≥4 worked examples + focused-vault note + help pointer", () => {
+  it("docs file exists, has no TODO marker, lists every error code + ≥4 worked examples + cross-vault/placement notes + help pointer", () => {
     const docsPath = resolve(
       dirname(fileURLToPath(import.meta.url)),
       "../../../docs/tools/open_file.md",
@@ -128,7 +143,10 @@ describe("docs/tools/open_file.md exists and is non-stub", () => {
     }
     const exampleHeadings = (body.match(/### Example/g) ?? []).length;
     expect(exampleHeadings).toBeGreaterThanOrEqual(4);
-    expect(body).toMatch(/focused vault/i);
+    expect(body).toMatch(/cross-vault/i);
+    expect(body).toMatch(/placement/i);
+    // The stale focused-vault precondition (and its retired reason) must be gone.
+    expect(body).not.toMatch(/not-open/);
     expect(body).toMatch(/help\(\{ tool_name: "open_file" \}\)/);
   });
 });

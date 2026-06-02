@@ -1,4 +1,4 @@
-// Original — no upstream. open_file input/output/eval-envelope schemas (BI-057) — flat strict z.object, vault required (no target_mode discriminator per research R4 / ADR-003 intent satisfied by the focused-vault guard); exactly-one-of path/file via superRefine (FR-005); file-field structural-path-safety + wikilink-form bracket rejection byte-stable with append_note's safeFileField (FR-004); path-field structural-path-safety (FR-013); new_tab boolean default false (FR-008); discriminated-union eval-envelope wire format mirrors the in-eval IIFE return shape.
+// Original — no upstream. open_file input/output/eval-envelope schemas (BI-057; cross-vault rewrite ADR-031). Flat strict z.object, vault required (no target_mode discriminator per research R4 / ADR-003); exactly-one-of path/file via superRefine (FR-005); file-field structural-path-safety + wikilink-form bracket rejection byte-stable with append_note's safeFileField (FR-004); path-field structural-path-safety (FR-013); new_tab boolean default false (FR-008). The output gains a closed `placement` enum (FR-008..FR-011 / BI-0129). The eval envelope drops `VAULT_NOT_FOCUSED` — the eval now runs in the requested vault (B1 false, ADR-031), so there is no focused-vault guard to fail; its ok:true arm carries `placement`. Discriminated-union wire format mirrors the in-eval IIFE return shape.
 import { z } from "zod";
 
 import {
@@ -44,10 +44,12 @@ const safePathField = z
 
 export const openFileInputSchema = z
   .object({
-    // FR-001 — vault is unconditionally required (no active mode, R4). The
-    // focused-vault guard resolves this name and refuses when it is not the
-    // currently focused vault, satisfying ADR-003's anti-implicit-execution
-    // intent more strictly than a target_mode discriminator would.
+    // FR-001 — vault is unconditionally required (no active mode, R4). It names
+    // the REQUESTED vault to open in; the handler routes the eval there in
+    // target_mode:"specific" (vault=requested), so the open lands in that vault
+    // whether it is focused, open-but-unfocused, or closed-but-registered
+    // (ADR-031; B1 false). Locator acceptance is static — independent of which
+    // vault is focused at call time (FR-006a / Principle III).
     vault: z.string().min(1).max(MAX_LOCATOR_LENGTH),
     path: safePathField.optional(),
     file: safeFileField.optional(),
@@ -81,20 +83,34 @@ export const openFileInputSchema = z
     }
   });
 
+// FR-008..FR-011 / BI-0129 — exactly one machine-verifiable placement outcome
+// per successful open. `new_tab_created` (a fresh leaf was opened), `existing_tab_reused`
+// (an already-open tab for the file was focused, no duplicate), `active_tab_used`
+// (the file was opened into the active leaf). Closed enum — no pane/leaf ids or
+// split geometry (FR-012/FR-023).
+export const OPEN_FILE_PLACEMENTS = [
+  "new_tab_created",
+  "existing_tab_reused",
+  "active_tab_used",
+] as const;
+export const openPlacementSchema = z.enum(OPEN_FILE_PLACEMENTS);
+
 export const openFileOutputSchema = z
   .object({
     opened: z.string(),
     vault: z.string(),
     new_tab: z.boolean(),
+    placement: openPlacementSchema,
   })
   .strict();
 
 // Discriminated eval-envelope wire format (cohort parity with backlinks'
-// backlinksEvalResponseSchema). `detail` carries the attempted locator
-// (FILE_NOT_FOUND) or the unrecognised extension (UNSUPPORTED_FILE_TYPE);
-// VAULT_NOT_FOCUSED carries no detail.
+// backlinksEvalResponseSchema). The ok:true arm carries the derived `placement`
+// (§5 of data-model). `detail` carries the attempted locator (FILE_NOT_FOUND) or
+// the unrecognised extension (UNSUPPORTED_FILE_TYPE). `VAULT_NOT_FOCUSED` is
+// REMOVED — the eval runs in the requested vault (B1 false, ADR-031), so there is
+// no focused-vault guard and no such envelope arm.
 export const OPEN_FILE_EVAL_ERROR_CODES = [
-  "VAULT_NOT_FOCUSED",
   "FILE_NOT_FOUND",
   "UNSUPPORTED_FILE_TYPE",
 ] as const;
@@ -106,6 +122,7 @@ export const openEvalResponseSchema = z.discriminatedUnion("ok", [
       ok: z.literal(true),
       opened: z.string(),
       new_tab: z.boolean(),
+      placement: openPlacementSchema,
     })
     .strict(),
   z
@@ -123,3 +140,4 @@ export const openEvalResponseSchema = z.discriminatedUnion("ok", [
 export type OpenFileInput = z.input<typeof openFileInputSchema>;
 export type OpenFileOutput = z.infer<typeof openFileOutputSchema>;
 export type OpenFileEvalResponse = z.infer<typeof openEvalResponseSchema>;
+export type OpenFilePlacement = z.infer<typeof openPlacementSchema>;

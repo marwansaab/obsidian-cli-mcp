@@ -1,10 +1,13 @@
-// Original — no upstream. open_file schema-cohort tests (BI-057) — happy paths (path/file/new_tab
-// default), exactly-one-of (FR-005), vault required, bracket rejection (FR-004), structural-path
-// safety (FR-013), unknown-extra-field (FR-015), new_tab type, the deliberate no-target_mode
-// deviation (R4), output schema, and the eval-envelope shape.
+// Original — no upstream. open_file schema-cohort tests (BI-057; cross-vault rewrite ADR-031) —
+// happy paths (path/file/new_tab default), exactly-one-of (FR-005), vault required, bracket rejection
+// (FR-004), structural-path safety (FR-013), unknown-extra-field (FR-015), new_tab type, the
+// deliberate no-target_mode deviation (R4), output schema WITH the closed `placement` enum
+// (FR-008..FR-011) and NO leaf/pane/split fields (FR-012/FR-023), and the eval-envelope shape with
+// `VAULT_NOT_FOCUSED` REMOVED (ADR-031; the eval runs in the requested vault, so no focused-vault guard).
 import { describe, expect, it } from "vitest";
 
 import {
+  OPEN_FILE_PLACEMENTS,
   openEvalResponseSchema,
   openFileInputSchema,
   openFileOutputSchema,
@@ -152,40 +155,102 @@ describe("openFileInputSchema — strict + new_tab type", () => {
   });
 });
 
-describe("openFileOutputSchema", () => {
-  it("accepts { opened, vault, new_tab }", () => {
-    const r = openFileOutputSchema.safeParse({ opened: "a.md", vault: "Work", new_tab: false });
-    expect(r.success).toBe(true);
+describe("openFileOutputSchema — placement enum (FR-008..FR-011)", () => {
+  for (const placement of OPEN_FILE_PLACEMENTS) {
+    it(`accepts { opened, vault, new_tab, placement: ${placement} }`, () => {
+      const r = openFileOutputSchema.safeParse({
+        opened: "a.md",
+        vault: "Work",
+        new_tab: false,
+        placement,
+      });
+      expect(r.success).toBe(true);
+    });
+  }
+
+  it("the enum is exactly the three documented outcomes", () => {
+    expect([...OPEN_FILE_PLACEMENTS]).toEqual([
+      "new_tab_created",
+      "existing_tab_reused",
+      "active_tab_used",
+    ]);
   });
 
-  it("rejects unknown keys", () => {
+  it("rejects an out-of-enum placement value", () => {
     const r = openFileOutputSchema.safeParse({
       opened: "a.md",
       vault: "Work",
       new_tab: false,
-      extra: 1,
+      placement: "split_pane",
     });
     expect(r.success).toBe(false);
   });
 
+  it("rejects a missing placement (it is now required on success)", () => {
+    const r = openFileOutputSchema.safeParse({ opened: "a.md", vault: "Work", new_tab: false });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects unknown keys — no leaf/pane/split-geometry fields (FR-012/FR-023)", () => {
+    for (const extra of [{ extra: 1 }, { leafId: "abc" }, { paneId: 2 }, { split: "vertical" }]) {
+      const r = openFileOutputSchema.safeParse({
+        opened: "a.md",
+        vault: "Work",
+        new_tab: false,
+        placement: "active_tab_used",
+        ...extra,
+      });
+      expect(r.success).toBe(false);
+    }
+  });
+
+  it("the success output shape is exactly { opened, vault, new_tab, placement }", () => {
+    const r = openFileOutputSchema.safeParse({
+      opened: "a.md",
+      vault: "Work",
+      new_tab: true,
+      placement: "new_tab_created",
+    });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(Object.keys(r.data).sort()).toEqual(["new_tab", "opened", "placement", "vault"]);
+    }
+  });
+
   it("rejects missing opened", () => {
-    const r = openFileOutputSchema.safeParse({ vault: "Work", new_tab: false });
+    const r = openFileOutputSchema.safeParse({
+      vault: "Work",
+      new_tab: false,
+      placement: "active_tab_used",
+    });
     expect(r.success).toBe(false);
   });
 });
 
 describe("openEvalResponseSchema", () => {
-  it("accepts { ok: true, opened, new_tab }", () => {
+  for (const placement of OPEN_FILE_PLACEMENTS) {
+    it(`accepts { ok: true, opened, new_tab, placement: ${placement} }`, () => {
+      const r = openEvalResponseSchema.safeParse({ ok: true, opened: "a.md", new_tab: false, placement });
+      expect(r.success).toBe(true);
+    });
+  }
+
+  it("rejects ok:true with no placement (placement is derived in-eval, always present)", () => {
     const r = openEvalResponseSchema.safeParse({ ok: true, opened: "a.md", new_tab: false });
-    expect(r.success).toBe(true);
+    expect(r.success).toBe(false);
   });
 
-  for (const code of ["VAULT_NOT_FOCUSED", "FILE_NOT_FOUND", "UNSUPPORTED_FILE_TYPE"]) {
+  for (const code of ["FILE_NOT_FOUND", "UNSUPPORTED_FILE_TYPE"]) {
     it(`accepts { ok: false, code: ${code}, detail }`, () => {
       const r = openEvalResponseSchema.safeParse({ ok: false, code, detail: "x" });
       expect(r.success).toBe(true);
     });
   }
+
+  it("REJECTS the retired VAULT_NOT_FOCUSED code (ADR-031 — no focused-vault guard)", () => {
+    const r = openEvalResponseSchema.safeParse({ ok: false, code: "VAULT_NOT_FOCUSED" });
+    expect(r.success).toBe(false);
+  });
 
   it("rejects an unknown code", () => {
     const r = openEvalResponseSchema.safeParse({ ok: false, code: "NOPE", detail: "x" });
