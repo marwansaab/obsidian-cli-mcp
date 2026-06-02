@@ -110,8 +110,8 @@ Eval-composed read/query, specific/`vault=` path only: `backlinks`, `links`, `re
 
 > **Expected empty** (research.md D5 — B1 already false for the shared read-eval mechanism). Execute only for tools flagged by T015.
 
-- [ ] T027 [US3] `LIMITATION_SIGNALLED`: for a flagged tool whose signal can be produced by reusing an **already-emitted sibling** signal, wire that existing signal in `src/tools/<tool>/handler.ts` — **zero new top-level code, zero new `details.reason`** (FR-013) — and add the co-located failure-path case in `src/tools/<tool>/handler.test.ts` in the same change (Principle II). Update the tool's doc to state the real limitation. **Caution (analyze I1):** the only existing reachability signal, `VAULT_NOT_FOUND`/`reason:"not-open"`, is closed-vault-semantic — do NOT force-fit it onto an open-but-unfocused mis-route; if no already-emitted signal genuinely fits that state, use T028 instead.
-- [ ] T028 [US3] `LIMITATION_DEFERRED`: for a flagged tool whose signal would require **net-new detection**, state the real limitation in its doc, file a dedicated BI (per FR-014 / BI-0134's own out-of-scope), and link it from `spec.md` and `research.md`. Do NOT mark the tool failed (FR-009c). This is the **expected contingency** for an open-but-unfocused mis-route (no true-fit existing signal to reuse — analyze I1).
+- [X] T027 [US3] **N/A — no tool flagged by T015 (all ROUTING_CONFIRMED); contingency not triggered (research.md D5).** `LIMITATION_SIGNALLED`: for a flagged tool whose signal can be produced by reusing an **already-emitted sibling** signal, wire that existing signal in `src/tools/<tool>/handler.ts` — **zero new top-level code, zero new `details.reason`** (FR-013) — and add the co-located failure-path case in `src/tools/<tool>/handler.test.ts` in the same change (Principle II). Update the tool's doc to state the real limitation. **Caution (analyze I1):** the only existing reachability signal, `VAULT_NOT_FOUND`/`reason:"not-open"`, is closed-vault-semantic — do NOT force-fit it onto an open-but-unfocused mis-route; if no already-emitted signal genuinely fits that state, use T028 instead.
+- [X] T028 [US3] **N/A — no tool flagged by T015; contingency not triggered.** `LIMITATION_DEFERRED`: for a flagged tool whose signal would require **net-new detection**, state the real limitation in its doc, file a dedicated BI (per FR-014 / BI-0134's own out-of-scope), and link it from `spec.md` and `research.md`. Do NOT mark the tool failed (FR-009c). This is the **expected contingency** for an open-but-unfocused mis-route (no true-fit existing signal to reuse — analyze I1).
 
 **Checkpoint**: No tool is left silently wrong; every genuine limitation is either signalled (reuse) or recorded as deferred.
 
@@ -123,8 +123,8 @@ Eval-composed read/query, specific/`vault=` path only: `backlinks`, `links`, `re
 
 **Independent Test**: Each doc correction cites its own tool's findings row; active-mode/focused-only behaviour and docs are byte-unchanged.
 
-- [ ] T029 [US4] Evidence audit: confirm each doc correction (T016–T024) and each B1-register row (T026) maps to **that tool's own** `t0-probe-findings.md` row — no claim inferred from another tool (FR-003 / SC-001).
-- [ ] T030 [US4] Active-mode immutability check: confirm no edit touched any focused-by-design path — the `ERR_NO_ACTIVE_FILE` rows in `read_heading`/`backlinks`/`links`, the `smart_connections_similar` active-mode example, the `paths` active-mode line, and (out of cohort) the `set_property` active-mode pre-flight are byte-unchanged (FR-004 / SC-006).
+- [X] T029 [US4] Evidence audit: confirm each doc correction (T016–T024) and each B1-register row (T026) maps to **that tool's own** `t0-probe-findings.md` row — no claim inferred from another tool (FR-003 / SC-001).
+- [X] T030 [US4] Active-mode immutability check: confirm no edit touched any focused-by-design path — the `ERR_NO_ACTIVE_FILE` rows in `read_heading`/`backlinks`/`links`, the `smart_connections_similar` active-mode example, the `paths` active-mode line, and (out of cohort) the `set_property` active-mode pre-flight are byte-unchanged (FR-004 / SC-006).
 
 **Checkpoint**: Contract is trustworthy — per-tool evidenced, focused-only modes intact.
 
@@ -132,9 +132,9 @@ Eval-composed read/query, specific/`vault=` path only: `backlinks`, `links`, `re
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T031 [P] Run the `quickstart.md` §5 acceptance mapping end-to-end (US1→SC-002, US2→SC-003/SC-004, US3→SC-005, US4→SC-001/SC-006).
-- [ ] T032 `git diff` audit: confirm `src/errors.ts` is unchanged (zero new top-level error codes) and no new `details.reason` literal was introduced (FR-013 / SC-007). If any handler was touched in Phase 5, run `npm run lint && npm run typecheck && npm run build`, then the Windows-safe coverage run: `mkdir -p coverage/.tmp && npx vitest run --coverage --pool=forks --no-file-parallelism`.
-- [ ] T033 Restore vault A's focus; clean up `Sandbox/` fixtures; confirm no vault was closed or reconfigured and no Obsidian setting changed (FR-021 parity / SC-007). **Confirm FR-015**: no Obsidian plugin was changed, suppressed, or special-cased — the `smart_connections_*` plugin caveats are left untouched.
+- [X] T031 [P] Run the `quickstart.md` §5 acceptance mapping end-to-end (US1→SC-002, US2→SC-003/SC-004, US3→SC-005, US4→SC-001/SC-006).
+- [X] T032 `git diff` audit: confirm `src/errors.ts` is unchanged (zero new top-level error codes) and no new `details.reason` literal was introduced (FR-013 / SC-007). If any handler was touched in Phase 5, run `npm run lint && npm run typecheck && npm run build`, then the Windows-safe coverage run: `mkdir -p coverage/.tmp && npx vitest run --coverage --pool=forks --no-file-parallelism`.
+- [X] T033 (fixtures + harness cleaned; no vault closed/reconfigured; A-focus restore + SC-revert are user-side, see report) Restore vault A's focus; clean up `Sandbox/` fixtures; confirm no vault was closed or reconfigured and no Obsidian setting changed (FR-021 parity / SC-007). **Confirm FR-015**: no Obsidian plugin was changed, suppressed, or special-cased — the `smart_connections_*` plugin caveats are left untouched.
 
 ---
 
