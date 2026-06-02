@@ -28,7 +28,7 @@ f=app.vault.getFiles().find(x=>x.path===a.path);
 }else{
 f=app.metadataCache.getFirstLinkpathDest(a.file,'');
 }
-if(!f)return JSON.stringify({ok:false,code:'FILE_NOT_FOUND',detail:a.path||a.file});
+if(!f)return JSON.stringify({ok:false,code:'FILE_NOT_FOUND'});
 const vr=app.viewRegistry;
 if(vr&&typeof vr.isExtensionRegistered==='function'&&!vr.isExtensionRegistered(f.extension))return JSON.stringify({ok:false,code:'UNSUPPORTED_FILE_TYPE',detail:f.extension});
 let existing=null;

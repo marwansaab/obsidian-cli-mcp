@@ -106,10 +106,11 @@ export const openFileOutputSchema = z
 
 // Discriminated eval-envelope wire format (cohort parity with backlinks'
 // backlinksEvalResponseSchema). The ok:true arm carries the derived `placement`
-// (§5 of data-model). `detail` carries the attempted locator (FILE_NOT_FOUND) or
-// the unrecognised extension (UNSUPPORTED_FILE_TYPE). `VAULT_NOT_FOCUSED` is
-// REMOVED — the eval runs in the requested vault (B1 false, ADR-031), so there is
-// no focused-vault guard and no such envelope arm.
+// (§5 of data-model). `detail` is optional and carries the unrecognised extension
+// for UNSUPPORTED_FILE_TYPE (the only code that reads it — the handler maps
+// FILE_NOT_FOUND using its own locator, so the eval omits `detail` there).
+// `VAULT_NOT_FOCUSED` is REMOVED — the eval runs in the requested vault (B1 false,
+// ADR-031), so there is no focused-vault guard and no such envelope arm.
 export const OPEN_FILE_EVAL_ERROR_CODES = [
   "FILE_NOT_FOUND",
   "UNSUPPORTED_FILE_TYPE",
@@ -140,4 +141,3 @@ export const openEvalResponseSchema = z.discriminatedUnion("ok", [
 export type OpenFileInput = z.input<typeof openFileInputSchema>;
 export type OpenFileOutput = z.infer<typeof openFileOutputSchema>;
 export type OpenFileEvalResponse = z.infer<typeof openEvalResponseSchema>;
-export type OpenFilePlacement = z.infer<typeof openPlacementSchema>;

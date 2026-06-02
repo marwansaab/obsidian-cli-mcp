@@ -372,7 +372,13 @@ test("CLI_BINARY_NOT_FOUND (ENOENT) propagates unchanged, never a fabricated suc
   expect(err.code).toBe("CLI_BINARY_NOT_FOUND");
 });
 
-test("structural: the handler imports no app-launcher / launchFn and contains no per-tool retry loop (US2; ADR-029/030 own recovery)", () => {
+test("structural: the handler imports no app-launcher / launchFn (US2; ADR-029/030 own recovery)", () => {
+  // This fills a gap the tree-wide architecture.test.ts guardrail does NOT cover: that guard
+  // forbids node:child_process spawn value-imports and dispatchCli imports outside the facades,
+  // but it does not forbid a feature handler importing launchObsidian from app-launcher. open_file's
+  // ADR-031 contract is that recovery is inherited in dispatchCli with NO launcher import here.
+  // (The "issued exactly once, no per-tool retry" invariant is proven behaviorally by the app-down
+  // test's `getCount() === 1` above — a source-string scan for `while`/`setTimeout` is a weaker proxy.)
   const handlerSrc = readFileSync(
     resolve(dirname(fileURLToPath(import.meta.url)), "handler.ts"),
     "utf8",
@@ -384,9 +390,6 @@ test("structural: the handler imports no app-launcher / launchFn and contains no
   // No launchFn dependency declared or destructured (`launchFn?:`, `launchFn:`, `deps.launchFn`).
   expect(handlerSrc).not.toMatch(/launchFn\s*[?:]/);
   expect(handlerSrc).not.toMatch(/\.launchFn\b/);
-  // The eval is issued exactly once — no retry/poll loop in the handler body.
-  expect(handlerSrc).not.toMatch(/\bwhile\s*\(/);
-  expect(handlerSrc).not.toContain("setTimeout");
 });
 
 // =====================================================================
