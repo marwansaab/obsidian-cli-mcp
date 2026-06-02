@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "061-cross-vault-open",
-  "generatedAt": "2026-05-31",
+  "generatedFromBranch": "063-reverify-tag-cross-vault-routing",
+  "generatedAt": "2026-06-02",
   "tools": [
     {
       "name": "append_note",
@@ -155,7 +155,7 @@
     },
     {
       "name": "tag",
-      "descriptionFingerprint": "eb804724538790f10a4ea863f62fdf640a317f8d5e58c235abbccd129a6beaa7",
+      "descriptionFingerprint": "eedb37f29cee65a89f2a5a5a2a8654438401db60100a12d5bd3770cd67893612",
       "schemaFingerprint": "d1f0426ea5439d8642d2dd4db1505209d9a3682f080f91b4985b7ba4aac4ac8a"
     },
     {
