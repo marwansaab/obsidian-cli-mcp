@@ -35,8 +35,8 @@ The published behaviour of the modified `views_base` tool. Tests assert against 
 | Cause | `code` | `details` |
 |---|---|---|
 | Malformed `base_path` (empty / too-long / path-traversal / not `.base`) | `VALIDATION_ERROR` | zod issues; `params.code: "INVALID_BASE_PATH"`, `params.reason` |
-| Named Base not found | `CLI_REPORTED_ERROR` | `code: "FILE_NOT_FOUND"` (or `BASE_NOT_FOUND` + `reason:"named-missing"` if the resolved arm requires the conditional reason) |
-| No Base open (no `base_path`, focused file is not a `.base` / nothing focused) | `CLI_REPORTED_ERROR` | `code: "BASE_NOT_FOUND"` (+ `reason:"not-open"` if conditional) |
+| Named Base not found | `CLI_REPORTED_ERROR` | `code: "BASE_NOT_FOUND", reason: "named-missing"` (cohort-consistent with `query_base`; the focus arm's upstream `FILE_NOT_FOUND` is remapped, not leaked) |
+| No Base open (no `base_path`, focused file is not a `.base` / nothing focused) | `CLI_REPORTED_ERROR` | `code: "BASE_NOT_FOUND", reason: "not-open"` |
 | Named target is malformed (`.base` exists but unusable) | `CLI_REPORTED_ERROR` | `code: "BASE_MALFORMED"` |
 | Unknown `vault` name | `CLI_REPORTED_ERROR` | `code: "VAULT_NOT_FOUND", reason: "unknown", vault` |
 | Other upstream CLI failure / app down / binary missing | inherited `CLI_*` | adapter-provided |
@@ -48,5 +48,5 @@ The published behaviour of the modified `views_base` tool. Tests assert against 
 
 - Output shape and `count === views.length` refinement unchanged.
 - Names-only (no per-view type/filter/row-count — FR-011).
-- Zero new top-level error codes (Principle IV); any new `details.reason` is additive and conditional (ADR-015).
+- Zero new top-level error codes (Principle IV); the `BASE_NOT_FOUND` `details.reason` (`named-missing`/`not-open`) is an additive sub-discriminator (ADR-015).
 - `base_path` validation is byte-for-byte the `query_base` `INVALID_BASE_PATH` contract (FR-012).

@@ -60,8 +60,8 @@ executeViewsBase(input, deps):
      cliResult = invokeCli(base:views, parameters:{}, target_mode:"active")
 
   ── Stage B: classify failures (combined stdout\nstderr), zero new top-level codes ──
-  - no base_path + "Active file is not a base file" / nothing focused → CLI_REPORTED_ERROR/BASE_NOT_FOUND  (no Base open)
-  - named + focus step FILE_NOT_FOUND                                 → CLI_REPORTED_ERROR/FILE_NOT_FOUND   (named not found)
+  - no base_path + "Active file is not a base file" / nothing focused → CLI_REPORTED_ERROR/BASE_NOT_FOUND reason:"not-open"     (no Base open)
+  - named + base missing (focus FILE_NOT_FOUND remapped, or path= report) → CLI_REPORTED_ERROR/BASE_NOT_FOUND reason:"named-missing" (named not found)
   - named + .base unusable                                           → CLI_REPORTED_ERROR/BASE_MALFORMED   (if upstream reports)
   - bad vault                                                        → CLI_REPORTED_ERROR/VAULT_NOT_FOUND/unknown
   (named-path failures NEVER fall back to the open Base — FR-009)
@@ -76,17 +76,17 @@ executeViewsBase(input, deps):
   return viewsBaseOutputSchema.parse({ views, count: views.length })
 ```
 
-### Conditional `details.reason` (ADR-015, "only if needed")
+### `details.reason` discriminator on `BASE_NOT_FOUND` (ADR-015)
 
-If the resolved arm reports **named-not-found** under the same generic shape as **no-base-open** (i.e. both would land as `BASE_NOT_FOUND` — possible only in the `path=` arm if upstream conflates), add `details.reason ∈ { "named-missing", "not-open" }` to `BASE_NOT_FOUND` to keep them distinguishable (SC-004). The focus-first arm needs none — its named-not-found is `FILE_NOT_FOUND`. Additive-only; zero new top-level codes either way. The final disposition is recorded after the T0 probe.
+`BASE_NOT_FOUND` carries `details.reason ∈ { "named-missing", "not-open" }` to keep the two base-not-found states distinguishable under one `(CLI_REPORTED_ERROR, BASE_NOT_FOUND)` pair (SC-004). This is locked, not conditional: both arms converge on it — the focus-first arm **remaps** its upstream `FILE_NOT_FOUND` to `BASE_NOT_FOUND/named-missing` (cohort consistency with `query_base`, which reports a missing `.base` as `BASE_NOT_FOUND`), and the `path=` arm classifies upstream's missing-base report to the same shape. Additive-only; zero new top-level codes; existing `BASE_NOT_FOUND` consumers keying on `details.code` (including `query_base`/`create_base`, which emit no `reason`) are unaffected.
 
 ## Typed-error roster
 
 | Cause (spec) | Top-level `code` | `details` | Mode |
 |---|---|---|---|
 | Malformed locator (empty / too-long / traversal / not `.base`) — FR-012 | `VALIDATION_ERROR` | zod issues; `params.code: "INVALID_BASE_PATH"`, `params.reason` | named |
-| Named Base not found — FR-007 | `CLI_REPORTED_ERROR` | `code: "FILE_NOT_FOUND"` (or `BASE_NOT_FOUND` + `reason:"named-missing"` if conditional) | named |
-| No Base open — FR-006 | `CLI_REPORTED_ERROR` | `code: "BASE_NOT_FOUND"` (+ `reason:"not-open"` if conditional) | open |
+| Named Base not found — FR-007 | `CLI_REPORTED_ERROR` | `code: "BASE_NOT_FOUND", reason: "named-missing"` (focus arm's `FILE_NOT_FOUND` remapped) | named |
+| No Base open — FR-006 | `CLI_REPORTED_ERROR` | `code: "BASE_NOT_FOUND", reason: "not-open"` | open |
 | Named target is malformed — FR-008 | `CLI_REPORTED_ERROR` | `code: "BASE_MALFORMED"` | named |
 | Unknown vault name — FR-007/D7 | `CLI_REPORTED_ERROR` | `code: "VAULT_NOT_FOUND", reason: "unknown", vault` | named |
 | Other upstream CLI failure | `CLI_REPORTED_ERROR` / inherited `CLI_*` | adapter-provided | both |
@@ -102,7 +102,7 @@ All named-path failure causes are mutually distinguishable (distinct `details.co
 | FR-003 / SC-003 | `stripTypeLabel` anchored to known type tokens (punctuation preserved) |
 | FR-004 / SC-002 | optional `base_path` + named branch (focus-first / `path=`) |
 | FR-005/006 / SC-005 | open-Base branch unchanged (no `base_path` ⇒ active `base:views`) |
-| FR-007 | `FILE_NOT_FOUND` (named) ≠ `BASE_NOT_FOUND` (open) |
+| FR-007 | `BASE_NOT_FOUND/named-missing` ≠ `BASE_NOT_FOUND/not-open` (one code, `details.reason` discriminator) |
 | FR-008 | `INVALID_BASE_PATH` (validation) / `BASE_MALFORMED` (runtime) |
 | FR-009 / SC-006 | named-path failures never substitute the open Base |
 | FR-010 / SC-004 | distinct `details.code` (+ conditional `reason`); reuses cohort failure convention |

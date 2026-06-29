@@ -51,19 +51,19 @@ Phase 0 decisions. Each: Decision / Rationale / Alternatives considered. The con
 ## D8 — Error roster: zero new top-level codes
 
 - **Decision**: Reuse existing surfaces. `VALIDATION_ERROR` (+ `INVALID_BASE_PATH` sub-issues) for a malformed locator; `CLI_REPORTED_ERROR` with `details.code` for the rest:
-  - **no Base open** (no `base_path`, focused file is not a `.base` / nothing focused) → `BASE_NOT_FOUND` (existing active-mode behaviour, unchanged).
-  - **named Base not found** (the named `.base` does not exist in the vault) → the focus mechanism's `FILE_NOT_FOUND` (distinct top-level `details.code` from `BASE_NOT_FOUND`).
+  - **no Base open** (no `base_path`, focused file is not a `.base` / nothing focused) → `BASE_NOT_FOUND` + `details.reason: "not-open"` (the existing active-mode failure gains an additive `reason`; `details.code` unchanged).
+  - **named Base not found** (the named `.base` does not exist in the vault) → `BASE_NOT_FOUND` + `details.reason: "named-missing"` (the focus arm's upstream `FILE_NOT_FOUND` is remapped, not leaked).
   - **named target is malformed** (`.base` exists but cannot be used) → `BASE_MALFORMED` (cohort with `query_base`), if upstream surfaces it.
   - **bad vault** → `VAULT_NOT_FOUND/unknown`.
   All distinct; no silent open-Base substitution on any named-path failure (FR-009).
-- **Rationale**: Principle IV — preserve the zero-new-top-level-codes streak; ADR-015 keeps finer signal under `details`. The focus arm gives named-not-found a naturally distinct code (`FILE_NOT_FOUND`), so no new `details.reason` is needed there.
-- **Alternatives**: A dedicated `NOT_A_BASE` top-level code — rejected (clarify folded it into validation/malformed; Principle IV). Collapse named-not-found and no-base-open into one `BASE_NOT_FOUND` — rejected (FR-007/SC-004 require distinguishability).
+- **Rationale**: Principle IV — preserve the zero-new-top-level-codes streak; ADR-015 carries the finer signal under `details.reason`. Using ONE base-not-found code keeps `views_base` consistent with `query_base`, which reports a missing `.base` as `BASE_NOT_FOUND` ([query_base/handler.ts:352](../../src/tools/query_base/handler.ts#L352)); a `FILE_NOT_FOUND` for a base concept would drift the cohort, so the focus arm's `FILE_NOT_FOUND` is remapped to `BASE_NOT_FOUND/named-missing`.
+- **Alternatives**: A dedicated `NOT_A_BASE` top-level code — rejected (clarify folded it into validation/malformed; Principle IV). Collapse named-not-found and no-base-open into one `BASE_NOT_FOUND` **with no discriminator** — rejected (FR-007/SC-004 require distinguishability); the `details.reason` resolves it. Leak the focus arm's `FILE_NOT_FOUND` — rejected (cohort drift from `query_base`).
 
-## D8a — Conditional `details.reason` (ADR-015, "only if needed")
+## D8a — `details.reason` discriminator on `BASE_NOT_FOUND` (ADR-015)
 
-- **Decision**: Introduce a `BASE_NOT_FOUND` `details.reason` (`named-missing` vs `not-open`) **only if** the resolved mechanism (e.g. the `path=` native arm, if P2 passes and upstream reports a missing named Base under the same generic shape as no-base-open) cannot otherwise distinguish them. The focus-first arm needs none (`FILE_NOT_FOUND` ≠ `BASE_NOT_FOUND`).
-- **Rationale**: The user's directive: "new `details.reason` only if needed (ADR-015)". Additive-only; zero new top-level codes regardless. The exact need is settled by the T0 probe outcome and recorded in data-model.
-- **Alternatives**: Always add the reason — rejected (unnecessary surface if `FILE_NOT_FOUND` already distinguishes). Never add it — rejected (would leave the `path=` arm unable to satisfy SC-004 if upstream conflates).
+- **Decision**: `BASE_NOT_FOUND` carries `details.reason ∈ { "named-missing", "not-open" }` to keep the two base-not-found states distinguishable under one `(CLI_REPORTED_ERROR, BASE_NOT_FOUND)` pair (SC-004). Locked, not conditional — both the `path=` and focus-first arms converge on this shape (the focus arm remaps its upstream `FILE_NOT_FOUND`; the `path=` arm classifies upstream's missing-base report).
+- **Rationale**: The textbook ADR-015 multi-state case: finer agent-actionable signal without a new top-level code. Additive — existing `BASE_NOT_FOUND` consumers keying on `details.code` (including `query_base`/`create_base`, which emit no `reason`) are unaffected; the existing `views_base` no-base-open assertion (checks `details.code` only) still passes.
+- **Alternatives**: No discriminator (rely on distinct `details.code`s) — rejected (would require leaking `FILE_NOT_FOUND`, cohort drift). A new top-level code — rejected (Principle IV).
 
 ## D9 — Eval-composition fallback (only if P3 fails)
 

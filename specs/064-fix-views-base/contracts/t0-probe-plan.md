@@ -55,4 +55,4 @@ P3 RACY ─► P4 viable ──────────────────�
 P4 needs client-YAML ─────────────────────► STOP: author a new ADR, then proceed
 ```
 
-All arms: US1 label-strip (P1-finalised), the same error roster, zero new top-level codes. The conditional `BASE_NOT_FOUND` `details.reason` (`named-missing` vs `not-open`) is added **only** in the `path=` arm and **only** if upstream conflates named-not-found with no-base-open (ADR-015, "only if needed").
+All arms: US1 label-strip (P1-finalised), the same error roster, zero new top-level codes. `BASE_NOT_FOUND` carries `details.reason` (`named-missing` vs `not-open`) in **every** arm — the focus-first arm remaps its upstream `FILE_NOT_FOUND` to `BASE_NOT_FOUND/named-missing` (cohort consistency with `query_base`), and the `path=` arm classifies upstream's missing-base report to the same shape (ADR-015 additive).
