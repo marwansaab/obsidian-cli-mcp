@@ -413,6 +413,12 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
     required_equals: ["property", "value"],
     additionalProperties: false,
   },
+  get_active_file: {
+    type: "object",
+    properties_equals_set: ["target_mode", "vault", "file", "path"],
+    required_equals: ["target_mode"],
+    additionalProperties: false,
+  },
   set_property: {
     type: "object",
     properties_equals_set: ["target_mode", "vault", "file", "path", "name", "value", "type"],

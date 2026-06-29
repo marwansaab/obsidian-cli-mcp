@@ -8,6 +8,7 @@ Call `help({ tool_name: "<name>" })` to read the full Markdown documentation for
 - **delete** — Delete a note from an Obsidian vault. Default sends the file to the OS trash (recoverable); `permanent: true` is irreversible.
 - **files** — List files directly inside a vault folder (returns `{ count, paths }` — non-recursive folder-scoped enumeration, sub-folder + dotfile entries dropped, paths sorted by UTF-8 byte order; supports `total: true` for count-only mode).
 - **find_by_property** — Find notes whose frontmatter property matches a given value (returns `{ count, paths }` — the value→file inverse of `read_property`).
+- **get_active_file** — Report the active file Obsidian currently has focused (returns `{ active: { path, name, basename, extension } | null }` — the read counterpart of `open_file`; `target_mode: "active"` reads the focused vault, `target_mode: "specific"` + `vault` reads a named vault cross-vault; no active file is a `{ active: null }` success, never `ERR_NO_ACTIVE_FILE`; file-only, pure read).
 - **help** — Look up full Markdown documentation for any registered MCP tool.
 - **links** — Return the flat ordered list of every outgoing link in a Markdown note (returns `{ count, links: [{ target, line, kind, displayText? }] }` — link-graph primitive; frontmatter-declared wikilinks intermingled in source order; closed `{wikilink, embed, markdown}` kind enum; `total: true` switches to count-only mode).
 - **list_notes** — _(documentation pending — owned by a future BI)_.

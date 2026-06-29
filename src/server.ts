@@ -20,6 +20,7 @@ import { createDeleteTool } from "./tools/delete/index.js";
 import { createFilesTool } from "./tools/files/index.js";
 import { createFindAndReplaceTool } from "./tools/find_and_replace/index.js";
 import { createFindByPropertyTool } from "./tools/find_by_property/index.js";
+import { createGetActiveFileTool } from "./tools/get_active_file/index.js";
 import { createHelpTool } from "./tools/help/index.js";
 import { createLinksTool } from "./tools/links/index.js";
 import { createMoveTool } from "./tools/move/index.js";
@@ -111,6 +112,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     createFilesTool({ logger, queue }),
     createFindAndReplaceTool({ logger, queue, vaultRegistry }),
     createFindByPropertyTool({ logger, queue }),
+    createGetActiveFileTool({ logger, queue, vaultRegistry }),
     createHelpTool(),
     createLinksTool({ logger, queue }),
     createMoveTool({ logger, queue }),
