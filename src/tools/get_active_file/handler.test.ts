@@ -58,7 +58,6 @@ afterEach(() => __resetInFlightRegistryForTests());
 
 test("active mode: returns { active: {path,name,basename,extension} }; argv is command 'eval' with NO vault (US1)", async () => {
   const envelope = {
-    ok: true,
     active: { path: "Folder/note.md", name: "note.md", basename: "note", extension: "md" },
   };
   const { spawnFn, recorded, getCount } = makeQueuedSpawn([
@@ -101,7 +100,7 @@ const FIELD_SHAPES = [
 for (const shape of FIELD_SHAPES) {
   test(`active mode field shape (${shape.label}): the four fields pass through verbatim`, async () => {
     const { spawnFn } = makeQueuedSpawn([
-      { stdout: `=> ${JSON.stringify({ ok: true, active: shape.active })}\n`, exitCode: 0 },
+      { stdout: `=> ${JSON.stringify({ active: shape.active })}\n`, exitCode: 0 },
     ]);
     const result = await executeGetActiveFile({ target_mode: "active" }, deps(spawnFn));
     expect(result.active).toEqual(shape.active);
@@ -115,9 +114,9 @@ for (const shape of FIELD_SHAPES) {
 // US2 — "no active file" is a SUCCESS, not an error
 // =====================================================================
 
-test("no active file: { ok:true, active:null } → { active: null } SUCCESS (not isError / not a throw) (US2)", async () => {
+test("no active file: { active: null } → { active: null } SUCCESS (not isError / not a throw) (US2)", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify({ ok: true, active: null })}\n`, exitCode: 0 },
+    { stdout: `=> ${JSON.stringify({ active: null })}\n`, exitCode: 0 },
   ]);
   const result = await executeGetActiveFile({ target_mode: "active" }, deps(spawnFn));
   expect(result).toEqual({ active: null });
@@ -126,11 +125,11 @@ test("no active file: { ok:true, active:null } → { active: null } SUCCESS (not
 
 test("no active file is distinguishable from a present file via active === null (US2/FR-006)", async () => {
   const { spawnFn: sNull } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify({ ok: true, active: null })}\n`, exitCode: 0 },
+    { stdout: `=> ${JSON.stringify({ active: null })}\n`, exitCode: 0 },
   ]);
   const { spawnFn: sPresent } = makeQueuedSpawn([
     {
-      stdout: `=> ${JSON.stringify({ ok: true, active: { path: "a.md", name: "a.md", basename: "a", extension: "md" } })}\n`,
+      stdout: `=> ${JSON.stringify({ active: { path: "a.md", name: "a.md", basename: "a", extension: "md" } })}\n`,
       exitCode: 0,
     },
   ]);
@@ -148,7 +147,7 @@ test("no active file is distinguishable from a present file via active === null 
 test("echo convention: the result carries ONLY `active` — no vault / target_mode echo (US3/FR-015)", async () => {
   const { spawnFn } = makeQueuedSpawn([
     {
-      stdout: `=> ${JSON.stringify({ ok: true, active: { path: "a.md", name: "a.md", basename: "a", extension: "md" } })}\n`,
+      stdout: `=> ${JSON.stringify({ active: { path: "a.md", name: "a.md", basename: "a", extension: "md" } })}\n`,
       exitCode: 0,
     },
   ]);
@@ -162,7 +161,7 @@ test("path round-trip: active.path equals the envelope path verbatim (the value 
   const path = "Projects/Q2 Roadmap.md";
   const { spawnFn } = makeQueuedSpawn([
     {
-      stdout: `=> ${JSON.stringify({ ok: true, active: { path, name: "Q2 Roadmap.md", basename: "Q2 Roadmap", extension: "md" } })}\n`,
+      stdout: `=> ${JSON.stringify({ active: { path, name: "Q2 Roadmap.md", basename: "Q2 Roadmap", extension: "md" } })}\n`,
       exitCode: 0,
     },
   ]);
@@ -176,7 +175,6 @@ test("path round-trip: active.path equals the envelope path verbatim (the value 
 
 test("specific mode: argv carries vault=<name> + command 'eval'; returns the named vault's active file (US4/FR-011)", async () => {
   const envelope = {
-    ok: true,
     active: { path: "B-note.md", name: "B-note.md", basename: "B-note", extension: "md" },
   };
   const { spawnFn, recorded, getCount } = makeQueuedSpawn([
@@ -240,9 +238,9 @@ test("malformed eval (non-JSON) → CLI_REPORTED_ERROR + details.stage:'json-par
   expect(err.details.stage).toBe("json-parse");
 });
 
-test("wrong-shape eval (ok:true, active missing fields) → CLI_REPORTED_ERROR + details.stage:'envelope-parse'", async () => {
+test("wrong-shape eval (active missing fields) → CLI_REPORTED_ERROR + details.stage:'envelope-parse'", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"active":{"path":"a.md"}}\n', exitCode: 0 },
+    { stdout: '=> {"active":{"path":"a.md"}}\n', exitCode: 0 },
   ]);
   const err = (await captureRejection(
     executeGetActiveFile({ target_mode: "active" }, deps(spawnFn)),

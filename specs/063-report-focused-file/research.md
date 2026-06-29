@@ -45,10 +45,10 @@ Source grounding (direct lookup): `src/tools/_active-file.ts`, `src/target-mode/
 **Decision**: A new frozen `obsidian eval` IIFE in `_template.ts`:
 
 ```js
-(()=>{const f=app.workspace.getActiveFile();return JSON.stringify(f?{ok:true,active:{path:f.path,name:f.name,basename:f.basename,extension:f.extension}}:{ok:true,active:null});})()
+(()=>{const f=app.workspace.getActiveFile();return JSON.stringify({active:f?{path:f.path,name:f.name,basename:f.basename,extension:f.extension}:null});})()
 ```
 
-No `__PAYLOAD_B64__`, no `composeEvalCode`.
+No `__PAYLOAD_B64__`, no `composeEvalCode`. No `ok`-wrapper: `getActiveFile()` has no in-eval failure arm, so the body emits the `{ active }` output shape directly and `decodeEvalEnvelope` validates it straight into `getActiveFileOutputSchema` (the dual `ok:true`-wrapped envelope from the original draft was collapsed in code-quality review — see [data-model.md](data-model.md)).
 
 **Rationale**: The four FR-001 fields map directly to Obsidian `TFile` members — `path` (vault-relative), `name` (incl. extension), `basename` (without extension), `extension` (without dot). The `name = basename + extension`, multi-dot, and no-extension rules (FR-002/003) are Obsidian's own field semantics, so no re-parsing is implemented (the substrate is the source of truth). Crucially, the tool injects **no caller-supplied data** into the eval — active vs specific routing is carried by `invokeCli`'s `vault`/`target_mode`, not the template — so there is **no injection surface** and the base64 anti-injection machinery (`backlinks` needs it because it interpolates `path`/`file`) is unnecessary. A plain frozen string is simpler and equally safe.
 

@@ -10,7 +10,7 @@ import { ACTIVE_FILE_TEMPLATE } from "./_template.js";
 describe("get_active_file ACTIVE_FILE_TEMPLATE — frozen-string byte stability", () => {
   it("is the exact recorded sync-IIFE eval string (byte-stable)", () => {
     expect(ACTIVE_FILE_TEMPLATE).toBe(
-      "(()=>{const f=app.workspace.getActiveFile();return JSON.stringify(f?{ok:true,active:{path:f.path,name:f.name,basename:f.basename,extension:f.extension}}:{ok:true,active:null});})()",
+      "(()=>{const f=app.workspace.getActiveFile();return JSON.stringify({active:f?{path:f.path,name:f.name,basename:f.basename,extension:f.extension}:null});})()",
     );
   });
 
@@ -33,9 +33,12 @@ describe("get_active_file ACTIVE_FILE_TEMPLATE — frozen-string byte stability"
     expect(ACTIVE_FILE_TEMPLATE.includes("lastIndexOf")).toBe(false);
   });
 
-  it("emits the ok:true wrapper for both the present and the null-active arm", () => {
-    expect(ACTIVE_FILE_TEMPLATE.includes("ok:true,active:{")).toBe(true);
-    expect(ACTIVE_FILE_TEMPLATE.includes("{ok:true,active:null}")).toBe(true);
+  it("emits the `{ active }` output shape directly — no ok-wrapper (single arm, no in-eval failure)", () => {
+    // The body returns the published `{ active }` shape verbatim; decodeEvalEnvelope validates it straight
+    // into getActiveFileOutputSchema, so there is no ok:true|false discriminator to strip.
+    expect(ACTIVE_FILE_TEMPLATE.includes("JSON.stringify({active:")).toBe(true);
+    expect(ACTIVE_FILE_TEMPLATE.includes(":null})")).toBe(true);
+    expect(ACTIVE_FILE_TEMPLATE.includes("ok:")).toBe(false);
   });
 
   it("injects NO caller-supplied payload (no __PAYLOAD_B64__ / atob / JSON.parse of a payload)", () => {

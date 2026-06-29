@@ -1,4 +1,4 @@
-// Original — no upstream. get_active_file input/output/eval-envelope schemas (BI-063). Input reuses the
+// Original — no upstream. get_active_file input/output schemas (BI-063). Input reuses the
 // shared folder-scoped target-mode refinement (vault required in specific, forbidden in active; file/path
 // forbidden in BOTH modes — the active file is the implicit target, there is no locator) — byte-pattern
 // parity with the `files` tool. Output { active: FileInfo | null } where null is a SUCCESS (no active
@@ -32,22 +32,17 @@ export const fileInfoSchema = z
   })
   .strict();
 
-// Output: a present active file, or null when nothing is active (FR-005/006). Distinguishable on
-// `active === null`. .strict() rejects any extra field (pane/split/leaf/cursor) — the structural
-// guarantee for FR-017/018.
+// Output AND eval-envelope decode target — one strict shape serves both. A present active file, or null
+// when nothing is active (FR-005/006), distinguishable on `active === null`. .strict() rejects any extra
+// field (pane/split/leaf/cursor) — the structural guarantee for FR-017/018.
+//
+// There is deliberately NO separate ok-wrapped envelope schema. getActiveFile() returns a TFile or null and
+// cannot fail at the eval level, so — unlike the discriminated-union cohort (backlinks/links/open_file,
+// which carry ok:true|false arms for real in-eval failures like FILE_NOT_FOUND / NOT_MARKDOWN) — there is
+// no ok:false case to discriminate. The frozen template (_template.ts) emits this exact `{ active }` shape,
+// and the handler's decodeEvalEnvelope validates the eval stdout straight into it; a malformed/unparseable
+// body is caught there and classified CLI_REPORTED_ERROR.
 export const getActiveFileOutputSchema = z
   .object({ active: fileInfoSchema.nullable() })
   .strict();
 export type GetActiveFileOutput = z.infer<typeof getActiveFileOutputSchema>;
-
-// Eval envelope: a single ok:true arm — getActiveFile() returns a TFile or null and cannot fail at the
-// eval level, so there is no in-eval ok:false case (cf. backlinks' NO_ACTIVE_FILE/FILE_NOT_FOUND/
-// NOT_MARKDOWN arms — none apply here). A malformed/unparseable body is caught by decodeEvalEnvelope and
-// classified CLI_REPORTED_ERROR. The ok:true wrapper is kept for cohort parity + forward-compatibility.
-export const getActiveFileEvalResponseSchema = z
-  .object({
-    ok: z.literal(true),
-    active: fileInfoSchema.nullable(),
-  })
-  .strict();
-export type GetActiveFileEvalResponse = z.infer<typeof getActiveFileEvalResponseSchema>;

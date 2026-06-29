@@ -1,12 +1,12 @@
 // Original — no upstream. get_active_file schema tests (BI-063) — the folder-scoped target-mode refinement
 // (active vs specific; vault required/forbidden per mode; file/path forbidden in BOTH modes; unknown field
-// rejected by .strict()) plus the output + eval-envelope shapes (present `active`, null `active`, and the
-// extra-field rejection that structurally guarantees FR-017/018 — no pane/split/leaf or cursor surface). [U1]
+// rejected by .strict()) plus the output shape, which doubles as the eval-decode target (present `active`,
+// null `active`, and the extra-field rejection that structurally guarantees FR-017/018 — no pane/split/leaf
+// or cursor surface). There is no separate ok-wrapped envelope schema (single arm, no in-eval failure). [U1]
 import { expect, test } from "vitest";
 
 import {
   fileInfoSchema,
-  getActiveFileEvalResponseSchema,
   getActiveFileInputSchema,
   getActiveFileOutputSchema,
 } from "./schema.js";
@@ -93,7 +93,7 @@ test("target_mode outside the enum → invalid_enum_value on ['target_mode']", (
 });
 
 // =====================================================================
-// Output + eval-envelope shapes
+// Output shape (also the eval-decode target — no separate ok-wrapped envelope)
 // =====================================================================
 
 test("output schema parses a present active file (four fields)", () => {
@@ -126,17 +126,15 @@ test("fileInfoSchema rejects a missing field (all four required)", () => {
   expect(r.success).toBe(false);
 });
 
-test("eval-envelope schema parses ok:true with present active and with null active", () => {
-  const present = getActiveFileEvalResponseSchema.safeParse({
+// The output schema doubles as the eval-decode target (handler.ts feeds eval stdout straight into it), so a
+// stray `ok` wrapper MUST be rejected — this guards against anyone re-introducing an ok-arm into the frozen
+// template, which would then fail to decode. .strict() supplies that guarantee.
+test("output schema (eval-decode target) REJECTS a stray `ok` wrapper field", () => {
+  const present = getActiveFileOutputSchema.safeParse({
     ok: true,
     active: { path: "a.md", name: "a.md", basename: "a", extension: "md" },
   });
-  const absent = getActiveFileEvalResponseSchema.safeParse({ ok: true, active: null });
-  expect(present.success).toBe(true);
-  expect(absent.success).toBe(true);
-});
-
-test("eval-envelope schema rejects ok:false (no in-eval failure arm exists)", () => {
-  const r = getActiveFileEvalResponseSchema.safeParse({ ok: false, active: null });
-  expect(r.success).toBe(false);
+  const absent = getActiveFileOutputSchema.safeParse({ ok: true, active: null });
+  expect(present.success).toBe(false);
+  expect(absent.success).toBe(false);
 });

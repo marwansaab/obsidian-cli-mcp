@@ -93,7 +93,6 @@ describe("createGetActiveFileTool — schema-layer rejections route through the 
   // Valid input passes Zod, so registerTool runs the executeGetActiveFile closure end-to-end.
   it("tool.handler runs the executeGetActiveFile closure on VALID input and returns a content envelope", async () => {
     const envelope = {
-      ok: true,
       active: { path: "Folder/note.md", name: "note.md", basename: "note", extension: "md" },
     };
     const { spawnFn } = makeQueuedSpawn([
@@ -115,7 +114,7 @@ describe("createGetActiveFileTool — schema-layer rejections route through the 
 
   it("tool.handler wraps the { active: null } success as a non-error content envelope", async () => {
     const { spawnFn } = makeQueuedSpawn([
-      { stdout: `=> ${JSON.stringify({ ok: true, active: null })}\n`, exitCode: 0 },
+      { stdout: `=> ${JSON.stringify({ active: null })}\n`, exitCode: 0 },
     ]);
     const tool = createGetActiveFileTool({
       logger: silentLogger(),

@@ -19,7 +19,6 @@
 // retry/launch; no app-launcher import. Zero new top-level error codes (FR-016 / Principle IV).
 import { ACTIVE_FILE_TEMPLATE } from "./_template.js";
 import {
-  getActiveFileEvalResponseSchema,
   getActiveFileOutputSchema,
   type GetActiveFileInput,
   type GetActiveFileOutput,
@@ -70,15 +69,20 @@ export async function executeGetActiveFile(
     { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
   );
 
-  // Strip the "=> " echo → JSON.parse → safeParse. A malformed body is the cohort's CLI_REPORTED_ERROR
-  // (a malformed eval reads as an upstream report), never a silent success.
-  const data = decodeEvalEnvelope(result.stdout, getActiveFileEvalResponseSchema, {
+  // Strip the "=> " echo → JSON.parse → safeParse straight into the output schema. The frozen template
+  // emits exactly that `{ active }` shape — there is no separate ok-wrapped envelope to unwrap, because
+  // getActiveFile() has no in-eval failure arm (see schema.ts) — so the decoded value IS the result, with
+  // no re-parse step. `active: null` carries straight through with NO error branch: the AUTHORIZED SUCCESS
+  // for "no active file" (FR-005 / research D3 / Principle IV Clarifications-exception). A reviewer grepping
+  // for null returns sees this is the queried answer, not a masked empty result.
+  //
+  // malformedCode is CLI_REPORTED_ERROR — a deliberate divergence from open_file's INTERNAL_ERROR. This is a
+  // pure read with NO caller-injected payload (frozen template, zero injection surface), so a malformed body
+  // is most plausibly a CLI-layer corruption that reads as an upstream report. That groups it with the other
+  // pure-read eval tools (backlinks/links) rather than with open_file, which composes its eval from a caller
+  // locator and so treats a bad envelope as an internal invariant violation.
+  return decodeEvalEnvelope(result.stdout, getActiveFileOutputSchema, {
     toolName: TOOL_NAME,
     malformedCode: "CLI_REPORTED_ERROR",
   });
-
-  // `data.active` carries null straight through to { active: null } with NO error branch — the AUTHORIZED
-  // SUCCESS for "no active file" (FR-005 / research D3 / Principle IV Clarifications-exception). A reviewer
-  // grepping for null returns sees this is the queried answer, not a masked empty result.
-  return getActiveFileOutputSchema.parse({ active: data.active });
 }

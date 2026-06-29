@@ -18,10 +18,10 @@ Recorded at `/speckit-implement` time for BI-063 (`get_active_file`). Probe plan
 **Exact argv to run** (the handler builds these; spawn as an argv array, no shell — the production cli-adapter resolves `.com` via the binary-resolver):
 
 ```
-vault=B   eval   code=(()=>{const f=app.workspace.getActiveFile();return JSON.stringify(f?{ok:true,active:{path:f.path,name:f.name,basename:f.basename,extension:f.extension}}:{ok:true,active:null});})()
+vault=B   eval   code=(()=>{const f=app.workspace.getActiveFile();return JSON.stringify({active:f?{path:f.path,name:f.name,basename:f.basename,extension:f.extension}:null});})()
 ```
 
-Expect `=> {"ok":true,"active":{"path":"B-note.md",...}}` (B's active file, not A's).
+Expect `=> {"active":{"path":"B-note.md",...}}` (B's active file, not A's).
 
 ## P2 — Field shape characterisation — **PENDING (characterisation, strong prior)**
 
@@ -29,7 +29,7 @@ Requires making specific files active (`note.md`, `note.draft.md`, an extension-
 
 ## P3 — No-active-file success — **PENDING (characterisation, strong prior)**
 
-Requires reaching an empty workspace / non-file view (interactive). Not run autonomously. Unit-locked: `handler.test.ts` asserts `{ ok:true, active:null }` → `{ active: null }` SUCCESS (not `isError`, not a throw), distinguishable from a present file via `active === null`.
+Requires reaching an empty workspace / non-file view (interactive). Not run autonomously. Unit-locked: `handler.test.ts` asserts `{ active: null }` → `{ active: null }` SUCCESS (not `isError`, not a throw), distinguishable from a present file via `active === null`.
 
 ## P4 — Eval IIFE form — **PARTIAL: template JS validity locked; live form confirmation PENDING**
 

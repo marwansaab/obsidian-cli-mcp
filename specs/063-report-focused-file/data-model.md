@@ -55,24 +55,14 @@ No `vault` / `target_mode` echo (FR-015 — pure-read echo convention). File-onl
 
 ## Eval envelope (`schema.ts`)
 
-```ts
-export const getActiveFileEvalResponseSchema = z
-  .object({
-    ok: z.literal(true),
-    active: fileInfoSchema.nullable(),
-  })
-  .strict();
-export type GetActiveFileEvalResponse = z.infer<typeof getActiveFileEvalResponseSchema>;
-```
-
-Single `ok:true` arm: `getActiveFile()` cannot fail at the eval level (it returns a `TFile` or `null`); there is no in-eval `ok:false` case (cf. `backlinks`, which has `NO_ACTIVE_FILE`/`FILE_NOT_FOUND`/`NOT_MARKDOWN` arms — none apply here). A malformed/unparseable eval body is caught by `decodeEvalEnvelope` and classified `CLI_REPORTED_ERROR` (cohort default for reads). The `ok:true` wrapper is kept for cohort parity and forward-compatibility.
+There is **no separate eval-envelope schema**: `getActiveFileOutputSchema` (above) doubles as the eval-decode target. `getActiveFile()` cannot fail at the eval level (it returns a `TFile` or `null`), so — unlike the discriminated-union cohort (`backlinks`/`links`/`open_file`, which carry `ok:true|false` arms for real in-eval failures like `FILE_NOT_FOUND`/`NOT_MARKDOWN`) — there is no `ok:false` case to discriminate. The frozen template emits the `{ active }` output shape directly and `decodeEvalEnvelope` validates the eval stdout straight into `getActiveFileOutputSchema`. A malformed/unparseable eval body is caught there and classified `CLI_REPORTED_ERROR` (cohort default for reads).
 
 ## Eval template (`_template.ts`)
 
 Frozen, no payload, no `__PAYLOAD_B64__` (D4):
 
 ```js
-(()=>{const f=app.workspace.getActiveFile();return JSON.stringify(f?{ok:true,active:{path:f.path,name:f.name,basename:f.basename,extension:f.extension}}:{ok:true,active:null});})()
+(()=>{const f=app.workspace.getActiveFile();return JSON.stringify({active:f?{path:f.path,name:f.name,basename:f.basename,extension:f.extension}:null});})()
 ```
 
 ## Handler flow (`handler.ts`)
@@ -92,9 +82,11 @@ executeGetActiveFile(input, deps):
         { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue })
         // dispatchCli inherits ADR-029 cold-start retry + ADR-030 app-down launch (FR-012)
         // an invokeCli throw (app down/unrecoverable, binary missing) propagates unchanged
-  3. data = decodeEvalEnvelope(result.stdout, getActiveFileEvalResponseSchema,
+  3. return decodeEvalEnvelope(result.stdout, getActiveFileOutputSchema,
               { toolName:"get_active_file", malformedCode:"CLI_REPORTED_ERROR" })
-  4. return getActiveFileOutputSchema.parse({ active: data.active })   // null passes straight through (FR-005)
+       // decoded value IS the result — null passes straight through (FR-005); no re-parse step.
+       // malformedCode CLI_REPORTED_ERROR (not open_file's INTERNAL_ERROR): a payload-free pure read,
+       // so a bad body reads as an upstream report, grouping with backlinks/links.
 ```
 
 `ExecuteDeps`: `{ logger: Logger; queue: Queue; vaultRegistry: VaultRegistry; spawnFn?: SpawnLike; env?: NodeJS.ProcessEnv }` — mirrors `open_file`.
