@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "063-correct-cross-vault-docs",
-  "generatedAt": "2026-06-02",
+  "generatedFromBranch": "063-report-focused-file",
+  "generatedAt": "2026-06-29",
   "tools": [
     {
       "name": "append_note",
@@ -47,6 +47,11 @@
       "name": "find_by_property",
       "descriptionFingerprint": "359143ab15513ac343f1b5430680d710869e46f112624ad723502a894321d15b",
       "schemaFingerprint": "8e88ec7194ac91142e0bd337fabc926edb1de76cab8c77b654d398c699816835"
+    },
+    {
+      "name": "get_active_file",
+      "descriptionFingerprint": "efc8123e819dd4bf5a1dab2d620745540c8950a54221690280096f95978780c8",
+      "schemaFingerprint": "bc8d3bbd1575e18b12a7868dc751ef4e76c3fa03aebe1f87ba28c7e5f79bad60"
     },
     {
       "name": "help",
