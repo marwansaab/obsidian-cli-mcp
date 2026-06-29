@@ -37,23 +37,18 @@ viewsBaseInputSchema = z.object({
 
 ## Handler control flow — `src/tools/views_base/handler.ts`
 
-Branch on `base_path`. The mechanism for the named branch is selected at implement-time by the T0 probe (see [contracts/t0-probe-plan.md](contracts/t0-probe-plan.md)); the control flow and error roster below are arm-independent.
+Branch on `base_path`. **Resolved arm (T007, see [contracts/t0-probe-findings.md](contracts/t0-probe-findings.md)): native focus-first** — P2 confirmed `base:views` ignores `path=`/`vault=` (active-only), so the single-call `path=` arm is eliminated; P3 confirmed focus-then-active is reliable, so the eval fallback is unused. The control flow and error roster below are otherwise arm-independent.
 
 ```
 executeViewsBase(input, deps):
   ── Stage 0 (named branch only) — locator already shape-validated by the schema ──
   if input.base_path is present:
-     ── Stage A: address the named Base ──
-     ARM "native path=" (if T0 P2 passes):
-        cliResult = invokeCli(base:views, parameters:{path:base_path}, vault:input.vault,
-                              target_mode: input.vault ? "specific" : "specific")
-        → upstream resolves the named Base directly
-     ARM "native focus-first" (default; if P2 fails):
+     ── Stage A: address the named Base (RESOLVED: native focus-first) ──
         if input.vault present:
            resolveVaultRootOrRemap(vaultRegistry, vault)   // VAULT_NOT_FOUND/unknown on bad name
-        focus the .base via the proven open mechanism (composeEvalCode + frozen focus template,
-           target_mode "specific"+vault= when vault present, else "active"); a missing named .base
-           surfaces FILE_NOT_FOUND from the focus step (⇒ "named Base not found")
+        focus the .base via the proven open mechanism (composeEvalCode + frozen FOCUS_BASE_TEMPLATE
+           openLinkText, target_mode "specific"+vault= when vault present, else "active"); a missing
+           named .base surfaces eval {ok:false, code:FILE_NOT_FOUND} (⇒ "named Base not found")
         cliResult = invokeCli(base:views, parameters:{}, target_mode:"active")  // reads the just-focused Base
   else:
      ── open-Base mode (unchanged) ──
@@ -67,10 +62,13 @@ executeViewsBase(input, deps):
   (named-path failures NEVER fall back to the open Base — FR-009)
 
   ── Stage C: US1 label-strip (both modes) ──
-  views = cliResult.stdout.split("\n").map(trim).filter(nonEmpty).map(stripTypeLabel)
-      // stripTypeLabel removes ONLY the injected trailing type label (+ its delimiter),
-      // anchored to the known Bases view-type token set (T0 P1); internal/trailing
-      // punctuation that is part of the name is preserved (FR-003).
+  views = cliResult.stdout.split("\n").map(stripCR).filter(nonEmpty).map(stripTypeLabel)
+      // T0 P1: emission is `<name>\t<type>` (TAB delimiter). stripTypeLabel removes ONLY the
+      // trailing `\t<type>` when <type> ∈ {table, cards, list} (the closed set captured live from
+      // the Bases registry). The TAB is unambiguous (names cannot contain it), so internal/trailing
+      // spaces, hyphens, and punctuation that are part of the name are preserved (FR-003).
+      // Lines are NOT trimmed (would drop legitimate trailing name chars); only a trailing CR is
+      // stripped (CRLF artifact) and empty lines (trailing newline) filtered.
 
   ── Stage D: output parse (defence-in-depth) ──
   return viewsBaseOutputSchema.parse({ views, count: views.length })
