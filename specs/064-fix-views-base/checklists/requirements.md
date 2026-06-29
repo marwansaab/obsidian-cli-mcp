@@ -32,4 +32,4 @@
 ## Notes
 
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`.
-- Naming-a-Base identifier resolved to the cohort-consistent vault-relative locator (documented in Assumptions) rather than introducing a bare-name resolution layer; flag for `/speckit-clarify` if the intended identifier differs.
+- `/speckit-clarify` Session 2026-06-29 resolved both open decisions: (1) a named Base is its vault-relative `.base` path (no bare-name resolution layer); (2) "named target is not a Base" folds into the cohort error model (wrong-extension → input validation; broken `.base` → malformed-base) with no new failure type. Spec updated accordingly; no open clarifications remain.
