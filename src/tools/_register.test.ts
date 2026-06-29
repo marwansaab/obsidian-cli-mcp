@@ -566,7 +566,7 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
   },
   views_base: {
     type: "object",
-    properties_equals_set: ["vault"],
+    properties_equals_set: ["vault", "base_path"],
     required_equals: [],
     additionalProperties: false,
   },

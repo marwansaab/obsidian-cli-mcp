@@ -135,7 +135,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     createSmartConnectionsQueryTool({ logger, queue }),
     createSmartConnectionsSimilarTool({ logger, queue }),
     createTagTool({ logger, queue }),
-    createViewsBaseTool({ logger, queue }),
+    createViewsBaseTool({ logger, queue, vaultRegistry }),
     createWriteNoteTool({ logger, queue, vaultRegistry }),
   ];
 

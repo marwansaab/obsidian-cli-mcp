@@ -11,78 +11,76 @@ import { createQueue } from "../../queue.js";
 import { silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 
+import type { VaultRegistry } from "../../vault-registry/registry.js";
+
+const stubRegistry: VaultRegistry = {
+  async resolveVaultPath(name: string) {
+    return `C:/vaults/${name}`;
+  },
+};
+
+function makeTool(stub?: Parameters<typeof makeStubSpawn>[0]) {
+  return createViewsBaseTool({
+    logger: silentLogger(),
+    queue: createQueue(),
+    vaultRegistry: stubRegistry,
+    spawnFn: stub ? makeStubSpawn(stub) : makeStubSpawn(),
+  });
+}
+
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
 
 describe("createViewsBaseTool — descriptor", () => {
   it("publishes name = 'views_base' (ADR-010)", () => {
-    const tool = createViewsBaseTool({
-      logger: silentLogger(),
-      queue: createQueue(),
-      spawnFn: makeStubSpawn(),
-    });
+    const tool = makeTool();
     expect(tool.descriptor.name).toBe(VIEWS_BASE_TOOL_NAME);
     expect(tool.descriptor.name).toBe("views_base");
   });
 
   it("description length >= 400 chars", () => {
-    const tool = createViewsBaseTool({
-      logger: silentLogger(),
-      queue: createQueue(),
-      spawnFn: makeStubSpawn(),
-    });
+    const tool = makeTool();
     expect(tool.descriptor.description.length).toBeGreaterThanOrEqual(400);
   });
 
   it("description matches exported constant", () => {
-    const tool = createViewsBaseTool({
-      logger: silentLogger(),
-      queue: createQueue(),
-      spawnFn: makeStubSpawn(),
-    });
+    const tool = makeTool();
     expect(tool.descriptor.description).toBe(VIEWS_BASE_DESCRIPTION);
   });
 
-  it("description contains 'active' limitation text", () => {
-    const tool = createViewsBaseTool({
-      logger: silentLogger(),
-      queue: createQueue(),
-      spawnFn: makeStubSpawn(),
-    });
-    expect(tool.descriptor.description).toContain("active");
-    expect(tool.descriptor.description).toContain("Active-mode-only");
+  it("description surfaces base_path / named-Base and drops the old active-mode-only claim", () => {
+    const tool = makeTool();
+    const desc = tool.descriptor.description;
+    expect(desc).toContain("base_path");
+    expect(desc).toContain("Named Base");
+    expect(desc).not.toContain("Active-mode-only");
+  });
+
+  it("description documents the new error roster (clean names + reasons)", () => {
+    const desc = makeTool().descriptor.description;
+    expect(desc).toContain("INVALID_BASE_PATH");
+    expect(desc).toContain("named-missing");
+    expect(desc).toContain("not-open");
+    expect(desc).toContain("VAULT_NOT_FOUND");
   });
 
   it("emits inputSchema with additionalProperties:false", () => {
-    const tool = createViewsBaseTool({
-      logger: silentLogger(),
-      queue: createQueue(),
-      spawnFn: makeStubSpawn(),
-    });
+    const tool = makeTool();
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
     expect(schema.type).toBe("object");
     expect(schema.additionalProperties).toBe(false);
   });
 
   it("description carries Bases-family cohort cross-pointer", () => {
-    const tool = createViewsBaseTool({
-      logger: silentLogger(),
-      queue: createQueue(),
-      spawnFn: makeStubSpawn(),
-    });
-    const desc = tool.descriptor.description;
+    const desc = makeTool().descriptor.description;
     expect(desc).toContain("bases");
     expect(desc).toContain("query_base");
     expect(desc).toContain("create_base");
   });
 
-  it("deps wired through: handler receives stubbed CLI and produces typed response", async () => {
-    const stdout = "All\nActive\n";
-    const tool = createViewsBaseTool({
-      logger: silentLogger(),
-      queue: createQueue(),
-      spawnFn: makeStubSpawn({ stdout }),
-    });
+  it("deps wired through: handler strips the type label and produces a typed response", async () => {
+    const stdout = "All\ttable\nActive\ttable\n";
+    const tool = makeTool({ stdout });
 
     const result = await tool.handler({});
     if ("isError" in result) throw new Error("unexpected error");

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "063-report-focused-file",
+  "generatedFromBranch": "064-fix-views-base",
   "generatedAt": "2026-06-29",
   "tools": [
     {
@@ -165,8 +165,8 @@
     },
     {
       "name": "views_base",
-      "descriptionFingerprint": "64c32d23248509f167a424772df65f732ed8fb33328592a0ee909bf0899f2bb4",
-      "schemaFingerprint": "79e583472908968d597de5e645af878488e670de8ba017f1312454ded95f1f70"
+      "descriptionFingerprint": "b23fb523e5fbc9cb5bd2f9e33d3c9ba56900d4b20ccfa9786143c4b6380afe6e",
+      "schemaFingerprint": "b7faa60c51d766c393b621815670070af23315c913203d5f89d2b02775c01a05"
     },
     {
       "name": "write_note",
