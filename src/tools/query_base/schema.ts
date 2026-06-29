@@ -1,9 +1,8 @@
 // Original — no upstream. query_base input/output/wire-envelope schemas — boundary validation per Constitution Principle III; strict mode rejects unknown top-level keys; refinements attach `params: { code, reason, field, value_length? }` to each custom issue per ADR-015 sub-discrimination convention (callers programmatically branch on `issue.params.code`); shared with handler via `z.infer`; no parallel TypeScript interfaces.
 import { z } from "zod";
 
-import { isStructurallySafePath } from "../../path-safety/schema.js";
+import { appendBasePathIssues, BASE_PATH_MAX } from "../_base-path.js";
 
-const BASE_PATH_MAX = 1000;
 const VIEW_NAME_MAX = 1000;
 const RESPONSE_ROW_CAP = 1000;
 
@@ -21,60 +20,7 @@ export const queryBaseInputSchema = z
   })
   .strict()
   .superRefine((v, ctx) => {
-    if (typeof v.base_path === "string") {
-      const value_length = v.base_path.length;
-      if (value_length === 0) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["base_path"],
-          message: "INVALID_BASE_PATH/empty: base_path is empty",
-          params: {
-            code: "INVALID_BASE_PATH",
-            reason: "empty",
-            field: "base_path",
-            value_length,
-          },
-        });
-      } else if (value_length > BASE_PATH_MAX) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["base_path"],
-          message: `INVALID_BASE_PATH/too-long: base_path exceeds ${BASE_PATH_MAX} UTF-16 code units`,
-          params: {
-            code: "INVALID_BASE_PATH",
-            reason: "too-long",
-            field: "base_path",
-            value_length,
-          },
-        });
-      } else {
-        if (!isStructurallySafePath(v.base_path)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["base_path"],
-            message: "INVALID_BASE_PATH/path-traversal: base_path contains path-traversal shapes",
-            params: {
-              code: "INVALID_BASE_PATH",
-              reason: "path-traversal",
-              field: "base_path",
-              value: v.base_path,
-            },
-          });
-        } else if (!/\.base$/i.test(v.base_path)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["base_path"],
-            message: "INVALID_BASE_PATH/wrong-extension: base_path must end with .base",
-            params: {
-              code: "INVALID_BASE_PATH",
-              reason: "wrong-extension",
-              field: "base_path",
-              value: v.base_path,
-            },
-          });
-        }
-      }
-    }
+    if (typeof v.base_path === "string") appendBasePathIssues(ctx, v.base_path, "base_path");
 
     if (typeof v.view_name === "string") {
       const value_length = v.view_name.length;

@@ -21,3 +21,13 @@ export class UpstreamError extends Error {
     this.details = args.details;
   }
 }
+
+/**
+ * Read a string-valued field from an {@link UpstreamError}'s `details` bag, defaulting to `""`
+ * when the key is absent or non-string. Handlers use it to pull `stdout` / `stderr` off a
+ * `CLI_REPORTED_ERROR` for upstream-marker classification without re-inlining the
+ * `typeof … === "string"` guard at every site.
+ */
+export function stringDetail(details: Record<string, unknown>, key: string): string {
+  return typeof details[key] === "string" ? (details[key] as string) : "";
+}

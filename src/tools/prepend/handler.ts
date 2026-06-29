@@ -2,7 +2,7 @@
 import * as nodeFs from "node:fs/promises";
 
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
-import { UpstreamError } from "../../errors.js";
+import { UpstreamError, stringDetail } from "../../errors.js";
 import {
   assertCanonicalPath,
   resolveActiveLocatorWithVault,
@@ -79,8 +79,8 @@ function classifyUpstreamFailure(
 ): never {
   if (!(err instanceof UpstreamError)) throw err as Error;
   const details = err.details as Record<string, unknown>;
-  const stdout = typeof details.stdout === "string" ? details.stdout : "";
-  const stderr = typeof details.stderr === "string" ? details.stderr : "";
+  const stdout = stringDetail(details, "stdout");
+  const stderr = stringDetail(details, "stderr");
   const message = typeof details.message === "string" ? details.message : err.message ?? "";
   const haystack = `${stdout}\n${stderr}\n${message}`;
 

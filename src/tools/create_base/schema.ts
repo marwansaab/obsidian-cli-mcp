@@ -1,9 +1,8 @@
 // Original — no upstream.
 import { z } from "zod";
 
-import { isStructurallySafePath } from "../../path-safety/schema.js";
+import { appendBasePathIssues } from "../_base-path.js";
 
-const BASE_PATH_MAX = 1000;
 const NAME_MAX = 1000;
 export const MAX_CONTENT_LENGTH = 3072;
 
@@ -23,60 +22,7 @@ export const createBaseInputSchema = z
   })
   .strict()
   .superRefine((v, ctx) => {
-    if (typeof v.path === "string") {
-      const value_length = v.path.length;
-      if (value_length === 0) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["path"],
-          message: "INVALID_BASE_PATH/empty: path is empty",
-          params: {
-            code: "INVALID_BASE_PATH",
-            reason: "empty",
-            field: "path",
-            value_length,
-          },
-        });
-      } else if (value_length > BASE_PATH_MAX) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["path"],
-          message: `INVALID_BASE_PATH/too-long: path exceeds ${BASE_PATH_MAX} UTF-16 code units`,
-          params: {
-            code: "INVALID_BASE_PATH",
-            reason: "too-long",
-            field: "path",
-            value_length,
-          },
-        });
-      } else {
-        if (!isStructurallySafePath(v.path)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["path"],
-            message: "INVALID_BASE_PATH/path-traversal: path contains path-traversal shapes",
-            params: {
-              code: "INVALID_BASE_PATH",
-              reason: "path-traversal",
-              field: "path",
-              value: v.path,
-            },
-          });
-        } else if (!/\.base$/i.test(v.path)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["path"],
-            message: "INVALID_BASE_PATH/wrong-extension: path must end with .base",
-            params: {
-              code: "INVALID_BASE_PATH",
-              reason: "wrong-extension",
-              field: "path",
-              value: v.path,
-            },
-          });
-        }
-      }
-    }
+    if (typeof v.path === "string") appendBasePathIssues(ctx, v.path, "path");
 
     if (typeof v.name === "string") {
       const value_length = v.name.length;

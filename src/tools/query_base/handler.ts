@@ -11,7 +11,7 @@ import {
   type QueryBaseWire,
 } from "./schema.js";
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
-import { UpstreamError } from "../../errors.js";
+import { UpstreamError, stringDetail } from "../../errors.js";
 import {
   assertCanonicalPath,
   FOCUSED_VAULT_TEMPLATE,
@@ -400,10 +400,8 @@ export async function executeQueryBase(
     // shapes (CLI_NON_ZERO_EXIT, CLI_BINARY_NOT_FOUND, CLI_TIMEOUT, the
     // ERR_NO_ACTIVE_FILE typed surface) propagate unchanged.
     if (err instanceof UpstreamError && err.code === "CLI_REPORTED_ERROR") {
-      const dispatchStdout =
-        typeof err.details["stdout"] === "string" ? (err.details["stdout"] as string) : "";
-      const dispatchStderr =
-        typeof err.details["stderr"] === "string" ? (err.details["stderr"] as string) : "";
+      const dispatchStdout = stringDetail(err.details, "stdout");
+      const dispatchStderr = stringDetail(err.details, "stderr");
       classifyAndThrow(dispatchStdout, dispatchStderr, input, err);
     }
     throw err;
