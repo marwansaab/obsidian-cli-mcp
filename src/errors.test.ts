@@ -1,7 +1,7 @@
 // Original — no upstream. Tests for the project-wide UpstreamError class (FR-018, Principle IV).
 import { test, expect } from "vitest";
 
-import { UpstreamError } from "./errors.js";
+import { UpstreamError, stringDetail } from "./errors.js";
 
 test("UpstreamError extends Error", () => {
   const e = new UpstreamError({ code: "X", cause: null, details: {} });
@@ -38,4 +38,15 @@ test("UpstreamError details are JSON-serializable", () => {
   const json = JSON.stringify(e.details);
   const parsed = JSON.parse(json);
   expect(parsed).toEqual(e.details);
+});
+
+test("stringDetail returns a present string field verbatim", () => {
+  expect(stringDetail({ stdout: "out", stderr: "" }, "stdout")).toBe("out");
+  expect(stringDetail({ stdout: "out", stderr: "" }, "stderr")).toBe("");
+});
+
+test("stringDetail defaults to empty string for absent or non-string fields", () => {
+  expect(stringDetail({}, "stdout")).toBe("");
+  expect(stringDetail({ stdout: 42 }, "stdout")).toBe("");
+  expect(stringDetail({ stdout: null }, "stdout")).toBe("");
 });

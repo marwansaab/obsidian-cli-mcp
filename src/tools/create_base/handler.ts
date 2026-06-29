@@ -7,7 +7,7 @@ import {
   type CreateBaseOutput,
 } from "./schema.js";
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
-import { UpstreamError } from "../../errors.js";
+import { UpstreamError, stringDetail } from "../../errors.js";
 
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
@@ -51,14 +51,8 @@ export async function executeCreateBase(
     );
   } catch (err) {
     if (err instanceof UpstreamError && err.code === "CLI_REPORTED_ERROR") {
-      const stdout =
-        typeof err.details["stdout"] === "string"
-          ? (err.details["stdout"] as string)
-          : "";
-      const stderr =
-        typeof err.details["stderr"] === "string"
-          ? (err.details["stderr"] as string)
-          : "";
+      const stdout = stringDetail(err.details, "stdout");
+      const stderr = stringDetail(err.details, "stderr");
       const combined = `${stdout}\n${stderr}`;
       if (BASE_NOT_FOUND_PATTERN.test(combined)) {
         throw new UpstreamError({

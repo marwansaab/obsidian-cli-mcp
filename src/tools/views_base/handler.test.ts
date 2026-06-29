@@ -1,62 +1,18 @@
 // Original — no upstream.
-import { type SpawnOptions } from "node:child_process";
-import { EventEmitter } from "node:events";
-import { Readable } from "node:stream";
-
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { executeViewsBase, type ExecuteDeps } from "./handler.js";
-import {
-  __resetInFlightRegistryForTests,
-  type SpawnLike,
-} from "../../cli-adapter/_dispatch.js";
+import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import {
+  makeQueuedSpawn,
+  silentLogger,
+  type SpawnRecording,
+  type StubResponse,
+} from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
-
-interface StubResponse {
-  stdout?: string;
-  stderr?: string;
-  exitCode?: number | null;
-  signal?: NodeJS.Signals | null;
-}
-
-// Records the argv of every spawn so tests can assert the command SEQUENCE
-// (focus eval → base:views) and prove read-only / no-silent-substitution.
-function makeSpawn(responses: StubResponse[]): {
-  spawnFn: SpawnLike;
-  calls: string[][];
-} {
-  const calls: string[][] = [];
-  let idx = 0;
-  const spawnFn: SpawnLike = (_binary, argv, _options: SpawnOptions) => {
-    calls.push([...(argv as string[])]);
-    const spec = responses[idx++] ?? {};
-    const child = new EventEmitter() as EventEmitter & {
-      stdout: Readable;
-      stderr: Readable;
-      kill: (signal?: NodeJS.Signals) => boolean;
-      pid?: number;
-    };
-    child.stdout = new Readable({ read() {} });
-    child.stderr = new Readable({ read() {} });
-    child.pid = 7777;
-    child.kill = () => true;
-    setImmediate(() => {
-      if (spec.stdout) child.stdout.push(Buffer.from(spec.stdout, "utf8"));
-      child.stdout.push(null);
-      if (spec.stderr) child.stderr.push(Buffer.from(spec.stderr, "utf8"));
-      child.stderr.push(null);
-      setImmediate(() => {
-        child.emit("exit", spec.exitCode ?? 0, spec.signal ?? null);
-      });
-    });
-    return child as unknown as ReturnType<SpawnLike>;
-  };
-  return { spawnFn, calls };
-}
 
 // Stub registry: known vault names resolve to a fake path; unknown throws the
 // registry's VALIDATION_ERROR (which resolveVaultRootOrRemap remaps to
@@ -80,9 +36,9 @@ function makeVaultRegistry(known: Record<string, string> = { Work: "C:/vaults/Wo
 
 function makeDeps(responses: StubResponse[], vaultRegistry?: VaultRegistry): {
   deps: ExecuteDeps;
-  calls: string[][];
+  recorded: SpawnRecording[];
 } {
-  const { spawnFn, calls } = makeSpawn(responses);
+  const { spawnFn, recorded } = makeQueuedSpawn(responses);
   return {
     deps: {
       logger: silentLogger(),
@@ -90,7 +46,7 @@ function makeDeps(responses: StubResponse[], vaultRegistry?: VaultRegistry): {
       vaultRegistry: vaultRegistry ?? makeVaultRegistry(),
       spawnFn,
     },
-    calls,
+    recorded,
   };
 }
 
@@ -99,8 +55,8 @@ function makeDeps(responses: StubResponse[], vaultRegistry?: VaultRegistry): {
 function commandOf(argv: string[]): string | undefined {
   return argv.find((a) => !a.includes("="));
 }
-function commandsOf(calls: string[][]): Array<string | undefined> {
-  return calls.map(commandOf);
+function commandsOf(recorded: SpawnRecording[]): Array<string | undefined> {
+  return recorded.map((r) => commandOf(r.argv));
 }
 
 function evalOk(openedPath: string): StubResponse {
@@ -175,7 +131,7 @@ test("US1: zero views returns count=0", async () => {
 // ─────────────────────── US2 — named Base (focus-then-active) ──────────────────
 
 test("US2 named happy: focus eval → active base:views, in that order, names-only output", async () => {
-  const { deps, calls } = makeDeps([
+  const { deps, recorded } = makeDeps([
     evalOk("Tasks.base"),
     { stdout: "All\ttable\nBy Status\ttable\n" },
   ]);
@@ -184,13 +140,13 @@ test("US2 named happy: focus eval → active base:views, in that order, names-on
 
   expect(result).toEqual({ views: ["All", "By Status"], count: 2 });
   // Sequence: focus eval first, then base:views.
-  expect(commandsOf(calls)).toEqual(["eval", "base:views"]);
+  expect(commandsOf(recorded)).toEqual(["eval", "base:views"]);
   // Read-only (FR-011): only eval + base:views were ever issued — no mutating command.
-  expect(commandsOf(calls).every((c) => c === "eval" || c === "base:views")).toBe(true);
+  expect(commandsOf(recorded).every((c) => c === "eval" || c === "base:views")).toBe(true);
 });
 
 test("US2 named + vault: registry resolved, eval routed cross-vault with vault=, then base:views", async () => {
-  const { deps, calls } = makeDeps(
+  const { deps, recorded } = makeDeps(
     [evalOk("Tasks.base"), { stdout: "All\ttable\n" }],
     makeVaultRegistry({ Other: "C:/vaults/Other" }),
   );
@@ -198,18 +154,18 @@ test("US2 named + vault: registry resolved, eval routed cross-vault with vault=,
   const result = await executeViewsBase({ base_path: "Tasks.base", vault: "Other" }, deps);
 
   expect(result).toEqual({ views: ["All"], count: 1 });
-  expect(commandsOf(calls)).toEqual(["eval", "base:views"]);
+  expect(commandsOf(recorded)).toEqual(["eval", "base:views"]);
   // The focus eval carried vault= for cross-vault routing (specific mode).
-  expect(calls[0]!.some((a) => a === "vault=Other")).toBe(true);
+  expect(recorded[0]!.argv.some((a) => a === "vault=Other")).toBe(true);
 });
 
 test("US2 open-Base regression: no base_path → a single active base:views, no eval", async () => {
-  const { deps, calls } = makeDeps([{ stdout: "All\ttable\n" }]);
+  const { deps, recorded } = makeDeps([{ stdout: "All\ttable\n" }]);
 
   const result = await executeViewsBase({}, deps);
 
   expect(result).toEqual({ views: ["All"], count: 1 });
-  expect(commandsOf(calls)).toEqual(["base:views"]);
+  expect(commandsOf(recorded)).toEqual(["base:views"]);
 });
 
 test("US2: vault without base_path is an inherited no-op (open mode), registry not consulted", async () => {
@@ -220,19 +176,19 @@ test("US2: vault without base_path is an inherited no-op (open mode), registry n
       return `C:/vaults/${name}`;
     },
   };
-  const { deps, calls } = makeDeps([{ stdout: "All\ttable\n" }], registry);
+  const { deps, recorded } = makeDeps([{ stdout: "All\ttable\n" }], registry);
 
   const result = await executeViewsBase({ vault: "MyVault" }, deps);
 
   expect(result).toEqual({ views: ["All"], count: 1 });
   expect(consulted).toBe(false);
-  expect(commandsOf(calls)).toEqual(["base:views"]);
+  expect(commandsOf(recorded)).toEqual(["base:views"]);
 });
 
 // ───────────────────────── US3 — distinguishable failures ──────────────────────
 
 test("US3 named-not-found: focus FILE_NOT_FOUND → BASE_NOT_FOUND/named-missing, no base:views", async () => {
-  const { deps, calls } = makeDeps([evalMissing]);
+  const { deps, recorded } = makeDeps([evalMissing]);
 
   try {
     await executeViewsBase({ base_path: "Nope/Missing.base" }, deps);
@@ -246,7 +202,7 @@ test("US3 named-not-found: focus FILE_NOT_FOUND → BASE_NOT_FOUND/named-missing
     expect(ue.details.base_path).toBe("Nope/Missing.base");
   }
   // No silent substitution (SC-006): base:views was NEVER reached.
-  expect(commandsOf(calls)).toEqual(["eval"]);
+  expect(commandsOf(recorded)).toEqual(["eval"]);
 });
 
 test("US3 no-base-open: open-mode 'not a base file' → BASE_NOT_FOUND/not-open (dispatch-catch)", async () => {
@@ -335,7 +291,7 @@ test("US3 malformed: post-focus 'not a base file' on a named Base → BASE_MALFO
 });
 
 test("US3 bad vault: unknown vault → VAULT_NOT_FOUND/unknown BEFORE any focus/list (no substitution)", async () => {
-  const { deps, calls } = makeDeps([], makeVaultRegistry({ Work: "C:/vaults/Work" }));
+  const { deps, recorded } = makeDeps([], makeVaultRegistry({ Work: "C:/vaults/Work" }));
 
   try {
     await executeViewsBase({ base_path: "Tasks.base", vault: "NoSuchVault" }, deps);
@@ -348,7 +304,7 @@ test("US3 bad vault: unknown vault → VAULT_NOT_FOUND/unknown BEFORE any focus/
     expect(ue.details.vault).toBe("NoSuchVault");
   }
   // Failed before spawning anything — the open Base was never read.
-  expect(calls.length).toBe(0);
+  expect(recorded.length).toBe(0);
 });
 
 test("US3 upstream CLI failure surfaces as UpstreamError (open mode)", async () => {

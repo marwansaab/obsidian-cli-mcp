@@ -17,7 +17,7 @@ import {
   type ViewsBaseOutput,
 } from "./schema.js";
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
-import { UpstreamError } from "../../errors.js";
+import { UpstreamError, stringDetail } from "../../errors.js";
 import { decodeEvalEnvelope, resolveVaultRootOrRemap } from "../_active-file.js";
 import { composeEvalCode } from "../_shared.js";
 
@@ -80,10 +80,6 @@ function parseViews(stdout: string): string[] {
 
 function adapterDeps(deps: ExecuteDeps) {
   return { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue };
-}
-
-function stringDetail(details: Record<string, unknown>, key: string): string {
-  return typeof details[key] === "string" ? (details[key] as string) : "";
 }
 
 /**
