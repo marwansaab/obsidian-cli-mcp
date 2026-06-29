@@ -31,6 +31,8 @@ Refinement (inherited, `target-mode.ts`):
 
 All of the above surface as `VALIDATION_ERROR` (FR-014) at the boundary before any eval.
 
+**Published-schema note (I1)**: because `targetModeBaseSchema` declares `file`/`path` as optional, the emitted MCP `inputSchema` lists them even though the refinement always rejects them — identical to the shipped `files`/`paths` tools. This published-but-rejected shape is the accepted cohort convention (cohort parity over a bespoke `{ target_mode, vault? }` schema); spec FR-009 states it honestly.
+
 ## Output schema (`schema.ts`)
 
 ```ts
@@ -113,4 +115,4 @@ No-active-file is **not** in this table — it is `{ active: null }` success (D3
 
 - `createGetActiveFileTool({ logger, queue, vaultRegistry })` added to the `server.ts` registration array (the sanctioned boot-spine extension point).
 - `_register-baseline.json` gains a `get_active_file` entry (regenerated description+schema fingerprints) — the FR-018 registry-stability baseline; updating it is the reviewed path for adding a tool.
-- `docs/tools/get_active_file.md` supplies `help({ tool_name: "get_active_file" })` content.
+- `docs/tools/get_active_file.md` supplies `help({ tool_name: "get_active_file" })` content. **Required at boot (O1)**: `createServer` calls `assertToolDocsExist`, which throws at startup if any registered tool lacks `docs/tools/<name>.md`; `server.test.ts` also asserts every registered tool has a corresponding doc. So the doc must exist with real content in the same change as registration — not deferrable to a later phase. Add a `**get_active_file**` row to `docs/tools/index.md` for catalogue discoverability.
