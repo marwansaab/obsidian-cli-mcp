@@ -30,6 +30,15 @@ describe("createFindAndReplaceTool — descriptor", () => {
     expect(tool.descriptor.description.length).toBeGreaterThan(300);
   });
 
+  it("description advertises the single-note scope (path / file / active_note)", () => {
+    expect(FIND_AND_REPLACE_DESCRIPTION).toContain("active_note");
+    expect(FIND_AND_REPLACE_DESCRIPTION).toContain("SCOPE_CONFLICT");
+    expect(FIND_AND_REPLACE_DESCRIPTION).toContain("single-note");
+    // The contradictory pre-feature warning is gone.
+    expect(FIND_AND_REPLACE_DESCRIPTION).not.toContain("no single-file mode");
+    expect(FIND_AND_REPLACE_DESCRIPTION).not.toContain("There is NO single-file scoping option");
+  });
+
   it("inputSchema has additionalProperties:false and the expected property set + required keys", () => {
     const tool = createFindAndReplaceTool({
       logger: silentLogger(),
@@ -41,11 +50,14 @@ describe("createFindAndReplaceTool — descriptor", () => {
     expect(schema.additionalProperties).toBe(false);
     const props = schema.properties as Record<string, unknown>;
     expect(Object.keys(props).sort()).toEqual([
+      "active_note",
       "case_insensitive",
       "commit",
+      "file",
       "include_code_blocks",
       "include_html_comments",
       "mode",
+      "path",
       "pattern",
       "replacement",
       "subfolder",
@@ -176,6 +188,71 @@ describe("createFindAndReplaceTool — wrapped handler error mapping", () => {
       // the generic envelope from INVALID_PATTERN / INVALID_REPLACEMENT / INVALID_SUBFOLDER).
       expect(payload.details.code).toBeUndefined();
       expect(payload.details.reason).toBeUndefined();
+    }
+  });
+
+  it("[[…]] file form → generic VALIDATION_ERROR (standard channel, no details.code) (066-file-scope)", async () => {
+    const tool = createFindAndReplaceTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      vaultRegistry: fakeRegistry(),
+    });
+    const result = await tool.handler({
+      pattern: "x",
+      replacement: "y",
+      file: "[[Alpha]]",
+    });
+    expect("isError" in result && result.isError).toBe(true);
+    if ("isError" in result && result.isError) {
+      const payload = JSON.parse(result.content[0]!.text);
+      expect(payload.code).toBe("VALIDATION_ERROR");
+      // Standard channel — no sub-discriminator, but the raw issue is carried.
+      expect(payload.details.code).toBeUndefined();
+      expect(payload.details.reason).toBeUndefined();
+      expect(
+        payload.details.issues.some((i: { message: string }) => i.message.includes("[[")),
+      ).toBe(true);
+    }
+  });
+
+  it.each([
+    ["file", "../escape.md"],
+    ["path", "../escape.md"],
+  ])("structurally-unsafe %s → INVALID_NOTE + path-traversal (066-file-scope)", async (field, value) => {
+    const tool = createFindAndReplaceTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      vaultRegistry: fakeRegistry(),
+    });
+    const result = await tool.handler({ pattern: "x", replacement: "y", [field]: value });
+    expect("isError" in result && result.isError).toBe(true);
+    if ("isError" in result && result.isError) {
+      const payload = JSON.parse(result.content[0]!.text);
+      expect(payload.code).toBe("VALIDATION_ERROR");
+      expect(payload.details.code).toBe("INVALID_NOTE");
+      expect(payload.details.reason).toBe("path-traversal");
+    }
+  });
+
+  it.each([
+    [{ file: "A", path: "A.md" }, "file+path"],
+    [{ path: "A.md", subfolder: "Drafts" }, "note+folder"],
+    [{ active_note: true, file: "A" }, "active+note"],
+    [{ active_note: true, subfolder: "Drafts" }, "active+folder"],
+    [{ active_note: true, vault: "Work" }, "active+vault"],
+  ])("SCOPE_CONFLICT mapping for %o → reason %s (066-file-scope, T018)", async (input, reason) => {
+    const tool = createFindAndReplaceTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      vaultRegistry: fakeRegistry(),
+    });
+    const result = await tool.handler({ pattern: "x", replacement: "y", ...input });
+    expect("isError" in result && result.isError).toBe(true);
+    if ("isError" in result && result.isError) {
+      const payload = JSON.parse(result.content[0]!.text);
+      expect(payload.code).toBe("VALIDATION_ERROR");
+      expect(payload.details.code).toBe("SCOPE_CONFLICT");
+      expect(payload.details.reason).toBe(reason);
     }
   });
 

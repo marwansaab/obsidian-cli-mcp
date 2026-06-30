@@ -125,6 +125,7 @@ const baseDeps = () => ({
       include_code_blocks: false,
       include_html_comments: false,
       commit: false,
+      active_note: false,
     };
     const preview = await executeFindAndReplace(request1, baseDeps());
     expect(preview.mode).toBe("preview");
@@ -191,6 +192,7 @@ const baseDeps = () => ({
       include_code_blocks: false,
       include_html_comments: false,
       commit: false,
+      active_note: false,
     };
     const r = await executeFindAndReplace(request, baseDeps());
     const inv = [
@@ -233,6 +235,7 @@ const baseDeps = () => ({
       include_code_blocks: true,
       include_html_comments: false,
       commit: false,
+      active_note: false,
     };
     const r = await executeFindAndReplace(request, baseDeps());
     const inv = [
@@ -266,6 +269,7 @@ const baseDeps = () => ({
       include_code_blocks: false,
       include_html_comments: false,
       commit: false,
+      active_note: false,
     };
     const r = await executeFindAndReplace(request, baseDeps());
     const inv = [
@@ -298,6 +302,7 @@ const baseDeps = () => ({
       include_code_blocks: false,
       include_html_comments: false,
       commit: false,
+      active_note: false,
     };
     const deps = {
       logger: silentLogger(),
@@ -349,6 +354,7 @@ const baseDeps = () => ({
       include_code_blocks: false,
       include_html_comments: false,
       commit: true,
+      active_note: false,
     };
     // Inject a between-scans race by overriding readFile so the second invocation
     // returns extra occurrences. We can't realistically race the disk so we shim.

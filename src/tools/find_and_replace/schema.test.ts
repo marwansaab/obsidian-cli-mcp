@@ -167,6 +167,172 @@ describe("findAndReplaceInputSchema — strict object", () => {
   });
 });
 
+// =============================================================================
+// 066-file-scope — single-note locator fields (T010)
+// =============================================================================
+
+describe("findAndReplaceInputSchema — single-note locator fields (066-file-scope)", () => {
+  it("accepts a vault-relative path locator (happy)", () => {
+    const parsed = findAndReplaceInputSchema.parse({
+      pattern: "foo",
+      replacement: "bar",
+      path: "Projects/Alpha.md",
+    });
+    expect(parsed.path).toBe("Projects/Alpha.md");
+    expect(parsed.active_note).toBe(false); // default
+  });
+
+  it("accepts a bare file-name locator (happy)", () => {
+    const parsed = findAndReplaceInputSchema.parse({
+      pattern: "foo",
+      replacement: "bar",
+      file: "Alpha",
+    });
+    expect(parsed.file).toBe("Alpha");
+  });
+
+  it("accepts active_note: true (happy)", () => {
+    const parsed = findAndReplaceInputSchema.parse({
+      pattern: "foo",
+      replacement: "bar",
+      active_note: true,
+    });
+    expect(parsed.active_note).toBe(true);
+  });
+
+  it("active_note defaults to false when omitted", () => {
+    const parsed = findAndReplaceInputSchema.parse({
+      pattern: "foo",
+      replacement: "bar",
+    });
+    expect(parsed.active_note).toBe(false);
+  });
+
+  it("an unscoped input (no new fields) still parses unchanged — byte-stable (FR-014)", () => {
+    const parsed = findAndReplaceInputSchema.parse({
+      pattern: "foo",
+      replacement: "bar",
+      subfolder: "Decisions",
+    });
+    expect(parsed.file).toBeUndefined();
+    expect(parsed.path).toBeUndefined();
+    expect(parsed.active_note).toBe(false);
+    expect(parsed.subfolder).toBe("Decisions");
+  });
+
+  it("rejects the [[…]] bracket form on file (standard channel — no subCode)", () => {
+    const result = findAndReplaceInputSchema.safeParse({
+      pattern: "foo",
+      replacement: "bar",
+      file: "[[Alpha]]",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path[0] === "file");
+      expect(issue).toBeDefined();
+      expect(issue!.code).toBe("custom");
+      expect(issue!.message).toContain("[[");
+      // The wikilink reject carries NO subCode/subReason — it rides the standard channel.
+      const params = (issue as { params?: { subCode?: string; subReason?: string } }).params;
+      expect(params?.subCode).toBeUndefined();
+      expect(params?.subReason).toBeUndefined();
+    }
+  });
+
+  it.each([
+    ["../escape.md"],
+    ["/abs/path.md"],
+    ["C:\\drive.md"],
+    ["with\x00null.md"],
+  ])("rejects structurally-unsafe file %j with subReason=path-traversal", (file: string) => {
+    const result = findAndReplaceInputSchema.safeParse({
+      pattern: "foo",
+      replacement: "bar",
+      file,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path[0] === "file");
+      expect(issue).toBeDefined();
+      const params = (issue as { params?: { subCode?: string; subReason?: string } }).params;
+      expect(params?.subCode).toBe("INVALID_NOTE");
+      expect(params?.subReason).toBe("path-traversal");
+    }
+  });
+
+  it.each([
+    ["../escape.md"],
+    ["/abs/path.md"],
+    ["C:\\drive.md"],
+  ])("rejects structurally-unsafe path %j with subReason=path-traversal", (path: string) => {
+    const result = findAndReplaceInputSchema.safeParse({
+      pattern: "foo",
+      replacement: "bar",
+      path,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path[0] === "path");
+      expect(issue).toBeDefined();
+      const params = (issue as { params?: { subCode?: string; subReason?: string } }).params;
+      expect(params?.subCode).toBe("INVALID_NOTE");
+      expect(params?.subReason).toBe("path-traversal");
+    }
+  });
+});
+
+// =============================================================================
+// 066-file-scope — scope mutual-exclusivity matrix (T017, schema boundary)
+// =============================================================================
+
+describe("findAndReplaceInputSchema — scope mutual-exclusivity (SCOPE_CONFLICT)", () => {
+  function scopeConflictReason(input: Record<string, unknown>): string | undefined {
+    const result = findAndReplaceInputSchema.safeParse({
+      pattern: "x",
+      replacement: "y",
+      ...input,
+    });
+    if (result.success) return undefined;
+    const issue = result.error.issues.find((i) => {
+      const params = (i as { params?: { subCode?: string } }).params;
+      return params?.subCode === "SCOPE_CONFLICT";
+    });
+    return (issue as { params?: { subReason?: string } } | undefined)?.params?.subReason;
+  }
+
+  it.each([
+    [{ file: "A", path: "A.md" }, "file+path"],
+    [{ path: "A.md", subfolder: "Drafts" }, "note+folder"],
+    [{ file: "A", subfolder: "Drafts" }, "note+folder"],
+    [{ active_note: true, file: "A" }, "active+note"],
+    [{ active_note: true, path: "A.md" }, "active+note"],
+    [{ active_note: true, subfolder: "Drafts" }, "active+folder"],
+    [{ active_note: true, vault: "Work" }, "active+vault"],
+  ])("rejects %o with SCOPE_CONFLICT/%s before any read", (input, reason) => {
+    expect(scopeConflictReason(input)).toBe(reason);
+  });
+
+  it("permits a named path + explicit vault (vault selects the note's vault)", () => {
+    const result = findAndReplaceInputSchema.safeParse({
+      pattern: "x",
+      replacement: "y",
+      path: "Projects/Alpha.md",
+      vault: "Work",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("permits a named file + explicit vault", () => {
+    const result = findAndReplaceInputSchema.safeParse({
+      pattern: "x",
+      replacement: "y",
+      file: "Alpha",
+      vault: "Work",
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
 describe("findAndReplaceOutputSchema — preview branch", () => {
   it("accepts a well-formed preview branch", () => {
     const out = findAndReplaceOutputSchema.parse({

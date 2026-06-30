@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "064-fix-views-base",
-  "generatedAt": "2026-06-29",
+  "generatedFromBranch": "066-file-scope",
+  "generatedAt": "2026-06-30",
   "tools": [
     {
       "name": "append_note",
@@ -40,8 +40,8 @@
     },
     {
       "name": "find_and_replace",
-      "descriptionFingerprint": "e9b910d4ef684ac9a004b340888c4ed43b85a2fe2dd0d4bffc6df777b22313bf",
-      "schemaFingerprint": "e8b5f4c94cfd2d91207f2b0774a070ada0999cc878f8f99a4ec84448ab4b6895"
+      "descriptionFingerprint": "e6edbde94ac7a1c450c78984f022ddbf9594b75bf2c9a9e2c0cce485216b5ebd",
+      "schemaFingerprint": "f3b14b318ef91fcadd32ab0ed65bd3ca8b2706e2a691fe23289fb6a8e77d41bd"
     },
     {
       "name": "find_by_property",

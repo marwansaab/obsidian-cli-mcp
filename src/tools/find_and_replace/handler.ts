@@ -24,6 +24,9 @@ import {
   assertCanonicalPath,
   FOCUSED_VAULT_TEMPLATE,
   parseFocusedVault,
+  resolveActiveFocusedFile,
+  resolveFileByTsv,
+  resolveVaultDisplayName,
   resolveVaultRootOrRemap,
 } from "../_active-file.js";
 import { writeAtomic } from "../_note-io.js";
@@ -388,15 +391,144 @@ function sortedAffectedNotes(
   }));
 }
 
-export async function executeFindAndReplace(
+/**
+ * Internal scope-resolution result (066-file-scope). The seam between the
+ * front-end scope resolver and the unchanged downstream Stages 4–7.
+ * `eligible` is the vault-relative note list to scan: exactly `[relPath]` under
+ * a single-note scope, the directory-walk result otherwise. `singleNote` gates
+ * the commit re-scan: a single-note scope re-reads the fixed list (no re-walk),
+ * a folder/vault-wide scope re-walks (D8).
+ */
+interface ResolvedScope {
+  vaultRoot: string;
+  eligible: string[];
+  singleNote: boolean;
+  /** Commit-time second-scan note-list source (drift re-scan). */
+  rescan: () => Promise<string[]>;
+}
+
+/** Normalise a vault-relative path to forward-slash form (downstream stages expect it). */
+function toVaultRelative(p: string): string {
+  return p.replace(/\\/g, "/");
+}
+
+/**
+ * Eligibility check for an explicitly-targeted single note: `.md` (case-insensitive)
+ * AND no `.`-prefixed path segment. An ineligible explicit target is a hard error
+ * (never a silent empty result) — VALIDATION_ERROR + INVALID_NOTE/not-eligible (FR-012).
+ */
+function assertEligible(relPath: string): void {
+  const ok = relPath.toLowerCase().endsWith(".md") && !hasDotPrefixedSegment(relPath);
+  if (!ok) {
+    throw new UpstreamError({
+      code: "VALIDATION_ERROR",
+      cause: null,
+      details: { code: "INVALID_NOTE", reason: "not-eligible", note: relPath },
+      message: `find_and_replace: target "${relPath}" is not an eligible markdown note`,
+    });
+  }
+}
+
+/**
+ * Existence check for an explicitly-targeted single note. assertCanonicalPath
+ * tolerates a non-existent path (lexical fallback), so a dedicated realpath probe
+ * distinguishes missing → VALIDATION_ERROR + INVALID_NOTE/not-found (FR-008),
+ * parity with the INVALID_SUBFOLDER/not-found shape. Runs before any content read.
+ */
+async function assertExists(
+  vaultRoot: string,
+  relPath: string,
+  fs: ExecuteFs,
+): Promise<void> {
+  const abs = resolve(vaultRoot, relPath.split("/").join(sep));
+  try {
+    await fs.realpath(abs);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code === "ENOENT") {
+      throw new UpstreamError({
+        code: "VALIDATION_ERROR",
+        cause: err,
+        details: { code: "INVALID_NOTE", reason: "not-found", note: relPath },
+        message: `find_and_replace: note "${relPath}" does not exist in vault`,
+      });
+    }
+    throw err;
+  }
+}
+
+/**
+ * Single-note scope front end (066-file-scope). Three forks each resolve one
+ * `{ vaultRoot, relPath }`, then share the canonical-escape guard + eligibility +
+ * existence checks before emitting `eligible = [relPath]`:
+ * - `active_note` → resolveActiveFocusedFile (throws ERR_NO_ACTIVE_FILE when none open);
+ * - `path` → existing vault-root resolve + the given vault-relative path;
+ * - `file` → existing vault-root resolve + resolveFileByTsv (shortest-unique-name parity).
+ */
+async function resolveSingleNoteScope(
   input: FindAndReplaceInput,
   deps: ExecuteDeps,
-): Promise<FindAndReplaceOutput> {
-  const fs = deps.fs ?? DEFAULT_FS;
-  const randomUUIDFn = deps.randomUUID ?? nodeRandomUUID;
-  const vaultLabel = input.vault ?? null;
+  fs: ExecuteFs,
+  vaultLabel: string | null,
+): Promise<ResolvedScope> {
+  const guard = { realpath: fs.realpath, logger: deps.logger, vaultLabel };
+  let vaultRoot: string;
+  let relPath: string;
 
-  // === Stage 1 — vault root resolution + Layer-2 canonical check on vault root ===
+  if (input.active_note === true) {
+    // US2 — the currently-open note.
+    const active = await resolveActiveFocusedFile(deps, "find_and_replace");
+    vaultRoot = await assertCanonicalPath(active.vaultRoot, ".", guard);
+    relPath = toVaultRelative(active.relPath);
+  } else {
+    // US1 — a named single note (path or file; mutually exclusive per superRefine).
+    vaultRoot = await assertCanonicalPath(await resolveVaultRoot(input, deps), ".", guard);
+    if (input.path !== undefined) {
+      relPath = toVaultRelative(input.path);
+    } else {
+      // input.file is defined (the dispatch fires only when one locator is set).
+      const vaultName = input.vault ?? resolveVaultDisplayName(deps.vaultRegistry, vaultRoot);
+      relPath = toVaultRelative(
+        await resolveFileByTsv(deps, vaultName, input.file as string, "find_and_replace"),
+      );
+    }
+  }
+
+  // Shared tail — Layer-2 canonical escape guard, then eligibility + existence,
+  // all before any content read (FR-006 / FR-008 / FR-012 / FR-013).
+  await assertCanonicalPath(vaultRoot, relPath.split("/").join(sep), {
+    ...guard,
+    attemptedPathLabel: relPath,
+  });
+  assertEligible(relPath);
+  await assertExists(vaultRoot, relPath, fs);
+
+  return {
+    vaultRoot,
+    eligible: [relPath],
+    singleNote: true,
+    rescan: () => Promise.resolve([relPath]),
+  };
+}
+
+/**
+ * Front-end scope dispatch. Any of `file` / `path` / `active_note` routes to the
+ * single-note resolver; otherwise the unchanged subfolder / vault-wide resolve-and-walk.
+ */
+async function resolveScope(
+  input: FindAndReplaceInput,
+  deps: ExecuteDeps,
+  fs: ExecuteFs,
+  vaultLabel: string | null,
+): Promise<ResolvedScope> {
+  if (
+    input.active_note === true ||
+    input.file !== undefined ||
+    input.path !== undefined
+  ) {
+    return resolveSingleNoteScope(input, deps, fs, vaultLabel);
+  }
+
+  // === UNCHANGED — vault root resolution + Layer-2 canonical check on vault root ===
   const vaultRootRaw = await resolveVaultRoot(input, deps);
   const vaultRoot = await assertCanonicalPath(vaultRootRaw, ".", {
     realpath: fs.realpath,
@@ -404,7 +536,7 @@ export async function executeFindAndReplace(
     vaultLabel,
   });
 
-  // === Stage 2 — scope resolution (subfolder OR whole-vault) ===
+  // === UNCHANGED — subfolder OR whole-vault scope resolution ===
   let scanRoot = vaultRoot;
   const subfolder = input.subfolder !== undefined && input.subfolder.length > 0
     ? input.subfolder
@@ -438,8 +570,27 @@ export async function executeFindAndReplace(
     scanRoot = subResolved;
   }
 
-  // === Stage 3 — directory walk ===
+  // === UNCHANGED — directory walk ===
   const eligible = await listEligibleNotes(scanRoot, vaultRoot, fs);
+  return {
+    vaultRoot,
+    eligible,
+    singleNote: false,
+    rescan: () => listEligibleNotes(scanRoot, vaultRoot, fs),
+  };
+}
+
+export async function executeFindAndReplace(
+  input: FindAndReplaceInput,
+  deps: ExecuteDeps,
+): Promise<FindAndReplaceOutput> {
+  const fs = deps.fs ?? DEFAULT_FS;
+  const randomUUIDFn = deps.randomUUID ?? nodeRandomUUID;
+  const vaultLabel = input.vault ?? null;
+
+  // === Stages 1–3 — scope resolution (single-note OR subfolder / vault-wide) ===
+  const scope = await resolveScope(input, deps, fs, vaultLabel);
+  const { vaultRoot, eligible } = scope;
 
   // === Stage 4 — first scan ===
   const firstScan = await scanNotes(
@@ -475,8 +626,10 @@ export async function executeFindAndReplace(
     };
   }
 
-  // === Stage 6 — commit path: re-walk and re-scan for drift compare ===
-  const secondEligible = await listEligibleNotes(scanRoot, vaultRoot, fs);
+  // === Stage 6 — commit path: re-scan for drift compare. Folder/vault-wide
+  // re-walks the scan root; a single-note scope re-reads the fixed [relPath]
+  // (nothing to re-walk) — D8. Both still catch a between-scan content edit.
+  const secondEligible = await scope.rescan();
   const secondScan = await scanNotes(
     vaultRoot,
     secondEligible,
