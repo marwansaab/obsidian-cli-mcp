@@ -5,6 +5,12 @@
 **Status**: Draft  
 **Input**: User description: "Fix Empty Bases — when an agent lists the Bases in a vault that contains no `.base` files, the listing returns an empty result (an empty list with a count of zero) instead of a single fake entry built from the underlying tool's 'No base files found in vault' message."
 
+## Clarifications
+
+### Session 2026-06-30
+
+- Q: Empty-signal recognition strategy — positive `.base` filter, negative message-match, or hybrid? → A: **Positive filter.** On a successful (clean-exit) listing, keep only stdout lines ending in `.base` (matched case-insensitively); drop every other line (the informational empty-result message, blank lines, whitespace-only lines). Chosen for FR-002 wording-independence and Constitution Principle IV: membership is decided by the positive `.base` cue rather than by matching upstream copy, so it survives any future re-wording of the empty-result message with no code change, introduces no new error code, and leaves genuine failures to the existing upstream-failure path (evaluated before the clean-exit filter runs). Negative message-match re-couples to upstream wording and regresses FR-002 on re-word; a hybrid defensive cross-check adds branches with no acceptance-criterion payoff and risks the cross-check itself throwing on a benign re-word. The chosen rule matches the architecture's existing handler-side response-inspection idiom — inspect clean-exit stdout positively; let the CLI-failure path own errors.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Empty vault returns an honest empty result (Priority: P1)
@@ -64,17 +70,17 @@ An agent hits a real failure — the vault cannot be found, or the listing canno
 ### Functional Requirements
 
 - **FR-001**: When the vault contains zero `.base` files, the Bases listing MUST return an empty list with a count of zero.
-- **FR-002**: The listing MUST recognise the underlying tool's empty-result signal — the current "No base files found in vault" wording and any future re-wording of that same empty signal — and report it as an empty result, never as a Base name.
+- **FR-002**: On a successful (clean-exit) listing, the system MUST treat only lines that denote a real Base — lines ending in the `.base` extension, matched case-insensitively — as Base names, and MUST drop every other line, including the underlying tool's empty-result message (current "No base files found in vault" wording or any future re-wording), blank lines, and whitespace-only lines. Because membership is decided by the positive `.base` cue rather than by matching the message text, the empty-result signal is reported as "no Bases" independent of its wording.
 - **FR-003**: The count returned by the listing MUST equal the number of real Base names in the list, and MUST never be inflated by a passed-through informational message.
 - **FR-004**: When the vault contains one or more `.base` files, the listing MUST return the same membership and sort order it returns today, with the correct count — no regression on the populated path.
 - **FR-005**: The empty-signal recognition MUST NOT misclassify a legitimate single real Base as the empty signal; a vault with exactly one `.base` file MUST report a count of one.
-- **FR-006**: A genuine failure (vault not found, or the listing cannot be produced) MUST surface as a failure that is plainly distinct from the empty-vault result, consistent with how the listing reports its other failures today; a real failure MUST NEVER be reported as an empty list with a count of zero.
+- **FR-006**: A genuine failure (vault not found, or the listing cannot be produced) MUST surface as a failure that is plainly distinct from the empty-vault result, consistent with how the listing reports its other failures today; a real failure MUST NEVER be reported as an empty list with a count of zero. The positive `.base` filter (FR-002) applies only to successful clean-exit output; genuine failures are detected and surfaced through the existing upstream-failure path **before** the line filter runs, so a failure can never be silently reduced to an empty list, and no new top-level error code is introduced.
 - **FR-007**: The fix MUST be confined to the empty-vault listing path; it MUST NOT change other Bases-related capabilities, the names-only shape of each listed entry, or how the listing treats a named-vault argument.
 
 ### Key Entities *(include if feature involves data)*
 
 - **Bases listing result**: the observable output of listing the Bases in a vault. Two attributes: the list of Base names (sorted, names-only) and a count. The count must always equal the length of the list. The empty result is `{ empty list, count zero }`; this entity must be cleanly distinguishable from a failure signal.
-- **Empty-result signal**: the informational output the underlying tool emits when a vault has no `.base` files (currently the text "No base files found in vault"). It is not a Base and not a failure — it is the positive signal that the correct answer is an empty list.
+- **Empty-result signal**: the informational output the underlying tool emits when a vault has no `.base` files (currently the text "No base files found in vault"). It is not a Base and not a failure — it is the signal that the correct answer is an empty list. It is recognised structurally, by the absence of any `.base` line on a clean exit, **not** by matching its text.
 
 ## Success Criteria *(mandatory)*
 
@@ -88,7 +94,7 @@ An agent hits a real failure — the vault cannot be found, or the listing canno
 ## Assumptions
 
 - The underlying tool emits a single, recognisable informational message when a vault has no `.base` files, and emits one Base path per line (no informational text intermixed) when the vault has Bases. The fix relies on the empty signal being distinguishable from a real `.base` path.
-- A real Base name carries the `.base` extension; the informational empty-result message does not. This positive distinction (a real path ends in `.base`) is the reasonable default for telling a genuine single Base apart from the empty signal, while still recognising the known message text for resilience.
+- A real Base name carries the `.base` extension; the informational empty-result message does not. The listing decides Base membership by this positive `.base` cue alone (a clean-exit line is a Base iff it ends in `.base`, case-insensitive) — it does **not** match the message text. This makes empty-signal recognition independent of the message's wording (FR-002) and avoids re-coupling to upstream copy. (Clarified 2026-06-30 — positive `.base` filter chosen over message-pattern matching; see Clarifications.)
 - The documented contract already promises that an empty vault returns an empty list rather than an error; this feature makes the implementation honour that promise, so it is a defect fix rather than a contract change.
 - Failure reporting (vault-not-found and upstream-error conditions) already exists and is unchanged by this feature; Story 3 guards that the empty-result fix does not erode the existing failure distinction.
 - The named-vault argument's handling is a separate, shared concern and is explicitly out of scope; this feature does not alter it.
