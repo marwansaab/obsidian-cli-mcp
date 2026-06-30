@@ -9,15 +9,23 @@ import { type RegisteredTool, type ToolErrorPayload } from "../_shared.js";
 export const FIND_AND_REPLACE_TOOL_NAME = "find_and_replace";
 
 export const FIND_AND_REPLACE_DESCRIPTION =
-  `Vault-wide find-and-replace with **preview-then-commit** semantics. Scan every Markdown note in a vault (or under a sub-folder) for a literal-or-regex pattern; default returns a preview, \`commit: true\` rewrites the matches on disk.
+  `Find-and-replace with **preview-then-commit** semantics. Scan a vault, a sub-folder, or a single note for a literal-or-regex pattern; default returns a preview, \`commit: true\` rewrites the matches on disk.
 
-**WARNING — vault-wide scope, no single-file mode.** This tool replaces matches across EVERY \`.md\` file in the vault (or the named \`subfolder\`). There is NO single-file scoping option — \`subfolder: "Drafts"\` still matches every file under \`Drafts/\` recursively. For single-file edits, prefer \`write_note\` with \`overwrite: true\` after reading the current content via \`read\`. Agents have corrupted unintended files by committing wide-pattern replacements; ALWAYS preview first.
+**SCOPE — default is vault-wide; narrow it deliberately.** With no scope field this tool replaces matches across EVERY eligible \`.md\` file in the vault (or the named \`subfolder\`, recursively). To confine a change to ONE note, use a single-note scope (below) so the SCOPE — not a globally-unique pattern — bounds the blast radius. Agents have corrupted unintended files by committing wide-pattern replacements; ALWAYS preview first and inspect \`affected_notes\` before \`commit: true\`.
 
 Required \`pattern\` (1..1000 UTF-16 code units). Required \`replacement\` (0..1000 chars; empty = deletion).
 
 Optional \`mode: "literal" | "regex"\` (default \`"literal"\`). Regex mode uses ECMAScript (Node RegExp, V8) with \`$1\`/\`$&\`/\`$$\` interpolation in \`replacement\`. Literal mode inserts \`replacement\` verbatim — no metacharacter interpretation.
 
-Optional \`case_insensitive\` (boolean, default false). Optional \`subfolder\` (vault-relative path; path-traversal rejected with \`INVALID_SUBFOLDER\`/\`path-traversal\`; missing folder rejected with \`INVALID_SUBFOLDER\`/\`not-found\`). Optional \`include_code_blocks\` (default false — fenced code blocks are SKIPPED). Optional \`include_html_comments\` (default false — \`<!-- ... -->\` is SKIPPED). Optional \`commit\` (boolean, default false — preview-only). Optional \`vault\` (string; absent routes to focused vault).
+Optional \`case_insensitive\` (boolean, default false). Optional \`include_code_blocks\` (default false — fenced code blocks are SKIPPED). Optional \`include_html_comments\` (default false — \`<!-- ... -->\` is SKIPPED). Optional \`commit\` (boolean, default false — preview-only). Optional \`vault\` (string; absent routes to focused vault).
+
+**Scope (choose at most one):**
+- \`subfolder\` (vault-relative path) — confine to every eligible note under that folder, recursively. Path-traversal rejected with \`INVALID_SUBFOLDER\`/\`path-traversal\`; missing folder rejected with \`INVALID_SUBFOLDER\`/\`not-found\`.
+- \`path\` (vault-relative path to one note, e.g. \`Projects/Alpha.md\`) — confine to exactly that note.
+- \`file\` (bare note name, e.g. \`Alpha\`) — confine to exactly that note, resolved by Obsidian's shortest-unique-name (like a wikilink). Supply the bare name, NOT the \`[[…]]\` bracket form (rejected with a wikilink-bracket \`VALIDATION_ERROR\`).
+- \`active_note: true\` — confine to the note currently open in the editor; supply no path. No note open → \`ERR_NO_ACTIVE_FILE\`.
+
+A single-note scope (\`path\`/\`file\`/\`active_note\`) touches at most one note; a preview affects ≤ 1 note (early confirmation), and a zero-match named scope returns an empty success (not an error). Scopes are mutually exclusive — \`file\`+\`path\`, any single-note + \`subfolder\`, and \`active_note\` + (\`file\`/\`path\`/\`subfolder\`/\`vault\`) are rejected with \`VALIDATION_ERROR\` + \`details.code: "SCOPE_CONFLICT"\` before any note is read. \`vault\` is permitted with a named \`file\`/\`path\` (it selects the note's vault). A named target that does not exist → \`INVALID_NOTE\`/\`not-found\`; one that resolves to a non-\`.md\` or dotfolder note → \`INVALID_NOTE\`/\`not-eligible\`. Omit all scope fields for the byte-stable vault-wide default.
 
 Response is a discriminated union on \`mode\`:
 - **Preview**: \`{ mode: "preview", affected_notes: [{ path, occurrence_count, occurrences: [{ line_number, full_line, matched_substring, replacement_substring }] }], total_occurrences }\`. Notes path-ascending, occurrences (line, offset)-ascending.
@@ -45,6 +53,38 @@ function mapZodIssuesToToolError(issues: ZodIssue[]): ToolErrorPayload {
   }));
   for (const issue of issues) {
     const path0 = issue.path[0];
+    const params = (issue as { params?: { subCode?: string; subReason?: string } }).params;
+    // Scope mutual-exclusivity (066-file-scope) — cross-field custom issue with
+    // an empty path; matched on subCode regardless of path[0].
+    if (issue.code === "custom" && params?.subCode === "SCOPE_CONFLICT") {
+      return {
+        code: "VALIDATION_ERROR",
+        message: issue.message,
+        details: {
+          code: "SCOPE_CONFLICT",
+          reason: params.subReason,
+          issues: mappedIssues,
+        },
+      };
+    }
+    // Structurally-unsafe single-note locator → INVALID_NOTE/path-traversal
+    // (parity with INVALID_SUBFOLDER/path-traversal). The `[[…]]` reject on
+    // `file` carries no subReason and falls through to the generic channel.
+    if (
+      (path0 === "file" || path0 === "path") &&
+      issue.code === "custom" &&
+      params?.subReason === "path-traversal"
+    ) {
+      return {
+        code: "VALIDATION_ERROR",
+        message: `${String(path0)} is not structurally safe`,
+        details: {
+          code: "INVALID_NOTE",
+          reason: "path-traversal",
+          issues: mappedIssues,
+        },
+      };
+    }
     if (path0 === "pattern") {
       if (issue.code === "too_small") {
         return {
@@ -68,7 +108,6 @@ function mapZodIssuesToToolError(issues: ZodIssue[]): ToolErrorPayload {
           },
         };
       }
-      const params = (issue as { params?: { subReason?: string } }).params;
       if (issue.code === "custom" && params?.subReason === "regex-syntax") {
         return {
           code: "VALIDATION_ERROR",
@@ -92,7 +131,6 @@ function mapZodIssuesToToolError(issues: ZodIssue[]): ToolErrorPayload {
       };
     }
     if (path0 === "subfolder") {
-      const params = (issue as { params?: { subReason?: string } }).params;
       if (issue.code === "custom" && params?.subReason === "path-traversal") {
         return {
           code: "VALIDATION_ERROR",

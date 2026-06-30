@@ -434,11 +434,14 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
   find_and_replace: {
     type: "object",
     properties_equals_set: [
+      "active_note",
       "case_insensitive",
       "commit",
+      "file",
       "include_code_blocks",
       "include_html_comments",
       "mode",
+      "path",
       "pattern",
       "replacement",
       "subfolder",

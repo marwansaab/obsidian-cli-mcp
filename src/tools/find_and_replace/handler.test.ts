@@ -1,191 +1,33 @@
-// Original — no upstream. Tests for executeFindAndReplace — covers US1 preview/commit happy-paths, code-block + HTML-comment skip defaults, frontmatter-as-prose, drift, FS read/write failures (with partial-commit envelope inlined), canonical-level vault + per-note escapes, line-ending + BOM preservation, vault not-found + not-open, focused-vault invokeEval discovery, concurrent commits via Queue, US2 include_* opt-ins, US3 subfolder narrowing + unknown-subfolder + symlink-escape, US4 bound enforcement (preview + commit + second-scan recheck) + env-var fallback + WARN.
-import { resolve, sep } from "node:path";
-import { Writable } from "node:stream";
+// Original — no upstream. Tests for executeFindAndReplace core behaviour — US1
+// preview/commit happy-paths, code-block + HTML-comment skip defaults,
+// frontmatter-as-prose, drift, FS read/write failures (with partial-commit envelope
+// inlined), canonical-level vault + per-note escapes, line-ending + BOM preservation,
+// vault not-found + not-open, focused-vault invokeEval discovery, concurrent commits
+// via Queue, US2 include_* opt-ins, US3 subfolder narrowing + unknown-subfolder +
+// symlink-escape, US4 bound enforcement + env-var fallback + WARN. Single-note scope
+// (066-file-scope) lives in scope.test.ts; shared fixtures in _handler-fixtures.ts.
+import { resolve } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  baseDeps,
+  captureLogger,
+  fakeRegistry,
+  inMemoryFs,
+  relToAbs,
+  VAULT_ROOT,
+  type MemFile,
+} from "./_handler-fixtures.js";
+import {
   __resetMaxOccurrencesCacheForTests,
   executeFindAndReplace,
-  type ExecuteDeps,
   type ExecuteFs,
   type FocusedVaultResponse,
 } from "./handler.js";
 import { UpstreamError } from "../../errors.js";
-import { createLogger, type Logger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
-
-import type { VaultRegistry } from "../../vault-registry/registry.js";
-import type { Dirent } from "node:fs";
-
-const VAULT_ROOT = resolve("/find-replace-vault");
-
-function captureLogger(events: Array<Record<string, unknown>>): Logger {
-  return createLogger({
-    stream: new Writable({
-      write(chunk, _enc, cb) {
-        try {
-          events.push(JSON.parse(chunk.toString()) as Record<string, unknown>);
-        } catch {
-          /* ignore */
-        }
-        cb();
-      },
-    }),
-  });
-}
-
-function fakeRegistry(map: Record<string, string>): VaultRegistry {
-  return {
-    resolveVaultPath: vi.fn(async (name: string) => {
-      const path = map[name];
-      if (path === undefined) {
-        throw new UpstreamError({
-          code: "VALIDATION_ERROR",
-          cause: null,
-          details: { requestedVault: name, knownVaults: Object.keys(map) },
-          message: `Vault "${name}" is not registered.`,
-        });
-      }
-      return path;
-    }),
-  };
-}
-
-interface MemFile {
-  abs: string;
-  content: string;
-}
-
-function makeDirent(name: string, parentPath: string, isFileVal: boolean): Dirent {
-  const d = {
-    name,
-    parentPath,
-    path: parentPath,
-    isFile: () => isFileVal,
-    isDirectory: () => !isFileVal,
-    isBlockDevice: () => false,
-    isCharacterDevice: () => false,
-    isSymbolicLink: () => false,
-    isFIFO: () => false,
-    isSocket: () => false,
-  };
-  return d as unknown as Dirent;
-}
-
-interface FakeFsState {
-  files: Map<string, string>;
-  writes: Array<{ path: string; content: string }>;
-  renames: Array<{ from: string; to: string }>;
-  unlinks: string[];
-  realpathOverride?: (p: string) => Promise<string>;
-}
-
-function inMemoryFs(
-  files: MemFile[],
-  vaultRoot: string,
-  options: {
-    readErrorByRel?: Record<string, NodeJS.ErrnoException>;
-    writeErrorByRel?: Record<string, NodeJS.ErrnoException>;
-    renameErrorByRel?: Record<string, NodeJS.ErrnoException>;
-    realpathOverride?: (p: string) => Promise<string>;
-    readdirError?: NodeJS.ErrnoException;
-    missingSubfolders?: Set<string>;
-  } = {},
-): { fs: ExecuteFs; state: FakeFsState } {
-  const state: FakeFsState = {
-    files: new Map(files.map((f) => [f.abs, f.content])),
-    writes: [],
-    renames: [],
-    unlinks: [],
-  };
-  const fs: ExecuteFs = {
-    readdir: vi.fn(async (root: string, _opts) => {
-      if (options.readdirError) throw options.readdirError;
-      const entries: Dirent[] = [];
-      // Emit a Dirent for every file whose absolute path lives under `root`.
-      // (Recursive walk semantics — Node returns all descendants flattened.)
-      for (const abs of state.files.keys()) {
-        if (!abs.startsWith(root)) continue;
-        const tail = abs.slice(root.length);
-        if (!tail.startsWith(sep) && tail.length > 0) continue;
-        // Compute parent dir and file name.
-        const parentPath = abs.slice(0, abs.length - (abs.split(sep).pop()?.length ?? 0));
-        const name = abs.split(sep).pop()!;
-        const parentTrim = parentPath.endsWith(sep)
-          ? parentPath.slice(0, -1)
-          : parentPath;
-        entries.push(makeDirent(name, parentTrim, true));
-      }
-      return entries;
-    }),
-    readFile: vi.fn(async (p: string, _enc: "utf8") => {
-      const rel = p.replace(vaultRoot + sep, "").split(sep).join("/");
-      if (options.readErrorByRel?.[rel]) throw options.readErrorByRel[rel];
-      const content = state.files.get(p);
-      if (content === undefined) {
-        const e = new Error("ENOENT") as NodeJS.ErrnoException;
-        e.code = "ENOENT";
-        throw e;
-      }
-      return content;
-    }),
-    writeFile: vi.fn(async (p: string, content: string) => {
-      // The tmp path is `${abs}.${uuid}.tmp` — match the target by stripping the suffix.
-      const targetMatch = p.match(/^(.+)\.[0-9a-f-]+\.tmp$/i);
-      const target = targetMatch?.[1] ?? p;
-      const rel = target.replace(vaultRoot + sep, "").split(sep).join("/");
-      if (options.writeErrorByRel?.[rel]) throw options.writeErrorByRel[rel];
-      state.writes.push({ path: p, content });
-    }),
-    rename: vi.fn(async (from: string, to: string) => {
-      const rel = to.replace(vaultRoot + sep, "").split(sep).join("/");
-      if (options.renameErrorByRel?.[rel]) throw options.renameErrorByRel[rel];
-      state.renames.push({ from, to });
-      const writeEntry = state.writes.find((w) => w.path === from);
-      if (writeEntry) state.files.set(to, writeEntry.content);
-    }),
-    unlink: vi.fn(async (p: string) => {
-      state.unlinks.push(p);
-    }),
-    realpath: vi.fn(async (p: string) => {
-      if (options.realpathOverride) return options.realpathOverride(p);
-      if (p === vaultRoot) return vaultRoot;
-      // Treat subfolder paths under vaultRoot as existing only if they don't
-      // appear in missingSubfolders.
-      const rel = p.replace(vaultRoot + sep, "").split(sep).join("/");
-      if (options.missingSubfolders?.has(rel)) {
-        const e = new Error("ENOENT") as NodeJS.ErrnoException;
-        e.code = "ENOENT";
-        throw e;
-      }
-      if (p.startsWith(vaultRoot)) return p;
-      const e = new Error("ENOENT") as NodeJS.ErrnoException;
-      e.code = "ENOENT";
-      throw e;
-    }),
-  };
-  return { fs, state };
-}
-
-function relToAbs(rel: string): string {
-  return resolve(VAULT_ROOT, rel.split("/").join(sep));
-}
-
-function baseDeps(over: Partial<ExecuteDeps> = {}): ExecuteDeps {
-  return {
-    logger: over.logger ?? silentLogger(),
-    queue: over.queue ?? createQueue(),
-    vaultRegistry: over.vaultRegistry ?? fakeRegistry({ V: VAULT_ROOT }),
-    fs: over.fs,
-    randomUUID: over.randomUUID ?? (() => "00000000-0000-0000-0000-000000000000"),
-    invokeEval: over.invokeEval,
-    env: over.env ?? {},
-    spawnFn: over.spawnFn,
-    warn: over.warn,
-  };
-}
+import { makeQueuedSpawn } from "../_handler-test-fixtures.js";
 
 beforeEach(() => {
   __resetMaxOccurrencesCacheForTests();
@@ -207,7 +49,7 @@ describe("US1 — preview happy path", () => {
     ];
     const { fs, state } = inMemoryFs(files, VAULT_ROOT);
     const result = await executeFindAndReplace(
-      { pattern: "ADR-0042", replacement: "ADR-0089", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      { pattern: "ADR-0042", replacement: "ADR-0089", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false , active_note: false },
       baseDeps({ fs, vaultRegistry: fakeRegistry({ V: VAULT_ROOT }) }),
     );
     expect(result.mode).toBe("preview");
@@ -240,11 +82,9 @@ describe("US1 — preview no-mutate assertion (FR-014 / SC-002)", () => {
     ];
     const { fs, state } = inMemoryFs(files, VAULT_ROOT);
     await executeFindAndReplace(
-      { pattern: "alpha", replacement: "beta", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      { pattern: "alpha", replacement: "beta", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false , active_note: false },
       baseDeps({ fs }),
     );
-    expect(fs.writeFile).not.toHaveBeenCalled();
-    expect(fs.rename).not.toHaveBeenCalled();
     expect(state.writes.length).toBe(0);
     expect(state.renames.length).toBe(0);
   });
@@ -258,7 +98,7 @@ describe("US1 — commit happy path", () => {
     ];
     const { fs, state } = inMemoryFs(files, VAULT_ROOT);
     const result = await executeFindAndReplace(
-      { pattern: "ADR-0042", replacement: "ADR-0089", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true },
+      { pattern: "ADR-0042", replacement: "ADR-0089", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true , active_note: false },
       baseDeps({ fs }),
     );
     expect(result.mode).toBe("commit");
@@ -283,7 +123,7 @@ describe("US1 — empty result", () => {
     const files: MemFile[] = [{ abs: relToAbs("a.md"), content: "no match here" }];
     const { fs } = inMemoryFs(files, VAULT_ROOT);
     const result = await executeFindAndReplace(
-      { pattern: "xyzzy", replacement: "_", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      { pattern: "xyzzy", replacement: "_", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false , active_note: false },
       baseDeps({ fs }),
     );
     expect(result).toEqual({
@@ -297,7 +137,7 @@ describe("US1 — empty result", () => {
     const files: MemFile[] = [{ abs: relToAbs("a.md"), content: "no match here" }];
     const { fs, state } = inMemoryFs(files, VAULT_ROOT);
     const result = await executeFindAndReplace(
-      { pattern: "xyzzy", replacement: "_", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true },
+      { pattern: "xyzzy", replacement: "_", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true , active_note: false },
       baseDeps({ fs }),
     );
     expect(result).toEqual({
@@ -318,7 +158,7 @@ describe("US1 — code-block skip default (FR-006)", () => {
     }];
     const { fs } = inMemoryFs(files, VAULT_ROOT);
     const result = await executeFindAndReplace(
-      { pattern: "OldName", replacement: "NewName", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      { pattern: "OldName", replacement: "NewName", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false , active_note: false },
       baseDeps({ fs }),
     );
     if (result.mode === "preview") {
@@ -336,7 +176,7 @@ describe("US1 — HTML-comment skip default (FR-007)", () => {
     }];
     const { fs } = inMemoryFs(files, VAULT_ROOT);
     const result = await executeFindAndReplace(
-      { pattern: "OldName", replacement: "NewName", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      { pattern: "OldName", replacement: "NewName", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false , active_note: false },
       baseDeps({ fs }),
     );
     if (result.mode === "preview") {
@@ -353,7 +193,7 @@ describe("US1 — frontmatter as prose (FR-018)", () => {
     }];
     const { fs, state } = inMemoryFs(files, VAULT_ROOT);
     const result = await executeFindAndReplace(
-      { pattern: "ADR-0042", replacement: "ADR-0089", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true },
+      { pattern: "ADR-0042", replacement: "ADR-0089", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true , active_note: false },
       baseDeps({ fs }),
     );
     expect(result.mode).toBe("commit");
@@ -377,7 +217,7 @@ describe("US1 — drift detection (FR-012)", () => {
       return "pat pat pat pat"; // an extra pat appears between scans
     });
     const err = await executeFindAndReplace(
-      { pattern: "pat", replacement: "rep", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true },
+      { pattern: "pat", replacement: "rep", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true , active_note: false },
       baseDeps({ fs }),
     ).catch((e) => e);
     expect(err).toBeInstanceOf(UpstreamError);
@@ -399,7 +239,7 @@ describe("US1 — per-note read failure during scan (FS_WRITE_FAILED/read)", () 
       readErrorByRel: { "b.md": eaccess as NodeJS.ErrnoException },
     });
     const err = await executeFindAndReplace(
-      { pattern: "x", replacement: "_", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      { pattern: "x", replacement: "_", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false , active_note: false },
       baseDeps({ fs }),
     ).catch((e) => e);
     expect(err).toBeInstanceOf(UpstreamError);
@@ -427,7 +267,7 @@ describe("US1 — FS_WRITE_FAILED on second-of-three during commit", () => {
       writeErrorByRel: { "b.md": enospc as NodeJS.ErrnoException },
     });
     const err = await executeFindAndReplace(
-      { pattern: "p", replacement: "q", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true },
+      { pattern: "p", replacement: "q", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true , active_note: false },
       baseDeps({ fs }),
     ).catch((e) => e);
     expect(err).toBeInstanceOf(UpstreamError);
@@ -451,7 +291,7 @@ describe("US1 — line-ending preservation", () => {
     }];
     const { fs, state } = inMemoryFs(files, VAULT_ROOT);
     await executeFindAndReplace(
-      { pattern: "pat", replacement: "REP", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true },
+      { pattern: "pat", replacement: "REP", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true , active_note: false },
       baseDeps({ fs }),
     );
     expect(state.files.get(relToAbs("n.md"))).toBe(
@@ -466,7 +306,7 @@ describe("US1 — line-ending preservation", () => {
     }];
     const { fs, state } = inMemoryFs(files, VAULT_ROOT);
     await executeFindAndReplace(
-      { pattern: "pat", replacement: "REP", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true },
+      { pattern: "pat", replacement: "REP", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true , active_note: false },
       baseDeps({ fs }),
     );
     expect(state.files.get(relToAbs("n.md"))).toBe(
@@ -481,7 +321,7 @@ describe("US1 — line-ending preservation", () => {
     }];
     const { fs, state } = inMemoryFs(files, VAULT_ROOT);
     await executeFindAndReplace(
-      { pattern: "pat", replacement: "X", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true },
+      { pattern: "pat", replacement: "X", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true , active_note: false },
       baseDeps({ fs }),
     );
     expect(state.files.get(relToAbs("n.md"))).toBe("X\r\nX\nX\r\nlast");
@@ -494,7 +334,7 @@ describe("US1 — line-ending preservation", () => {
     }];
     const { fs, state } = inMemoryFs(files, VAULT_ROOT);
     await executeFindAndReplace(
-      { pattern: "pat", replacement: "X", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true },
+      { pattern: "pat", replacement: "X", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true , active_note: false },
       baseDeps({ fs }),
     );
     expect(state.files.get(relToAbs("n.md"))).toBe("X trailing");
@@ -508,7 +348,7 @@ describe("US1 — line-ending preservation", () => {
     }];
     const { fs, state } = inMemoryFs(files, VAULT_ROOT);
     await executeFindAndReplace(
-      { pattern: "pat", replacement: "X", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true },
+      { pattern: "pat", replacement: "X", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true , active_note: false },
       baseDeps({ fs }),
     );
     expect(state.files.get(relToAbs("n.md"))).toBe(`${BOM}X content`);
@@ -519,7 +359,7 @@ describe("US1 — vault registry errors", () => {
   it("unknown vault → CLI_REPORTED_ERROR + VAULT_NOT_FOUND + reason:unknown", async () => {
     const { fs } = inMemoryFs([], VAULT_ROOT);
     const err = await executeFindAndReplace(
-      { pattern: "x", replacement: "_", mode: "literal", vault: "Typo", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      { pattern: "x", replacement: "_", mode: "literal", vault: "Typo", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false , active_note: false },
       baseDeps({ fs, vaultRegistry: fakeRegistry({ V: VAULT_ROOT }) }),
     ).catch((e) => e);
     expect(err).toBeInstanceOf(UpstreamError);
@@ -538,7 +378,7 @@ describe("US1 — focused-vault discovery via invokeEval", () => {
       async (): Promise<FocusedVaultResponse> => ({ path: null, base: VAULT_ROOT }),
     );
     const result = await executeFindAndReplace(
-      { pattern: "alpha", replacement: "X", mode: "literal", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      { pattern: "alpha", replacement: "X", mode: "literal", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false , active_note: false },
       baseDeps({ fs, invokeEval }),
     );
     expect(invokeEval).toHaveBeenCalledTimes(1);
@@ -552,7 +392,7 @@ describe("US1 — focused-vault discovery via invokeEval", () => {
       async (): Promise<FocusedVaultResponse> => ({ path: null, base: VAULT_ROOT }),
     );
     await executeFindAndReplace(
-      { pattern: "alpha", replacement: "X", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      { pattern: "alpha", replacement: "X", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false , active_note: false },
       baseDeps({ fs, invokeEval }),
     );
     expect(invokeEval).not.toHaveBeenCalled();
@@ -573,7 +413,7 @@ describe("US1 — canonical-level vault escape on per-note path", () => {
       },
     });
     const err = await executeFindAndReplace(
-      { pattern: "pat", replacement: "X", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true },
+      { pattern: "pat", replacement: "X", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true , active_note: false },
       baseDeps({ fs, logger: captureLogger(events) }),
     ).catch((e) => e);
     expect(err).toBeInstanceOf(UpstreamError);
@@ -601,11 +441,11 @@ describe("US1 — concurrent commits serialize through Queue (FR-024)", () => {
     }) as ExecuteFs["writeFile"];
     const deps = baseDeps({ fs, queue: sharedQueue });
     const p1 = executeFindAndReplace(
-      { pattern: "pat", replacement: "X", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true },
+      { pattern: "pat", replacement: "X", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true , active_note: false },
       deps,
     );
     const p2 = executeFindAndReplace(
-      { pattern: "pat", replacement: "Y", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true },
+      { pattern: "pat", replacement: "Y", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true , active_note: false },
       deps,
     );
     const [r1, r2] = await Promise.all([p1, p2]);
@@ -628,12 +468,12 @@ describe("US2 — include_code_blocks opt-in", () => {
     }];
     const { fs, state } = inMemoryFs(files, VAULT_ROOT);
     const preview = await executeFindAndReplace(
-      { pattern: "Old", replacement: "New", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: true, include_html_comments: false, commit: false },
+      { pattern: "Old", replacement: "New", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: true, include_html_comments: false, commit: false , active_note: false },
       baseDeps({ fs }),
     );
     if (preview.mode === "preview") expect(preview.total_occurrences).toBe(2);
     const commit = await executeFindAndReplace(
-      { pattern: "Old", replacement: "New", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: true, include_html_comments: false, commit: true },
+      { pattern: "Old", replacement: "New", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: true, include_html_comments: false, commit: true , active_note: false },
       baseDeps({ fs }),
     );
     expect(commit.mode).toBe("commit");
@@ -651,7 +491,7 @@ describe("US2 — include_html_comments opt-in", () => {
     }];
     const { fs, state } = inMemoryFs(files, VAULT_ROOT);
     const commit = await executeFindAndReplace(
-      { pattern: "Old", replacement: "New", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: true, commit: true },
+      { pattern: "Old", replacement: "New", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: true, commit: true , active_note: false },
       baseDeps({ fs }),
     );
     expect(commit.mode).toBe("commit");
@@ -669,7 +509,7 @@ describe("US2 — both opt-ins independent (mixed-flag)", () => {
     }];
     const { fs } = inMemoryFs(files, VAULT_ROOT);
     const r = await executeFindAndReplace(
-      { pattern: "Old", replacement: "New", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: true, include_html_comments: false, commit: false },
+      { pattern: "Old", replacement: "New", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: true, include_html_comments: false, commit: false , active_note: false },
       baseDeps({ fs }),
     );
     if (r.mode === "preview") {
@@ -684,7 +524,7 @@ describe("US2 — both opt-ins independent (mixed-flag)", () => {
     }];
     const { fs } = inMemoryFs(files, VAULT_ROOT);
     const r = await executeFindAndReplace(
-      { pattern: "Old", replacement: "New", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: true, include_html_comments: true, commit: false },
+      { pattern: "Old", replacement: "New", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: true, include_html_comments: true, commit: false , active_note: false },
       baseDeps({ fs }),
     );
     if (r.mode === "preview") expect(r.total_occurrences).toBe(3);
@@ -703,7 +543,7 @@ describe("US3 — subfolder narrows the response", () => {
     ];
     const { fs } = inMemoryFs(files, VAULT_ROOT);
     const r = await executeFindAndReplace(
-      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", subfolder: "Decisions", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", subfolder: "Decisions", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false , active_note: false },
       baseDeps({ fs }),
     );
     if (r.mode === "preview") {
@@ -722,7 +562,7 @@ describe("US3 — unknown subfolder", () => {
       missingSubfolders: new Set(["DoesNotExist"]),
     });
     const err = await executeFindAndReplace(
-      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", subfolder: "DoesNotExist", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", subfolder: "DoesNotExist", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false , active_note: false },
       baseDeps({ fs }),
     ).catch((e) => e);
     expect(err).toBeInstanceOf(UpstreamError);
@@ -797,7 +637,7 @@ describe("US3 — subfolder symlink escape", () => {
       },
     });
     const err = await executeFindAndReplace(
-      { pattern: "x", replacement: "_", mode: "literal", vault: "V", subfolder: "outer/EvilLink", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      { pattern: "x", replacement: "_", mode: "literal", vault: "V", subfolder: "outer/EvilLink", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false , active_note: false },
       baseDeps({ fs, logger: captureLogger(events) }),
     ).catch((e) => e);
     expect((err as UpstreamError).code).toBe("PATH_ESCAPES_VAULT");
@@ -817,7 +657,7 @@ describe("US4 — bound exceeded on preview", () => {
     }];
     const { fs, state } = inMemoryFs(files, VAULT_ROOT);
     const err = await executeFindAndReplace(
-      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false , active_note: false },
       baseDeps({ fs, env: { OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES: "10" } }),
     ).catch((e) => e);
     expect((err as UpstreamError).code).toBe("VALIDATION_ERROR");
@@ -837,7 +677,7 @@ describe("US4 — bound exceeded on preview", () => {
     }];
     const { fs, state } = inMemoryFs(files, VAULT_ROOT);
     const err = await executeFindAndReplace(
-      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true },
+      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true , active_note: false },
       baseDeps({ fs, env: { OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES: "10" } }),
     ).catch((e) => e);
     expect((err as UpstreamError).details.code).toBe("OCCURRENCE_COUNT_EXCEEDED");
@@ -853,7 +693,7 @@ describe("US4 — bound exactly equal succeeds", () => {
     }];
     const { fs } = inMemoryFs(files, VAULT_ROOT);
     const r = await executeFindAndReplace(
-      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false , active_note: false },
       baseDeps({ fs, env: { OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES: "10" } }),
     );
     expect(r.mode).toBe("preview");
@@ -868,7 +708,7 @@ describe("US4 — env-var default fallback", () => {
     }];
     const { fs } = inMemoryFs(files, VAULT_ROOT);
     const r = await executeFindAndReplace(
-      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false , active_note: false },
       baseDeps({ fs, env: {} }),
     );
     expect(r.mode).toBe("preview");
@@ -882,7 +722,7 @@ describe("US4 — env-var default fallback", () => {
       const { fs } = inMemoryFs(files, VAULT_ROOT);
       const warn = vi.fn();
       const r = await executeFindAndReplace(
-        { pattern: "pat", replacement: "_", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+        { pattern: "pat", replacement: "_", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false , active_note: false },
         baseDeps({ fs, env: { OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES: raw }, warn }),
       );
       expect(r.mode).toBe("preview");
@@ -909,7 +749,7 @@ describe("US4 — second-scan bound recheck", () => {
       return reads === 1 ? "pat pat" : "pat pat pat pat pat pat";
     });
     const err = await executeFindAndReplace(
-      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true },
+      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true , active_note: false },
       baseDeps({ fs, env: { OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES: "5" } }),
     ).catch((e) => e);
     expect((err as UpstreamError).details.code).toBe("OCCURRENCE_COUNT_EXCEEDED");
@@ -928,7 +768,7 @@ describe("clipFullLine — full_line over FULL_LINE_CAP gets ellipsis (L189)", (
     const files: MemFile[] = [{ abs: relToAbs("n.md"), content: longLine }];
     const { fs } = inMemoryFs(files, VAULT_ROOT);
     const r = await executeFindAndReplace(
-      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false , active_note: false },
       baseDeps({ fs }),
     );
     expect(r.mode).toBe("preview");
@@ -955,7 +795,7 @@ describe("defaultInvokeEval — default factory drives obsidian eval (L192-220)"
       { stdout: focusedVaultStdout({ path: null, base: VAULT_ROOT }), exitCode: 0 },
     ]);
     const result = await executeFindAndReplace(
-      { pattern: "alpha", replacement: "X", mode: "literal", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      { pattern: "alpha", replacement: "X", mode: "literal", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false , active_note: false },
       baseDeps({ fs, spawnFn }), // invokeEval omitted → defaultInvokeEval runs
     );
     expect(getCount()).toBe(1); // exactly one `obsidian eval` spawn
@@ -975,7 +815,7 @@ describe("defaultInvokeEval — default factory drives obsidian eval (L192-220)"
       { stdout: "=> not-valid-json-at-all", exitCode: 0 },
     ]);
     const err = await executeFindAndReplace(
-      { pattern: "alpha", replacement: "X", mode: "literal", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      { pattern: "alpha", replacement: "X", mode: "literal", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false , active_note: false },
       baseDeps({ fs, spawnFn }),
     ).catch((e) => e);
     expect(err).toBeInstanceOf(UpstreamError);
@@ -994,7 +834,7 @@ describe("listEligibleNotes — readdir failure surfaces via mapFsError (L252)",
     const files: MemFile[] = [{ abs: relToAbs("a.md"), content: "pat" }];
     const { fs, state } = inMemoryFs(files, VAULT_ROOT, { readdirError: eio });
     const err = await executeFindAndReplace(
-      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false , active_note: false },
       baseDeps({ fs }),
     ).catch((e) => e);
     expect(err).toBeInstanceOf(UpstreamError);
@@ -1005,6 +845,7 @@ describe("listEligibleNotes — readdir failure surfaces via mapFsError (L252)",
     expect(state.writes.length).toBe(0);
   });
 });
+
 
 describe("subfolder realpath — non-ENOENT error rethrows raw (L436)", () => {
   it("EACCES (not ENOENT) on the subfolder realpath probe bubbles unchanged", async () => {
@@ -1028,7 +869,7 @@ describe("subfolder realpath — non-ENOENT error rethrows raw (L436)", () => {
       },
     });
     const err = await executeFindAndReplace(
-      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", subfolder: "Sub", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", subfolder: "Sub", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false , active_note: false },
       baseDeps({ fs }),
     ).catch((e) => e);
     // Raw rethrow — NOT wrapped in an UpstreamError, NOT the INVALID_SUBFOLDER branch.
