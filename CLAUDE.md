@@ -1,7 +1,7 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-[specs/065-fix-empty-bases/plan.md](specs/065-fix-empty-bases/plan.md)
+[specs/066-file-scope/plan.md](specs/066-file-scope/plan.md)
 
 References:
 - [.specify/memory/constitution.md](.specify/memory/constitution.md) — Five non-negotiable principles every change must satisfy. Principle I (Modular Code Organization: per-surface modules with one-directional imports, `{schema, tool, handler}.ts` layout, no upward or cyclic deps); Principle II (Public Surface Test Coverage: every MCP tool ships with happy-path + failure-or-boundary tests co-located as `*.test.ts` in the same change that adds/renames/modifies it); Principle III (Boundary Input Validation with Zod: schemas are the single source of truth for published shape, runtime parse, and downstream types via `z.infer`; no hand-rolled types or `typeof`/`instanceof` chains at boundaries); Principle IV (Explicit Upstream Error Propagation: failures surface through `UpstreamError` with stable `code` / `cause` / `details`; no silent fallbacks, empty results, or plain `throw new Error` at boundary surfaces); Principle V (Attribution & Layered Composition: every source file carries either an upstream-attribution header with SPDX + version or an `Original — no upstream` header). Each PR's Constitution Compliance checklist marks Y / N / N/A per principle plus ADR-010 / ADR-013 / ADR-014 / ADR-015; any `N` requires a Complexity Tracking entry in the plan.
