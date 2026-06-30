@@ -1,4 +1,6 @@
-// Original — no upstream.
+// Original — no upstream. Lists vault `.base` files via the native `bases` subcommand;
+// the membership filter keeps only clean-exit stdout lines ending in `.base`
+// (case-insensitive), so an empty vault's informational line yields { bases: [], count: 0 }.
 import { basesOutputSchema, type BasesInput, type BasesOutput } from "./schema.js";
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 
@@ -34,7 +36,7 @@ export async function executeBases(
   const bases = result.stdout
     .split("\n")
     .map((line) => line.trim())
-    .filter((line) => line.length > 0)
+    .filter((line) => line.toLowerCase().endsWith(".base"))
     .sort();
 
   return basesOutputSchema.parse({ bases, count: bases.length });
