@@ -27,8 +27,8 @@ Single project — MCP server. Production: `src/tools/bases/handler.ts`. Co-loca
 
 **Purpose**: Establish the pre-change baseline and the live-CLI gate. No project init needed — the `bases` module and `vitest` harness already exist.
 
-- [ ] T001 [P] Read `.memory/test-execution-instructions.md` and confirm the authorised TestVault, the scratch subdirectory, and the destructive-probe/cleanup protocol for the Phase 2 live-CLI probe (gate per CLAUDE.md "Test Execution"). Drive `Obsidian.com`, never the GUI `Obsidian.exe`.
-- [ ] T002 Establish the pre-change unit baseline: run `npx vitest run src/tools/bases` and record results. Confirm the existing "happy: empty vault returns count=0" test passes despite the live defect (it feeds `stdout: ""`, which never reproduced the bug — research D6). This documents the coverage gap this BI closes.
+- [X] T001 [P] Read `.memory/test-execution-instructions.md` and confirm the authorised TestVault, the scratch subdirectory, and the destructive-probe/cleanup protocol for the Phase 2 live-CLI probe (gate per CLAUDE.md "Test Execution"). Drive `Obsidian.com`, never the GUI `Obsidian.exe`.
+- [X] T002 Establish the pre-change unit baseline: run `npx vitest run src/tools/bases` and record results. Confirm the existing "happy: empty vault returns count=0" test passes despite the live defect (it feeds `stdout: ""`, which never reproduced the bug — research D6). This documents the coverage gap this BI closes.
 
 ---
 
@@ -38,9 +38,9 @@ Single project — MCP server. Production: `src/tools/bases/handler.ts`. Co-loca
 
 **⚠️ CRITICAL**: Per research D7, if a probe returns the surprise outcome (message on stderr and/or non-zero exit), STOP and re-verify the reproduction with the user before coding — that outcome would contradict the count=1 defect symptom.
 
-- [ ] T003 T0 **P1 — empty-vault channel**: in a scratch context with zero `.base` files, invoke the native `bases` subcommand (`command:"bases"`, `target_mode:"active"`) via `Obsidian.com`; capture exit code + stdout + stderr. Confirm exit `0`, the informational line on stdout (record exact wording), and no line ending in `.base`. Per contracts/t0-probe-plan.md §P1.
-- [ ] T004 T0 **P2 — populated baseline + casing**: in a scratch context with a known set of `.base` files (include one with internal spaces/punctuation, e.g. `Backlog (Base).base`), run the same invocation; capture stdout (expect one `.base` path per line, no informational text) and record the on-disk extension casing. This capture becomes the populated regression fixture. Per contracts/t0-probe-plan.md §P2.
-- [ ] T005 Record P1/P2 evidence (exit/stdout/stderr, exact empty-message wording, extension casing) in the implement-phase notes; finalize the unit fixtures (empty = the real message line; populated = the captured multi-base stdout). Clean up all scratch `.base` files / scratch subfolders per the cleanup protocol.
+- [X] T003 T0 **P1 — empty-vault channel**: in a scratch context with zero `.base` files, invoke the native `bases` subcommand (`command:"bases"`, `target_mode:"active"`) via `Obsidian.com`; capture exit code + stdout + stderr. Confirm exit `0`, the informational line on stdout (record exact wording), and no line ending in `.base`. Per contracts/t0-probe-plan.md §P1.
+- [X] T004 T0 **P2 — populated baseline + casing**: in a scratch context with a known set of `.base` files (include one with internal spaces/punctuation, e.g. `Backlog (Base).base`), run the same invocation; capture stdout (expect one `.base` path per line, no informational text) and record the on-disk extension casing. This capture becomes the populated regression fixture. Per contracts/t0-probe-plan.md §P2.
+- [X] T005 Record P1/P2 evidence (exit/stdout/stderr, exact empty-message wording, extension casing) in the implement-phase notes; finalize the unit fixtures (empty = the real message line; populated = the captured multi-base stdout). Clean up all scratch `.base` files / scratch subfolders per the cleanup protocol.
 
 **Checkpoint**: empty-channel confirmed exit-0-on-stdout → the positive-`.base`-filter mechanism is validated; fixture-accurate tests can be written.
 
@@ -54,9 +54,9 @@ Single project — MCP server. Production: `src/tools/bases/handler.ts`. Co-loca
 
 > TDD: write the failing empty-vault test (T006) FIRST, confirm it is red on the current handler, then make it green with the predicate change (T007).
 
-- [ ] T006 [US1] **(red)** Correct the stale empty-vault test in `src/tools/bases/handler.test.ts`: replace the `{ stdout: "" }` fixture in "happy: empty vault returns count=0" with the real empty emission `{ stdout: "No base files found in vault\n" }` (exit 0); assert `result.bases` is `[]` and `result.count` is `0`. Confirm this test FAILS against the current handler (it yields count 1) — the genuine regression guard (research D6).
-- [ ] T007 [US1] **(green)** In `src/tools/bases/handler.ts`, change the membership predicate from `.filter((line) => line.length > 0)` to `.filter((line) => line.toLowerCase().endsWith(".base"))` (keep the preceding `split`/`trim` and the following `sort`/`basesOutputSchema.parse` unchanged). Update the `// Original — no upstream.` header's one-line intent to note the `.base` membership filter. Confirm T006 now passes.
-- [ ] T008 [US1] Add a whitespace/blank-output boundary test in `src/tools/bases/handler.test.ts`: fixture `{ stdout: "   \n\n" }` → `{ bases: [], count: 0 }` (FR-002 / edge case).
+- [X] T006 [US1] **(red)** Correct the stale empty-vault test in `src/tools/bases/handler.test.ts`: replace the `{ stdout: "" }` fixture in "happy: empty vault returns count=0" with the real empty emission `{ stdout: "No base files found in vault\n" }` (exit 0); assert `result.bases` is `[]` and `result.count` is `0`. Confirm this test FAILS against the current handler (it yields count 1) — the genuine regression guard (research D6).
+- [X] T007 [US1] **(green)** In `src/tools/bases/handler.ts`, change the membership predicate from `.filter((line) => line.length > 0)` to `.filter((line) => line.toLowerCase().endsWith(".base"))` (keep the preceding `split`/`trim` and the following `sort`/`basesOutputSchema.parse` unchanged). Update the `// Original — no upstream.` header's one-line intent to note the `.base` membership filter. Confirm T006 now passes.
+- [X] T008 [US1] Add a whitespace/blank-output boundary test in `src/tools/bases/handler.test.ts`: fixture `{ stdout: "   \n\n" }` → `{ bases: [], count: 0 }` (FR-002 / edge case).
 
 **Checkpoint**: Empty vault is honest. US1 independently demonstrable.
 
@@ -68,10 +68,10 @@ Single project — MCP server. Production: `src/tools/bases/handler.ts`. Co-loca
 
 **Independent Test**: Drive `bases` against a known `.base` set → membership and order byte-identical to pre-fix output.
 
-- [ ] T009 [US2] Assert the populated path is byte-identical to pre-fix in `src/tools/bases/handler.test.ts`: keep the existing "happy: multi-base sorted output" and "happy: deterministic sort order" cases and ensure each asserts the **exact** sorted `bases` array AND `count` (not just `bases.length`). Additionally add an unconditional byte-identical regression case over a fixed multi-base fixture — the T0 P2 capture, or the current `"Vault Health Check.base\n000-Meta/Bases/Type ID Index.base\n220-Planning/Backlog (Base).base\n"` fixture if P2 matches — asserting the full sorted result. The result MUST be byte-identical to the pre-fix output: zero membership differences, zero ordering differences (FR-004 / SC-003). Also confirm the existing "vault parameter accepted but silently ignored (R-001)" test still passes unchanged after T007 — the `vault` argument's handling is untouched (FR-007).
-- [ ] T010 [US2] Add a single-real-Base boundary test in `src/tools/bases/handler.test.ts`: fixture `{ stdout: "Only One.base\n" }` → `{ bases: ["Only One.base"], count: 1 }` — the filter never mistakes a real single Base for the empty signal (FR-005).
-- [ ] T011 [US2] Add a message-mixed-with-paths defensive test in `src/tools/bases/handler.test.ts`: fixture `{ stdout: "No base files found in vault\nReal One.base\n" }` → `{ bases: ["Real One.base"], count: 1 }` — only the `.base` path survives (FR-002 / edge case).
-- [ ] T012 [US2] Add a case-insensitive-extension test in `src/tools/bases/handler.test.ts`: fixture with a `.Base`/`.BASE` line (e.g. `{ stdout: "Mixed.Base\n" }`) → that line is kept (`count: 1`) — confirms the `toLowerCase().endsWith(".base")` predicate (FR-002 / research D5).
+- [X] T009 [US2] Assert the populated path is byte-identical to pre-fix in `src/tools/bases/handler.test.ts`: keep the existing "happy: multi-base sorted output" and "happy: deterministic sort order" cases and ensure each asserts the **exact** sorted `bases` array AND `count` (not just `bases.length`). Additionally add an unconditional byte-identical regression case over a fixed multi-base fixture — the T0 P2 capture, or the current `"Vault Health Check.base\n000-Meta/Bases/Type ID Index.base\n220-Planning/Backlog (Base).base\n"` fixture if P2 matches — asserting the full sorted result. The result MUST be byte-identical to the pre-fix output: zero membership differences, zero ordering differences (FR-004 / SC-003). Also confirm the existing "vault parameter accepted but silently ignored (R-001)" test still passes unchanged after T007 — the `vault` argument's handling is untouched (FR-007).
+- [X] T010 [US2] Add a single-real-Base boundary test in `src/tools/bases/handler.test.ts`: fixture `{ stdout: "Only One.base\n" }` → `{ bases: ["Only One.base"], count: 1 }` — the filter never mistakes a real single Base for the empty signal (FR-005).
+- [X] T011 [US2] Add a message-mixed-with-paths defensive test in `src/tools/bases/handler.test.ts`: fixture `{ stdout: "No base files found in vault\nReal One.base\n" }` → `{ bases: ["Real One.base"], count: 1 }` — only the `.base` path survives (FR-002 / edge case).
+- [X] T012 [US2] Add a case-insensitive-extension test in `src/tools/bases/handler.test.ts`: fixture with a `.Base`/`.BASE` line (e.g. `{ stdout: "Mixed.Base\n" }`) → that line is kept (`count: 1`) — confirms the `toLowerCase().endsWith(".base")` predicate (FR-002 / research D5).
 
 **Checkpoint**: US1 + US2 both pass; no populated-path regression.
 
@@ -83,7 +83,7 @@ Single project — MCP server. Production: `src/tools/bases/handler.ts`. Co-loca
 
 **Independent Test**: Drive `bases` into a non-zero CLI exit → rejects with `UpstreamError`, observably different from the empty result.
 
-- [ ] T013 [US3] Verify and retain the existing upstream-failure boundary test in `src/tools/bases/handler.test.ts` ("upstream CLI failure surfaces as UpstreamError": non-zero exit + stderr → rejects with `UpstreamError`). Confirm it still passes unchanged after T007, and that the empty case (T006) and this failure case produce observably different outcomes — a clean empty envelope vs a thrown typed error (FR-006 / SC-004). Add a brief comment tying the case to Story 3 if not already clear.
+- [X] T013 [US3] Verify and retain the existing upstream-failure boundary test in `src/tools/bases/handler.test.ts` ("upstream CLI failure surfaces as UpstreamError": non-zero exit + stderr → rejects with `UpstreamError`). Confirm it still passes unchanged after T007, and that the empty case (T006) and this failure case produce observably different outcomes — a clean empty envelope vs a thrown typed error (FR-006 / SC-004). Add a brief comment tying the case to Story 3 if not already clear.
 
 **Checkpoint**: All three stories validated; empty ≠ failure.
 
@@ -93,10 +93,10 @@ Single project — MCP server. Production: `src/tools/bases/handler.ts`. Co-loca
 
 **Purpose**: Merge-gate, frozen-surface confirmation, and post-implement structural verification.
 
-- [ ] T014 Run the full merge gate, all green: `npm run lint` (zero warnings), `npm run typecheck`, `npm run build`, and the coverage suite. On Windows use the reliable invocation: `mkdir -p coverage/.tmp` then `npx vitest run --coverage --pool=forks --no-file-parallelism` (per the project coverage-flakiness note). Confirm the aggregate statements threshold still passes.
-- [ ] T015 [P] Confirm `src/tools/_register-baseline.json` `bases` fingerprints (`descriptionFingerprint` / `schemaFingerprint`) are UNCHANGED — the published surface is frozen, so the FR-018 baseline-stability test passes without regeneration. If they moved, an unintended description/schema edit leaked in — revert it.
-- [ ] T016 [P] Post-implement structural verification: run `/graphify --update`, then confirm per plan §"Graphify structural check": (1) no new error-class node outside `src/errors.ts` and no new `details.*` literal (the empty case is a success); (2) `executeBases`'s edge set is unchanged — `{ invokeCli, handler.test.ts, handler.ts, index.ts }`, no new `UpstreamError`/kernel/sibling-tool edge; (3) `bases` stays in the native-CLI-wrapper Bases-family community (no surprise migration); (4) `handler.ts` remains structurally connected.
-- [ ] T017 Run the [quickstart.md](quickstart.md) scenarios A (empty), B (populated + single-Base), C (failure) against the authorised TestVault for final manual confirmation; clean up any scratch artifacts per the test-execution protocol.
+- [X] T014 Run the full merge gate, all green: `npm run lint` (zero warnings), `npm run typecheck`, `npm run build`, and the coverage suite. On Windows use the reliable invocation: `mkdir -p coverage/.tmp` then `npx vitest run --coverage --pool=forks --no-file-parallelism` (per the project coverage-flakiness note). Confirm the aggregate statements threshold still passes.
+- [X] T015 [P] Confirm `src/tools/_register-baseline.json` `bases` fingerprints (`descriptionFingerprint` / `schemaFingerprint`) are UNCHANGED — the published surface is frozen, so the FR-018 baseline-stability test passes without regeneration. If they moved, an unintended description/schema edit leaked in — revert it.
+- [X] T016 [P] Post-implement structural verification: run `/graphify --update`, then confirm per plan §"Graphify structural check": (1) no new error-class node outside `src/errors.ts` and no new `details.*` literal (the empty case is a success); (2) `executeBases`'s edge set is unchanged — `{ invokeCli, handler.test.ts, handler.ts, index.ts }`, no new `UpstreamError`/kernel/sibling-tool edge; (3) `bases` stays in the native-CLI-wrapper Bases-family community (no surprise migration); (4) `handler.ts` remains structurally connected.
+- [X] T017 Run the [quickstart.md](quickstart.md) scenarios A (empty), B (populated + single-Base), C (failure) against the authorised TestVault for final manual confirmation; clean up any scratch artifacts per the test-execution protocol.
 
 ---
 
