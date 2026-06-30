@@ -1042,6 +1042,11 @@ describe("066-file-scope US1 — named single-note scope by path", () => {
     expect(state.writes.length).toBe(0);
     expect(state.files.get(relToAbs("Inbox/A.md"))).toBe("STATUS here");
     expect(state.files.get(relToAbs("Archive/C.md"))).toBe("STATUS elsewhere");
+    // SC-001 read-half: ONLY the target is read — no sibling is touched (not just
+    // not-written). Pins the "no other note is read" clause directly rather than
+    // relying on the pattern-bearing-sibling fixture coincidence.
+    const readPaths = vi.mocked(fs.readFile).mock.calls.map((c) => c[0]);
+    expect(readPaths).toEqual([relToAbs("Projects/Target.md")]);
   });
 
   it("commit rewrites only the named note; all other notes byte/mtime unchanged (SC-001)", async () => {
@@ -1066,6 +1071,10 @@ describe("066-file-scope US1 — named single-note scope by path", () => {
     expect(state.files.get(relToAbs("Inbox/A.md"))).toBe("STATUS here");
     expect(state.files.get(relToAbs("Archive/C.md"))).toBe("STATUS elsewhere");
     expect(state.renames.length).toBe(1);
+    // SC-001 read-half: every read (first + drift re-scan) hits ONLY the target.
+    const readPaths = vi.mocked(fs.readFile).mock.calls.map((c) => c[0]);
+    expect(readPaths.length).toBeGreaterThan(0);
+    expect(readPaths.every((p) => p === relToAbs("Projects/Target.md"))).toBe(true);
   });
 
   it("named-path + explicit vault resolves within the named vault (G2 / FR-015 allow-case)", async () => {
@@ -1157,6 +1166,65 @@ describe("066-file-scope US1 — named single-note scope by path", () => {
     expect(state.writes.length).toBe(0);
   });
 
+  it("named-file COMMIT resolves once and does NOT re-resolve on the drift re-scan (D8)", async () => {
+    const files: MemFile[] = [{ abs: relToAbs("Projects/Target.md"), content: "STATUS once" }];
+    const { fs, state } = inMemoryFs(files, VAULT_ROOT);
+    // Exactly ONE queued `obsidian file` response: makeQueuedSpawn throws on
+    // overflow, so a commit-time re-resolve (a second TSV spawn) would fail here.
+    const { spawnFn, getCount } = makeQueuedSpawn([FILE_TSV_OK("Projects/Target.md")]);
+    const result = await executeFindAndReplace(
+      { pattern: "STATUS", replacement: "STATE", mode: "literal", vault: "V", file: "Target", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true, active_note: false },
+      baseDeps({ fs, spawnFn }),
+    );
+    expect(result.mode).toBe("commit");
+    if (result.mode === "commit") {
+      expect(result.changed_notes).toEqual(["Projects/Target.md"]);
+      expect(result.total_occurrences_replaced).toBe(1);
+      expect(result.partial).toBe(false);
+    }
+    expect(getCount()).toBe(1); // the bare name resolved ONCE across preview + commit scans (D8)
+    expect(state.files.get(relToAbs("Projects/Target.md"))).toBe("STATE once");
+    expect(state.renames.length).toBe(1);
+  });
+
+  it("focused file fork (vault absent) reverse-resolves the display name from the RAW base, not the canonicalised root", async () => {
+    // Regression guard for the canonical-vs-raw divergence: an ancestor-symlinked
+    // root makes assertCanonicalPath's realpath (CANON) differ from Obsidian's
+    // reported basePath (RAW = the registry's reverse-lookup key). The display name
+    // MUST be resolved from RAW, else `obsidian file vault=<name>` receives a
+    // filesystem path it cannot resolve.
+    const RAW = resolve("/sym/vault");
+    const CANON = resolve("/real/vault"); // shares basename "vault" so the root check passes
+    const symParent = resolve("/sym");
+    const realParent = resolve("/real");
+    const targetAbs = resolve(CANON, "Projects", "Target.md");
+    const files: MemFile[] = [{ abs: targetAbs, content: "STATUS once" }];
+    const { fs, state } = inMemoryFs(files, CANON, {
+      realpathOverride: async (p: string) => {
+        if (p === RAW) return CANON; // the vault root is an ancestor symlink
+        if (p === symParent) return realParent; // its parent resolves consistently
+        return p; // CANON, CANON/Projects, target, etc. resolve in-place
+      },
+    });
+    // resolveVaultDisplayName returns the registered name ONLY for the RAW base.
+    const registry: VaultRegistry = {
+      resolveVaultPath: vi.fn(async () => CANON),
+      resolveVaultDisplayName: vi.fn((base: string) => (base === RAW ? "FocusedDisplay" : `PATH:${base}`)),
+    };
+    const invokeEval = vi.fn(async (): Promise<FocusedVaultResponse> => ({ path: null, base: RAW }));
+    const { spawnFn, recorded } = makeQueuedSpawn([FILE_TSV_OK("Projects/Target.md")]);
+    const result = await executeFindAndReplace(
+      { pattern: "STATUS", replacement: "STATE", mode: "literal", file: "Target", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
+      baseDeps({ fs, vaultRegistry: registry, invokeEval, spawnFn }),
+    );
+    expect(result.mode).toBe("preview");
+    // The `obsidian file` spawn received the registered DISPLAY NAME (from RAW),
+    // not the canonicalised filesystem path — proves resolveVaultDisplayName(rawRoot).
+    const vaultArg = recorded[0]!.argv.find((a) => a.startsWith("vault="));
+    expect(vaultArg).toBe("vault=FocusedDisplay");
+    expect(state.writes.length).toBe(0);
+  });
+
   it("named-path whose canonical path escapes the vault → PATH_ESCAPES_VAULT + pathEscapeAttempt (C1 / FR-013 Layer-2)", async () => {
     const { dirname } = await import("node:path");
     const parentOfVault = dirname(VAULT_ROOT);
@@ -1204,6 +1272,9 @@ describe("066-file-scope US2 — active_note scope", () => {
     }
     expect(state.writes.length).toBe(0);
     expect(state.files.get(relToAbs("Inbox/A.md"))).toBe("STATUS sibling");
+    // SC-001 read-half: the open note is the ONLY note read.
+    const readPaths = vi.mocked(fs.readFile).mock.calls.map((c) => c[0]);
+    expect(readPaths).toEqual([relToAbs("Projects/Target.md")]);
   });
 
   it("commit rewrites only the open note; siblings byte-unchanged (SC-001/G1)", async () => {

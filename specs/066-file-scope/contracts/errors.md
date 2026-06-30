@@ -59,6 +59,10 @@
   "message": "No active file in Obsidian. Open a note in the editor, or name one explicitly." }
 ```
 
+## Precedence when multiple violations apply
+
+When a single input triggers more than one rejection, **field-shape rejections take precedence over scope conflicts**. Concretely, an input that is both structurally-unsafe AND a scope conflict (e.g. `{ file: "../x", path: "B.md" }` — `file` is path-traversal-shaped and `file`+`path` conflict) surfaces `VALIDATION_ERROR` / `INVALID_NOTE` / `path-traversal`, not `SCOPE_CONFLICT`/`file+path`. This follows the schema's issue-emission order (the field-shape `superRefine` issue is pushed before the scope-conflict issue) and `mapZodIssuesToToolError` returning on the first matching issue. Both outcomes are accurate `VALIDATION_ERROR` states on pre-existing top-level codes (Principle IV holds either way); the field-shape failure is the stronger, more actionable signal, so it wins by design. Single-violation inputs always produce the exact triple in the tables above.
+
 ## Discriminator count
 
 Eight new `(code, details.code, details.reason)` triples (rows 1–8) + three reused (rows 9–11) + the inherited BI-038 roster, **all on pre-existing top-level codes**. The zero-new-top-level-codes streak (Principle IV) carries through this feature.

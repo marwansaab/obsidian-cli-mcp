@@ -481,12 +481,19 @@ async function resolveSingleNoteScope(
     relPath = toVaultRelative(active.relPath);
   } else {
     // US1 — a named single note (path or file; mutually exclusive per superRefine).
-    vaultRoot = await assertCanonicalPath(await resolveVaultRoot(input, deps), ".", guard);
+    const rawRoot = await resolveVaultRoot(input, deps);
+    vaultRoot = await assertCanonicalPath(rawRoot, ".", guard);
     if (input.path !== undefined) {
       relPath = toVaultRelative(input.path);
     } else {
       // input.file is defined (the dispatch fires only when one locator is set).
-      const vaultName = input.vault ?? resolveVaultDisplayName(deps.vaultRegistry, vaultRoot);
+      // Reverse-resolve the display name from the RAW base (pre-canonicalisation):
+      // the registry keys on Obsidian's reported basePath, which assertCanonicalPath's
+      // realpath can diverge from on an ancestor-symlinked / normalised root. Passing
+      // the canonical root would miss the registry entry and fall back to a filesystem
+      // path, which `obsidian file vault=…` rejects (it wants a registered name).
+      // Parity with resolveActiveLocatorWithVault + research D6.
+      const vaultName = input.vault ?? resolveVaultDisplayName(deps.vaultRegistry, rawRoot);
       relPath = toVaultRelative(
         await resolveFileByTsv(deps, vaultName, input.file as string, "find_and_replace"),
       );
