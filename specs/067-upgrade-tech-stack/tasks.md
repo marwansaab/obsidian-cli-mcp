@@ -166,9 +166,9 @@ registerTool → fingerprintLiveRegistry, so T033's gate covers T027–T032 join
 warnings.
 
 - [ ] T043 [US5] Cut branch `067-us5-ci` from updated main; edit .github/workflows/ci.yml: `actions/checkout@v7`, `actions/setup-node@v6`, `strategy.matrix.node-version: [22, 24]` with `node-version: ${{ matrix.node-version }}`, keep `cache: npm`; reflect matrix in job name
-- [ ] T044 [US5] Push branch; verify CI: both lanes green, run logs contain no runner-runtime deprecation warnings (SC-005); a 24-lane failure is a release blocker, not a reason to drop the lane (spec edge case)
-- [ ] T045 [US5] Commit `ci(067-upgrade-tech-stack): US5 actions v7/v6 + node 22/24 matrix (T043-T044)` — body: node20-runtime hygiene rationale (no hard deadline — verify-pass correction), matrix rationale
-- [ ] T046 [US5] Open **PR-5** → main: title "067/US5: CI actions modernization + [22,24] matrix"; Constitution checklist: I–V **N/A** (workflow only), ADRs **N/A**; **STOP — review + merge**
+- [ ] T044 [US5] Commit `ci(067-upgrade-tech-stack): US5 actions v7/v6 + node 22/24 matrix (T043)` — body: node20-runtime hygiene rationale (no hard deadline — verify-pass correction), matrix rationale
+- [ ] T045 [US5] Push branch and open **PR-5** → main as a DRAFT: title "067/US5: CI actions modernization + [22,24] matrix" — ci.yml triggers are `push: [main]` + `pull_request: [main]`, so CI runs for this branch only once the PR exists
+- [ ] T046 [US5] Verify CI on PR-5: both lanes green, run logs contain no runner-runtime deprecation warnings (SC-005); a 24-lane failure is a release blocker, not a reason to drop the lane (spec edge case); then mark the PR ready for review, adding Constitution checklist: I–V **N/A** (workflow only), ADRs **N/A**; **STOP — review + merge**
 
 ---
 

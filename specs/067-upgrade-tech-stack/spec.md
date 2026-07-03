@@ -41,11 +41,11 @@ that clients and tests depend on.
     corrected to: emit the draft-07 dialect target (byte-identical key) plus a
     four-rule behavior-free normalization pass. Proven end-to-end: 22 shape fixtures +
     live dump of all 34 tools, fingerprint-identical. See plan.md / research.md R2.
-- Q: The new validation major removes some API forms outright (eight custom-message
-  parameter declarations, one single-argument record declaration — mandatory fixes)
-  but only deprecates others that keep working (the strict unknown-key shorthand at
-  118 occurrences across ~43 schema files, the refinement hook at 20 occurrences
-  across 16 files, a legacy type alias in the shared chokepoints). How far does the
+- Q: The new validation major removes some API forms outright (four fields carrying
+  eight custom-message parameters, one single-argument record declaration — mandatory
+  fixes) but only deprecates others that keep working (the strict unknown-key
+  shorthand at ~115 occurrences across ~43 schema files, the refinement hook at 20
+  occurrences across 16 files, a legacy type alias in the shared chokepoints). How far does the
   migration go? → A: Full modernization. All deprecated API forms are replaced with
   their current-major equivalents inside this feature, leaving zero deprecation debt.
   Behavior preservation is gated by the registry fingerprint baseline (descriptors)
@@ -231,9 +231,9 @@ lanes with no runtime-deprecation warnings attributable to the workflow's action
   (blank-line injection around HTML comments in Markdown lists — a pattern present in
   this repository's documentation) is resolved.
 - The new validation major silently ignores the old-style custom-message parameters
-  rather than erroring: if the eight affected declarations are not migrated, the custom
-  messages vanish without any build or test failure unless a test asserts them. The
-  migration must include explicit assertions on those messages.
+  rather than erroring: if the four affected fields (eight parameters) are not
+  migrated, the custom messages vanish without any build or test failure unless a test
+  asserts them. The migration must include explicit assertions on those messages.
 - The built-in descriptor conversion defaults to a mode that promotes optional-with-
   default fields to required; the conversion must use the input-oriented mode and the
   descriptor-parity test must cover a defaulted-optional field.
@@ -295,8 +295,9 @@ lanes with no runtime-deprecation warnings attributable to the workflow's action
   behavior-free normalization pass at the single conversion point, and the committed
   registry fingerprint baseline MUST pass unregenerated.
 - **FR-010**: All custom validation messages and machine-readable issue codes MUST
-  survive the validation-library migration, including the eight declarations using the
-  removed custom-message parameter style and the one single-argument record declaration.
+  survive the validation-library migration, including the four fields carrying the
+  eight removed custom-message parameters and the one single-argument record
+  declaration.
 - **FR-011**: The validation error envelope shape (path, message, code per issue) MUST
   be unchanged; no new top-level error codes may be introduced.
 - **FR-012**: The dependency manifest's declared minimum versions MUST be raised to the

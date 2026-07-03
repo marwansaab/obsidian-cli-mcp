@@ -94,6 +94,8 @@ specs/067-upgrade-tech-stack/
 │   ├── descriptor-parity.contract.md   # normalizer rules + baseline gate semantics
 │   └── zod4-api-mapping.contract.md    # old-form → v4-form table + test obligations
 ├── checklists/requirements.md
+├── evidence-pre-upgrade.md  # created by T001 — frozen pre-upgrade audit + deps snapshot
+├── post-implement.md        # created by T047 — structural verification results
 └── tasks.md             # Phase 2 (/speckit-tasks — not created here)
 ```
 

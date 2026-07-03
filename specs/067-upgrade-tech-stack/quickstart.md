@@ -67,7 +67,8 @@ the SDK InMemoryTransport; descriptor and envelope assertions are the client's v
 ```bash
 git grep -n "actions/checkout@v7\|actions/setup-node@v6" .github/workflows/ci.yml
 git grep -n "node-version" .github/workflows/ci.yml      # matrix [22, 24]
-# push → both lanes green, zero runner-runtime deprecation warnings (SC-005)
+# open the PR (pull_request trigger — a bare branch push does NOT run CI)
+#   → both lanes green, zero runner-runtime deprecation warnings (SC-005)
 ```
 
 ## Feature-complete checklist (SC roll-up)
