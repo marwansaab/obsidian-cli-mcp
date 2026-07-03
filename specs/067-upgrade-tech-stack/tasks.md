@@ -44,8 +44,8 @@ commits so it can be reviewed commit-by-commit.
 PR bodies will cite.
 
 - [X] T001 Capture pre-upgrade evidence in specs/067-upgrade-tech-stack/evidence-pre-upgrade.md: `npm audit` summary (8 vulns: 5 moderate, 3 high, names + fixAvailable), `npm ls --depth=0` output, `node --version`, and the current `src/tools/_register-baseline.json` schemaVersion + tool count (34)
-- [ ] T002 Commit tasks.md + evidence file on `067-upgrade-tech-stack` via the repo commit convention (`docs(067-upgrade-tech-stack): generate task breakdown`)
-- [ ] T003 Open **PR-0** `067-upgrade-tech-stack` → `main` (gh pr create): title "067: tech-stack upgrade — spec, plan, tasks (docs only)"; Constitution checklist: Principles I–V **N/A** (docs-only, no governed surface), ADR-010/013/014/015 **N/A**; **STOP — request review, merge before Phase 3**
+- [X] T002 Commit tasks.md + evidence file on `067-upgrade-tech-stack` via the repo commit convention (`docs(067-upgrade-tech-stack): generate task breakdown`)
+- [X] T003 Open **PR-0** `067-upgrade-tech-stack` → `main` (gh pr create): title "067: tech-stack upgrade — spec, plan, tasks (docs only)"; Constitution checklist: Principles I–V **N/A** (docs-only, no governed surface), ADR-010/013/014/015 **N/A**; **STOP — request review, merge before Phase 3** (opened as [#74](https://github.com/marwansaab/obsidian-cli-mcp/pull/74))
 
 ---
 
