@@ -21,6 +21,28 @@ server: the tool catalog, the shape of every tool's published input descriptor, 
 validation envelope, and the custom validation messages and machine-readable issue codes
 that clients and tests depend on.
 
+## Clarifications
+
+### Session 2026-07-04
+
+- Q: The new validation library's built-in descriptor conversion adds a top-level
+  dialect-marker key (`$schema`, draft 2020-12) that the previous converter did not
+  emit; the committed registry fingerprint baseline hashes the canonical descriptor
+  JSON, so this key decides whether the baseline survives untouched or must be
+  regenerated. Strip the key, or accept it into the published descriptors? → A: Strip
+  it. Descriptors remain byte-identical to today, the committed fingerprint baseline
+  stays valid with no regeneration, and clients observe zero drift. The MCP protocol
+  already assumes the JSON Schema dialect, so the key carries no information.
+- Q: The new validation major removes some API forms outright (eight custom-message
+  parameter declarations, one single-argument record declaration — mandatory fixes)
+  but only deprecates others that keep working (the strict unknown-key shorthand at
+  118 occurrences across ~43 schema files, the refinement hook at 20 occurrences
+  across 16 files, a legacy type alias in the shared chokepoints). How far does the
+  migration go? → A: Full modernization. All deprecated API forms are replaced with
+  their current-major equivalents inside this feature, leaving zero deprecation debt.
+  Behavior preservation is gated by the registry fingerprint baseline (descriptors)
+  and the machine-code assertions (validation behavior).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Vulnerability-Free Dependency Baseline (Priority: P1)
@@ -118,7 +140,10 @@ is introduced.
 As a maintainer, I move the project to the schema-validation library's latest stable
 major and replace the deprecated schema-conversion dependency with the library's
 built-in conversion, so that the validation stack is supported and the published tool
-descriptors and validation behavior remain identical for MCP clients.
+descriptors and validation behavior remain identical for MCP clients. Per
+clarification (2026-07-04), the migration is a full modernization: every deprecated
+API form of the validation library — not only the removed ones — is replaced with its
+current-major equivalent in this increment, leaving zero deprecation debt.
 
 **Why this priority**: Largest verified migration surface of the five increments, so it
 goes last among the code-touching work. The conversion dependency is deprecated upstream
@@ -149,6 +174,10 @@ suite passes.
    requires.
 5. **Given** the validation error envelope, **When** any validation failure occurs,
    **Then** the envelope shape (path, message, code) is unchanged.
+6. **Given** the fully modernized schema code, **When** the codebase is scanned for
+   deprecated validation-library API forms, **Then** zero remain, and every
+   replacement preserved its prior behavior (unknown-key rejection, refinement issue
+   codes and messages, descriptor output — the fingerprint baseline still passes).
 
 ---
 
@@ -191,7 +220,8 @@ lanes with no runtime-deprecation warnings attributable to the workflow's action
   default fields to required; the conversion must use the input-oriented mode and the
   descriptor-parity test must cover a defaulted-optional field.
 - The built-in conversion adds a schema-dialect marker key that the previous converter
-  did not emit; descriptor parity must account for it (strip or explicitly accept).
+  did not emit; per clarification (2026-07-04) the key is stripped at the conversion
+  point so the committed registry fingerprint baseline passes without regeneration.
 - Default (non-custom) validation message text differs between the old and new
   validation majors; this drift is client-visible in the generic validation envelope.
   Custom messages and machine codes must not drift; default-text drift is accepted and
@@ -201,6 +231,11 @@ lanes with no runtime-deprecation warnings attributable to the workflow's action
   locally. The documented developer minimum must call this out.
 - The single-argument record-schema form is removed in the new validation major; the one
   affected declaration must be migrated to the two-argument form.
+- The full-modernization sweep (per clarification 2026-07-04) touches ~43 schema files
+  mechanically; a behavior drift hidden inside the sweep would be invisible in review
+  by diff size alone. The registry fingerprint baseline and the message/machine-code
+  assertions are the gates that make the sweep safe — they must pass unregenerated
+  after the sweep, not be updated to match it.
 - Coverage runs on Windows are known to race on cold runs; verification of each
   increment must use the known-reliable invocation so a flaky infrastructure failure is
   not misread as an upgrade regression.
@@ -233,10 +268,11 @@ lanes with no runtime-deprecation warnings attributable to the workflow's action
   in use MUST be removed from the dependency manifest.
 - **FR-008**: The deprecated schema-conversion dependency MUST be removed and replaced
   by the validation library's built-in conversion operating in input-oriented mode.
-- **FR-009**: Every tool's published input descriptor MUST be semantically identical
-  before and after the migration: same property sets, same required lists, same
-  unknown-key policy, same defaults; the new dialect-marker key is either stripped or
-  explicitly asserted.
+- **FR-009**: Every tool's published input descriptor MUST be byte-identical (after
+  canonicalization) before and after the migration: same property sets, same required
+  lists, same unknown-key policy, same defaults; the dialect-marker key added by the
+  built-in conversion MUST be stripped at the single conversion point, and the
+  committed registry fingerprint baseline MUST pass unregenerated.
 - **FR-010**: All custom validation messages and machine-readable issue codes MUST
   survive the validation-library migration, including the eight declarations using the
   removed custom-message parameter style and the one single-argument record declaration.
@@ -254,6 +290,13 @@ lanes with no runtime-deprecation warnings attributable to the workflow's action
 - **FR-015**: The five increments MUST land in the stated order, each leaving the
   project releasable (full suite green) so any increment can be shipped or reverted
   independently.
+- **FR-016**: The validation-library migration MUST replace every deprecated API form
+  with its current-major equivalent (full modernization per clarification 2026-07-04):
+  zero deprecated validation-library API usage remains at feature completion. Each
+  replacement MUST be behavior-preserving — unknown-key rejection policy, refinement
+  issue codes/messages/metadata, and descriptor output are unchanged, gated by the
+  registry fingerprint baseline (FR-009) and the message/machine-code assertions
+  (FR-010).
 
 ### Key Entities
 
@@ -277,9 +320,9 @@ lanes with no runtime-deprecation warnings attributable to the workflow's action
   in a runtime-loaded module).
 - **SC-002**: 100% of the existing test suite passes at the completion of every one of
   the five increments, using the project's reliable coverage invocation.
-- **SC-003**: 100% of published tool descriptors are semantically identical before and
-  after the validation-library migration, verified by automated comparison of captured
-  descriptors.
+- **SC-003**: 100% of published tool descriptors are byte-identical (after
+  canonicalization) before and after the validation-library migration, verified by the
+  existing committed registry fingerprint baseline passing without regeneration.
 - **SC-004**: 100% of custom validation messages and machine-readable issue codes
   observable before the migration remain observable after it.
 - **SC-005**: CI is green on both supported runtime lanes with 0 action-runtime
@@ -290,6 +333,9 @@ lanes with no runtime-deprecation warnings attributable to the workflow's action
   migration.
 - **SC-008**: An MCP client connecting to the upgraded server observes the same tool
   catalog (same tool names, same descriptor shapes) as before the upgrade.
+- **SC-009**: A static scan for deprecated validation-library API forms reports 0
+  occurrences at feature completion, with SC-003 (descriptor parity) and SC-004
+  (message/machine-code survival) still green after the modernization sweep.
 
 ## Assumptions
 
