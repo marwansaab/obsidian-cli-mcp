@@ -43,7 +43,7 @@ commits so it can be reviewed commit-by-commit.
 **Purpose**: land the spec artifacts on main and freeze the pre-upgrade baseline that
 PR bodies will cite.
 
-- [ ] T001 Capture pre-upgrade evidence in specs/067-upgrade-tech-stack/evidence-pre-upgrade.md: `npm audit` summary (8 vulns: 5 moderate, 3 high, names + fixAvailable), `npm ls --depth=0` output, `node --version`, and the current `src/tools/_register-baseline.json` schemaVersion + tool count (34)
+- [X] T001 Capture pre-upgrade evidence in specs/067-upgrade-tech-stack/evidence-pre-upgrade.md: `npm audit` summary (8 vulns: 5 moderate, 3 high, names + fixAvailable), `npm ls --depth=0` output, `node --version`, and the current `src/tools/_register-baseline.json` schemaVersion + tool count (34)
 - [ ] T002 Commit tasks.md + evidence file on `067-upgrade-tech-stack` via the repo commit convention (`docs(067-upgrade-tech-stack): generate task breakdown`)
 - [ ] T003 Open **PR-0** `067-upgrade-tech-stack` → `main` (gh pr create): title "067: tech-stack upgrade — spec, plan, tasks (docs only)"; Constitution checklist: Principles I–V **N/A** (docs-only, no governed surface), ADR-010/013/014/015 **N/A**; **STOP — request review, merge before Phase 3**
 
@@ -175,7 +175,7 @@ warnings.
 ## Phase 8: Polish & Post-Implement (after PR-5 merges)
 
 - [ ] T047 Run `/graphify --update`, then the post-implement structural verification on main (plan § Graphify hooks): (1) no new error-class nodes outside src/errors.ts; (2) no production handler imports createLogger/createQueue directly; (3) normalizer landed in the boot-spine community beside toMcpInputSchema; (4) no orphaned production code — record results + any deviations in specs/067-upgrade-tech-stack/post-implement.md
-- [ ] T048 [P] Version bump + release decision (maintainer call; recommendation: `chore(release): bump version to 0.9.0` — dependency majors + raised published floors are semver-relevant for an npm CLI even with byte-stable behavior); note in body: prettier 3.9-line hold contingent on prettier/prettier#19510 — re-check at next dependency-refresh BI
+- [ ] T048 [P] Version bump: **0.8.10 → 0.8.11** (maintainer call made at implement invocation 2026-07-04: patch bump by 0.0.1, overriding the earlier 0.9.0 recommendation) — `chore(release): bump version to 0.8.11`; note in body: prettier 3.9-line hold contingent on prettier/prettier#19510 — re-check at next dependency-refresh BI
 - [ ] T049 [P] Execute the prepared `/speckit-constitution` PATCH prompt (Principle III exemplar wording: zod-to-json-schema → z.toJSONSchema) — **dedicated PR** per the amendment procedure, never bundled with 067 feature work; its precondition gate (zod-to-json-schema absent from manifest) is satisfied once PR-4 merges
 
 ---
