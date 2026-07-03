@@ -33,6 +33,14 @@ that clients and tests depend on.
   it. Descriptors remain byte-identical to today, the committed fingerprint baseline
   stays valid with no regeneration, and clients observe zero drift. The MCP protocol
   already assumes the JSON Schema dialect, so the key carries no information.
+  - *Plan-phase correction (2026-07-04, probe-proven)*: the question's premise ("the
+    old converter emitted no such key") was wrong — today's descriptors already carry
+    the draft-07 dialect key inside the hashed baseline bytes, so literally stripping
+    would fail all 34 fingerprints. The decision's INTENT (byte-identical descriptors,
+    baseline unregenerated, zero client drift) is preserved exactly; the MECHANISM is
+    corrected to: emit the draft-07 dialect target (byte-identical key) plus a
+    four-rule behavior-free normalization pass. Proven end-to-end: 22 shape fixtures +
+    live dump of all 34 tools, fingerprint-identical. See plan.md / research.md R2.
 - Q: The new validation major removes some API forms outright (eight custom-message
   parameter declarations, one single-argument record declaration — mandatory fixes)
   but only deprecates others that keep working (the strict unknown-key shorthand at
@@ -42,6 +50,16 @@ that clients and tests depend on.
   their current-major equivalents inside this feature, leaving zero deprecation debt.
   Behavior preservation is gated by the registry fingerprint baseline (descriptors)
   and the machine-code assertions (validation behavior).
+  - *Plan-phase correction (2026-07-04, probe-proven)*: the question's premise
+    overstated what is deprecated — at the target validation-library version the
+    strict unknown-key shorthand carries only a prose recommendation (no deprecation
+    tag) and the refinement hook is not deprecated at all (it IS the current-major
+    canonical form; its nominal successor is strictly worse for this codebase's
+    pattern). Scope as corrected: all genuinely deprecated forms migrate (mandatory);
+    the strict shorthand is still converted to its recommended replacement as the
+    chosen modernization posture (descriptor parity proven); the refinement hook is
+    deliberately KEPT. "Zero deprecation debt" (FR-016, SC-009) remains fully
+    satisfied. See plan.md / research.md R3 and the zod4-api-mapping contract.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -219,9 +237,11 @@ lanes with no runtime-deprecation warnings attributable to the workflow's action
 - The built-in descriptor conversion defaults to a mode that promotes optional-with-
   default fields to required; the conversion must use the input-oriented mode and the
   descriptor-parity test must cover a defaulted-optional field.
-- The built-in conversion adds a schema-dialect marker key that the previous converter
-  did not emit; per clarification (2026-07-04) the key is stripped at the conversion
-  point so the committed registry fingerprint baseline passes without regeneration.
+- The built-in conversion defaults to a newer schema dialect than the one the
+  descriptors carry today; per the corrected clarification (2026-07-04) the conversion
+  targets the current dialect (byte-identical marker) and a four-rule normalization
+  pass neutralizes the remaining emission differences, so the committed registry
+  fingerprint baseline passes without regeneration.
 - Default (non-custom) validation message text differs between the old and new
   validation majors; this drift is client-visible in the generic validation envelope.
   Custom messages and machine codes must not drift; default-text drift is accepted and
@@ -270,9 +290,10 @@ lanes with no runtime-deprecation warnings attributable to the workflow's action
   by the validation library's built-in conversion operating in input-oriented mode.
 - **FR-009**: Every tool's published input descriptor MUST be byte-identical (after
   canonicalization) before and after the migration: same property sets, same required
-  lists, same unknown-key policy, same defaults; the dialect-marker key added by the
-  built-in conversion MUST be stripped at the single conversion point, and the
-  committed registry fingerprint baseline MUST pass unregenerated.
+  lists, same unknown-key policy, same defaults; the conversion MUST emit the same
+  dialect marker the descriptors carry today (draft-07 target) followed by a
+  behavior-free normalization pass at the single conversion point, and the committed
+  registry fingerprint baseline MUST pass unregenerated.
 - **FR-010**: All custom validation messages and machine-readable issue codes MUST
   survive the validation-library migration, including the eight declarations using the
   removed custom-message parameter style and the one single-argument record declaration.
