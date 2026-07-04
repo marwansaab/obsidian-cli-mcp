@@ -84,12 +84,12 @@ layout (FR-004, FR-005).
 
 **Independent Test**: quickstart.md § US2.
 
-- [ ] T011 [US2] Cut branch `067-us2-typescript` from updated main
-- [ ] T012 [US2] package.json: typescript `"~6.0.3"` (**tilde** — typescript-eslint 8.62.1 peer caps `<6.1.0`, R1); `npm install`
-- [ ] T013 [US2] tsconfig.json: add `"types": ["node"]` to compilerOptions (TS 6.0 defaults `types` to `[]`; tsconfig.build.json extends this file — one edit covers both)
-- [ ] T014 [US2] Gates: `npm run typecheck` clean; `npx tsc --noEmit` output contains no deprecation text (FR-005); `npm run build` then verify dist layout unchanged (dist/index.js bin entry + index.d.ts present); lint; full suite via the reliable coverage invocation
-- [ ] T015 [US2] Commit `chore(067-upgrade-tech-stack): US2 TypeScript 6.0.3 (T011-T014)` — body: types:[] default-flip rationale, tilde-pin rationale, TS-7 on-ramp note, gate results
-- [ ] T016 [US2] Open **PR-2** → main: title "067/US2: TypeScript ~6.0.3 + explicit node types"; Constitution checklist: I–V **N/A** (compiler config + manifest only; Technical Standards row satisfied: strict/NodeNext/ES2024 unchanged), ADRs **N/A**; **STOP — review + merge before Phase 5**
+- [X] T011 [US2] Cut branch `067-us2-typescript` from updated main
+- [X] T012 [US2] package.json: typescript `"~6.0.3"` (**tilde** — typescript-eslint 8.62.1 peer caps `<6.1.0`, R1); `npm install`
+- [X] T013 [US2] tsconfig.json: add `"types": ["node"]` to compilerOptions (TS 6.0 defaults `types` to `[]`; tsconfig.build.json extends this file — one edit covers both)
+- [X] T014 [US2] Gates: `npm run typecheck` clean; `npx tsc --noEmit` output contains no deprecation text (FR-005); `npm run build` then verify dist layout unchanged (dist/index.js bin entry + index.d.ts present); lint; full suite via the reliable coverage invocation
+- [X] T015 [US2] Commit `chore(067-upgrade-tech-stack): US2 TypeScript 6.0.3 (T011-T014)` — body: types:[] default-flip rationale, tilde-pin rationale, TS-7 on-ramp note, gate results
+- [X] T016 [US2] Open **PR-2** → main: title "067/US2: TypeScript ~6.0.3 + explicit node types"; Constitution checklist: I–V **N/A** (compiler config + manifest only; Technical Standards row satisfied: strict/NodeNext/ES2024 unchanged), ADRs **N/A**; **STOP — review + merge before Phase 5** (opened as [#76](https://github.com/marwansaab/obsidian-cli-mcp/pull/76))
 
 ---
 
@@ -175,7 +175,7 @@ warnings.
 ## Phase 8: Polish & Post-Implement (after PR-5 merges)
 
 - [ ] T047 Run `/graphify --update`, then the post-implement structural verification on main (plan § Graphify hooks): (1) no new error-class nodes outside src/errors.ts; (2) no production handler imports createLogger/createQueue directly; (3) normalizer landed in the boot-spine community beside toMcpInputSchema; (4) no orphaned production code — record results + any deviations in specs/067-upgrade-tech-stack/post-implement.md
-- [ ] T048 [P] Version bump: **0.8.10 → 0.8.11** (maintainer call made at implement invocation 2026-07-04: patch bump by 0.0.1, overriding the earlier 0.9.0 recommendation) — `chore(release): bump version to 0.8.11`; note in body: prettier 3.9-line hold contingent on prettier/prettier#19510 — re-check at next dependency-refresh BI. Bump via `npm version patch --no-git-tag-version` (or run `npm install` after editing package.json by hand) so both package-lock.json `version` fields move with it — PR #75 review (2026-07-04) found main's lockfile root version stuck at **0.1.6** against package.json 0.8.10 because past release bumps edited package.json alone; PR #75's install re-synced it, and this rule keeps the drift from restarting
+- [ ] T048 [P] Version bump: **0.8.10 → 0.8.11** (maintainer call made at implement invocation 2026-07-04: patch bump by 0.0.1, overriding the earlier 0.9.0 recommendation) — `chore(release): bump version to 0.8.11`; note in body: prettier 3.9-line hold contingent on prettier/prettier#19510, and typescript `~6.0.3` tilde hold contingent on the typescript-eslint peer cap `typescript <6.1.0` (PR #76 review 2026-07-04: do not normalize the tilde to caret for manifest consistency — a caret drifts onto 6.1 the day it ships and breaches the peer range on the next fresh install; widen only when typescript-eslint's peer range moves) — re-check both at next dependency-refresh BI. Bump via `npm version patch --no-git-tag-version` (or run `npm install` after editing package.json by hand) so both package-lock.json `version` fields move with it — PR #75 review (2026-07-04) found main's lockfile root version stuck at **0.1.6** against package.json 0.8.10 because past release bumps edited package.json alone; PR #75's install re-synced it, and this rule keeps the drift from restarting
 - [ ] T049 [P] Execute the prepared `/speckit-constitution` PATCH prompt (Principle III exemplar wording: zod-to-json-schema → z.toJSONSchema) — **dedicated PR** per the amendment procedure, never bundled with 067 feature work; its precondition gate (zod-to-json-schema absent from manifest) is satisfied once PR-4 merges
 
 ---
