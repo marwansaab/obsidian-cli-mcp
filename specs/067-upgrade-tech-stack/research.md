@@ -23,7 +23,7 @@ claims re-verified at plan time; zero drift between the two passes.
 | eslint | ^9.17.0 (9.39.4) | `^10.6.0` | 9.x now `maintenance` dist-tag |
 | eslint-plugin-import | ^2.32.0 | **remove** | peer caps at `^9`; dormant >12 months; sole ESLint-10 blocker |
 | eslint-plugin-import-x | — | `^4.17.1` | successor; peers eslint `^8.57 \|\| ^9 \|\| ^10`, @typescript-eslint/utils `^8.56` |
-| eslint-plugin-n | ^17.24.0 | `^18.2.1` | peer eslint `>=8.57.1`; engines node `^20.19 \|\| ^22.13 \|\| >=24` |
+| eslint-plugin-n | ^17.24.0 | ~~`^18.2.1`~~ **remove** | amended by PR #77 review fix (see R5 amendment): dead config — zero enabled `n/` rules since introduction |
 | eslint-plugin-jsonc | ^3.1.2 | `^3.2.0` | peer eslint `>=9.38.0` |
 | eslint-plugin-promise | ^7.3.0 | keep | peer already includes `^10` |
 | eslint-config-prettier | ^10.1.8 | keep | peer `>=7.0.0` |
@@ -197,6 +197,16 @@ Verification obligation: an intentionally mis-ordered import must still produce 
 unchanged (FR-013); document Node ≥22.13 as the dev-toolchain minimum in
 CONTRIBUTING/README. CI's `setup-node` with `node-version: 22` resolves latest 22.x —
 unaffected.
+**Amendment (PR #77 review fix, 2026-07-04)**: eslint-plugin-n is REMOVED, not bumped
+to 18.2.1. The review found the flat config had registered plugin-n with exactly three
+`n/` rules — all `"off"` — and no `nodePlugin.configs` spread, in that shape since the
+config's introduction (commit 91f9dbf): flat config never auto-enables a registered
+plugin's rules, so the plugin contributed zero lint signal and the "already disabled"
+rationale above described rules that were never on. Deleted under the same FR-007
+redundant-dep rationale as the legacy `@typescript-eslint` pair. The Node ≥22.13
+dev floor stands on eslint 10's engines alone (string-identical to plugin-n 18's), so
+FR-013 is unaffected. If node-version linting is ever wanted, re-add with an explicit
+`nodePlugin.configs["flat/recommended"]` spread plus targeted offs.
 
 ## R6 — TypeScript 6.0 migration mechanics
 

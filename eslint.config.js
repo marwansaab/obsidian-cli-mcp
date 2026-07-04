@@ -1,7 +1,6 @@
 // Original — no upstream. ESLint flat-config for obsidian-cli-mcp (constitution Technical Standards).
 import tseslint from "typescript-eslint";
 import importX from "eslint-plugin-import-x";
-import nodePlugin from "eslint-plugin-n";
 import promisePlugin from "eslint-plugin-promise";
 import jsoncPlugin from "eslint-plugin-jsonc";
 import * as jsoncParser from "jsonc-eslint-parser";
@@ -32,7 +31,6 @@ export default [
     plugins: {
       "@typescript-eslint": tseslint.plugin,
       "import-x": importX,
-      n: nodePlugin,
       promise: promisePlugin,
     },
     rules: {
@@ -51,13 +49,6 @@ export default [
       // The TypeScript compiler validates module resolution; eslint-plugin-import-x's resolver
       // doesn't grok our .js-extension-on-.ts-source convention without an extra resolver dep.
       "import-x/no-unresolved": "off",
-      // Same reason — n's missing-import check is redundant with tsc and would false-positive
-      // on the .js extensions that resolve to .ts source.
-      "n/no-missing-import": "off",
-      // tsc handles unsupported-feature checks via its target/lib settings; n's version-aware
-      // checks duplicate that and are noisy on Node 22+ APIs.
-      "n/no-unsupported-features/node-builtins": "off",
-      "n/no-unsupported-features/es-syntax": "off",
       ...promisePlugin.configs["flat/recommended"].rules,
       // Queue/scheduler primitives intentionally consume promises inside .then handlers
       // (they ARE the consumer); the rule below is for application code that forwards

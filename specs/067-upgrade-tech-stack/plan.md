@@ -33,7 +33,10 @@ zod-to-json-schema **removed** (deprecated upstream; replaced by built-in
 `z.toJSONSchema`)
 **Lint/Format**: eslint 9.39.4 → **10.6.0** (flat config already); typescript-eslint →
 **8.62.1**; eslint-plugin-import → **eslint-plugin-import-x 4.17.1** (sole ESLint-10
-blocker replaced); eslint-plugin-n → **18.2.1**; prettier pinned **3.8.5 exact**
+blocker replaced); eslint-plugin-n → **removed** (amended from "→ 18.2.1" by PR #77
+review fix 2026-07-04: the flat config registered plugin-n with only three `"off"`
+rules and never enabled any — dead config, deleted under the same FR-007
+redundant-dep rationale); prettier pinned **3.8.5 exact**
 (3.9-line hold, open upstream regression #19510); legacy
 @typescript-eslint/eslint-plugin+parser devDeps removed (unused by config)
 **Storage**: N/A (no persistence changes; the committed descriptor fingerprint baseline
@@ -42,8 +45,8 @@ blocker replaced); eslint-plugin-n → **18.2.1**; prettier pinned **3.8.5 exact
 peer-pins vitest exactly); Windows-reliable invocation for verification runs:
 `mkdir -p coverage/.tmp && npx vitest run --coverage --pool=forks --no-file-parallelism`
 **Target Platform**: Node.js ≥22.11 (engines unchanged — constitution amendment
-trigger deliberately avoided); dev-toolchain minimum Node ≥22.13 (eslint 10 /
-plugin-n 18 engines) documented as dev-only; CI matrix Node [22, 24]
+trigger deliberately avoided); dev-toolchain minimum Node ≥22.13 (eslint 10
+engines) documented as dev-only; CI matrix Node [22, 24]
 **Project Type**: single-package npm CLI / MCP stdio server
 **Performance Goals**: N/A (no runtime perf surface; lint gains ~one type-check from
 the first type-aware rule — accepted, R4)

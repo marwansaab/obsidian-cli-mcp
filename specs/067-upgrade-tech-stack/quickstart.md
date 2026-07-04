@@ -33,8 +33,8 @@ npx tsc --noEmit 2>&1 | grep -i deprecat   # empty — zero deprecation warnings
 ## US3 — ESLint 10
 
 ```bash
-npm ls eslint eslint-plugin-import-x eslint-plugin-n   # 10.6.0 / 4.17.1 / 18.2.1
-npm ls eslint-plugin-import @typescript-eslint/eslint-plugin  # (empty) — removed
+npm ls eslint eslint-plugin-import-x   # 10.6.0 / 4.17.1
+npm ls eslint-plugin-import @typescript-eslint/eslint-plugin eslint-plugin-n  # (empty) — removed (plugin-n: PR #77 review fix — dead config, zero enabled rules)
 npm run lint                 # zero new violations (SC-007)
 # rule-coverage probe (US3 acceptance 2): temporarily reorder two imports in any src file
 #   → expect an import-x/order diagnostic; revert.
