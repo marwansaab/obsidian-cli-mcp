@@ -107,8 +107,8 @@ import still flagged.
 - [X] T020 [US3] Rule-coverage probe (US3 acceptance 2): temporarily swap two import lines in any src file → `npm run lint` must report `import-x/order`; revert the swap (probe 2026-07-04: swapped node:fs/node:path in _register.ts → `import-x/order` error fired; reverted clean)
 - [X] T021 [US3] Document dev-toolchain minimum in CONTRIBUTING.md (or README.md § Development if no CONTRIBUTING): Node ≥ 22.13 required to run lint (eslint 10 / eslint-plugin-n 18 engines); published runtime floor `>=22.11` unchanged (FR-013 — constitution Node-floor amendment trigger NOT pulled)
 - [X] T022 [US3] Gates: `npm run lint` zero new violations (SC-007), typecheck, build, full suite
-- [ ] T023 [US3] Commit `chore(067-upgrade-tech-stack): US3 ESLint 10 + import-x (T017-T022)` — body: sole-blocker rationale (eslint-plugin-import peer cap ^9, dormant), legacy-pair removal, dev-floor note, gate results
-- [ ] T024 [US3] Open **PR-3** → main: title "067/US3: ESLint 10 — import-x swap, plugin-n 18, legacy pair removal"; Constitution checklist: I–V **N/A** (lint config + manifest + docs; no MCP surface), Technical Standards row: flat config zero warnings Y; ADRs **N/A**; **STOP — review + merge before Phase 6**
+- [X] T023 [US3] Commit `chore(067-upgrade-tech-stack): US3 ESLint 10 + import-x (T017-T022)` — body: sole-blocker rationale (eslint-plugin-import peer cap ^9, dormant), legacy-pair removal, dev-floor note, gate results
+- [X] T024 [US3] Open **PR-3** → main: title "067/US3: ESLint 10 — import-x swap, plugin-n 18, legacy pair removal"; Constitution checklist: I–V **N/A** (lint config + manifest + docs; no MCP surface), Technical Standards row: flat config zero warnings Y; ADRs **N/A**; **STOP — review + merge before Phase 6** (opened as [#77](https://github.com/marwansaab/obsidian-cli-mcp/pull/77))
 
 ---
 
