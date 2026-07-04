@@ -40,11 +40,10 @@ export const writeNoteInputSchema = applyTargetModeRefinement(
 });
 
 export const writeNoteOutputSchema = z
-  .object({
+  .strictObject({
     created: z.boolean(),
     path: z.string(),
-  })
-  .strict();
+  });
 
 export type WriteNoteInput = z.infer<typeof writeNoteInputSchema>;
 export type WriteNoteOutput = z.infer<typeof writeNoteOutputSchema>;

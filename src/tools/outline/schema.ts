@@ -10,19 +10,17 @@ export const outlineInputSchema = applyTargetModeRefinement(
 );
 
 export const outlineHeadingSchema = z
-  .object({
+  .strictObject({
     level: z.number().int().min(1).max(6),
     text: z.string(),
     line: z.number().int().positive(),
-  })
-  .strict();
+  });
 
 export const outlineOutputSchema = z
-  .object({
+  .strictObject({
     count: z.number().int().nonnegative(),
     headings: z.array(outlineHeadingSchema),
-  })
-  .strict();
+  });
 
 const outlineUpstreamHeadingSchema = z
   .object({

@@ -16,12 +16,11 @@ export const renameInputSchema = applyTargetModeRefinement(
 );
 
 export const renameNoteOutputSchema = z
-  .object({
+  .strictObject({
     renamed: z.literal(true),
     fromPath: z.string(),
     toPath: z.string(),
-  })
-  .strict();
+  });
 
 export type RenameNoteInput = z.infer<typeof renameInputSchema>;
 export type RenameNoteOutput = z.infer<typeof renameNoteOutputSchema>;

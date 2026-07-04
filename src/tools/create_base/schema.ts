@@ -7,7 +7,7 @@ const NAME_MAX = 1000;
 export const MAX_CONTENT_LENGTH = 3072;
 
 export const createBaseInputSchema = z
-  .object({
+  .strictObject({
     path: z.string({
       error: (issue) => (issue.input === undefined ? "path is required" : "path must be a string"),
     }),
@@ -18,7 +18,6 @@ export const createBaseInputSchema = z
     view: z.string().min(1).optional(),
     vault: z.string().min(1).optional(),
   })
-  .strict()
   .superRefine((v, ctx) => {
     if (typeof v.path === "string") appendBasePathIssues(ctx, v.path, "path");
 
@@ -67,11 +66,10 @@ export const createBaseInputSchema = z
   });
 
 export const createBaseOutputSchema = z
-  .object({
+  .strictObject({
     path: z.string(),
     name: z.string(),
-  })
-  .strict();
+  });
 
 export type CreateBaseInput = z.infer<typeof createBaseInputSchema>;
 export type CreateBaseOutput = z.infer<typeof createBaseOutputSchema>;

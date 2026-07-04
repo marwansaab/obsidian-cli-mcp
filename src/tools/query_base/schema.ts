@@ -7,7 +7,7 @@ const VIEW_NAME_MAX = 1000;
 const RESPONSE_ROW_CAP = 1000;
 
 export const queryBaseInputSchema = z
-  .object({
+  .strictObject({
     base_path: z.string({
       error: (issue) =>
         issue.input === undefined ? "base_path is required" : "base_path must be a string",
@@ -18,7 +18,6 @@ export const queryBaseInputSchema = z
     }),
     vault: z.string().min(1).optional(),
   })
-  .strict()
   .superRefine((v, ctx) => {
     if (typeof v.base_path === "string") appendBasePathIssues(ctx, v.base_path, "base_path");
 
@@ -86,13 +85,12 @@ export const queryBaseInputSchema = z
 export const queryBaseRowSchema = z.record(z.string(), z.unknown());
 
 export const queryBaseOutputSchema = z
-  .object({
+  .strictObject({
     columns: z.array(z.string().min(1)),
     rows: z.array(queryBaseRowSchema).max(RESPONSE_ROW_CAP),
     truncated: z.boolean(),
     total_rows: z.number().int().min(RESPONSE_ROW_CAP + 1).optional(),
   })
-  .strict()
   .refine(
     (o) => (o.truncated === true) === (o.total_rows !== undefined),
     "total_rows must be present iff truncated === true",

@@ -70,13 +70,12 @@ export const prependInputSchema = applyTargetModeRefinement(
 );
 
 export const prependOutputSchema = z
-  .object({
+  .strictObject({
     path: z.string(),
     vault: z.string(),
     bytes_written: z.number().int().min(1),
     inline: z.boolean(),
-  })
-  .strict();
+  });
 
 export type PrependInput = z.infer<typeof prependInputSchema>;
 export type PrependOutput = z.infer<typeof prependOutputSchema>;

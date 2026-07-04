@@ -10,12 +10,11 @@ export const moveInputSchema = applyTargetModeRefinement(
 );
 
 export const moveOutputSchema = z
-  .object({
+  .strictObject({
     moved: z.literal(true),
     fromPath: z.string(),
     toPath: z.string(),
-  })
-  .strict();
+  });
 
 export type MoveInput = z.infer<typeof moveInputSchema>;
 export type MoveOutput = z.infer<typeof moveOutputSchema>;

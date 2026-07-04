@@ -4,13 +4,12 @@ import { z } from "zod";
 const FORBIDDEN_KEYS_IN_ACTIVE = ["vault", "file", "path"] as const;
 
 export const targetModeBaseSchema = z
-  .object({
+  .strictObject({
     target_mode: z.enum(["specific", "active"]),
     vault: z.string().min(1).optional(),
     file: z.string().optional(),
     path: z.string().optional(),
-  })
-  .strict();
+  });
 
 export function applyTargetModeRefinement<T extends z.ZodObject>(schema: T): T {
   return schema.superRefine((input, ctx) => {

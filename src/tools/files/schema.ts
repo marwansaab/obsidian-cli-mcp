@@ -15,11 +15,10 @@ export const filesInputSchema = applyTargetModeRefinementForFolderScoped(
 );
 
 export const listFilesOutputSchema = z
-  .object({
+  .strictObject({
     count: z.number().int().nonnegative(),
     paths: z.array(z.string()),
-  })
-  .strict();
+  });
 
 export type ListFilesInput = z.infer<typeof filesInputSchema>;
 export type ListFilesOutput = z.infer<typeof listFilesOutputSchema>;

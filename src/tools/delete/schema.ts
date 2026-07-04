@@ -10,12 +10,11 @@ export const deleteInputSchema = applyTargetModeRefinement(
 );
 
 export const deleteNoteOutputSchema = z
-  .object({
+  .strictObject({
     deleted: z.literal(true),
     path: z.string(),
     toTrash: z.boolean(),
-  })
-  .strict();
+  });
 
 export type DeleteNoteInput = z.infer<typeof deleteInputSchema>;
 export type DeleteNoteOutput = z.infer<typeof deleteNoteOutputSchema>;

@@ -40,11 +40,10 @@ const propertyValueSchema = z.union([
 ]);
 
 export const readPropertyOutputSchema = z
-  .object({
+  .strictObject({
     value: propertyValueSchema,
     type: z.enum(PROPERTY_TYPE_LABELS),
-  })
-  .strict();
+  });
 
 export type ReadPropertyInput = z.infer<typeof readPropertyInputSchema>;
 export type ReadPropertyOutput = z.infer<typeof readPropertyOutputSchema>;

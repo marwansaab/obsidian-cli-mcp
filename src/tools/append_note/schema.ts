@@ -48,13 +48,12 @@ export const appendNoteInputSchema = applyTargetModeRefinement(
 );
 
 export const appendNoteOutputSchema = z
-  .object({
+  .strictObject({
     path: z.string(),
     vault: z.string(),
     bytes_written: z.number().int().min(1),
     inline: z.boolean(),
-  })
-  .strict();
+  });
 
 export type AppendNoteInput = z.infer<typeof appendNoteInputSchema>;
 export type AppendNoteOutput = z.infer<typeof appendNoteOutputSchema>;

@@ -2,7 +2,7 @@
 import { z } from "zod";
 
 export const tagInputSchema = z
-  .object({
+  .strictObject({
     tag: z
       .string()
       .min(1, "tag is required")
@@ -17,43 +17,38 @@ export const tagInputSchema = z
       ),
     vault: z.string().min(1).optional(),
     total: z.boolean().optional(),
-  })
-  .strict();
+  });
 
 export const tagDefaultOutputSchema = z
-  .object({
+  .strictObject({
     count: z.number().int().nonnegative(),
     paths: z.array(z.string().min(1)),
   })
-  .strict()
   .refine((o) => o.count === o.paths.length, "count must equal paths.length");
 
 export const tagCountOnlyOutputSchema = z.number().int().nonnegative();
 
 const tagEnvelopeOkDefault = z
-  .object({
+  .strictObject({
     ok: z.literal(true),
     mode: z.literal("default"),
     count: z.number().int().nonnegative(),
     paths: z.array(z.string().min(1)),
-  })
-  .strict();
+  });
 
 const tagEnvelopeOkCountOnly = z
-  .object({
+  .strictObject({
     ok: z.literal(true),
     mode: z.literal("count-only"),
     total: z.number().int().nonnegative(),
-  })
-  .strict();
+  });
 
 const tagEnvelopeError = z
-  .object({
+  .strictObject({
     ok: z.literal(false),
     code: z.string().min(1),
     detail: z.string().optional(),
-  })
-  .strict();
+  });
 
 // z.union (not z.discriminatedUnion) because both ok:true branches share the
 // "ok" discriminator value; the secondary `mode` discriminator differentiates

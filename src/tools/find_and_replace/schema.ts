@@ -31,7 +31,7 @@ const SCOPE_CONFLICT_MESSAGES: Record<string, string> = {
 };
 
 export const findAndReplaceInputSchema = z
-  .object({
+  .strictObject({
     pattern: z
       .string()
       .min(1, "pattern must not be empty")
@@ -54,7 +54,6 @@ export const findAndReplaceInputSchema = z
     path: z.string().min(1).optional(),
     active_note: z.boolean().optional().default(false),
   })
-  .strict()
   .superRefine((v, ctx) => {
     if (v.mode === "regex") {
       try {
@@ -136,39 +135,35 @@ export const findAndReplaceInputSchema = z
 export type FindAndReplaceInput = z.infer<typeof findAndReplaceInputSchema>;
 
 const occurrenceSchema = z
-  .object({
+  .strictObject({
     line_number: z.number().int().min(1),
     full_line: z.string().max(FULL_LINE_CAP_PLUS_ELLIPSIS),
     matched_substring: z.string(),
     replacement_substring: z.string(),
-  })
-  .strict();
+  });
 
 const affectedNoteSchema = z
-  .object({
+  .strictObject({
     path: z.string().min(1),
     occurrence_count: z.number().int().min(1),
     occurrences: z.array(occurrenceSchema),
-  })
-  .strict();
+  });
 
 const previewBranchSchema = z
-  .object({
+  .strictObject({
     mode: z.literal("preview"),
     affected_notes: z.array(affectedNoteSchema),
     total_occurrences: z.number().int().nonnegative(),
-  })
-  .strict();
+  });
 
 const commitBranchSchema = z
-  .object({
+  .strictObject({
     mode: z.literal("commit"),
     changed_notes: z.array(z.string().min(1)),
     total_occurrences_replaced: z.number().int().nonnegative(),
     partial: z.boolean(),
     failing_note_locator: z.string().min(1).optional(),
-  })
-  .strict();
+  });
 
 export const findAndReplaceOutputSchema = z
   .discriminatedUnion("mode", [previewBranchSchema, commitBranchSchema])

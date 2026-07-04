@@ -28,10 +28,9 @@ export const readHeadingInputSchema = applyTargetModeRefinement(
 );
 
 export const readHeadingOutputSchema = z
-  .object({
+  .strictObject({
     content: z.string(),
-  })
-  .strict();
+  });
 
 export const READ_HEADING_EVAL_ERROR_CODES = [
   "FILE_NOT_FOUND",
@@ -41,14 +40,13 @@ export const READ_HEADING_EVAL_ERROR_CODES = [
 export type ReadHeadingEvalErrorCode = (typeof READ_HEADING_EVAL_ERROR_CODES)[number];
 
 export const readHeadingEvalResponseSchema = z.discriminatedUnion("ok", [
-  z.object({ ok: z.literal(true), content: z.string() }).strict(),
+  z.strictObject({ ok: z.literal(true), content: z.string() }),
   z
-    .object({
+    .strictObject({
       ok: z.literal(false),
       code: z.enum(READ_HEADING_EVAL_ERROR_CODES),
       detail: z.string(),
-    })
-    .strict(),
+    }),
 ]);
 
 export type ReadHeadingInput = z.infer<typeof readHeadingInputSchema>;

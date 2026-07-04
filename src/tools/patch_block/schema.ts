@@ -87,14 +87,13 @@ export const patchBlockInputSchema = applyTargetModeRefinement(
 );
 
 export const patchBlockOutputSchema = z
-  .object({
+  .strictObject({
     path: z.string(),
     vault: z.string(),
     block_id: z.string(),
     block_shape: z.enum(["paragraph", "list-item", "separately-placed"]),
     bytes_written: z.number().int().min(0),
-  })
-  .strict();
+  });
 
 export type PatchBlockInput = z.infer<typeof patchBlockInputSchema>;
 export type PatchBlockOutput = z.infer<typeof patchBlockOutputSchema>;

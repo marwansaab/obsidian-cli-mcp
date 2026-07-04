@@ -4,24 +4,22 @@ import { z } from "zod";
 import { appendBasePathIssues, BASE_PATH_MAX } from "../_base-path.js";
 
 export const viewsBaseInputSchema = z
-  .object({
+  .strictObject({
     vault: z.string().min(1).optional(),
     // Optional vault-relative `.base` locator. Omitted ⇒ open-Base active mode
     // (lists the views of the focused Base). Present ⇒ named-Base mode (focus the
     // named `.base`, then list its views), overriding whatever is focused.
     base_path: z.string().optional(),
   })
-  .strict()
   .superRefine((v, ctx) => {
     if (typeof v.base_path === "string") appendBasePathIssues(ctx, v.base_path, "base_path");
   });
 
 export const viewsBaseOutputSchema = z
-  .object({
+  .strictObject({
     views: z.array(z.string()),
     count: z.number().int().min(0),
   })
-  .strict()
   .refine((o) => o.count === o.views.length, "count must equal views.length");
 
 export type ViewsBaseInput = z.infer<typeof viewsBaseInputSchema>;
@@ -35,8 +33,8 @@ export type ViewsBaseOutput = z.infer<typeof viewsBaseOutputSchema>;
 // internal handoff envelope, not the tool's published surface, so it does NOT
 // affect the input fingerprint.
 export const focusBaseEvalResponseSchema = z.discriminatedUnion("ok", [
-  z.object({ ok: z.literal(true), opened: z.string() }).strict(),
-  z.object({ ok: z.literal(false), code: z.literal("FILE_NOT_FOUND") }).strict(),
+  z.strictObject({ ok: z.literal(true), opened: z.string() }),
+  z.strictObject({ ok: z.literal(false), code: z.literal("FILE_NOT_FOUND") }),
 ]);
 export type FocusBaseEvalResponse = z.infer<typeof focusBaseEvalResponseSchema>;
 

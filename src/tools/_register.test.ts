@@ -31,7 +31,7 @@ describe("registerTool — descriptor publication pipeline", () => {
     const tool = registerTool({
       name: "pip_object",
       description: "test tool",
-      schema: z.object({ a: z.string() }).strict(),
+      schema: z.strictObject({ a: z.string() }),
       handler: async () => ({ ok: true }),
     });
     expect(tool.descriptor.inputSchema.type).toBe("object");
@@ -74,7 +74,7 @@ describe("registerTool — descriptor publication pipeline", () => {
     const tool = registerTool({
       name: "pip_desc",
       description: "exact description text",
-      schema: z.object({}).strict(),
+      schema: z.strictObject({}),
       handler: async () => ({}),
     });
     expect(tool.descriptor.description).toBe("exact description text");
@@ -86,7 +86,7 @@ describe("registerTool — wrapped handler runtime", () => {
     const tool = registerTool({
       name: "wh_json",
       description: "json default",
-      schema: z.object({ name: z.string() }).strict(),
+      schema: z.strictObject({ name: z.string() }),
       handler: async (input) => ({ greeting: `hello ${input.name}` }),
     });
     const result = await tool.handler({ name: "world" });
@@ -103,7 +103,7 @@ describe("registerTool — wrapped handler runtime", () => {
     const tool = registerTool({
       name: "wh_raw",
       description: "raw passthrough",
-      schema: z.object({}).strict(),
+      schema: z.strictObject({}),
       handler: async () => passthrough,
       responseFormat: "raw",
     });
@@ -115,7 +115,7 @@ describe("registerTool — wrapped handler runtime", () => {
     const tool = registerTool({
       name: "wh_validate",
       description: "validation",
-      schema: z.object({ a: z.string() }).strict(),
+      schema: z.strictObject({ a: z.string() }),
       handler: async () => ({}),
     });
     const result = await tool.handler({ a: 123 });
@@ -134,7 +134,7 @@ describe("registerTool — wrapped handler runtime", () => {
     const tool = registerTool({
       name: "wh_upstream",
       description: "upstream",
-      schema: z.object({}).strict(),
+      schema: z.strictObject({}),
       handler: async () => {
         throw new UpstreamError({
           code: "CLI_TIMEOUT",
@@ -158,7 +158,7 @@ describe("registerTool — wrapped handler runtime", () => {
     const tool = registerTool({
       name: "wh_rethrow",
       description: "rethrow",
-      schema: z.object({}).strict(),
+      schema: z.strictObject({}),
       handler: async () => {
         throw "string-thrown";
       },
@@ -167,7 +167,7 @@ describe("registerTool — wrapped handler runtime", () => {
   });
 
   it("non-ZodError thrown during parse is re-thrown unchanged", async () => {
-    const schema = z.object({}).strict();
+    const schema = z.strictObject({});
     const tool = registerTool({
       name: "wh_parse_throw",
       description: "parse throw",
@@ -190,7 +190,7 @@ describe("registerTool — wrapped handler runtime", () => {
     const tool = registerTool({
       name: "wh_deps",
       description: "deps",
-      schema: z.object({}).strict(),
+      schema: z.strictObject({}),
       deps,
       handler: async (_input, d) => ({ tag: d.tag }),
     });
@@ -204,7 +204,7 @@ describe("registerTool — wrapped handler runtime", () => {
     const tool = registerTool({
       name: "wh_hook",
       description: "hook",
-      schema: z.object({ a: z.string() }).strict(),
+      schema: z.strictObject({ a: z.string() }),
       handler: async () => ({}),
       mapValidationError: (issues) => ({
         code: "VALIDATION_ERROR",
@@ -227,7 +227,7 @@ describe("registerTool — wrapped handler runtime", () => {
     const tool = registerTool({
       name: "wh_hook_args",
       description: "hook args",
-      schema: z.object({ a: z.string() }).strict(),
+      schema: z.strictObject({ a: z.string() }),
       handler: async () => ({}),
       mapValidationError: (_issues, rawArgs) => {
         seen = rawArgs;
@@ -242,7 +242,7 @@ describe("registerTool — wrapped handler runtime", () => {
     const tool = registerTool({
       name: "wh_runtime_zod",
       description: "runtime zod",
-      schema: z.object({}).strict(),
+      schema: z.strictObject({}),
       handler: async () => {
         // Simulate a defensive output parse that fails at runtime — the handler's
         // OWN output is malformed, the client's input was valid.
@@ -265,7 +265,7 @@ describe("registerTool — wrapped handler runtime", () => {
     const tool = registerTool({
       name: "wh_runtime_hook",
       description: "runtime hook",
-      schema: z.object({}).strict(),
+      schema: z.strictObject({}),
       handler: async () => {
         z.object({ n: z.number() }).parse({ n: "nope" });
         return {};

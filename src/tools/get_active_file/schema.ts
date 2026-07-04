@@ -24,13 +24,12 @@ export type GetActiveFileInput = z.infer<typeof getActiveFileInputSchema>;
 // `extension` is "" when the name has no dot (FR-003); characters are returned raw, no normalization
 // (FR-004). No re-parser — the substrate is the source of truth for the basename/extension split.
 export const fileInfoSchema = z
-  .object({
+  .strictObject({
     path: z.string(),
     name: z.string(),
     basename: z.string(),
     extension: z.string(),
-  })
-  .strict();
+  });
 
 // Output AND eval-envelope decode target — one strict shape serves both. A present active file, or null
 // when nothing is active (FR-005/006), distinguishable on `active === null`. .strict() rejects any extra
@@ -43,6 +42,5 @@ export const fileInfoSchema = z
 // and the handler's decodeEvalEnvelope validates the eval stdout straight into it; a malformed/unparseable
 // body is caught there and classified CLI_REPORTED_ERROR.
 export const getActiveFileOutputSchema = z
-  .object({ active: fileInfoSchema.nullable() })
-  .strict();
+  .strictObject({ active: fileInfoSchema.nullable() });
 export type GetActiveFileOutput = z.infer<typeof getActiveFileOutputSchema>;

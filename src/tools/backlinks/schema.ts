@@ -12,19 +12,17 @@ export const backlinksInputSchema = applyTargetModeRefinement(
 );
 
 export const backlinkEntrySchema = z
-  .object({
+  .strictObject({
     source: z.string(),
     count: z.number().int().positive().optional(),
-  })
-  .strict();
+  });
 
 export const backlinksOutputSchema = z
-  .object({
+  .strictObject({
     count: z.number().int().nonnegative(),
     backlinks: z.array(backlinkEntrySchema),
     truncated: z.boolean().optional(),
-  })
-  .strict();
+  });
 
 export const BACKLINKS_EVAL_ERROR_CODES = [
   "NO_ACTIVE_FILE",
@@ -35,20 +33,18 @@ export type BacklinksEvalErrorCode = (typeof BACKLINKS_EVAL_ERROR_CODES)[number]
 
 export const backlinksEvalResponseSchema = z.discriminatedUnion("ok", [
   z
-    .object({
+    .strictObject({
       ok: z.literal(true),
       count: z.number().int().nonnegative(),
       backlinks: z.array(backlinkEntrySchema),
       truncated: z.boolean().optional(),
-    })
-    .strict(),
+    }),
   z
-    .object({
+    .strictObject({
       ok: z.literal(false),
       code: z.enum(BACKLINKS_EVAL_ERROR_CODES),
       detail: z.string(),
-    })
-    .strict(),
+    }),
 ]);
 
 export type BacklinksInput = z.infer<typeof backlinksInputSchema>;

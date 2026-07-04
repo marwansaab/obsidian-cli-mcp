@@ -107,14 +107,13 @@ export const patchHeadingInputSchema = applyTargetModeRefinement(
 });
 
 export const patchHeadingOutputSchema = z
-  .object({
+  .strictObject({
     path: z.string(),
     vault: z.string(),
     heading_path: z.string(),
     mode: z.enum(["append", "prepend", "replace"]),
     bytes_written: z.number().int().min(0),
-  })
-  .strict();
+  });
 
 export type PatchHeadingInput = z.infer<typeof patchHeadingInputSchema>;
 export type PatchHeadingOutput = z.infer<typeof patchHeadingOutputSchema>;

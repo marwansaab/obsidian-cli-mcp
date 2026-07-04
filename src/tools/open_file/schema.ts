@@ -43,7 +43,7 @@ const safePathField = z
   .refine(isStructurallySafePath, STRUCTURALLY_UNSAFE_PATH_MESSAGE);
 
 export const openFileInputSchema = z
-  .object({
+  .strictObject({
     // FR-001 — vault is unconditionally required (no active mode, R4). It names
     // the REQUESTED vault to open in; the handler routes the eval there in
     // target_mode:"specific" (vault=requested), so the open lands in that vault
@@ -56,7 +56,6 @@ export const openFileInputSchema = z
     // FR-008 — opt-in new tab; default false focuses an existing tab (no duplicate).
     new_tab: z.boolean().optional().default(false),
   })
-  .strict()
   .superRefine((value, ctx) => {
     const hasPath = value.path !== undefined;
     const hasFile = value.file !== undefined;
@@ -96,13 +95,12 @@ export const OPEN_FILE_PLACEMENTS = [
 export const openPlacementSchema = z.enum(OPEN_FILE_PLACEMENTS);
 
 export const openFileOutputSchema = z
-  .object({
+  .strictObject({
     opened: z.string(),
     vault: z.string(),
     new_tab: z.boolean(),
     placement: openPlacementSchema,
-  })
-  .strict();
+  });
 
 // Discriminated eval-envelope wire format (cohort parity with backlinks'
 // backlinksEvalResponseSchema). The ok:true arm carries the derived `placement`
@@ -119,20 +117,18 @@ export type OpenFileEvalErrorCode = (typeof OPEN_FILE_EVAL_ERROR_CODES)[number];
 
 export const openEvalResponseSchema = z.discriminatedUnion("ok", [
   z
-    .object({
+    .strictObject({
       ok: z.literal(true),
       opened: z.string(),
       new_tab: z.boolean(),
       placement: openPlacementSchema,
-    })
-    .strict(),
+    }),
   z
-    .object({
+    .strictObject({
       ok: z.literal(false),
       code: z.enum(OPEN_FILE_EVAL_ERROR_CODES),
       detail: z.string().optional(),
-    })
-    .strict(),
+    }),
 ]);
 
 // Handler-boundary input type: `z.input` (pre-default), so `new_tab` is optional
