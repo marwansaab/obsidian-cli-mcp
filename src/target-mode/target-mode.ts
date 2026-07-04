@@ -12,9 +12,7 @@ export const targetModeBaseSchema = z
   })
   .strict();
 
-export function applyTargetModeRefinement<
-  T extends z.ZodObject<z.ZodRawShape, z.UnknownKeysParam>,
->(schema: T): z.ZodEffects<T> {
+export function applyTargetModeRefinement<T extends z.ZodObject>(schema: T): T {
   return schema.superRefine((input, ctx) => {
     const record = input as Record<string, unknown>;
     if (record.target_mode === "specific") {
@@ -71,9 +69,9 @@ export type TargetMode = z.infer<typeof targetModeSchema>;
 // fields (`file` and `path`) in BOTH modes — they have no meaning for tools
 // that operate on a vault folder. The existing in-specific-requires-vault
 // and in-active-forbids-vault rules are preserved verbatim.
-export function applyTargetModeRefinementForFolderScoped<
-  T extends z.ZodObject<z.ZodRawShape, z.UnknownKeysParam>,
->(schema: T): z.ZodEffects<T> {
+export function applyTargetModeRefinementForFolderScoped<T extends z.ZodObject>(
+  schema: T,
+): T {
   return schema.superRefine((input, ctx) => {
     const record = input as Record<string, unknown>;
     if (Object.hasOwn(record, "file") && record.file !== undefined) {

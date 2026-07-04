@@ -1,8 +1,8 @@
-// Original — no upstream. Co-located vitest cases for the schema-stripping utility (FR-017: 4 minimum + 2 recommended + 1 C2 remediation).
+// Original — no upstream. Co-located vitest cases for the schema-stripping utility (FR-017: 4 minimum + 2 recommended + 1 C2 remediation). BI-067: zod-derived fixtures now flow through the production toMcpInputSchema pipeline (zod 4 built-in conversion + parity normalizer) instead of the retired v3-era converter; stripped-help assertions are unchanged.
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
 
+import { toMcpInputSchema } from "../tools/_shared.js";
 import { stripSchemaDescriptions, type JsonSchemaObject } from "./strip-schema.js";
 
 describe("stripSchemaDescriptions", () => {
@@ -11,7 +11,7 @@ describe("stripSchemaDescriptions", () => {
       name: z.string().describe("a person's name"),
       age: z.number().int().describe("their age in years"),
     });
-    const raw = zodToJsonSchema(schema, { $refStrategy: "none" }) as JsonSchemaObject;
+    const raw = toMcpInputSchema(schema) as JsonSchemaObject;
     expect((raw.properties?.name as JsonSchemaObject).description).toBe("a person's name");
 
     const result = stripSchemaDescriptions(raw);
@@ -34,7 +34,7 @@ describe("stripSchemaDescriptions", () => {
         other: z.string().describe("other field"),
       }),
     ]);
-    const raw = zodToJsonSchema(schema, { $refStrategy: "none" }) as JsonSchemaObject;
+    const raw = toMcpInputSchema(schema) as JsonSchemaObject;
     expect(JSON.stringify(raw).includes("description")).toBe(true);
 
     const result = stripSchemaDescriptions(raw);
@@ -47,7 +47,7 @@ describe("stripSchemaDescriptions", () => {
       name: z.string(),
       age: z.number().int(),
     });
-    const raw = zodToJsonSchema(schema, { $refStrategy: "none" }) as JsonSchemaObject;
+    const raw = toMcpInputSchema(schema) as JsonSchemaObject;
 
     const result = stripSchemaDescriptions(raw);
 
@@ -58,7 +58,7 @@ describe("stripSchemaDescriptions", () => {
     const schema = z.object({
       field: z.string().describe("a field"),
     });
-    const raw = zodToJsonSchema(schema, { $refStrategy: "none" }) as JsonSchemaObject;
+    const raw = toMcpInputSchema(schema) as JsonSchemaObject;
     const snapshot = structuredClone(raw);
 
     stripSchemaDescriptions(raw);
@@ -166,7 +166,7 @@ describe("stripSchemaDescriptions", () => {
         inner: z.string().describe("inner field"),
       })
       .describe("root description goes here");
-    const raw = zodToJsonSchema(schema, { $refStrategy: "none" }) as JsonSchemaObject;
+    const raw = toMcpInputSchema(schema) as JsonSchemaObject;
     expect(raw.description).toBe("root description goes here");
 
     const result = stripSchemaDescriptions(raw);

@@ -21,10 +21,9 @@ export const readHeadingInputSchema = applyTargetModeRefinement(
     heading: z
       .string()
       .min(1)
-      .refine(
-        (v) => validateHeadingPath(v) === true,
-        (v) => ({ message: validateHeadingPath(v) as string }),
-      ),
+      .refine((v) => validateHeadingPath(v) === true, {
+        error: (issue) => validateHeadingPath(issue.input as string) as string,
+      }),
   }),
 );
 

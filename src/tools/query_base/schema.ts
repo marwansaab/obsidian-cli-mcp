@@ -9,12 +9,12 @@ const RESPONSE_ROW_CAP = 1000;
 export const queryBaseInputSchema = z
   .object({
     base_path: z.string({
-      required_error: "base_path is required",
-      invalid_type_error: "base_path must be a string",
+      error: (issue) =>
+        issue.input === undefined ? "base_path is required" : "base_path must be a string",
     }),
     view_name: z.string({
-      required_error: "view_name is required",
-      invalid_type_error: "view_name must be a string",
+      error: (issue) =>
+        issue.input === undefined ? "view_name is required" : "view_name must be a string",
     }),
     vault: z.string().min(1).optional(),
   })

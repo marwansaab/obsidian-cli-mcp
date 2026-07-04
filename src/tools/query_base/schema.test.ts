@@ -408,3 +408,42 @@ test("toMcpInputSchema emits additionalProperties:false + expected property set"
   expect(Object.keys(props).sort()).toEqual(["base_path", "vault", "view_name"]);
   expect(json.required).toEqual(["base_path", "view_name"]);
 });
+
+// =====================================================================
+// BI-067 FR-010 — custom error-callback message parity (M1 migration).
+// zod 4 SILENTLY ignores the v3 {required_error, invalid_type_error}
+// params, so these exact-string assertions are the only guard against a
+// silent message regression on the migrated fields.
+// =====================================================================
+
+function messageForPath(
+  result: ReturnType<typeof queryBaseInputSchema.safeParse>,
+  field: string,
+): string | undefined {
+  if (result.success) return undefined;
+  return result.error.issues.find((i) => i.path[0] === field)?.message;
+}
+
+test("BI-067 FR-010: missing base_path yields exact required message", () => {
+  const r = queryBaseInputSchema.safeParse({ view_name: "All" });
+  expect(r.success).toBe(false);
+  expect(messageForPath(r, "base_path")).toBe("base_path is required");
+});
+
+test("BI-067 FR-010: non-string base_path yields exact type message", () => {
+  const r = queryBaseInputSchema.safeParse({ base_path: 42, view_name: "All" });
+  expect(r.success).toBe(false);
+  expect(messageForPath(r, "base_path")).toBe("base_path must be a string");
+});
+
+test("BI-067 FR-010: missing view_name yields exact required message", () => {
+  const r = queryBaseInputSchema.safeParse({ base_path: "Indexes/Active.base" });
+  expect(r.success).toBe(false);
+  expect(messageForPath(r, "view_name")).toBe("view_name is required");
+});
+
+test("BI-067 FR-010: non-string view_name yields exact type message", () => {
+  const r = queryBaseInputSchema.safeParse({ base_path: "Indexes/Active.base", view_name: 42 });
+  expect(r.success).toBe(false);
+  expect(messageForPath(r, "view_name")).toBe("view_name must be a string");
+});

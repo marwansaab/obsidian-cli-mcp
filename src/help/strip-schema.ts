@@ -1,7 +1,7 @@
 // Original — no upstream. Pure function: deep-copy a JSON Schema and remove every `description` field below the root (FR-001..FR-005, ADR-005 / BI-030).
 
 /**
- * A JSON Schema object as produced by `zod-to-json-schema`. Recursive — children
+ * A JSON Schema object as produced by the `toMcpInputSchema` pipeline. Recursive — children
  * may appear under `properties`, `items`, `anyOf`, `oneOf`, or `additionalProperties`.
  *
  * The unknown-indexed signature admits the long tail of JSON Schema keys

@@ -9,12 +9,10 @@ export const MAX_CONTENT_LENGTH = 3072;
 export const createBaseInputSchema = z
   .object({
     path: z.string({
-      required_error: "path is required",
-      invalid_type_error: "path must be a string",
+      error: (issue) => (issue.input === undefined ? "path is required" : "path must be a string"),
     }),
     name: z.string({
-      required_error: "name is required",
-      invalid_type_error: "name must be a string",
+      error: (issue) => (issue.input === undefined ? "name is required" : "name must be a string"),
     }),
     content: z.string().optional(),
     view: z.string().min(1).optional(),

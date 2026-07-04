@@ -86,7 +86,9 @@ describe("target-mode primitive", () => {
     if (!r.success) {
       const vaultIssue = r.error.issues.find((i) => i.path.includes("vault"));
       expect(vaultIssue).toBeDefined();
-      expect(vaultIssue!.message).toMatch(/at least 1|non-empty|empty/i);
+      // BI-067 accepted drift: zod 4 default locale rewords the min(1) message to
+      // "Too small: expected string to have >=1 characters" (no custom error on this field).
+      expect(vaultIssue!.message).toMatch(/at least 1|non-empty|empty|too small/i);
     }
   });
 
@@ -132,7 +134,12 @@ describe("target-mode primitive", () => {
     if (!r.success) {
       const issue = r.error.issues.find((i) => i.path.includes("target_mode"));
       expect(issue).toBeDefined();
-      expect(issue!.code).toMatch(/invalid_enum_value|invalid_union_discriminator|invalid_literal/);
+      // BI-067 accepted drift: zod 4 consolidates the v3 enum/literal mismatch codes
+      // (invalid_enum_value / invalid_literal) into `invalid_value`. Custom ADR-015
+      // machine codes in params are unaffected.
+      expect(issue!.code).toMatch(
+        /invalid_value|invalid_enum_value|invalid_union_discriminator|invalid_literal/,
+      );
       expect(issue!.message).toContain("specific");
       expect(issue!.message).toContain("active");
     }
@@ -379,13 +386,14 @@ describe("target-mode primitive", () => {
   });
 
   // -----------------------------------------------------------------------------------------------
-  // Invariant — targetModeSchema is ZodEffects<ZodObject> per FR-001 (data-model §7).
+  // Invariant — post-010 flat encoding (data-model §7). Pre-BI-067 this asserted the
+  // ZodEffects<ZodObject> wrapper; zod 4's superRefine returns the ZodObject itself
+  // (no wrapper class), so the flat-object marker is now the schema's own def type.
   // -----------------------------------------------------------------------------------------------
 
-  it("Invariant — targetModeSchema._def.schema is a ZodObject (post-010 encoding marker)", () => {
-    const inner = (targetModeSchema as unknown as { _def: { schema: { constructor: { name: string } } } })._def
-      .schema;
-    expect(inner.constructor.name).toBe("ZodObject");
+  it("Invariant — targetModeSchema is itself a flat ZodObject (post-010 encoding marker)", () => {
+    expect(targetModeSchema.def.type).toBe("object");
+    expect(targetModeSchema.constructor.name).toBe("ZodObject");
   });
 
   // -----------------------------------------------------------------------------------------------
