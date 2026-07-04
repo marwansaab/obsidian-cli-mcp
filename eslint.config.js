@@ -1,7 +1,6 @@
 // Original — no upstream. ESLint flat-config for obsidian-cli-mcp (constitution Technical Standards).
 import tseslint from "typescript-eslint";
-import importPlugin from "eslint-plugin-import";
-import nodePlugin from "eslint-plugin-n";
+import importX from "eslint-plugin-import-x";
 import promisePlugin from "eslint-plugin-promise";
 import jsoncPlugin from "eslint-plugin-jsonc";
 import * as jsoncParser from "jsonc-eslint-parser";
@@ -31,16 +30,15 @@ export default [
     },
     plugins: {
       "@typescript-eslint": tseslint.plugin,
-      import: importPlugin,
-      n: nodePlugin,
+      "import-x": importX,
       promise: promisePlugin,
     },
     rules: {
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
       "@typescript-eslint/no-explicit-any": "error",
       "no-console": "error",
-      // import/order — alphabetized, with newlines between every group
-      "import/order": [
+      // import-x/order — alphabetized, with newlines between every group
+      "import-x/order": [
         "error",
         {
           groups: ["builtin", "external", "internal", ["parent", "sibling", "index"], "type"],
@@ -48,16 +46,9 @@ export default [
           "newlines-between": "always",
         },
       ],
-      // The TypeScript compiler validates module resolution; eslint-plugin-import's resolver
+      // The TypeScript compiler validates module resolution; eslint-plugin-import-x's resolver
       // doesn't grok our .js-extension-on-.ts-source convention without an extra resolver dep.
-      "import/no-unresolved": "off",
-      // Same reason — n's missing-import check is redundant with tsc and would false-positive
-      // on the .js extensions that resolve to .ts source.
-      "n/no-missing-import": "off",
-      // tsc handles unsupported-feature checks via its target/lib settings; n's version-aware
-      // checks duplicate that and are noisy on Node 22+ APIs.
-      "n/no-unsupported-features/node-builtins": "off",
-      "n/no-unsupported-features/es-syntax": "off",
+      "import-x/no-unresolved": "off",
       ...promisePlugin.configs["flat/recommended"].rules,
       // Queue/scheduler primitives intentionally consume promises inside .then handlers
       // (they ARE the consumer); the rule below is for application code that forwards
