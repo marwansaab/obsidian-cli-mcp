@@ -84,10 +84,10 @@ layout (FR-004, FR-005).
 
 **Independent Test**: quickstart.md § US2.
 
-- [ ] T011 [US2] Cut branch `067-us2-typescript` from updated main
-- [ ] T012 [US2] package.json: typescript `"~6.0.3"` (**tilde** — typescript-eslint 8.62.1 peer caps `<6.1.0`, R1); `npm install`
-- [ ] T013 [US2] tsconfig.json: add `"types": ["node"]` to compilerOptions (TS 6.0 defaults `types` to `[]`; tsconfig.build.json extends this file — one edit covers both)
-- [ ] T014 [US2] Gates: `npm run typecheck` clean; `npx tsc --noEmit` output contains no deprecation text (FR-005); `npm run build` then verify dist layout unchanged (dist/index.js bin entry + index.d.ts present); lint; full suite via the reliable coverage invocation
+- [X] T011 [US2] Cut branch `067-us2-typescript` from updated main
+- [X] T012 [US2] package.json: typescript `"~6.0.3"` (**tilde** — typescript-eslint 8.62.1 peer caps `<6.1.0`, R1); `npm install`
+- [X] T013 [US2] tsconfig.json: add `"types": ["node"]` to compilerOptions (TS 6.0 defaults `types` to `[]`; tsconfig.build.json extends this file — one edit covers both)
+- [X] T014 [US2] Gates: `npm run typecheck` clean; `npx tsc --noEmit` output contains no deprecation text (FR-005); `npm run build` then verify dist layout unchanged (dist/index.js bin entry + index.d.ts present); lint; full suite via the reliable coverage invocation
 - [ ] T015 [US2] Commit `chore(067-upgrade-tech-stack): US2 TypeScript 6.0.3 (T011-T014)` — body: types:[] default-flip rationale, tilde-pin rationale, TS-7 on-ramp note, gate results
 - [ ] T016 [US2] Open **PR-2** → main: title "067/US2: TypeScript ~6.0.3 + explicit node types"; Constitution checklist: I–V **N/A** (compiler config + manifest only; Technical Standards row satisfied: strict/NodeNext/ES2024 unchanged), ADRs **N/A**; **STOP — review + merge before Phase 5**
 
