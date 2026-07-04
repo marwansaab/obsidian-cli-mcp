@@ -1,6 +1,6 @@
 // Original — no upstream. ESLint flat-config for obsidian-cli-mcp (constitution Technical Standards).
 import tseslint from "typescript-eslint";
-import importPlugin from "eslint-plugin-import";
+import importX from "eslint-plugin-import-x";
 import nodePlugin from "eslint-plugin-n";
 import promisePlugin from "eslint-plugin-promise";
 import jsoncPlugin from "eslint-plugin-jsonc";
@@ -31,7 +31,7 @@ export default [
     },
     plugins: {
       "@typescript-eslint": tseslint.plugin,
-      import: importPlugin,
+      "import-x": importX,
       n: nodePlugin,
       promise: promisePlugin,
     },
@@ -39,8 +39,8 @@ export default [
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
       "@typescript-eslint/no-explicit-any": "error",
       "no-console": "error",
-      // import/order — alphabetized, with newlines between every group
-      "import/order": [
+      // import-x/order — alphabetized, with newlines between every group
+      "import-x/order": [
         "error",
         {
           groups: ["builtin", "external", "internal", ["parent", "sibling", "index"], "type"],
@@ -48,9 +48,9 @@ export default [
           "newlines-between": "always",
         },
       ],
-      // The TypeScript compiler validates module resolution; eslint-plugin-import's resolver
+      // The TypeScript compiler validates module resolution; eslint-plugin-import-x's resolver
       // doesn't grok our .js-extension-on-.ts-source convention without an extra resolver dep.
-      "import/no-unresolved": "off",
+      "import-x/no-unresolved": "off",
       // Same reason — n's missing-import check is redundant with tsc and would false-positive
       // on the .js extensions that resolve to .ts source.
       "n/no-missing-import": "off",

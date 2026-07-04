@@ -1,5 +1,15 @@
 # Contributing
 
+## Development environment
+
+- **Node.js ≥ 22.13** is required to run the dev toolchain: `eslint` 10 and
+  `eslint-plugin-n` 18 declare engines `^20.19.0 || ^22.13.0 || >=24`, so
+  `npm run lint` fails on earlier 22.x patch lines.
+- This is a **dev-only** floor. The published runtime floor is unchanged:
+  `engines.node >= 22.11` in package.json is what end users need to run the
+  server (see README § Install). Raising the published floor is a
+  constitution-amendment trigger and is deliberately not pulled here.
+
 ## Commit-message convention
 
 Every commit in this project follows the convention below. It is a superset
