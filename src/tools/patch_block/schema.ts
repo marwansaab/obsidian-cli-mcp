@@ -18,7 +18,7 @@ const BLOCK_ID_ALPHABET = /^[A-Za-z0-9-]+$/;
 const blockIdField = z.string().superRefine((value, ctx) => {
   if (value.length === 0) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path: [],
       message: "block_id must not be empty",
       params: { code: "INVALID_BLOCK_ID", reason: "empty" },
@@ -27,7 +27,7 @@ const blockIdField = z.string().superRefine((value, ctx) => {
   }
   if (value.length > BLOCK_ID_MAX) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path: [],
       message: `block_id must be ≤ ${BLOCK_ID_MAX} UTF-16 code units (got ${value.length})`,
       params: {
@@ -40,7 +40,7 @@ const blockIdField = z.string().superRefine((value, ctx) => {
   }
   if (value.charCodeAt(0) === 94 /* ^ */) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path: [],
       message:
         "block_id must not begin with '^' — the caret is the wikilink delimiter, not part of the identifier",
@@ -64,7 +64,7 @@ const blockIdField = z.string().superRefine((value, ctx) => {
       }
     }
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path: [],
       message:
         "block_id must match the alphanumeric + hyphen alphabet ([A-Za-z0-9-]+)",

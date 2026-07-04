@@ -24,7 +24,7 @@ export const contextSearchInputSchema = z
   .superRefine((v, ctx) => {
     if (v.query.trim().length === 0) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["query"],
         message: "query is empty or whitespace-only (FR-008)",
       });

@@ -1,5 +1,5 @@
 // Original — no upstream. prepend tool registration via registerTool with a mapValidationError hook that intercepts the schema-layer over-cap rejection and emits a stable top-level discriminator (VALIDATION_ERROR with details.code: CONTENT_TOO_LARGE + contentLength + maxLength) instead of the generic Zod issues envelope; all other validation failures keep the generic envelope shape. responseFormat: "json" emits the { path, vault, bytes_written, inline } envelope on success.
-import { type ZodIssue } from "zod";
+import { type z } from "zod";
 
 import { executePrepend, type ExecuteDeps } from "./handler.js";
 import { MAX_CONTENT_LENGTH, prependInputSchema } from "./schema.js";
@@ -26,7 +26,7 @@ Typed errors via \`UpstreamError.code\`: \`NOTE_NOT_FOUND\`, \`EXTERNAL_EDITOR_C
 
 export type RegisterDeps = ExecuteDeps;
 
-function mapZodIssuesToToolError(issues: ZodIssue[], rawArgs: unknown): ToolErrorPayload {
+function mapZodIssuesToToolError(issues: z.core.$ZodIssue[], rawArgs: unknown): ToolErrorPayload {
   // Intercept the cap-rejection path (too_big on content) and emit the
   // documented top-level discriminator. The caller doesn't have to dig into
   // details.issues[] to identify what went wrong — details.code +

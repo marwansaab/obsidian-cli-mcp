@@ -61,7 +61,7 @@ export const findAndReplaceInputSchema = z
         new RegExp(v.pattern, v.case_insensitive ? "i" : "");
       } catch (cause) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["pattern"],
           message: (cause as Error).message,
           params: { subCode: "INVALID_PATTERN", subReason: "regex-syntax" },
@@ -71,7 +71,7 @@ export const findAndReplaceInputSchema = z
     if (v.subfolder !== undefined && v.subfolder.length > 0) {
       if (!isStructurallySafePath(v.subfolder)) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["subfolder"],
           message:
             "path is not structurally safe (must not start with '/', '\\\\', or a drive letter; must not contain '..' segments or control characters)",
@@ -86,14 +86,14 @@ export const findAndReplaceInputSchema = z
     if (v.file !== undefined) {
       if (!isStructurallySafePath(v.file)) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["file"],
           message: STRUCTURALLY_UNSAFE_PATH_MESSAGE,
           params: { subCode: "INVALID_NOTE", subReason: "path-traversal" },
         });
       } else if (v.file.includes("[[") || v.file.includes("]]")) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["file"],
           message: WIKILINK_BRACKET_REJECTION_MESSAGE,
         });
@@ -101,7 +101,7 @@ export const findAndReplaceInputSchema = z
     }
     if (v.path !== undefined && !isStructurallySafePath(v.path)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["path"],
         message: STRUCTURALLY_UNSAFE_PATH_MESSAGE,
         params: { subCode: "INVALID_NOTE", subReason: "path-traversal" },
@@ -125,7 +125,7 @@ export const findAndReplaceInputSchema = z
     else if ((hasFile || hasPath) && hasSubfolder) scopeConflict = "note+folder";
     if (scopeConflict !== null) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: [],
         message: SCOPE_CONFLICT_MESSAGES[scopeConflict],
         params: { subCode: "SCOPE_CONFLICT", subReason: scopeConflict },
@@ -176,14 +176,14 @@ export const findAndReplaceOutputSchema = z
     if (v.mode === "commit") {
       if (v.partial === true && v.failing_note_locator === undefined) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["failing_note_locator"],
           message: "failing_note_locator MUST be present when partial === true",
         });
       }
       if (v.partial === false && v.failing_note_locator !== undefined) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["failing_note_locator"],
           message: "failing_note_locator MUST be absent when partial === false",
         });

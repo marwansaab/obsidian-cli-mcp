@@ -18,7 +18,7 @@ export function applyTargetModeRefinement<T extends z.ZodObject>(schema: T): T {
     if (record.target_mode === "specific") {
       if (record.vault === undefined) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["vault"],
           message: "vault is required in specific mode",
         });
@@ -27,18 +27,18 @@ export function applyTargetModeRefinement<T extends z.ZodObject>(schema: T): T {
       const hasPath = record.path !== undefined;
       if (!hasFile && !hasPath) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: [],
           message: "exactly one of `file` or `path` must be provided in specific mode (got neither)",
         });
       } else if (hasFile && hasPath) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["file"],
           message: "exactly one of `file` or `path` must be provided in specific mode (got both)",
         });
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["path"],
           message: "exactly one of `file` or `path` must be provided in specific mode (got both)",
         });
@@ -46,11 +46,11 @@ export function applyTargetModeRefinement<T extends z.ZodObject>(schema: T): T {
     } else {
       for (const key of FORBIDDEN_KEYS_IN_ACTIVE) {
         // Explicit-undefined is treated as "not provided" — semantically equivalent
-        // to the absent-key case, matching pre-010 .passthrough() behaviour where
+        // to the absent-key case, matching pre-010 loose-object behaviour where
         // zod stripped undefined-valued passthrough keys before refinement ran.
         if (Object.hasOwn(record, key) && record[key] !== undefined) {
           ctx.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: "custom",
             path: [key],
             message: `${key} is not allowed in active mode`,
           });
@@ -76,14 +76,14 @@ export function applyTargetModeRefinementForFolderScoped<T extends z.ZodObject>(
     const record = input as Record<string, unknown>;
     if (Object.hasOwn(record, "file") && record.file !== undefined) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["file"],
         message: "file is not allowed for folder-scoped tools",
       });
     }
     if (Object.hasOwn(record, "path") && record.path !== undefined) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["path"],
         message: "path is not allowed for folder-scoped tools",
       });
@@ -91,7 +91,7 @@ export function applyTargetModeRefinementForFolderScoped<T extends z.ZodObject>(
     if (record.target_mode === "specific") {
       if (record.vault === undefined) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["vault"],
           message: "vault is required in specific mode",
         });
@@ -99,7 +99,7 @@ export function applyTargetModeRefinementForFolderScoped<T extends z.ZodObject>(
     } else if (record.target_mode === "active") {
       if (Object.hasOwn(record, "vault") && record.vault !== undefined) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["vault"],
           message: "vault is not allowed in active mode",
         });

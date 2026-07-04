@@ -26,7 +26,7 @@ export const createBaseInputSchema = z
       const value_length = v.name.length;
       if (value_length === 0) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["name"],
           message: "INVALID_NAME/empty: name is empty",
           params: {
@@ -38,7 +38,7 @@ export const createBaseInputSchema = z
         });
       } else if (value_length > NAME_MAX) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["name"],
           message: `INVALID_NAME/too-long: name exceeds ${NAME_MAX} UTF-16 code units`,
           params: {
@@ -53,7 +53,7 @@ export const createBaseInputSchema = z
 
     if (typeof v.content === "string" && v.content.length > MAX_CONTENT_LENGTH) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["content"],
         message: `CONTENT_TOO_LARGE: content exceeds ${MAX_CONTENT_LENGTH} UTF-16 code units`,
         params: {

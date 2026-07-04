@@ -29,7 +29,7 @@ const safeFileField = z
   .superRefine((value, ctx) => {
     if (value.includes("[[") || value.includes("]]")) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: [],
         message: WIKILINK_BRACKET_REJECTION_MESSAGE,
       });
@@ -64,19 +64,19 @@ export const openFileInputSchema = z
       // FR-005 — both supplied: issue at BOTH paths so a programmatic caller
       // sees the conflict on either locator field.
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["path"],
         message: EXACTLY_ONE_BOTH_MESSAGE,
       });
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["file"],
         message: EXACTLY_ONE_BOTH_MESSAGE,
       });
     } else if (!hasPath && !hasFile) {
       // FR-005 — neither supplied: a single object-level issue at the root.
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: [],
         message: EXACTLY_ONE_NEITHER_MESSAGE,
       });

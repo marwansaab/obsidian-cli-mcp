@@ -41,7 +41,7 @@ export const propertiesUpstreamEntrySchema = z
     type: z.string(),
     count: z.number().int().nonnegative(),
   })
-  .passthrough();
+  .loose();
 
 export const propertiesUpstreamArraySchema = z.array(propertiesUpstreamEntrySchema);
 

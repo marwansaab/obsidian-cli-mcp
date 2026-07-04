@@ -42,7 +42,7 @@ const safeFileField = z
   .superRefine((value, ctx) => {
     if (value.includes("[[") || value.includes("]]")) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: [],
         message: WIKILINK_BRACKET_REJECTION_MESSAGE,
       });

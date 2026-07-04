@@ -24,7 +24,7 @@ export const writeNoteInputSchema = applyTargetModeRefinement(
   if (input.target_mode !== "active") return;
   if (input.overwrite !== true) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path: ["overwrite"],
       message:
         "overwrite must be true in active mode (active mode is destructive by definition; explicit-opt-in posture binds uniformly)",
@@ -32,7 +32,7 @@ export const writeNoteInputSchema = applyTargetModeRefinement(
   }
   if (input.open !== undefined) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path: ["open"],
       message: "open is not allowed in active mode",
     });

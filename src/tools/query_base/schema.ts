@@ -26,7 +26,7 @@ export const queryBaseInputSchema = z
       const value_length = v.view_name.length;
       if (value_length === 0) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["view_name"],
           message: "INVALID_VIEW_NAME/empty: view_name is empty",
           params: {
@@ -38,7 +38,7 @@ export const queryBaseInputSchema = z
         });
       } else if (value_length > VIEW_NAME_MAX) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["view_name"],
           message: `INVALID_VIEW_NAME/too-long: view_name exceeds ${VIEW_NAME_MAX} UTF-16 code units`,
           params: {

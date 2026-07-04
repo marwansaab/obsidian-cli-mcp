@@ -21,7 +21,7 @@ export const patternSearchInputSchema = z
   .superRefine((v, ctx) => {
     if (v.pattern.trim().length === 0) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["pattern"],
         message: "pattern is empty or whitespace-only",
       });
@@ -32,7 +32,7 @@ export const patternSearchInputSchema = z
       new RegExp(v.pattern, flags);
     } catch (cause) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["pattern"],
         message: (cause as Error).message,
       });

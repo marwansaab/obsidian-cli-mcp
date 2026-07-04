@@ -35,7 +35,7 @@ export const findByPropertyInputSchema = z
   .superRefine((input, ctx) => {
     if (Array.isArray(input.value) && input.arrayMatch === true) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["value"],
         message:
           "value cannot be an array when arrayMatch is true (default); pass a scalar for contains semantics, or set arrayMatch: false for exact-equality.",

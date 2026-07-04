@@ -30,7 +30,7 @@ const outlineUpstreamHeadingSchema = z
     heading: z.string(),
     line: z.number().int().positive(),
   })
-  .passthrough();
+  .loose();
 
 export const outlineUpstreamArraySchema = z.array(outlineUpstreamHeadingSchema);
 
