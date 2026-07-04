@@ -121,7 +121,7 @@ function isBarePrimitiveBranch(branch: unknown): boolean {
 
 /**
  * Normalize one node of a freshly emitted zod-4 JSON Schema back to the retired
- * zod-to-json-schema draft-07 emission (contracts/descriptor-parity.contract.md).
+ * v3-era converter draft-07 emission (contracts/descriptor-parity.contract.md).
  * Rules, in order:
  *
  * - N1: `propertyNames` deep-equal `{"type":"string"}` → delete. zod 4 stamps it on
@@ -207,7 +207,7 @@ function normalizeToDraft7Parity(value: unknown): void {
 /**
  * Render any zod schema to a JSON Schema whose top-level `type` is `"object"`,
  * so the result is a valid `inputSchema` for an MCP `Tool` descriptor. BI-067:
- * zod 4's built-in `z.toJSONSchema` replaces the retired zod-to-json-schema
+ * zod 4's built-in `z.toJSONSchema` replaces the retired v3-era converter
  * delegate. `io: "input"` is REQUIRED — the default output mode marks
  * `.optional().default()` fields as required. `target: "draft-7"` is REQUIRED —
  * it emits the `$schema` draft-07 URI byte-identical to the published (hashed)

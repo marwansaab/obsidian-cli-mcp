@@ -164,11 +164,11 @@ test("unknown top-level key 'sort' → unrecognized_keys", () => {
 
 // (15) inferred PropertiesInput / PropertiesOutput types compile
 test("inferred PropertiesInput / PropertiesOutput types compile against representative values", () => {
-  expectTypeOf<PropertiesInput>().toMatchTypeOf<{
+  expectTypeOf<PropertiesInput>().toExtend<{
     vault?: string;
     total?: boolean;
   }>();
-  expectTypeOf<PropertiesOutput>().toMatchTypeOf<{
+  expectTypeOf<PropertiesOutput>().toExtend<{
     count: number;
     properties: Array<{ name: string; noteCount: number }>;
   }>();

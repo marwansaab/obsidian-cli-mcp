@@ -411,7 +411,7 @@ test("toMcpInputSchema emits additionalProperties:false + expected property set"
 
 // =====================================================================
 // BI-067 FR-010 — custom error-callback message parity (M1 migration).
-// zod 4 SILENTLY ignores the v3 {required_error, invalid_type_error}
+// zod 4 SILENTLY ignores the v3 required/invalid-type message params
 // params, so these exact-string assertions are the only guard against a
 // silent message regression on the migrated fields.
 // =====================================================================

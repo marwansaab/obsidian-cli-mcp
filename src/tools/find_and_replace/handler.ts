@@ -259,9 +259,9 @@ async function listEligibleNotes(
     if (entry.name.startsWith(".")) continue;
     if (!entry.isFile()) continue;
     if (!entry.name.toLowerCase().endsWith(".md")) continue;
-    const parentPath = (entry as Dirent & { parentPath?: string }).parentPath
-      ?? (entry as Dirent & { path?: string }).path
-      ?? scanRoot;
+    // Dirent.parentPath exists on every supported runtime (added v20.12; engines floor
+    // is >=22.11) — the deprecated Dirent.path fallback was removed in BI-067.
+    const parentPath = (entry as Dirent & { parentPath?: string }).parentPath ?? scanRoot;
     const absParent = resolve(parentPath);
     const relFromScanRoot = relative(scanRoot, absParent);
     if (relFromScanRoot.length > 0 && hasDotPrefixedSegment(relFromScanRoot)) continue;

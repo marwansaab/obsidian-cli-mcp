@@ -69,6 +69,12 @@ export interface ShutdownContext {
 }
 
 export interface CreatedServer {
+  // BI-067: the SDK tags the low-level Server as deprecated in favor of McpServer, but
+  // this repo deliberately uses the low-level API (constitution Technical Standards: SDK
+  // `Server` API registration with explicit ListTools/CallTool handlers). Migrating the
+  // composition root is a separate architectural decision, not a dependency-refresh side
+  // effect — hence the targeted disables here and at the constructor call below.
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   server: Server;
   logger: Logger;
   queue: Queue;
@@ -80,6 +86,8 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
   const queue = createQueue();
   const exit = ctx.exit ?? ((code: number) => process.exit(code));
 
+  // BI-067: deliberate low-level Server usage; see CreatedServer.server above.
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   const server = new Server(
     {
       name: "obsidian-cli-mcp",

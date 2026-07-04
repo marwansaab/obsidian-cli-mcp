@@ -14,7 +14,7 @@ export const matchEntrySchema = z
   .strictObject({
     path: z.string().endsWith(".md"),
     headingPath: z.array(z.string()),
-    score: z.number().finite(),
+    score: z.number(),
   });
 
 export const smartConnectionsSimilarOutputSchema = z

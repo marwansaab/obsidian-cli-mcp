@@ -2,8 +2,8 @@
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
 
-import { toMcpInputSchema } from "../tools/_shared.js";
 import { stripSchemaDescriptions, type JsonSchemaObject } from "./strip-schema.js";
+import { toMcpInputSchema } from "../tools/_shared.js";
 
 describe("stripSchemaDescriptions", () => {
   it("strips description from every property of a flat schema (Story 1 AC#1)", () => {

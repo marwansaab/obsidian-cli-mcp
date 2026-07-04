@@ -99,14 +99,14 @@ test("total 'true' (string) → invalid_type on ['total']", () => {
 
 // (18) inferred OutlineInput / OutlineOutput type compile checks
 test("inferred OutlineInput and OutlineOutput types compile to the expected shapes", () => {
-  expectTypeOf<OutlineInput>().toMatchTypeOf<{
+  expectTypeOf<OutlineInput>().toExtend<{
     target_mode: "specific" | "active";
     vault?: string;
     file?: string;
     path?: string;
     total?: boolean;
   }>();
-  expectTypeOf<OutlineOutput>().toMatchTypeOf<{
+  expectTypeOf<OutlineOutput>().toExtend<{
     count: number;
     headings: Array<{ level: number; text: string; line: number }>;
   }>();
