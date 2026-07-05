@@ -16,27 +16,24 @@ export const pathsInputSchema = applyTargetModeRefinementForFolderScoped(
 );
 
 export const pathsOutputSchema = z
-  .object({
+  .strictObject({
     count: z.number().int().nonnegative(),
     paths: z.array(z.string()),
-  })
-  .strict();
+  });
 
 const pathsEnvelopeOk = z
-  .object({
+  .strictObject({
     ok: z.literal(true),
     count: z.number().int().nonnegative(),
     paths: z.array(z.string()),
-  })
-  .strict();
+  });
 
 const pathsEnvelopeError = z
-  .object({
+  .strictObject({
     ok: z.literal(false),
     code: z.enum(["FOLDER_NOT_FOUND", "NOT_A_FOLDER"]),
     folder: z.string(),
-  })
-  .strict();
+  });
 
 export const pathsEvalEnvelopeSchema = z.discriminatedUnion("ok", [
   pathsEnvelopeOk,

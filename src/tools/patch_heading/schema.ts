@@ -17,7 +17,7 @@ const HEADING_PATH_MAX = 1000;
 const headingPathField = z.string().superRefine((value, ctx) => {
   if (value.length === 0) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path: [],
       message: "heading_path must not be empty",
       params: { code: "INVALID_HEADING_PATH", reason: "empty" },
@@ -26,7 +26,7 @@ const headingPathField = z.string().superRefine((value, ctx) => {
   }
   if (value.length > HEADING_PATH_MAX) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path: [],
       message: `heading_path must be ≤ ${HEADING_PATH_MAX} UTF-16 code units (got ${value.length})`,
       params: {
@@ -40,7 +40,7 @@ const headingPathField = z.string().superRefine((value, ctx) => {
   const segments = value.split("#");
   if (segments.length < 2) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path: [],
       message:
         "heading_path must contain at least two segments separated by '#'; top-level headings are out of scope",
@@ -51,7 +51,7 @@ const headingPathField = z.string().superRefine((value, ctx) => {
   for (let i = 0; i < segments.length; i++) {
     if (segments[i]!.length === 0) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: [],
         message:
           "heading_path segments must be non-empty (no '##', no leading or trailing '#')",
@@ -68,7 +68,7 @@ const headingPathField = z.string().superRefine((value, ctx) => {
     /* v8 ignore start */
     if (segments[i]!.includes("#")) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: [],
         message: "heading_path segment must not contain '#' (defensive sentinel)",
         params: {
@@ -94,7 +94,7 @@ export const patchHeadingInputSchema = applyTargetModeRefinement(
 ).superRefine((input, ctx) => {
   if (input.content === "" && (input.mode === "append" || input.mode === "prepend")) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path: ["content"],
       message: `content must be non-empty for mode='${input.mode}'; use mode='replace' to clear a heading's direct body`,
       params: {
@@ -107,14 +107,13 @@ export const patchHeadingInputSchema = applyTargetModeRefinement(
 });
 
 export const patchHeadingOutputSchema = z
-  .object({
+  .strictObject({
     path: z.string(),
     vault: z.string(),
     heading_path: z.string(),
     mode: z.enum(["append", "prepend", "replace"]),
     bytes_written: z.number().int().min(0),
-  })
-  .strict();
+  });
 
 export type PatchHeadingInput = z.infer<typeof patchHeadingInputSchema>;
 export type PatchHeadingOutput = z.infer<typeof patchHeadingOutputSchema>;

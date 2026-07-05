@@ -27,28 +27,28 @@ export function appendBasePathIssues(ctx: z.RefinementCtx, value: string, field:
   const value_length = value.length;
   if (value_length === 0) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path: [field],
       message: `INVALID_BASE_PATH/empty: ${field} is empty`,
       params: { code: "INVALID_BASE_PATH", reason: "empty", field, value_length },
     });
   } else if (value_length > BASE_PATH_MAX) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path: [field],
       message: `INVALID_BASE_PATH/too-long: ${field} exceeds ${BASE_PATH_MAX} UTF-16 code units`,
       params: { code: "INVALID_BASE_PATH", reason: "too-long", field, value_length },
     });
   } else if (!isStructurallySafePath(value)) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path: [field],
       message: `INVALID_BASE_PATH/path-traversal: ${field} contains path-traversal shapes`,
       params: { code: "INVALID_BASE_PATH", reason: "path-traversal", field, value },
     });
   } else if (!/\.base$/i.test(value)) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path: [field],
       message: `INVALID_BASE_PATH/wrong-extension: ${field} must end with .base`,
       params: { code: "INVALID_BASE_PATH", reason: "wrong-extension", field, value },

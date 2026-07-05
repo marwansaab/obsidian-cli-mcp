@@ -31,7 +31,7 @@ const SCOPE_CONFLICT_MESSAGES: Record<string, string> = {
 };
 
 export const findAndReplaceInputSchema = z
-  .object({
+  .strictObject({
     pattern: z
       .string()
       .min(1, "pattern must not be empty")
@@ -54,14 +54,13 @@ export const findAndReplaceInputSchema = z
     path: z.string().min(1).optional(),
     active_note: z.boolean().optional().default(false),
   })
-  .strict()
   .superRefine((v, ctx) => {
     if (v.mode === "regex") {
       try {
         new RegExp(v.pattern, v.case_insensitive ? "i" : "");
       } catch (cause) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["pattern"],
           message: (cause as Error).message,
           params: { subCode: "INVALID_PATTERN", subReason: "regex-syntax" },
@@ -71,7 +70,7 @@ export const findAndReplaceInputSchema = z
     if (v.subfolder !== undefined && v.subfolder.length > 0) {
       if (!isStructurallySafePath(v.subfolder)) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["subfolder"],
           message:
             "path is not structurally safe (must not start with '/', '\\\\', or a drive letter; must not contain '..' segments or control characters)",
@@ -86,14 +85,14 @@ export const findAndReplaceInputSchema = z
     if (v.file !== undefined) {
       if (!isStructurallySafePath(v.file)) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["file"],
           message: STRUCTURALLY_UNSAFE_PATH_MESSAGE,
           params: { subCode: "INVALID_NOTE", subReason: "path-traversal" },
         });
       } else if (v.file.includes("[[") || v.file.includes("]]")) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["file"],
           message: WIKILINK_BRACKET_REJECTION_MESSAGE,
         });
@@ -101,7 +100,7 @@ export const findAndReplaceInputSchema = z
     }
     if (v.path !== undefined && !isStructurallySafePath(v.path)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["path"],
         message: STRUCTURALLY_UNSAFE_PATH_MESSAGE,
         params: { subCode: "INVALID_NOTE", subReason: "path-traversal" },
@@ -125,7 +124,7 @@ export const findAndReplaceInputSchema = z
     else if ((hasFile || hasPath) && hasSubfolder) scopeConflict = "note+folder";
     if (scopeConflict !== null) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: [],
         message: SCOPE_CONFLICT_MESSAGES[scopeConflict],
         params: { subCode: "SCOPE_CONFLICT", subReason: scopeConflict },
@@ -136,39 +135,35 @@ export const findAndReplaceInputSchema = z
 export type FindAndReplaceInput = z.infer<typeof findAndReplaceInputSchema>;
 
 const occurrenceSchema = z
-  .object({
+  .strictObject({
     line_number: z.number().int().min(1),
     full_line: z.string().max(FULL_LINE_CAP_PLUS_ELLIPSIS),
     matched_substring: z.string(),
     replacement_substring: z.string(),
-  })
-  .strict();
+  });
 
 const affectedNoteSchema = z
-  .object({
+  .strictObject({
     path: z.string().min(1),
     occurrence_count: z.number().int().min(1),
     occurrences: z.array(occurrenceSchema),
-  })
-  .strict();
+  });
 
 const previewBranchSchema = z
-  .object({
+  .strictObject({
     mode: z.literal("preview"),
     affected_notes: z.array(affectedNoteSchema),
     total_occurrences: z.number().int().nonnegative(),
-  })
-  .strict();
+  });
 
 const commitBranchSchema = z
-  .object({
+  .strictObject({
     mode: z.literal("commit"),
     changed_notes: z.array(z.string().min(1)),
     total_occurrences_replaced: z.number().int().nonnegative(),
     partial: z.boolean(),
     failing_note_locator: z.string().min(1).optional(),
-  })
-  .strict();
+  });
 
 export const findAndReplaceOutputSchema = z
   .discriminatedUnion("mode", [previewBranchSchema, commitBranchSchema])
@@ -176,14 +171,14 @@ export const findAndReplaceOutputSchema = z
     if (v.mode === "commit") {
       if (v.partial === true && v.failing_note_locator === undefined) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["failing_note_locator"],
           message: "failing_note_locator MUST be present when partial === true",
         });
       }
       if (v.partial === false && v.failing_note_locator !== undefined) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["failing_note_locator"],
           message: "failing_note_locator MUST be absent when partial === false",
         });

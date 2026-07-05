@@ -9,7 +9,7 @@
 import { z } from "zod";
 
 export const searchInputSchema = z
-  .object({
+  .strictObject({
     query: z
       .string()
       .min(1, "query is required")
@@ -25,11 +25,10 @@ export const searchInputSchema = z
     context_lines: z.boolean().optional(),
     vault: z.string().min(1).optional(),
   })
-  .strict()
   .superRefine((v, ctx) => {
     if (v.query.trim().length === 0) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["query"],
         message: "query is empty or whitespace-only (FR-010)",
       });
@@ -56,46 +55,41 @@ export const searchInputSchema = z
   );
 
 export const searchDefaultOutputSchema = z
-  .object({
+  .strictObject({
     count: z.number().int().nonnegative(),
     paths: z.array(z.string().min(1)),
     truncated: z.literal(true).optional(),
   })
-  .strict()
   .refine((o) => o.count === o.paths.length, "count must equal paths.length");
 
 export const searchLineMatchSchema = z
-  .object({
+  .strictObject({
     path: z.string().min(1),
     line: z.number().int().min(1, "line is 1-based (FR-003)"),
     text: z.string(),
-  })
-  .strict();
+  });
 
 export const searchLineOutputSchema = z
-  .object({
+  .strictObject({
     count: z.number().int().nonnegative(),
     matches: z.array(searchLineMatchSchema),
     truncated: z.literal(true).optional(),
   })
-  .strict()
   .refine((o) => o.count === o.matches.length, "count must equal matches.length");
 
 export const searchDefaultWireSchema = z.array(z.string().min(1));
 
 export const searchContextWireMatchSchema = z
-  .object({
+  .strictObject({
     line: z.number().int().min(1),
     text: z.string(),
-  })
-  .strict();
+  });
 
 export const searchContextWireFileSchema = z
-  .object({
+  .strictObject({
     file: z.string().min(1),
     matches: z.array(searchContextWireMatchSchema),
-  })
-  .strict();
+  });
 
 export const searchContextWireSchema = z.array(searchContextWireFileSchema);
 

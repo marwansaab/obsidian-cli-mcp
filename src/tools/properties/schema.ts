@@ -2,11 +2,10 @@
 import { z } from "zod";
 
 export const propertiesInputSchema = z
-  .object({
+  .strictObject({
     vault: z.string().min(1).optional(),
     total: z.boolean().optional(),
   })
-  .strict()
   .describe(
     // BI-041 FR-011 — case-insensitive collapse contract promoted from spec
     // assertion to observed contract. Empirically captured by T0 probe 2026-05-21:
@@ -22,18 +21,16 @@ export const propertiesInputSchema = z
   );
 
 export const propertyEntrySchema = z
-  .object({
+  .strictObject({
     name: z.string(),
     noteCount: z.number().int().nonnegative(),
-  })
-  .strict();
+  });
 
 export const propertiesOutputSchema = z
-  .object({
+  .strictObject({
     count: z.number().int().nonnegative(),
     properties: z.array(propertyEntrySchema),
-  })
-  .strict();
+  });
 
 export const propertiesUpstreamEntrySchema = z
   .object({
@@ -41,7 +38,7 @@ export const propertiesUpstreamEntrySchema = z
     type: z.string(),
     count: z.number().int().nonnegative(),
   })
-  .passthrough();
+  .loose();
 
 export const propertiesUpstreamArraySchema = z.array(propertiesUpstreamEntrySchema);
 

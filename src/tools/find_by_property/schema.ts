@@ -11,7 +11,7 @@ const scalarValueSchema = z.union([
 ]);
 
 export const findByPropertyInputSchema = z
-  .object({
+  .strictObject({
     vault: z.string().min(1).optional(),
     property: z.string().min(1),
     value: z.union([
@@ -31,11 +31,10 @@ export const findByPropertyInputSchema = z
     arrayMatch: z.boolean().optional().default(true),
     caseSensitive: z.boolean().optional().default(true),
   })
-  .strict()
   .superRefine((input, ctx) => {
     if (Array.isArray(input.value) && input.arrayMatch === true) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["value"],
         message:
           "value cannot be an array when arrayMatch is true (default); pass a scalar for contains semantics, or set arrayMatch: false for exact-equality.",
@@ -44,11 +43,10 @@ export const findByPropertyInputSchema = z
   });
 
 export const findByPropertyOutputSchema = z
-  .object({
+  .strictObject({
     count: z.number().int().nonnegative(),
     paths: z.array(z.string()),
-  })
-  .strict();
+  });
 
 export type FindByPropertyInput = z.infer<typeof findByPropertyInputSchema>;
 export type FindByPropertyOutput = z.infer<typeof findByPropertyOutputSchema>;

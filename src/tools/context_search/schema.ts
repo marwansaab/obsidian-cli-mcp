@@ -5,7 +5,7 @@
 import { z } from "zod";
 
 export const contextSearchInputSchema = z
-  .object({
+  .strictObject({
     query: z
       .string()
       .min(1, "query is required")
@@ -20,11 +20,10 @@ export const contextSearchInputSchema = z
     case_sensitive: z.boolean().optional(),
     vault: z.string().min(1).optional(),
   })
-  .strict()
   .superRefine((v, ctx) => {
     if (v.query.trim().length === 0) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["query"],
         message: "query is empty or whitespace-only (FR-008)",
       });
@@ -32,20 +31,18 @@ export const contextSearchInputSchema = z
   });
 
 export const contextSearchMatchSchema = z
-  .object({
+  .strictObject({
     path: z.string().min(1),
     line: z.number().int().min(1, "line is 1-based (FR-002)"),
     text: z.string(),
-  })
-  .strict();
+  });
 
 export const contextSearchOutputSchema = z
-  .object({
+  .strictObject({
     count: z.number().int().nonnegative(),
     matches: z.array(contextSearchMatchSchema),
     truncated: z.literal(true).optional(),
   })
-  .strict()
   .refine((o) => o.count === o.matches.length, "count must equal matches.length");
 
 export type ContextSearchInput = z.infer<typeof contextSearchInputSchema>;

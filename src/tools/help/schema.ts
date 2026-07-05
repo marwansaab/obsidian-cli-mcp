@@ -2,9 +2,8 @@
 import { z } from "zod";
 
 export const helpInputSchema = z
-  .object({
+  .strictObject({
     tool_name: z.string().min(1).optional(),
-  })
-  .strict();
+  });
 
 export type HelpInput = z.infer<typeof helpInputSchema>;

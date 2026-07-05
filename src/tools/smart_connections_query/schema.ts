@@ -12,28 +12,25 @@ import { z } from "zod";
 export const MAX_QUERY_LENGTH = 2000;
 
 export const smartConnectionsQueryInputSchema = z
-  .object({
+  .strictObject({
     query: z.string().trim().min(1).max(MAX_QUERY_LENGTH),
     vault: z.string().min(1).optional(),
     limit: z.number().int().min(1).max(100).default(20),
     total: z.boolean().optional(),
-  })
-  .strict();
+  });
 
 export const matchEntrySchema = z
-  .object({
+  .strictObject({
     path: z.string().endsWith(".md"),
     headingPath: z.array(z.string()),
-    score: z.number().finite(),
-  })
-  .strict();
+    score: z.number(),
+  });
 
 export const smartConnectionsQueryOutputSchema = z
-  .object({
+  .strictObject({
     count: z.number().int().nonnegative(),
     matches: z.array(matchEntrySchema),
-  })
-  .strict();
+  });
 
 export const SMART_CONNECTIONS_QUERY_EVAL_ERROR_CODES = [
   "SMART_CONNECTIONS_NOT_INSTALLED",
@@ -45,19 +42,17 @@ export type SmartConnectionsQueryEvalErrorCode =
 
 export const smartConnectionsQueryEvalResponseSchema = z.discriminatedUnion("ok", [
   z
-    .object({
+    .strictObject({
       ok: z.literal(true),
       count: z.number().int().nonnegative(),
       matches: z.array(matchEntrySchema),
-    })
-    .strict(),
+    }),
   z
-    .object({
+    .strictObject({
       ok: z.literal(false),
       code: z.enum(SMART_CONNECTIONS_QUERY_EVAL_ERROR_CODES),
       detail: z.string(),
-    })
-    .strict(),
+    }),
 ]);
 
 export type SmartConnectionsQueryInput = z.infer<typeof smartConnectionsQueryInputSchema>;

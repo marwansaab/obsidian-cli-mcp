@@ -1,5 +1,5 @@
 // Original — no upstream. find_and_replace registration via registerTool with a mapValidationError hook that maps Zod issues into VALIDATION_ERROR envelopes carrying details.code (INVALID_PATTERN / INVALID_REPLACEMENT / INVALID_SUBFOLDER) + details.reason (empty / too-long / regex-syntax / path-traversal / not-found) per ADR-015. Zero new top-level error codes — Constitution Principle IV streak preserved.
-import { type ZodIssue } from "zod";
+import { type z } from "zod";
 
 import { executeFindAndReplace, type ExecuteDeps } from "./handler.js";
 import { findAndReplaceInputSchema } from "./schema.js";
@@ -45,7 +45,7 @@ Call \`help({ tool_name: "find_and_replace" })\` for worked examples (literal pr
 
 export type RegisterDeps = ExecuteDeps;
 
-function mapZodIssuesToToolError(issues: ZodIssue[]): ToolErrorPayload {
+function mapZodIssuesToToolError(issues: z.core.$ZodIssue[]): ToolErrorPayload {
   const mappedIssues = issues.map((i) => ({
     path: i.path,
     message: i.message,

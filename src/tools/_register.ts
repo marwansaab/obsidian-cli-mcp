@@ -2,7 +2,7 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { ZodError, type ZodIssue, type ZodTypeAny, type z } from "zod";
+import { ZodError, type z } from "zod";
 
 import { UpstreamError } from "../errors.js";
 import { asToolError, toMcpInputSchema, type RegisteredTool, type ToolCallResult, type ToolErrorPayload } from "./_shared.js";
@@ -11,7 +11,7 @@ import { stripSchemaDescriptions, type JsonSchemaObject } from "../help/strip-sc
 
 export type ResponseFormat = "json" | "raw";
 
-export interface ToolSpec<TSchema extends ZodTypeAny, TDeps = undefined> {
+export interface ToolSpec<TSchema extends z.ZodType, TDeps = undefined> {
   name: string;
   description: string;
   schema: TSchema;
@@ -27,10 +27,10 @@ export interface ToolSpec<TSchema extends ZodTypeAny, TDeps = undefined> {
    * output `schema.parse`) is an output-contract break, NOT input validation, so it
    * surfaces as INTERNAL_ERROR and does NOT pass through this hook.
    */
-  mapValidationError?: (issues: ZodIssue[], rawArgs: unknown) => ToolErrorPayload;
+  mapValidationError?: (issues: z.core.$ZodIssue[], rawArgs: unknown) => ToolErrorPayload;
 }
 
-export function registerTool<TSchema extends ZodTypeAny, TDeps = undefined>(
+export function registerTool<TSchema extends z.ZodType, TDeps = undefined>(
   spec: ToolSpec<TSchema, TDeps>,
 ): RegisteredTool {
   const inputSchemaRaw = toMcpInputSchema(spec.schema);
@@ -40,7 +40,7 @@ export function registerTool<TSchema extends ZodTypeAny, TDeps = undefined>(
   // INPUT-validation mapping only: the per-tool hook when supplied, else a generic
   // issues-listing envelope. A runtime/output ZodError thrown by the handler does
   // NOT use this — it surfaces as INTERNAL_ERROR in the handler-execution catch below.
-  const toValidationError = (issues: ZodIssue[], rawArgs: unknown): ToolErrorPayload =>
+  const toValidationError = (issues: z.core.$ZodIssue[], rawArgs: unknown): ToolErrorPayload =>
     spec.mapValidationError?.(issues, rawArgs) ?? {
       code: "VALIDATION_ERROR",
       message: `${spec.name} input failed schema validation`,

@@ -1,9 +1,11 @@
 // Original — no upstream. Tests for the shared schema-test utility (BI-058 F-C).
-// Exercises every branch of walkSchema (object, array, primitive, null) and the
-// countDescriptionKeys aggregate so the counted (non-test) module stays covered.
+// Exercises every branch of walkSchema (object, array, primitive, null), the
+// countDescriptionKeys aggregate, and messageForPath (BI-067 / PR #78 review) so
+// the counted (non-test) module stays covered.
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
-import { countDescriptionKeys, walkSchema } from "./_schema-test-utils.js";
+import { countDescriptionKeys, messageForPath, walkSchema } from "./_schema-test-utils.js";
 
 describe("walkSchema", () => {
   it("invokes fn on the root and every nested object, descending arrays", () => {
@@ -54,5 +56,23 @@ describe("countDescriptionKeys", () => {
       },
     };
     expect(countDescriptionKeys(schema)).toBe(3);
+  });
+});
+
+describe("messageForPath", () => {
+  const schema = z.strictObject({ a: z.string(), b: z.number() });
+
+  it("returns undefined on a successful parse", () => {
+    expect(messageForPath(schema.safeParse({ a: "x", b: 1 }), "a")).toBeUndefined();
+  });
+
+  it("returns the first issue message anchored at the named top-level field", () => {
+    const r = schema.safeParse({ a: 42, b: 1 });
+    expect(messageForPath(r, "a")).toMatch(/expected string/i);
+  });
+
+  it("returns undefined when no issue sits at the named field", () => {
+    const r = schema.safeParse({ a: 42, b: 1 });
+    expect(messageForPath(r, "b")).toBeUndefined();
   });
 });

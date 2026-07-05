@@ -1,7 +1,5 @@
-// Original — no upstream. Shared types and helpers for the tool aggregator pattern. Post-010: the wrap-branch envelope helper deletes (FR-005); toMcpInputSchema is now a one-line delegate to zodToJsonSchema. The flat-z.object().strict().superRefine encoding of targetModeSchema (feature 010) emits a natural single-flat-object descriptor directly; no envelope synthesis required. BI-034 (spec branch 034-fix-unicode-lookups): adds B64_PAYLOAD_DECODE_EXPR and composeEvalCode for the seven-tool atob+base64 eval-composition cohort — `atob()` in V8 returns a Latin-1 binary string; the new decode expression re-interprets the byte sequence as UTF-8 so non-ASCII identifiers survive the base64 round-trip.
-import { zodToJsonSchema } from "zod-to-json-schema";
-
-import type { ZodTypeAny } from "zod";
+// Original — no upstream. Shared types and helpers for the tool aggregator pattern. Post-010: the wrap-branch envelope helper deletes (FR-005). BI-067: toMcpInputSchema converts via zod 4's built-in z.toJSONSchema (io:"input", target:"draft-7") followed by normalizeToDraft7Parity — a four-rule recursive pass that reproduces the retired v3-era converter's emission byte-for-byte so the committed registry fingerprint baseline passes unregenerated (FR-008/FR-009, contracts/descriptor-parity.contract.md). BI-034 (spec branch 034-fix-unicode-lookups): adds B64_PAYLOAD_DECODE_EXPR and composeEvalCode for the seven-tool atob+base64 eval-composition cohort — `atob()` in V8 returns a Latin-1 binary string; the new decode expression re-interprets the byte sequence as UTF-8 so non-ASCII identifiers survive the base64 round-trip.
+import { z } from "zod";
 
 /**
  * UTF-8-safe replacement for the legacy `JSON.parse(atob('__PAYLOAD_B64__'))` decode
@@ -102,13 +100,141 @@ export interface JsonSchemaObject {
   [key: string]: unknown;
 }
 
+const SAFE_INT_MAX = 9007199254740991; // Number.MAX_SAFE_INTEGER
+const SAFE_INT_MIN = -9007199254740991;
+
+const JSON_PRIMITIVE_TYPES = new Set(["string", "number", "integer", "boolean", "null"]);
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** N2 branch test: exactly one key, `type`, whose value is a JSON primitive name. */
+function isBarePrimitiveBranch(branch: unknown): boolean {
+  return (
+    isPlainObject(branch) &&
+    Object.keys(branch).length === 1 &&
+    typeof branch["type"] === "string" &&
+    JSON_PRIMITIVE_TYPES.has(branch["type"])
+  );
+}
+
+/**
+ * Normalize one node of a freshly emitted zod-4 JSON Schema back to the retired
+ * v3-era converter draft-07 emission (contracts/descriptor-parity.contract.md).
+ * Rules, in order:
+ *
+ * - N1: `propertyNames` deep-equal `{"type":"string"}` → delete. zod 4 stamps it on
+ *   every plain-string-key record; the v3 converter never emitted it.
+ * - N1b (ONLY on nodes with no `propertyNames` key): `additionalProperties` deep-equal
+ *   `{}` → `true` (looseObject emission). Both guards are load-bearing: ANY
+ *   propertyNames key marks a v4 record emission whose `additionalProperties`
+ *   sub-schema must survive — plain-string-key records skip N1b via the else-if
+ *   (N1 just consumed the node), checked-key records (e.g. a min-length key) skip
+ *   it via the explicit absence guard. Only a looseObject, which never carries
+ *   propertyNames, may have its record-of-unknown-shaped `{}` promoted.
+ * - N2: `anyOf` where the node has no own `type` and EVERY branch is a bare
+ *   single-key `{type: <primitive>}` → collapse to `type: [...]`, branch order
+ *   preserved (array order is significant in the fingerprint hash). Mixed unions
+ *   stay `anyOf`, matching the v3 converter's all-or-nothing collapse.
+ * - N3: on `type: "integer"` nodes, delete `maximum`/`minimum` iff they equal the
+ *   ±Number.MAX_SAFE_INTEGER sentinels zod 4 stamps on unbounded ints. FUTURE-AUTHOR
+ *   GUARD: a hand-authored `.max(9007199254740991)` is indistinguishable from the
+ *   sentinel and would be stripped — no such bound exists in the repo; add a parity
+ *   fixture to _shared.test.ts before authoring one.
+ * - N4: `oneOf` → `anyOf` (zod 4 emits oneOf for discriminated unions; the v3
+ *   converter emitted anyOf).
+ */
+function normalizeNode(node: Record<string, unknown>): void {
+  const propertyNames = node["propertyNames"];
+  if (
+    isPlainObject(propertyNames) &&
+    Object.keys(propertyNames).length === 1 &&
+    propertyNames["type"] === "string"
+  ) {
+    delete node["propertyNames"];
+  } else if (
+    !("propertyNames" in node) &&
+    isPlainObject(node["additionalProperties"]) &&
+    Object.keys(node["additionalProperties"] as Record<string, unknown>).length === 0
+  ) {
+    node["additionalProperties"] = true;
+  }
+
+  const anyOf = node["anyOf"];
+  if (
+    Array.isArray(anyOf) &&
+    anyOf.length > 0 &&
+    !("type" in node) &&
+    anyOf.every(isBarePrimitiveBranch)
+  ) {
+    node["type"] = anyOf.map((branch) => (branch as Record<string, unknown>)["type"]);
+    delete node["anyOf"];
+  }
+
+  if (node["type"] === "integer") {
+    if (node["maximum"] === SAFE_INT_MAX) {
+      delete node["maximum"];
+    }
+    if (node["minimum"] === SAFE_INT_MIN) {
+      delete node["minimum"];
+    }
+  }
+
+  if ("oneOf" in node) {
+    node["anyOf"] = node["oneOf"];
+    delete node["oneOf"];
+  }
+}
+
+/**
+ * Recursive post-order walk applying normalizeNode to every SCHEMA node of the
+ * emitted value. The object under a `properties` key is NOT a schema node — it is
+ * a field-name→schema map, and its keys are user-authored field names, not JSON
+ * Schema keywords. Applying the rules to the map itself corrupts descriptors whose
+ * fields happen to be named like keywords (a field literally named `propertyNames`
+ * would be deleted by N1, one named `oneOf` renamed by N4 — PR #78 review,
+ * probe-proven), so the walk recurses into the map's values only. Other map-shaped
+ * keywords ($defs / definitions / patternProperties) never appear in this repo's
+ * emissions (v3 parity requires inline emission; see the contract's non-goals).
+ * Mutates only the freshly emitted JSON value (never the zod schema);
+ * deterministic, no I/O.
+ */
+function normalizeToDraft7Parity(value: unknown): void {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      normalizeToDraft7Parity(item);
+    }
+    return;
+  }
+  if (!isPlainObject(value)) {
+    return;
+  }
+  for (const key of Object.keys(value)) {
+    const child = value[key];
+    if (key === "properties" && isPlainObject(child)) {
+      for (const fieldName of Object.keys(child)) {
+        normalizeToDraft7Parity(child[fieldName]);
+      }
+    } else {
+      normalizeToDraft7Parity(child);
+    }
+  }
+  normalizeNode(value);
+}
+
 /**
  * Render any zod schema to a JSON Schema whose top-level `type` is `"object"`,
- * so the result is a valid `inputSchema` for an MCP `Tool` descriptor. Post-010
- * this is a one-line delegate to `zodToJsonSchema` — every consumer schema is a
- * `ZodObject` (with optional `.strict()` + `.superRefine`) whose emit shape is
- * already a flat object descriptor.
+ * so the result is a valid `inputSchema` for an MCP `Tool` descriptor. BI-067:
+ * zod 4's built-in `z.toJSONSchema` replaces the retired v3-era converter
+ * delegate. `io: "input"` is REQUIRED — the default output mode marks
+ * `.optional().default()` fields as required. `target: "draft-7"` is REQUIRED —
+ * it emits the `$schema` draft-07 URI byte-identical to the published (hashed)
+ * descriptors; do NOT strip `$schema`. The normalization pass restores the exact
+ * v3-era emission so the committed fingerprint baseline passes unregenerated.
  */
-export function toMcpInputSchema(zodSchema: ZodTypeAny): JsonSchemaObject {
-  return zodToJsonSchema(zodSchema, { $refStrategy: "none" }) as JsonSchemaObject;
+export function toMcpInputSchema(zodSchema: z.ZodType): JsonSchemaObject {
+  const emitted = z.toJSONSchema(zodSchema, { io: "input", target: "draft-7" });
+  normalizeToDraft7Parity(emitted);
+  return emitted as JsonSchemaObject;
 }

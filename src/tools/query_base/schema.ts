@@ -2,23 +2,17 @@
 import { z } from "zod";
 
 import { appendBasePathIssues, BASE_PATH_MAX } from "../_base-path.js";
+import { requiredString } from "../_required-string.js";
 
 const VIEW_NAME_MAX = 1000;
 const RESPONSE_ROW_CAP = 1000;
 
 export const queryBaseInputSchema = z
-  .object({
-    base_path: z.string({
-      required_error: "base_path is required",
-      invalid_type_error: "base_path must be a string",
-    }),
-    view_name: z.string({
-      required_error: "view_name is required",
-      invalid_type_error: "view_name must be a string",
-    }),
+  .strictObject({
+    base_path: requiredString("base_path"),
+    view_name: requiredString("view_name"),
     vault: z.string().min(1).optional(),
   })
-  .strict()
   .superRefine((v, ctx) => {
     if (typeof v.base_path === "string") appendBasePathIssues(ctx, v.base_path, "base_path");
 
@@ -26,7 +20,7 @@ export const queryBaseInputSchema = z
       const value_length = v.view_name.length;
       if (value_length === 0) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["view_name"],
           message: "INVALID_VIEW_NAME/empty: view_name is empty",
           params: {
@@ -38,7 +32,7 @@ export const queryBaseInputSchema = z
         });
       } else if (value_length > VIEW_NAME_MAX) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["view_name"],
           message: `INVALID_VIEW_NAME/too-long: view_name exceeds ${VIEW_NAME_MAX} UTF-16 code units`,
           params: {
@@ -61,24 +55,24 @@ export const queryBaseInputSchema = z
       "",
       "Response shape: { columns: string[], rows: object[], truncated: boolean, total_rows?: number }.",
       "",
-      "Empty-view columns (FR-006): When a view matches zero rows, `columns` carries only `[\"path\"]` —",
+      'Empty-view columns (FR-006): When a view matches zero rows, `columns` carries only `["path"]` —',
       "the wrapper has no signal for view-declared column names absent row data, and does NOT parse the",
       "`.base` YAML client-side to enumerate them (out-of-scope per BI-041). Agents writing parsing code",
       "MUST handle the zero-row case without assuming the full column set.",
       "",
       "Type-preservation passthrough (FR-007): Frontmatter values are stringified by upstream regardless",
       "of their declared YAML type. The wrapper is passthrough — it does NOT coerce back to native JSON",
-      "types. An integer YAML frontmatter value `count: 42` surfaces in the response as the string `\"42\"`.",
-      "A boolean `done: true` surfaces as `\"true\"`. Agents must parse the string value if numeric or",
+      'types. An integer YAML frontmatter value `count: 42` surfaces in the response as the string `"42"`.',
+      'A boolean `done: true` surfaces as `"true"`. Agents must parse the string value if numeric or',
       "boolean semantics are required.",
       "",
       "`file.*` column-name emission (FR-008): Source-property column names declared as `file.X` are emitted",
-      "by upstream as the display label `\"file X\"` (with embedded space) — including `file.path` → `\"file path\"`",
-      "and `file.name` → `\"file name\"`. The wrapper does NOT remap these display labels back to YAML",
+      'by upstream as the display label `"file X"` (with embedded space) — including `file.path` → `"file path"`',
+      'and `file.name` → `"file name"`. The wrapper does NOT remap these display labels back to YAML',
       "segment names (out-of-scope per BI-041). Independent of the view's column declarations, the wrapper",
       "always injects a reserved `path` column at index 0 of every row carrying the source note's",
       "vault-relative path. A view declaring `file.path` and `file.name` therefore produces three columns:",
-      "`[\"path\", \"file path\", \"file name\"]` — the wrapper's reserved locator plus both display labels.",
+      '`["path", "file path", "file name"]` — the wrapper\'s reserved locator plus both display labels.',
       "Agents indexing rows by column name MUST use the exact emitted string, including the embedded space.",
     ].join("\n"),
   );
@@ -86,13 +80,16 @@ export const queryBaseInputSchema = z
 export const queryBaseRowSchema = z.record(z.string(), z.unknown());
 
 export const queryBaseOutputSchema = z
-  .object({
+  .strictObject({
     columns: z.array(z.string().min(1)),
     rows: z.array(queryBaseRowSchema).max(RESPONSE_ROW_CAP),
     truncated: z.boolean(),
-    total_rows: z.number().int().min(RESPONSE_ROW_CAP + 1).optional(),
+    total_rows: z
+      .number()
+      .int()
+      .min(RESPONSE_ROW_CAP + 1)
+      .optional(),
   })
-  .strict()
   .refine(
     (o) => (o.truncated === true) === (o.total_rows !== undefined),
     "total_rows must be present iff truncated === true",

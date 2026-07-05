@@ -11,19 +11,17 @@ export const smartConnectionsSimilarInputSchema = applyTargetModeRefinement(
 );
 
 export const matchEntrySchema = z
-  .object({
+  .strictObject({
     path: z.string().endsWith(".md"),
     headingPath: z.array(z.string()),
-    score: z.number().finite(),
-  })
-  .strict();
+    score: z.number(),
+  });
 
 export const smartConnectionsSimilarOutputSchema = z
-  .object({
+  .strictObject({
     count: z.number().int().nonnegative(),
     matches: z.array(matchEntrySchema),
-  })
-  .strict();
+  });
 
 export const SMART_CONNECTIONS_SIMILAR_EVAL_ERROR_CODES = [
   "NO_ACTIVE_FILE",
@@ -38,19 +36,17 @@ export type SmartConnectionsSimilarEvalErrorCode =
 
 export const smartConnectionsSimilarEvalResponseSchema = z.discriminatedUnion("ok", [
   z
-    .object({
+    .strictObject({
       ok: z.literal(true),
       count: z.number().int().nonnegative(),
       matches: z.array(matchEntrySchema),
-    })
-    .strict(),
+    }),
   z
-    .object({
+    .strictObject({
       ok: z.literal(false),
       code: z.enum(SMART_CONNECTIONS_SIMILAR_EVAL_ERROR_CODES),
       detail: z.string(),
-    })
-    .strict(),
+    }),
 ]);
 
 export type SmartConnectionsSimilarInput = z.infer<typeof smartConnectionsSimilarInputSchema>;

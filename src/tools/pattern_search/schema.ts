@@ -2,7 +2,7 @@
 import { z } from "zod";
 
 export const patternSearchInputSchema = z
-  .object({
+  .strictObject({
     pattern: z
       .string()
       .min(1, "pattern is required")
@@ -17,11 +17,10 @@ export const patternSearchInputSchema = z
     case_sensitive: z.boolean().optional(),
     vault: z.string().min(1).optional(),
   })
-  .strict()
   .superRefine((v, ctx) => {
     if (v.pattern.trim().length === 0) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["pattern"],
         message: "pattern is empty or whitespace-only",
       });
@@ -32,7 +31,7 @@ export const patternSearchInputSchema = z
       new RegExp(v.pattern, flags);
     } catch (cause) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["pattern"],
         message: (cause as Error).message,
       });
@@ -40,40 +39,36 @@ export const patternSearchInputSchema = z
   });
 
 export const patternSearchMatchSchema = z
-  .object({
+  .strictObject({
     path: z.string().min(1),
     line: z.number().int().min(1, "line is 1-based"),
     offset: z.number().int().min(0, "offset is 0-based"),
     match: z.string().min(1, "match must be non-empty (FR-016 zero-length skip)"),
     text: z.string(),
-  })
-  .strict();
+  });
 
 export const patternSearchOutputSchema = z
-  .object({
+  .strictObject({
     count: z.number().int().nonnegative(),
     matches: z.array(patternSearchMatchSchema),
     truncated: z.literal(true).optional(),
   })
-  .strict()
   .refine((o) => o.count === o.matches.length, "count must equal matches.length");
 
 export const patternSearchEvalEnvelopeSchema = z.discriminatedUnion("ok", [
   z
-    .object({
+    .strictObject({
       ok: z.literal(true),
       count: z.number().int().nonnegative(),
       matches: z.array(patternSearchMatchSchema),
       truncated: z.literal(true).optional(),
-    })
-    .strict(),
+    }),
   z
-    .object({
+    .strictObject({
       ok: z.literal(false),
       code: z.literal("FOLDER_NOT_FOUND"),
       folder: z.string().min(1),
-    })
-    .strict(),
+    }),
 ]);
 
 export type PatternSearchInput = z.infer<typeof patternSearchInputSchema>;

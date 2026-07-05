@@ -29,12 +29,11 @@ export const setPropertyInputSchema = applyTargetModeRefinement(
 );
 
 export const writePropertyOutputSchema = z
-  .object({
+  .strictObject({
     written: z.literal(true),
     path: z.string(),
     name: z.string(),
-  })
-  .strict();
+  });
 
 export type WritePropertyInput = z.infer<typeof setPropertyInputSchema>;
 export type WritePropertyOutput = z.infer<typeof writePropertyOutputSchema>;

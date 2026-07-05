@@ -1,11 +1,8 @@
 // Original — no upstream. query_base schema tests — full validation-error cohort: base_path length/extension/traversal sub-states, view_name length sub-states, unknown-key strict rejection, output schema envelope refine, wire schema shape.
 import { expect, test } from "vitest";
 
-import {
-  queryBaseInputSchema,
-  queryBaseOutputSchema,
-  queryBaseWireSchema,
-} from "./schema.js";
+import { queryBaseInputSchema, queryBaseOutputSchema, queryBaseWireSchema } from "./schema.js";
+import { messageForPath } from "../_schema-test-utils.js";
 import { toMcpInputSchema } from "../_shared.js";
 
 function paramsForPath(
@@ -21,7 +18,7 @@ function paramsForPath(
 // BI-041 US3 — schema .describe() response-shape claims (FR-006/007/008)
 // =====================================================================
 
-test("BI-041 FR-006: schema .describe() acknowledges empty-view `columns: [\"path\"]` claim", () => {
+test('BI-041 FR-006: schema .describe() acknowledges empty-view `columns: ["path"]` claim', () => {
   const desc = queryBaseInputSchema.description ?? "";
   expect(desc).toContain("zero rows");
   expect(desc).toContain('`["path"]`');
@@ -254,9 +251,7 @@ test("strict mode: unknown top-level key rejected", () => {
   expect(r.success).toBe(false);
   if (!r.success) {
     expect(
-      r.error.issues.some(
-        (i) => i.code === "unrecognized_keys" || i.path.includes("surprise"),
-      ),
+      r.error.issues.some((i) => i.code === "unrecognized_keys" || i.path.includes("surprise")),
     ).toBe(true);
   }
 });
@@ -407,4 +402,35 @@ test("toMcpInputSchema emits additionalProperties:false + expected property set"
   const props = json.properties as Record<string, unknown>;
   expect(Object.keys(props).sort()).toEqual(["base_path", "vault", "view_name"]);
   expect(json.required).toEqual(["base_path", "view_name"]);
+});
+
+// =====================================================================
+// BI-067 FR-010 — custom error-callback message parity (M1 migration).
+// zod 4 SILENTLY ignores the v3 required/invalid-type message params,
+// so these exact-string assertions are the only guard against a
+// silent message regression on the migrated fields.
+// =====================================================================
+
+test("BI-067 FR-010: missing base_path yields exact required message", () => {
+  const r = queryBaseInputSchema.safeParse({ view_name: "All" });
+  expect(r.success).toBe(false);
+  expect(messageForPath(r, "base_path")).toBe("base_path is required");
+});
+
+test("BI-067 FR-010: non-string base_path yields exact type message", () => {
+  const r = queryBaseInputSchema.safeParse({ base_path: 42, view_name: "All" });
+  expect(r.success).toBe(false);
+  expect(messageForPath(r, "base_path")).toBe("base_path must be a string");
+});
+
+test("BI-067 FR-010: missing view_name yields exact required message", () => {
+  const r = queryBaseInputSchema.safeParse({ base_path: "Indexes/Active.base" });
+  expect(r.success).toBe(false);
+  expect(messageForPath(r, "view_name")).toBe("view_name is required");
+});
+
+test("BI-067 FR-010: non-string view_name yields exact type message", () => {
+  const r = queryBaseInputSchema.safeParse({ base_path: "Indexes/Active.base", view_name: 42 });
+  expect(r.success).toBe(false);
+  expect(messageForPath(r, "view_name")).toBe("view_name must be a string");
 });

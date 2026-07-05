@@ -156,19 +156,19 @@ test("phrase-match preserves internal whitespace verbatim — { query: 'foo bar'
 
 // (20) inferred type compile checks
 test("inferred ContextSearchInput / Output / Match types compile against representative shapes", () => {
-  expectTypeOf<ContextSearchInput>().toMatchTypeOf<{
+  expectTypeOf<ContextSearchInput>().toExtend<{
     query: string;
     folder?: string;
     limit?: number;
     case_sensitive?: boolean;
     vault?: string;
   }>();
-  expectTypeOf<ContextSearchOutput>().toMatchTypeOf<{
+  expectTypeOf<ContextSearchOutput>().toExtend<{
     count: number;
     matches: Array<{ path: string; line: number; text: string }>;
     truncated?: true;
   }>();
-  expectTypeOf<ContextSearchMatch>().toMatchTypeOf<{
+  expectTypeOf<ContextSearchMatch>().toExtend<{
     path: string;
     line: number;
     text: string;

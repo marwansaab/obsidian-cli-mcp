@@ -5,11 +5,7 @@ import { relative, resolve, sep } from "node:path";
 
 import { scanFencedCodeBlocks, type Region } from "./fence-scan.js";
 import { scanHtmlComments } from "./region-scan.js";
-import {
-  applyReplacement,
-  compileFindRegex,
-  iterateLineMatches,
-} from "./replace.js";
+import { applyReplacement, compileFindRegex, iterateLineMatches } from "./replace.js";
 import {
   FULL_LINE_CAP,
   FULL_LINE_ELLIPSIS,
@@ -31,17 +27,13 @@ import {
 } from "../_active-file.js";
 import { writeAtomic } from "../_note-io.js";
 
-
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 import type { Dirent } from "node:fs";
 
 export interface ExecuteFs {
-  readdir: (
-    p: string,
-    opts: { recursive: true; withFileTypes: true },
-  ) => Promise<Dirent[]>;
+  readdir: (p: string, opts: { recursive: true; withFileTypes: true }) => Promise<Dirent[]>;
   readFile: (p: string, encoding: "utf8") => Promise<string>;
   writeFile: (p: string, content: string) => Promise<void>;
   rename: (from: string, to: string) => Promise<void>;
@@ -111,11 +103,7 @@ export function getMaxOccurrences(deps: ExecuteDeps): number {
   return cachedMaxOccurrences;
 }
 
-function emitWarn(
-  deps: ExecuteDeps,
-  event: string,
-  ctx: Record<string, unknown>,
-): void {
+function emitWarn(deps: ExecuteDeps, event: string, ctx: Record<string, unknown>): void {
   if (deps.warn) {
     deps.warn(event, ctx);
     return;
@@ -192,9 +180,7 @@ function clipFullLine(content: string): string {
   return stripped.slice(0, FULL_LINE_CAP) + FULL_LINE_ELLIPSIS;
 }
 
-async function defaultInvokeEval(
-  deps: ExecuteDeps,
-): Promise<FocusedVaultResponse> {
+async function defaultInvokeEval(deps: ExecuteDeps): Promise<FocusedVaultResponse> {
   const result = await invokeCli(
     {
       command: "eval",
@@ -223,10 +209,7 @@ async function defaultInvokeEval(
   return out.parsed;
 }
 
-async function resolveVaultRoot(
-  input: FindAndReplaceInput,
-  deps: ExecuteDeps,
-): Promise<string> {
+async function resolveVaultRoot(input: FindAndReplaceInput, deps: ExecuteDeps): Promise<string> {
   if (input.vault !== undefined) {
     // The registry surfaces unknown-vault via its own UpstreamError shape; the helper
     // re-throws it with the spec-mandated VAULT_NOT_FOUND/unknown triple per FR-013.
@@ -259,10 +242,9 @@ async function listEligibleNotes(
     if (entry.name.startsWith(".")) continue;
     if (!entry.isFile()) continue;
     if (!entry.name.toLowerCase().endsWith(".md")) continue;
-    const parentPath = (entry as Dirent & { parentPath?: string }).parentPath
-      ?? (entry as Dirent & { path?: string }).path
-      ?? scanRoot;
-    const absParent = resolve(parentPath);
+    // Dirent.parentPath is guaranteed on the >=22.11 engines floor (runtime since
+    // Node 20.12, typed non-optional in @types/node) — no fallback needed.
+    const absParent = resolve(entry.parentPath);
     const relFromScanRoot = relative(scanRoot, absParent);
     if (relFromScanRoot.length > 0 && hasDotPrefixedSegment(relFromScanRoot)) continue;
     const abs = resolve(absParent, entry.name);
@@ -368,9 +350,7 @@ function applyReplacements(
   let cursor = 0;
   for (const r of replacements) {
     if (r.start < cursor) {
-      throw new Error(
-        "find_and_replace: internal — overlapping replacements detected",
-      );
+      throw new Error("find_and_replace: internal — overlapping replacements detected");
     }
     out.push(source.slice(cursor, r.start));
     out.push(r.insert);
@@ -380,9 +360,7 @@ function applyReplacements(
   return out.join("");
 }
 
-function sortedAffectedNotes(
-  counts: ScanCounts,
-): FindAndReplaceAffectedNote[] {
+function sortedAffectedNotes(counts: ScanCounts): FindAndReplaceAffectedNote[] {
   const keys = [...counts.perNote.keys()].sort();
   return keys.map((path) => ({
     path,
@@ -454,11 +432,7 @@ async function realpathOrThrow(
  * INVALID_NOTE/not-found (FR-008), parity with the INVALID_SUBFOLDER/not-found
  * shape. Runs before any content read.
  */
-async function assertExists(
-  vaultRoot: string,
-  relPath: string,
-  fs: ExecuteFs,
-): Promise<void> {
+async function assertExists(vaultRoot: string, relPath: string, fs: ExecuteFs): Promise<void> {
   const abs = resolve(vaultRoot, relPath.split("/").join(sep));
   await realpathOrThrow(
     abs,
@@ -540,11 +514,7 @@ async function resolveScope(
   fs: ExecuteFs,
   vaultLabel: string | null,
 ): Promise<ResolvedScope> {
-  if (
-    input.active_note === true ||
-    input.file !== undefined ||
-    input.path !== undefined
-  ) {
+  if (input.active_note === true || input.file !== undefined || input.path !== undefined) {
     return resolveSingleNoteScope(input, deps, fs, vaultLabel);
   }
 
@@ -556,9 +526,8 @@ async function resolveScope(
 
   // === UNCHANGED — subfolder OR whole-vault scope resolution ===
   let scanRoot = vaultRoot;
-  const subfolder = input.subfolder !== undefined && input.subfolder.length > 0
-    ? input.subfolder
-    : null;
+  const subfolder =
+    input.subfolder !== undefined && input.subfolder.length > 0 ? input.subfolder : null;
   if (subfolder !== null) {
     const subResolved = await assertCanonicalPath(vaultRoot, subfolder, guard);
     // Verify the subfolder exists — checkCanonicalPath returns ok with the
@@ -602,13 +571,7 @@ export async function executeFindAndReplace(
   const { vaultRoot, listNotes } = await resolveScope(input, deps, fs, vaultLabel);
 
   // === Stage 4 — first scan ===
-  const firstScan = await scanNotes(
-    vaultRoot,
-    await listNotes(),
-    input,
-    fs,
-    vaultLabel,
-  );
+  const firstScan = await scanNotes(vaultRoot, await listNotes(), input, fs, vaultLabel);
 
   // === Stage 5 — bound check on first scan ===
   const bound = getMaxOccurrences(deps);
@@ -638,13 +601,7 @@ export async function executeFindAndReplace(
   // === Stage 6 — commit path: re-scan for drift compare. listNotes() re-walks
   // the scan root for a folder/vault-wide scope, or re-reads the fixed [relPath]
   // for a single-note scope (D8). Both still catch a between-scan content edit.
-  const secondScan = await scanNotes(
-    vaultRoot,
-    await listNotes(),
-    input,
-    fs,
-    vaultLabel,
-  );
+  const secondScan = await scanNotes(vaultRoot, await listNotes(), input, fs, vaultLabel);
 
   // bound recheck on second scan per FR-012(a)
   if (secondScan.counts.totalOccurrences > bound) {

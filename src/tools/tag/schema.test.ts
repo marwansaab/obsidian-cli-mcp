@@ -167,12 +167,12 @@ test("wrong type { tag: 'foo', total: 'true' } → invalid_type on ['total']", (
 
 // Inferred types compile-check (no test counter — runtime sanity-parse plus typeOf)
 test("inferred TagInput / TagDefaultOutput types compile against representative values", () => {
-  expectTypeOf<TagInput>().toMatchTypeOf<{
+  expectTypeOf<TagInput>().toExtend<{
     tag: string;
     vault?: string;
     total?: boolean;
   }>();
-  expectTypeOf<TagDefaultOutput>().toMatchTypeOf<{
+  expectTypeOf<TagDefaultOutput>().toExtend<{
     count: number;
     paths: string[];
   }>();

@@ -3,9 +3,12 @@
 // verbatim. Used to assert a published JSON Schema carries no nested `description`
 // keys (the per-tool shape invariants — type / properties-set / required /
 // additionalProperties — are covered centrally by tools/_register.test.ts'
-// assertInvariant, so they no longer need per-tool re-assertion). Pure and
+// assertInvariant, so they no longer need per-tool re-assertion). BI-067 / PR #78
+// review adds messageForPath, the exact-string message extractor the FR-010 suites
+// (create_base, query_base) previously each defined verbatim. Pure and
 // vitest-free, so the build compiles it as a harmless dist orphan like
 // _registration-stub.ts; fully covered by its co-located .test.ts.
+import type { z } from "zod";
 
 /** Depth-first visit of every plain-object node in a JSON-Schema-shaped value. */
 export function walkSchema(node: unknown, fn: (n: Record<string, unknown>) => void): void {
@@ -25,4 +28,16 @@ export function countDescriptionKeys(schema: unknown): number {
     if (Object.prototype.hasOwnProperty.call(n, "description")) found += 1;
   });
   return found;
+}
+
+/**
+ * First issue message anchored at top-level `field`, or `undefined` on success or
+ * when no issue sits there — for exact-string message pins (BI-067 FR-010 cohort).
+ */
+export function messageForPath<T>(
+  result: z.ZodSafeParseResult<T>,
+  field: string,
+): string | undefined {
+  if (result.success) return undefined;
+  return result.error.issues.find((i) => i.path[0] === field)?.message;
 }

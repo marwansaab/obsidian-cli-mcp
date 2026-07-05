@@ -13,20 +13,18 @@ export const linkKindEnum = z.enum(["wikilink", "embed", "markdown"] as const);
 export type LinkKind = z.infer<typeof linkKindEnum>;
 
 export const linkEntrySchema = z
-  .object({
+  .strictObject({
     target: z.string(),
     line: z.number().int().positive(),
     kind: linkKindEnum,
     displayText: z.string().optional(),
-  })
-  .strict();
+  });
 
 export const linksOutputSchema = z
-  .object({
+  .strictObject({
     count: z.number().int().nonnegative(),
     links: z.array(linkEntrySchema),
-  })
-  .strict();
+  });
 
 export const LINKS_EVAL_ERROR_CODES = [
   "NO_ACTIVE_FILE",
@@ -37,19 +35,17 @@ export type LinksEvalErrorCode = (typeof LINKS_EVAL_ERROR_CODES)[number];
 
 export const linksEvalResponseSchema = z.discriminatedUnion("ok", [
   z
-    .object({
+    .strictObject({
       ok: z.literal(true),
       count: z.number().int().nonnegative(),
       links: z.array(linkEntrySchema),
-    })
-    .strict(),
+    }),
   z
-    .object({
+    .strictObject({
       ok: z.literal(false),
       code: z.enum(LINKS_EVAL_ERROR_CODES),
       detail: z.string(),
-    })
-    .strict(),
+    }),
 ]);
 
 export type LinksInput = z.infer<typeof linksInputSchema>;

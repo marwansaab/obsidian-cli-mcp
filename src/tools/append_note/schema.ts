@@ -20,7 +20,7 @@ const safeFileField = z
   .superRefine((value, ctx) => {
     if (value.includes("[[") || value.includes("]]")) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: [],
         message: WIKILINK_BRACKET_REJECTION_MESSAGE,
       });
@@ -48,13 +48,12 @@ export const appendNoteInputSchema = applyTargetModeRefinement(
 );
 
 export const appendNoteOutputSchema = z
-  .object({
+  .strictObject({
     path: z.string(),
     vault: z.string(),
     bytes_written: z.number().int().min(1),
     inline: z.boolean(),
-  })
-  .strict();
+  });
 
 export type AppendNoteInput = z.infer<typeof appendNoteInputSchema>;
 export type AppendNoteOutput = z.infer<typeof appendNoteOutputSchema>;
