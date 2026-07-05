@@ -4,7 +4,12 @@ import { runInNewContext } from "node:vm";
 import { test, expect } from "vitest";
 import { z } from "zod";
 
-import { asToolError, B64_PAYLOAD_DECODE_EXPR, composeEvalCode, toMcpInputSchema } from "./_shared.js";
+import {
+  asToolError,
+  B64_PAYLOAD_DECODE_EXPR,
+  composeEvalCode,
+  toMcpInputSchema,
+} from "./_shared.js";
 
 test("asToolError returns the SDK error envelope with JSON-stringified payload", () => {
   const result = asToolError({
@@ -38,7 +43,10 @@ test("composeEvalCode round-trips ASCII payload through base64 substitution", ()
   const template = `(()=>JSON.parse(${B64_PAYLOAD_DECODE_EXPR}))()`;
   const code = composeEvalCode(template, { hello: "world", n: 7 });
   expect(code.includes("__PAYLOAD_B64__")).toBe(false);
-  const result = runInNewContext(code, { TextDecoder, Uint8Array, atob }) as { hello: string; n: number };
+  const result = runInNewContext(code, { TextDecoder, Uint8Array, atob }) as {
+    hello: string;
+    n: number;
+  };
   expect(result).toEqual({ hello: "world", n: 7 });
 });
 
@@ -98,15 +106,16 @@ test("toMcpInputSchema returns a flat object descriptor for a flat strict-object
 // normalizer itself stays private to _shared.ts.
 // =====================================================================
 
-function propOf(result: ReturnType<typeof toMcpInputSchema>, name: string): Record<string, unknown> {
+function propOf(
+  result: ReturnType<typeof toMcpInputSchema>,
+  name: string,
+): Record<string, unknown> {
   const props = result.properties as Record<string, Record<string, unknown>>;
   return props[name]!;
 }
 
 test("BI-067 N1 fires: plain-string-key record loses the zod-4 propertyNames stamp", () => {
-  const result = toMcpInputSchema(
-    z.strictObject({ parameters: z.record(z.string(), z.string()) }),
-  );
+  const result = toMcpInputSchema(z.strictObject({ parameters: z.record(z.string(), z.string()) }));
   const parameters = propOf(result, "parameters");
   expect(parameters.type).toBe("object");
   expect(parameters.propertyNames).toBeUndefined();
@@ -130,12 +139,19 @@ test("BI-067 N1b fires: looseObject additionalProperties {} becomes true", () =>
 });
 
 test("BI-067 N1b boundary: record-of-unknown keeps additionalProperties {} (propertyNames marker disambiguates)", () => {
-  const result = toMcpInputSchema(
-    z.strictObject({ value: z.record(z.string(), z.unknown()) }),
-  );
+  const result = toMcpInputSchema(z.strictObject({ value: z.record(z.string(), z.unknown()) }));
   const value = propOf(result, "value");
   expect(value.propertyNames).toBeUndefined(); // N1 fired…
   expect(value.additionalProperties).toEqual({}); // …so N1b must NOT
+});
+
+test("BI-067 N1b boundary: checked-key record-of-unknown keeps additionalProperties {} (surviving propertyNames blocks N1b)", () => {
+  const result = toMcpInputSchema(
+    z.strictObject({ value: z.record(z.string().min(1), z.unknown()) }),
+  );
+  const value = propOf(result, "value");
+  expect(value.propertyNames).toEqual({ type: "string", minLength: 1 }); // N1 must not fire…
+  expect(value.additionalProperties).toEqual({}); // …and the propertyNames guard blocks N1b
 });
 
 test("BI-067 N2 fires: all-primitive bare union collapses to a type array, order preserved", () => {
@@ -166,9 +182,7 @@ test("BI-067 N3 fires: unbounded int loses the ±MAX_SAFE_INTEGER sentinel bound
 });
 
 test("BI-067 N3 boundary: hand-authored explicit int bounds survive", () => {
-  const result = toMcpInputSchema(
-    z.strictObject({ depth: z.number().int().min(0).max(10) }),
-  );
+  const result = toMcpInputSchema(z.strictObject({ depth: z.number().int().min(0).max(10) }));
   const depth = propOf(result, "depth");
   expect(depth.type).toBe("integer");
   expect(depth.minimum).toBe(0);
@@ -188,6 +202,20 @@ test("BI-067 N4 fires: discriminated-union oneOf is renamed anyOf (values untouc
   expect(target.oneOf).toBeUndefined();
   expect(Array.isArray(target.anyOf)).toBe(true);
   expect((target.anyOf as unknown[]).length).toBe(2);
+});
+
+test("BI-067 walk boundary: fields literally named like JSON Schema keywords survive (properties is a field-name→schema map, not a schema node)", () => {
+  // PR #78 review, probe-proven: the pre-fix walk applied normalizeNode to the
+  // properties map itself, so a field named `propertyNames` was deleted by N1
+  // (while staying in `required`) and one named `oneOf` was renamed by N4.
+  const result = toMcpInputSchema(
+    z.strictObject({ propertyNames: z.string(), oneOf: z.string().optional() }),
+  );
+  const props = result.properties as Record<string, unknown>;
+  expect(Object.keys(props).sort()).toEqual(["oneOf", "propertyNames"]);
+  expect(props.propertyNames).toEqual({ type: "string" });
+  expect(props.oneOf).toEqual({ type: "string" });
+  expect(result.required).toEqual(["propertyNames"]);
 });
 
 test("BI-067 io:'input' semantics: a defaulted optional field is NOT marked required", () => {

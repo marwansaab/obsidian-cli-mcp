@@ -1,11 +1,8 @@
 // Original — no upstream.
 import { expect, test } from "vitest";
 
-import {
-  createBaseInputSchema,
-  createBaseOutputSchema,
-  MAX_CONTENT_LENGTH,
-} from "./schema.js";
+import { createBaseInputSchema, createBaseOutputSchema, MAX_CONTENT_LENGTH } from "./schema.js";
+import { messageForPath } from "../_schema-test-utils.js";
 import { toMcpInputSchema } from "../_shared.js";
 
 function paramsForPath(
@@ -205,9 +202,7 @@ test("strict mode: unknown top-level key rejected", () => {
   expect(r.success).toBe(false);
   if (!r.success) {
     expect(
-      r.error.issues.some(
-        (i) => i.code === "unrecognized_keys" || i.path.includes("surprise"),
-      ),
+      r.error.issues.some((i) => i.code === "unrecognized_keys" || i.path.includes("surprise")),
     ).toBe(true);
   }
 });
@@ -248,18 +243,10 @@ test("toMcpInputSchema emits expected shape", () => {
 
 // =====================================================================
 // BI-067 FR-010 — custom error-callback message parity (M1 migration).
-// zod 4 SILENTLY ignores the v3 required/invalid-type message params
-// params, so these exact-string assertions are the only guard against a
+// zod 4 SILENTLY ignores the v3 required/invalid-type message params,
+// so these exact-string assertions are the only guard against a
 // silent message regression on the migrated fields.
 // =====================================================================
-
-function messageForPath(
-  result: ReturnType<typeof createBaseInputSchema.safeParse>,
-  field: string,
-): string | undefined {
-  if (result.success) return undefined;
-  return result.error.issues.find((i) => i.path[0] === field)?.message;
-}
 
 test("BI-067 FR-010: missing path yields exact required message", () => {
   const r = createBaseInputSchema.safeParse({ name: "x" });

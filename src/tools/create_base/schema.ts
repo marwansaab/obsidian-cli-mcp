@@ -2,18 +2,15 @@
 import { z } from "zod";
 
 import { appendBasePathIssues } from "../_base-path.js";
+import { requiredString } from "../_required-string.js";
 
 const NAME_MAX = 1000;
 export const MAX_CONTENT_LENGTH = 3072;
 
 export const createBaseInputSchema = z
   .strictObject({
-    path: z.string({
-      error: (issue) => (issue.input === undefined ? "path is required" : "path must be a string"),
-    }),
-    name: z.string({
-      error: (issue) => (issue.input === undefined ? "name is required" : "name must be a string"),
-    }),
+    path: requiredString("path"),
+    name: requiredString("name"),
     content: z.string().optional(),
     view: z.string().min(1).optional(),
     vault: z.string().min(1).optional(),
@@ -65,11 +62,10 @@ export const createBaseInputSchema = z
     }
   });
 
-export const createBaseOutputSchema = z
-  .strictObject({
-    path: z.string(),
-    name: z.string(),
-  });
+export const createBaseOutputSchema = z.strictObject({
+  path: z.string(),
+  name: z.string(),
+});
 
 export type CreateBaseInput = z.infer<typeof createBaseInputSchema>;
 export type CreateBaseOutput = z.infer<typeof createBaseOutputSchema>;

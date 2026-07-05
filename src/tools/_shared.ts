@@ -126,10 +126,13 @@ function isBarePrimitiveBranch(branch: unknown): boolean {
  *
  * - N1: `propertyNames` deep-equal `{"type":"string"}` → delete. zod 4 stamps it on
  *   every plain-string-key record; the v3 converter never emitted it.
- * - N1b (ONLY when N1 did not fire): `additionalProperties` deep-equal `{}` → `true`
- *   (looseObject emission). The N1→N1b ordering is load-bearing: the propertyNames
- *   marker is what distinguishes a record-of-unknown (whose `additionalProperties: {}`
- *   is legitimate in both versions and must survive) from a looseObject.
+ * - N1b (ONLY on nodes with no `propertyNames` key): `additionalProperties` deep-equal
+ *   `{}` → `true` (looseObject emission). Both guards are load-bearing: ANY
+ *   propertyNames key marks a v4 record emission whose `additionalProperties`
+ *   sub-schema must survive — plain-string-key records skip N1b via the else-if
+ *   (N1 just consumed the node), checked-key records (e.g. a min-length key) skip
+ *   it via the explicit absence guard. Only a looseObject, which never carries
+ *   propertyNames, may have its record-of-unknown-shaped `{}` promoted.
  * - N2: `anyOf` where the node has no own `type` and EVERY branch is a bare
  *   single-key `{type: <primitive>}` → collapse to `type: [...]`, branch order
  *   preserved (array order is significant in the fingerprint hash). Mixed unions
@@ -151,6 +154,7 @@ function normalizeNode(node: Record<string, unknown>): void {
   ) {
     delete node["propertyNames"];
   } else if (
+    !("propertyNames" in node) &&
     isPlainObject(node["additionalProperties"]) &&
     Object.keys(node["additionalProperties"] as Record<string, unknown>).length === 0
   ) {
@@ -184,9 +188,17 @@ function normalizeNode(node: Record<string, unknown>): void {
 }
 
 /**
- * Recursive post-order walk applying normalizeNode to every object node of the
- * emitted schema. Mutates only the freshly emitted JSON value (never the zod
- * schema); deterministic, no I/O.
+ * Recursive post-order walk applying normalizeNode to every SCHEMA node of the
+ * emitted value. The object under a `properties` key is NOT a schema node — it is
+ * a field-name→schema map, and its keys are user-authored field names, not JSON
+ * Schema keywords. Applying the rules to the map itself corrupts descriptors whose
+ * fields happen to be named like keywords (a field literally named `propertyNames`
+ * would be deleted by N1, one named `oneOf` renamed by N4 — PR #78 review,
+ * probe-proven), so the walk recurses into the map's values only. Other map-shaped
+ * keywords ($defs / definitions / patternProperties) never appear in this repo's
+ * emissions (v3 parity requires inline emission; see the contract's non-goals).
+ * Mutates only the freshly emitted JSON value (never the zod schema);
+ * deterministic, no I/O.
  */
 function normalizeToDraft7Parity(value: unknown): void {
   if (Array.isArray(value)) {
@@ -199,7 +211,14 @@ function normalizeToDraft7Parity(value: unknown): void {
     return;
   }
   for (const key of Object.keys(value)) {
-    normalizeToDraft7Parity(value[key]);
+    const child = value[key];
+    if (key === "properties" && isPlainObject(child)) {
+      for (const fieldName of Object.keys(child)) {
+        normalizeToDraft7Parity(child[fieldName]);
+      }
+    } else {
+      normalizeToDraft7Parity(child);
+    }
   }
   normalizeNode(value);
 }

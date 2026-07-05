@@ -34,15 +34,20 @@ unchanged.)
 | Rule | Condition | Action |
 |---|---|---|
 | N1 | node has `propertyNames` deep-equal `{"type":"string"}` | `delete node.propertyNames` |
-| N1b | *else if* `node.additionalProperties` deep-equals `{}` | `node.additionalProperties = true` |
+| N1b | *else if* node has no `propertyNames` key and `node.additionalProperties` deep-equals `{}` | `node.additionalProperties = true` |
 | N2 | `node.anyOf` present, node has no own `type`, and EVERY branch is exactly one key `{type: <primitive-string>}` | replace with `node.type = [branch types in original order]`, delete `anyOf` |
 | N3 | `node.type === "integer"` | delete `maximum` iff `=== 9007199254740991`; delete `minimum` iff `=== -9007199254740991` |
 | N4 | `node.oneOf` present | rename key to `anyOf` (values untouched) |
 
-**Rule-order constraint**: N1 must be evaluated before N1b on the same node — the
-`propertyNames` marker is what distinguishes a v4 record emission (whose
-`additionalProperties` sub-schema must be preserved, including legitimate `{}` for
-record-of-unknown) from a looseObject emission (whose `{}` must become `true`).
+**Rule-order constraint**: N1 must be evaluated before N1b on the same node, and N1b
+additionally requires the node to carry no `propertyNames` key — the `propertyNames`
+marker is what distinguishes a v4 record emission (whose `additionalProperties`
+sub-schema must be preserved, including legitimate `{}` for record-of-unknown) from a
+looseObject emission (whose `{}` must become `true`). Plain-string-key records are
+excluded by the else-if (N1 consumed the node); checked-key records (e.g. a min-length
+key schema), whose `propertyNames` survives N1, are excluded by the absence guard
+(PR #78 review fix — the else-if alone let a checked-key record-of-unknown's `{}` be
+promoted to `true`).
 
 ## Invariants (verified by tests)
 
@@ -61,6 +66,14 @@ record-of-unknown) from a looseObject emission (whose `{}` must become `true`).
 - Shape families absent from the repo (tuples, intersections, `.nullable()`, `z.lazy`,
   pipes/transforms, catch, branded) are unprobed: a BI introducing one MUST add a
   parity fixture before shipping (extend `_shared.test.ts`).
+- The walk treats the object under a `properties` key as a field-name→schema map and
+  never applies the rules to the map itself — a field literally named
+  `propertyNames` / `oneOf` / `additionalProperties` survives normalization (PR #78
+  review, probe-proven pre-fix corruption; walk-boundary test in `_shared.test.ts`).
+  Other map-shaped keywords (`$defs` / `definitions` / `patternProperties`) never
+  appear in this repo's emissions (v3 parity requires inline emission — a `$defs`
+  would itself be a fingerprint break); a BI introducing schema reuse that emits
+  `$defs` MUST extend the walk's map-key guard and add a parity fixture.
 - Emission verified at zod **4.4.3 exactly**; if the zod pin moves, re-run the parity
   fixtures (they live in the test suite precisely so this is cheap).
 
@@ -70,8 +83,9 @@ record-of-unknown) from a looseObject emission (whose `{}` must become `true`).
   `zodToJsonSchema` capture (fixtures from probe A's 22-fixture suite, at minimum one
   per rule plus one untouched-shape control).
 - Boundary per rule: N1 leaves checked-key records alone; N1b leaves record-of-unknown
-  `additionalProperties: {}` alone; N2 leaves mixed unions as `anyOf`; N3 leaves
-  hand-authored explicit bounds; N4 no-op when absent.
+  `additionalProperties: {}` alone (both plain-string-key and checked-key variants);
+  N2 leaves mixed unions as `anyOf`; N3 leaves hand-authored explicit bounds; N4 no-op
+  when absent.
 - Integration: FR-018 baseline test green, unregenerated.
 - help pipeline: `strip-schema.test.ts` fixtures regenerated through the new pipeline
   produce identical stripped-help output.

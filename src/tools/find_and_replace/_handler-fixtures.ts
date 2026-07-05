@@ -61,7 +61,6 @@ function makeDirent(name: string, parentPath: string, isFileVal: boolean): Diren
   const d = {
     name,
     parentPath,
-    path: parentPath,
     isFile: () => isFileVal,
     isDirectory: () => !isFileVal,
     isBlockDevice: () => false,
@@ -115,16 +114,17 @@ export function inMemoryFs(
         // Compute parent dir and file name.
         const parentPath = abs.slice(0, abs.length - (abs.split(sep).pop()?.length ?? 0));
         const name = abs.split(sep).pop()!;
-        const parentTrim = parentPath.endsWith(sep)
-          ? parentPath.slice(0, -1)
-          : parentPath;
+        const parentTrim = parentPath.endsWith(sep) ? parentPath.slice(0, -1) : parentPath;
         entries.push(makeDirent(name, parentTrim, true));
       }
       return entries;
     },
     readFile: async (p: string, _enc: "utf8") => {
       state.reads.push(p);
-      const rel = p.replace(vaultRoot + sep, "").split(sep).join("/");
+      const rel = p
+        .replace(vaultRoot + sep, "")
+        .split(sep)
+        .join("/");
       if (options.readErrorByRel?.[rel]) throw options.readErrorByRel[rel];
       const content = state.files.get(p);
       if (content === undefined) {
@@ -138,12 +138,18 @@ export function inMemoryFs(
       // The tmp path is `${abs}.${uuid}.tmp` — match the target by stripping the suffix.
       const targetMatch = p.match(/^(.+)\.[0-9a-f-]+\.tmp$/i);
       const target = targetMatch?.[1] ?? p;
-      const rel = target.replace(vaultRoot + sep, "").split(sep).join("/");
+      const rel = target
+        .replace(vaultRoot + sep, "")
+        .split(sep)
+        .join("/");
       if (options.writeErrorByRel?.[rel]) throw options.writeErrorByRel[rel];
       state.writes.push({ path: p, content });
     },
     rename: async (from: string, to: string) => {
-      const rel = to.replace(vaultRoot + sep, "").split(sep).join("/");
+      const rel = to
+        .replace(vaultRoot + sep, "")
+        .split(sep)
+        .join("/");
       if (options.renameErrorByRel?.[rel]) throw options.renameErrorByRel[rel];
       state.renames.push({ from, to });
       const writeEntry = state.writes.find((w) => w.path === from);
@@ -157,7 +163,10 @@ export function inMemoryFs(
       if (p === vaultRoot) return vaultRoot;
       // Treat subfolder paths under vaultRoot as existing only if they don't
       // appear in missingSubfolders.
-      const rel = p.replace(vaultRoot + sep, "").split(sep).join("/");
+      const rel = p
+        .replace(vaultRoot + sep, "")
+        .split(sep)
+        .join("/");
       if (options.missingSubfolders?.has(rel)) {
         const e = new Error("ENOENT") as NodeJS.ErrnoException;
         e.code = "ENOENT";
