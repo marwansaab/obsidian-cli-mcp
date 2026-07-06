@@ -1,6 +1,46 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 1.5.0 → 1.5.1 (PATCH — wording-only exemplar update
+inside Principle III. The published-shape exemplar "MCP `inputSchema`
+via `zod-to-json-schema` or equivalent" becomes "MCP `inputSchema` via
+`z.toJSONSchema` or equivalent": BI-067 (067-upgrade-tech-stack,
+PR #78) migrated the repo to zod 4 and retired the deprecated
+zod-to-json-schema package from the manifest, replacing it with zod's
+built-in z.toJSONSchema converter plus a descriptor-parity normalizer.
+The principle's normative content — zod schema as single source of
+truth for published shape and runtime parse, structured validation
+errors, z.infer as the canonical downstream type — is byte-unchanged.
+The "or equivalent" qualifier already made the old wording compliant;
+this PATCH merely names the current concrete mechanism so the exemplar
+matches reality.)
+
+Modified sections:
+  - Principle III (Boundary Input Validation with Zod) → first
+    paragraph: exemplar package name swap only. No MUST/SHOULD
+    changes, no new obligations, no removed obligations.
+  - Footer version line: 1.5.0 → 1.5.1; Last Amended 2026-07-05.
+    Ratified date unchanged (2026-05-03).
+
+Added sections: none.
+Removed sections: none.
+Modified principles: Principle III wording only (exemplar); name,
+ordering, rationale, and all normative language unchanged.
+
+Templates checked (2026-07-05): plan-template.md, spec-template.md,
+tasks-template.md, checklist-template.md, constitution-template.md —
+zero references to zod-to-json-schema; no propagation needed.
+Runtime guidance checked: CLAUDE.md Principle III summary names no
+converter package; README has no converter reference. No follow-ups.
+
+Driver: BI-067 T049 — the amendment was queued at plan time
+(plan.md Constitution Check, Principle III row) with its precondition
+gate "zod-to-json-schema absent from the manifest", satisfied when
+PR #78 merged. Dedicated amendment PR per the governance procedure;
+never bundled with 067 feature work.
+
+PRIOR SYNC IMPACT REPORT (v1.4.0 → v1.5.0, preserved for reference):
+==================
 Version change: 1.4.0 → 1.5.0 (MINOR — TWO new normative gates are
 added: the Constitution Compliance checklist gains an eighth row
 pointing at ADR-014 (Plugin-Backed Typed Tools: Runtime-Dependency
@@ -287,7 +327,7 @@ Every MCP tool wrapper MUST validate its incoming arguments through a
 `zod` schema before any business logic, network call, or filesystem
 access runs. The schema MUST be the single source of truth for both
 the surface's published shape (MCP `inputSchema` via
-`zod-to-json-schema` or equivalent) and the runtime parse. Validation
+`z.toJSONSchema` or equivalent) and the runtime parse. Validation
 failures MUST return a structured error with the field paths reported
 by zod; validated values MUST be passed to inner functions as
 already-typed objects, not re-validated downstream. Internal helpers
@@ -485,4 +525,4 @@ and in feature-specific plans under `specs/`. Those documents MUST defer to
 this constitution; if they imply a contradiction, treat it as a bug in the
 guidance document and fix it.
 
-**Version**: 1.5.0 | **Ratified**: 2026-05-03 | **Last Amended**: 2026-05-15
+**Version**: 1.5.1 | **Ratified**: 2026-05-03 | **Last Amended**: 2026-07-05
