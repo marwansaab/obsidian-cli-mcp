@@ -65,7 +65,7 @@ FR-005):
 | Upstream surface | Why not exposed | Alternative |
 |---|---|---|
 | `obsidian tag name=<>` native subcommand | Plain-text output, case-sensitive, errors on zero-match, no child subsumption | Wrapper routes via `eval` for the structured envelope and child subsumption |
-| `obsidian tags` (plural) subcommand | Vault-wide tag inventory — different operation | Out-of-scope at v1 (potential future BI) |
+| `obsidian tags` (plural) subcommand | Vault-wide tag inventory — different operation | Use the [tags](./tags.md) tool |
 | `obsidian search query="#tag"` | Substring/regex search — would match tags inside fenced code blocks | n/a — `tag` uses the metadata cache, not text search |
 | Pagination / limit / offset | Out-of-scope at v1 | Re-slice the `paths` array client-side |
 | Folder-prefix filter | Out-of-scope at v1 | Filter the `paths` array client-side |

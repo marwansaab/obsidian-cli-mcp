@@ -119,7 +119,7 @@ Use the **exact** Obsidian display name. The server has no in-band vault-enumera
 
 ## Tool inventory
 
-The server currently registers thirty-four public tools. Call `help({ tool_name: "<name>" })` at runtime for the full per-tool documentation (parameters, output shape, error roster, and worked examples) — the listing below is just the index.
+The server currently registers thirty-five public tools. Call `help({ tool_name: "<name>" })` at runtime for the full per-tool documentation (parameters, output shape, error roster, and worked examples) — the listing below is just the index.
 
 ### Read (full + surgical)
 
@@ -138,6 +138,7 @@ The server currently registers thirty-four public tools. Call `help({ tool_name:
 | `pattern_search` | ECMAScript-regex search across notes; returns one entry per non-empty match with `{ path, line, offset, match, text }`. Regex companion to `context_search`. |
 | `find_by_property` | Find notes whose frontmatter field matches a value (scalar or list); type-faithful comparison. |
 | `tag` | Vault-relative paths of every Markdown note carrying a given tag, as `{ count, paths }`, or a bare integer in count-only mode. |
+| `tags` | Vault-wide tag inventory (or one note's tags) with optional per-tag counts. |
 | `backlinks` | Incoming-link inventory — every source note referencing a target note via wikilink. Inverse of [`links`](#); cohort-uniform LEADING truncation when the source cap fires. |
 | `links` | Outbound-link inventory for a single note (the outgoing-direction sibling of `backlinks`). |
 | `open_file` | Surface an existing vault file (any recognised type — note, canvas, PDF, image, attachment) as the focused, active file in the running Obsidian workspace. Opens in the vault you name — focused, open-but-unfocused, or closed-but-registered (opened on demand) — and switches focus to it, reporting tab placement (`new_tab_created` / `existing_tab_reused` / `active_tab_used`); `new_tab` opt-in. |

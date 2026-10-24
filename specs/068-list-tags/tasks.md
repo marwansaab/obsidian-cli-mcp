@@ -25,14 +25,14 @@
 
 **⚠️ GATE**: read `.memory/test-execution-instructions.md` first. It was ABSENT at plan and tasks time. If it is still absent, STOP and escalate to the owner; do not probe any vault.
 
-- [ ] T001 Read `.memory/test-execution-instructions.md`, confirm the authorised test vault and scratch subdirectory, and create the seven fixture notes (`fence.md`, `mixed.md`, `hier.md`, `case.md`, `intl.md`, `count.md`, `empty.md`) listed in [contracts/t0-probe-plan.md](contracts/t0-probe-plan.md) inside that scratch subdirectory.
-- [ ] T002 Run probe P1 (`vault=<V> tags format=json counts`, plus the no-`counts` and `format=tsv` variants) and record verbatim evidence under "## P1 evidence" in [contracts/t0-probe-plan.md](contracts/t0-probe-plan.md): JSON field names, whether names carry a leading `#`, and the count type. If `format=json` is unusable, apply the TSV fallback from [research.md](research.md) § "T0 fallback table" and note it as D1-amend in research.md.
-- [ ] T003 Run probe P2 (empty-result stdout for `path=<scratch>/empty.md`, and for a tagless vault if the gate file provides one) and record under "## P2 evidence". Decide the `EMPTY_TAGS_SENTINEL` value, or drop the sentinel per the fallback table.
-- [ ] T004 Run probes P3, P4 and P5 (fenced-code exclusion; frontmatter + inline, hierarchy, case variants, non-ASCII; per-note count meaning) and record under "## P3/P4/P5 evidence". Save the P3 `fence.md` stdout verbatim for reuse as the handler test fixture in T017.
-- [ ] T005 Run probes P6, P7, P8 and P10 (bare-name `file` resolution and missing-note stdout; `active` with and without a focused note; unknown-vault stdout and exit code; focused-vault `file` without `vault=`) and record under "## P6/P7/P8/P10 evidence". Apply any matching fallback from the research.md fallback table. If the P6 fallback fires (missing note returns an empty listing), amend [plan.md](plan.md) before writing code, because it adds `vaultRegistry` DI.
-- [ ] T006 Run probe P9 (bytes per entry from the P1 output) and record the derived size ceiling (10 MiB ÷ bytes per entry) under "## P9 evidence".
-- [ ] T007 Write the probe results back into [spec.md](spec.md) Edge Cases: case variants (observed merged or separate — and if merged, add the "unobservable end-to-end" label to FR-011's byte-order tiebreak per Clarifications Q3), hierarchical presentation, per-note `count` meaning, non-ASCII handling, and the size ceiling. Replace the "characterised by the implement-time T0 probe" pending statements with the observed results.
-- [ ] T008 Delete the scratch fixture notes per the gate file's cleanup expectations, and record the cleanup in [contracts/t0-probe-plan.md](contracts/t0-probe-plan.md).
+- [X] T001 Read `.memory/test-execution-instructions.md`, confirm the authorised test vault and scratch subdirectory, and create the seven fixture notes (`fence.md`, `mixed.md`, `hier.md`, `case.md`, `intl.md`, `count.md`, `empty.md`) listed in [contracts/t0-probe-plan.md](contracts/t0-probe-plan.md) inside that scratch subdirectory.
+- [X] T002 Run probe P1 (`vault=<V> tags format=json counts`, plus the no-`counts` and `format=tsv` variants) and record verbatim evidence under "## P1 evidence" in [contracts/t0-probe-plan.md](contracts/t0-probe-plan.md): JSON field names, whether names carry a leading `#`, and the count type. If `format=json` is unusable, apply the TSV fallback from [research.md](research.md) § "T0 fallback table" and note it as D1-amend in research.md.
+- [X] T003 Run probe P2 (empty-result stdout for `path=<scratch>/empty.md`, and for a tagless vault if the gate file provides one) and record under "## P2 evidence". Decide the `EMPTY_TAGS_SENTINEL` value, or drop the sentinel per the fallback table.
+- [X] T004 Run probes P3, P4 and P5 (fenced-code exclusion; frontmatter + inline, hierarchy, case variants, non-ASCII; per-note count meaning) and record under "## P3/P4/P5 evidence". Save the P3 `fence.md` stdout verbatim for reuse as the handler test fixture in T017.
+- [X] T005 Run probes P6, P7, P8 and P10 (bare-name `file` resolution and missing-note stdout; `active` with and without a focused note; unknown-vault stdout and exit code; focused-vault `file` without `vault=`) and record under "## P6/P7/P8/P10 evidence". Apply any matching fallback from the research.md fallback table. If the P6 fallback fires (missing note returns an empty listing), amend [plan.md](plan.md) before writing code, because it adds `vaultRegistry` DI.
+- [X] T006 Run probe P9 (bytes per entry from the P1 output) and record the derived size ceiling (10 MiB ÷ bytes per entry) under "## P9 evidence".
+- [X] T007 Write the probe results back into [spec.md](spec.md) Edge Cases: case variants (observed merged or separate — and if merged, add the "unobservable end-to-end" label to FR-011's byte-order tiebreak per Clarifications Q3), hierarchical presentation, per-note `count` meaning, non-ASCII handling, and the size ceiling. Replace the "characterised by the implement-time T0 probe" pending statements with the observed results.
+- [X] T008 Delete the scratch fixture notes per the gate file's cleanup expectations, and record the cleanup in [contracts/t0-probe-plan.md](contracts/t0-probe-plan.md).
 
 **Checkpoint**: wire format, empty signal, and the no-active-note, missing-note and unknown-vault signatures are pinned. The handler can now be written against facts.
 
@@ -44,13 +44,13 @@
 
 **⚠️ CRITICAL**: no user-story work begins until this phase completes.
 
-- [ ] T009 Create [src/tools/tags/schema.ts](../../src/tools/tags/schema.ts) with: `tagsInputSchema` as a flat `z.strictObject({ vault: z.string().min(1).optional(), file: z.string().min(1).optional(), path: z.string().min(1).optional(), activeOnly: z.boolean().optional(), sortByCount: z.boolean().optional(), includeCounts: z.boolean().optional() })` (no `.default()`s; the scope `superRefine` is added in T034); `tagsUpstreamArraySchema` (a `.loose()` entry schema using the field names pinned by T002); `tagEntrySchema` (`z.strictObject({ name: z.string().min(1), count: z.number().int().nonnegative().optional() })`); and `tagsOutputSchema` (`z.strictObject({ total, tags })` plus a `superRefine` enforcing `total === tags.length`, unique names, and count present on all entries or on none). Export `TagsInput`, `TagsOutput` and `TagEntry` via `z.infer`. Do NOT import `src/target-mode/target-mode.ts`.
-- [ ] T010 [P] Create [src/tools/tags/schema.test.ts](../../src/tools/tags/schema.test.ts) with output-schema tests: accepts a valid envelope with and without counts; rejects `total !== tags.length`, duplicate names, mixed count presence, an empty `name`, and an extra entry key; accepts `{ total: 0, tags: [] }`. Add an input-schema happy-path test (`{}` and each single field parse). (depends T009)
-- [ ] T011 Create [src/tools/tags/handler.ts](../../src/tools/tags/handler.ts) with the `ExecuteDeps` interface (`logger`, `queue`, `spawnFn?`, `env?`; parity with `outline/handler.ts`) and the `executeTags(input, deps)` skeleton. It calls `invokeCli({ command: "tags", vault: input.vault, parameters: { format: "json" }, flags: ["counts"], target_mode: "specific" }, …)`, which is the optional-`vault` facade idiom from `properties/handler.ts`. It then parses trimmed stdout as JSON (failure → `UpstreamError` `CLI_REPORTED_ERROR` with `details: { stage: "json-parse", stdout }`), validates it with `tagsUpstreamArraySchema.safeParse` (failure → `CLI_REPORTED_ERROR` with `details: { stage: "upstream-shape", stdout }`), and returns `tagsOutputSchema.parse(...)` of a provisional mapping. Name transform, empty handling, sorting and scoping are added by the story phases. (depends T009)
-- [ ] T012 Create [src/tools/tags/index.ts](../../src/tools/tags/index.ts) with `TAGS_TOOL_NAME = "tags"`, a provisional `TAGS_DESCRIPTION` (finalised in T039), `RegisterDeps = ExecuteDeps`, and `createTagsTool(deps)` built with `registerTool({ name, description, schema: tagsInputSchema, deps, handler: (input, d) => executeTags(input, d) })`. Leave the `mapValidationError` hook unset for now (added in T035). (depends T011)
-- [ ] T013 Create the minimal [docs/tools/tags.md](../../docs/tools/tags.md) (title, overview, link to `index.md`) so `assertToolDocsExist` passes at boot. The full page is written in T038.
-- [ ] T014 Register the tool in [src/server.ts](../../src/server.ts): add `import { createTagsTool } from "./tools/tags/index.js";` and `createTagsTool({ logger, queue }),` in alphabetical position in the tool list (after `createTagTool`). No other edit to `createServer()`; this is a kernel-node touch, so keep it to this one line. (depends T012, T013)
-- [ ] T015 Create [src/tools/tags/index.test.ts](../../src/tools/tags/index.test.ts) with registration tests: the descriptor name is `tags`; the published `inputSchema` has exactly the six properties, `additionalProperties: false`, and no `target_mode`; a happy-path call through the registered handler with a stub spawn returns a JSON text content block. (depends T012)
+- [X] T009 Create [src/tools/tags/schema.ts](../../src/tools/tags/schema.ts) with: `tagsInputSchema` as a flat `z.strictObject({ vault: z.string().min(1).optional(), file: z.string().min(1).optional(), path: z.string().min(1).optional(), activeOnly: z.boolean().optional(), sortByCount: z.boolean().optional(), includeCounts: z.boolean().optional() })` (no `.default()`s; the scope `superRefine` is added in T034); `tagsUpstreamArraySchema` (a `.loose()` entry schema using the field names pinned by T002); `tagEntrySchema` (`z.strictObject({ name: z.string().min(1), count: z.number().int().nonnegative().optional() })`); and `tagsOutputSchema` (`z.strictObject({ total, tags })` plus a `superRefine` enforcing `total === tags.length`, unique names, and count present on all entries or on none). Export `TagsInput`, `TagsOutput` and `TagEntry` via `z.infer`. Do NOT import `src/target-mode/target-mode.ts`.
+- [X] T010 [P] Create [src/tools/tags/schema.test.ts](../../src/tools/tags/schema.test.ts) with output-schema tests: accepts a valid envelope with and without counts; rejects `total !== tags.length`, duplicate names, mixed count presence, an empty `name`, and an extra entry key; accepts `{ total: 0, tags: [] }`. Add an input-schema happy-path test (`{}` and each single field parse). (depends T009)
+- [X] T011 Create [src/tools/tags/handler.ts](../../src/tools/tags/handler.ts) with the `ExecuteDeps` interface (`logger`, `queue`, `spawnFn?`, `env?`; parity with `outline/handler.ts`) and the `executeTags(input, deps)` skeleton. It calls `invokeCli({ command: "tags", vault: input.vault, parameters: { format: "json" }, flags: ["counts"], target_mode: "specific" }, …)`, which is the optional-`vault` facade idiom from `properties/handler.ts`. It then parses trimmed stdout as JSON (failure → `UpstreamError` `CLI_REPORTED_ERROR` with `details: { stage: "json-parse", stdout }`), validates it with `tagsUpstreamArraySchema.safeParse` (failure → `CLI_REPORTED_ERROR` with `details: { stage: "upstream-shape", stdout }`), and returns `tagsOutputSchema.parse(...)` of a provisional mapping. Name transform, empty handling, sorting and scoping are added by the story phases. (depends T009)
+- [X] T012 Create [src/tools/tags/index.ts](../../src/tools/tags/index.ts) with `TAGS_TOOL_NAME = "tags"`, a provisional `TAGS_DESCRIPTION` (finalised in T039), `RegisterDeps = ExecuteDeps`, and `createTagsTool(deps)` built with `registerTool({ name, description, schema: tagsInputSchema, deps, handler: (input, d) => executeTags(input, d) })`. Leave the `mapValidationError` hook unset for now (added in T035). (depends T011)
+- [X] T013 Create the minimal [docs/tools/tags.md](../../docs/tools/tags.md) (title, overview, link to `index.md`) so `assertToolDocsExist` passes at boot. The full page is written in T038.
+- [X] T014 Register the tool in [src/server.ts](../../src/server.ts): add `import { createTagsTool } from "./tools/tags/index.js";` and `createTagsTool({ logger, queue }),` in alphabetical position in the tool list (after `createTagTool`). No other edit to `createServer()`; this is a kernel-node touch, so keep it to this one line. (depends T012, T013)
+- [X] T015 Create [src/tools/tags/index.test.ts](../../src/tools/tags/index.test.ts) with registration tests: the descriptor name is `tags`; the published `inputSchema` has exactly the six properties, `additionalProperties: false`, and no `target_mode`; a happy-path call through the registered handler with a stub spawn returns a JSON text content block. (depends T012)
 
 **Checkpoint**: `npm run typecheck` and `npm run build` pass; the server boots with `tags` registered; the skeleton returns a parsed envelope.
 
@@ -64,23 +64,23 @@
 
 ### Tests for User Story 1
 
-- [ ] T016 [P] [US1] In [src/tools/tags/handler.test.ts](../../src/tools/tags/handler.test.ts), add argv tests (AC-1, AC-10): with no `vault`, argv contains `tags format=json counts` with no `vault=`, `file=`, `path=` or `active`; with `vault: "V"`, argv starts with `vault=V`.
-- [ ] T017 [US1] In [src/tools/tags/handler.test.ts](../../src/tools/tags/handler.test.ts), add content tests:
+- [X] T016 [P] [US1] In [src/tools/tags/handler.test.ts](../../src/tools/tags/handler.test.ts), add argv tests (AC-1, AC-10): with no `vault`, argv contains `tags format=json counts` with no `vault=`, `file=`, `path=` or `active`; with `vault: "V"`, argv starts with `vault=V`.
+- [X] T017 [US1] In [src/tools/tags/handler.test.ts](../../src/tools/tags/handler.test.ts), add content tests:
   - AC-1: counts carried; `total` equals the length.
   - FR-013: exactly one leading `#` stripped (`#alpha` → `alpha`; `##x` → `#x`; a name without `#` is left unchanged); hierarchical `parent/child` and non-ASCII `café` / `日本語` pass through byte-identical.
   - AC-16: built-in-looking names (`todo`, `inbox`, `important`) pass through unchanged.
   - AC-8: the T004 `fence.md` stdout fixture yields `t068-real` and not `t068-fenced`.
   - Default order: case-insensitive first, then byte tiebreak (`Alpha` before `alpha`; `beta` after both), independent of upstream order.
-- [ ] T018 [US1] In [src/tools/tags/handler.test.ts](../../src/tools/tags/handler.test.ts), add empty and failure tests:
+- [X] T018 [US1] In [src/tools/tags/handler.test.ts](../../src/tools/tags/handler.test.ts), add empty and failure tests:
   - AC-7: `[]` and, if T003 pinned one, the exact sentinel → `{ total: 0, tags: [] }`; a near-miss sentinel string → `CLI_REPORTED_ERROR` `json-parse`.
   - UNDERLYING: stub stdout `Vault not found.` with exit 0 → `CLI_REPORTED_ERROR` (the `invokeCli` re-classification, locked for `tags`; plus the explicit handler check if T005 applied the P8 fallback).
   - Non-JSON stdout → `json-parse`; a wrong array shape → `upstream-shape`; over-cap output → `CLI_OUTPUT_TOO_LARGE`.
-- [ ] T019 [P] [US1] In [src/tools/tags/index.test.ts](../../src/tools/tags/index.test.ts), add a test that an upstream array producing a duplicate name after the `#` strip (e.g. `#a` and `a`) surfaces as `INTERNAL_ERROR` through `registerTool`'s runtime-ZodError branch (FR-010 safety net).
+- [X] T019 [P] [US1] In [src/tools/tags/index.test.ts](../../src/tools/tags/index.test.ts), add a test that an upstream array producing a duplicate name after the `#` strip (e.g. `#a` and `a`) surfaces as `INTERNAL_ERROR` through `registerTool`'s runtime-ZodError branch (FR-010 safety net).
 
 ### Implementation for User Story 1
 
-- [ ] T020 [US1] In [src/tools/tags/handler.ts](../../src/tools/tags/handler.ts), implement and export `stripLeadingHash(name)` (removes exactly one leading `#`) and `compareTagNames(a, b)` (compare `a.toLowerCase()` with `b.toLowerCase()` by UTF-16 code unit, then `a` with `b` by code unit; never `localeCompare`). Then map upstream entries to `{ name, count }`, sort ascending by `compareTagNames`, and build `{ total, tags }`. (depends T011)
-- [ ] T021 [US1] In [src/tools/tags/handler.ts](../../src/tools/tags/handler.ts), add empty-result handling per research D5: export `EMPTY_TAGS_SENTINEL` with the T003 value (or omit it per the fallback); treat trimmed-empty stdout (only if T003 observed it), `[]`, and an exact sentinel match as `{ total: 0, tags: [] }` before JSON parsing. Add the explicit unknown-vault signature check only if T005 applied the P8 fallback. (depends T020)
+- [X] T020 [US1] In [src/tools/tags/handler.ts](../../src/tools/tags/handler.ts), implement and export `stripLeadingHash(name)` (removes exactly one leading `#`) and `compareTagNames(a, b)` (compare `a.toLowerCase()` with `b.toLowerCase()` by UTF-16 code unit, then `a` with `b` by code unit; never `localeCompare`). Then map upstream entries to `{ name, count }`, sort ascending by `compareTagNames`, and build `{ total, tags }`. (depends T011)
+- [X] T021 [US1] In [src/tools/tags/handler.ts](../../src/tools/tags/handler.ts), add empty-result handling per research D5: export `EMPTY_TAGS_SENTINEL` with the T003 value (or omit it per the fallback); treat trimmed-empty stdout (only if T003 observed it), `[]`, and an exact sentinel match as `{ total: 0, tags: [] }` before JSON parsing. Add the explicit unknown-vault signature check only if T005 applied the P8 fallback. (depends T020)
 
 **Checkpoint**: US1 tests green. `tags({ vault })` is a usable MVP.
 
@@ -94,21 +94,21 @@
 
 ### Tests for User Story 2
 
-- [ ] T022 [P] [US2] In [src/tools/tags/handler.test.ts](../../src/tools/tags/handler.test.ts), add scope argv tests:
+- [X] T022 [P] [US2] In [src/tools/tags/handler.test.ts](../../src/tools/tags/handler.test.ts), add scope argv tests:
   - AC-2: `file: "Note"` → `file=Note`.
   - AC-3: `path: "dir/Note.md"` → `path=dir/Note.md`.
   - AC-10: `file` and `path` each with and without `vault` → `vault=` prefix present only when supplied.
   - AC-4: `activeOnly: true` → `active` flag and no `vault=`.
   - `activeOnly: false` adds no flag.
-- [ ] T023 [US2] In [src/tools/tags/handler.test.ts](../../src/tools/tags/handler.test.ts), add scope failure tests:
+- [X] T023 [US2] In [src/tools/tags/handler.test.ts](../../src/tools/tags/handler.test.ts), add scope failure tests:
   - AC-13: the T005-pinned no-active-note stdout (expected `Error: No active file.`) → `ERR_NO_ACTIVE_FILE`; the message equals the `tags` message naming `file` and `path`; `cause` is the dispatch error; the original `details` are preserved.
   - FR-017: the T005-pinned missing-note stdout → `CLI_REPORTED_ERROR` carrying the upstream message.
   - An untagged note → `{ total: 0, tags: [] }`.
 
 ### Implementation for User Story 2
 
-- [ ] T024 [US2] In [src/tools/tags/handler.ts](../../src/tools/tags/handler.ts), add `file` / `path` to `parameters` when set, and the `active` flag when `activeOnly === true`. The `invokeCli` facade `target_mode` stays `"specific"`, so `file` and `path` are never stripped (research D2). (depends T021)
-- [ ] T025 [US2] In [src/tools/tags/handler.ts](../../src/tools/tags/handler.ts), wrap the `invokeCli` call: catch an `UpstreamError` whose `code === "ERR_NO_ACTIVE_FILE"`, and re-throw `new UpstreamError({ code: "ERR_NO_ACTIVE_FILE", cause: err, details: err.details, message: "No active file in Obsidian. Open a note in the editor, or call tags with `file` or `path` instead of `activeOnly`." })`. Re-throw every other error unchanged; no fallback result (Principle IV). Add the explicit no-active-note signature detection only if T005 applied the P7 fallback. (depends T024)
+- [X] T024 [US2] In [src/tools/tags/handler.ts](../../src/tools/tags/handler.ts), add `file` / `path` to `parameters` when set, and the `active` flag when `activeOnly === true`. The `invokeCli` facade `target_mode` stays `"specific"`, so `file` and `path` are never stripped (research D2). (depends T021)
+- [X] T025 [US2] In [src/tools/tags/handler.ts](../../src/tools/tags/handler.ts), wrap the `invokeCli` call: catch an `UpstreamError` whose `code === "ERR_NO_ACTIVE_FILE"`, and re-throw `new UpstreamError({ code: "ERR_NO_ACTIVE_FILE", cause: err, details: err.details, message: "No active file in Obsidian. Open a note in the editor, or call tags with `file` or `path` instead of `activeOnly`." })`. Re-throw every other error unchanged; no fallback result (Principle IV). Add the explicit no-active-note signature detection only if T005 applied the P7 fallback. (depends T024)
 
 **Checkpoint**: US1 and US2 tests green. Single-note scoping works independently of the ordering options.
 
@@ -122,13 +122,13 @@
 
 ### Tests for User Story 3
 
-- [ ] T026 [P] [US3] In [src/tools/tags/handler.test.ts](../../src/tools/tags/handler.test.ts), add ordering tests (AC-5): `sortByCount: true` gives count descending with ties broken by `compareTagNames`, including a case-variant tie pair (`Alpha` / `alpha`) and a non-ASCII pair; the default ignores counts; upstream order never leaks; argv never contains `sort=count`.
-- [ ] T027 [US3] In [src/tools/tags/handler.test.ts](../../src/tools/tags/handler.test.ts), add projection tests (AC-6): with `includeCounts: false`, every entry's `Object.keys` equals `["name"]`; combined with `sortByCount: true`, the order is still by count; argv still contains `counts` in both cases.
+- [X] T026 [P] [US3] In [src/tools/tags/handler.test.ts](../../src/tools/tags/handler.test.ts), add ordering tests (AC-5): `sortByCount: true` gives count descending with ties broken by `compareTagNames`, including a case-variant tie pair (`Alpha` / `alpha`) and a non-ASCII pair; the default ignores counts; upstream order never leaks; argv never contains `sort=count`.
+- [X] T027 [US3] In [src/tools/tags/handler.test.ts](../../src/tools/tags/handler.test.ts), add projection tests (AC-6): with `includeCounts: false`, every entry's `Object.keys` equals `["name"]`; combined with `sortByCount: true`, the order is still by count; argv still contains `counts` in both cases.
 
 ### Implementation for User Story 3
 
-- [ ] T028 [US3] In [src/tools/tags/handler.ts](../../src/tools/tags/handler.ts), sort by count descending then `compareTagNames` when `input.sortByCount === true`; otherwise use `compareTagNames` alone. Sort before projection, using the upstream counts. (depends T021)
-- [ ] T029 [US3] In [src/tools/tags/handler.ts](../../src/tools/tags/handler.ts), project the entries: when `input.includeCounts === false`, build `{ name }` only (key absent, not `undefined`); otherwise build `{ name, count }`. (depends T028)
+- [X] T028 [US3] In [src/tools/tags/handler.ts](../../src/tools/tags/handler.ts), sort by count descending then `compareTagNames` when `input.sortByCount === true`; otherwise use `compareTagNames` alone. Sort before projection, using the upstream counts. (depends T021)
+- [X] T029 [US3] In [src/tools/tags/handler.ts](../../src/tools/tags/handler.ts), project the entries: when `input.includeCounts === false`, build `{ name }` only (key absent, not `undefined`); otherwise build `{ name, count }`. (depends T028)
 
 **Checkpoint**: US1–US3 tests green. Every P1 output behaviour is in place.
 
@@ -142,13 +142,13 @@
 
 ### Tests for User Story 4
 
-- [ ] T030 [P] [US4] In [src/tools/tags/schema.test.ts](../../src/tools/tags/schema.test.ts), add `superRefine` tests:
+- [X] T030 [P] [US4] In [src/tools/tags/schema.test.ts](../../src/tools/tags/schema.test.ts), add `superRefine` tests:
   - Each scope-matrix row emits one `custom` issue with the right `params.subCode` / `params.subReason`: `file+path`, `active+note` (with `file`, and with `path`), `active+vault`. A four-way conflict reports only the first row's reason.
   - Allowed rows parse: `file`+`vault`, `path`+`vault`, `vault` alone, `activeOnly: true` alone, `activeOnly: false`+`file`.
   - Unsafe `file` / `path` (`../x.md`, `/abs.md`, `\\abs.md`, `C:\\x.md`, a control character) → `INVALID_NOTE` / `path-traversal`.
   - `file: "[[Note]]"` is rejected; `vault: ""` is rejected.
-- [ ] T031 [US4] In [src/tools/tags/schema.test.ts](../../src/tools/tags/schema.test.ts), add the unknown-key tests (AC-11): `{ target_mode: "specific" }`, `{ sort: "count" }` and `{ foo: 1 }` → `unrecognized_keys`. The test description states the dual-pathway distinction: clients that strip keys absent from the published schema never send them, so this server-side rejection is observable only on forwarding clients; this test exercises the server path directly.
-- [ ] T032 [P] [US4] In [src/tools/tags/index.test.ts](../../src/tools/tags/index.test.ts), add end-to-end validation tests through the registered handler, each using a spawn spy asserted never called (AC-9, AC-11, AC-12, FR-007):
+- [X] T031 [US4] In [src/tools/tags/schema.test.ts](../../src/tools/tags/schema.test.ts), add the unknown-key tests (AC-11): `{ target_mode: "specific" }`, `{ sort: "count" }` and `{ foo: 1 }` → `unrecognized_keys`. The test description states the dual-pathway distinction: clients that strip keys absent from the published schema never send them, so this server-side rejection is observable only on forwarding clients; this test exercises the server path directly.
+- [X] T032 [P] [US4] In [src/tools/tags/index.test.ts](../../src/tools/tags/index.test.ts), add end-to-end validation tests through the registered handler, each using a spawn spy asserted never called (AC-9, AC-11, AC-12, FR-007):
   - `{file, path}` → `VALIDATION_ERROR` / `SCOPE_CONFLICT` / `file+path`.
   - `{activeOnly: true, file}` → `active+note`.
   - `{activeOnly: true, vault}` → `active+vault`.
@@ -159,13 +159,13 @@
 
 ### Implementation for User Story 4
 
-- [ ] T033 [US4] In [src/tools/tags/schema.ts](../../src/tools/tags/schema.ts), add field-level checks to a `superRefine` on `tagsInputSchema`:
+- [X] T033 [US4] In [src/tools/tags/schema.ts](../../src/tools/tags/schema.ts), add field-level checks to a `superRefine` on `tagsInputSchema`:
   - `file` / `path` failing `isStructurallySafePath` → a `custom` issue on that path with `STRUCTURALLY_UNSAFE_PATH_MESSAGE` and `params: { subCode: "INVALID_NOTE", subReason: "path-traversal" }`.
   - `file` containing `[[` or `]]` → a `custom` issue with no `params`, whose message asks for the bare note name (parity with `find_and_replace/schema.ts`).
 
   (depends T009)
-- [ ] T034 [US4] In [src/tools/tags/schema.ts](../../src/tools/tags/schema.ts), add the scope-matrix check to the same `superRefine`, treating `activeOnly !== true` as not set. Check the rows in contract order (`file+path`, `active+note`, `active+vault`) and emit exactly one `custom` issue for the first match, with `params: { subCode: "SCOPE_CONFLICT", subReason }` and a message from a local `SCOPE_CONFLICT_MESSAGES` map. Do not extract a shared helper (research D3). (depends T033)
-- [ ] T035 [US4] In [src/tools/tags/index.ts](../../src/tools/tags/index.ts), add `mapZodIssuesToToolError` and pass it as `mapValidationError`:
+- [X] T034 [US4] In [src/tools/tags/schema.ts](../../src/tools/tags/schema.ts), add the scope-matrix check to the same `superRefine`, treating `activeOnly !== true` as not set. Check the rows in contract order (`file+path`, `active+note`, `active+vault`) and emit exactly one `custom` issue for the first match, with `params: { subCode: "SCOPE_CONFLICT", subReason }` and a message from a local `SCOPE_CONFLICT_MESSAGES` map. Do not extract a shared helper (research D3). (depends T033)
+- [X] T035 [US4] In [src/tools/tags/index.ts](../../src/tools/tags/index.ts), add `mapZodIssuesToToolError` and pass it as `mapValidationError`:
   - Build `mappedIssues = issues.map(i => ({ path: i.path, message: i.message, code: i.code }))` once.
   - A `custom` issue with `params.subCode` → `{ code: "VALIDATION_ERROR", message, details: { code: subCode, reason: subReason, issues: mappedIssues } }`. This is the exact shape of `find_and_replace/index.ts` `mapZodIssuesToToolError`, so the zod field paths are always reported (Constitution Principle III; remediation R1).
   - Otherwise → the generic `VALIDATION_ERROR` envelope with `details: { issues: mappedIssues }`.
@@ -184,12 +184,12 @@
 
 ### Tests for User Story 5
 
-- [ ] T036 [P] [US5] In [src/tools/tags/index.test.ts](../../src/tools/tags/index.test.ts), add a docs test (AC-14): read `docs/tools/tags.md` and assert it contains the six field names, `total`, every error code from [contracts/errors.md](contracts/errors.md), and at least four example headings covering vault-wide, file-scoped, `sortByCount` and `activeOnly`. Read `docs/tools/index.md` and assert a `**tags**` line exists.
+- [X] T036 [P] [US5] In [src/tools/tags/index.test.ts](../../src/tools/tags/index.test.ts), add a docs test (AC-14): read `docs/tools/tags.md` and assert it contains the six field names, `total`, every error code from [contracts/errors.md](contracts/errors.md), and at least four example headings covering vault-wide, file-scoped, `sortByCount` and `activeOnly`. Read `docs/tools/index.md` and assert a `**tags**` line exists.
 
 ### Implementation for User Story 5
 
-- [ ] T037 [P] [US5] Add the `tags` line to [docs/tools/index.md](../../docs/tools/index.md) in alphabetical position after `tag`. It summarises the return shape `{ total, tags: [{ name, count? }] }`, bare names, the scope options, `sortByCount` / `includeCounts`, and how it differs from `tag` (inventory vs. per-tag file list).
-- [ ] T038 [US5] Write the full [docs/tools/tags.md](../../docs/tools/tags.md), following the section structure of `docs/tools/tag.md` (Overview, Input contract, Per-field policy, Output, Errors, Examples, Inherited limitations). Include:
+- [X] T037 [P] [US5] Add the `tags` line to [docs/tools/index.md](../../docs/tools/index.md) in alphabetical position after `tag`. It summarises the return shape `{ total, tags: [{ name, count? }] }`, bare names, the scope options, `sortByCount` / `includeCounts`, and how it differs from `tag` (inventory vs. per-tag file list).
+- [X] T038 [US5] Write the full [docs/tools/tags.md](../../docs/tools/tags.md), following the section structure of `docs/tools/tag.md` (Overview, Input contract, Per-field policy, Output, Errors, Examples, Inherited limitations). Include:
   - the input table and scope matrix from [contracts/input.md](contracts/input.md), with the AC-11 client-class note;
   - the output guarantees from [contracts/output.md](contracts/output.md);
   - the error roster from [contracts/errors.md](contracts/errors.md), quoting the T005-pinned upstream wording;
@@ -197,8 +197,8 @@
   - the inherited limitations, using the T004/T006/T007 results: staleness window, case variants (plus the tiebreak label if case variants merge), non-ASCII, hierarchy, per-note count meaning, fenced-code exclusion, frontmatter + inline, and the size ceiling. State explicitly that frontmatter + inline coverage (FR-015) is an inherited index behaviour verified live (probe P4, quickstart scenario 2), not by an in-process test, because the wrapper adds no logic there (analyze finding C2).
   
   (depends T007)
-- [ ] T039 [US5] Finalise `TAGS_DESCRIPTION` in [src/tools/tags/index.ts](../../src/tools/tags/index.ts). It must cover: the return shape; optional `vault` (focused vault when omitted); at most one of `file` / `path` / `activeOnly`; `activeOnly` forbids `vault`; bare names; alphabetical or `sortByCount` order; `includeCounts: false`; the contrast with `tag`; and a pointer to `help({ tool_name: "tags" })`. (depends T035)
-- [ ] T040 [P] [US5] Add a `tags` row to the tools table in [README.md](../../README.md) after the `tag` row: "Vault-wide tag inventory (or one note's tags) with optional per-tag counts."
+- [X] T039 [US5] Finalise `TAGS_DESCRIPTION` in [src/tools/tags/index.ts](../../src/tools/tags/index.ts). It must cover: the return shape; optional `vault` (focused vault when omitted); at most one of `file` / `path` / `activeOnly`; `activeOnly` forbids `vault`; bare names; alphabetical or `sortByCount` order; `includeCounts: false`; the contrast with `tag`; and a pointer to `help({ tool_name: "tags" })`. (depends T035)
+- [X] T040 [P] [US5] Add a `tags` row to the tools table in [README.md](../../README.md) after the `tag` row: "Vault-wide tag inventory (or one note's tags) with optional per-tag counts."
 
 **Checkpoint**: All five stories are complete.
 
@@ -206,10 +206,10 @@
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T041 Regenerate the registry baseline with `npm run baseline:write` and review the [src/tools/_register-baseline.json](../../src/tools/_register-baseline.json) diff: exactly one added `tags` entry, and no other tool's fingerprints moved. (depends T039, all schema tasks)
-- [ ] T042 Run `npm run lint`, `npm run typecheck`, `npm run build` and `npm test`. All must be green, with zero lint warnings and the statements coverage threshold held. Then run `npx vitest run src/tools/tags` three times and confirm identical results (SC-004 / FR-024). Confirm the AC → test map in [research.md](research.md) § D9 is fully covered, and fill any gap.
-- [ ] T043 Run the live quickstart scenarios 1–14 in [quickstart.md](quickstart.md). Scenario 14 validates SC-005: build the four documented example requests from `help({ tool_name: "tags" })` output alone; remediation R7. Run them against the authorised test vault (gated by `.memory/test-execution-instructions.md`; recreate and then clean up the fixture notes per the gate). Record the outcomes in `specs/068-list-tags/post-implement.md`.
-- [ ] T044 Post-implement structural verification per the plan's "Graphify structural check" section. If `graphify-out/` exists, run `/graphify --update`; otherwise verify by source lookup.
+- [X] T041 Regenerate the registry baseline with `npm run baseline:write` and review the [src/tools/_register-baseline.json](../../src/tools/_register-baseline.json) diff: exactly one added `tags` entry, and no other tool's fingerprints moved. (depends T039, all schema tasks)
+- [X] T042 Run `npm run lint`, `npm run typecheck`, `npm run build` and `npm test`. All must be green, with zero lint warnings and the statements coverage threshold held. Then run `npx vitest run src/tools/tags` three times and confirm identical results (SC-004 / FR-024). Confirm the AC → test map in [research.md](research.md) § D9 is fully covered, and fill any gap.
+- [X] T043 Run the live quickstart scenarios 1–14 in [quickstart.md](quickstart.md). Scenario 14 validates SC-005: build the four documented example requests from `help({ tool_name: "tags" })` output alone; remediation R7. Run them against the authorised test vault (gated by `.memory/test-execution-instructions.md`; recreate and then clean up the fixture notes per the gate). Record the outcomes in `specs/068-list-tags/post-implement.md`.
+- [X] T044 Post-implement structural verification per the plan's "Graphify structural check" section. If `graphify-out/` exists, run `/graphify --update`; otherwise verify by source lookup.
   1. No new top-level error code.
   2. `tags/handler.ts` imports no DI factory or sibling tool.
   3. `tags/schema.ts` does not import `target-mode.ts`.
@@ -218,7 +218,7 @@
   6. `createServer()` gained only the one registration line.
   
   Record the results in `specs/068-list-tags/post-implement.md`.
-- [ ] T045 Confirm every new `.ts` file in `src/tools/tags/` starts with an `// Original — no upstream.` header (Principle V), and that [CLAUDE.md](../../CLAUDE.md) points at `specs/068-list-tags/plan.md` (already rotated at plan time).
+- [X] T045 Confirm every new `.ts` file in `src/tools/tags/` starts with an `// Original — no upstream.` header (Principle V), and that [CLAUDE.md](../../CLAUDE.md) points at `specs/068-list-tags/plan.md` (already rotated at plan time).
 
 ---
 

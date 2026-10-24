@@ -537,6 +537,12 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
     required_equals: ["tag"],
     additionalProperties: false,
   },
+  tags: {
+    type: "object",
+    properties_equals_set: ["vault", "file", "path", "activeOnly", "sortByCount", "includeCounts"],
+    required_equals: [],
+    additionalProperties: false,
+  },
   paths: {
     type: "object",
     properties_equals_set: ["target_mode", "vault", "folder", "depth", "ext", "total"],

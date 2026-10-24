@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedFromBranch": "066-file-scope",
-  "generatedAt": "2026-06-30",
+  "generatedFromBranch": "068-list-tags",
+  "generatedAt": "2026-10-24",
   "tools": [
     {
       "name": "append_note",
@@ -162,6 +162,11 @@
       "name": "tag",
       "descriptionFingerprint": "eedb37f29cee65a89f2a5a5a2a8654438401db60100a12d5bd3770cd67893612",
       "schemaFingerprint": "d1f0426ea5439d8642d2dd4db1505209d9a3682f080f91b4985b7ba4aac4ac8a"
+    },
+    {
+      "name": "tags",
+      "descriptionFingerprint": "bc3a175e0554983c52d288e1bef1258eb8403347baac68ca9f91e801f08ad71e",
+      "schemaFingerprint": "7f2d29c946a5b4eac1bd631bb5a25c32b69cdfe77e596acb981a2e63ebeb95fb"
     },
     {
       "name": "views_base",
