@@ -13,6 +13,18 @@ Before invoking any test that touches the filesystem or the `obsidian` CLI binar
 
 This gate applies to every test category that produces real CLI invocations: T0 live-CLI probes during `/speckit-implement`, FR-019 characterisation cases, manual quickstart scenarios, and any ad-hoc validation of a tool call's behaviour against a real vault. It does not apply to in-process unit tests that mock `invokeCli`.
 
+## Pull Request Lifecycle and Docs-as-Code
+
+Every PR ends with a documentation pass, after review and before merge:
+
+```
+/speckit-implement → /speckit-git-commit → open PR → /code-review + fixes → /speckit-docs-as-code <n> → merge
+```
+
+[`/speckit-docs-as-code <n>`](.claude/skills/speckit-docs-as-code/SKILL.md) reads the PR as review left it, updates `.docs-as-code/` (the tracked, living description of the system as built), corrects any `docs/tools/**`, `README.md` or `CONTRIBUTING.md` text the change made wrong, and pushes that commit onto the PR's own branch so the docs merge with the code. A PR whose code moved and whose documentation did not is not done. Run with no argument, the skill baselines the whole repository once, and audits the baseline for drift after that.
+
+`.docs-as-code/` is the shipped counterpart to the gitignored `.decisions/` and `.architecture/`: ADR numbers are one project-wide series across both, and pages cite gitignored ADRs by ID and title, never by link.
+
 ## Communication Style
 
 **Default mode**: caveman full — implicitly active for every response in this project. The user has set this as the project-wide default; you do NOT need to invoke `/caveman full` per response, and you do NOT need to mention that caveman mode is active.
