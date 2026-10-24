@@ -189,6 +189,10 @@ The server currently registers thirty-three public tools. Call `help({ tool_name
 | `obsidian_exec` | Escape hatch — invoke any Obsidian CLI subcommand directly. |
 | `help` | Progressive-disclosure documentation for the tools above. |
 
+## How it is built
+
+[.docs-as-code/](.docs-as-code/README.md) describes the server as built: its architecture, its tech stack, and how each tool group works. It is updated in the same pull request as the code it describes.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).

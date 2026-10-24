@@ -1,0 +1,69 @@
+# obsidian-cli-mcp — documentation as code
+
+This tree describes the system **as built**. It is written in Markdown,
+reviewed in the same pull request as the code it describes, and kept true one
+PR at a time by `/speckit-docs-as-code`
+([.claude/skills/speckit-docs-as-code/SKILL.md](../.claude/skills/speckit-docs-as-code/SKILL.md)).
+That skill runs on each PR after code review and before merge.
+
+It is not a specification, a plan or a rulebook. Those exist and do their own
+jobs:
+
+| If you want | Read |
+| --- | --- |
+| The rules every change is held to | [.specify/memory/constitution.md](../.specify/memory/constitution.md) |
+| What a feature was asked to do, and why | `specs/<NNN>-<name>/spec.md` |
+| Install, client configuration, multi-vault behaviour | [README.md](../README.md) |
+| Development environment and commit convention | [CONTRIBUTING.md](../CONTRIBUTING.md) |
+| One tool's full contract — inputs, outputs, errors, examples | `docs/tools/<tool>.md` (also served at runtime by `help`) |
+| What changed in each release | [CHANGELOG.md](../CHANGELOG.md) |
+| **What the system is, and how it hangs together** | **this tree** |
+
+Pages here link to those sources rather than copying them, because a copy
+drifts and the copy is the one somebody ends up trusting.
+
+## The pages
+
+The baseline was written on 2026-10-24 from `main` at `b8b6fef` (package
+version 0.8.11), after PR #82. Each later run of `/speckit-docs-as-code`
+extends it.
+
+- [architecture.md](architecture.md) — the boot, runtime and error spines; the
+  queue, dispatch, cold-start retry and auto-launch; error classification and
+  sub-discriminators; `target_mode`; the direct-filesystem write path; the
+  `eval` template pattern; logging, shutdown and module layout.
+- [tech-stack.md](tech-stack.md) — what the server is built from, why each
+  piece is here, and what it forces or rules out, including the current
+  version holds.
+- Capabilities, one page per tool group, in the same groups as the README's
+  Tool inventory:
+  - [capabilities/read.md](capabilities/read.md) — `read`, `read_heading`,
+    `read_property`.
+  - [capabilities/search-and-discovery.md](capabilities/search-and-discovery.md)
+    — the four searches, `find_by_property`, `tag`, `links`, `backlinks`,
+    `open_file`, `get_active_file`.
+  - [capabilities/mutate.md](capabilities/mutate.md) — the direct-filesystem
+    write cohort, `find_and_replace`, `prepend`, `set_property`, `delete`,
+    `rename`, `move`.
+  - [capabilities/list-and-inventory.md](capabilities/list-and-inventory.md) —
+    `files`, `paths`, `outline`, `properties`.
+  - [capabilities/bases.md](capabilities/bases.md) — `bases`, `views_base`,
+    `query_base`, `create_base`.
+  - [capabilities/plugin-backed.md](capabilities/plugin-backed.md) — the two
+    Smart Connections tools.
+  - [capabilities/escape-hatch-and-meta.md](capabilities/escape-hatch-and-meta.md)
+    — `obsidian_exec` and `help`.
+
+## Decisions
+
+ADR numbers form one series for the whole project. ADR-001 to ADR-032 are
+kept in the maintainer's working notes, outside this repository, and are
+cited here by number and title in plain text. New decision records written
+from a PR go in `decisions/ADR-NNN-<slug>.md`, continuing the series from the
+highest number already used anywhere. A number is never reused, and a
+superseded record keeps its number and links forward to the one that replaced
+it.
+
+The baseline adds no new records. Every decision visible in the tracked
+history is already an ADR in the series, and the pages cite it where it
+applies.

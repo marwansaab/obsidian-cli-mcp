@@ -1,0 +1,77 @@
+# Search and discovery
+
+Tools that find notes — by text, by regex, by property value, by tag, or by
+link — plus the two tools that deal with what Obsidian has focused. The
+per-tool contracts are the `docs/tools/` pages linked below.
+
+| Tool | Pipeline | Contract |
+| --- | --- | --- |
+| `search` | native CLI `search` / `search:context` | [docs/tools/search.md](../../docs/tools/search.md) |
+| `context_search` | native CLI `search:context`, plus a `folder` probe | [docs/tools/context_search.md](../../docs/tools/context_search.md) |
+| `pattern_search` | `eval` template | [docs/tools/pattern_search.md](../../docs/tools/pattern_search.md) |
+| `find_by_property` | `eval` template | [docs/tools/find_by_property.md](../../docs/tools/find_by_property.md) |
+| `tag` | `eval` template | [docs/tools/tag.md](../../docs/tools/tag.md) |
+| `links` | `eval` template | [docs/tools/links.md](../../docs/tools/links.md) |
+| `backlinks` | `eval` template | [docs/tools/backlinks.md](../../docs/tools/backlinks.md) |
+| `open_file` | `eval`, vault-targeted | [docs/tools/open_file.md](../../docs/tools/open_file.md) |
+| `get_active_file` | `eval`, vault-targeted | [docs/tools/get_active_file.md](../../docs/tools/get_active_file.md) |
+
+## How it is built
+
+**Two kinds of targeting.** The text and index searches (`search`,
+`context_search`, `pattern_search`, `find_by_property`, `tag`) are vault-scoped:
+they take an optional `vault`, and omitting it means the focused vault. There
+is no `target_mode`. The link tools (`links`, `backlinks`) act on one note and
+take `target_mode`, like the read group.
+
+**Native where the CLI already does the job, `eval` where it does not.** The
+literal-text searches wrap the CLI's own search. Regex search, the tag index,
+property-value lookup and the link graph need Obsidian's `metadataCache`, so
+they run frozen templates through `eval`
+([architecture](../architecture.md#reaching-obsidian-internals-the-eval-template-pattern)).
+`backlinks` (PR #38) is an example of choosing `eval` over a native
+subcommand that exists. The native `backlinks` has no active mode, returns a
+bare integer for counts and has no cap or truncation signal, so one `eval`
+path gave a uniform contract. During that work a live probe also showed that
+`getBacklinksForFile`'s `.data` property is empty, so the template uses the
+dictionary's `.keys()`/`.get()` methods (T0 finding F3).
+
+**Caps and truncation.** `search`, `context_search`, `pattern_search` and
+`backlinks` stop at an implicit 1000 results, take a `limit` to change that,
+and report `truncated: true` when the cap applied. Truncated results are the
+**first N of a deterministic sort of the full match set**, not whatever the CLI
+happened to emit first. That was corrected across PRs #48, #55 and #57 after
+the earlier docs claimed a "visible subset" the code did not deliver.
+`find_by_property`, `tag` and `links` have no cap. `tag`, `links` and
+`backlinks` take `total: true` to return only the count, and for `backlinks`
+that also bypasses the cap.
+
+**Focus.** `open_file` (PR #60) makes a file the active one, and
+`get_active_file` (PR #70) reports which file is active. Both send an `eval`
+targeted at the named vault, so they work on a background or closed vault
+without switching focus first (ADR-031, Cross-Vault Open via Vault-Targeted
+Focus; PRs #66 and #67). `open_file` does switch focus, because that is its
+job. `get_active_file` is a pure read: "nothing focused" is the success value
+`{ active: null }`, not `ERR_NO_ACTIVE_FILE`.
+
+## Failure
+
+Shared across the group: an unknown vault (`CLI_REPORTED_ERROR`,
+`details.code: "VAULT_NOT_FOUND"`); for `tag` and `pattern_search`, a
+registered-but-closed vault reported as `details.reason: "not-open"` rather
+than an empty result; an invalid regex in
+`pattern_search` (`VALIDATION_ERROR`); a missing `folder` (`CLI_REPORTED_ERROR`,
+`details.code: "FOLDER_NOT_FOUND"`) for the tools that probe for it.
+
+## Known limits and inconsistencies
+
+- `search` with `context_lines: true` is deprecated in favour of
+  `context_search`, and kept for compatibility.
+- Case sensitivity defaults **differ**: `pattern_search` is case-sensitive by
+  default, while `context_search` is not. This is documented, deliberate
+  (BI-037 FR-007), and a trap when porting a query between them.
+- `find_by_property` takes the property name as `property:`; its siblings
+  `read_property` and `set_property` use `name:`. Documented, not yet
+  reconciled.
+- `tag` folds case with ASCII lower-casing only, so non-ASCII tags match
+  case-sensitively.
