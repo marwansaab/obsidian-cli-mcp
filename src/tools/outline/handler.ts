@@ -2,6 +2,7 @@
 import { outlineUpstreamArraySchema, type OutlineInput, type OutlineOutput } from "./schema.js";
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
+import { parseCliJson } from "../_cli-json.js";
 
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
@@ -64,17 +65,7 @@ export async function executeOutline(
   }
 
   // Default mode: parse JSON array, then heading → text field rename.
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(trimmed);
-  } catch (cause) {
-    throw new UpstreamError({
-      code: "CLI_REPORTED_ERROR",
-      cause,
-      message: `Outline JSON parse failed: ${(cause as Error).message}`,
-      details: { stage: "json-parse", stdout: trimmed },
-    });
-  }
+  const parsed = parseCliJson(trimmed, "Outline");
   const upstreamArray = outlineUpstreamArraySchema.parse(parsed);
   const headings = upstreamArray.map((h) => ({
     level: h.level,

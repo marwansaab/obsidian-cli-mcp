@@ -1,8 +1,7 @@
-// Original — no upstream. Tests for the tags handler — argv shape per scope (AC-1/2/3/4/10), content transforms (`#` strip per FR-013, digit-string count → integer per T0 P1, AC-8 fenced-code fixture captured live at T0 P3, AC-16 built-in-looking names), ordering (compareTagNames default + sortByCount, AC-5), projection (includeCounts: false, AC-6), empty results (`No tags found.` sentinel per T0 P2 and `[]`, AC-7), and failure propagation (unknown vault, missing note, no active note with the tags-specific message per AC-13, json-parse / upstream-shape, output cap).
+// Original — no upstream. Tests for the tags handler — argv shape per scope (AC-1/2/3/4/10), content transforms (`#` strip per FR-013, digit-string count → integer per T0 P1, AC-8 fenced-code fixture captured live at T0 P3, AC-16 built-in-looking names), ordering (shared compareNames default + sortByCount, AC-5), projection (includeCounts: false, AC-6), empty results (`No tags found.` sentinel per T0 P2 and `[]`, AC-7), and failure propagation (unknown vault, missing note, no active note with the tags-specific message per AC-13, json-parse / upstream-shape, output cap).
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import {
-  compareTagNames,
   EMPTY_TAGS_SENTINEL,
   executeTags,
   stripLeadingHash,
@@ -115,13 +114,9 @@ describe("content transforms", () => {
     expect(result.tags.map((t) => t.name)).toEqual(["Alpha", "alpha", "beta", "Zeta"]);
   });
 
-  test("compareTagNames is not locale-aware (code-unit order for non-ASCII)", () => {
-    expect(compareTagNames("Alpha", "alpha")).toBeLessThan(0);
-    expect(compareTagNames("alpha", "Alpha")).toBeGreaterThan(0);
-    expect(compareTagNames("alpha", "alpha")).toBe(0);
-    // "é" (U+00E9) sorts after "z" by code unit, unlike locale collation.
-    expect(compareTagNames("café", "cafz")).toBeGreaterThan(0);
-    expect(compareTagNames("日本語", "zzz")).toBeGreaterThan(0);
+  test("default order is not locale-aware (code-unit order for non-ASCII)", async () => {
+    const { result } = await run({}, wire([["#日本語", 1], ["#zzz", 1], ["#café", 1], ["#cafz", 1]]));
+    expect(result.tags.map((t) => t.name)).toEqual(["cafz", "café", "zzz", "日本語"]);
   });
 });
 
@@ -299,7 +294,7 @@ describe("ordering (AC-5)", () => {
     ["#one", 1],
   ]);
 
-  test("sortByCount: count descending, ties by compareTagNames (case-variant and non-ASCII pairs)", async () => {
+  test("sortByCount: count descending, ties by compareNames (case-variant and non-ASCII pairs)", async () => {
     const { result, argv } = await run({ sortByCount: true }, scrambled);
     expect(result.tags).toEqual([
       { name: "zeta", count: 9 },

@@ -6,9 +6,7 @@ import {
   STRUCTURALLY_UNSAFE_PATH_MESSAGE,
 } from "../../path-safety/schema.js";
 import { applyTargetModeRefinement, targetModeBaseSchema } from "../../target-mode/target-mode.js";
-
-const WIKILINK_BRACKET_REJECTION_MESSAGE =
-  "wikilink-form locator MUST NOT contain `[[` or `]]` brackets — supply the bare note name (e.g. `My Note` not `[[My Note]]`)";
+import { hasWikilinkBrackets, WIKILINK_BRACKET_REJECTION_MESSAGE } from "../_note-locator.js";
 
 // FR-001a — file-field rejects only the `[[` / `]]` bracket pairs that
 // unambiguously signal the caller is reaching for wikilink syntax. Single
@@ -18,7 +16,7 @@ const safeFileField = z
   .min(1)
   .refine(isStructurallySafePath, STRUCTURALLY_UNSAFE_PATH_MESSAGE)
   .superRefine((value, ctx) => {
-    if (value.includes("[[") || value.includes("]]")) {
+    if (hasWikilinkBrackets(value)) {
       ctx.addIssue({
         code: "custom",
         path: [],

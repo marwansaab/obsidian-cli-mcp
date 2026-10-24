@@ -1,5 +1,5 @@
-// Original — no upstream. Tests for the tags tool registration — descriptor name/description and published inputSchema (six properties, additionalProperties: false, no target_mode), the handler closure success envelope, end-to-end validation errors through mapValidationError with a spawn spy that is never called (SCOPE_CONFLICT reasons, INVALID_NOTE/path-traversal with field paths, `[[…]]`, unknown keys — AC-9/11/12, FR-006/007), the FR-010 duplicate-name safety net surfacing as INTERNAL_ERROR, the help-page content check (AC-14) and the FR-018 baseline entry.
-import { existsSync, readFileSync } from "node:fs";
+// Original — no upstream. Tests for the tags tool registration — descriptor name/description and a description-free published inputSchema (shape and baseline entry are pinned centrally in _register.test.ts), the handler closure success envelope, end-to-end validation errors through mapValidationError with a spawn spy that is never called (SCOPE_CONFLICT reasons, INVALID_NOTE/path-traversal with field paths, `[[…]]`, unknown keys — AC-9/11/12, FR-006/007), the FR-010 duplicate-name safety net surfacing as INTERNAL_ERROR, and the help-page content check (AC-14).
+import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -54,19 +54,12 @@ describe("createTagsTool — descriptor", () => {
     expect(TAGS_DESCRIPTION).toContain("`tag`");
   });
 
-  it("inputSchema has exactly the six properties, additionalProperties: false, and no target_mode", () => {
+  // The property set, `required` and `additionalProperties: false` are pinned
+  // centrally by `_register.test.ts`'s `tags` invariant and baseline fingerprint;
+  // description stripping is the per-tool check that is not covered there.
+  it("inputSchema carries no description keys", () => {
     const tool = createTagsTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
-    const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    const props = schema.properties as Record<string, unknown>;
-    expect(Object.keys(props).sort()).toEqual(
-      ["activeOnly", "file", "includeCounts", "path", "sortByCount", "vault"].sort(),
-    );
-    expect(schema.additionalProperties).toBe(false);
-    expect(props).not.toHaveProperty("target_mode");
-    expect(schema.required ?? []).toEqual([]);
-    let nested = 0;
-    for (const child of Object.values(props)) nested += countDescriptionKeys(child);
-    expect(nested).toBe(0);
+    expect(countDescriptionKeys(tool.descriptor.inputSchema)).toBe(0);
   });
 });
 
@@ -216,19 +209,5 @@ describe("docs/tools/tags.md (AC-14)", () => {
   it("docs/tools/index.md lists **tags**", () => {
     const index = readFileSync(resolve(here, "../../../docs/tools/index.md"), "utf8");
     expect(index).toMatch(/^- \*\*tags\*\* — /m);
-  });
-});
-
-describe("FR-018 baseline contains a tags entry", () => {
-  it("baseline JSON includes a tools[] entry with name === 'tags'", () => {
-    const baselinePath = resolve(here, "../_register-baseline.json");
-    expect(existsSync(baselinePath)).toBe(true);
-    const baseline = JSON.parse(readFileSync(baselinePath, "utf8")) as {
-      tools: Array<{ name: string; descriptionFingerprint: string; schemaFingerprint: string }>;
-    };
-    const entry = baseline.tools.find((t) => t.name === "tags");
-    expect(entry, "baseline must include a `tags` entry — run `npm run baseline:write`").toBeDefined();
-    expect(entry!.descriptionFingerprint).toMatch(/^[0-9a-f]{64}$/);
-    expect(entry!.schemaFingerprint).toMatch(/^[0-9a-f]{64}$/);
   });
 });

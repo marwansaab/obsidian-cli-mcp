@@ -6,6 +6,7 @@ import {
   STRUCTURALLY_UNSAFE_PATH_MESSAGE,
 } from "../../path-safety/schema.js";
 import { applyTargetModeRefinement, targetModeBaseSchema } from "../../target-mode/target-mode.js";
+import { hasWikilinkBrackets, WIKILINK_BRACKET_REJECTION_MESSAGE } from "../_note-locator.js";
 
 // FR-018 — single source of truth for the content cap. Both the schema's
 // `.max()` and the description string in `index.ts` interpolate this constant
@@ -28,9 +29,6 @@ import { applyTargetModeRefinement, targetModeBaseSchema } from "../../target-mo
 // `.max()` call.
 export const MAX_CONTENT_LENGTH = 3072;
 
-const WIKILINK_BRACKET_REJECTION_MESSAGE =
-  "wikilink-form locator MUST NOT contain `[[` or `]]` brackets — supply the bare note name (e.g. `My Note` not `[[My Note]]`)";
-
 // FR-001a — file-field rejects only the `[[` / `]]` bracket pairs that
 // unambiguously signal the caller is reaching for wikilink syntax. Single
 // brackets are legitimate inside note names so we don't reject `[draft]`.
@@ -40,7 +38,7 @@ const safeFileField = z
   .min(1)
   .refine(isStructurallySafePath, STRUCTURALLY_UNSAFE_PATH_MESSAGE)
   .superRefine((value, ctx) => {
-    if (value.includes("[[") || value.includes("]]")) {
+    if (hasWikilinkBrackets(value)) {
       ctx.addIssue({
         code: "custom",
         path: [],

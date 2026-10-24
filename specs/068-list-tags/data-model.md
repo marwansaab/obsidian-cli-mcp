@@ -63,7 +63,7 @@ The handler parses its own result against this schema before returning. A failur
 
 ## 5. Ordering
 
-- `compareTagNames(a, b)`: compare `a.toLowerCase()` with `b.toLowerCase()` by UTF-16 code unit (`<` / `>`, never `localeCompare`); if equal, compare `a` with `b` by UTF-16 code unit.
+- `compareTagNames(a, b)`: compare `a.toLowerCase()` with `b.toLowerCase()` by UTF-16 code unit (`<` / `>`, never `localeCompare`); if equal, compare `a` with `b` by UTF-16 code unit. Implemented by the shared `compareNames` in `src/tools/_collation.ts`, which `properties` also uses (PR #84 review).
 - Default order: ascending by `compareTagNames`.
 - `sortByCount: true`: descending by upstream count, ties by `compareTagNames`. This also applies when `includeCounts: false`; the sort runs on upstream counts before projection.
 - Upstream order is never relied on.

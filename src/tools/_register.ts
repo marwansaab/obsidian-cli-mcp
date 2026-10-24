@@ -21,13 +21,14 @@ export interface ToolSpec<TSchema extends z.ZodType, TDeps = undefined> {
   /**
    * Optional mapper from Zod issues to a structured VALIDATION_ERROR payload for
    * INPUT-validation failures (the schema `.parse` of the incoming args). When
-   * absent, a generic envelope listing the raw issues is emitted. `rawArgs` is the
+   * absent, or when it returns `undefined` (no tool-specific mapping applies), a
+   * generic envelope listing the raw issues is emitted. `rawArgs` is the
    * unparsed input, for mappers that echo input-derived fields (e.g. prepend's
    * contentLength). A runtime ZodError thrown by the handler itself (a defensive
    * output `schema.parse`) is an output-contract break, NOT input validation, so it
    * surfaces as INTERNAL_ERROR and does NOT pass through this hook.
    */
-  mapValidationError?: (issues: z.core.$ZodIssue[], rawArgs: unknown) => ToolErrorPayload;
+  mapValidationError?: (issues: z.core.$ZodIssue[], rawArgs: unknown) => ToolErrorPayload | undefined;
 }
 
 export function registerTool<TSchema extends z.ZodType, TDeps = undefined>(
@@ -37,8 +38,8 @@ export function registerTool<TSchema extends z.ZodType, TDeps = undefined>(
   const inputSchema = stripSchemaDescriptions(inputSchemaRaw as JsonSchemaObject) as Record<string, unknown>;
   const responseFormat: ResponseFormat = spec.responseFormat ?? "json";
 
-  // INPUT-validation mapping only: the per-tool hook when supplied, else a generic
-  // issues-listing envelope. A runtime/output ZodError thrown by the handler does
+  // INPUT-validation mapping only: the per-tool hook's payload when it returns one,
+  // else a generic issues-listing envelope. A runtime/output ZodError thrown by the handler does
   // NOT use this — it surfaces as INTERNAL_ERROR in the handler-execution catch below.
   const toValidationError = (issues: z.core.$ZodIssue[], rawArgs: unknown): ToolErrorPayload =>
     spec.mapValidationError?.(issues, rawArgs) ?? {

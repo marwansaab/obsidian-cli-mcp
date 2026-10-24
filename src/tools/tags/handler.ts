@@ -1,7 +1,9 @@
-// Original — no upstream. tags handler — single-spawn invokeCli wrapper around the CLI's native `tags` subcommand: always sends `format=json counts` (plus `file=` / `path=` / `active` for a single-note scope) through the optional-`vault` facade idiom (`target_mode: "specific"`, so file/path are never stripped — research D2). Wrapper transforms: empty sentinel `No tags found.` (T0 P2) and `[]` → { total: 0, tags: [] }; JSON parse + upstream-shape validation (`CLI_REPORTED_ERROR`, details.stage json-parse / upstream-shape); digit-string count → integer (T0 P1); exactly one leading `#` stripped (FR-013); compareTagNames sort (case-insensitive primary, UTF-16 code-unit tiebreak; count-descending first under sortByCount — FR-011); count projection under includeCounts: false (FR-009); defensive tagsOutputSchema parse. The only catch re-throws ERR_NO_ACTIVE_FILE with the same code, cause and details and a tags-specific recovery message (FR-016); every other failure (unknown vault, missing note, output cap, dispatch codes) propagates unchanged.
+// Original — no upstream. tags handler — single-spawn invokeCli wrapper around the CLI's native `tags` subcommand: always sends `format=json counts` (plus `file=` / `path=` / `active` for a single-note scope) through the optional-`vault` facade idiom (`target_mode: "specific"`, so file/path are never stripped — research D2). Wrapper transforms: empty sentinel `No tags found.` (T0 P2) is treated as `[]`, so both yield { total: 0, tags: [] }; JSON parse via the shared parseCliJson + upstream-shape validation (`CLI_REPORTED_ERROR`, details.stage json-parse / upstream-shape); digit-string count → integer (T0 P1); exactly one leading `#` stripped (FR-013); shared compareNames sort (case-insensitive primary, UTF-16 code-unit tiebreak; count-descending first under sortByCount — FR-011); count projection under includeCounts: false (FR-009); defensive tagsOutputSchema parse. The only catch re-throws ERR_NO_ACTIVE_FILE with the same code, cause and details and a tags-specific recovery message (FR-016); every other failure (unknown vault, missing note, output cap, dispatch codes) propagates unchanged.
 import { tagsOutputSchema, tagsUpstreamArraySchema, type TagsInput, type TagsOutput } from "./schema.js";
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
+import { parseCliJson } from "../_cli-json.js";
+import { compareNames } from "../_collation.js";
 
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
@@ -22,17 +24,6 @@ export const TAGS_NO_ACTIVE_FILE_MESSAGE =
 /** Remove exactly one leading `#` (FR-013); every other character is left as-is. */
 export function stripLeadingHash(name: string): string {
   return name.startsWith("#") ? name.slice(1) : name;
-}
-
-/**
- * FR-011 collation: lower-cased names compared by UTF-16 code unit first, then
- * the original names by UTF-16 code unit. Never locale-aware.
- */
-export function compareTagNames(a: string, b: string): number {
-  const aLower = a.toLowerCase();
-  const bLower = b.toLowerCase();
-  if (aLower !== bLower) return aLower < bLower ? -1 : 1;
-  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 export async function executeTags(input: TagsInput, deps: ExecuteDeps): Promise<TagsOutput> {
@@ -73,22 +64,10 @@ export async function executeTags(input: TagsInput, deps: ExecuteDeps): Promise<
     throw err;
   }
 
+  // The empty sentinel is the same result as an empty JSON array, so it joins
+  // the normal pipeline instead of returning early.
   const trimmed = stdout.trim();
-  if (trimmed === EMPTY_TAGS_SENTINEL) {
-    return tagsOutputSchema.parse({ total: 0, tags: [] });
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(trimmed);
-  } catch (cause) {
-    throw new UpstreamError({
-      code: "CLI_REPORTED_ERROR",
-      cause,
-      message: `Tags JSON parse failed: ${(cause as Error).message}`,
-      details: { stage: "json-parse", stdout: trimmed },
-    });
-  }
+  const parsed = trimmed === EMPTY_TAGS_SENTINEL ? [] : parseCliJson(trimmed, "Tags");
 
   const upstream = tagsUpstreamArraySchema.safeParse(parsed);
   if (!upstream.success) {
@@ -110,8 +89,8 @@ export async function executeTags(input: TagsInput, deps: ExecuteDeps): Promise<
     .map((e) => ({ name: stripLeadingHash(e.tag), count: Number(e.count) }))
     .sort(
       input.sortByCount === true
-        ? (a, b) => b.count - a.count || compareTagNames(a.name, b.name)
-        : (a, b) => compareTagNames(a.name, b.name),
+        ? (a, b) => b.count - a.count || compareNames(a.name, b.name)
+        : (a, b) => compareNames(a.name, b.name),
     );
   const tags = input.includeCounts === false ? entries.map(({ name }) => ({ name })) : entries;
   return tagsOutputSchema.parse({ total: tags.length, tags });

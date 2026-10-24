@@ -6,6 +6,8 @@ import {
 } from "./schema.js";
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
+import { parseCliJson } from "../_cli-json.js";
+import { compareNames } from "../_collation.js";
 
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
@@ -59,26 +61,11 @@ export async function executeProperties(
   }
 
   // Default mode: parse JSON array, drop type, rename count → noteCount, post-fetch sort.
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(trimmed);
-  } catch (cause) {
-    throw new UpstreamError({
-      code: "CLI_REPORTED_ERROR",
-      cause,
-      message: `Properties JSON parse failed: ${(cause as Error).message}`,
-      details: { stage: "json-parse", stdout: trimmed },
-    });
-  }
+  const parsed = parseCliJson(trimmed, "Properties");
   const upstreamArray = propertiesUpstreamArraySchema.parse(parsed);
   const properties = upstreamArray
     .map(({ name, count }) => ({ name, noteCount: count }))
-    .sort((a, b) => {
-      const aLower = a.name.toLowerCase();
-      const bLower = b.name.toLowerCase();
-      if (aLower !== bLower) return aLower < bLower ? -1 : 1;
-      // Tiebreak: byte-order (uppercase letters precede lowercase per ASCII).
-      return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
-    });
+    // Case-insensitive, then byte-order tiebreak (uppercase precedes lowercase per ASCII).
+    .sort((a, b) => compareNames(a.name, b.name));
   return { count: properties.length, properties };
 }

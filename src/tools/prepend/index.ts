@@ -26,7 +26,7 @@ Typed errors via \`UpstreamError.code\`: \`NOTE_NOT_FOUND\`, \`EXTERNAL_EDITOR_C
 
 export type RegisterDeps = ExecuteDeps;
 
-function mapZodIssuesToToolError(issues: z.core.$ZodIssue[], rawArgs: unknown): ToolErrorPayload {
+function mapZodIssuesToToolError(issues: z.core.$ZodIssue[], rawArgs: unknown): ToolErrorPayload | undefined {
   // Intercept the cap-rejection path (too_big on content) and emit the
   // documented top-level discriminator. The caller doesn't have to dig into
   // details.issues[] to identify what went wrong — details.code +
@@ -50,19 +50,10 @@ function mapZodIssuesToToolError(issues: z.core.$ZodIssue[], rawArgs: unknown): 
       };
     }
   }
-  // Generic fallback — bracket-rejection, locator-mutex, unknown extra
-  // field, structurally unsafe path, type-mismatched inline, etc.
-  return {
-    code: "VALIDATION_ERROR",
-    message: `${PREPEND_TOOL_NAME} input failed schema validation`,
-    details: {
-      issues: issues.map((i) => ({
-        path: i.path,
-        message: i.message,
-        code: i.code,
-      })),
-    },
-  };
+  // Everything else — bracket-rejection, locator-mutex, unknown extra field,
+  // structurally unsafe path, type-mismatched inline, etc. — takes
+  // registerTool's generic issues envelope.
+  return undefined;
 }
 
 export function createPrependTool(deps: RegisterDeps): RegisteredTool {

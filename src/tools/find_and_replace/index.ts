@@ -45,7 +45,7 @@ Call \`help({ tool_name: "find_and_replace" })\` for worked examples (literal pr
 
 export type RegisterDeps = ExecuteDeps;
 
-function mapZodIssuesToToolError(issues: z.core.$ZodIssue[]): ToolErrorPayload {
+function mapZodIssuesToToolError(issues: z.core.$ZodIssue[]): ToolErrorPayload | undefined {
   const mappedIssues = issues.map((i) => ({
     path: i.path,
     message: i.message,
@@ -53,7 +53,7 @@ function mapZodIssuesToToolError(issues: z.core.$ZodIssue[]): ToolErrorPayload {
   }));
   for (const issue of issues) {
     const path0 = issue.path[0];
-    const params = (issue as { params?: { subCode?: string; subReason?: string } }).params;
+    const params = issue.code === "custom" ? issue.params : undefined;
     // Scope mutual-exclusivity (066-file-scope) — cross-field custom issue with
     // an empty path; matched on subCode regardless of path[0].
     if (issue.code === "custom" && params?.subCode === "SCOPE_CONFLICT") {
@@ -144,11 +144,8 @@ function mapZodIssuesToToolError(issues: z.core.$ZodIssue[]): ToolErrorPayload {
       }
     }
   }
-  return {
-    code: "VALIDATION_ERROR",
-    message: `${FIND_AND_REPLACE_TOOL_NAME} input failed schema validation`,
-    details: { issues: mappedIssues },
-  };
+  // Anything else takes registerTool's generic issues envelope.
+  return undefined;
 }
 
 export function createFindAndReplaceTool(deps: RegisterDeps): RegisteredTool {

@@ -1,4 +1,4 @@
-// Original — no upstream. tags tool registration via registerTool — vault tag inventory (or one note's tag set) returning { total, tags: [{ name, count? }] }; a mapValidationError hook maps the schema's custom issues to VALIDATION_ERROR + details.code/details.reason (SCOPE_CONFLICT / INVALID_NOTE per ADR-015, reasons reused from ADR-032) and always carries the zod field paths in details.issues (Principle III). Zero new top-level error codes.
+// Original — no upstream. tags tool registration via registerTool — vault tag inventory (or one note's tag set) returning { total, tags: [{ name, count? }] }; a mapValidationError hook maps the schema's custom issues to VALIDATION_ERROR + details.code/details.reason (SCOPE_CONFLICT / INVALID_NOTE per ADR-015, reasons reused from ADR-032) and always carries the zod field paths in details.issues (Principle III); every other failure falls through to registerTool's generic envelope. Zero new top-level error codes.
 import { type z } from "zod";
 
 import { executeTags, type ExecuteDeps } from "./handler.js";
@@ -31,31 +31,24 @@ Call \`help({ tool_name: "tags" })\` for worked examples, the full error roster,
 
 export type RegisterDeps = ExecuteDeps;
 
-function mapZodIssuesToToolError(issues: z.core.$ZodIssue[]): ToolErrorPayload {
-  const mappedIssues = issues.map((i) => ({
-    path: i.path,
-    message: i.message,
-    code: i.code,
-  }));
+// Maps the first custom issue carrying `params.subCode` (SCOPE_CONFLICT or
+// INVALID_NOTE) to its ADR-015 sub-discriminated envelope; any other failure
+// returns undefined and takes registerTool's generic issues envelope.
+function mapZodIssuesToToolError(issues: z.core.$ZodIssue[]): ToolErrorPayload | undefined {
   for (const issue of issues) {
-    const params = (issue as { params?: { subCode?: string; subReason?: string } }).params;
-    if (issue.code === "custom" && params?.subCode !== undefined) {
+    if (issue.code === "custom" && issue.params?.subCode !== undefined) {
       return {
         code: "VALIDATION_ERROR",
         message: issue.message,
         details: {
-          code: params.subCode,
-          reason: params.subReason,
-          issues: mappedIssues,
+          code: issue.params.subCode,
+          reason: issue.params.subReason,
+          issues: issues.map((i) => ({ path: i.path, message: i.message, code: i.code })),
         },
       };
     }
   }
-  return {
-    code: "VALIDATION_ERROR",
-    message: `${TAGS_TOOL_NAME} input failed schema validation`,
-    details: { issues: mappedIssues },
-  };
+  return undefined;
 }
 
 export function createTagsTool(deps: RegisterDeps): RegisteredTool {
@@ -64,7 +57,7 @@ export function createTagsTool(deps: RegisterDeps): RegisteredTool {
     description: TAGS_DESCRIPTION,
     schema: tagsInputSchema,
     deps,
-    handler: async (input, d) => executeTags(input, d),
+    handler: executeTags,
     mapValidationError: mapZodIssuesToToolError,
   });
 }

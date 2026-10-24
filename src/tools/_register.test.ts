@@ -222,6 +222,31 @@ describe("registerTool — wrapped handler runtime", () => {
     }
   });
 
+  it("mapValidationError returning undefined falls through to the generic issues envelope", async () => {
+    let called = false;
+    const tool = registerTool({
+      name: "wh_hook_fallthrough",
+      description: "hook fallthrough",
+      schema: z.strictObject({ a: z.string() }),
+      handler: async () => ({}),
+      mapValidationError: () => {
+        called = true;
+        return undefined;
+      },
+    });
+    const result = await tool.handler({ a: 123 });
+    expect(called).toBe(true);
+    expect("isError" in result && result.isError).toBe(true);
+    if ("isError" in result && result.isError) {
+      const payload = JSON.parse(result.content[0]!.text);
+      expect(payload).toEqual({
+        code: "VALIDATION_ERROR",
+        message: "wh_hook_fallthrough input failed schema validation",
+        details: { issues: [{ path: ["a"], message: expect.any(String), code: "invalid_type" }] },
+      });
+    }
+  });
+
   it("mapValidationError receives the raw unparsed args", async () => {
     let seen: unknown;
     const tool = registerTool({

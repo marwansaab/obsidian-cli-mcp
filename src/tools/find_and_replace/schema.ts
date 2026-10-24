@@ -1,23 +1,20 @@
-// Original — no upstream. find_and_replace input + output schemas — strict object input (pattern/replacement/mode/case_insensitive/subfolder/include_code_blocks/include_html_comments/commit/vault + the single-note scope locators file/path/active_note) with superRefine for regex-syntax, subfolder + file/path path-traversal, the file wikilink-bracket reject, and the scope mutual-exclusivity matrix (SCOPE_CONFLICT); discriminated-union output keyed on `mode: "preview" | "commit"` per FR-025 with refine enforcing failing_note_locator IFF partial===true.
+// Original — no upstream. find_and_replace input + output schemas — strict object input (pattern/replacement/mode/case_insensitive/subfolder/include_code_blocks/include_html_comments/commit/vault + the single-note scope locators file/path/active_note) with superRefine for regex-syntax, subfolder path-traversal, and the shared `_note-locator.ts` refinements (file/path path-traversal, the file wikilink-bracket reject, the scope mutual-exclusivity matrix — SCOPE_CONFLICT); discriminated-union output keyed on `mode: "preview" | "commit"` per FR-025 with refine enforcing failing_note_locator IFF partial===true.
 import { z } from "zod";
 
+import { isStructurallySafePath } from "../../path-safety/schema.js";
 import {
-  isStructurallySafePath,
-  STRUCTURALLY_UNSAFE_PATH_MESSAGE,
-} from "../../path-safety/schema.js";
+  appendNoteLocatorIssues,
+  appendScopeConflictIssue,
+  scopeConflictReason,
+  type ScopeConflict,
+} from "../_note-locator.js";
 
 const PATTERN_MAX = 1000;
 const REPLACEMENT_MAX = 1000;
 const FULL_LINE_CAP_PLUS_ELLIPSIS = 501; // 500 + 1 ellipsis (U+2026)
 
-// Parity with append_note/prepend — reject only the `[[` / `]]` bracket PAIRS that
-// unambiguously signal the caller reached for wikilink syntax instead of the bare
-// note name. Single brackets are legitimate inside note names (`[draft]`).
-const WIKILINK_BRACKET_REJECTION_MESSAGE =
-  "wikilink-form locator MUST NOT contain `[[` or `]]` brackets — supply the bare note name (e.g. `My Note` not `[[My Note]]`)";
-
 // Scope mutual-exclusivity messages keyed by the SCOPE_CONFLICT reason (066-file-scope).
-const SCOPE_CONFLICT_MESSAGES: Record<string, string> = {
+const SCOPE_CONFLICT_MESSAGES: Readonly<Record<ScopeConflict, string>> = {
   "file+path":
     "find_and_replace: `file` and `path` are mutually exclusive — supply exactly one single-note locator",
   "note+folder":
@@ -82,54 +79,23 @@ export const findAndReplaceInputSchema = z
     // path-safety on file/path maps to INVALID_NOTE/path-traversal (parity with
     // INVALID_SUBFOLDER/path-traversal); the `[[…]]` reject on file surfaces
     // through the cohort's standard VALIDATION_ERROR channel (no sub-code).
-    if (v.file !== undefined) {
-      if (!isStructurallySafePath(v.file)) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["file"],
-          message: STRUCTURALLY_UNSAFE_PATH_MESSAGE,
-          params: { subCode: "INVALID_NOTE", subReason: "path-traversal" },
-        });
-      } else if (v.file.includes("[[") || v.file.includes("]]")) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["file"],
-          message: WIKILINK_BRACKET_REJECTION_MESSAGE,
-        });
-      }
-    }
-    if (v.path !== undefined && !isStructurallySafePath(v.path)) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["path"],
-        message: STRUCTURALLY_UNSAFE_PATH_MESSAGE,
-        params: { subCode: "INVALID_NOTE", subReason: "path-traversal" },
-      });
-    }
+    appendNoteLocatorIssues(ctx, v);
     // Scope mutual-exclusivity matrix (066-file-scope, FR-006 / FR-007). Let
     // single-note = file | path | active_note. `vault` is permitted with a named
     // target (it selects the vault) and forbidden only under active_note; an empty
     // subfolder is the whole-vault passthrough (no conflict). All emitted before
     // any read; mapped to VALIDATION_ERROR + SCOPE_CONFLICT + reason in index.ts.
-    const hasFile = v.file !== undefined;
-    const hasPath = v.path !== undefined;
-    const hasActive = v.active_note === true;
-    const hasSubfolder = v.subfolder !== undefined && v.subfolder.length > 0;
-    const hasVault = v.vault !== undefined;
-    let scopeConflict: string | null = null;
-    if (hasFile && hasPath) scopeConflict = "file+path";
-    else if (hasActive && (hasFile || hasPath)) scopeConflict = "active+note";
-    else if (hasActive && hasSubfolder) scopeConflict = "active+folder";
-    else if (hasActive && hasVault) scopeConflict = "active+vault";
-    else if ((hasFile || hasPath) && hasSubfolder) scopeConflict = "note+folder";
-    if (scopeConflict !== null) {
-      ctx.addIssue({
-        code: "custom",
-        path: [],
-        message: SCOPE_CONFLICT_MESSAGES[scopeConflict],
-        params: { subCode: "SCOPE_CONFLICT", subReason: scopeConflict },
-      });
-    }
+    appendScopeConflictIssue(
+      ctx,
+      scopeConflictReason({
+        hasFile: v.file !== undefined,
+        hasPath: v.path !== undefined,
+        hasActive: v.active_note === true,
+        hasVault: v.vault !== undefined,
+        hasSubfolder: v.subfolder !== undefined && v.subfolder.length > 0,
+      }),
+      SCOPE_CONFLICT_MESSAGES,
+    );
   });
 
 export type FindAndReplaceInput = z.infer<typeof findAndReplaceInputSchema>;
