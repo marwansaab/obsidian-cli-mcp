@@ -119,7 +119,7 @@ Use the **exact** Obsidian display name. The server has no in-band vault-enumera
 
 ## Tool inventory
 
-The server currently registers thirty-three public tools. Call `help({ tool_name: "<name>" })` at runtime for the full per-tool documentation (parameters, output shape, error roster, and worked examples) — the listing below is just the index.
+The server currently registers thirty-four public tools. Call `help({ tool_name: "<name>" })` at runtime for the full per-tool documentation (parameters, output shape, error roster, and worked examples) — the listing below is just the index.
 
 ### Read (full + surgical)
 
@@ -141,6 +141,7 @@ The server currently registers thirty-three public tools. Call `help({ tool_name
 | `backlinks` | Incoming-link inventory — every source note referencing a target note via wikilink. Inverse of [`links`](#); cohort-uniform LEADING truncation when the source cap fires. |
 | `links` | Outbound-link inventory for a single note (the outgoing-direction sibling of `backlinks`). |
 | `open_file` | Surface an existing vault file (any recognised type — note, canvas, PDF, image, attachment) as the focused, active file in the running Obsidian workspace. Opens in the vault you name — focused, open-but-unfocused, or closed-but-registered (opened on demand) — and switches focus to it, reporting tab placement (`new_tab_created` / `existing_tab_reused` / `active_tab_used`); `new_tab` opt-in. |
+| `get_active_file` | Report which file Obsidian currently has focused — the read counterpart of `open_file`. `target_mode: "active"` reads the focused vault; `target_mode: "specific"` + `vault` reads a named vault without changing focus. No active file is the success value `{ active: null }`. |
 
 ### Mutate (single note + property)
 
@@ -150,7 +151,7 @@ The server currently registers thirty-three public tools. Call `help({ tool_name
 | `find_and_replace` | Preview-then-commit find-and-replace across a vault (or subfolder); code blocks + HTML comments skipped by default; bounded by `OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES`. |
 | `patch_block` | Surgically replace the body tied to a named `^block-id` block-reference marker inside a note. Single placement mode (replace); three success shapes (paragraph, list-item, separately-placed); first-match-wins on duplicate ids. |
 | `patch_heading` | Surgically rewrite the body under a named heading inside a note. Three placement modes (append, prepend, replace); heading addressed by its full hierarchical `#`-separated path. |
-| `prepend` | Prepend content at the LOGICAL top of an existing note in a single call — frontmatter-aware (lands AFTER any YAML frontmatter, preserving the frontmatter byte-for-byte); default-separator with FR-006a symmetric (content's trailing newline IS the separator); `inline:true` fuses onto the existing leading body line. 24 KiB content cap (Windows argv ceiling). CLI-wraps upstream `obsidian prepend`. |
+| `prepend` | Prepend content at the LOGICAL top of an existing note in a single call — frontmatter-aware (lands AFTER any YAML frontmatter, preserving the frontmatter byte-for-byte); default-separator with FR-006a symmetric (content's trailing newline IS the separator); `inline:true` fuses onto the existing leading body line. Content capped at 3072 UTF-16 code units — use `write_note` for longer content. (Earlier versions of this README said 24 KiB; BI-047 lowered the cap after larger writes left the Obsidian GUI degraded.) CLI-wraps upstream `obsidian prepend`. |
 | `write_note` | Create or overwrite a note. |
 | `set_property` | Write a single frontmatter property. |
 | `delete` | Delete a note. |
@@ -171,7 +172,7 @@ The server currently registers thirty-three public tools. Call `help({ tool_name
 | Tool | Purpose |
 |---|---|
 | `bases` | Enumerate all `.base` files in the vault; returns `{ bases, count }` with paths sorted lexicographically. |
-| `views_base` | List views inside the currently focused `.base` file (active-mode-only); returns `{ views, count }`. |
+| `views_base` | List the views inside a `.base` file — the one named by `base_path` (focused as a side effect), or the one currently open in Obsidian when `base_path` is omitted; returns `{ views, count }`. |
 | `query_base` | Run a named view from an Obsidian Bases (`.base`) file; returns `{ columns, rows, truncated, total_rows? }` with reserved row-locator `path` at `columns[0]`. |
 | `create_base` | Create a new item (Markdown note) within a `.base` file; returns `{ path, name }` with the actual filename (auto-increments on collision). |
 
