@@ -32,14 +32,14 @@ Conflicting combinations: see [contracts/input.md](contracts/input.md) § Scope 
 
 ## 2. `TagsUpstreamEntry` — the CLI wire format (`tagsUpstreamArraySchema`)
 
-A `.loose()` array entry schema, tolerant of future upstream field additions (parity with `properties` and `outline`). Working hypothesis, to be pinned by T0 probe P1:
+A `.loose()` array entry schema, tolerant of future upstream field additions (parity with `properties` and `outline`). Pinned by T0 probe P1 (2026-10-24):
 
 | Field | Type | Notes |
 |---|---|---|
-| `tag` | string | Tag name as the index reports it, expected with a leading `#` |
-| `count` | number (int ≥ 0) | Present because `counts` is always sent |
+| `tag` | string, `min(1)` | Tag name as the index reports it, with a leading `#` (observed on every entry, including frontmatter tags) |
+| `count` | string matching `^\d+$` | A decimal-digit **string**, not a number (P1 mismatch with the plan-time hypothesis; see spec Clarifications T0-1). The handler converts it with `Number(...)`. Present because `counts` is always sent |
 
-If P1 shows different field names, only this schema and the handler's field read change. The public output contract does not.
+The empty result is not an array: it is the plain-text sentinel `No tags found.` (P2), handled before JSON parsing.
 
 ## 3. `TagEntry` — one element of the output (`tagEntrySchema`)
 

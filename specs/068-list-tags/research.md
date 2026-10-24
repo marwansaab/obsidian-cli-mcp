@@ -159,3 +159,14 @@ All automated tests are in-process with a mocked spawn (`makeRegistrationStubSpa
 | P7: `tags active` with no active note does not emit `Error: No active file.` | Detect the observed signature in the handler and raise `ERR_NO_ACTIVE_FILE` explicitly, with the same message. |
 | P8: unknown vault under `tags` does not start with `Vault not found.` | Add an explicit handler check for the observed signature → `CLI_REPORTED_ERROR` (the UNDERLYING requirement). |
 | P4: case variants merged | Edit FR-011 / Edge Cases: byte-order tiebreak "unobservable end-to-end". The comparator stays implemented and unit-tested. |
+
+### T0 outcomes (2026-10-24)
+
+Evidence: [contracts/t0-probe-plan.md](contracts/t0-probe-plan.md). Mismatches are logged in spec Clarifications ("implement-time T0 probe results").
+
+| Probe | Fallback fired? | Applied |
+|---|---|---|
+| P1 | no: `format=json` works and carries counts | Wire entry is `{ tag: "#…", count: "<digits>" }`. **D4 amendment**: `count` arrives as a digit string, so the upstream schema validates `^\d+$` and the handler converts it to an integer. No TSV parse. |
+| P2 | partially: a sentinel exists | `EMPTY_TAGS_SENTINEL = "No tags found."` (both scopes). `[]` is also accepted; trimmed-empty stdout is not. |
+| P4 | **scope-dependent** (not anticipated) | Merged vault-wide, separate per note. The tiebreak is labelled "unobservable end-to-end" for vault-wide listings only. |
+| P6 / P7 / P8 | no | Signatures match the existing dispatch / `invokeCli` classifiers. No handler signature checks, no `vaultRegistry` DI. |

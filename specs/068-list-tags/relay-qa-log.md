@@ -422,3 +422,87 @@ Edits:
 > H2. A. Don't change any artefact. Keep Phase 1 (T001–T008) blocking Phase 2. Don't build against assumed CLI output and don't substitute other rules. Don't create or edit `.memory/`. `/speckit-implement` stops at T001 until the owner restores `.memory/test-execution-instructions.md`. Then read it and run the probes as planned. H2 closes when the file exists.
 >
 > The file is gitignored and local, so the vault can't supply it (CLAUDE.md Files). The CLAUDE.md test-execution gate applies unchanged.
+
+## 8. implementation / implement (2026-10-24T11:40:31.128Z)
+
+**Question (verbatim):**
+
+> T0 probes are blocked. `.memory/test-execution-instructions.md` names the authorised test vault as `C:\Marwan-Saab-ADO\Marwan at Metcash\Obsidian\TestVault-Obsidian-CLI-MCP`, but that path does not exist. A vault with the same name is at `C:\Marwan-Saab-ADO\My-Setup\My-Setup\TestVault-Obsidian-CLI-MCP` (it has `.obsidian/` and `Welcome.md`, no `Sandbox/`). Obsidian does not have it registered and Obsidian is not running. The instructions file requires re-confirmation before probing any other vault. How should I proceed?
+>
+> | Option | Description |
+> |---|---|
+> | A (recommended) | You confirm the My-Setup path is the authorised test vault. You start Obsidian and open that vault once so it is registered as `TestVault-Obsidian-CLI-MCP`. Then I create `Sandbox/`, run probes P1–P10, clean up, and continue with the build. |
+> | B | You confirm the My-Setup path. I start Obsidian myself and register the vault by opening it with an `obsidian://open?path=…` link. That changes your Obsidian vault list (`obsidian.json`). Then I probe and continue. |
+> | C | Build ahead without live probes, using values pinned from the research and the sibling tools (e.g. `Error: No active file.`, `Vault not found.`, `[]` for empty). Probes P1–P10 then gate the PR before merge. Earlier you chose to restore the file first rather than this route. |
+> | D | Stop. You update `.memory/test-execution-instructions.md` with the correct path, then re-run `/speckit-implement`. |
+>
+> Recommendation: A. It keeps the authorised-vault rule intact, and you make the one environment change (starting Obsidian and registering the vault) yourself.
+
+**Advisor** (escalate: none):
+
+> A. Treat `C:\Marwan-Saab-ADO\My-Setup\My-Setup\TestVault-Obsidian-CLI-MCP` as the authorised test vault; the Metcash path is stale.
+>
+> Stop and ask the owner to start Obsidian and open that vault once, so it registers as `TestVault-Obsidian-CLI-MCP`. Don't launch Obsidian or register the vault yourself. Once the owner confirms, check registration with `obsidian vaults verbose`. Then create `Sandbox/`, run P1–P10 through `Obsidian.com` (never `.exe`), clean up, and continue the build. Tell the owner the `.memory/` file still names the old path and needs correcting; don't edit it yourself.
+>
+> GL-003 (Test Execution Instructions) records the vault's move to the My-Setup path on 2026-10-20 and says to re-register it before testing. It also says that if the vault is missing from the vault list, surface and stop rather than improvise.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Test Execution Instructions.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Architecture.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0014 - Add List Tags.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Test Execution Instructions.md`: Added a 2026-10-24 HTML comment: the repo-side .memory/test-execution-instructions.md still names the old Metcash path; this page's My-Setup path is authoritative and the repo file needs the same update.
+
+**Sent to the step:**
+
+> A. Treat `C:\Marwan-Saab-ADO\My-Setup\My-Setup\TestVault-Obsidian-CLI-MCP` as the authorised test vault; the Metcash path is stale.
+>
+> Stop and ask the owner to start Obsidian and open that vault once, so it registers as `TestVault-Obsidian-CLI-MCP`. Don't launch Obsidian or register the vault yourself. Once the owner confirms, check registration with `obsidian vaults verbose`. Then create `Sandbox/`, run P1–P10 through `Obsidian.com` (never `.exe`), clean up, and continue the build. Tell the owner the `.memory/` file still names the old path and needs correcting; don't edit it yourself.
+>
+> GL-003 (Test Execution Instructions) records the vault's move to the My-Setup path on 2026-10-20 and says to re-register it before testing. It also says that if the vault is missing from the vault list, surface and stop rather than improvise.
+
+## 9. implementation / implement (2026-10-24T11:41:15.533Z)
+
+**Question (verbatim):**
+
+> Please open `C:\Marwan-Saab-ADO\My-Setup\My-Setup\TestVault-Obsidian-CLI-MCP` in Obsidian once (Open another vault → Open folder as vault) so it registers as `TestVault-Obsidian-CLI-MCP`, then reply to confirm. Obsidian is running, but `obsidian vaults verbose` doesn't list the vault yet. Once you confirm, I'll check the vault list with `obsidian vaults verbose`, create `Sandbox/`, run probes P1–P10 through `Obsidian.com`, clean up, and continue the build. Separately, `.memory/test-execution-instructions.md` still names the old Metcash path and needs correcting; I haven't edited it.
+
+**Advisor** (escalate: ungrounded: The developer needs you to open `C:\Marwan-Saab-ADO\My-Setup\My-Setup\TestVault-Obsidian-CLI-MCP` in Obsidian (Open folder as vault) so it registers; no note can do this for you. Please also correct the old Metcash path in the repo's `.memory/test-execution-instructions.md`.):
+
+> Hold at T001 until the owner confirms the vault is registered. Don't open, launch or register the vault yourself, and don't edit `.memory/`. After confirmation, check `obsidian vaults verbose` lists `TestVault-Obsidian-CLI-MCP` at the My-Setup path, then go ahead as planned: create `Sandbox/`, run P1–P10 through `Obsidian.com`, clean up, continue the build. If it still isn't listed, stop and report again.
+>
+> GL-003: if the vault is missing from the vault list, surface and stop. Registering it is an owner action.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Test Execution Instructions.md`
+
+**Advisor, after the owner ruled** (escalate: none):
+
+> The owner has opened and registered the vault. Next steps:
+> 1. Run `obsidian vaults verbose` and check that `TestVault-Obsidian-CLI-MCP` resolves to `C:\Marwan-Saab-ADO\My-Setup\My-Setup\TestVault-Obsidian-CLI-MCP`. If it is missing or points at another path, stop and report.
+> 2. Create `Sandbox/`.
+> 3. Run P1–P10 through `Obsidian.com` (never `.exe`) with `vault=TestVault-Obsidian-CLI-MCP`.
+> 4. Clean up.
+> 5. Settle each probe result through the fallback table, log mismatches in the spec's Clarifications section, and continue the build.
+>
+> Don't touch `.memory/`. Fixing the old path there is the owner's job and is still outstanding.
+>
+> GL-003 makes the My-Setup path authoritative and requires the vault to be registered before testing.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Test Execution Instructions.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Architecture.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0014 - Add List Tags.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Test Execution Instructions.md`: Added a 2026-10-24 HTML comment: owner registered the relocated TestVault at the My-Setup path; fixing the repo-side .memory path is still outstanding.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0014 - Add List Tags.md`: Added a 2026-10-24 HTML comment: T0 unblocked; stale .memory path resolved via GL-003; owner registered the TestVault; probes P1–P10 proceed.
+
+**Owner:** choice 1 (Done: vault opened and registered), via ntfy, 2026-10-24T11:41:52.092Z.
+
+**Sent to the step:**
+
+> The owner has opened and registered the vault. Next steps:
+> 1. Run `obsidian vaults verbose` and check that `TestVault-Obsidian-CLI-MCP` resolves to `C:\Marwan-Saab-ADO\My-Setup\My-Setup\TestVault-Obsidian-CLI-MCP`. If it is missing or points at another path, stop and report.
+> 2. Create `Sandbox/`.
+> 3. Run P1–P10 through `Obsidian.com` (never `.exe`) with `vault=TestVault-Obsidian-CLI-MCP`.
+> 4. Clean up.
+> 5. Settle each probe result through the fallback table, log mismatches in the spec's Clarifications section, and continue the build.
+>
+> Don't touch `.memory/`. Fixing the old path there is the owner's job and is still outstanding.
+>
+> GL-003 makes the My-Setup path authoritative and requires the vault to be registered before testing.
