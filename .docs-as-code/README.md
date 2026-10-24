@@ -30,7 +30,7 @@ extends it.
 
 - [architecture.md](architecture.md) — the boot, runtime and error spines; the
   queue, dispatch, cold-start retry and auto-launch; error classification and
-  sub-discriminators; `target_mode`; the direct-filesystem write path; the
+  sub-discriminators; `target_mode` and sibling locators; the direct-filesystem write path; the
   `eval` template pattern; logging, shutdown and module layout.
 - [tech-stack.md](tech-stack.md) — what the server is built from, why each
   piece is here, and what it forces or rules out, including the current
@@ -40,8 +40,8 @@ extends it.
   - [capabilities/read.md](capabilities/read.md) — `read`, `read_heading`,
     `read_property`.
   - [capabilities/search-and-discovery.md](capabilities/search-and-discovery.md)
-    — the four searches, `find_by_property`, `tag`, `links`, `backlinks`,
-    `open_file`, `get_active_file`.
+    — the four searches, `find_by_property`, `tag`, `tags`, `links`,
+    `backlinks`, `open_file`, `get_active_file`.
   - [capabilities/mutate.md](capabilities/mutate.md) — the direct-filesystem
     write cohort, `find_and_replace`, `prepend`, `set_property`, `delete`,
     `rename`, `move`.
@@ -56,9 +56,11 @@ extends it.
 
 ## Decisions
 
-ADR numbers form one series for the whole project. ADR-001 to ADR-032 are
+ADR numbers form one series for the whole project. ADR-001 to ADR-034 are
 kept in the maintainer's working notes, outside this repository, and are
-cited here by number and title in plain text. New decision records written
+cited here by number and title in plain text. (The baseline said ADR-032;
+ADR-033 and ADR-034, the zod 4 and ESLint 10 decisions behind
+`067-upgrade-tech-stack`, were already in that series.) New decision records written
 from a PR go in `decisions/ADR-NNN-<slug>.md`, continuing the series from the
 highest number already used anywhere. A number is never reused, and a
 superseded record keeps its number and links forward to the one that replaced
@@ -67,3 +69,8 @@ it.
 The baseline adds no new records. Every decision visible in the tracked
 history is already an ADR in the series, and the pages cite it where it
 applies.
+
+- [decisions/ADR-035-shared-sibling-locators.md](decisions/ADR-035-shared-sibling-locators.md)
+  — Shared Sibling-Locator Rules for Vault-Wide Tools. From PR #84: why the
+  ADR-032 scope checks moved into one module at the second consumer instead
+  of being copied until a third.

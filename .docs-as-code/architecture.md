@@ -101,6 +101,13 @@ Registration). It:
    **output** check becomes `INTERNAL_ERROR`, not `VALIDATION_ERROR`, because
    the client's input was valid.
 
+   A tool's `mapValidationError` may return `undefined` to fall through to
+   the generic envelope (`<tool> input failed schema validation` with the zod
+   issues in `details.issues`). The runtime always worked that way; PR #84
+   widened the hook's type to match, so `tags`, `find_and_replace` and
+   `prepend` map only their sub-discriminated cases and no longer carry their
+   own copies of the generic envelope.
+
 Published descriptors are pinned. `src/tools/_register-baseline.json` holds a
 fingerprint for every tool, and `_register-baseline.test.ts` fails if a
 descriptor changes without the baseline being regenerated with
@@ -219,7 +226,8 @@ than added as new codes:
   example `CLI_REPORTED_ERROR` with `details.code: "VAULT_NOT_FOUND"`,
   `"FILE_NOT_FOUND"`, `"NOT_MARKDOWN"`, `"FOLDER_NOT_FOUND"`,
   `"SMART_CONNECTIONS_NOT_INSTALLED"`, `"BASE_MALFORMED"`, `"VIEW_NOT_FOUND"`;
-  or `VALIDATION_ERROR` with `details.code: "CONTENT_TOO_LARGE"`.
+  or `VALIDATION_ERROR` with `details.code: "CONTENT_TOO_LARGE"`,
+  `"SCOPE_CONFLICT"` or `"INVALID_NOTE"` (the sibling-locator tools, below).
 - `details.reason` separates the states of one multi-state condition (ADR-015,
   Sub-Discriminators via details.reason for Multi-State Error Codes) — for
   example `obsidian-not-running` on `CLI_NON_ZERO_EXIT`, and `not-open` for a
@@ -230,8 +238,12 @@ The per-tool error roster — which codes and sub-codes a given tool can return
 
 ## Targeting: `target_mode`
 
-Every tool that acts on a note or a vault takes `target_mode` (ADR-003, Enforce
-Target Mode in Typed Tools). The primitive lives in
+Tools that address one note or one folder take `target_mode` (ADR-003,
+Enforce Target Mode in Typed Tools); `open_file` and the Bases tools address
+files their own way, as their capability pages say. The baseline of this page
+said "every tool that acts on a note or a vault", which was already wrong:
+vault-wide tools take only an optional `vault`, and the vault-wide tools that
+can be narrowed to one note use sibling locators instead (next section). The primitive lives in
 [src/target-mode/target-mode.ts](../src/target-mode/target-mode.ts) as a flat
 `z.object` with a refinement. It was a discriminated union until BI-010
 (PR #11): the union's published JSON Schema needed a compatibility shim
@@ -252,6 +264,38 @@ currently ignores it; its doc says so.)
 
 Because active mode is implicit state, `get_active_file` (PR #70) exists so a
 client can ask which file is focused before acting on it.
+
+### Sibling locators for vault-wide tools
+
+A tool whose natural scope is the whole vault, but which can be narrowed to
+one note, does not take `target_mode`. It takes optional sibling fields —
+`file`, `path`, and an active-note flag (`active_note` in `find_and_replace`,
+`activeOnly` in `tags`) — next to an optional `vault`, and supplying none of
+them means the whole vault (ADR-032, Find And Replace File Scope via Sibling
+Locators). `find_and_replace` introduced the pattern in PR #73; `tags` is the
+second tool to use it (PR #84). Neither schema imports `src/target-mode/`.
+
+The rules live once, in
+[src/tools/_note-locator.ts](../src/tools/_note-locator.ts) (PR #84;
+[ADR-035](decisions/ADR-035-shared-sibling-locators.md)):
+
+- `appendNoteLocatorIssues` — structural path safety on `file` and `path`,
+  reported as `VALIDATION_ERROR` / `INVALID_NOTE` / `path-traversal`, and the
+  `[[…]]` reject on `file` through the generic channel.
+- `scopeConflictReason` — the mutual-exclusivity matrix. At most one of
+  `file`, `path` and the active flag; the active flag forbids `vault`; a
+  sub-folder scope, where the tool has one, excludes a single note. Rows are
+  checked in ADR-032's order and the first match wins, so a request yields
+  exactly one reason: `file+path`, `active+note`, `active+folder`,
+  `active+vault` or `note+folder`.
+- `appendScopeConflictIssue` — emits that reason as a custom zod issue with
+  `params: { subCode: "SCOPE_CONFLICT", subReason }`, which the tool's
+  `mapValidationError` turns into `details.code` and `details.reason`
+  (ADR-015). The tool supplies only its own message per reason.
+
+All of this fails before any CLI call. A named note that does not exist is
+left to the CLI or the handler to report; the schema checks shape, not
+existence.
 
 ## Two ways to touch a note: through the CLI, or directly
 
@@ -294,7 +338,7 @@ Content longer than that should go through `write_note`.
 
 ## Reaching Obsidian internals: the `eval` template pattern
 
-Tools that need data the CLI has no subcommand for — backlinks, the tag index,
+Tools that need data the CLI has no usable subcommand for — backlinks, tag membership,
 heading trees, focus state, Smart Connections — run JavaScript inside Obsidian
 through `obsidian eval code=<js>`. The pattern is the same for every one of
 them:

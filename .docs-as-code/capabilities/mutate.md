@@ -71,6 +71,14 @@ partway through reports which notes were already written, in
 `FS_WRITE_FAILED` `details`. By default the scan skips fenced code and HTML
 comments. Its scope is the vault, a subfolder, or — since BI-066 (PR #73;
 ADR-032, Find And Replace File Scope via Sibling Locators) — a single note.
+The checks on those scope fields — path safety on `file` and `path`, the
+`[[…]]` reject on `file`, and the `SCOPE_CONFLICT` matrix — moved into
+[src/tools/_note-locator.ts](../../src/tools/_note-locator.ts) in PR #84,
+which `tags` also uses
+([ADR-035](../decisions/ADR-035-shared-sibling-locators.md)). `append_note`
+and `prepend` take the wikilink-bracket message from the same module, so its
+wording can no longer drift between tools. (`open_file` keeps its own,
+differently worded message.)
 
 ## The CLI-wrapped tools
 

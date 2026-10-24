@@ -29,6 +29,16 @@ count is computed after filtering instead of using the CLI's recursive total.
 takes `target_mode`, because it reads one note. `properties` is vault-scoped:
 an optional `vault`, with the focused vault as the default.
 
+Both ask the CLI for `format=json` and decode it through `parseCliJson` in
+[src/tools/_cli-json.ts](../../src/tools/_cli-json.ts), which turns
+unparseable stdout into `CLI_REPORTED_ERROR` with `details.stage:
+"json-parse"` and the full stdout. `properties` sorts with `compareNames` in
+[src/tools/_collation.ts](../../src/tools/_collation.ts): case-insensitive
+first, then a UTF-16 code-unit tiebreak, never locale-aware. Both helpers were
+extracted during review of PR #84 from copies in these two handlers, so that
+`tags` ([search and discovery](search-and-discovery.md)) could share them
+rather than add a third copy. Messages, details and ordering are unchanged.
+
 ## Failure
 
 `paths` reports a missing folder or a folder path that names a file as
