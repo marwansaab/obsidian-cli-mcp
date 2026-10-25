@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-10-25T02:59:20.204Z |
 | Finished | not yet |
-| Elapsed | 36 min 47 s |
+| Elapsed | 54 min 38 s |
 | Questions | 4 (1 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 1 |
@@ -29,6 +29,7 @@
 ### pre-implementation (`c53c1f44-0562-4f8c-8aea-d5cecfbed48c`)
 
 - Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\.specify exists.
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\specs\068-add-list-tags\tasks.md exists.
 
 - **preflight**: done.
 
@@ -183,12 +184,75 @@
 >
 > **Next step:** you can go to /speckit-implement now. I'd fix I1, U1, A1 and C1 first; they are about 4 small edits across spec.md and tasks.md. Would you like me to suggest concrete remediation edits for these top 4 issues? I skipped the optional before/after analyze commit hooks.
 
-- **resolve-analysis**: in progress.
+- **resolve-analysis**: done, 20 turns.
 
-### implementation
+> All 9 analysis findings are resolved. None needed a new product, scope or design decision, so I asked no questions. The feature folder is committed on 068-add-list-tags as dc5b556 (`docs(068): specify, clarify and plan the tags tool; remediate analysis`), with a message following CONTRIBUTING.md. Nothing was pushed.
+>
+> **What changed**
+> - **I1 (medium):** in spec.md's Q4 clarification, the sentences claiming implied parent tags are absent are struck through inline and point to the plan-stage note. The no-synthesis decision is untouched.
+> - **U1 (medium):** FR-003 and the Targeting edge case now say that `activeOnly` in specific mode goes through the CLI's own vault routing. The T0 live check confirms the behaviour, or the doc says it was not verified live. ADR-038 already said this, and the contract, plan phase notes, T024 and quickstart L-9 now match.
+> - **A1 (medium):** SC-006 now defines the size ceiling as the 10 MiB cap divided by the measured bytes per tag on a fixture of at least 1,000 tags, labelled as derived. T024 and L-10 match.
+> - **C1 (medium):** T004 gains a test for an active-mode vault-wide call: no `vault=`, `file=`, `path=` or `active` in the arguments.
+> - **C2 (low):** T016 adds zero-CLI-call cases for AC 10 and AC 12, so every validation class in SC-003 is now tested through the registered tool.
+> - **I2 (low):** FR-014 now says the no-focused-note error keeps its existing code with a tool-specific message, matching research R9.
+> - **A2 (low):** T018 names the exact `## Errors` heading.
+> - **A3 (low):** T022 says how to find the live release-note convention, since CHANGELOG.md stops at 0.6.5, with a stated fallback.
+> - **S1 (low):** no change. SC-007 is an outcome measure, served by T019.
+>
+> **Left open, and why**
+> - No critical or high findings remain.
+> - CLAUDE.md (plan pointer) and `.specify/feature.json` are modified but not committed, because you asked for the feature folder's changes only. They still need a commit.
+> - The ADR-038 note and its Decision Log row are in `.decisions/`, which git ignores, so they can't be committed.
+> - `relay-digest.md` and `relay-qa-log.md` were already in the feature folder (I didn't write them) and went into the commit along with everything else in it.
+> - Two items for you, carried over from the plan:
+>   - `.memory/test-execution-instructions.md` has a stale test-vault path. The vault is now registered at `C:\Marwan-Saab-ADO\My-Setup\My-Setup\TestVault-Obsidian-CLI-MCP`.
+>   - The `tag` tool's docs say it lower-cases ASCII only, but its code uses `toLowerCase()`, which also folds non-ASCII. This doesn't affect `tags`.
+>
+> Next step is /speckit-implement.
 
-- **implement**: not run.
-- **open-pr**: not run.
+
+### implementation (`661f347a-4ea3-4766-98cb-789ee010c94d`)
+
+- Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\specs\068-add-list-tags\tasks.md exists.
+
+- **implement**: done, 7 turns.
+
+> The `tags` MCP tool is built and tested, and all 24 tasks in tasks.md are marked `[X]`. Nothing has been committed. As Relay requires, I skipped the optional commit hooks before and after implementing.
+>
+> **What was built**
+> - New module `src/tools/tags/` (`schema.ts`, `handler.ts`, `index.ts`) and the tool registration in `src/server.ts`.
+> - The scope rules follow ADR-038, with the handler-side routing from research R3.
+> - No new error codes.
+> - `docs/tools/tags.md` is the full help document, and `docs/tools/index.md` gains one catalogue line.
+> - `_register-baseline.json` was regenerated; it only adds a `tags` entry.
+> - The version is bumped from 0.8.11 to 0.8.12 (`package.json` and the lockfile). Recent releases keep their notes in the body of the `chore(release)` commit, so suggested note text is in `post-implement.md`.
+>
+> **Tests and checks**
+> - 97 new tests in three test files, covering every acceptance criterion. The three new source files have 100% coverage.
+> - Full suite: 2,951 tests pass. Statement coverage is 96.85% against the 96% floor.
+> - Lint, typecheck and build are clean.
+> - The tags tests give the same result when run twice.
+>
+> **Live runs against the test vault**
+> - The pre-coding probes (T001) matched the earlier research, so no spec changes were needed. Pointing `activeOnly` at a second, unfocused vault was tested live this time: it returns that vault's focused note.
+> - All ten live scenarios passed through the built server (T024). Measured size limit: about 56 bytes per tag, so roughly 187,000 tags fit under the 10 MiB cap. The doc now gives that measured figure.
+> - The vault was cleaned up afterwards: `Sandbox/` is empty and `Welcome.md` is still there.
+>
+> **Structural checks (T023)**
+> - All four checks pass on the rebuilt code graph.
+> - The comparison against `main` confirms no edits to the frozen areas.
+> - One difference from the plan: three registry test files list every registered tool, so they had to change, as in every earlier tool addition. These are `server.test.ts` (35 tools), `_register-baseline.test.ts` (35) and the schema table in `_register.test.ts`. No production `_register*` file changed. This is recorded in `post-implement.md`.
+>
+> **Semantic graph refresh**
+> - I limited it to the 11 prose files this feature changed. No graphify manifest existed, so a full `--update` would have re-read all 665 docs (about 30 agents).
+> - Two agents read all 11 files in full, and the merge added 97 nodes and 163 edges.
+> - Known leftover: ADR-038 shows up as more than one node in the graph, because both agents cited it and it has no file of its own.
+>
+> **Owner items carried over from research (not acted on)**
+> - The test-vault path in `.memory/test-execution-instructions.md` is out of date.
+> - The `tag` tool's docs say it folds case for ASCII letters only, but its code folds all letters (`toLowerCase()`).
+
+- **open-pr**: in progress.
 
 ### review
 

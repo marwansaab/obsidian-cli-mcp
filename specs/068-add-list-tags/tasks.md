@@ -36,7 +36,7 @@ description: "Task list for 068-add-list-tags (the `tags` typed tool)"
 
 **Purpose**: confirm that the plan-stage F-series findings still hold before any code is written.
 
-- [ ] T001 Read `.memory/test-execution-instructions.md`, then re-run quickstart live probes L-1..L-9 (`specs/068-add-list-tags/quickstart.md`) as raw `obsidian vault=TestVault-Obsidian-CLI-MCP tags …` calls through `Obsidian.com`.
+- [X] T001 Read `.memory/test-execution-instructions.md`, then re-run quickstart live probes L-1..L-9 (`specs/068-add-list-tags/quickstart.md`) as raw `obsidian vault=TestVault-Obsidian-CLI-MCP tags …` calls through `Obsidian.com`.
   - Seed fixtures under `Sandbox/068-t0/` as listed in the quickstart.
   - Compare each raw reply with research F2–F12. Pay particular attention to the JSON shape, string counts, the `No tags found.` sentinel, case-merge behaviour, hierarchical behaviour, and the three error replies.
   - Append a `## T0 live re-check (implement)` section to `specs/068-add-list-tags/research.md` recording matches or drift, including the L-9 outcome (specific-mode `activeOnly` against an unfocused vault, if a second vault can be opened).
@@ -49,7 +49,7 @@ description: "Task list for 068-add-list-tags (the `tags` typed tool)"
 
 **Purpose**: the schema and the boot-time doc file. Every story depends on the schema. `assertToolDocsExist` (called from `createServer()` in `src/server.ts`) throws at boot if `docs/tools/tags.md` is missing once the tool is registered.
 
-- [ ] T002 Create `src/tools/tags/schema.ts` per data-model §1–4 and research R4 / ADR-038.
+- [X] T002 Create `src/tools/tags/schema.ts` per data-model §1–4 and research R4 / ADR-038.
   - `tagsInputSchema` = `targetModeBaseSchema.extend({ file: z.string().min(1).optional(), path: z.string().min(1).refine(isStructurallySafePath, STRUCTURALLY_UNSAFE_PATH_MESSAGE).optional(), activeOnly: z.boolean().optional(), sortByCount: z.boolean().optional(), includeCounts: z.boolean().optional() })`.
   - Add a tool-local `.superRefine`. Do NOT use `applyTargetModeRefinement` or `applyTargetModeRefinementForFolderScoped`. The refinement enforces:
     - specific mode requires `vault` (issue path `["vault"]`, message `vault is required in specific mode`);
@@ -57,7 +57,7 @@ description: "Task list for 068-add-list-tags (the `tags` typed tool)"
     - at most one of `file !== undefined` / `path !== undefined` / `activeOnly === true`, with one issue per offending key and message ``at most one of `file`, `path`, `activeOnly` may be set``.
   - Also export `tagEntrySchema`, `tagsOutputSchema`, `tagsUpstreamArraySchema` (`z.array(z.object({ tag: z.string(), count: z.string().optional() }).loose())`), and the `TagsInput` / `TagsOutput` / `TagEntry` types via `z.infer`.
   - Imports: `zod`, `../../target-mode/target-mode.js`, `../../path-safety/schema.js`.
-- [ ] T003 [P] Create the skeleton `docs/tools/tags.md`: the title `# \`tags\`` plus empty `## Overview`, `## Input contract`, `## Output shape`, `## Errors` and `## Examples` headings. This only satisfies `assertToolDocsExist`; T021 replaces it with the full document.
+- [X] T003 [P] Create the skeleton `docs/tools/tags.md`: the title `# \`tags\`` plus empty `## Overview`, `## Input contract`, `## Output shape`, `## Errors` and `## Examples` headings. This only satisfies `assertToolDocsExist`; T021 replaces it with the full document.
 
 **Checkpoint**: `npm run typecheck` passes with the schema in place.
 
@@ -71,7 +71,7 @@ description: "Task list for 068-add-list-tags (the `tags` typed tool)"
 
 ### Tests for User Story 1 (write first; they must fail until T005)
 
-- [ ] T004 [US1] Create `src/tools/tags/handler.test.ts` with the US1 cases. Test titles carry the AC / FR ids. Use the research F2 / F3 / F11 stdout shapes verbatim.
+- [X] T004 [US1] Create `src/tools/tags/handler.test.ts` with the US1 cases. Test titles carry the AC / FR ids. Use the research F2 / F3 / F11 stdout shapes verbatim.
   - **AC 1 —** vault-wide JSON (`[{"tag":"#shared","count":"6"},…]`) → integer counts, names stripped of exactly one `#`, `total === tags.length`.
   - **H2 / R2 —** recorded argv contains `vault=<v>`, `tags`, `format=json` and `counts`, and does NOT contain `file=`, `path=`, `active`, `sort` or `total`. Exactly ONE spawn per request.
   - **US1 scenario 6 —** `{ target_mode: "active" }` (vault-wide in the focused vault) → recorded argv contains `tags`, `format=json` and `counts`, and contains NO `vault=`, `file=`, `path=` or `active`. The output is parsed exactly as in AC 1.
@@ -89,13 +89,13 @@ description: "Task list for 068-add-list-tags (the `tags` typed tool)"
 
 ### Implementation for User Story 1
 
-- [ ] T005 [US1] Create `src/tools/tags/handler.ts` per data-model §5 and contracts H1–H4.
+- [X] T005 [US1] Create `src/tools/tags/handler.ts` per data-model §5 and contracts H1–H4.
   - Export `ExecuteDeps` (`{ logger, queue, spawnFn?, env? }`), `NO_TAGS_SENTINEL = "No tags found."` and `executeTags(input: TagsInput, deps: ExecuteDeps): Promise<TagsOutput>`.
   - The function makes ONE `invokeCli({ command: "tags", target_mode: "specific", vault: input.vault, parameters: { format: "json" }, flags: ["counts"] }, deps)`. Add an inline comment citing ADR-038 and research R3: why `target_mode` is always `"specific"`.
   - Pipeline: trim → sentinel → `JSON.parse` (stage `json-parse`) → `tagsUpstreamArraySchema.safeParse` (stage `shape-parse`) → map (strip one `#`, strict `/^\d+$/` plus `Number.isSafeInteger` count parse, stage `count-parse` with `tag` / `count` in details) → `{ total, tags }`.
   - Every failure is an `UpstreamError` with `code` / `cause` / `details`.
   - Ordering, scope and `includeCounts` are added by US2 / US3.
-- [ ] T006 [US1] Create `src/tools/tags/index.ts`.
+- [X] T006 [US1] Create `src/tools/tags/index.ts`.
   - Export `TAGS_TOOL_NAME = "tags"`, `TAGS_DESCRIPTION`, `type RegisterDeps = ExecuteDeps`, and `createTagsTool(deps)` via `registerTool({ name, description, schema: tagsInputSchema, deps, handler: async (input, d) => executeTags(input, d) })`.
   - The description must:
     - state the output shape;
@@ -106,13 +106,13 @@ description: "Task list for 068-add-list-tags (the `tags` typed tool)"
     - list the error roster (contracts/tags-input.contract.md);
     - point to `help({ tool_name: "tags" })`.
   - Model it on `src/tools/properties/index.ts`.
-- [ ] T007 [US1] Register the tool in `src/server.ts`: add `import { createTagsTool } from "./tools/tags/index.js";` after the `createTagTool` import, and `createTagsTool({ logger, queue }),` immediately after `createTagTool({ logger, queue }),` in the tools array. Depends on T003 (doc presence at boot) and T006.
-- [ ] T008 [P] [US1] Add one catalogue line after the `tag` entry in `docs/tools/index.md`: `- **tags** — Return the vault's tag index, or one note's tag set, …`. Name the shape `{ total, tags: [{ name, count? }] }`, the scopes, the ordering, and the contrast with `tag`.
-- [ ] T009 [US1] Create `src/tools/tags/index.test.ts` with the US1 registration cases:
+- [X] T007 [US1] Register the tool in `src/server.ts`: add `import { createTagsTool } from "./tools/tags/index.js";` after the `createTagTool` import, and `createTagsTool({ logger, queue }),` immediately after `createTagTool({ logger, queue }),` in the tools array. Depends on T003 (doc presence at boot) and T006.
+- [X] T008 [P] [US1] Add one catalogue line after the `tag` entry in `docs/tools/index.md`: `- **tags** — Return the vault's tag index, or one note's tag set, …`. Name the shape `{ total, tags: [{ name, count? }] }`, the scopes, the ordering, and the contrast with `tag`.
+- [X] T009 [US1] Create `src/tools/tags/index.test.ts` with the US1 registration cases:
   - descriptor `name === "tags"`, and the description mentions `tag`;
   - the stripped JSON Schema has zero `description` keys (`countDescriptionKeys`, ADR-005);
   - **a VALID input (`{ target_mode: "specific", vault: "V" }`) with `makeQueuedSpawn([{ stdout: "No tags found.\n", exitCode: 0 }])` drives the closure to a success envelope `{ total: 0, tags: [] }`.**
-- [ ] T010 [US1] Run `npm run baseline:write` to roll `src/tools/_register-baseline.json` forward. Then run `npx vitest run src/tools/tags src/tools/_register.test.ts src/tools/_register-baseline.test.ts src/server.test.ts` and confirm it is green.
+- [X] T010 [US1] Run `npm run baseline:write` to roll `src/tools/_register-baseline.json` forward. Then run `npx vitest run src/tools/tags src/tools/_register.test.ts src/tools/_register-baseline.test.ts src/server.test.ts` and confirm it is green.
 
 **Checkpoint**: MVP. A vault-wide listing works end to end over MCP.
 
@@ -126,7 +126,7 @@ description: "Task list for 068-add-list-tags (the `tags` typed tool)"
 
 ### Tests for User Story 2
 
-- [ ] T011 [US2] Extend `src/tools/tags/handler.test.ts` with:
+- [X] T011 [US2] Extend `src/tools/tags/handler.test.ts` with:
   - **AC 2 —** `file: "Alpha"` → argv contains `file=Alpha`; output from a note-scoped stub.
   - **AC 3 —** `path: "Sandbox/x/Alpha.md"` → argv `path=…`; output identical to AC 2 for the same stdout.
   - **AC 4 —** `{ target_mode: "active", activeOnly: true }` → argv contains the `active` flag and NO `vault=`.
@@ -138,7 +138,7 @@ description: "Task list for 068-add-list-tags (the `tags` typed tool)"
 
 ### Implementation for User Story 2
 
-- [ ] T012 [US2] Update `executeTags` in `src/tools/tags/handler.ts`:
+- [X] T012 [US2] Update `executeTags` in `src/tools/tags/handler.ts`:
   - add `file` / `path` to `parameters` when defined;
   - append the `"active"` flag when `input.activeOnly === true`;
   - wrap the `invokeCli` call so that an `UpstreamError` with `code === "ERR_NO_ACTIVE_FILE"` is rethrown as a new `UpstreamError({ code: "ERR_NO_ACTIVE_FILE", cause: err, details: { ...err.details, tool: "tags" }, message: "No active file in Obsidian. Focus a note in the editor, or call tags with `file` or `path` instead of `activeOnly: true`." })`;
@@ -156,7 +156,7 @@ description: "Task list for 068-add-list-tags (the `tags` typed tool)"
 
 ### Tests for User Story 3
 
-- [ ] T013 [US3] Extend `src/tools/tags/handler.test.ts` with:
+- [X] T013 [US3] Extend `src/tools/tags/handler.test.ts` with:
   - **AC 5 (default) —** a note-scoped stub listing `#Banana`, `#aardvark`, `#Aardvark` in upstream order → `Aardvark, aardvark, Banana`. The upstream order is ignored: shuffle the stub.
   - **AC 5 (count) —** `sortByCount: true` with counts 6, 2, 2, 1 → count descending, with the tied pair ordered by the comparator (not upstream's order).
   - Non-ASCII is not folded: `É…` vs `e…` order follows UTF-8 bytes.
@@ -166,7 +166,7 @@ description: "Task list for 068-add-list-tags (the `tags` typed tool)"
 
 ### Implementation for User Story 3
 
-- [ ] T014 [US3] Add to `src/tools/tags/handler.ts`:
+- [X] T014 [US3] Add to `src/tools/tags/handler.ts`:
   - an exported `compareTagNames(a, b)` per data-model §6: ASCII-only `A`–`Z` lower-fold primary key compared by UTF-8 bytes, with a byte-order tie-break on the original name. Use `Buffer.compare(Buffer.from(x, "utf8"), Buffer.from(y, "utf8"))`. Do NOT import `compareUtf8Bytes` from `src/tools/files/handler.ts` (research R7, Principle I);
   - the default sort, and with `sortByCount` a count-descending sort then `compareTagNames`;
   - `includeCounts` (default `true`) projection to `{ name }`.
@@ -183,7 +183,7 @@ description: "Task list for 068-add-list-tags (the `tags` typed tool)"
 
 ### Tests for User Story 4
 
-- [ ] T015 [P] [US4] Create `src/tools/tags/schema.test.ts`.
+- [X] T015 [P] [US4] Create `src/tools/tags/schema.test.ts`.
   - **Valid:**
     - specific + vault;
     - active with no vault;
@@ -198,7 +198,7 @@ description: "Task list for 068-add-list-tags (the `tags` typed tool)"
   - Empty `file` / `path` fail.
   - Wrong types fail (e.g. `activeOnly: "yes"`, `sortByCount: 1`).
   - `target_mode` missing or invalid fails.
-- [ ] T016 [US4] Extend `src/tools/tags/index.test.ts` through the registered tool's `handler` with a `makeQueuedSpawn` recorder:
+- [X] T016 [US4] Extend `src/tools/tags/index.test.ts` through the registered tool's `handler` with a `makeQueuedSpawn` recorder:
   - **AC 11 (server-side pathway) —** `{ target_mode: "specific", vault: "V", bogus: 1 }` → `isError` envelope with `VALIDATION_ERROR` and 0 recorded spawns. The test title and a comment state the client-class distinction: clients that pre-validate against `additionalProperties: false` reject client-side and never reach the server (contracts client-class note).
   - **AC 9 —** `{ …, file: "A", path: "A.md" }` → `VALIDATION_ERROR`, 0 spawns.
   - **FR-012 —** `path: "../x.md"` → `VALIDATION_ERROR`, 0 spawns.
@@ -208,7 +208,7 @@ description: "Task list for 068-add-list-tags (the `tags` typed tool)"
 
 ### Implementation for User Story 4
 
-- [ ] T017 [US4] Fix any gap in `src/tools/tags/schema.ts` that T015 / T016 reveal. The rules are owned by T002, so this task is normally a no-op confirmation. Record "no change needed" in the commit body if so.
+- [X] T017 [US4] Fix any gap in `src/tools/tags/schema.ts` that T015 / T016 reveal. The rules are owned by T002, so this task is normally a no-op confirmation. Record "no change needed" in the commit body if so.
 
 **Checkpoint**: all P1 stories are green. The tool is shippable apart from documentation.
 
@@ -222,7 +222,7 @@ description: "Task list for 068-add-list-tags (the `tags` typed tool)"
 
 ### Tests for User Story 5
 
-- [ ] T018 [US5] Extend `src/tools/tags/index.test.ts`. **AC 14 —** `docs/tools/tags.md` exists and contains:
+- [X] T018 [US5] Extend `src/tools/tags/index.test.ts`. **AC 14 —** `docs/tools/tags.md` exists and contains:
   - the headings `## Input contract`, `## Output shape` and `## Errors` (the exact headings of the T003 skeleton, which T019 keeps);
   - a scope-semantics section;
   - at least four example headings, covering vault-wide, file-scoped, `sortByCount` and `activeOnly`;
@@ -232,7 +232,7 @@ description: "Task list for 068-add-list-tags (the `tags` typed tool)"
 
 ### Implementation for User Story 5
 
-- [ ] T019 [US5] Replace the skeleton `docs/tools/tags.md` with the full document. Model the structure on `docs/tools/tag.md` / `docs/tools/properties.md` and its content on `contracts/tags-input.contract.md`. It must cover:
+- [X] T019 [US5] Replace the skeleton `docs/tools/tags.md` with the full document. Model the structure on `docs/tools/tag.md` / `docs/tools/properties.md` and its content on `contracts/tags-input.contract.md`. It must cover:
   - **Overview**: inventory vs `tag`; native `tags` subcommand; one CLI call.
   - **Input contract**: a field table and the ADR-038 scope matrix, with active-mode `file` / `path` and specific-mode `activeOnly` semantics.
   - **Output shape**: bare names, integer counts, `includeCounts: false` omitting the key, `total`.
@@ -257,12 +257,12 @@ description: "Task list for 068-add-list-tags (the `tags` typed tool)"
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T020 [P] Check the attribution headers: every new file under `src/tools/tags/` starts with `// Original — no upstream.` (Principle V). Grep for it and fix any miss.
-- [ ] T021 Run the gate commands from quickstart: `npm run lint`, `npm run typecheck`, `npm run build`, `npx vitest run` (the full suite plus the statements floor in `vitest.config.ts`). Then run `npx vitest run src/tools/tags` a second time unchanged (SC-002 / AC 15). Fix failures at the source; never weaken a test.
-- [ ] T022 Bump `package.json` `version` from 0.8.11 to 0.8.12 (a PATCH for an additive typed tool, per precedent). Add the release entry following the project's current release-note convention, and check `CHANGELOG.md` / README release notes for which one is live. The entry names `tags`, ADR-038, and zero new error codes.
+- [X] T020 [P] Check the attribution headers: every new file under `src/tools/tags/` starts with `// Original — no upstream.` (Principle V). Grep for it and fix any miss.
+- [X] T021 Run the gate commands from quickstart: `npm run lint`, `npm run typecheck`, `npm run build`, `npx vitest run` (the full suite plus the statements floor in `vitest.config.ts`). Then run `npx vitest run src/tools/tags` a second time unchanged (SC-002 / AC 15). Fix failures at the source; never weaken a test.
+- [X] T022 Bump `package.json` `version` from 0.8.11 to 0.8.12 (a PATCH for an additive typed tool, per precedent). Add the release entry following the project's current release-note convention, and check `CHANGELOG.md` / README release notes for which one is live. The entry names `tags`, ADR-038, and zero new error codes.
   - `CHANGELOG.md`'s latest entry is 0.6.5, so before writing, run `git log --oneline --grep "chore(release)"` and look at how the most recent 0.8.x release recorded its notes. Follow that location.
   - If no live convention can be identified, add the 0.8.12 entry to `CHANGELOG.md` in Keep a Changelog form, and state the choice in the commit body.
-- [ ] T023 Post-implement structural verification (CLAUDE.md):
+- [X] T023 Post-implement structural verification (CLAUDE.md):
   - Run `graphify update .` (AST), then `/graphify --update` (semantic, run once).
   - Verify:
     1. no new error-class nodes outside the `src/errors.ts` community;
@@ -271,7 +271,7 @@ description: "Task list for 068-add-list-tags (the `tags` typed tool)"
     4. `src/tools/tags/{schema,handler,index}.ts` are connected (edges to `invokeCli`, `UpstreamError`, `targetModeBaseSchema`, `isStructurallySafePath`, `registerTool`).
   - Confirm the plan's frozen-surface claim holds: `git diff --stat main` shows no edits under `src/cli-adapter/`, `src/target-mode/`, `src/errors.ts`, `src/tools/_register*.ts` (except the baseline JSON) or other tool directories.
   - Record the results in `specs/068-add-list-tags/post-implement.md`.
-- [ ] T024 Run live validation quickstart L-1..L-10 against the built server (`node dist/index.js`, MCP client) on `TestVault-Obsidian-CLI-MCP`, following `.memory/test-execution-instructions.md`.
+- [X] T024 Run live validation quickstart L-1..L-10 against the built server (`node dist/index.js`, MCP client) on `TestVault-Obsidian-CLI-MCP`, following `.memory/test-execution-instructions.md`.
   - Generate the L-10 bulk fixture (2,000 unique tags; SC-006 needs at least 1,000) and confirm the vault-wide call succeeds.
   - Measure the average raw upstream response bytes per unique tag (total reply bytes ÷ entry count). Replace the estimate in `docs/tools/tags.md` with the derived ceiling (10 MiB cap ÷ measured bytes per tag), and label it as derived from the measurement (SC-006).
   - Record the L-9 outcome in the doc. If L-9 cannot be reproduced (for example, only one vault is open), the doc says the specific-mode `activeOnly` routing was not verified live, rather than asserting it (spec FR-003, Edge Cases / Targeting).

@@ -257,4 +257,32 @@ With `sortByCount`, entries sort by `count` descending and fall back to `compare
 | Active-mode routing without locator strip | R3 |
 | Ordering | R7 + Clarifications Q3 |
 | Size ceiling | R11 (estimate now, measured at T0) |
-| Specific-mode `activeOnly` against an unfocused named vault | Deferred to T0. The documented expectation is that the named vault's focused note is used, or `ERR_NO_ACTIVE_FILE` is raised. Not reproducible at plan stage with a single vault open. |
+| Specific-mode `activeOnly` against an unfocused named vault | Deferred to T0. The documented expectation is that the named vault's focused note is used, or `ERR_NO_ACTIVE_FILE` is raised. Not reproducible at plan stage with a single vault open. **Resolved at T0 (below): the named vault's focused note is used.** |
+
+## T0 live re-check (implement)
+
+**Set-up.** Re-run on 2026-10-25 at the start of `/speckit-implement`, against `TestVault-Obsidian-CLI-MCP` (still registered at `C:\Marwan-Saab-ADO\My-Setup\My-Setup\TestVault-Obsidian-CLI-MCP`), through bare `obsidian`, which resolves to `Obsidian.com` (now installed at `%LOCALAPPDATA%\Programs\Obsidian\Obsidian.com`; CLI `version` reports `1.14.5 (installer 1.14.4)`). `vault=` was passed explicitly on every vault-scoped probe, and stdout / stderr were captured separately with `Start-Process -RedirectStandardOutput/-RedirectStandardError`. The quickstart fixtures (`Alpha`, `Beta`, `Gamma`, `Empty`) were seeded under `Sandbox/068-t0/` with the same content as the plan-stage `068-probe` set. `Sandbox/` was empty before the run.
+
+**Result: no drift.** Every plan-stage finding reproduced byte-for-byte in shape, so neither the spec nor the research needed amending.
+
+| Probe | Raw reply (exit 0 in every case, stderr empty) | Matches |
+|---|---|---|
+| L-1 `tags format=json counts` | 15 entries, pretty-printed JSON, every `count` a string. `#shared` "6", `#Project` "2" (merged with `#project`), `#Aardvark` "2" (merged), `#parent` "2", implied `#solo` / `#deep` / `#deep/a` "1", `#café` and `#日本語` present. No `#fencedonly`, no `#inlinecode`. Upstream order: ASCII-case-insensitive by name, with non-ASCII last. | F2, F5, F6, F7, F8, F9 |
+| L-2 `path=Sandbox/068-t0/Beta.md` | `#Aardvark`, `#aardvark`, `#Banana`, `#hashfm`, `#parent`, `#shared` "2" | F4 (`"#hashfm"` → one `#`), F8 (per-note variants separate) |
+| `file=Alpha` | `#café`, `#fm-only`, `#parent/child`, `#Project` "1", `#project` "1", `#shared` "4", `#日本語` | F4, F7, F8 |
+| L-3 `path=…/Gamma.md` | `#deep/a/b`, `#solo/leaf` only | F9 (no per-note ancestors) |
+| L-4 `path=…/Empty.md` | `No tags found.` | F3 |
+| L-5 `path=…/Missing.md` | `Error: File "Sandbox/068-t0/Missing.md" not found.` | F11 |
+| `file=Missing` | `Error: File "Missing" not found.` | F11 |
+| L-6 `vault=NoSuchVault-068` | `Vault not found.` | F11 |
+| `sort=count` | count-2 tie group returned as `#Project, #parent, #Aardvark`; count-1 group in no name order | F10 |
+| `tags total` | `15` (equals the L-1 entry count) | F13 |
+| L-7 after `open path=…/Beta.md`, `active` with and without `vault=` | identical to L-2 in both cases | F12 |
+| `file=Alpha active` | Alpha's listing (`file` wins upstream; the wrapper schema forbids this pair) | F12 |
+| L-8 after `command id=workspace:close` (leaves an empty tab), `active` with and without `vault=` | `Error: No active file. Use file=<name> or path=<path> to specify a file.` | F11 |
+
+No cold-start `Command "tags" not found` reply was observed in this run; the first call (`tags total`) was answered directly.
+
+**L-9 (specific-mode `activeOnly` against an unfocused vault): verified.** Obsidian's `obsidian.json` showed four vaults open. With the test vault focused and no note active in it, `vault=Game-Server-Vault tags format=json counts active` returned a JSON listing (3 entries) for that vault's focused note, while the control call without `vault=` returned `Error: No active file. …` for the focused test vault. So in specific mode, `activeOnly` lists the focused note **of the named vault**, which is the documented expectation. The probe was read-only, and the other vault's tag names were deliberately not recorded.
+
+**Clean-up.** The Beta tab opened for L-7 was closed again, restoring the original single empty tab. `Sandbox/068-t0/` was removed; `Sandbox/` is empty and `Welcome.md` is present.
