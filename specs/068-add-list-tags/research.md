@@ -189,6 +189,7 @@ With `sortByCount`, entries sort by `count` descending and fall back to `compare
 
 **Alternatives**:
 - Import `compareUtf8Bytes` from `src/tools/files/handler.ts`. Rejected: a lateral tool→tool import goes against the Principle I one-directional layout. Moving it into a shared module would edit the frozen `files` tool, so the comparator (about 10 lines) stays tool-local. It is a candidate for a later shared-helper lift.
+  - *PR #85 review follow-up (2026-10-25).* The lift was done. The code-quality review flagged the copy as a duplicate of `compareUtf8Bytes`, so the byte comparator moved to the shared leaf `src/tools/_utf8-compare.ts`. Both `files` and `tags` import it from there, so no tool imports another (Principle I). `compareTagNames` and its ASCII-only fold stay in `tags`. The `files` edit is a pure import swap and does not change its behaviour.
 - `Intl.Collator`. Rejected: locale-dependent, which would violate determinism.
 
 > **Discrepancy surfaced, not acted on.** The owner's Q3 rationale cites the `tag` tool's "ASCII lower-fold" (FEAT-018, TC-00272), and `docs/tools/tag.md` describes it that way. However, `src/tools/tag/_template.ts` `normTag` uses JS `toLowerCase()`, which folds non-ASCII characters too (for example `É` → `é`). `tags` follows the Q3 ruling (ASCII-only fold, for ordering only), so the discrepancy does not affect this feature. It does not break the FR-007 round trip either: any name from `tags` still matches in `tag`, whose fold is a superset of ASCII-only. Logged here for the owner as a possible `tag` doc or code drift.

@@ -2,6 +2,8 @@
 import { tagsUpstreamArraySchema, type TagEntry, type TagsInput, type TagsOutput } from "./schema.js";
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
+import { parseCliJson } from "../_cli-json.js";
+import { compareUtf8Bytes } from "../_utf8-compare.js";
 
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
@@ -19,25 +21,21 @@ export const NO_TAGS_SENTINEL = "No tags found.";
 const NO_ACTIVE_FILE_MESSAGE =
   "No active file in Obsidian. Focus a note in the editor, or call tags with `file` or `path` instead of `activeOnly: true`.";
 
-function utf8Compare(a: string, b: string): number {
-  return Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8"));
-}
-
 function asciiLowerFold(s: string): string {
-  return s.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
+  return s.replace(/[A-Z]/g, (c) => c.toLowerCase());
 }
 
 /**
  * Clarifications Q3 ordering: ASCII-only lower-fold primary key compared by UTF-8
  * bytes, then UTF-8 byte order of the original name. Non-ASCII is never folded,
- * and the order is total — it returns 0 only for identical strings. Kept
- * tool-local rather than importing `files/handler.ts` (research R7, Principle I).
+ * and the order is total — it returns 0 only for identical strings. The byte
+ * comparator is the shared leaf `compareUtf8Bytes` (research R7, Principle I).
  */
 export function compareTagNames(a: string, b: string): number {
   const fa = asciiLowerFold(a);
   const fb = asciiLowerFold(b);
-  if (fa !== fb) return utf8Compare(fa, fb);
-  return utf8Compare(a, b);
+  if (fa !== fb) return compareUtf8Bytes(fa, fb);
+  return compareUtf8Bytes(a, b);
 }
 
 function toEntry(entry: { tag: string; count?: string }): { name: string; count: number } {
@@ -98,19 +96,7 @@ export async function executeTags(input: TagsInput, deps: ExecuteDeps): Promise<
   const trimmed = stdout.trim();
   if (trimmed === NO_TAGS_SENTINEL) return { total: 0, tags: [] };
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(trimmed);
-  } catch (cause) {
-    throw new UpstreamError({
-      code: "CLI_REPORTED_ERROR",
-      cause,
-      message: `Tags JSON parse failed: ${(cause as Error).message}`,
-      details: { stage: "json-parse", stdout: trimmed },
-    });
-  }
-
-  const shape = tagsUpstreamArraySchema.safeParse(parsed);
+  const shape = tagsUpstreamArraySchema.safeParse(parseCliJson(trimmed, "Tags"));
   if (!shape.success) {
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",

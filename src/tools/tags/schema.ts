@@ -31,11 +31,14 @@ export const tagsInputSchema = targetModeBaseSchema
       ctx.addIssue({ code: "custom", path: ["vault"], message: "vault is not allowed in active mode" });
     }
     // `activeOnly: false` is the default, so it counts as "not set".
-    const setScopes = [
-      input.file !== undefined ? "file" : undefined,
-      input.path !== undefined ? "path" : undefined,
-      input.activeOnly === true ? "activeOnly" : undefined,
-    ].filter((key): key is string => key !== undefined);
+    const scopeIsSet = {
+      file: input.file !== undefined,
+      path: input.path !== undefined,
+      activeOnly: input.activeOnly === true,
+    };
+    const setScopes = Object.entries(scopeIsSet)
+      .filter(([, isSet]) => isSet)
+      .map(([key]) => key);
     if (setScopes.length > 1) {
       for (const key of setScopes) {
         ctx.addIssue({ code: "custom", path: [key], message: SCOPE_CONFLICT_MESSAGE });

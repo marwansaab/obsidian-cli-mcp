@@ -1,5 +1,6 @@
 // Original — no upstream. files handler — single-spawn invokeCli wrapper around the CLI's native `files` subcommand (R2/R3); wrapper-imposed filter pipeline: sub-folder filter (FR-026 defence-in-depth) → dotfile filter (FR-028 defence-in-depth) → non-recursive filter (R6 load-bearing — CLI returns recursive subtree per F2) → UTF-8 byte-compare lexical sort (R8/FR-027 — Buffer.compare, not JS default UTF-16). On total:true (R7), paths discarded after counting (NOT delegated to CLI's recursive total flag).
 import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
+import { compareUtf8Bytes } from "../_utf8-compare.js";
 
 import type { ListFilesInput, ListFilesOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
@@ -25,10 +26,6 @@ export function isFolderEntry(path: string): boolean {
 
 export function hasDotPrefixedComponent(path: string): boolean {
   return path.split("/").some((segment) => segment.startsWith("."));
-}
-
-export function compareUtf8Bytes(a: string, b: string): number {
-  return Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8"));
 }
 
 function expectedComponentCount(folder: string | undefined): number {

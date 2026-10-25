@@ -96,10 +96,10 @@ input (validated)
 ## 6. Comparator `compareTagNames(a, b)`
 
 1. `fa = asciiLowerFold(a)` and `fb = asciiLowerFold(b)`, where only `A`–`Z` change (to `a`–`z`).
-2. If `fa !== fb`, return `utf8Compare(fa, fb)`.
-3. Otherwise return `utf8Compare(a, b)`.
+2. If `fa !== fb`, return `compareUtf8Bytes(fa, fb)`.
+3. Otherwise return `compareUtf8Bytes(a, b)`.
 
-`utf8Compare` is `Buffer.compare(Buffer.from(x, "utf8"), Buffer.from(y, "utf8"))`. The resulting order is total: it returns 0 only when `a === b`.
+`compareUtf8Bytes` is `Buffer.compare(Buffer.from(x, "utf8"), Buffer.from(y, "utf8"))`. It lives in the shared leaf `src/tools/_utf8-compare.ts`, which `files` also uses (moved there in the PR #85 review; see research R7). The resulting order is total: it returns 0 only when `a === b`.
 
 Worked example (per-note scope): `Banana`, `aardvark`, `Aardvark` → `Aardvark`, `aardvark`, `Banana`.
 
