@@ -73,5 +73,15 @@ than an empty result; an invalid regex in
 - `find_by_property` takes the property name as `property:`; its siblings
   `read_property` and `set_property` use `name:`. Documented, not yet
   reconciled.
-- `tag` folds case with ASCII lower-casing only, so non-ASCII tags match
-  case-sensitively.
+- `tag` folds case with JavaScript's `toLowerCase()` inside its `eval`
+  template ([src/tools/tag/_template.ts](../../src/tools/tag/_template.ts)),
+  which folds **all** letters, not only ASCII ones. The baseline of this page
+  said the fold was ASCII-only and that non-ASCII tags matched
+  case-sensitively. That was wrong: it repeated `tag`'s own descriptor and
+  `docs/tools/tag.md`, which still make the ASCII-only claim. Spec 068's
+  research (R7, PR #85) found the mismatch. `tags`, by contrast, really does
+  fold ASCII only when it sorts names
+  ([list and inventory](list-and-inventory.md#tags--the-tag-inventory)).
+- For the inventory question — which tags exist, and how often — use `tags`
+  in the list and inventory group (PR #85). Its counts are occurrences, while
+  `tag` counts notes.

@@ -119,7 +119,7 @@ Use the **exact** Obsidian display name. The server has no in-band vault-enumera
 
 ## Tool inventory
 
-The server currently registers thirty-four public tools. Call `help({ tool_name: "<name>" })` at runtime for the full per-tool documentation (parameters, output shape, error roster, and worked examples) — the listing below is just the index.
+The server currently registers thirty-five public tools. Call `help({ tool_name: "<name>" })` at runtime for the full per-tool documentation (parameters, output shape, error roster, and worked examples) — the listing below is just the index.
 
 ### Read (full + surgical)
 
@@ -166,6 +166,7 @@ The server currently registers thirty-four public tools. Call `help({ tool_name:
 | `paths` | Recursive enumeration of every file and folder under a vault or sub-folder; `{ count, paths }` envelope. |
 | `outline` | List headings in a note. |
 | `properties` | Vault-wide inventory of frontmatter property names with per-property note counts. |
+| `tags` | The vault's tag index, or one note's tags, as `{ total, tags: [{ name, count? }] }` with raw occurrence counts. The counterpart of `tag`, which finds the notes carrying one tag. |
 
 ### Obsidian Bases
 

@@ -224,6 +224,11 @@ than added as new codes:
   Sub-Discriminators via details.reason for Multi-State Error Codes) — for
   example `obsidian-not-running` on `CLI_NON_ZERO_EXIT`, and `not-open` for a
   vault that is registered but closed.
+- `details.stage` names which step of a handler's reply parse failed — for
+  example `json-parse` from the shared `format=json` decode in
+  [src/tools/_cli-json.ts](../src/tools/_cli-json.ts) (PR #85), or `tags`'
+  `shape-parse` and `count-parse`. It is a per-handler marker, not a
+  sub-discriminator under ADR-015.
 
 The per-tool error roster — which codes and sub-codes a given tool can return
 — is in that tool's `docs/tools/<name>.md`.
@@ -249,6 +254,15 @@ Folder-scoped tools use a variant of the refinement that takes `folder`
 instead of `file`/`path`. The Bases tools take only an optional `vault`, and
 omitting it means the focused vault. (`bases` accepts `vault`, but the CLI
 currently ignores it; its doc says so.)
+
+`tags` (PR #85) is a third shape: it extends `targetModeBaseSchema` with its
+own refinement, in which `file`, `path` and `activeOnly` are all optional and
+all allowed in both modes, at most one at a time (ADR-038, Tags Tool-Local
+Target-Mode Scope Matrix). One consequence reaches into the runtime spine.
+`invokeCli` strips `file` and `path` from the parameters when `target_mode` is
+`"active"`, so a tool that keeps a note locator in active mode must call
+`invokeCli` with `"specific"` and leave `vault` unset. `tags` does exactly
+that ([capabilities/list-and-inventory.md](capabilities/list-and-inventory.md#tags--the-tag-inventory)).
 
 Because active mode is implicit state, `get_active_file` (PR #70) exists so a
 client can ask which file is focused before acting on it.
@@ -370,7 +384,11 @@ src/
 Each tool is a folder with a fixed shape (constitution Principle I): `schema.ts`
 holds the zod input (and usually output) schemas, `handler.ts` holds the
 `executeX(input, deps)` logic, `index.ts` holds the `createXTool` factory that
-calls `registerTool`, and eval tools add `_template.ts`. Tests sit beside the
+calls `registerTool`, and eval tools add `_template.ts`. When two tools need
+the same logic, it moves into a `_*.ts` leaf under `src/tools/` rather than
+one tool importing the other — PR #85's review did this for the
+`format=json` decode (`_cli-json.ts`) and the UTF-8 byte comparator
+(`_utf8-compare.ts`). Tests sit beside the
 file they test. Imports go one way — tools depend on the shared modules and
 the adapter, never the other way round, and nothing imports `server.ts`.
 

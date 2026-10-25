@@ -46,7 +46,7 @@ extends it.
     write cohort, `find_and_replace`, `prepend`, `set_property`, `delete`,
     `rename`, `move`.
   - [capabilities/list-and-inventory.md](capabilities/list-and-inventory.md) —
-    `files`, `paths`, `outline`, `properties`.
+    `files`, `paths`, `outline`, `properties`, `tags`.
   - [capabilities/bases.md](capabilities/bases.md) — `bases`, `views_base`,
     `query_base`, `create_base`.
   - [capabilities/plugin-backed.md](capabilities/plugin-backed.md) — the two
