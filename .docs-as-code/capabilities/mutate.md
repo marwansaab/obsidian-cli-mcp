@@ -35,7 +35,7 @@ flowchart LR
   guard --> read[fs.readFile]
   read --> edit[pure edit function]
   edit --> write[atomic tmp + rename]
-  write --> inv[metadataCache invalidation eval]
+  write --> inv[metadataCache refresh eval]
 ```
 
 - **Locator.** In specific mode the vault root comes from the vault registry.
@@ -53,9 +53,33 @@ flowchart LR
   because on Windows they mean another program holds the file. Anything else
   is `FS_WRITE_FAILED`. The per-tool differences are explicit parameters of
   the shared mapper in `src/tools/_fs-errors.ts` (PR #58).
-- **Invalidation.** A best-effort `eval` tells Obsidian to drop its cached
-  metadata for the file, so the next CLI read sees the new text. A failure
-  here does not fail the write.
+- **Refresh.** A best-effort `eval` asks Obsidian to recompute its cached
+  metadata for the written note, so the next search or property read sees the
+  new text (spec 068 FR-001–FR-005, PR #87). `invalidateMetadataCache` in
+  `src/tools/_note-io.ts` addresses the note by its vault-relative,
+  forward-slash path, and sends the vault exactly as the caller named it:
+  `vault=<name>` in specific mode, no `vault=` in active mode, where the write
+  went to the open vault. A resolved folder path is never sent as `vault=`.
+  A failure does not fail the write, but it is no longer silent: it is logged
+  as `bridge.metadata_refresh_failed` with a `reason` of `cli-error`,
+  `note-not-found` or `unexpected-output` (see
+  [architecture.md](../architecture.md#logging-and-shutdown)).
+
+  Before PR #87 this step did nothing at all. It passed the note's absolute
+  path to `getFileByPath`, which takes a vault-relative one, so the lookup
+  returned `null` and the refresh was skipped, and the empty `catch` hid it.
+  It also ran in active mode, so with another vault focused it would have
+  addressed the wrong vault. Searches still mostly came back fresh only
+  because Obsidian's own file watcher usually wins the race
+  (`specs/068-modernise-mcp-surface/evidence-a1.md`).
+
+  The template calls `computeFileMetadataAsync(file)`, the method Obsidian's
+  file watcher uses. It must not call `computeMetadataAsync(file)`, the call
+  ADR-009 (Direct Filesystem Write Path Alongside CLI Bridge) §5 names: that
+  method takes the file's bytes, not a `TFile`, and the first live run with a
+  correct path wedged the vault's metadata worker until Obsidian reloaded
+  (T010). A unit test in `_note-io.test.ts` forbids the old call. ADR-009 §5
+  still names it.
 
 **Concurrency is last-write-wins**, except in `patch_heading`. It walks the
 heading tree again just before writing and fails with `HEADING_RACE` if the
@@ -66,7 +90,10 @@ read and the write.
 occurrence it would change. `commit: true` scans again, compares the count
 against the preview (`OCCURRENCE_COUNT_DRIFT`), checks the
 `OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES` bound (default 500), and then writes
-each note in turn, serialised through the shared queue. A write failure
+each note in turn, serialised through the shared queue. Each changed note is
+refreshed after its queued write resolves, never inside the `queue.run`
+callback: the refresh goes through `invokeCli` and so through the same
+single-flight queue, and nesting it would deadlock (T009, PR #87). A write failure
 partway through reports which notes were already written, in
 `FS_WRITE_FAILED` `details`. By default the scan skips fenced code and HTML
 comments. Its scope is the vault, a subfolder, or — since BI-066 (PR #73;
@@ -107,6 +134,15 @@ missing target.
   `obsidian_exec`.
 - `write_note` dropped its `template` parameter in the ADR-009 rewrite;
   template-based creation goes through `obsidian_exec`.
-- Writes made by the direct path are visible to Obsidian through the cache
-  invalidation and its own file watcher. Nothing confirms that the GUI has
+- Writes made by the direct path are visible to Obsidian through the
+  metadata refresh and its own file watcher. Nothing confirms that the GUI has
   re-rendered.
+- An active-mode write refreshes whichever vault is open when the refresh
+  runs. If focus moves to another vault between the write and the refresh,
+  the refresh runs there: it is logged as `note-not-found` when that vault
+  has no note at the same path, and refreshes the other vault's note, unlogged,
+  when it does. The write itself is unaffected. Spec 068 (Assumptions) records
+  this as a risk the owner accepted in PR #87's review.
+- `write_note open: true` opens the note by its vault-relative path in the
+  written vault (`vault=` in specific mode, PR #87). Before that it passed an
+  absolute path in active mode. The open is still silent on failure.

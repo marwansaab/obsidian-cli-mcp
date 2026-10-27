@@ -46,11 +46,11 @@ The schema is strict: `additionalProperties: false`. Unknown top-level keys (not
 | `path` | string ≥ 1 char (structurally safe) | XOR with `file` | — | Vault-relative path (e.g. `"Inbox/Idea.md"`). Auto-mkdir of nested parents. Never rewritten by the short-form rule. |
 | `content` | string | YES | — | Any size; UTF-8; preserved byte-for-byte. **Never crosses the CLI argv pipe.** |
 | `overwrite` | boolean | no | `false` | When `false`, collision returns `FILE_EXISTS` (atomic via the `wx` flag — no TOCTOU window). When `true`, atomic temp+rename replaces the file. |
-| `open` | boolean | no | `false` | When `true`, post-write `app.workspace.openLinkText(absPath, "")` opens the file in Obsidian. Best-effort: failure does not fail the call. |
+| `open` | boolean | no | `false` | When `true`, post-write `app.workspace.openLinkText(relPath, "")` opens the file in Obsidian, in the written vault (`vault=` on the eval). Best-effort: failure does not fail the call. |
 
 **Canonical short-form `file` resolution.** When `input.file` is supplied without `input.path`, the wrapper applies a literal short-form rule. The input is canonical if it contains no folder separator (`/` or `\`) AND does not end in `.md`. Canonical inputs resolve to `<file>.md` at the vault root and the response's `path` reports the resolved value (e.g. `file: "Daily Note"` → on-disk `<vault-root>/Daily Note.md`, response `path: "Daily Note.md"`). Non-canonical inputs pass through verbatim: `file: "Notes.md"` writes `<vault-root>/Notes.md` and responds with `path: "Notes.md"` (NO double-extension); `file: "Folder/Note"` writes `<vault-root>/Folder/Note` and responds with `path: "Folder/Note"` (no `.md` appended; folder NOT stripped to basename). Internal periods are preserved by `endsWith(".md")` precision — `file: "version_1.2.3"` resolves to `version_1.2.3.md`. Callers wanting deterministic on-disk naming for extension-less inputs supply the canonical shape; callers wanting verbatim layout use `path` instead.
 
-**Path safety.** `file` and `path` are gated by a structural validator (rejects empty strings, leading `/` or `\`, drive-letter prefix `[A-Za-z]:`, any `..` segment, control characters `[\x00-\x1f\x7f]`). At runtime, a canonical-path check via `fs.realpath` catches symlink-escape attempts that pass the structural check; rejection raises `PATH_ESCAPES_VAULT` and emits a typed `pathEscapeAttempt` logger event for operator audit.
+**Path safety.** `file` and `path` are gated by a structural validator (rejects empty strings, leading `/` or `\`, drive-letter prefix `[A-Za-z]:`, any `..` segment, control characters `[\x00-\x1f\x7f]`). At runtime, a canonical-path check via `fs.realpath` on the nearest existing ancestor catches symlink-escape attempts that pass the structural check, including a write into folders that do not exist yet under a link pointing outside the vault; rejection raises `PATH_ESCAPES_VAULT` and emits a typed `pathEscapeAttempt` logger event for operator audit.
 
 ### Active mode
 
@@ -117,16 +117,16 @@ Every failure surfaces as an `UpstreamError` instance.
 | `FS_WRITE_FAILED` | Generic fs failure: ENOSPC (disk full), EACCES / EPERM (permissions), EROFS (read-only filesystem), EIO, etc. | `details.errno` carries the OS errno; `details.syscall` and `details.path` for diagnostic. Agent may retry on transient errors; user action needed for permission/disk. |
 | `CLI_BINARY_NOT_FOUND` | First write triggers the lazy vault-registry probe; the `obsidian` binary is not on `PATH`. | Operator install / `PATH` fix, or set `OBSIDIAN_BIN`. |
 | `CLI_REPORTED_ERROR` | First write triggers the lazy vault-registry probe; CLI ran but Obsidian not running (probe couldn't connect to IPC). | Ask the user to open Obsidian and retry. The cache stays unset; the next call retries the probe. |
-| `CLI_TIMEOUT` | Vault-registry probe exceeded the 10s typed-tool bound. Rare in practice (probe is ~150 ms). | Operator-side: investigate Obsidian responsiveness. The post-write `metadataCache` invalidation eval-timeout case does NOT surface this code — it is caught silently (the write itself succeeded). |
+| `CLI_TIMEOUT` | Vault-registry probe exceeded the 10s typed-tool bound. Rare in practice (probe is ~150 ms). | Operator-side: investigate Obsidian responsiveness. The post-write `metadataCache` refresh eval-timeout case does NOT surface this code — it is logged as `bridge.metadata_refresh_failed` (`reason: "cli-error"`) and the call still succeeds (the write itself succeeded). |
 
-### Best-effort paths (silent on failure)
+### Best-effort paths
 
 Two control-plane evals are best-effort; their failure does NOT fail the call:
 
-- **`metadataCache` invalidation** (post-write, both modes). If the invalidation eval times out or errors, the response still reports the write outcome correctly. Cache freshness defers to Obsidian's file watcher (~200–500 ms eventual consistency).
-- **Editor open** (post-write, specific mode + `open: true`). If the open eval fails, the response still reports the write success. Open is a UX nicety, not the contract.
+- **`metadataCache` refresh** (post-write, both modes). Recomputes Obsidian's metadata for the written note so the next search or property read sees it. The eval addresses the note by its vault-relative path, in `vault=` as given in specific mode and in the open vault in active mode. If the eval errors or times out, or Obsidian cannot find the note, the response still reports the write outcome correctly, and the failure is logged as a `bridge.metadata_refresh_failed` event with `{vault, relPath, reason, detail}`, where `reason` is `"cli-error"`, `"note-not-found"` or `"unexpected-output"`. Obsidian's own file watcher also picks the change up.
+- **Editor open** (post-write, specific mode + `open: true`). If the open eval fails, the response still reports the write success, and nothing is logged. Open is a UX nicety, not the contract.
 
-Neither path emits a logger event — only the security-relevant `PATH_ESCAPES_VAULT` rejection emits `pathEscapeAttempt`.
+This section previously said the refresh was silent and emitted no logger event. That was true, and it hid a defect: the refresh passed the note's absolute path, which `getFileByPath` cannot resolve, so it never ran. Since spec 068 (PR #87) the refresh uses the vault-relative path and logs every failure.
 
 ## Upstream rationale
 
