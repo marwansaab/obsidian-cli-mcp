@@ -1,6 +1,195 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 1.5.1 → 1.6.0 (MINOR — two normative sections are
+added under Technical Standards (MCP Tool Surface Standards; Security
+Defaults); the MCP standard is rewritten and materially expanded for
+TypeScript SDK v2 and protocol revision 2026-07-28; Principle IV gains
+a cancellation-and-progress requirement and a restated serialization
+sentence; the quality gates gain a Linux + Windows CI gate and two
+Constitution Compliance checklist lines. MAJOR was considered and
+rejected: the policy reserves MAJOR for a principle removed or
+redefined incompatibly, or a governance rule reversed. No Core
+Principle is removed, renamed, reordered, or redefined, and no
+governance rule is reversed. The MCP bullet does reverse which SDK
+package is mandated, but it is a stack constraint, and replacing a
+stack surface is the policy's own MINOR example. Principle IV's
+normative content — UpstreamError with code / cause / details, no
+silent fallbacks, no plain `throw new Error` at boundaries — is
+unchanged; only its wire form is restated for SDK v2.)
+
+Driver: the 0.8.20 scope handover from the obsidian-cli-mcp-review
+research (researched 2026-10-27, baseline commit 0b02f8c). The MCP
+spec moved to revision 2026-07-28 (stateless; `server/discover`
+replaces `initialize`). TypeScript SDK v2 (`@modelcontextprotocol/
+server`, `/client`, `/core`; stable since 2026-07-27) implements it;
+SDK v1 (`@modelcontextprotocol/sdk`) stays on 2025-11-25 with fixes
+only until about 2027-01-27. The v1.5.1 Technical Standards pinned the
+project to the v1 package and its low-level `Server` API, so the
+0.8.20 migration would have been a violation. Clients (Claude Code,
+Claude apps, VS Code, Codex) now act on tool annotations, titles, and
+server instructions, and the security defaults peer servers ship
+(eval off, read-only modes) were not yet a rule here.
+
+Modified sections:
+  - Principle IV (Explicit Upstream Error Propagation) → second
+    paragraph: the sentence "The MCP SDK MUST serialize these errors
+    via the SDK's error-response shape" is replaced: tool failures
+    are tool results with `isError: true` carrying the UpstreamError's
+    code, message, and details; malformed requests and unknown tools
+    MAY be protocol errors where the SDK makes them so; the
+    zero-new-top-level-codes practice and ADR-015 sub-discriminators
+    are stated as unaffected. Enables A2.
+  - Principle IV → new third paragraph: long-running calls honor
+    client cancellation (drop queued work; terminate an in-flight CLI
+    child) and report progress when given a progress token. Enables
+    A3. Name, order, and rationale of Principle IV unchanged.
+  - Technical Standards → MCP bullet: replaced in full. SDK v2 line
+    (`@modelcontextprotocol/server` + stdio subpath) is the sole MCP
+    implementation; v1 package forbidden once the migration lands;
+    `McpServer.registerTool` mandatory, hand-written `tools/list` /
+    `tools/call` handlers forbidden except SDK-uncovered methods with
+    an ADR; dual-era stdio via `serveStdio`; no Roots / Sampling /
+    Logging capabilities; stderr-only diagnostics; Node floor note.
+    Enables A2.
+  - Technical Standards → Dependencies bullet: the swap from
+    `@modelcontextprotocol/sdk` to the v2 packages is recorded as
+    pre-justified by this amendment. Enables A2.
+  - Development Workflow & Quality Gates → point 8: intro widened to
+    "per principle, ADR, and standards section"; two lines appended
+    (MCP Tool Surface Standards; Security Defaults); N/A prose
+    extended with one rule per new line.
+  - Development Workflow & Quality Gates → new point 9: CI runs lint,
+    typecheck, test, and build on both Linux and Windows runners.
+    Enables A4.
+  - Development Workflow & Quality Gates → "Code review MUST verify
+    each gate explicitly..." paragraph: extended to the two new
+    sections.
+  - Governance → new "Adoption of v1.6.0" paragraph: the code base at
+    ratification does not meet the new rules; each rule binds from the
+    merge of the 0.8.20 item that brings its code into line, and PRs
+    in the interim MUST NOT add new non-conformance. Added by the
+    amender for coherence (not in the amendment request); the owner
+    may strike it at ratification.
+  - Footer version line: 1.5.1 → 1.6.0; Last Amended 2026-07-05 →
+    2026-10-28. Ratified date unchanged (2026-05-03).
+
+Added sections:
+  - Technical Standards → "MCP Tool Surface Standards" (### subsection):
+      title on every tool .................................. B1
+      explicit four-hint annotations block ................. B1
+      every parameter described; stripping forbidden
+        (retires ADR-005's mechanism) ...................... C1
+      JSON-Schema-expressible input rules visible to clients,
+        structurally or in descriptions .................... C1
+      server instructions (standalone first 512 chars;
+        well under 4,096) .................................. B2
+      outputSchema SHOULD; structuredContent + identical
+        text when published; errors text-only .............. B5
+      schema dialect = what the SDK emits; no normalizing;
+        fingerprint baseline kept as deliberate-change gate  C3
+      whole-list tests for title, annotations, parameter
+        descriptions ....................................... B1, C1
+  - Technical Standards → "Security Defaults" (### subsection):
+      escape hatches (eval, dev:*, devtools, plugin install /
+        enable / disable, restart) refused unless opted in;
+        typed tools' templated eval exempt ................. C2
+      read-only mode + allowlist / denylist ................ B3
+      elicitation for permanent delete and vault-wide
+        find-and-replace commit; decline / cancel changes
+        nothing and returns a structured error ............. B3
+      write paths canonicalized via realpath of the nearest
+        existing ancestor .................................. A5
+
+Removed sections: none. No principle, standard, or gate is removed.
+ADR-005's description-stripping mechanism is retired by the MCP Tool
+Surface Standards; ADR-005 itself is superseded by a separate ADR
+(scope item C1), not by this amendment.
+
+Modified principles: Principle IV body only (serialization sentence
+restated; cancellation / progress paragraph added). Principles I–V
+names, order, and rationale unchanged. Principles I, II, III, and V
+are byte-unchanged.
+
+0.8.20 scope items enabled:
+  A2 (SDK v2, McpServer, dual-era stdio) — MCP bullet, Dependencies
+     bullet, Principle IV serialization sentence.
+  A3 (cancellation and progress) — Principle IV third paragraph.
+  A4 (Windows CI runner) — quality gate 9.
+  A5 (vault-escape gap under symlinks) — Security Defaults, vault
+     containment of writes.
+  B1 (annotations and titles) — MCP Tool Surface Standards, title /
+     annotations / enforcement.
+  B2 (server instructions) — MCP Tool Surface Standards, server
+     instructions.
+  B3 (read-only mode, allowlist, confirmation) — Security Defaults,
+     read-only mode and confirmation rules.
+  B5 (typed results) — MCP Tool Surface Standards, typed results.
+  C1 (stop stripping descriptions) — MCP Tool Surface Standards,
+     parameter descriptions and visible input rules.
+  C2 (gate unrestricted eval) — Security Defaults, escape hatches.
+  C3 (retire the draft-07 parity normalizer) — MCP Tool Surface
+     Standards, schema dialect.
+  A1 (metadata-cache refresh fix) and B4 (list_vaults) need no
+  amendment: both already fit the v1.5.1 text.
+
+Decisions deliberately left open (the owner decides in the 0.8.20
+scope; the text is written so either answer complies):
+  B3 — behavior when the client cannot elicit. Security Defaults
+       accepts either a refusal with a structured error or a per-call
+       permission prompt the client enforces.
+  C1 — whether input rules are made visible structurally (e.g. a
+       discriminated union emitting `oneOf`) or stated in parameter
+       descriptions. MCP Tool Surface Standards accepts either.
+
+Templates and guidance checked (2026-10-28):
+  - .specify/templates/plan-template.md: ✅ no edit. Its Constitution
+    Check derives gates from this file ("Gates determined based on
+    constitution file") and enumerates no checklist rows, so the new
+    lines reach plans the same way the existing ones do.
+  - .specify/templates/spec-template.md: ✅ no constitution-gate or
+    checklist references; no edit.
+  - .specify/templates/tasks-template.md: ✅ no constitution-gate or
+    checklist references; no edit. (Pre-existing, not addressed here:
+    its sample text calls tests OPTIONAL, which Principle II overrides
+    for public surfaces.)
+  - .specify/templates/checklist-template.md: ✅ no references.
+  - .claude/skills/speckit-plan/SKILL.md: ✅ fills the Constitution
+    Check "from constitution"; generic, no edit.
+  - .claude/skills/speckit-docs-as-code/SKILL.md: ✅ refers to the
+    Compliance table generically and lists only ADR-governed rows;
+    no edit.
+  - .claude/skills/speckit-constitution/SKILL.md: ✅ generic; no edit.
+  - CLAUDE.md SPECKIT block: ✅ updated — constitution summary now
+    names the Principle IV additions, the two new standards sections,
+    and the two new checklist lines.
+  - .docs-as-code/tech-stack.md and .docs-as-code/architecture.md:
+    ⚠ pending. Both say the constitution requires the low-level SDK
+    `Server` API. Out of this governance-only change's file scope;
+    `/speckit-docs-as-code <n>` on the amendment PR corrects them per
+    the PR lifecycle.
+  - README.md: ⚠ pending with C2 / B3 — Security Defaults requires the
+    README to document the escape-hatch opt-in variable with a warning,
+    and B3 adds the read-only / allowlist / denylist variables.
+
+Follow-up TODOs:
+  - Known non-conformance at ratification, each closed by its 0.8.20
+    item (see Governance → Adoption of v1.6.0): v1 SDK and low-level
+    `Server` with hand-written handlers (A2); no cancellation or
+    progress (A3); Ubuntu-only CI (A4); lexical fallback in
+    `src/path-safety/canonical.ts` (A5); no titles or annotations
+    (B1); no server instructions (B2); no read-only mode, filtering,
+    or elicitation (B3); no published output schemas (B5); stripped
+    parameter descriptions (C1); open `eval` in `obsidian_exec` (C2);
+    draft-07 parity normalizer (C3).
+  - New ADRs: one superseding the low-level-`Server` decision (A2);
+    one superseding ADR-005 (C1). Register both in
+    .decisions/Decision Log.md.
+  - Remove the "Adoption of v1.6.0" paragraph by PATCH amendment once
+    0.8.20 is released.
+
+PRIOR SYNC IMPACT REPORT (v1.5.0 → v1.5.1, preserved for reference):
+==================
 Version change: 1.5.0 → 1.5.1 (PATCH — wording-only exemplar update
 inside Principle III. The published-shape exemplar "MCP `inputSchema`
 via `zod-to-json-schema` or equivalent" becomes "MCP `inputSchema` via
@@ -363,9 +552,20 @@ Errors propagated to callers MUST be instances of a project-defined
 thereof) carrying at minimum: `code` (a stable string identifier),
 `cause` (the original thrown value where available), and `details` (a
 structured record with the upstream status / context / field paths).
-The MCP SDK MUST serialize these errors via the SDK's error-response
-shape. Plain `throw new Error("…")` at any boundary surface is a
-violation.
+Tool failures MUST be returned as tool results with `isError: true`
+whose content carries the `UpstreamError`'s `code`, `message`, and
+`details`. Malformed requests and calls to unknown tools MAY surface as
+JSON-RPC protocol errors where the SDK makes them so. This
+serialization leaves unchanged the practice of introducing no new
+top-level codes and the `details.reason` sub-discriminators of ADR-015.
+Plain `throw new Error("…")` at any boundary surface is a violation.
+
+Long-running calls MUST honor the client's cancellation: a cancelled
+request that has not started MUST be dropped from the queue without
+running, and a cancelled request whose CLI child is already running
+MUST have that child killed; in neither case may the cancelled call
+block the work queued behind it. When the client supplies a progress
+token, long-running calls MUST report progress against it.
 
 **Rationale**: Silent failures present as "the caller got an empty or
 wrong answer" — indistinguishable from a legitimate result and
@@ -417,9 +617,25 @@ to its source.
 - **Validation**: `zod` is the only permitted runtime input-validation
   library at any boundary surface. Hand-rolled `typeof` / `instanceof` chains
   at boundaries are a constitution violation.
-- **MCP**: `@modelcontextprotocol/sdk` is the sole MCP transport. Tool
-  registration MUST go through the SDK's `Server` API; ad-hoc JSON-RPC
-  handling is forbidden.
+- **MCP**: The official MCP TypeScript SDK, v2 line, is the sole MCP
+  implementation: `@modelcontextprotocol/server`, with stdio from its
+  `@modelcontextprotocol/server/stdio` subpath. The v1 package
+  `@modelcontextprotocol/sdk` MUST NOT be used once the SDK v2 migration
+  lands.
+  - Tools MUST be registered through `McpServer.registerTool`.
+    Hand-written request handlers (`setRequestHandler` for `tools/list`
+    or `tools/call`) and ad-hoc JSON-RPC handling are forbidden, except
+    for a protocol method the SDK does not cover; each such exception
+    requires an ADR.
+  - The stdio entry point MUST serve both protocol eras, 2025-11-25
+    (`initialize`) and 2026-07-28 (`server/discover`), through the SDK's
+    dual-era serving (`serveStdio`) for as long as supported clients
+    still use the older handshake.
+  - The server MUST NOT declare the deprecated Roots, Sampling, or
+    Logging capabilities. Diagnostics go to stderr only; stdout carries
+    MCP messages only.
+  - SDK v2 requires Node 20+. The >= 22.11 floor under **Runtime**
+    already satisfies it and stays where it is.
 - **Test framework**: `vitest` with `@vitest/coverage-v8` for the V8 coverage
   provider. Test files use the `*.test.ts` naming convention and live
   co-located with their source module (per Principle II). The merge-gating
@@ -436,7 +652,76 @@ to its source.
 - **Dependencies**: New runtime dependencies MUST be justified in the PR
   description against the alternative of a small in-tree implementation.
   Bias hard toward in-tree for anything under ~150 LOC or with a narrow
-  surface area.
+  surface area. Replacing `@modelcontextprotocol/sdk` with the SDK v2
+  packages (`@modelcontextprotocol/server`, and `/core` or `/client`
+  where needed) is pre-justified by the v1.6.0 amendment; the migration
+  PR cites that amendment rather than re-arguing the swap.
+
+### MCP Tool Surface Standards
+
+These rules govern what MCP clients and models see of each published
+tool. They complement Principle III, which makes the zod schema the
+source of a tool's published shape.
+
+- **Title**: Every published tool MUST carry a human-readable `title`.
+- **Annotations**: Every published tool MUST carry an explicit
+  `annotations` block that sets all four of `readOnlyHint`,
+  `destructiveHint`, `idempotentHint`, and `openWorldHint`. Leaving any
+  hint to the specification's pessimistic defaults is a violation.
+- **Parameter descriptions**: Every input parameter in a published
+  `inputSchema` MUST carry a description. Stripping parameter
+  descriptions from published schemas is forbidden. This retires the
+  mechanism ADR-005 introduced; ADR-005 itself is superseded by a
+  separate ADR.
+- **Visible input rules**: Rules on a tool's input that JSON Schema can
+  express (fields required together, mutually exclusive fields, fields
+  conditional on a mode field) MUST be visible to clients, either
+  structurally in the published schema or stated in the descriptions of
+  the parameters they constrain. This constitution does not prescribe
+  which of the two.
+- **Server instructions**: The server MUST publish server
+  `instructions`. Their opening MUST stand alone within the first 512
+  characters, and the whole text MUST stay well under 4,096 characters.
+- **Typed results**: A tool that returns a JSON object SHOULD publish an
+  `outputSchema` derived from its zod output schema. A tool that does
+  MUST return the result as `structuredContent` AND the identical JSON
+  as a text content block. Error results stay text-only.
+- **Schema dialect**: The published schema dialect is whatever the SDK
+  emits. Normalizing emitted schemas to imitate a retired converter, or
+  to keep a fingerprint unchanged, is forbidden. The registry
+  fingerprint baseline remains a deliberate-change gate: a change to
+  the published surface fails it, and the fix is to review the change
+  and regenerate the baseline in the same PR.
+- **Enforcement**: Tests MUST enforce the title, annotations, and
+  parameter-description rules across the whole published tool list.
+
+### Security Defaults
+
+- **Escape hatches off by default**: Commands that execute arbitrary
+  code or drive developer tooling (the Obsidian CLI's `eval`, `dev:*`,
+  `devtools`, plugin install / enable / disable, and `restart`) MUST be
+  refused by default. They MAY be enabled only through an explicit
+  opt-in environment variable that the README documents with a warning.
+  Typed tools' internal use of `eval` through fixed templates with
+  encoded payloads is exempt, because it never passes caller-supplied
+  code.
+- **Read-only mode and tool filtering**: The server MUST offer a
+  read-only mode that registers only tools annotated
+  `readOnlyHint: true`, plus allowlist and denylist controls over which
+  tools are registered.
+- **Confirmation of irreversible operations**: Irreversible operations
+  (permanent delete; a vault-wide find-and-replace commit) MUST ask the
+  human to confirm through elicitation where the client supports it. A
+  declined or cancelled confirmation MUST change nothing and MUST return
+  a structured error (Principle IV). Where the client cannot elicit, the
+  operation MUST NOT proceed unconfirmed: refusing it with a structured
+  error and gating it behind a per-call permission prompt the client
+  enforces both satisfy this rule.
+- **Vault containment of writes**: Every vault write path MUST be
+  canonicalized against the vault root by resolving its nearest existing
+  ancestor with `realpath`, so that symlinks and junctions under
+  not-yet-existing folders cannot escape the vault. Falling back to the
+  lexical path when an ancestor does not yet exist is a violation.
 
 ## Development Workflow & Quality Gates
 
@@ -463,7 +748,7 @@ The following gates apply to every change before it can be merged:
    `/speckit-tasks`) MUST pass the Constitution Check gate documented in the
    plan template before implementation begins.
 8. Every PR description includes a Constitution Compliance checklist with one
-   Y / N / N/A entry per principle:
+   Y / N / N/A entry per principle, ADR, and standards section listed:
 
    - [ ] Principle I (Modular Code Organization): Y / N / N/A
    - [ ] Principle II (Public Surface Test Coverage): Y / N / N/A
@@ -474,6 +759,8 @@ The following gates apply to every change before it can be merged:
    - [ ] ADR-013 (Plugin-Namespace Tool Naming Convention): Y / N / N/A
    - [ ] ADR-014 (Plugin-Backed Typed Tools Runtime-Dependency Pattern): Y / N / N/A
    - [ ] ADR-015 (Sub-Discriminators via details.reason for Multi-State Error Codes): Y / N / N/A
+   - [ ] MCP Tool Surface Standards: Y / N / N/A
+   - [ ] Security Defaults: Y / N / N/A
 
    Any `N` MUST be paired with a Complexity Tracking entry in the corresponding
    plan that justifies the deviation. `N/A` is permitted only when the change
@@ -483,7 +770,13 @@ The following gates apply to every change before it can be merged:
    ADR-013 AND ADR-014; a PR that adds a plugin-API-wrapper typed tool is
    N/A on ADR-010; a PR that introduces no new `(top-level-code, details.code)`
    pair with multiple sub-states AND adds no new sub-states to existing pairs
-   is N/A on ADR-015).
+   is N/A on ADR-015; a PR that changes no published tool, schema, or server
+   instructions is N/A on MCP Tool Surface Standards; a PR that touches no
+   write path, no escape hatch, and no destructive tool is N/A on Security
+   Defaults).
+9. CI MUST run the full lint, typecheck, test, and build pipeline on both
+   Linux and Windows runners. Windows is a primary platform for this server;
+   a change is not green until both runners are.
 
 **Spec-kit workflow**: Any feature larger than a single-file change MUST
 enter via `/speckit-specify` → `/speckit-clarify` (repeated until no
@@ -496,7 +789,8 @@ or documents and justifies any deviation. `tasks.md` is dependency-ordered.
 Code review MUST verify each gate explicitly; "CI is green" is necessary but
 not sufficient — reviewers also confirm Principles I–V and the ADR-010 / ADR-013
 naming checks AND the ADR-014 plugin-lifecycle / ADR-015 sub-discriminator
-checks by inspection.
+checks AND the MCP Tool Surface Standards / Security Defaults checks by
+inspection.
 
 ## Governance
 
@@ -525,4 +819,15 @@ and in feature-specific plans under `specs/`. Those documents MUST defer to
 this constitution; if they imply a contradiction, treat it as a bug in the
 guidance document and fix it.
 
-**Version**: 1.5.1 | **Ratified**: 2026-05-03 | **Last Amended**: 2026-07-05
+**Adoption of v1.6.0**: The rules v1.6.0 added or rewrote (the MCP
+standard, MCP Tool Surface Standards, Security Defaults, Principle IV's
+cancellation and progress requirement, and gate 9) set the target of the
+0.8.20 release; the code base at ratification does not yet meet them. Each
+rule binds the code it governs from the merge of the 0.8.20 work item that
+brings that code into line. Until then, a PR is not in violation for
+non-conformance it did not introduce, MUST NOT add new non-conformance, and
+records the pending item in its checklist entry (e.g. `N/A (pending B1)`).
+Once 0.8.20 is released this paragraph is spent and SHOULD be removed by a
+PATCH amendment.
+
+**Version**: 1.6.0 | **Ratified**: 2026-05-03 | **Last Amended**: 2026-10-28
