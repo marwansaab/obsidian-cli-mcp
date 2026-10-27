@@ -527,8 +527,14 @@ none arrive.
 - **FR-004**: A metadata-refresh failure MUST NOT fail the write; it MUST be recorded in the
   server's diagnostic log with enough detail (vault, note, reason) to diagnose it.
 - **FR-005**: The defect MUST first be demonstrated by a live probe against the authorised
-  test vault before the fix, and the same probe MUST pass after the fix for full write,
-  append, heading edit and committed find-and-replace.
+  test vault before the fix. That demonstration is code-level: the refresh lookup Obsidian
+  runs today resolves to nothing, so the refresh does nothing. It is recorded in
+  `evidence-a1.md` (owner ruling 2026-10-28). Obsidian's file watcher can hide the stale
+  search, so a stale search result is not required as evidence. After the fix, the live
+  probe MUST show two things for full write, append, heading edit and committed
+  find-and-replace: the refresh resolves the written note, and the next search sees the
+  change. Where a second vault is registered, the probe MUST also show a refresh that
+  targets that vault while it is not focused.
 
 **Vault containment (User Story 2)**
 
@@ -777,8 +783,10 @@ none arrive.
 
 ### Measurable Outcomes
 
-- **SC-001**: In the live probe, a property written by each of the four write paths is found by
-  a property search issued as the very next call, 4 out of 4 times.
+- **SC-001**: Before the fix, the live probe records that the refresh lookup resolves to nothing
+  (`evidence-a1.md`). After the fix, for each of the four write paths, the refresh resolves
+  the written note in the written vault, and a property search issued as the very next call
+  finds the change, 4 out of 4 times.
 - **SC-002**: 100% of the containment test cases (link to existing folder, link to new folder,
   junction, mixed-case root, "..", prefix-named sibling) are refused, and 0 files or folders
   are created outside the vault during the test run; 100% of ordinary in-vault writes still

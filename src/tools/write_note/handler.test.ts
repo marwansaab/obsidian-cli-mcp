@@ -1,5 +1,7 @@
 // Original — no upstream. Tests for the write_note handler per ADR-009 / US1 — direct-fs-write specific-mode happy path: vault-registry resolution, canonical-path safety, atomic temp+rename, content fidelity, argv anti-leak, lazy registry probe semantics. T002 decisions header: (d) DEL added to path-safety; (e) best-effort fs.unlink on rename failure; (f) FILE_EXISTS race-freeness covered by `wx` flag semantics — deterministic concurrency test omitted; (g) mid-write SIGTERM atomicity deferred to manual M-4 in quickstart.md.
-import { resolve } from "node:path";
+import * as nodeFs from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { Writable } from "node:stream";
 
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -437,12 +439,13 @@ test("open=true → post-write openLinkText eval fired (#16)", async () => {
     },
     deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
   );
-  // Two evals: invalidate + open
+  // Two evals: refresh + open, both in the written vault on the vault-relative path (068 FR-001–FR-003)
   expect(recorded.length).toBe(2);
-  // The second (open) eval contains openLinkText in the code= argv
+  expect(recorded[0]!.argv).toContain("vault=TestVault");
+  expect(recorded[0]!.argv.find((a) => a.startsWith("code="))).toContain('getFileByPath("Sandbox/n.md")');
+  expect(recorded[1]!.argv).toContain("vault=TestVault");
   const openArg = recorded[1]!.argv.find((a) => a.startsWith("code="));
-  expect(openArg).toBeDefined();
-  expect(openArg!).toContain("openLinkText");
+  expect(openArg).toBe('code=app.workspace.openLinkText("Sandbox/n.md","")');
 });
 
 // (#17) open=true + post-write open eval fails → response is STILL success
@@ -610,6 +613,55 @@ test("symlink-escape attempt → PATH_ESCAPES_VAULT + pathEscapeAttempt logger e
   // No file was written / mkdir'd
   expect(fs.writes.length).toBe(0);
   expect(fs.mkdirs.length).toBe(0);
+});
+
+// (068 US2 / T013) Real filesystem: a write to a missing folder under a link that points
+// outside the vault is refused before any mkdir, and nothing is created outside.
+test("real fs: missing folder under an outward link → PATH_ESCAPES_VAULT, no mkdir, nothing created outside", async () => {
+  const base = await nodeFs.mkdtemp(join(tmpdir(), "write-note-escape-"));
+  try {
+    const vault = join(base, "vault");
+    const outside = join(base, "outside");
+    await nodeFs.mkdir(vault);
+    await nodeFs.mkdir(outside);
+    await nodeFs.symlink(outside, join(vault, "Linked"), process.platform === "win32" ? "junction" : "dir");
+    const mkdirs: string[] = [];
+    const fs = {
+      mkdir: async (p: string, opts: { recursive: true }) => {
+        mkdirs.push(p);
+        return nodeFs.mkdir(p, opts);
+      },
+      writeFile: (p: string, c: string, opts?: { flag?: "wx" }) => nodeFs.writeFile(p, c, opts),
+      rename: (from: string, to: string) => nodeFs.rename(from, to),
+      realpath: (p: string) => nodeFs.realpath(p),
+      unlink: (p: string) => nodeFs.unlink(p),
+    };
+    const events: Array<Record<string, unknown>> = [];
+    const logger = createLogger({
+      stream: new Writable({
+        write(chunk, _enc, cb) {
+          events.push(JSON.parse(chunk.toString()) as Record<string, unknown>);
+          cb();
+        },
+      }),
+    });
+    const { spawnFn } = makeQueuedSpawn([]);
+    const err = await executeWriteNote(
+      { target_mode: "specific", vault: "TestVault", path: "Linked/New/Note.md", content: "x", overwrite: true },
+      deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: vault }), fs, logger }),
+    ).catch((e) => e);
+    expect((err as UpstreamError).code).toBe("PATH_ESCAPES_VAULT");
+    expect((err as UpstreamError).details).toEqual({
+      vault: "TestVault",
+      attemptedPath: "Linked/New/Note.md",
+      resolvedPath: join(await nodeFs.realpath(outside), "New", "Note.md"),
+    });
+    expect(events.filter((e) => e.event === "pathEscapeAttempt")).toHaveLength(1);
+    expect(mkdirs).toEqual([]);
+    expect(await nodeFs.readdir(outside)).toEqual([]);
+  } finally {
+    await nodeFs.rm(base, { recursive: true, force: true });
+  }
 });
 
 // (#19) FS_WRITE_FAILED with details.errno = "ENOSPC"

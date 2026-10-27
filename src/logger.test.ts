@@ -170,6 +170,22 @@ test("logger pathEscapeAttempt accepts vault: null for active-mode rejection", (
   expect(parsed.attemptedPath).toBe("../escape.md");
 });
 
+test("logger metadataRefreshFailed emits bridge.metadata_refresh_failed with vault + relPath + reason", () => {
+  const cap = captureStream();
+  const logger = createLogger({ stream: cap.stream });
+  logger.metadataRefreshFailed({ vault: "TestVault", relPath: "Sandbox/note.md", reason: "CLI_TIMEOUT" });
+  const lines = cap.lines();
+  expect(lines.length).toBe(1);
+  const parsed = JSON.parse(lines[0]!);
+  expect(parsed).toEqual({
+    event: "bridge.metadata_refresh_failed",
+    ts: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+    vault: "TestVault",
+    relPath: "Sandbox/note.md",
+    reason: "CLI_TIMEOUT",
+  });
+});
+
 test("logger defaults to process.stderr when no stream injected (smoke)", () => {
   const logger = createLogger();
   expect(typeof logger.shutdown).toBe("function");
@@ -179,4 +195,5 @@ test("logger defaults to process.stderr when no stream injected (smoke)", () => 
   expect(typeof logger.dispatchRetry).toBe("function");
   expect(typeof logger.dispatchRecovery).toBe("function");
   expect(typeof logger.pathEscapeAttempt).toBe("function");
+  expect(typeof logger.metadataRefreshFailed).toBe("function");
 });

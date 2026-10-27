@@ -504,6 +504,18 @@ the test-execution gate)** has two parts:
 `relPath` is normalised); the eval argv carries `vault=<written vault>`; a CLI failure
 emits `metadataRefreshFailed` and the write still resolves.
 
+**T0 result (2026-10-28, evidence-a1.md)**:
+- **Before the fix**: the stale search did not reproduce, because the file watcher wins
+  the race. The refresh resolves to `null`, which proves it does nothing (owner ruling:
+  FR-005 accepts this).
+- **After the fix, inherited template**: `computeMetadataAsync(f)` wedged the vault's
+  metadata worker. That method takes the file's bytes, not a TFile.
+- **Change**: the template now calls `computeFileMetadataAsync(f)` (the watcher's own
+  method) and prints `missing` when the note is unknown; both `missing` and an error are
+  logged.
+- **Result**: all four write paths and the multi-vault case are fresh on the next call.
+- **Owner follow-up**: amend ADR-009 §5, which still names `computeMetadataAsync`.
+
 ---
 
 ## R14 — Windows CI (PR 1)

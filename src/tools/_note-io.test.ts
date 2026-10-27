@@ -1,7 +1,7 @@
 // Original — no upstream. Unit tests for the shared note-write substrate (_note-io.ts, F6 of the
 // thermo-nuclear code-quality review): the UUID-uniquified atomic tmp+rename write (raw-error rethrow,
-// rename-failure unlink, writeFile-failure no-unlink) and the best-effort metadataCache-invalidation
-// eval round-trip (argv shape + silent-on-failure contract).
+// rename-failure unlink, writeFile-failure no-unlink) and the best-effort metadataCache refresh eval
+// round-trip (vault-relative path, vault= argv, logged-on-failure contract — spec 068 A1).
 import { EventEmitter } from "node:events";
 import { Readable } from "node:stream";
 import { Writable } from "node:stream";
@@ -14,8 +14,6 @@ import { createQueue } from "../queue.js";
 
 import type { EvalDeps } from "./_active-file.js";
 import type { SpawnLike } from "../cli-adapter/cli-adapter.js";
-
-const sink = new Writable({ write(_chunk, _enc, cb) { cb(); } });
 
 const FIXED_UUID = (): string => "fixed-uuid";
 
@@ -122,27 +120,71 @@ function recordingSpawn(opts: {
   };
 }
 
-function evalDeps(spawnFn: SpawnLike): EvalDeps {
-  return { logger: createLogger({ stream: sink }), queue: createQueue(), spawnFn };
+function evalDeps(spawnFn: SpawnLike, events: Array<Record<string, unknown>> = []): EvalDeps {
+  const stream = new Writable({
+    write(chunk, _enc, cb) {
+      events.push(JSON.parse(chunk.toString()) as Record<string, unknown>);
+      cb();
+    },
+  });
+  return { logger: createLogger({ stream }), queue: createQueue(), spawnFn };
 }
 
 describe("invalidateMetadataCache", () => {
-  test("evals computeMetadataAsync against the absolute path and resolves", async () => {
+  test("evals computeFileMetadataAsync on the vault-relative path, with vault= on the argv", async () => {
     let argv: readonly string[] | null = null;
-    const spawnFn = recordingSpawn({ stdout: "=> undefined", onArgv: (a) => (argv = a) });
+    const events: Array<Record<string, unknown>> = [];
+    const spawnFn = recordingSpawn({ stdout: "=> ok\n", onArgv: (a) => (argv = a) });
     await expect(
-      invalidateMetadataCache(evalDeps(spawnFn), "/vault/Notes/a.md"),
+      invalidateMetadataCache(evalDeps(spawnFn, events), { vault: "TestVault", relPath: "Notes/a.md" }),
     ).resolves.toBeUndefined();
-    expect(argv).not.toBeNull();
-    const joined = argv!.join(" ");
-    expect(joined).toContain("computeMetadataAsync");
-    expect(joined).toContain("/vault/Notes/a.md");
+    expect(argv).toContain("vault=TestVault");
+    const code = argv!.find((a) => a.startsWith("code="))!;
+    expect(code).toContain("computeFileMetadataAsync(f)");
+    // Regression guard (068 T010): computeMetadataAsync takes the file's bytes; handing it a TFile
+    // wedges the vault's metadata worker until Obsidian reloads.
+    expect(code).not.toContain("computeMetadataAsync(");
+    expect(code).toContain('getFileByPath("Notes/a.md")');
+    expect(events).toEqual([]);
   });
 
-  test("swallows an upstream failure (write already landed)", async () => {
+  test("normalises a Windows-style relPath to forward slashes", async () => {
+    let argv: readonly string[] | null = null;
+    const spawnFn = recordingSpawn({ stdout: "=> ok\n", onArgv: (a) => (argv = a) });
+    await invalidateMetadataCache(evalDeps(spawnFn), { vault: "TestVault", relPath: "Notes\\Sub\\a.md" });
+    expect(argv!.find((a) => a.startsWith("code="))).toContain('getFileByPath("Notes/Sub/a.md")');
+  });
+
+  test("active-mode target (no vault) runs without vault= on the argv", async () => {
+    let argv: readonly string[] | null = null;
+    const spawnFn = recordingSpawn({ stdout: "=> ok\n", onArgv: (a) => (argv = a) });
+    await invalidateMetadataCache(evalDeps(spawnFn), { relPath: "a.md" });
+    expect(argv!.some((a) => a.startsWith("vault="))).toBe(false);
+  });
+
+  test("a rejecting invokeCli logs metadataRefreshFailed and still resolves (write already landed)", async () => {
+    const events: Array<Record<string, unknown>> = [];
     const spawnFn = recordingSpawn({ stdout: "Error: boom\n", exitCode: 1 });
     await expect(
-      invalidateMetadataCache(evalDeps(spawnFn), "/vault/a.md"),
+      invalidateMetadataCache(evalDeps(spawnFn, events), { vault: "TestVault", relPath: "Notes\\a.md" }),
     ).resolves.toBeUndefined();
+    const failed = events.filter((e) => e.event === "bridge.metadata_refresh_failed");
+    expect(failed).toHaveLength(1);
+    expect(failed[0]).toMatchObject({ vault: "TestVault", relPath: "Notes/a.md" });
+    expect(failed[0]!.reason).toEqual(expect.stringContaining("CLI_"));
+  });
+
+  test("a note Obsidian cannot find is logged, not silently ignored", async () => {
+    const events: Array<Record<string, unknown>> = [];
+    const spawnFn = recordingSpawn({ stdout: "=> missing\n" });
+    await invalidateMetadataCache(evalDeps(spawnFn, events), { relPath: "a.md" });
+    expect(events).toEqual([
+      expect.objectContaining({
+        event: "bridge.metadata_refresh_failed",
+        vault: null,
+        relPath: "a.md",
+        reason: "note not found in the vault index",
+      }),
+    ]);
   });
 });

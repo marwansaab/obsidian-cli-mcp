@@ -12,7 +12,7 @@ import { Writable } from "node:stream";
 import { UpstreamError } from "../../errors.js";
 import { createLogger, type Logger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import { makeStubSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { type ExecuteDeps, type ExecuteFs } from "./handler.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
@@ -194,7 +194,9 @@ export function baseDeps(over: Partial<ExecuteDeps> = {}): ExecuteDeps {
     randomUUID: over.randomUUID ?? (() => "00000000-0000-0000-0000-000000000000"),
     invokeEval: over.invokeEval,
     env: over.env ?? {},
-    spawnFn: over.spawnFn,
+    // Default answers the per-note commit metadata refresh (spec 068 FR-001), so a
+    // commit test never spawns the real CLI.
+    spawnFn: over.spawnFn ?? makeStubSpawn({ stdout: "=> ok\n", exitCode: 0 }).spawnFn,
     warn: over.warn,
   };
 }

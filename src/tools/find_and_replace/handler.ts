@@ -25,7 +25,7 @@ import {
   resolveVaultDisplayName,
   resolveVaultRootOrRemap,
 } from "../_active-file.js";
-import { writeAtomic } from "../_note-io.js";
+import { invalidateMetadataCache, writeAtomic } from "../_note-io.js";
 
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
@@ -658,6 +658,10 @@ export async function executeFindAndReplace(
     }
     changedNotes.push(rel);
     occurrencesReplaced += occurrenceCount;
+    // Best-effort metadata refresh (spec 068 FR-001), logged on failure. It runs AFTER the
+    // queued write resolves, never inside the queue.run callback: the refresh goes through
+    // invokeCli and therefore the same single-flight queue, so nesting it would deadlock.
+    await invalidateMetadataCache(deps, { vault: input.vault, relPath: rel });
   }
 
   return {

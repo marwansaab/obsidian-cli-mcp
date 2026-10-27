@@ -1,4 +1,4 @@
-// Original — no upstream. write_note handler per ADR-009 — direct-fs-write: specific-mode resolveVaultPath / active-mode focused-file eval → checkCanonicalPath → mkdir → atomic temp+rename (overwrite=true) or wx-flag write (overwrite=false → FILE_EXISTS) → best-effort metadataCache invalidation eval → optional best-effort openLinkText eval (specific + open=true) → return { created, path }. User content NEVER crosses the CLI argv pipe at any size (FR-005, SC-007).
+// Original — no upstream. write_note handler per ADR-009 — direct-fs-write: specific-mode resolveVaultPath / active-mode focused-file eval → checkCanonicalPath → mkdir → atomic temp+rename (overwrite=true) or wx-flag write (overwrite=false → FILE_EXISTS) → best-effort metadataCache refresh eval on the vault-relative path in the written vault (logged on failure) → optional best-effort openLinkText eval (specific + open=true, vault-relative path, vault=) → return { created, path }. User content NEVER crosses the CLI argv pipe at any size (FR-005, SC-007).
 import { randomUUID } from "node:crypto";
 import * as nodeFs from "node:fs/promises";
 import { dirname } from "node:path";
@@ -39,8 +39,9 @@ const DEFAULT_FS: ExecuteFs = {
   unlink: (p) => nodeFs.unlink(p),
 };
 
-function buildOpenTemplate(absPath: string): string {
-  return `app.workspace.openLinkText(${JSON.stringify(absPath)},"")`;
+/** `openLinkText` takes a vault-relative forward-slash path, not an absolute one. */
+function buildOpenTemplate(relPath: string): string {
+  return `app.workspace.openLinkText(${JSON.stringify(relPath)},"")`;
 }
 
 // FR-001 / R2 canonical short-form predicate: file is canonical iff it has no
@@ -147,19 +148,21 @@ export async function executeWriteNote(
     created = true;
   }
 
-  // Best-effort metadataCache invalidation per FR-011 — silent on failure (shared _note-io substrate).
-  await invalidateMetadataCache(deps, absPath);
+  // Best-effort metadataCache refresh per FR-011 — logged on failure (shared _note-io substrate).
+  await invalidateMetadataCache(deps, { vault: input.vault, relPath });
 
   // Best-effort post-write editor-open per FR-017 — only in specific mode (schema forbids
-  // `open` in active mode). Silent on failure: open is a UX nicety, not the contract.
+  // `open` in active mode). Opens the written note in the written vault (spec 068 FR-003).
+  // Silent on failure: open is a UX nicety, not the contract.
   if (input.target_mode === "specific" && input.open === true) {
     try {
       await invokeCli(
         {
           command: "eval",
-          parameters: { code: buildOpenTemplate(absPath) },
+          vault: input.vault,
+          parameters: { code: buildOpenTemplate(relPath.replaceAll("\\", "/")) },
           flags: [],
-          target_mode: "active",
+          target_mode: "specific",
         },
         { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
       );

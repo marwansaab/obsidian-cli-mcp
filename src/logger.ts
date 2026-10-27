@@ -65,6 +65,14 @@ export interface PathEscapeAttemptEvent {
   attemptedPath: string;
 }
 
+export interface MetadataRefreshFailedEvent {
+  /** Vault display name; null when the write targeted the focused vault (active mode). */
+  vault: string | null;
+  /** Vault-relative, forward-slash path of the written note. */
+  relPath: string;
+  reason: string;
+}
+
 export interface Logger {
   shutdown(event: ShutdownEvent): void;
   dispatchTimeout(event: DispatchTimeoutEvent): void;
@@ -73,6 +81,7 @@ export interface Logger {
   dispatchRetry(event: DispatchRetryEvent): void;
   dispatchRecovery(event: DispatchRecoveryEvent): void;
   pathEscapeAttempt(event: PathEscapeAttemptEvent): void;
+  metadataRefreshFailed(event: MetadataRefreshFailedEvent): void;
 }
 
 export interface LoggerOptions {
@@ -156,6 +165,15 @@ export function createLogger(options: LoggerOptions = {}): Logger {
         ts: new Date().toISOString(),
         vault: event.vault,
         attemptedPath: event.attemptedPath,
+      });
+    },
+    metadataRefreshFailed(event: MetadataRefreshFailedEvent): void {
+      emit({
+        event: "bridge.metadata_refresh_failed",
+        ts: new Date().toISOString(),
+        vault: event.vault,
+        relPath: event.relPath,
+        reason: event.reason,
       });
     },
   };

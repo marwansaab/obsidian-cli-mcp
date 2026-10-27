@@ -2,7 +2,7 @@
 // split from handler.test.ts: US1 named path/file, US2 active_note, US3 scope-conflict
 // rejection, and the backward-compat + guards-still-fire polish cohort. Shared fixtures
 // in _handler-fixtures.ts.
-import { resolve } from "node:path";
+import { resolve, sep } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -183,9 +183,10 @@ describe("066-file-scope US1 — named single-note scope by path", () => {
   it("named-file COMMIT resolves once and does NOT re-resolve on the drift re-scan (D8)", async () => {
     const files: MemFile[] = [{ abs: relToAbs("Projects/Target.md"), content: "STATUS once" }];
     const { fs, state } = inMemoryFs(files, VAULT_ROOT);
-    // Exactly ONE queued `obsidian file` response: makeQueuedSpawn throws on
-    // overflow, so a commit-time re-resolve (a second TSV spawn) would fail here.
-    const { spawnFn, getCount } = makeQueuedSpawn([FILE_TSV_OK("Projects/Target.md")]);
+    // ONE queued `obsidian file` response, then the post-write metadata refresh eval
+    // (spec 068 FR-001). A commit-time re-resolve would consume the refresh slot as a
+    // second `file` spawn and fail the count below.
+    const { spawnFn, recorded } = makeQueuedSpawn([FILE_TSV_OK("Projects/Target.md"), { stdout: "=> ok\n", exitCode: 0 }]);
     const result = await executeFindAndReplace(
       { pattern: "STATUS", replacement: "STATE", mode: "literal", vault: "V", file: "Target", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true, active_note: false },
       baseDeps({ fs, spawnFn }),
@@ -196,7 +197,8 @@ describe("066-file-scope US1 — named single-note scope by path", () => {
       expect(result.total_occurrences_replaced).toBe(1);
       expect(result.partial).toBe(false);
     }
-    expect(getCount()).toBe(1); // the bare name resolved ONCE across preview + commit scans (D8)
+    // the bare name resolved ONCE across preview + commit scans (D8); the second spawn is the refresh
+    expect(recorded.map((r) => r.argv.find((a) => a === "file" || a === "eval"))).toEqual(["file", "eval"]);
     expect(state.files.get(relToAbs("Projects/Target.md"))).toBe("STATE once");
     expect(state.renames.length).toBe(1);
   });
@@ -249,7 +251,8 @@ describe("066-file-scope US1 — named single-note scope by path", () => {
       realpathOverride: async (p: string) => {
         if (p === VAULT_ROOT) return VAULT_ROOT;
         if (p === parentOfVault) return parentOfVault;
-        if (p === subdirAbs) return escape; // the note's parent dir resolves outside
+        // the note's parent dir resolves outside, and so does everything under it
+        if (p === subdirAbs || p.startsWith(subdirAbs + sep)) return escape + p.slice(subdirAbs.length);
         return p;
       },
     });
