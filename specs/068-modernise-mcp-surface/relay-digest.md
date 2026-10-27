@@ -7,11 +7,11 @@
 | Status | running |
 | Started | 2026-10-27T13:20:28.098Z |
 | Finished | not yet |
-| Elapsed | 7 h 30 min |
-| Questions | 8 (5 needed the owner) |
+| Elapsed | 7 h 49 min |
+| Questions | 10 (5 needed the owner) |
 | Requests to the advisor | 2 (1 needed the owner) |
 | Escalations | 6 |
-| Edits by the advisor | 8 |
+| Edits by the advisor | 10 |
 
 ## Inputs
 
@@ -29,6 +29,7 @@
 ### pre-implementation (`67fea797-e6f1-45fb-8d5b-f47b7b8cf340`)
 
 - Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\.specify exists.
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\specs\068-modernise-mcp-surface\tasks.md exists.
 
 - **preflight**: done.
 
@@ -139,12 +140,40 @@
 >
 > Next step: /speckit-implement, starting with PR-0 (T001–T002).
 
-- **resolve-analysis**: in progress.
+- **resolve-analysis**: done, 5 turns.
 
-### implementation
+> No analyze findings are open. I had already applied all nine fixes (C1, C2, U1, U2, D1, A1, T1–T3) to spec.md, plan.md, tasks.md, research.md, data-model.md and the tool-surface contract in the previous turn, following your directives. None needed a new decision, so I asked no questions.
+>
+> I committed the feature folder specs/068-modernise-mcp-surface on branch 068-modernise-mcp-surface as 00dfcd5, "docs(068): specify, plan and task the 0.9.0 modernise-mcp-surface release". The message follows CONTRIBUTING.md: a type(scope) subject, a WHY-first body grouped under SHOUTY-CAPS headings, and the Co-Authored-By trailer. Nothing was pushed. The commit includes relay-digest.md and relay-qa-log.md because they sit in the feature folder.
+>
+> Left out of the commit and still uncommitted:
+> - CLAUDE.md: the plan pointer now points at specs/068-modernise-mcp-surface/plan.md.
+> - .specify/feature.json: points at the 068 folder.
+>
+> Both sit outside the feature folder you scoped. They belong in PR-0 (task T001) if you want them tracked.
+>
+> Open for you:
+> - `tag` publishes no outputSchema, because its count-only form returns a bare integer, which puts it outside FR-039. The PR-5 body will say so.
+> - The constitution v1.6.0 Sync Impact Report still says `list_vaults` and "0.8.20". Its amendment PR #86 has already merged, so this needs a post-release PATCH amendment.
 
-- **implement**: not run.
-- **open-pr**: not run.
+
+### implementation (`6575dc6c-18d6-4cc4-9402-0be1ddf8bad9`)
+
+- Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\specs\068-modernise-mcp-surface\tasks.md exists.
+
+- **implement**: done, 186 turns, 2 questions.
+
+> PR-1 work (T003–T016) is done on 068-pr1-fixes, but the A1 fix departs from the plan: the planned refresh call damages Obsidian, so I switched it, and ADR-009 §5 now needs an owner amendment. Lint and typecheck are clean, and the full suite passes (2866 tests, statement coverage 96.76% against a 96% floor). Build succeeds, src/tools/_register-baseline.json is unchanged and `graphify update .` was run. Nothing is committed or pushed; optional hooks were skipped.
+>
+> A1 (metadata refresh): the refresh now targets the written note by its vault-relative path, with `vault=` in specific mode. find_and_replace refreshes each changed note after its queued write. write_note `open:true` opens the right note in the right vault. Failures, and notes Obsidian cannot find, are logged as `bridge.metadata_refresh_failed` instead of a silent catch. FR-005/SC-001 are amended per the owner ruling.
+>
+> Live finding: with the path fixed, the inherited ADR-009 §5 call `computeMetadataAsync(f)` ran for the first time. It takes file bytes, not a TFile, and it left the test vault's metadata worker stuck: searches went stale and even Welcome.md could no longer be indexed. Reloading the test vault window fixed it; no other vault was affected. The template now calls `computeFileMetadataAsync(f)`, the method Obsidian's own file watcher uses, and a unit test forbids the old call. After the switch, write, append, heading edit and path-scoped find_and_replace commit were each found by the very next search (4 of 4), as was a brand-new note, with no refresh failures logged. The multi-vault write with My-Setup-Vault focused passed, `open:true` opened the note in the test vault, and the requested refresh aimed at the unfocused My-Setup-Vault returned `=> ok` with that note unchanged. Evidence is in evidence-a1.md; Sandbox/ is clean.
+>
+> A5 (containment): the check now resolves the nearest existing folder and re-appends the missing ones. Real temp-directory tests cover junction/symlink escapes with an existing child, a missing child and two missing levels, plus `..` and a sibling vault; a Windows-only mixed-case-root test passes without case-folding. A write_note integration test confirms PATH_ESCAPES_VAULT with no mkdir. A4: CI now runs ubuntu and windows × Node 22/24, with a 20-minute timeout.
+>
+> Open items for the owner: (1) ADR-009 §5 still names computeMetadataAsync and needs amending; the ADR is owner-side and was not edited. (2) T015 needs the PR's first CI run to confirm all four jobs, including Windows. (3) The earlier follow-ups stand: `tag` gets no outputSchema (PR-5), and the constitution Sync Impact Report still says list_vaults. The PR-1 body should say it carries the spec docs (no separate PR-0) and cite evidence-a1.md.
+
+- **open-pr**: in progress.
 
 ### review
 
@@ -192,6 +221,8 @@
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0165 - Ship 0.9.0 SDK V2 And Safety Release.md` | Added a footer HTML comment recording the owner's 2026-10-28 approval for the agent to update the `.memory` test-vault path. The quickstart cites only the gate file, and no probe runs before the edit. | pre-implementation / plan: Question 1: Test-vault path in `.memory/test-execution-instructions.md` |
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0165 - Ship 0.9.0 SDK V2 And Safety Release.md` | Appended footer HTML comment recording 2026-10-28 ruling: tool named `vaults` per ADR-010, superseding all `list_vaults` mentions in the note. Flags the Architecture page's `list_vaults` mention as a follow-up for when B4 ships. | pre-implementation / plan: Question 2: The new vault-listing tool's name vs ADR-010 |
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0165 - Ship 0.9.0 SDK V2 And Safety Release.md` | Appended a footer HTML comment recording two analyze clarifications. B5 outputSchema stays a MUST: unions are published as a root-object schema, with no blanket exception. B3 refusal is two-step: capability check at entry before vault resolution, human prompt after the re-scan. | pre-implementation / analyze: Specification Analysis Report |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0165 - Ship 0.9.0 SDK V2 And Safety Release.md` | Appended footer HTML comment recording run mapping: one Relay run per §6 PR; first run = PR 1 with plan PR-0 folded in; later PRs each get their own run after owner merge. | implementation / implement: tasks.md (and spec Assumptions → Delivery slicing) delivers 0.9.0 as seven sequential pull requests: |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0165 - Ship 0.9.0 SDK V2 And Safety Release.md` | Added a footer HTML comment recording the T004 live-probe result: the symptom did not reproduce in 4/4 rounds, while the code defect (absolute path resolves to null) was confirmed. Also records that A1 goes ahead with code-level 'before' evidence. | implementation / implement: The T004 live probe did NOT reproduce the A1 symptom. In 4 of 4 rounds on TestVault-Obsidian-CLI-MCP |
 
 ## Files
 

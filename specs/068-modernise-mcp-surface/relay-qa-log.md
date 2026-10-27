@@ -1083,3 +1083,68 @@ Edits:
 > - **A1.** Restate SC-006 as server facts: every read tool publishes `readOnlyHint: true` and `destructiveHint: false`, pinned by the B1 classification test. Keep the manual Claude Code parallel-read check as release evidence, per BI §7.
 > - **T1, T2, T3.** Use the suggested wording as is. FR-036 gets "(`open: null`)". FR-043 gets "1, true, yes or on, case-insensitive, mirroring `OBSIDIAN_AUTO_LAUNCH`'s off set". FR-025 gets "(published as the server `instructions`)".
 > - **Constitution note.** C1 is now decided (descriptions now, union later). Change T043 from "N/A (pending C1)" to: stripping stays in PR 3, PR 4 removes it per the C1 ruling, and the ADR superseding ADR-005 is due in PR 4.
+
+## 11. implementation / implement (2026-10-27T20:52:04.014Z)
+
+**Question (verbatim):**
+
+> tasks.md (and spec Assumptions → Delivery slicing) delivers 0.9.0 as seven sequential pull requests: PR-0 (docs) → PR-1 (US1, US2, US10) → PR-2 (US3) → PR-3 (SDK v2) → PR-4 → PR-5 → PR-6. Each is cut from main only after the previous one merges, and each wrap task says "STOP: owner merges". This Relay run has one implement step followed by one open-pr, code-review, fix and docs pass, and I cannot merge. How should this run map onto the plan?
+>
+> | Option | What this run does | Trade-off |
+> |---|---|---|
+> | A | Implement PR-1 scope only (T003–T016: metadata refresh, vault containment, Windows CI) on branch `068-pr1-fixes`, cut from `068-modernise-mcp-surface` so the spec docs and the CLAUDE.md pointer ride along. PR-0 is folded into PR-1. The open-pr step opens PR-1. PR-2 to PR-6 each get their own Relay run after you merge the previous PR. | Keeps one PR per slice and fits Relay's one-PR shape. Drops the separate docs-only PR-0, so tasks T001/T002 change. |
+> | B | Do T001 only: commit the CLAUDE.md pointer and feature.json on `068-modernise-mcp-surface`. The open-pr step opens PR-0 (docs only). Code starts in a later Relay run after you merge PR-0. | Follows tasks.md exactly. This run ships no code. |
+> | C | Implement all six slices (T003–T091) on one branch, one commit per slice, and open one PR for the whole release. | One run and one review. Overrides the owner-set six-PR delivery slicing (the spec Assumption and tasks.md need amending), and the review will be very large because it includes the SDK v2 migration. |
+> | D | Stop this run. You open and merge PR-0 yourself, then restart Relay per PR. | No agent action now. |
+>
+> **Recommended: A.** It keeps the slicing you set (each slice reviewed and merged on its own) while giving this run a real deliverable, and the spec docs land with the first code PR rather than in a PR that blocks on a merge with nothing to test. Reply A, B, C or D (or describe another mapping).
+
+**Advisor** (escalate: none):
+
+> A
+>
+> Rationale: BI-0165 §1 gives each PR its own implement → commit → PR → review → docs-as-code → merge cycle, and §6 sets PR 1 = A1, A4, A5. A docs-only PR-0 is not in the BI. Fold it into PR 1 and amend T001/T002 to match. One Relay run per PR after that.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0165 - Ship 0.9.0 SDK V2 And Safety Release.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0165 - Ship 0.9.0 SDK V2 And Safety Release.md`: Appended footer HTML comment recording run mapping: one Relay run per §6 PR; first run = PR 1 with plan PR-0 folded in; later PRs each get their own run after owner merge.
+
+**Sent to the step:**
+
+> A
+>
+> Rationale: BI-0165 §1 gives each PR its own implement → commit → PR → review → docs-as-code → merge cycle, and §6 sets PR 1 = A1, A4, A5. A docs-only PR-0 is not in the BI. Fold it into PR 1 and amend T001/T002 to match. One Relay run per PR after that.
+
+## 12. implementation / implement (2026-10-27T20:58:07.683Z)
+
+**Question (verbatim):**
+
+> The T004 live probe did NOT reproduce the A1 symptom. In 4 of 4 rounds on TestVault-Obsidian-CLI-MCP (overwrite with a new property, change the value twice, create a new note in a new folder), `find_by_property` issued as the very next call found the new value. The code defect is real, though. The refresh eval passes the absolute path, and Obsidian.com returns `=> NULL (absolute path)` for `app.vault.getFileByPath("C:\\…\\Sandbox\\a1-….md")` but resolves the vault-relative path. So today's refresh does nothing (in a multi-vault setup it also goes to the focused vault), and searches are fresh only because Obsidian's file watcher re-indexes faster than the next CLI spawn arrives. FR-005 says the defect MUST be demonstrated live before the fix. Evidence: specs/068-modernise-mcp-surface/evidence-a1.md. How should PR-1 handle A1?
+>
+> | Option | What happens | Trade-off |
+> |---|---|---|
+> | A | Implement A1 as planned (T005–T010: vault-relative path, `vault=`, specific mode, a logged `metadataRefreshFailed` in place of the silent `catch {}`, a refresh per note in find_and_replace, and the write_note `open:true` fix). FR-005/SC-001 are amended so the 'before' demonstration is the code-level evidence (the refresh resolves to `null`). The 'after' probe shows the refresh now resolves the written note and that 4 of 4 searches are fresh. | Fixes a real no-op and a Principle IV silent catch, so correctness no longer rests on watcher timing. The spec text changes, and the user-visible gain is not demonstrable today. |
+> | B | Try harder to reproduce first: a second vault focused, a multi-note find_and_replace commit, and back-to-back writes then search. Fix only if one shows stale results. | May produce symptom evidence, but costs more live probing and may still not reproduce. |
+> | C | Drop A1 from PR-1. PR-1 ships A5 (containment) and A4 (Windows CI) only, and A1 is recorded as not reproduced for you to re-scope in BI-0165. | Smallest PR. Leaves a refresh that does nothing and the silent catch in place. |
+>
+> **Recommended: A.** The refresh provably does nothing and would target the wrong vault when another vault is focused. The fix is small and already fully specified, and it removes a silent fallback that Principle IV forbids. The missing symptom comes from the watcher winning the race, not from the code being right. Reply A, B or C.
+
+**Advisor** (escalate: none):
+
+> A
+>
+> Implement T005–T010 as planned. Amend FR-005/SC-001 so the 'before' evidence is the code-level null resolution recorded in `evidence-a1.md`. Make the 'after' probe show that the refresh resolves the written note and that the next search is fresh. If a second vault is registered, also add a refresh probe with that unfocused vault as the target.
+> Rationale: BI-0165 A1's Outcome and Accept checks (vault-relative path, `vault=`, a logged failure, find_and_replace coverage, `open: true`) do not depend on the symptom reproducing. The silent `catch {}` breaks Constitution Principle IV.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0165 - Ship 0.9.0 SDK V2 And Safety Release.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Constitution.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0165 - Ship 0.9.0 SDK V2 And Safety Release.md`: Added a footer HTML comment recording the T004 live-probe result: the symptom did not reproduce in 4/4 rounds, while the code defect (absolute path resolves to null) was confirmed. Also records that A1 goes ahead with code-level 'before' evidence.
+
+**Sent to the step:**
+
+> A
+>
+> Implement T005–T010 as planned. Amend FR-005/SC-001 so the 'before' evidence is the code-level null resolution recorded in `evidence-a1.md`. Make the 'after' probe show that the refresh resolves the written note and that the next search is fresh. If a second vault is registered, also add a refresh probe with that unfocused vault as the target.
+> Rationale: BI-0165 A1's Outcome and Accept checks (vault-relative path, `vault=`, a logged failure, find_and_replace coverage, `open: true`) do not depend on the symptom reproducing. The silent `catch {}` breaks Constitution Principle IV.
