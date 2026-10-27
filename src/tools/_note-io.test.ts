@@ -164,8 +164,8 @@ describe("invalidateMetadataCache", () => {
     ).resolves.toBeUndefined();
     const failed = events.filter((e) => e.event === "bridge.metadata_refresh_failed");
     expect(failed).toHaveLength(1);
-    expect(failed[0]).toMatchObject({ vault: "TestVault", relPath: "Notes/a.md" });
-    expect(failed[0]!.reason).toEqual(expect.stringContaining("CLI_"));
+    expect(failed[0]).toMatchObject({ vault: "TestVault", relPath: "Notes/a.md", reason: "cli-error" });
+    expect(failed[0]!.detail).toEqual(expect.stringMatching(/^CLI_[A-Z_]+: /));
   });
 
   test("a note Obsidian cannot find is logged, not silently ignored", async () => {
@@ -177,7 +177,23 @@ describe("invalidateMetadataCache", () => {
         event: "bridge.metadata_refresh_failed",
         vault: null,
         relPath: "a.md",
-        reason: "note not found in the vault index",
+        reason: "note-not-found",
+        detail: "=> missing",
+      }),
+    ]);
+  });
+
+  test("unexpected eval output is logged with the first 200 characters as detail", async () => {
+    const events: Array<Record<string, unknown>> = [];
+    const noisy = `[error] {}\n=> ok${"x".repeat(300)}`;
+    const spawnFn = recordingSpawn({ stdout: `${noisy}\n` });
+    await invalidateMetadataCache(evalDeps(spawnFn, events), { vault: "TestVault", relPath: "a.md" });
+    expect(events).toEqual([
+      expect.objectContaining({
+        event: "bridge.metadata_refresh_failed",
+        vault: "TestVault",
+        reason: "unexpected-output",
+        detail: noisy.slice(0, 200),
       }),
     ]);
   });

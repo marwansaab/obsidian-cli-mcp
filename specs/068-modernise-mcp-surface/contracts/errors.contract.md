@@ -39,7 +39,7 @@ Q1 is the Principle IV authorisation.
 
 | Event | Fields | Source |
 |---|---|---|
-| `metadataRefreshFailed` | `{vault, relPath, reason}` | A1, `invalidateMetadataCache` |
+| `metadataRefreshFailed` | `{vault, relPath, reason, detail}` — `reason` ∈ `cli-error` \| `note-not-found` \| `unexpected-output`; `detail` is the error code and message, or the first 200 characters of the eval output | A1, `invalidateMetadataCache` |
 | `commitCancelled` | `{vault, committed, skipped}` | A3, `find_and_replace` commit |
 
 Both are added to the `Logger` interface in `src/logger.ts`, beside the existing typed

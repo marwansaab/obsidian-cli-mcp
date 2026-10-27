@@ -151,7 +151,7 @@ describe("068 A1 — metadata refresh per committed note", () => {
     expect(result).toEqual({ mode: "commit", changed_notes: ["B.md", "Sub/A.md"], total_occurrences_replaced: 2, partial: false });
     const failed = events.filter((e) => e.event === "bridge.metadata_refresh_failed");
     expect(failed).toHaveLength(1);
-    expect(failed[0]).toMatchObject({ vault: "V", relPath: "B.md" });
+    expect(failed[0]).toMatchObject({ vault: "V", relPath: "B.md", reason: "cli-error" });
   });
 });
 

@@ -10,6 +10,8 @@
 import { evalInVault, type EvalDeps } from "./_active-file.js";
 import { UpstreamError } from "../errors.js";
 
+import type { MetadataRefreshFailureReason } from "../logger.js";
+
 /** The fs surface writeAtomic drives — the intersection shared by every write-cohort ExecuteFs. */
 export interface AtomicWriteFs {
   writeFile: (p: string, content: string) => Promise<void>;
@@ -42,7 +44,10 @@ export async function writeAtomic(
 
 /** The note a post-write eval targets. */
 export interface WrittenNote {
-  /** Vault display name. Absent for an active-mode write, which targets the focused vault. */
+  /**
+   * The vault exactly as the caller named it (`input.vault`): a display name in specific mode, absent
+   * in active mode, where the write went to the open vault (spec 068 R13). Never a resolved folder path.
+   */
   vault?: string;
   /** Vault-relative path of the written note (either separator; normalised to forward slashes). */
   relPath: string;
@@ -84,15 +89,18 @@ function describeFailure(e: unknown): string {
  */
 export async function invalidateMetadataCache(deps: EvalDeps, note: WrittenNote): Promise<void> {
   const relPath = toObsidianPath(note.relPath);
-  let reason: string;
+  let reason: MetadataRefreshFailureReason;
+  let detail: string;
   try {
     const output = (await evalInVault(deps, buildInvalidateTemplate(relPath), note.vault)).trim();
     if (output === "=> ok") return;
-    reason = output === "=> missing" ? "note not found in the vault index" : `unexpected eval output: ${output.slice(0, 200)}`;
+    reason = output === "=> missing" ? "note-not-found" : "unexpected-output";
+    detail = output.slice(0, 200);
   } catch (e) {
-    reason = describeFailure(e);
+    reason = "cli-error";
+    detail = describeFailure(e);
   }
-  deps.logger.metadataRefreshFailed({ vault: note.vault ?? null, relPath, reason });
+  deps.logger.metadataRefreshFailed({ vault: note.vault ?? null, relPath, reason, detail });
 }
 
 /**

@@ -770,6 +770,18 @@ describe("US4 active-mode focused-file resolution", () => {
     );
   });
 
+  test("metadata refresh runs in the open vault: no vault= on its argv (068 FR-002 / R13)", async () => {
+    const fs = fakeFs({ content: "x\n" });
+    const { spawnFn, recorded } = makeQueuedSpawn([FOCUSED_OK(VAULT_ROOT, "Sandbox/n.md"), EVAL_OK]);
+    await executeAppendNote(
+      { target_mode: "active", content: "y", inline: false },
+      deps({ spawnFn, vaultRegistry: fakeRegistry({ Knowledge: VAULT_ROOT }), fs }),
+    );
+    const refreshArgv = recorded[1]!.argv;
+    expect(refreshArgv.find((a) => a.startsWith("code="))).toContain('getFileByPath("Sandbox/n.md")');
+    expect(refreshArgv.some((a) => a.startsWith("vault="))).toBe(false);
+  });
+
   test("no focused file → ERR_NO_ACTIVE_FILE; no fs operations", async () => {
     const fs = fakeFs({});
     const { spawnFn } = makeQueuedSpawn([

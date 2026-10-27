@@ -490,6 +490,10 @@ started for the refusal).
   per changed note after `:650`.
 - `write_note` `open: true` (`buildOpenTemplate` `:42-44`, call `:155-169`) gets the same
   relPath + `vault`.
+- Active-mode writes refresh the open vault: callers pass `input.vault` as given, so
+  specific mode sends `vault=<display name>` and active mode sends no `vault=`; a folder
+  path is never sent as `vault=` (owner ruling 2026-10-28, PR #87 review Q1; the
+  focus-switch race is an accepted residual in spec.md Assumptions).
 
 **Open question resolved by T0**: does `target_mode: "specific"` with an `eval` command
 and no `file`/`path` pass `invokeCli`'s input handling? `invokeCli` takes `vault` as a

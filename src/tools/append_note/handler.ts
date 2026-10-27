@@ -122,7 +122,7 @@ export async function executeAppendNote(
   } catch (e) {
     throw mapWriteErr(e);
   }
-  await invalidateMetadataCache(deps, { vault: vaultDisplayName, relPath });
+  await invalidateMetadataCache(deps, { vault: input.vault, relPath });
 
   return {
     path: relPath,

@@ -238,11 +238,13 @@ Sent only when the request carries a `progressToken` (FR-054).
 
 | Field | Rule |
 |---|---|
-| `vault` | the vault that was written (passed as `vault=` on the eval) |
+| `vault` | the vault as the caller named it (`input.vault`), passed as `vault=` on the eval; absent in active mode, where the refresh runs in the open vault |
 | `relPath` | vault-relative, forward-slash path of the written note |
 
 Best-effort: failure → new `metadataRefreshFailed` logger event `{vault, relPath,
-reason}`; the write result is unchanged (FR-004). Callers today: `write_note`,
+reason, detail}`, where `reason` is one of `cli-error`, `note-not-found`,
+`unexpected-output` and `detail` carries the error code and message, or the first 200
+characters of the eval output; the write result is unchanged (FR-004). Callers today: `write_note`,
 `append_note`, `patch_heading`, `patch_block`; PR 1 adds `find_and_replace` commit (once
 per changed note, after its write). The `write_note open: true` template gets the same
 vault-relative path and `vault=`.

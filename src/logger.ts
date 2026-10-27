@@ -65,12 +65,17 @@ export interface PathEscapeAttemptEvent {
   attemptedPath: string;
 }
 
+/** Why a post-write metadata refresh failed (closed set, ADR-015 style). */
+export type MetadataRefreshFailureReason = "cli-error" | "note-not-found" | "unexpected-output";
+
 export interface MetadataRefreshFailedEvent {
   /** Vault display name; null when the write targeted the focused vault (active mode). */
   vault: string | null;
   /** Vault-relative, forward-slash path of the written note. */
   relPath: string;
-  reason: string;
+  reason: MetadataRefreshFailureReason;
+  /** `cli-error`: the error code and message. Otherwise: the eval output, first 200 characters. */
+  detail: string;
 }
 
 export interface Logger {
@@ -174,6 +179,7 @@ export function createLogger(options: LoggerOptions = {}): Logger {
         vault: event.vault,
         relPath: event.relPath,
         reason: event.reason,
+        detail: event.detail,
       });
     },
   };

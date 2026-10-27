@@ -231,7 +231,7 @@ export async function executePatchHeading(
   }
   const bytesWritten = Buffer.byteLength(editedContent, "utf8");
 
-  await invalidateMetadataCache(deps, { vault: vaultDisplayName, relPath });
+  await invalidateMetadataCache(deps, { vault: input.vault, relPath });
 
   return {
     path: relPath,

@@ -847,6 +847,12 @@ none arrive.
   command registered by a plugin that executes user scripts (for example Templater user
   scripts) is therefore an indirect code-execution path that this release does not close.
   The owner accepted this risk on 2026-10-28 (BI-0165 C2 list stands unchanged).
+- **Accepted residual risk (active-mode refresh)**: An active-mode write goes to the note
+  open in the focused vault (ADR-003), so its metadata refresh runs in the open vault, with
+  no vault named. If the user switches Obsidian to another vault in the moment between the
+  write and the refresh, the refresh runs in that other vault, finds no such note or the
+  wrong one, and is logged as a refresh failure; the write itself is unaffected (FR-004).
+  The owner accepted this risk on 2026-10-28 (PR #87 review, Q1).
 
 ## Out of Scope
 
