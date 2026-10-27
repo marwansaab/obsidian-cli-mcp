@@ -1,5 +1,5 @@
 // Original — no upstream. Shared handler-test fixtures (BI-058 F-A/F-B): the
-// spawn-stub factories, silent logger, and rejection-capture helper that ~30
+// spawn-stub factories, silent + capturing loggers, and rejection-capture helper that ~30
 // src/tools/<name>/handler.test.ts files each defined as byte-identical copies.
 //
 // Lives in src/tools/ (not cli-adapter) so it imports SpawnLike *downward* per
@@ -151,6 +151,22 @@ export function makeStubSpawn(
 /** A Logger whose output is discarded — for handler tests that never assert logs. */
 export function silentLogger(): Logger {
   return createLogger({ stream: new Writable({ write(_c, _e, cb) { cb(); } }) });
+}
+
+/** A Logger that parses every emitted JSON line into `events` — for handler tests that assert logs. */
+export function captureLogger(events: Array<Record<string, unknown>>): Logger {
+  return createLogger({
+    stream: new Writable({
+      write(chunk, _enc, cb) {
+        try {
+          events.push(JSON.parse(chunk.toString()) as Record<string, unknown>);
+        } catch {
+          /* ignore */
+        }
+        cb();
+      },
+    }),
+  });
 }
 
 /** Await a promise expected to reject; return the rejection value (or throw if it resolves). */

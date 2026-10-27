@@ -1,15 +1,15 @@
 // Original — no upstream. Unit tests for the shared note-write substrate (_note-io.ts, F6 of the
 // thermo-nuclear code-quality review): the UUID-uniquified atomic tmp+rename write (raw-error rethrow,
-// rename-failure unlink, writeFile-failure no-unlink) and the best-effort metadataCache refresh eval
-// round-trip (vault-relative path, vault= argv, logged-on-failure contract — spec 068 A1).
+// rename-failure unlink, writeFile-failure no-unlink) and the best-effort post-write evals: the
+// metadataCache refresh (vault-relative path, vault= argv, logged-on-failure contract — spec 068 A1)
+// and the editor open (same addressing, silent on failure).
 import { EventEmitter } from "node:events";
 import { Readable } from "node:stream";
-import { Writable } from "node:stream";
 
 import { describe, expect, test } from "vitest";
 
-import { invalidateMetadataCache, writeAtomic, type AtomicWriteFs } from "./_note-io.js";
-import { createLogger } from "../logger.js";
+import { captureLogger } from "./_handler-test-fixtures.js";
+import { invalidateMetadataCache, openNote, writeAtomic, type AtomicWriteFs } from "./_note-io.js";
 import { createQueue } from "../queue.js";
 
 import type { EvalDeps } from "./_active-file.js";
@@ -121,13 +121,7 @@ function recordingSpawn(opts: {
 }
 
 function evalDeps(spawnFn: SpawnLike, events: Array<Record<string, unknown>> = []): EvalDeps {
-  const stream = new Writable({
-    write(chunk, _enc, cb) {
-      events.push(JSON.parse(chunk.toString()) as Record<string, unknown>);
-      cb();
-    },
-  });
-  return { logger: createLogger({ stream }), queue: createQueue(), spawnFn };
+  return { logger: captureLogger(events), queue: createQueue(), spawnFn };
 }
 
 describe("invalidateMetadataCache", () => {
@@ -186,5 +180,24 @@ describe("invalidateMetadataCache", () => {
         reason: "note not found in the vault index",
       }),
     ]);
+  });
+});
+
+describe("openNote", () => {
+  test("opens the vault-relative forward-slash path in the named vault", async () => {
+    let argv: readonly string[] | null = null;
+    const spawnFn = recordingSpawn({ stdout: "=> undefined\n", onArgv: (a) => (argv = a) });
+    await openNote(evalDeps(spawnFn), { vault: "TestVault", relPath: "Notes\\Sub\\a.md" });
+    expect(argv).toContain("vault=TestVault");
+    expect(argv!.find((a) => a.startsWith("code="))).toBe('code=app.workspace.openLinkText("Notes/Sub/a.md","")');
+  });
+
+  test("swallows an upstream failure (write already landed) and logs nothing", async () => {
+    const events: Array<Record<string, unknown>> = [];
+    const spawnFn = recordingSpawn({ stdout: "Error: boom\n", exitCode: 1 });
+    await expect(
+      openNote(evalDeps(spawnFn, events), { vault: "TestVault", relPath: "a.md" }),
+    ).resolves.toBeUndefined();
+    expect(events.filter((e) => e.event === "bridge.metadata_refresh_failed")).toEqual([]);
   });
 });

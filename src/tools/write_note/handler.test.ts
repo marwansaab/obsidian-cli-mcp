@@ -12,7 +12,7 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { UpstreamError } from "../../errors.js";
 import { createLogger, type Logger } from "../../logger.js";
 import { createVaultRegistry } from "../../vault-registry/registry.js";
-import { makeQueuedSpawn, type StubResponse } from "../_handler-test-fixtures.js";
+import { captureLogger, makeQueuedSpawn, type StubResponse } from "../_handler-test-fixtures.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -637,14 +637,7 @@ test("real fs: missing folder under an outward link → PATH_ESCAPES_VAULT, no m
       unlink: (p: string) => nodeFs.unlink(p),
     };
     const events: Array<Record<string, unknown>> = [];
-    const logger = createLogger({
-      stream: new Writable({
-        write(chunk, _enc, cb) {
-          events.push(JSON.parse(chunk.toString()) as Record<string, unknown>);
-          cb();
-        },
-      }),
-    });
+    const logger = captureLogger(events);
     const { spawnFn } = makeQueuedSpawn([]);
     const err = await executeWriteNote(
       { target_mode: "specific", vault: "TestVault", path: "Linked/New/Note.md", content: "x", overwrite: true },

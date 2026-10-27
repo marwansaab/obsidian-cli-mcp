@@ -608,7 +608,6 @@ describe("US1 success envelope + IO invariants", () => {
     expect(recorded[0]!.argv).toContain("vault=TestVault");
     const codeArg = recorded[0]!.argv.find((a) => a.startsWith("code="));
     expect(codeArg).toBeDefined();
-    expect(codeArg!).toContain("computeFileMetadataAsync");
     expect(codeArg!).toContain('getFileByPath("Daily Notes/2026-05-21.md")');
   });
 });

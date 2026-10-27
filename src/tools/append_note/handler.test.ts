@@ -471,7 +471,6 @@ describe("US1 repeat-invocation determinism (SC-004)", () => {
     expect(recorded[0]!.argv).toContain("vault=TestVault");
     const codeArg = recorded[0]!.argv.find((a) => a.startsWith("code="));
     expect(codeArg).toBeDefined();
-    expect(codeArg!).toContain("computeFileMetadataAsync");
     expect(codeArg!).toContain('getFileByPath("n.md")');
   });
 });

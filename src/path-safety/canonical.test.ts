@@ -5,6 +5,7 @@ import { join, resolve, sep } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it, test } from "vitest";
 
+import { linkRealpath } from "./_realpath-fixtures.js";
 import { checkCanonicalPath } from "./canonical.js";
 
 // Use path.resolve to make expectations OS-portable (POSIX uses '/'; Windows uses backslash + drive prefix).
@@ -14,19 +15,6 @@ function enoent(): NodeJS.ErrnoException {
   const e = new Error("ENOENT") as NodeJS.ErrnoException;
   e.code = "ENOENT";
   return e;
-}
-
-/**
- * Fake realpath that behaves like the real one for existing paths: the longest
- * mapped link prefix is replaced by its target, and every other path resolves to itself.
- */
-function linkRealpath(links: Record<string, string>) {
-  return async (p: string): Promise<string> => {
-    const prefix = Object.keys(links)
-      .filter((l) => p === l || p.startsWith(l + sep))
-      .sort((a, b) => b.length - a.length)[0];
-    return prefix === undefined ? p : links[prefix]! + p.slice(prefix.length);
-  };
 }
 
 // (1) Input resolves under vault root (no symlinks) → ok=true with resolved path
@@ -124,6 +112,24 @@ test("non-ENOENT realpath error propagates as-is", async () => {
   await expect(
     checkCanonicalPath(VAULT_ROOT, "Sandbox/note.md", { realpath }),
   ).rejects.toBe(eaccess);
+});
+
+// (9) The note itself is an existing link (R5 walks from the full path, not its parent): an
+// in-vault target is where the write lands, so the edit goes through the link to its target.
+test("existing note that is a link to another in-vault note → ok=true, resolvedPath is the target", async () => {
+  const link = resolve(VAULT_ROOT, "Alias.md");
+  const target = resolve(VAULT_ROOT, "Real", "Note.md");
+  const result = await checkCanonicalPath(VAULT_ROOT, "Alias.md", { realpath: linkRealpath({ [link]: target }) });
+  expect(result).toEqual({ ok: true, resolvedPath: target });
+});
+
+// (10) The note itself is an existing link to a file outside the vault → escape.
+test("existing note that is a link to a file outside the vault → ok=false", async () => {
+  const link = resolve(VAULT_ROOT, "Alias.md");
+  const result = await checkCanonicalPath(VAULT_ROOT, "Alias.md", {
+    realpath: linkRealpath({ [link]: resolve("/elsewhere", "secret.md") }),
+  });
+  expect(result.ok).toBe(false);
 });
 
 // Real-filesystem containment cases (spec 068 US2 / SC-002). A directory link is a junction on

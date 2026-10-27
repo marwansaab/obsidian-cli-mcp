@@ -12,7 +12,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   baseDeps,
-  captureLogger,
   fakeRegistry,
   inMemoryFs,
   relToAbs,
@@ -27,7 +26,7 @@ import {
 } from "./handler.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn } from "../_handler-test-fixtures.js";
+import { captureLogger, makeQueuedSpawn } from "../_handler-test-fixtures.js";
 
 beforeEach(() => {
   __resetMaxOccurrencesCacheForTests();

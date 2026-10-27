@@ -2,14 +2,13 @@
 // split from handler.test.ts: US1 named path/file, US2 active_note, US3 scope-conflict
 // rejection, and the backward-compat + guards-still-fire polish cohort. Shared fixtures
 // in _handler-fixtures.ts.
-import { resolve, sep } from "node:path";
+import { resolve } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   ACTIVE_EVAL,
   baseDeps,
-  captureLogger,
   FILE_TSV_OK,
   fakeRegistry,
   inMemoryFs,
@@ -23,7 +22,8 @@ import {
   type FocusedVaultResponse,
 } from "./handler.js";
 import { UpstreamError } from "../../errors.js";
-import { makeQueuedSpawn } from "../_handler-test-fixtures.js";
+import { linkRealpath } from "../../path-safety/_realpath-fixtures.js";
+import { captureLogger, makeQueuedSpawn } from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -242,19 +242,11 @@ describe("066-file-scope US1 — named single-note scope by path", () => {
   });
 
   it("named-path whose canonical path escapes the vault → PATH_ESCAPES_VAULT + pathEscapeAttempt (C1 / FR-013 Layer-2)", async () => {
-    const { dirname } = await import("node:path");
-    const parentOfVault = dirname(VAULT_ROOT);
     const subdirAbs = resolve(VAULT_ROOT, "subdir");
-    const escape = resolve("/elsewhere");
     const events: Array<Record<string, unknown>> = [];
     const { fs, state } = inMemoryFs([], VAULT_ROOT, {
-      realpathOverride: async (p: string) => {
-        if (p === VAULT_ROOT) return VAULT_ROOT;
-        if (p === parentOfVault) return parentOfVault;
-        // the note's parent dir resolves outside, and so does everything under it
-        if (p === subdirAbs || p.startsWith(subdirAbs + sep)) return escape + p.slice(subdirAbs.length);
-        return p;
-      },
+      // the note's parent dir resolves outside, and so does everything under it
+      realpathOverride: linkRealpath({ [subdirAbs]: resolve("/elsewhere") }),
     });
     const err = await executeFindAndReplace(
       { pattern: "x", replacement: "y", mode: "literal", vault: "V", path: "subdir/evil.md", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
