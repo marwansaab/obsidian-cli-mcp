@@ -16,7 +16,7 @@ one text block holding `JSON.stringify({code, message, details})`. It has no
 
 | Pair | Raised by | When | `details` | Message (shape) |
 |---|---|---|---|---|
-| `VALIDATION_ERROR` / `COMMAND_BLOCKED` | `obsidian_exec` handler | `command` is on the denylist and `OBSIDIAN_MCP_ALLOW_EVAL` is off; raised before any spawn | `{code, command}` (`command` as the caller sent it) | "obsidian_exec: command `<c>` is blocked by default because it can run arbitrary code or drive developer tooling. The vault owner can allow it by setting OBSIDIAN_MCP_ALLOW_EVAL=1." |
+| `VALIDATION_ERROR` / `COMMAND_BLOCKED` | `obsidian_exec` handler | `command` is on the denylist and `OBSIDIAN_MCP_ALLOW_EVAL` is off; raised before any spawn | `{code, command}` (`command` as the caller sent it, or the shifted token when `command` was a `vault=` token; research R4) | "obsidian_exec: command `<c>` is blocked by default because it can run arbitrary code or drive developer tooling. The vault owner can allow it by setting OBSIDIAN_MCP_ALLOW_EVAL=1." |
 | `VALIDATION_ERROR` / `CONFIRMATION_DECLINED` | `delete`, `find_and_replace` | the human declined or cancelled, or accepted with `confirm: false` | `{code, action: "accept" \| "decline" \| "cancel"}` | "<tool>: confirmation was declined; nothing was changed." |
 | `VALIDATION_ERROR` / `CONFIRMATION_UNAVAILABLE` | `delete`, `find_and_replace` | the client cannot elicit; raised before any spawn or write | `{code}` | delete: "…cannot ask you to confirm a permanent delete. Nothing was changed. Delete to the trash instead (omit `permanent`)." · find_and_replace: "…cannot ask you to confirm a multi-note replace. Nothing was changed. Commit one note at a time with `file` or `path`." |
 

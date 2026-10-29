@@ -97,3 +97,49 @@ describe("createObsidianExecTool — handler integration via registerTool", () =
     expect(payload.details.exitCode).toBe(2);
   });
 });
+
+describe("createObsidianExecTool — allowEval deps reach the handler (068 T023/T024)", () => {
+  function countingSpawn(): { spawnFn: SpawnLike; calls: () => number } {
+    let n = 0;
+    const inner = makeStubSpawn({ stdout: "2\n", exitCode: 0 });
+    return {
+      spawnFn: (binary, argv, options) => {
+        n += 1;
+        return inner(binary, argv, options);
+      },
+      calls: () => n,
+    };
+  }
+
+  it("default deps: a blocked command returns the COMMAND_BLOCKED envelope (errors contract) and never spawns", async () => {
+    const { spawnFn, calls } = countingSpawn();
+    const tool = createObsidianExecTool({ logger: silentLogger(), queue: createQueue(), spawnFn, env: {} });
+    const result = (await tool.handler({ command: "eval", parameters: { code: "1+1" } })) as {
+      isError?: boolean;
+      content: { type: string; text: string }[];
+      structuredContent?: unknown;
+    };
+    expect(result.isError).toBe(true);
+    expect(result.content).toHaveLength(1);
+    expect(result.structuredContent).toBeUndefined();
+    expect(JSON.parse(result.content[0]!.text)).toEqual({
+      code: "VALIDATION_ERROR",
+      message:
+        "obsidian_exec: command `eval` is blocked by default because it can run arbitrary code or drive developer tooling. The vault owner can allow it by setting OBSIDIAN_MCP_ALLOW_EVAL=1.",
+      details: { code: "COMMAND_BLOCKED", command: "eval" },
+    });
+    expect(calls()).toBe(0);
+  });
+
+  it("allowEval: true in the registration deps spawns the command", async () => {
+    const { spawnFn, calls } = countingSpawn();
+    const tool = createObsidianExecTool({ logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, allowEval: true });
+    const result = (await tool.handler({ command: "eval", parameters: { code: "1+1" } })) as {
+      isError?: boolean;
+      content: { type: string; text: string }[];
+    };
+    expect(result.isError).toBeUndefined();
+    expect(JSON.parse(result.content[0]!.text).stdout).toBe("2\n");
+    expect(calls()).toBe(1);
+  });
+});

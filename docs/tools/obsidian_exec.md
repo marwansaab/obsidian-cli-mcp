@@ -24,6 +24,22 @@ The most common Obsidian CLI subcommands have dedicated typed wrappers — prefe
 
 The typed tools enforce per-mode validation, structured error propagation, and clean output shapes that `obsidian_exec` cannot.
 
+## Blocked commands
+
+By default, `obsidian_exec` refuses commands that run arbitrary code or drive developer tooling. The refusal happens before any process is spawned, so nothing runs.
+
+| Rule | Commands |
+|---|---|
+| Exact name | `eval`, `devtools`, `restart`, `plugin:install`, `plugin:enable`, `plugin:disable` |
+| Prefix | every `dev:*` command (`dev:cdp`, `dev:console`, `dev:debug`, `dev:dom`, …) |
+
+- The match is on the command name only, after trimming whitespace and lower-casing, so `" EVAL "` is refused too. Parameter values are never inspected: `search` with `query: "eval"` runs normally.
+- The command name checked is the one the CLI will run. A `command` of `vault=<name>` (instead of the `vault` field) makes the CLI run the next token, so the gate checks that token instead, and `{ "command": "vault=Notes", "flags": ["eval"] }` is refused as `eval`.
+- `command` (run a command-palette command by ID) and `plugin:reload` are not blocked. A palette command can still trigger plugin code; that indirect path is an accepted residual risk.
+- Plugin-contributed commands are not blocked; their names depend on the plugins each vault has installed.
+
+The vault owner can lift the block for every listed command by setting `OBSIDIAN_MCP_ALLOW_EVAL=1` (also `true`, `yes` or `on`, case-insensitive) in the server's environment. The value is read once when the server starts. Typed tools that run fixed internal scripts (`backlinks`, `links`, `outline`, `find_by_property`, …) are not affected by the block or the setting.
+
 ## Input
 
 | Field | Type | Required | Constraint | Description |
@@ -65,6 +81,7 @@ All failure surfaces flow through `UpstreamError`. The codes that can fire from 
 | Code | When | Recovery |
 |------|------|----------|
 | `VALIDATION_ERROR` | `params.arguments` failed schema validation (missing `command`, malformed `parameters` value type, `flags` element starting with `--`, etc.). | Retry with corrected input. `details.issues` carries the zod-issue paths. |
+| `VALIDATION_ERROR` with `details.code: "COMMAND_BLOCKED"` | The command is on the [blocked list](#blocked-commands) and `OBSIDIAN_MCP_ALLOW_EVAL` is off. Raised before any spawn. `details.command` names the blocked command. | Use a typed tool, or ask the vault owner to set `OBSIDIAN_MCP_ALLOW_EVAL=1` if the command is genuinely needed. Retrying unchanged will not help. |
 | `TOOL_NOT_FOUND` | The dispatch received `params.name` other than `"obsidian_exec"`. | Retry with `name: "obsidian_exec"`. |
 | `CLI_NON_ZERO_EXIT` | The spawned `obsidian` child exited with a non-zero code. | `details.{exitCode, signal, stdout, stderr, argv}` carry the failure context. Inspect `stderr` for diagnostic output. |
 | `CLI_BINARY_NOT_FOUND` | `spawn` emitted `ENOENT` — the binary couldn't be resolved on PATH and `OBSIDIAN_BIN` was unset/invalid. | Operator-side: install or expose the `obsidian` binary, OR set `OBSIDIAN_BIN` to a valid path. |

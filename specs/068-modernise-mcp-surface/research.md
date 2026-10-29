@@ -166,6 +166,19 @@ convention.
 - An allowlist of safe commands: overruled by the owner (Q3).
 - Matching anywhere in the argv: would block searches for the text "eval" (spec edge case).
 
+**T0 result (2026-10-30, T020, [evidence-c2.md](evidence-c2.md))**: the live `obsidian help`
+lists the plugin lifecycle commands as `plugin:install`, `plugin:enable` and
+`plugin:disable`; those three are pinned in `OBSIDIAN_EXEC_BLOCKED_EXACT`. The same probe
+showed that the CLI consumes one leading `vault=<name>` token and runs the next token as
+the command, matching case and whitespace exactly. Because `assembleArgv` emits `[vault=…?,
+command, kvs…, flags…]`, a `command` of `vault=X` with no `vault` field would move the
+first flag into command position (`{command: "vault=X", flags: ["eval", "code=…"]}` runs
+`eval`). The gate therefore checks the *effective* command: the first argv token that does
+not start with `vault=` (case-insensitive, an over-approximation of the CLI). Parameter
+tokens always contain `=`, so a parameter value can never be the effective command and the
+"never on argument values" rule still holds. `details.command` names the effective command,
+which is the caller's `command` value in every case except the `vault=` shift.
+
 ---
 
 ## R5 — Vault containment for not-yet-existing folders (PR 1)

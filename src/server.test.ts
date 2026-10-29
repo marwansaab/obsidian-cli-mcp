@@ -5,7 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
-import { describe, it, test, expect } from "vitest";
+import { afterEach, describe, it, test, expect, vi } from "vitest";
 
 import { createServer, DEFAULT_DOCS_DIR, type ShutdownContext } from "./server.js";
 
@@ -66,6 +66,51 @@ test("CallToolRequest dispatches by name with TOOL_NOT_FOUND fallback (P8 aggreg
   expect(payload.code).toBe("TOOL_NOT_FOUND");
   expect(payload.details.knownTools).toContain("obsidian_exec");
   expect(payload.details.knownTools).toContain("help");
+});
+
+describe("OBSIDIAN_MCP_ALLOW_EVAL wiring (068 FR-012, T024)", () => {
+  async function callExecEval(env: NodeJS.ProcessEnv | undefined) {
+    const { ctx } = makeContext();
+    const { server } = createServer({ ...ctx, env });
+    const handlers = (server as unknown as { _requestHandlers: Map<string, (req: unknown) => Promise<unknown>> })._requestHandlers;
+    const result = (await handlers.get("tools/call")!({
+      method: "tools/call",
+      params: { name: "obsidian_exec", arguments: { command: "eval", parameters: { code: "1+1" } } },
+    })) as { isError?: boolean; content: { type: string; text: string }[] };
+    return { isError: result.isError, payload: JSON.parse(result.content[0]!.text) as { code: string; details: Record<string, unknown> } };
+  }
+
+  // An unresolvable OBSIDIAN_BIN makes the binary resolver fail before any spawn, so the
+  // enabled case proves the gate let the call through without starting a real process.
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("an absent value leaves the gate on: eval is COMMAND_BLOCKED", async () => {
+    const { isError, payload } = await callExecEval({});
+    expect(isError).toBe(true);
+    expect(payload.code).toBe("VALIDATION_ERROR");
+    expect(payload.details).toEqual({ code: "COMMAND_BLOCKED", command: "eval" });
+  });
+
+  it("a non-truthy value (\"0\") leaves the gate on", async () => {
+    const { payload } = await callExecEval({ OBSIDIAN_MCP_ALLOW_EVAL: "0" });
+    expect(payload.details.code).toBe("COMMAND_BLOCKED");
+  });
+
+  it("OBSIDIAN_MCP_ALLOW_EVAL=1 lets eval through to the CLI layer", async () => {
+    vi.stubEnv("OBSIDIAN_BIN", join(tmpdir(), "no-such-obsidian-068-t024"));
+    const { isError, payload } = await callExecEval({ OBSIDIAN_MCP_ALLOW_EVAL: "1" });
+    expect(isError).toBe(true);
+    expect(payload.code).toBe("CLI_BINARY_NOT_FOUND");
+  });
+
+  it("ctx.env defaults to process.env", async () => {
+    vi.stubEnv("OBSIDIAN_MCP_ALLOW_EVAL", "true");
+    vi.stubEnv("OBSIDIAN_BIN", join(tmpdir(), "no-such-obsidian-068-t024"));
+    const { payload } = await callExecEval(undefined);
+    expect(payload.code).toBe("CLI_BINARY_NOT_FOUND");
+  });
 });
 
 test("transport-close shutdown emits bridge.shutdown with reason transport_closed and exits 0", () => {

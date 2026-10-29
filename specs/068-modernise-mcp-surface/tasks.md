@@ -144,23 +144,24 @@ logged. **Independent test**: quickstart Â§2.
 
 **Branch**: `068-pr2-exec-gate` from updated `main`. **Independent test**: quickstart Â§4.
 
-- [ ] T019 Create branch `068-pr2-exec-gate`.
-- [ ] T020 [US3] **T0-live**: run `Obsidian.com help` (stdout and stderr captured separately) and list the exact plugin install / enable / disable command names. Record the verbatim output in specs/068-modernise-mcp-surface/evidence-c2.md. Note `plugin:reload` and `command` as deliberately allowed (Q3).
-- [ ] T021 [P] [US3] Add an exported `envFlagEnabled(value: string | undefined): boolean` beside `autoLaunchEnabled` in src/cli-adapter/_dispatch.ts. True only for `1/true/yes/on` after trim + lower-case. Add a truthy/falsy/unset table test in src/cli-adapter/_dispatch.test.ts.
-- [ ] T022 [US3] In src/tools/obsidian_exec/handler.ts, add an `OBSIDIAN_EXEC_BLOCKED_EXACT` constant (`eval`, `devtools`, `restart` plus the T020 plugin names), the `dev:` prefix rule, and `isBlockedCommand(command)` (trim + lower-case, `command` field only). Unit tests in src/tools/obsidian_exec/handler.test.ts cover:
+- [X] T019 Create branch `068-pr2-exec-gate`.
+- [X] T020 [US3] **T0-live**: run `Obsidian.com help` (stdout and stderr captured separately) and list the exact plugin install / enable / disable command names. Record the verbatim output in specs/068-modernise-mcp-surface/evidence-c2.md. Note `plugin:reload` and `command` as deliberately allowed (Q3).
+  **Outcome (2026-10-30)**: the names are `plugin:install`, `plugin:enable`, `plugin:disable`. A follow-up probe showed the CLI runs the token after a leading `vault=` token as the command, so `{command: "vault=X", flags: ["eval", …]}` would run `eval`. The T023 gate therefore checks the effective command token (research R4, T0 result; evidence-c2.md).
+- [X] T021 [P] [US3] Add an exported `envFlagEnabled(value: string | undefined): boolean` beside `autoLaunchEnabled` in src/cli-adapter/_dispatch.ts. True only for `1/true/yes/on` after trim + lower-case. Add a truthy/falsy/unset table test in src/cli-adapter/_dispatch.test.ts.
+- [X] T022 [US3] In src/tools/obsidian_exec/handler.ts, add an `OBSIDIAN_EXEC_BLOCKED_EXACT` constant (`eval`, `devtools`, `restart` plus the T020 plugin names), the `dev:` prefix rule, and `isBlockedCommand(command)` (trim + lower-case, `command` field only). Unit tests in src/tools/obsidian_exec/handler.test.ts cover:
   - every name blocked;
   - ` EVAL ` blocked;
   - `dev:cdp` blocked;
   - `plugin:reload` and `command` allowed;
   - `search` with a `query: "eval"` parameter allowed.
-- [ ] T023 [US3] Gate in `executeObsidianExec` (src/tools/obsidian_exec/handler.ts:22) before `invokeBoundedCli`: when `!deps.allowEval && isBlockedCommand(input.command)`, throw `UpstreamError({code:"VALIDATION_ERROR", message, details:{code:"COMMAND_BLOCKED", command: input.command}})`. The message text is in [contracts/errors.contract.md](contracts/errors.contract.md). Tests: the injected spawn is never called when blocked; `allowEval: true` spawns as before; the result envelope matches the contract.
-- [ ] T024 [US3] Wire `allowEval` in two sub-steps:
+- [X] T023 [US3] Gate in `executeObsidianExec` (src/tools/obsidian_exec/handler.ts:22) before `invokeBoundedCli`: when `!deps.allowEval && isBlockedCommand(input.command)`, throw `UpstreamError({code:"VALIDATION_ERROR", message, details:{code:"COMMAND_BLOCKED", command: input.command}})`. The message text is in [contracts/errors.contract.md](contracts/errors.contract.md). Tests: the injected spawn is never called when blocked; `allowEval: true` spawns as before; the result envelope matches the contract.
+- [X] T024 [US3] Wire `allowEval` in two sub-steps:
   - **(a) kernel-node touch**: add an optional `env?: NodeJS.ProcessEnv` field to `createServer`'s ctx (src/server.ts), defaulting to `process.env`. Today the ctx has no env field; only `deps.env` exists, in `_dispatch.ts` and `find_and_replace`. Name this `createServer` touch in the PR-2 checklist for reviewer attention.
   - **(b)** read `envFlagEnabled(env.OBSIDIAN_MCP_ALLOW_EVAL)` once in `createServer()` and pass it in `createObsidianExecTool` deps (src/tools/obsidian_exec/index.ts).
 
   Tests: in src/tools/obsidian_exec/index.test.ts, the deps reach the handler; in src/server.test.ts, `createServer({env: {OBSIDIAN_MCP_ALLOW_EVAL: "1"}})` enables it and an absent value leaves it off.
-- [ ] T025 [P] [US3] Docs: add `OBSIDIAN_MCP_ALLOW_EVAL` to the README env-var section with a plain warning (it allows arbitrary code with the user's rights; palette commands remain an accepted residual path). In docs/tools/obsidian_exec.md add the blocked list, the `COMMAND_BLOCKED` error-roster row and the opt-in.
-- [ ] T026 [US3] Run the full suite and confirm every typed tool's eval-based tests pass unchanged (`backlinks`, `links`, `open_file`, `read_heading`, `find_by_property`, `outline`, `_eval-vault-closed-detection`, â€¦). That proves the gate sits only in the passthrough (FR-013).
+- [X] T025 [P] [US3] Docs: add `OBSIDIAN_MCP_ALLOW_EVAL` to the README env-var section with a plain warning (it allows arbitrary code with the user's rights; palette commands remain an accepted residual path). In docs/tools/obsidian_exec.md add the blocked list, the `COMMAND_BLOCKED` error-roster row and the opt-in.
+- [X] T026 [US3] Run the full suite and confirm every typed tool's eval-based tests pass unchanged (`backlinks`, `links`, `open_file`, `read_heading`, `find_by_property`, `outline`, `_eval-vault-closed-detection`, â€¦). That proves the gate sits only in the passthrough (FR-013).
 - [ ] T027 PR-2 wrap:
   - gates as in T016, with the baseline unchanged;
   - `/speckit-git-commit`;

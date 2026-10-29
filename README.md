@@ -86,6 +86,28 @@ Auto-launch is **on by default**. To disable it (for headless, CI, or locked-dow
 }
 ```
 
+### Code execution through `obsidian_exec` (off by default)
+
+The general-purpose `obsidian_exec` tool refuses, by default, the CLI commands that run arbitrary code or drive developer tooling: `eval`, `devtools`, every `dev:*` command, `restart`, and `plugin:install` / `plugin:enable` / `plugin:disable`. A refused call returns a `VALIDATION_ERROR` with `details.code: "COMMAND_BLOCKED"`, and nothing is run. This protects you if a model is steered by text it read in a note, for example a note written to trick it into running code. The typed tools are unaffected. See [docs/tools/obsidian_exec.md](docs/tools/obsidian_exec.md#blocked-commands) for the exact rules.
+
+To lift the block, set `OBSIDIAN_MCP_ALLOW_EVAL` to `1`, `true`, `yes` or `on` (case-insensitive). The value is read once at start-up.
+
+> **Warning:** with `OBSIDIAN_MCP_ALLOW_EVAL` set, any connected model can run arbitrary JavaScript inside Obsidian with your user account's rights: it can read, change or delete any file you can, and reach the network. Set it only on a machine and vault where you accept that. Even with the block on, `obsidian_exec` can still run command-palette commands (`command`) and reload plugins (`plugin:reload`), which can trigger plugin code indirectly; that is an accepted residual risk.
+
+```json
+{
+  "mcpServers": {
+    "obsidian-cli": {
+      "command": "npx",
+      "args": ["-y", "@marwansaab/obsidian-cli-mcp"],
+      "env": {
+        "OBSIDIAN_MCP_ALLOW_EVAL": "1"
+      }
+    }
+  }
+}
+```
+
 ## Multi-vault support
 
 The Obsidian Integrated CLI can address any vault registered in Obsidian, and this server exposes that directly. You do **not** need to manually switch Obsidian to the vault you want to act on — every tool that accepts a `vault` argument routes to that vault by display name, whether it is the focused vault, an open-but-unfocused vault in another window, or a registered vault that is currently closed.
@@ -187,7 +209,7 @@ The server currently registers thirty-four public tools. Call `help({ tool_name:
 
 | Tool | Purpose |
 |---|---|
-| `obsidian_exec` | Escape hatch — invoke any Obsidian CLI subcommand directly. |
+| `obsidian_exec` | Escape hatch — invoke Obsidian CLI subcommands directly. Code-running and developer commands are [blocked by default](#code-execution-through-obsidian_exec-off-by-default). |
 | `help` | Progressive-disclosure documentation for the tools above. |
 
 ## How it is built

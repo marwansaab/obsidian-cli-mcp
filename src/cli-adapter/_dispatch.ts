@@ -157,6 +157,19 @@ export function autoLaunchEnabled(env: NodeJS.ProcessEnv): boolean {
   return !AUTO_LAUNCH_DISABLE_SET.has(raw.trim().toLowerCase());
 }
 
+/** The closed enable-set for default-off opt-in flags such as `OBSIDIAN_MCP_ALLOW_EVAL` (068 research R4). */
+const ENV_FLAG_ENABLE_SET = new Set(["1", "true", "yes", "on"]);
+
+/**
+ * 068 opt-in flag parser (research R4; data-model §1) — the inverse of `autoLaunchEnabled`: OFF by
+ * default; ON only when the value, trimmed and lower-cased, is one of {1,true,yes,on}. Unset, empty
+ * and any other value leave it off.
+ */
+export function envFlagEnabled(value: string | undefined): boolean {
+  if (typeof value !== "string") return false;
+  return ENV_FLAG_ENABLE_SET.has(value.trim().toLowerCase());
+}
+
 const AUTO_LAUNCH_DISABLED_MESSAGE =
   "Obsidian is not running and auto-launch is disabled (OBSIDIAN_AUTO_LAUNCH) — start Obsidian and try again.";
 
@@ -191,7 +204,10 @@ type KillReason =
   | { kind: "timeout" }
   | { kind: "cap"; stream: "stdout" | "stderr"; capturedBytes: number };
 
-export function assembleArgv(input: DispatchInput, binary: string): string[] {
+export function assembleArgv(
+  input: Pick<DispatchInput, "command" | "vault" | "parameters" | "flags" | "copy">,
+  binary: string,
+): string[] {
   const vaultPrefix = input.vault !== undefined ? [`vault=${input.vault}`] : [];
   const kvs = Object.entries(input.parameters ?? {})
     .filter(([, v]) => v !== undefined)

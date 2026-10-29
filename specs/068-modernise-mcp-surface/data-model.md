@@ -151,13 +151,15 @@ vaults ──always──▶ fresh probe ──▶ loaded (refreshed)
 ## 7. Passthrough blocked-command set (PR 2)
 
 Fixed denylist (clarification Q3). Matched against `obsidian_exec`'s `command` field
-only, after trim + lower-case; never against `parameters` values.
+only, after trim + lower-case; never against `parameters` values. When `command` is itself
+a `vault=` token, the CLI runs the next token, so that token is matched instead (research
+R4, T0 result).
 
 | Rule | Matches |
 |---|---|
 | exact | `eval`, `devtools`, `restart` |
 | prefix | `dev:` (every `dev:*` command) |
-| exact (plugin lifecycle) | the CLI's plugin install / enable / disable command names (exact names fixed in research R4) |
+| exact (plugin lifecycle) | `plugin:install`, `plugin:enable`, `plugin:disable` (pinned from the live CLI, research R4 T0 result) |
 
 Not blocked: `command` (palette execution), `plugin:reload` — accepted residual risk
 (spec Assumptions).
