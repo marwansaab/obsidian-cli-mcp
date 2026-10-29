@@ -1,4 +1,4 @@
-// Original — no upstream. append_note handler per BI-044 / ADR-009 — specific-mode vault-registry resolve (+ pre-flight `obsidian file` TSV resolver for wikilink-form `file`) OR active-mode focused-file eval → Layer 2 canonical path check → fs.readFile (ENOENT → NOTE_NOT_FOUND per FR-016) → appendEdit pure helper (FR-006 / FR-006a / FR-007 / FR-008 / FR-009 / FR-010 / FR-010a) → atomic tmp+rename with EBUSY/EPERM/EACCES EXTERNAL_EDITOR_CONFLICT classification (FR-022) → best-effort metadataCache invalidation eval → typed output envelope. No race detection — FR-026 publishes last-write-wins (cohort parity with write_note, patch_block; divergence from patch_heading's HEADING_RACE).
+// Original — no upstream. append_note handler per BI-044 / ADR-009 — specific-mode vault-registry resolve (+ pre-flight `obsidian file` TSV resolver for wikilink-form `file`) OR active-mode focused-file eval → Layer 2 canonical path check → fs.readFile (ENOENT → NOTE_NOT_FOUND per FR-016) → appendEdit pure helper (FR-006 / FR-006a / FR-007 / FR-008 / FR-009 / FR-010 / FR-010a) → atomic tmp+rename with EBUSY/EPERM/EACCES EXTERNAL_EDITOR_CONFLICT classification (FR-022) → best-effort metadataCache refresh eval on the vault-relative path in the written vault (logged on failure) → typed output envelope. No race detection — FR-026 publishes last-write-wins (cohort parity with write_note, patch_block; divergence from patch_heading's HEADING_RACE).
 import { randomUUID } from "node:crypto";
 import * as nodeFs from "node:fs/promises";
 
@@ -114,15 +114,15 @@ export async function executeAppendNote(
   const newByteCount = Buffer.byteLength(newContent, "utf8");
 
   // ADR-009 §3 atomic write (tmp + rename, UUID-uniquified per FR-026) then
-  // best-effort metadataCache invalidation per ADR-009 §5 / R9 — both via the
+  // best-effort metadataCache refresh per ADR-009 §5 / R9 — both via the
   // shared _note-io substrate. writeAtomic rethrows the raw fs error; the
-  // invalidation is silent on failure (write already landed).
+  // refresh is logged on failure, never thrown (write already landed).
   try {
     await writeAtomic(fs, absPath, newContent, randomUUID);
   } catch (e) {
     throw mapWriteErr(e);
   }
-  await invalidateMetadataCache(deps, absPath);
+  await invalidateMetadataCache(deps, { vault: input.vault, relPath });
 
   return {
     path: relPath,

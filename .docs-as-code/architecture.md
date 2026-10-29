@@ -275,15 +275,31 @@ The direct path needs three things the CLI used to provide:
    check ([src/path-safety/schema.ts](../src/path-safety/schema.ts)) rejects
    `..` segments, absolute markers, drive letters and control characters at
    the boundary. A runtime canonical check
-   ([src/path-safety/canonical.ts](../src/path-safety/canonical.ts)) resolves
-   symlinks with `realpath` and confirms the result is still under the
-   canonical vault root, before any directory is created. A miss is
-   `PATH_ESCAPES_VAULT`, and the logger records a `pathEscapeAttempt` event.
+   ([src/path-safety/canonical.ts](../src/path-safety/canonical.ts)) walks up
+   from the full target path to the nearest ancestor that exists, resolves
+   that with `realpath`, re-appends the segments that do not exist yet, and
+   confirms the result is still under the canonical vault root, before any
+   directory is created. A miss is `PATH_ESCAPES_VAULT`, and the logger
+   records a `pathEscapeAttempt` event. Because the walk starts at the full
+   path, a note that is itself a link resolves to its target.
+
+   Until PR #87 (spec 068 R5, SC-002) the check ran `realpath` on the parent
+   folder only and fell back to the lexical path when that folder did not
+   exist. A link inside the vault pointing outside it therefore went
+   undetected whenever the folders to be created under it did not exist yet,
+   and a Windows vault root given in different letter case failed the
+   comparison. Real-filesystem tests (a junction on Windows, a directory
+   symlink elsewhere) now pin both cases.
 3. **An atomic write that Obsidian notices.**
    [src/tools/_note-io.ts](../src/tools/_note-io.ts) writes to a
-   UUID-named temporary file and renames it over the target. It then
-   invalidates the note's entry in Obsidian's `metadataCache` through a
-   best-effort `eval`, so later reads through the CLI see the new content.
+   UUID-named temporary file and renames it over the target. It then asks
+   Obsidian to recompute the note's `metadataCache` entry through a
+   best-effort `eval`, so the next search or property read sees the new
+   content. The refresh addresses the note by vault-relative path, in the
+   vault the caller named (none in active mode). It never fails the write,
+   and every failure is logged rather than swallowed (PR #87; the details,
+   and why the refresh never actually ran before that PR, are in
+   [capabilities/mutate.md](capabilities/mutate.md)).
 
 `prepend` is the deliberate exception in the write cohort. It wraps the CLI's
 own `prepend` subcommand, because the CLI's frontmatter detection is the
@@ -321,7 +337,11 @@ them:
   focused-file and focused-vault templates and the remapping helpers they
   need. They were extracted in the code-quality pass (PR #58) and the
   eval-cohort de-duplication (PR #62), byte-for-byte from the copies that had
-  grown in each tool.
+  grown in each tool. Its `evalInVault(deps, code, vault)` (PR #87) is the one
+  place that builds an `eval` call for a named vault: `vault=` in specific
+  mode when a vault is given, active mode otherwise. The write cohort's two
+  post-write evals, the metadata refresh and `write_note`'s editor open, both
+  go through it.
 
 Since ADR-031 (Cross-Vault Open via Vault-Targeted Focus; PR #66, verified
 across the read and query cohort in PR #67), an `eval` sent with `vault=<name>`
@@ -342,8 +362,19 @@ descriptors stay short because the long-form contract is one `help` call away.
 [src/logger.ts](../src/logger.ts) writes JSON lines to **stderr**, never
 stdout, which belongs to the MCP transport. It records failure-lifecycle
 events only: dispatch timeouts, cap kills, child kills, cold-start retries,
-recovery attempts, path-escape attempts, and shutdown. Successful calls are
-not logged.
+recovery attempts, path-escape attempts, failed post-write metadata refreshes,
+and shutdown. Successful calls are not logged.
+
+`bridge.metadata_refresh_failed` (PR #87) is the one event for a failure the
+caller never sees. The write has already landed and the tool returns success,
+so the log is the only place the failure appears (constitution Principle IV
+forbids the silent `catch {}` it replaced). It carries `{vault, relPath,
+reason, detail}`. `vault` is `null` for an active-mode write. `reason` is a
+closed set in the ADR-015 style: `cli-error` (the `eval` call itself failed;
+`detail` is `"<code>: <message>"`), `note-not-found` (Obsidian has no note at
+that path), or `unexpected-output` (anything else; `detail` is the first 200
+characters of the output). The new method on the `Logger` returned by
+`createLogger()`, one of the kernel nodes, is additive.
 
 `SIGINT`, `SIGTERM` and transport close all lead to `triggerShutdown`, which
 runs once. It drains the queue (rejecting pending tasks), kills the in-flight

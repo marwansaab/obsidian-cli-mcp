@@ -58,7 +58,7 @@ there and only its effect is here. The stack was last refreshed by BI-067
 
 | What | Why it is here | What it constrains |
 | --- | --- | --- |
-| GitHub Actions, [.github/workflows/ci.yml](../.github/workflows/ci.yml) | Runs lint, typecheck, test with coverage, and build on every PR to `main` and every push to `main`. | Matrix of Node **22 and 24** (PR #79), so code must work on both the published floor's line and the current release. Runs in progress on the same ref are cancelled. |
+| GitHub Actions, [.github/workflows/ci.yml](../.github/workflows/ci.yml) | Runs lint, typecheck, test with coverage, and build on every PR to `main` and every push to `main`. | Matrix of **Ubuntu and Windows** × Node **22 and 24**: four jobs, `fail-fast: false`, 20-minute timeout. The Node axis came in PR #79; Windows joined in PR #87 (spec 068 A4), so path separators, junctions, `EBUSY`/`EPERM` and case-insensitive roots are exercised on every change rather than only by hand. Tests that touch the real filesystem must pass on both, which is why the containment tests build a junction on Windows and a directory symlink elsewhere. Runs in progress on the same ref are cancelled. |
 | `protect-main` ruleset | Changes reach `main` only through a PR. | Zero required approvals, stale reviews are not dismissed on push, and threads need not be resolved. A docs commit pushed after review therefore does not re-gate the merge, but CI re-runs. |
 
 ## Packaging and publishing

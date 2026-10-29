@@ -12,7 +12,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   baseDeps,
-  captureLogger,
   fakeRegistry,
   inMemoryFs,
   relToAbs,
@@ -27,7 +26,7 @@ import {
 } from "./handler.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn } from "../_handler-test-fixtures.js";
+import { captureLogger, makeQueuedSpawn } from "../_handler-test-fixtures.js";
 
 beforeEach(() => {
   __resetMaxOccurrencesCacheForTests();
@@ -115,6 +114,44 @@ describe("US1 — commit happy path", () => {
       "single ADR-0089 occurrence",
     );
     expect(state.renames.length).toBe(2);
+  });
+});
+
+describe("068 A1 — metadata refresh per committed note", () => {
+  const twoNotes = (): MemFile[] => [
+    { abs: relToAbs("Sub/A.md"), content: "pat one" },
+    { abs: relToAbs("B.md"), content: "pat two" },
+  ];
+  const commitInput = { pattern: "pat", replacement: "REP", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true, active_note: false } as const;
+
+  it("a 2-note commit on a real queue completes, with one refresh per changed note in the written vault", async () => {
+    const { fs, state } = inMemoryFs(twoNotes(), VAULT_ROOT);
+    const { spawnFn, recorded } = makeQueuedSpawn([
+      { stdout: "=> ok\n", exitCode: 0 },
+      { stdout: "=> ok\n", exitCode: 0 },
+    ]);
+    const result = await executeFindAndReplace(commitInput, baseDeps({ fs, spawnFn, queue: createQueue() }));
+    expect(result).toEqual({ mode: "commit", changed_notes: ["B.md", "Sub/A.md"], total_occurrences_replaced: 2, partial: false });
+    expect(state.renames.length).toBe(2);
+    expect(recorded.map((r) => r.argv.find((a) => a.startsWith("vault=")))).toEqual(["vault=V", "vault=V"]);
+    expect(recorded.map((r) => r.argv.find((a) => a.startsWith("code=")))).toEqual([
+      expect.stringContaining('getFileByPath("B.md")'),
+      expect.stringContaining('getFileByPath("Sub/A.md")'),
+    ]);
+  });
+
+  it("a refresh failure does not change the commit result and is logged", async () => {
+    const { fs } = inMemoryFs(twoNotes(), VAULT_ROOT);
+    const { spawnFn } = makeQueuedSpawn([
+      { stdout: "Error: boom\n", exitCode: 1 },
+      { stdout: "=> ok\n", exitCode: 0 },
+    ]);
+    const events: Array<Record<string, unknown>> = [];
+    const result = await executeFindAndReplace(commitInput, baseDeps({ fs, spawnFn, logger: captureLogger(events) }));
+    expect(result).toEqual({ mode: "commit", changed_notes: ["B.md", "Sub/A.md"], total_occurrences_replaced: 2, partial: false });
+    const failed = events.filter((e) => e.event === "bridge.metadata_refresh_failed");
+    expect(failed).toHaveLength(1);
+    expect(failed[0]).toMatchObject({ vault: "V", relPath: "B.md", reason: "cli-error" });
   });
 });
 

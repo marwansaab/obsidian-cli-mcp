@@ -48,6 +48,25 @@ function adapterDeps(deps: EvalDeps) {
 }
 
 /**
+ * Run `code` through `obsidian eval` in the named vault (`vault=` on the argv, specific mode),
+ * or in the focused vault when `vault` is undefined (active mode). Resolves to the raw stdout;
+ * CLI failures reject as the adapter's UpstreamError.
+ */
+export async function evalInVault(deps: EvalDeps, code: string, vault: string | undefined): Promise<string> {
+  const { stdout } = await invokeCli(
+    {
+      command: "eval",
+      vault,
+      parameters: { code },
+      flags: [],
+      target_mode: vault === undefined ? "active" : "specific",
+    },
+    adapterDeps(deps),
+  );
+  return stdout;
+}
+
+/**
  * Strip the eval echo prefix (`"=> "`) and JSON.parse the remainder. The `obsidian
  * eval` subcommand prints the expression value as text prefixed with `"=> "`;
  * everything downstream re-parses that body as JSON. Throws on invalid JSON — the

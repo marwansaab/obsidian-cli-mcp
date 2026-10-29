@@ -468,9 +468,10 @@ describe("US1 repeat-invocation determinism (SC-004)", () => {
     );
     expect(result.bytes_written).toBe(3);
     expect(recorded.length).toBe(1);
+    expect(recorded[0]!.argv).toContain("vault=TestVault");
     const codeArg = recorded[0]!.argv.find((a) => a.startsWith("code="));
     expect(codeArg).toBeDefined();
-    expect(codeArg!).toContain("computeMetadataAsync");
+    expect(codeArg!).toContain('getFileByPath("n.md")');
   });
 });
 
@@ -767,6 +768,18 @@ describe("US4 active-mode focused-file resolution", () => {
     expect(fs.writes[0]![1]).toBe(
       "focused note prior content\n- Quick note added from agent flow",
     );
+  });
+
+  test("metadata refresh runs in the open vault: no vault= on its argv (068 FR-002 / R13)", async () => {
+    const fs = fakeFs({ content: "x\n" });
+    const { spawnFn, recorded } = makeQueuedSpawn([FOCUSED_OK(VAULT_ROOT, "Sandbox/n.md"), EVAL_OK]);
+    await executeAppendNote(
+      { target_mode: "active", content: "y", inline: false },
+      deps({ spawnFn, vaultRegistry: fakeRegistry({ Knowledge: VAULT_ROOT }), fs }),
+    );
+    const refreshArgv = recorded[1]!.argv;
+    expect(refreshArgv.find((a) => a.startsWith("code="))).toContain('getFileByPath("Sandbox/n.md")');
+    expect(refreshArgv.some((a) => a.startsWith("vault="))).toBe(false);
   });
 
   test("no focused file → ERR_NO_ACTIVE_FILE; no fs operations", async () => {

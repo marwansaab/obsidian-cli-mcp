@@ -599,9 +599,10 @@ describe("US1 success envelope + IO invariants", () => {
     );
     expect(result.bytes_written).toBeGreaterThan(0);
     expect(recorded.length).toBe(1);
+    expect(recorded[0]!.argv).toContain("vault=TestVault");
     const codeArg = recorded[0]!.argv.find((a) => a.startsWith("code="));
     expect(codeArg).toBeDefined();
-    expect(codeArg!).toContain("computeMetadataAsync");
+    expect(codeArg!).toContain('getFileByPath("n.md")');
   });
 });
 
@@ -902,6 +903,24 @@ describe("US3 active mode", () => {
       deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
     );
     expect(result.vault).toBe(FALLBACK_ROOT);
+  });
+
+  test("metadata refresh runs in the open vault: no vault= on its argv, never the folder path (068 FR-002 / R13)", async () => {
+    const FALLBACK_ROOT = resolve("/unknown-vault-root");
+    const focusedResp: StubResponse = {
+      stdout: `=> {"path":"today.md","base":${JSON.stringify(FALLBACK_ROOT)}}\n`,
+      exitCode: 0,
+    };
+    const fs = fakeFs({ content: "Body. ^foo\n" }, { realpath: vi.fn(async (p: string) => p) });
+    const { spawnFn, recorded } = makeQueuedSpawn([focusedResp, EVAL_OK]);
+    const result = await executePatchBlock(
+      { target_mode: "active", block_id: "foo", content: "Replaced." },
+      deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+    );
+    expect(result.vault).toBe(FALLBACK_ROOT);
+    const refreshArgv = recorded[1]!.argv;
+    expect(refreshArgv.find((a) => a.startsWith("code="))).toContain('getFileByPath("today.md")');
+    expect(refreshArgv.some((a) => a.startsWith("vault="))).toBe(false);
   });
 
   test("no focused file (path: null) → ERR_NO_ACTIVE_FILE; no fs touched", async () => {

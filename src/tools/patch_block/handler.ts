@@ -1,4 +1,4 @@
-// Original — no upstream. patch_block handler per BI-043 / ADR-009 — specific-mode vault-registry resolve OR active-mode focused-file eval → Layer 2 canonical path check → fs.readFile (ENOENT → NOTE_NOT_FOUND per FR-018) → block-scan + first-match resolve (BLOCK_NOT_FOUND per FR-017) → block-on-heading short-circuit (BLOCK_ON_HEADING per FR-019a, both ATX and setext) → per-shape surgery → atomic tmp+rename with EBUSY/EPERM EXTERNAL_EDITOR_CONFLICT classification (FR-021) → best-effort metadataCache invalidation eval → typed output envelope. No race detection — FR-026 publishes last-write-wins per R4 (deliberate divergence from sibling patch_heading).
+// Original — no upstream. patch_block handler per BI-043 / ADR-009 — specific-mode vault-registry resolve OR active-mode focused-file eval → Layer 2 canonical path check → fs.readFile (ENOENT → NOTE_NOT_FOUND per FR-018) → block-scan + first-match resolve (BLOCK_NOT_FOUND per FR-017) → block-on-heading short-circuit (BLOCK_ON_HEADING per FR-019a, both ATX and setext) → per-shape surgery → atomic tmp+rename with EBUSY/EPERM EXTERNAL_EDITOR_CONFLICT classification (FR-021) → best-effort metadataCache refresh eval in the written vault (logged on failure) → typed output envelope. No race detection — FR-026 publishes last-write-wins per R4 (deliberate divergence from sibling patch_heading).
 import { randomUUID } from "node:crypto";
 import * as nodeFs from "node:fs/promises";
 
@@ -174,9 +174,9 @@ export async function executePatchBlock(
   const editedContent = reassemble(editedLines, lineEnding, trailingNewline);
 
   // ADR-009 §3 atomic write (tmp + rename, UUID-uniquified per FR-026) then
-  // best-effort metadataCache invalidation per ADR-009 §5 — both via the shared
-  // _note-io substrate. writeAtomic rethrows the raw fs error; the invalidation
-  // is silent on failure (write already landed).
+  // best-effort metadataCache refresh per ADR-009 §5 — both via the shared
+  // _note-io substrate. writeAtomic rethrows the raw fs error; the refresh is
+  // logged on failure, never thrown (write already landed).
   try {
     await writeAtomic(fs, absPath, editedContent, randomUUID);
   } catch (e) {
@@ -184,7 +184,7 @@ export async function executePatchBlock(
   }
   const bytesWritten = Buffer.byteLength(editedContent, "utf8");
 
-  await invalidateMetadataCache(deps, absPath);
+  await invalidateMetadataCache(deps, { vault: input.vault, relPath });
 
   return {
     path: relPath,

@@ -12,12 +12,13 @@ concurrency:
 
 jobs:
   ci:
-    name: Lint / Typecheck / Test / Build (Node ${{ matrix.node-version }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    name: Lint / Typecheck / Test / Build (${{ matrix.os }}, Node ${{ matrix.node-version }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, windows-latest]
         node-version: [22, 24]
     steps:
       - name: Checkout

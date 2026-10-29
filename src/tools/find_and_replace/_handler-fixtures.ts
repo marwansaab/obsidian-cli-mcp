@@ -1,5 +1,5 @@
 // Original — no upstream. Shared find_and_replace handler-test fixtures (BI-066):
-// the captureLogger / fakeRegistry / inMemoryFs / baseDeps builders + canned spawn
+// the fakeRegistry / inMemoryFs / baseDeps builders + canned spawn
 // responses, extracted so the handler tests split across handler.test.ts (core
 // US1–US4) and scope.test.ts (066 single-note scope) with each file under 1000
 // lines, without duplicating the preamble. Vitest-free by design — plain async
@@ -7,33 +7,16 @@
 // FakeFsState.reads / .writes / .renames) — so the build keeps it a harmless dist
 // orphan and coverage excludes it (`_*fixtures.ts`).
 import { resolve, sep } from "node:path";
-import { Writable } from "node:stream";
 
 import { UpstreamError } from "../../errors.js";
-import { createLogger, type Logger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import { makeStubSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { type ExecuteDeps, type ExecuteFs } from "./handler.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 import type { Dirent } from "node:fs";
 
 export const VAULT_ROOT = resolve("/find-replace-vault");
-
-export function captureLogger(events: Array<Record<string, unknown>>): Logger {
-  return createLogger({
-    stream: new Writable({
-      write(chunk, _enc, cb) {
-        try {
-          events.push(JSON.parse(chunk.toString()) as Record<string, unknown>);
-        } catch {
-          /* ignore */
-        }
-        cb();
-      },
-    }),
-  });
-}
 
 export function fakeRegistry(map: Record<string, string>): VaultRegistry {
   return {
@@ -194,7 +177,9 @@ export function baseDeps(over: Partial<ExecuteDeps> = {}): ExecuteDeps {
     randomUUID: over.randomUUID ?? (() => "00000000-0000-0000-0000-000000000000"),
     invokeEval: over.invokeEval,
     env: over.env ?? {},
-    spawnFn: over.spawnFn,
+    // Default answers the per-note commit metadata refresh (spec 068 FR-001), so a
+    // commit test never spawns the real CLI.
+    spawnFn: over.spawnFn ?? makeStubSpawn({ stdout: "=> ok\n", exitCode: 0 }).spawnFn,
     warn: over.warn,
   };
 }

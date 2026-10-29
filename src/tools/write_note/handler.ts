@@ -1,13 +1,13 @@
-// Original — no upstream. write_note handler per ADR-009 — direct-fs-write: specific-mode resolveVaultPath / active-mode focused-file eval → checkCanonicalPath → mkdir → atomic temp+rename (overwrite=true) or wx-flag write (overwrite=false → FILE_EXISTS) → best-effort metadataCache invalidation eval → optional best-effort openLinkText eval (specific + open=true) → return { created, path }. User content NEVER crosses the CLI argv pipe at any size (FR-005, SC-007).
+// Original — no upstream. write_note handler per ADR-009 — direct-fs-write: specific-mode resolveVaultPath / active-mode focused-file eval → checkCanonicalPath → mkdir → atomic temp+rename (overwrite=true) or wx-flag write (overwrite=false → FILE_EXISTS) → best-effort metadataCache refresh eval on the vault-relative path in the written vault (logged on failure) → optional best-effort openLinkText eval (specific + open=true, vault-relative path, vault=) → return { created, path }. User content NEVER crosses the CLI argv pipe at any size (FR-005, SC-007).
 import { randomUUID } from "node:crypto";
 import * as nodeFs from "node:fs/promises";
 import { dirname } from "node:path";
 
-import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
+import { type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import { assertCanonicalPath, resolveActiveFocusedFile } from "../_active-file.js";
 import { getErrno } from "../_fs-errors.js";
-import { invalidateMetadataCache, writeAtomic } from "../_note-io.js";
+import { invalidateMetadataCache, openNote, writeAtomic } from "../_note-io.js";
 
 import type { WriteNoteInput, WriteNoteOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
@@ -38,10 +38,6 @@ const DEFAULT_FS: ExecuteFs = {
   realpath: (p) => nodeFs.realpath(p),
   unlink: (p) => nodeFs.unlink(p),
 };
-
-function buildOpenTemplate(absPath: string): string {
-  return `app.workspace.openLinkText(${JSON.stringify(absPath)},"")`;
-}
 
 // FR-001 / R2 canonical short-form predicate: file is canonical iff it has no
 // folder separator AND does not end in `.md`. Internal periods preserved
@@ -147,25 +143,14 @@ export async function executeWriteNote(
     created = true;
   }
 
-  // Best-effort metadataCache invalidation per FR-011 — silent on failure (shared _note-io substrate).
-  await invalidateMetadataCache(deps, absPath);
+  // Best-effort metadataCache refresh per FR-011 — logged on failure (shared _note-io substrate).
+  await invalidateMetadataCache(deps, { vault: input.vault, relPath });
 
   // Best-effort post-write editor-open per FR-017 — only in specific mode (schema forbids
-  // `open` in active mode). Silent on failure: open is a UX nicety, not the contract.
+  // `open` in active mode). Opens the written note in the written vault (spec 068 FR-003);
+  // silent on failure (shared _note-io substrate).
   if (input.target_mode === "specific" && input.open === true) {
-    try {
-      await invokeCli(
-        {
-          command: "eval",
-          parameters: { code: buildOpenTemplate(absPath) },
-          flags: [],
-          target_mode: "active",
-        },
-        { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
-      );
-    } catch {
-      // Silent: write succeeded.
-    }
+    await openNote(deps, { vault: input.vault, relPath });
   }
 
   return { created, path: relPath };
