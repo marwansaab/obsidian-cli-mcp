@@ -310,21 +310,6 @@ describe("executeObsidianExec — COMMAND_BLOCKED gate (068 FR-010..FR-013)", ()
     expect(getCount()).toBe(0);
   });
 
-  it("a command of `vault=X` cannot shift a blocked flag into command position", async () => {
-    // The CLI consumes a leading vault= token and runs the next one (evidence-c2.md), so this
-    // input would spawn `obsidian vault=X eval code=1+1` if the gate looked at `command` alone.
-    const { spawnFn, getCount } = makeQueuedSpawn([]);
-    const err = (await captureRejection(
-      executeObsidianExec(
-        { command: "vault=TestVault", flags: ["eval", "code=1+1"] },
-        { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
-      ),
-    )) as UpstreamError;
-    expect(err.code).toBe("VALIDATION_ERROR");
-    expect(err.details).toEqual({ code: "COMMAND_BLOCKED", command: "eval" });
-    expect(getCount()).toBe(0);
-  });
-
   it("allowEval: true spawns a blocked command as before", async () => {
     const { spawnFn, recorded } = makeMockSpawn({ stdoutChunks: [Buffer.from("2\n", "utf8")], exitCode: 0 });
     const result = await executeObsidianExec(

@@ -151,9 +151,11 @@ vaults ──always──▶ fresh probe ──▶ loaded (refreshed)
 ## 7. Passthrough blocked-command set (PR 2)
 
 Fixed denylist (clarification Q3). Matched against `obsidian_exec`'s `command` field
-only, after trim + lower-case; never against `parameters` values. When `command` is itself
-a `vault=` token, the CLI runs the next token, so that token is matched instead (research
-R4, T0 result).
+only, after trim + lower-case; never against `parameters` values. The input schema refuses
+any `command` containing `=` (plain `VALIDATION_ERROR` on the `command` path, before the
+gate and regardless of `allowEval`), so `command` is always the token the CLI runs. Without
+it, a `command` of `vault=X` would make the CLI run the next token (research R4, T0 result;
+owner ruling on the PR #88 review).
 
 | Rule | Matches |
 |---|---|

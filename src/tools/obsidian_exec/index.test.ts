@@ -119,6 +119,34 @@ describe("createObsidianExecTool — allowEval deps reach the handler (068 T023/
     expect(getCount()).toBe(0);
   });
 
+  it("a `vault=X` command is refused as VALIDATION_ERROR on the command field and never spawns", async () => {
+    // Without the schema refusal this would spawn `obsidian vault=TestVault eval code=1+1`: the CLI
+    // consumes a leading vault= token and runs the next one (evidence-c2.md, research R4).
+    const { spawnFn, getCount } = makeQueuedSpawn([]);
+    const tool = createObsidianExecTool({ logger: silentLogger(), queue: createQueue(), spawnFn, env: {} });
+    const result = (await tool.handler({ command: "vault=TestVault", flags: ["eval", "code=1+1"] })) as {
+      isError?: boolean;
+      content: { type: string; text: string }[];
+    };
+    expect(result.isError).toBe(true);
+    const payload = JSON.parse(result.content[0]!.text) as {
+      code: string;
+      details: { issues: { path: unknown[]; code: string }[] };
+    };
+    expect(payload.code).toBe("VALIDATION_ERROR");
+    expect(payload.details.issues).toEqual([expect.objectContaining({ path: ["command"], code: "custom" })]);
+    expect(getCount()).toBe(0);
+  });
+
+  it("a `vault=X` command is refused even when allowEval is true", async () => {
+    const { spawnFn, getCount } = makeQueuedSpawn([]);
+    const tool = createObsidianExecTool({ logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, allowEval: true });
+    const result = (await tool.handler({ command: "vault=TestVault", flags: ["search"] })) as { isError?: boolean; content: { text: string }[] };
+    expect(result.isError).toBe(true);
+    expect((JSON.parse(result.content[0]!.text) as { code: string }).code).toBe("VALIDATION_ERROR");
+    expect(getCount()).toBe(0);
+  });
+
   it("allowEval: true in the registration deps spawns the command", async () => {
     const { spawnFn, getCount } = makeQueuedSpawn([{ stdout: "2\n", exitCode: 0 }]);
     const tool = createObsidianExecTool({ logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, allowEval: true });

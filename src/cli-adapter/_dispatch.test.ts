@@ -242,6 +242,8 @@ describe("assembleArgv (FR-012 — documented obsidian_exec.md:27 order)", () =>
         parameters: { file: "Note", lines: 5 },
         flags: ["silent"],
         copy: true,
+        timeoutMs: 10_000,
+        outputCapBytes: 10 * 1024 * 1024,
       },
       "obsidian",
     );

@@ -191,10 +191,7 @@ type KillReason =
   | { kind: "timeout" }
   | { kind: "cap"; stream: "stdout" | "stderr"; capturedBytes: number };
 
-export function assembleArgv(
-  input: Pick<DispatchInput, "command" | "vault" | "parameters" | "flags" | "copy">,
-  binary: string,
-): string[] {
+export function assembleArgv(input: DispatchInput, binary: string): string[] {
   const vaultPrefix = input.vault !== undefined ? [`vault=${input.vault}`] : [];
   const kvs = Object.entries(input.parameters ?? {})
     .filter(([, v]) => v !== undefined)

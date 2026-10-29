@@ -177,11 +177,14 @@ showed that the CLI consumes one leading `vault=<name>` token and runs the next 
 the command, matching case and whitespace exactly. Because `assembleArgv` emits `[vault=…?,
 command, kvs…, flags…]`, a `command` of `vault=X` with no `vault` field would move the
 first flag into command position (`{command: "vault=X", flags: ["eval", "code=…"]}` runs
-`eval`). The gate therefore checks the *effective* command: the first argv token that does
-not start with `vault=` (case-insensitive, an over-approximation of the CLI). Parameter
-tokens always contain `=`, so a parameter value can never be the effective command and the
-"never on argument values" rule still holds. `details.command` names the effective command,
-which is the caller's `command` value in every case except the `vault=` shift.
+`eval`). PR 2 first closed this by gating the *effective* command (the first argv token not
+starting with `vault=`). The PR #88 review replaced that with a simpler rule (owner ruling
+2026-10-30): the input schema refuses any `command` containing `=`, as a plain
+`VALIDATION_ERROR` on the `command` path, before the gate and regardless of `allowEval`.
+No command name contains `=` (CLI arguments go in `parameters`, the vault in `vault`), so
+`command` is always the token the CLI runs, the gate matches `input.command` alone, and
+`details.command` is always the caller's value. Validation sits at the zod boundary
+(Principle III), and the refusal still happens before anything spawns.
 
 ---
 

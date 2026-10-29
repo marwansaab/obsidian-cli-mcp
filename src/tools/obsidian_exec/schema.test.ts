@@ -23,6 +23,26 @@ test("schema rejects empty command (FR-003)", () => {
   expect(() => obsidianExecSchema.parse({ command: "" })).toThrow();
 });
 
+test.each(["vault=TestVault", "VAULT=x", "search=1", "="])(
+  "schema rejects a command containing '=' (068 FR-010, research R4): %j",
+  (command) => {
+    const result = obsidianExecSchema.safeParse({ command, flags: ["eval"] });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({
+        code: "custom",
+        path: ["command"],
+        message: "command must be a CLI command name without '='; pass CLI arguments in parameters and the vault in vault",
+      }),
+    ]);
+  },
+);
+
+test("schema accepts a vault= token in parameters values or the vault field (only command is refused)", () => {
+  const parsed = obsidianExecSchema.parse({ command: "search", vault: "v", parameters: { query: "vault=x" } });
+  expect(parsed.command).toBe("search");
+});
+
 test("schema rejects extra unknown fields (strict)", () => {
   expect(() => obsidianExecSchema.parse({ command: "version", bogus: 1 })).toThrow();
 });

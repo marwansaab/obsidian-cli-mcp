@@ -34,7 +34,7 @@ By default, `obsidian_exec` refuses commands that run arbitrary code or drive de
 | Prefix | every `dev:*` command (`dev:cdp`, `dev:console`, `dev:debug`, `dev:dom`, …) |
 
 - The match is on the command name only, after trimming whitespace and lower-casing, so `" EVAL "` is refused too. Parameter values are never inspected: `search` with `query: "eval"` runs normally.
-- The command name checked is the one the CLI will run. A `command` of `vault=<name>` (instead of the `vault` field) makes the CLI run the next token, so the gate checks that token instead, and `{ "command": "vault=Notes", "flags": ["eval"] }` is refused as `eval`.
+- A `command` containing `=` is refused as a `VALIDATION_ERROR` on the `command` field, whatever `OBSIDIAN_MCP_ALLOW_EVAL` says. No command name contains `=`; CLI arguments go in `parameters` and the vault in `vault`. This keeps `command` the token the CLI runs: the CLI would otherwise treat a `command` of `vault=<name>` as the vault and run the next token, so `{ "command": "vault=Notes", "flags": ["eval"] }` would run `eval`.
 - `command` (run a command-palette command by ID) and `plugin:reload` are not blocked. A palette command can still trigger plugin code; that indirect path is an accepted residual risk.
 - Plugin-contributed commands are not blocked; their names depend on the plugins each vault has installed.
 
@@ -44,7 +44,7 @@ The vault owner can lift the block for every listed command by setting `OBSIDIAN
 
 | Field | Type | Required | Constraint | Description |
 |-------|------|----------|------------|-------------|
-| `command` | string | YES | length ≥ 1 | The CLI subcommand to invoke (the first positional after the binary). Examples: `"version"`, `"help"`, `"eval"`, `"search"`, `"read"`, `"tasks"`. |
+| `command` | string | YES | length ≥ 1, no `=` | The CLI subcommand to invoke (the first positional after the binary). Examples: `"version"`, `"help"`, `"eval"`, `"search"`, `"read"`, `"tasks"`. |
 | `parameters` | object | NO | values are `string \| number \| boolean` | Key/value pairs assembled into argv as `key=value` tokens (numbers and booleans stringified). Order in the spawned argv matches the object's property declaration order. Example: `{ "query": "meeting", "limit": 10 }` → `'query=meeting' 'limit=10'`. |
 | `flags` | string[] | NO | each element non-empty, no `--` prefix | Bare-word boolean flags (no leading `--`). Each appended verbatim to argv. Example: `["silent", "overwrite"]`. The schema rejects any element starting with `--` — use the `copy` field for the one supported `--`-prefixed flag. |
 | `vault` | string | NO | length ≥ 1 | Vault name or ID. When set, the bridge prepends `vault=<value>` as the FIRST positional argument after the binary, before the command name. When omitted, the command targets Obsidian's currently focused vault. |
