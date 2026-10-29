@@ -121,12 +121,12 @@ logged. **Independent test**: quickstart Â§2.
 ### User Story 10: Windows checked on every change (P2)
 
 - [X] T014 [P] [US10] In .github/workflows/ci.yml: matrix `os: [ubuntu-latest, windows-latest]` Ã— `node-version: [22, 24]`, `runs-on: ${{ matrix.os }}`, the job name includes `${{ matrix.os }}`, `fail-fast: false` kept, `timeout-minutes: 20` (R14).
-- [ ] T015 [US10] After the PR's first CI run, confirm all 4 jobs ran. If Windows coverage fails with ENOENT on `coverage/.tmp`, add a Windows-only pre-step that creates it (R14) and record why in the PR body. Make no other speculative changes.
+- [X] T015 [US10] After the PR's first CI run, confirm all 4 jobs ran. If Windows coverage fails with ENOENT on `coverage/.tmp`, add a Windows-only pre-step that creates it (R14) and record why in the PR body. Make no other speculative changes.
 
 ### PR-1 wrap
 
 - [X] T016 Run `npm run lint`, `npm run typecheck`, `npm test` and `npm run build` locally, then `graphify update .`. Confirm `src/tools/_register-baseline.json` is unchanged (PR-1 changes no descriptor).
-- [ ] T017 Run `/speckit-git-commit`, push, and open **PR-1**. Checklist:
+- [X] T017 Run `/speckit-git-commit`, push, and open **PR-1**. Checklist:
   - Iâ€“V **Y**;
   - ADR-010/013/014 **N/A**;
   - ADR-015 **N/A** (no new pair);
@@ -136,7 +136,7 @@ logged. **Independent test**: quickstart Â§2.
   - CI Linux + Windows **Y** (closes A4).
 
   Body: cite evidence-a1.md.
-- [ ] T018 Run `/code-review` and fix the findings, then `/speckit-docs-as-code <PR-1 number>` (`.docs-as-code/` mutate and path-safety pages, docs/tools pages describing open:true and the refresh). **STOP**: owner merges.
+- [X] T018 Run `/code-review` and fix the findings, then `/speckit-docs-as-code <PR-1 number>` (`.docs-as-code/` mutate and path-safety pages, docs/tools pages describing open:true and the refresh). **STOP**: owner merges.
 
 ---
 
