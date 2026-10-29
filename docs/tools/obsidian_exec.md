@@ -1,6 +1,6 @@
 # `obsidian_exec`
 
-Invoke any Obsidian Integrated CLI subcommand on the host where the bridge is running. Bridges MCP clients (including sandboxed ones that cannot exec the `obsidian` binary directly) to the running Obsidian desktop instance.
+Invoke an Obsidian Integrated CLI subcommand on the host where the bridge is running. Commands that run arbitrary code or drive developer tooling are [blocked by default](#blocked-commands) (this page said "any subcommand" until PR #88 added the block). Bridges MCP clients (including sandboxed ones that cannot exec the `obsidian` binary directly) to the running Obsidian desktop instance.
 
 > **Freeform escape hatch.** This tool bypasses every typed-tool safety net: no per-mode validation, no per-field constraint enforcement, no structured output shape. The error-roster classifier still maps non-zero exits and `Error:`-prefixed in-band failures to `UpstreamError` codes, but malformed parameter combinations that a typed tool would reject at the schema layer reach the CLI here. Reserve `obsidian_exec` for cases where the typed tools genuinely don't fit.
 
@@ -20,7 +20,7 @@ The most common Obsidian CLI subcommands have dedicated typed wrappers — prefe
 | Read / write a frontmatter property | [`read_property`](./read_property.md) / [`set_property`](./set_property.md) |
 | Append, prepend, patch heading/block | [`append_note`](./append_note.md), [`prepend`](./prepend.md), [`patch_heading`](./patch_heading.md), [`patch_block`](./patch_block.md) |
 | Search vault content | [`search`](./search.md), [`pattern_search`](./pattern_search.md), [`context_search`](./context_search.md) |
-| Use the `newtab` flag on `create`, run `obsidian version` / `help`, or any unwrapped subcommand | `obsidian_exec` |
+| Use the `newtab` flag on `create`, run `obsidian version` / `help`, or another unwrapped subcommand that is not [blocked](#blocked-commands) | `obsidian_exec` |
 
 The typed tools enforce per-mode validation, structured error propagation, and clean output shapes that `obsidian_exec` cannot.
 
@@ -44,7 +44,7 @@ The vault owner can lift the block for every listed command by setting `OBSIDIAN
 
 | Field | Type | Required | Constraint | Description |
 |-------|------|----------|------------|-------------|
-| `command` | string | YES | length ≥ 1, no `=` | The CLI subcommand to invoke (the first positional after the binary). Examples: `"version"`, `"help"`, `"eval"`, `"search"`, `"read"`, `"tasks"`. |
+| `command` | string | YES | length ≥ 1, no `=` | The CLI subcommand to invoke (the first positional after the binary). Examples: `"version"`, `"help"`, `"eval"` (blocked unless `OBSIDIAN_MCP_ALLOW_EVAL` is on), `"search"`, `"read"`, `"tasks"`. |
 | `parameters` | object | NO | values are `string \| number \| boolean` | Key/value pairs assembled into argv as `key=value` tokens (numbers and booleans stringified). Order in the spawned argv matches the object's property declaration order. Example: `{ "query": "meeting", "limit": 10 }` → `'query=meeting' 'limit=10'`. |
 | `flags` | string[] | NO | each element non-empty, no `--` prefix | Bare-word boolean flags (no leading `--`). Each appended verbatim to argv. Example: `["silent", "overwrite"]`. The schema rejects any element starting with `--` — use the `copy` field for the one supported `--`-prefixed flag. |
 | `vault` | string | NO | length ≥ 1 | Vault name or ID. When set, the bridge prepends `vault=<value>` as the FIRST positional argument after the binary, before the command name. When omitted, the command targets Obsidian's currently focused vault. |

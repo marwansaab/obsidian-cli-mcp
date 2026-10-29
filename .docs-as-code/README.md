@@ -52,7 +52,7 @@ extends it.
   - [capabilities/plugin-backed.md](capabilities/plugin-backed.md) — the two
     Smart Connections tools.
   - [capabilities/escape-hatch-and-meta.md](capabilities/escape-hatch-and-meta.md)
-    — `obsidian_exec` and `help`.
+    — `obsidian_exec`, its default-off code-execution gate, and `help`.
 
 ## Decisions
 
@@ -66,4 +66,9 @@ it.
 
 The baseline adds no new records. Every decision visible in the tracked
 history is already an ADR in the series, and the pages cite it where it
-applies.
+applies. Records written since:
+
+- [decisions/ADR-041-exec-gate-matches-the-command-field.md](decisions/ADR-041-exec-gate-matches-the-command-field.md)
+  — `obsidian_exec`'s code-execution gate matches the `command` field, and
+  the schema refuses `=` in it (PR #88). ADR-039 and ADR-040 are reserved by
+  the 068 plan for decisions that land in later PRs.

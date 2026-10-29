@@ -68,6 +68,29 @@ descriptor) and `CallTool` (looks the tool up by name and calls it, or
 returns `TOOL_NOT_FOUND`). Handlers never reach back into `server.ts`; their
 dependencies arrive through the factory arguments.
 
+Server-wide access settings arrive the same way. Since PR #88, `createServer`'s
+context takes an optional `env` (default `process.env`), the environment the
+`OBSIDIAN_MCP_*` access flags are read from. `createServer` parses
+`OBSIDIAN_MCP_ALLOW_EVAL` once, with `envFlagEnabled` from
+[src/env-flags.ts](../src/env-flags.ts), and passes the result to
+`createObsidianExecTool({ logger, queue, allowEval })`; no handler reads an
+access flag at call time
+([escape hatch](capabilities/escape-hatch-and-meta.md#the-code-execution-gate-default-off)).
+This is a touch on the boot-spine entry point, one of the kernel nodes;
+`createLogger`, `createQueue` and `UpstreamError` were not changed. `ctx.env`
+does not reach the CLI layer: `OBSIDIAN_BIN` and `OBSIDIAN_AUTO_LAUNCH` are
+still read from `process.env` at dispatch time.
+
+`envFlagEnabled` is default-off: on only for `1`, `true`, `yes` or `on`,
+trimmed and case-insensitive. It is the inverse of `autoLaunchEnabled` in
+dispatch, which is default-on and turned off by `0`/`false`/`no`/`off`. The
+two are kept separate on purpose because they disagree on any other value
+(`"2"` leaves auto-launch on and an opt-in flag off). PR #88 first put
+`envFlagEnabled` beside `autoLaunchEnabled` in `_dispatch.ts`; review moved it
+to its own leaf module, because dispatch never calls it and its consumers are
+server configuration, so `server.ts` no longer needs the private dispatch
+module.
+
 Before the server accepts a call, `assertToolDocsExist` checks that every
 registered tool has a `docs/tools/<name>.md`. It collects **every** missing
 file and throws once, rather than failing on the first. A tool without
@@ -219,7 +242,8 @@ than added as new codes:
   example `CLI_REPORTED_ERROR` with `details.code: "VAULT_NOT_FOUND"`,
   `"FILE_NOT_FOUND"`, `"NOT_MARKDOWN"`, `"FOLDER_NOT_FOUND"`,
   `"SMART_CONNECTIONS_NOT_INSTALLED"`, `"BASE_MALFORMED"`, `"VIEW_NOT_FOUND"`;
-  or `VALIDATION_ERROR` with `details.code: "CONTENT_TOO_LARGE"`.
+  or `VALIDATION_ERROR` with `details.code: "CONTENT_TOO_LARGE"` or, from
+  `obsidian_exec`'s code-execution gate (PR #88), `"COMMAND_BLOCKED"`.
 - `details.reason` separates the states of one multi-state condition (ADR-015,
   Sub-Discriminators via details.reason for Multi-State Error Codes) — for
   example `obsidian-not-running` on `CLI_NON_ZERO_EXIT`, and `not-open` for a
@@ -388,6 +412,7 @@ it cannot leave an orphaned child.
 src/
   index.ts, server.ts            boot spine and composition root
   errors.ts, logger.ts, queue.ts cross-cutting primitives
+  env-flags.ts                   boot-time parser for default-off opt-in flags
   cli-adapter/                   the two facades, dispatch, the spawn-site guard test
   binary-resolver/, app-launcher/  what dispatch spawns, and how it finds it
   target-mode/, path-safety/     boundary schema primitives
@@ -423,4 +448,6 @@ header follows the shebang line.
   unindexed index each have a distinct, reported state.
 - **No generic "do anything" typed tool.** `obsidian_exec` is the single
   escape hatch, with its own looser bounds, so that the typed tools keep
-  narrow contracts.
+  narrow contracts. Since PR #88 it is not "do anything" either: commands that
+  run code or drive developer tooling are refused unless the vault owner opts
+  in.
