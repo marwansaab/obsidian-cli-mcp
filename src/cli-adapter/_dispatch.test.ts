@@ -14,7 +14,6 @@ import {
   assembleArgv,
   autoLaunchEnabled,
   COLD_START_PATTERN,
-  envFlagEnabled,
   dispatchCli,
   isAppNotRunning,
   isColdStart,
@@ -1157,20 +1156,6 @@ describe("BI-060 detection — classification, isAppNotRunning, autoLaunchEnable
     for (const v of ["0", "false", "no", "off", "OFF", " Off ", "FALSE"]) {
       expect(autoLaunchEnabled({ OBSIDIAN_AUTO_LAUNCH: v })).toBe(false);
     }
-  });
-});
-
-describe("envFlagEnabled — default-off opt-in parser (068 research R4)", () => {
-  it.each(["1", "true", "yes", "on", "TRUE", " On ", "\tyes\n", "YES"])("truthy: %j → true", (v) => {
-    expect(envFlagEnabled(v)).toBe(true);
-  });
-
-  it.each(["0", "false", "no", "off", "", "   ", "2", "enabled", "y", "t", "1 1"])("falsy: %j → false", (v) => {
-    expect(envFlagEnabled(v)).toBe(false);
-  });
-
-  it("unset → false", () => {
-    expect(envFlagEnabled(undefined)).toBe(false);
   });
 });
 

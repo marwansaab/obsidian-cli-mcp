@@ -136,7 +136,8 @@ src/tools/{write_note,append_note,patch_heading,patch_block}/handler.ts
 src/tools/find_and_replace/handler.ts
                                     PR1  refresh per changed note · PR6 confirm, cancel, progress
 src/logger.ts                       PR1  metadataRefreshFailed · PR6 commitCancelled
-src/cli-adapter/_dispatch.ts        PR2  envFlagEnabled() · PR6 abort→killChild, launch progress
+src/env-flags.ts                    PR2  envFlagEnabled() (moved out of _dispatch.ts in the PR #88 review)
+src/cli-adapter/_dispatch.ts        PR6  abort→killChild, launch progress
 src/tools/obsidian_exec/{handler,index}.ts
                                     PR2  denylist gate before invokeBoundedCli (R4)
 src/cli-adapter/invoke-bounded-cli.ts

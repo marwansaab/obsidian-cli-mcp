@@ -6,8 +6,8 @@ import { fileURLToPath } from "node:url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 
-import { envFlagEnabled } from "./cli-adapter/_dispatch.js";
 import { invokeCli, killInFlightChildren as defaultKillInFlightChildren } from "./cli-adapter/cli-adapter.js";
+import { envFlagEnabled } from "./env-flags.js";
 import { createLogger, type Logger, type ShutdownReason } from "./logger.js";
 import { createQueue, type Queue } from "./queue.js";
 import { assertToolDocsExist } from "./tools/_register.js";
@@ -67,7 +67,11 @@ export interface ShutdownContext {
   registerSignalHandlers?: boolean;
   killInFlightChildren?: () => boolean;
   docsDir?: string;
-  /** Environment read once at boot for server-wide settings (068 data-model §1). Defaults to `process.env`. */
+  /**
+   * Environment the `OBSIDIAN_MCP_*` access flags are read from, once at boot (068 data-model §1;
+   * plan: `ctx.env`). Defaults to `process.env`. It does not reach the CLI layer: `OBSIDIAN_BIN` and
+   * `OBSIDIAN_AUTO_LAUNCH` are still read from `process.env` at dispatch time.
+   */
   env?: NodeJS.ProcessEnv;
 }
 

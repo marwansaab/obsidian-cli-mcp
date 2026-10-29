@@ -158,9 +158,13 @@ before `invokeBoundedCli`. It is NOT placed in `invokeBoundedCli` or `invokeCli`
 
 **Truthy parser**: today `autoLaunchEnabled` (`_dispatch.ts:154-158`) is
 default-on/off-set. The new flags are default-off/on-set (`1 / true / yes / on`). PR 2
-adds one exported `envFlagEnabled(value)` beside the existing disable set, and
-`OBSIDIAN_MCP_READ_ONLY` (PR 6) reuses it. Lower-case and trim come from the same
-convention.
+adds one exported `envFlagEnabled(value)`, and `OBSIDIAN_MCP_READ_ONLY` (PR 6) reuses it.
+Lower-case and trim come from the same convention. It lives in its own leaf module,
+`src/env-flags.ts`, not beside the disable set in `_dispatch.ts`: dispatch never calls it,
+and its consumers (`createServer()` now, `parseAccessConfig` in PR 6) are server
+configuration, so `server.ts` need not import the private dispatch module (PR #88 review).
+The two parsers are kept separate on purpose: they disagree on values outside both sets
+(`"2"` leaves auto-launch on and the opt-in flags off).
 
 **Alternatives rejected**:
 - An allowlist of safe commands: overruled by the owner (Q3).

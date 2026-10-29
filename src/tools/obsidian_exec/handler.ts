@@ -19,7 +19,10 @@ export interface ExecuteDeps {
   queue: Queue;
   spawnFn?: SpawnLike;
   env?: NodeJS.ProcessEnv;
-  /** `OBSIDIAN_MCP_ALLOW_EVAL`, parsed once at boot by `createServer()`. Absent means off. */
+  /**
+   * `OBSIDIAN_MCP_ALLOW_EVAL`, parsed once at boot by `createServer()`. Absent means off, so a
+   * caller that never sets it fails closed (the gate stays on).
+   */
   allowEval?: boolean;
 }
 
@@ -38,7 +41,7 @@ export const OBSIDIAN_EXEC_BLOCKED_EXACT: ReadonlySet<string> = new Set([
 ]);
 
 /** Every `dev:*` command (the CLI's `Developer:` section) is refused by prefix. */
-export const OBSIDIAN_EXEC_BLOCKED_PREFIX = "dev:";
+const OBSIDIAN_EXEC_BLOCKED_PREFIX = "dev:";
 
 /** Matches a command name after trim + lower-case; parameter values are never inspected. */
 export function isBlockedCommand(command: string): boolean {
@@ -63,7 +66,7 @@ function effectiveCommand(input: ObsidianExecInput): string | undefined {
 
 export async function executeObsidianExec(input: ObsidianExecInput, deps: ExecuteDeps): Promise<ObsidianExecOutput> {
   const command = effectiveCommand(input);
-  if (deps.allowEval !== true && command !== undefined && isBlockedCommand(command)) {
+  if (!deps.allowEval && command !== undefined && isBlockedCommand(command)) {
     throw new UpstreamError({
       code: "VALIDATION_ERROR",
       cause: null,
