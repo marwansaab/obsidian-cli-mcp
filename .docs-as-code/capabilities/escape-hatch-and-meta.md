@@ -15,9 +15,15 @@ The server's stance ([README](../../README.md#vision)) is a small set of typed
 tools with narrow contracts, plus **one** explicit escape hatch for the long
 tail of subcommands. `obsidian_exec` (part of the original bridge, PR #1) is
 that escape hatch, and it is the only caller of `invokeBoundedCli`. It gets
-looser bounds than the typed tools: a 30 s default timeout, overridable and
-clamped silently to 120 s, against a fixed 10 s for typed tools (ADR-007,
-Centralized CLI Bounds with Selective Override). It returns `stdout`,
+looser bounds than the typed tools: a 30 s default timeout, overridable up
+to 120 s, against a fixed 10 s for typed tools (ADR-007, Centralized CLI
+Bounds with Selective Override). This page used to say the override was
+"clamped silently to 120 s". The facade did carry such a clamp until PR #92,
+but it never fired: the schema already refused `timeoutMs` above 120000 with
+`VALIDATION_ERROR`, which is what a caller sees. PR #92 removed the dead
+clamp, and the schema now takes both numbers from the facade's constants.
+Like every tool since PR #92, a cancelled `obsidian_exec` call kills its
+child process ([architecture](../architecture.md#runtime-spine)). It returns `stdout`,
 `stderr`, `exitCode` and the exact `argv`, so a client can see precisely what
 ran.
 
@@ -75,7 +81,12 @@ The opt-in is `OBSIDIAN_MCP_ALLOW_EVAL`. `createServer()` reads it once at
 boot and injects `allowEval` into `createObsidianExecTool`; the handler never
 reads the environment (see [architecture](../architecture.md#boot-spine)).
 `allowEval` is optional on `ExecuteDeps` and an absent value means off, so a
-caller that forgets it fails closed. It lifts the whole list at once; there is
+caller that forgets it fails closed. Since PR #92 the flag is read by
+`parseAccessConfig` in `src/server-config.ts` together with the settings that
+choose which tools are offered
+([owner access settings](../architecture.md#owner-access-settings)), so the
+owner can also drop `obsidian_exec` altogether with `OBSIDIAN_MCP_DISABLE`
+or `OBSIDIAN_MCP_READ_ONLY` (it is not read-only). It lifts the whole list at once; there is
 no per-command opt-in.
 
 The gate sits only in the passthrough. The typed tools that run fixed `eval`
