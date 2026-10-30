@@ -45,7 +45,7 @@ Thirty-one tools publish an output schema. A successful call returns its result 
 
 ### Asking before irreversible changes
 
-Two actions cannot be undone, so the server asks you to confirm them through your client first: `delete` with `permanent: true`, and a `find_and_replace` commit that is not limited to one note. This uses MCP elicitation, so it works only in clients that can show a confirmation form. See [Confirmation before irreversible changes](#confirmation-before-irreversible-changes).
+Two actions cannot be undone, so the server asks you to confirm them through your client first: `delete` with `permanent: true`, and a `find_and_replace` commit that is not limited to one note. The question goes to you through the client's own form (MCP elicitation), not through the model, so a model that has been misled by something it read cannot answer it for you. It therefore works only where the client shows that form to a person. For example, an interactive Claude Code session does, but Claude Code's non-interactive mode does not. See [Confirmation before irreversible changes](#confirmation-before-irreversible-changes).
 
 ### Cancellation and progress
 
@@ -179,10 +179,26 @@ Two calls ask you to confirm first:
 - `delete` with `permanent: true`;
 - a `find_and_replace` commit with none of `file`, `path` or `active_note`. A commit limited to a `subfolder` still asks.
 
-The prompt names the vault and the note, or the scope and the number of notes.
+Your client shows a form with the question and one box to tick. The question names the vault and the note, or the folder, the number of replacements and the number of notes. The answer comes from you through the client, never from the model.
 
-- **If you decline**, nothing changes, and the call returns `VALIDATION_ERROR` with `details.code: "CONFIRMATION_DECLINED"`.
-- **If your client cannot show the prompt**, the call is refused before anything runs, with `details.code: "CONFIRMATION_UNAVAILABLE"`. Instead, delete to the trash (omit `permanent`), or commit one note at a time.
+| What happens | Result |
+|---|---|
+| You tick the box and accept | The action runs. |
+| You decline, or dismiss the form | Nothing changes. The call returns `VALIDATION_ERROR` with `details.code: "CONFIRMATION_DECLINED"`, and `details.action` is `"decline"` or `"cancel"`. |
+| The client says it cannot show forms | Nothing runs. The call returns `VALIDATION_ERROR` with `details.code: "CONFIRMATION_UNAVAILABLE"`. |
+| The client says it can show forms but answers without asking you | Nothing changes. The call returns `CONFIRMATION_DECLINED`, the same as if you had declined. |
+
+A trash delete (no `permanent`) and a commit limited to one note never ask.
+
+> [!WARNING]
+> **Some clients answer the form without showing it.** Claude Code shows the form in an interactive terminal session. In non-interactive mode it declines every form without showing it. That mode covers `claude -p`, scripts and automation built on the Agent SDK, and the Code tab in the Claude desktop app. There, a permanent `delete` or a multi-note commit always returns `CONFIRMATION_DECLINED`, even though nobody declined, and nothing changes. The server cannot tell this apart from a real "no". Claude Code's MCP log shows `Elicitation request received in print mode` when it happens.
+>
+> In those clients, do one of these instead:
+> - run the action from an interactive Claude Code session in a terminal;
+> - delete to the trash (omit `permanent`);
+> - commit one note at a time (pass `file`, `path` or `active_note`).
+>
+> Confirmation is deliberately not done through the model, for example by having it ask you in chat and then retry. A model that has been misled could claim you said yes, which is exactly what confirmation is there to prevent.
 
 ## Working with vaults
 
