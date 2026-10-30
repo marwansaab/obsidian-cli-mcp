@@ -2,12 +2,12 @@
 
 | | |
 |---|---|
-| Run | `obsidian-cli-mcp-bi-0165-pr6-2026-10-30` |
+| Run | `obsidian-cli-mcp-bi-0165-phase9-2026-10-30` |
 | Project | obsidian-cli-mcp (pack speckit) |
 | Status | running |
-| Started | 2026-10-30T05:22:38.913Z |
+| Started | 2026-10-30T06:51:50.212Z |
 | Finished | not yet |
-| Elapsed | 24 min 51 s |
+| Elapsed | 24 min 54 s |
 | Questions | 0 (0 needed the owner) |
 | Requests to the advisor | 1 (0 needed the owner) |
 | Escalations | 0 |
@@ -19,7 +19,7 @@
 - `dry_run`: no
 - `continue_feature`: specs/068-modernise-mcp-surface
 - `continue_branch`: 068-modernise-mcp-surface
-- `tasks_scope`: Phase 8: PR-6 (owner controls, confirmation, cancel, progress and release) only
+- `tasks_scope`: Phase 9: Polish & post-implement only (T092-T094). The owner approved the full semantic /graphify --update in T092 (about 684 documents).
 - `repo`: C:\Github\obsidian-cli-mcp
 - `cowork_path`: C:\Marwan-Saab-ADO\My-Setup\My-Setup\My-Setup
 - `initiative`: Obsidian CLI MCP
@@ -29,20 +29,23 @@
 
 ## Sessions and steps
 
-### checks (`9d7fadd1-8b59-457f-8862-64e9acb2fde6`)
+### checks (`35b9b48b-1db2-482a-9e46-8b9dc482649b`)
 
 - Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\.specify exists.
 
 - **preflight**: done.
 
-> Preflight for BI-0165 passed: all six checks are green, and the session is ready for clarification questions.
+> Preflight for BI-0165 passed: all six checks are green and the session is ready for questions.
 >
 > - **Vault identity:** `My-Setup-Vault` returns `vault_id` = `my-setup`, which matches `expected_vault_id`. PASS. The session-start reads were done earlier in this conversation.
 > - **Note:** `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0165 - Ship 0.9.0 SDK V2 And Safety Release.md`, titled "BI-0165 — Ship 0.9.0 SDK V2 And Safety Release". PASS.
 > - **Initiative:** `[[Obsidian CLI MCP]]`. PASS.
-> - **Status:** `in-review`. PRs 1–5 (#87–#91) are waiting for the owner to merge; the latest `spec_branch` is `068-pr5-vaults-typed`. The work is not finished, so the run carries on. PASS.
-> - **Specify prompt:** the `## /speckit-specify prompt` section starts at line 49. Its command, on line 58, is `/speckit-specify Modernise MCP surface`, in the dash form. PASS. The note was not changed.
-> - **Clarify skill:** `anthropic-skills:speckit-clarify-skill` was already loaded in this conversation for "BI-0165 - Ship 0.9.0 SDK V2 And Safety Release", and its answering rules still apply.
+> - **Status:** `in-review`. The work is not finished, so the run carries on. PASS.
+>   - All six planned slices are open PRs (#87–#92) waiting for the owner to merge.
+>   - The latest `spec_branch` is `068-pr6-safety-cancel`.
+>   - Still to come after the merges: the 0.9.0 version bump and the §7 release acceptance.
+> - **Specify prompt:** the `## /speckit-specify prompt` section starts at line 51. Its command on line 60 is `/speckit-specify Modernise MCP surface`, the dash form. PASS. The note was not changed.
+> - **Clarify skill:** `anthropic-skills:speckit-clarify-skill` was already loaded in this conversation for "BI-0165 - Ship 0.9.0 SDK V2 And Safety Release". Its answering rules still apply.
 >
 > Awaiting clarification questions.
 
@@ -60,23 +63,23 @@ Skipped.
 - **analyze**: skipped.
 - **resolve-analysis**: skipped.
 
-### continue (`ed2ae552-c603-44b8-9516-3ec4cc9c1196`)
+### continue (`12393a4c-cc4b-465b-b617-bc14ed19bc54`)
 
 - Condition `shell-exit-0` (run_when): met. "node -e "process.exit('specs/068-modernise-mcp-surface' === '' ? 1 : 0)"" exited 0.
 - Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\specs\068-modernise-mcp-surface\tasks.md exists.
 
-- **prepare**: done, 10 turns.
+- **prepare**: done, 16 turns.
 
-> Copied the PR-5 run's relay-digest.md and relay-qa-log.md, including their uncommitted changes, to specs/068-modernise-mcp-surface/relay-runs/obsidian-cli-mcp-bi-0165-pr5-2026-10-30/. Then discarded the uncommitted changes to the live copies. There were no other uncommitted changes. Fetched origin, checked out 068-modernise-mcp-surface and fast-forwarded it to origin/main (cdece23, the PR #91 merge), with no conflicts. .specify/feature.json already pointed to specs/068-modernise-mcp-surface. In tasks.md I ticked T072 (PR-5 wrap): PR #91 was opened from commit 22b4c86, the review fixes landed as 25a2e83 and 4e35987, the docs as c31f03e, and it was merged on 2026-10-30. No other task outside Phase 8 was both open and merged, so none were left unconfirmed. Phase 9 (T092–T094) stays open because it runs only after PR-6 merges. T071 was already ticked, but its own note still lists one owner-only GUI check as open: registering a new vault in Obsidian after start-up and reading from it with no restart. Committed as 3d6ae59 following CONTRIBUTING.md. Not pushed.
+> Copied the PR-6 run's relay-digest.md and relay-qa-log.md, including their uncommitted changes, to specs/068-modernise-mcp-surface/relay-runs/obsidian-cli-mcp-bi-0165-pr6-2026-10-30/. Then discarded the uncommitted changes to the live copies. There were no other uncommitted changes. Fetched origin, checked out 068-modernise-mcp-surface and fast-forwarded it to origin/main (f8602d2, the PR #92 merge), with no conflicts. .specify/feature.json already pointed to specs/068-modernise-mcp-surface. In tasks.md I ticked T091 (PR-6 wrap). Evidence: PR #92 was opened from commit e93fac2, the review fixes landed as ca25c67, the docs as 54e52b5 plus the README and CHANGELOG follow-ups (21e115d, feba34b, c6a2218), and PR #92 was merged into main. No other task outside Phase 9 was open, so I left none open as unconfirmed. Phase 9 (T092–T094) stays open. Committed as e1f7804 following CONTRIBUTING.md. Not pushed.
 
 
-### implementation (`5cfca20d-3b9e-4926-b17b-fc211ee2d2d2`)
+### implementation (`935da332-ca5a-408e-b14f-30dbaddd6c4b`)
 
 - Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\specs\068-modernise-mcp-surface\tasks.md exists.
 
-- **implement**: done, 222 turns.
+- **implement**: done, 134 turns.
 
-> PR-6 tasks T073–T090 are done on branch 068-pr6-safety-cancel, cut from 068-modernise-mcp-surface (origin/main plus the PR-5 archive commit), and ticked in tasks.md with outcome notes. Nothing is committed; T091 (commit, PR, /code-review, docs-as-code) is left for the later steps, and the optional after_implement commit hook was skipped. The work covers access-config filtering in server.ts (parseAccessConfig, selectOfferedTools), the ToolCall per-call context and the new src/tools/_confirm.ts, confirmation gates on delete permanent and multi-note find_and_replace commits, queue and dispatch cancellation, signal and progress threaded through invokeCli/invokeBoundedCli and 31 handler files, the commitCancelled logger event, progress reports, the probe-stdio --no-elicitation calls, README sections and version 0.9.0. Gates: lint zero warnings, typecheck and build clean, 3127 tests pass (6 skipped), statements 97%, registry baseline unchanged. Live checks on the test vault (Sandbox, cleaned up), both eras: the quickstart §8 tool counts (35/22/2/1, and the unknown-name boot failure); CONFIRMATION_UNAVAILABLE with no elicitation; with a v2 client standing in for Claude Code, decline, accept and a trash delete with no prompt all behaved as specified. For owner review: (1) the 2025-era capability read uses the SDK-deprecated getClientCapabilities, which R12 names, with one justified eslint-disable, against the plan's "no SDK no-deprecated disable" line; (2) confirm() throws rather than returning a union. Still open: the Claude Code confirm/decline check before merge, and the docs/tools error rows, which are left to docs-as-code.
+> Phase 9 (T092-T094) is complete and the tasks are ticked in tasks.md. T092: an incremental /graphify --update re-read 207 changed code files structurally and re-extracted all 686 documents semantically (33 chunks, every file read to its end). The graph now has 14,306 nodes, 25,313 edges and 737 communities, at about 8.06M subagent tokens. The export first refused because 67 nodes from the old graph were missing; all 67 came from files re-extracted in this run, so I forced the write and recorded why. There are 40 self-loop edges, which do not affect the checks. Checks: (1) passes; src/errors.ts is unchanged, and the one Error subclass outside it, ConfirmationRequested, is an internal confirmation signal, not an error code; (2) passes, only createServer() uses createLogger/createQueue in production; (3) passes, but _confirm.ts sits with tool registration instead of the delete/find_and_replace handlers, as the ADR-043 design implies; (4) passes, no orphaned production file. T093: SC-001 to SC-014 and all 8 items of the brief's release acceptance pass, each with an evidence link. SC-001 carries a note that the stale search never reproduced before the fix. The vault-side ADR stanzas are still open for the owner. T094: six owner follow-ups are recorded and nothing was edited: the constitution change summary, the vault ADR-036/ADR-005 stanzas, the vault notes that still say list_vaults, re-checking BI-0156 to BI-0159, Claude Code print mode declining every confirmation, and test fixtures compiling into dist/. Results are in specs/068-modernise-mcp-surface/post-implement.md. Nothing is committed (the optional commit hook was skipped).
 
 - **open-pr**: in progress.
 
@@ -105,4 +108,4 @@ None.
 ## Files
 
 - Q&A log: `relay-qa-log.md`
-- Run state: `C:\Marwan-Saab-ADO\My-Setup\Relay\.relay\runs\obsidian-cli-mcp\obsidian-cli-mcp-bi-0165-pr6-2026-10-30`
+- Run state: `C:\Marwan-Saab-ADO\My-Setup\Relay\.relay\runs\obsidian-cli-mcp\obsidian-cli-mcp-bi-0165-phase9-2026-10-30`
