@@ -82,13 +82,14 @@ All failure surfaces flow through `UpstreamError`. The codes that can fire from 
 |------|------|----------|
 | `VALIDATION_ERROR` | `params.arguments` failed schema validation (missing `command`, malformed `parameters` value type, `flags` element starting with `--`, etc.). | Retry with corrected input. `details.issues` carries the zod-issue paths. |
 | `VALIDATION_ERROR` with `details.code: "COMMAND_BLOCKED"` | The command is on the [blocked list](#blocked-commands) and `OBSIDIAN_MCP_ALLOW_EVAL` is off. Raised before any spawn. `details.command` names the blocked command. | Use a typed tool, or ask the vault owner to set `OBSIDIAN_MCP_ALLOW_EVAL=1` if the command is genuinely needed. Retrying unchanged will not help. |
-| `TOOL_NOT_FOUND` | The dispatch received `params.name` other than `"obsidian_exec"`. | Retry with `name: "obsidian_exec"`. |
 | `CLI_NON_ZERO_EXIT` | The spawned `obsidian` child exited with a non-zero code. | `details.{exitCode, signal, stdout, stderr, argv}` carry the failure context. Inspect `stderr` for diagnostic output. |
 | `CLI_BINARY_NOT_FOUND` | `spawn` emitted `ENOENT` — the binary couldn't be resolved on PATH and `OBSIDIAN_BIN` was unset/invalid. | Operator-side: install or expose the `obsidian` binary, OR set `OBSIDIAN_BIN` to a valid path. |
 | `CLI_TIMEOUT` | The child did not exit within `timeoutMs` (default 30000). The bridge sent SIGTERM then SIGKILL. | Retry with a higher `timeoutMs` (≤ 120000), OR investigate whether the underlying CLI command genuinely needs longer. |
 | `CLI_OUTPUT_TOO_LARGE` | The captured stdout/stderr exceeded the 10 MiB cap. The bridge killed the child to prevent memory exhaustion. | Rephrase the query to produce smaller output, OR redirect the CLI command to write to a file directly via vault commands. |
 | `CLI_REPORTED_ERROR` | The child exited with code 0 BUT stdout (after `.trimStart()`) starts with the literal `Error:` prefix. The Obsidian CLI uses this in-band format for soft failures (e.g., "Error: vault not found"). | Inspect `details.message` (the first line of stdout) for the specific failure. |
 | `ERR_NO_ACTIVE_FILE` | The child exited with code 0 BUT stdout starts with the literal `Error: no active file` prefix — a recoverable user-action signal. | Ask the user to open a note in the editor, OR call this tool with an explicit `vault` and an in-band `file=` or `path=` parameter. |
+
+This table used to list `TOOL_NOT_FOUND` for a `tools/call` whose `name` was not `"obsidian_exec"`. That row was never a failure of this tool, and it stopped being raised when the server moved to MCP SDK v2 (PR #89): the SDK now answers an unknown tool name with a JSON-RPC `-32602` protocol error before any tool code runs.
 
 ## Examples
 

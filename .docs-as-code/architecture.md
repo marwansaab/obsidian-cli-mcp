@@ -15,6 +15,10 @@ never loads Obsidian's code itself. Everything Obsidian-internal it needs
 (`app.metadataCache`, `app.workspace`, plugin APIs) is reached through the
 CLI's `eval` subcommand.
 
+Since PR #89 the stdio connection is served **dual-era**: a 2025-era client
+(`initialize`) and a 2026-era client (`server/discover`) both work against the
+same process (ADR-039, below).
+
 ```mermaid
 flowchart LR
   client[MCP client] -- stdio JSON-RPC --> server[obsidian-cli-mcp]
@@ -39,6 +43,8 @@ flowchart TB
     cs --> ft["createXTool(deps) × every tool"]
     ft --> rt[registerTool — src/tools/_register.ts]
     cs --> docs[assertToolDocsExist]
+    idx --> ss["serveStdio(() => app.buildMcpServer())"]
+    ss --> bm["buildMcpServer — new McpServer, tool.register × every tool"]
   end
   subgraph run[Runtime spine — per call]
     h[tool handler] --> ic[invokeCli / invokeBoundedCli]
@@ -55,18 +61,61 @@ flowchart TB
 
 ### Boot spine
 
-[src/index.ts](../src/index.ts) calls `createServer()` and connects a
-`StdioServerTransport`. It wires stdin `end`/`close` to shutdown explicitly,
-because the SDK transport does not detect stdin EOF on its own.
+[src/index.ts](../src/index.ts) calls `createServer()` once, then hands
+`serveStdio` from `@modelcontextprotocol/server/stdio` a factory,
+`() => app.buildMcpServer()` (`src/index.ts:11`). It wires stdin `end`/`close`
+to the project's own `shutdown("transport_closed")` explicitly, because
+dropping queued work and killing the in-flight child is the project's shutdown
+path, not the transport's.
 
 [src/server.ts](../src/server.ts) is the composition root. It is the **only
 production file** that constructs `createLogger()`, `createQueue()` and
 `createVaultRegistry()`. It builds every tool by calling its
-`createXTool({ logger, queue, vaultRegistry? })` factory, then registers two
-request handlers on the SDK's low-level `Server`: `ListTools` (returns every
-descriptor) and `CallTool` (looks the tool up by name and calls it, or
-returns `TOOL_NOT_FOUND`). Handlers never reach back into `server.ts`; their
-dependencies arrive through the factory arguments.
+`createXTool({ logger, queue, vaultRegistry? })` factory, and returns
+`{ buildMcpServer, shutdown, logger, queue }`. Handlers never reach back into
+`server.ts`; their dependencies arrive through the factory arguments.
+
+Since PR #89 (068 R10) the composition root is split in two
+(`src/server.ts:152`):
+
+- **`createServer` runs once per process.** Logger, queue, vault registry,
+  the tool list and the doc-presence check are all built here, and nowhere
+  else.
+- **`buildMcpServer()` is cheap and may run many times.** It constructs a
+  `new McpServer({ name: "obsidian-cli-mcp", version }, { capabilities: {
+  tools: { listChanged: false } } })` and calls `tool.register(server)` for
+  every tool built above. `listChanged: false` is declared truthfully: the
+  list never changes after boot.
+
+The split exists because `serveStdio` calls its factory more than once per
+connection — once for the era-discovery probe and once for the instance it
+pins. A factory that built its own queue would have created a second
+single-flight queue for the probe (FR-053). Every instance shares the one
+queue and registry; `src/server.protocol.test.ts` proves it by spying on the
+returned `app.queue.run`, serving two clients from two `buildMcpServer()`
+instances, and seeing one call from each.
+
+```mermaid
+sequenceDiagram
+  participant C as MCP client
+  participant S as serveStdio
+  participant F as buildMcpServer
+  participant Q as shared queue
+  C->>S: initialize (2025 era) or server/discover (2026 era)
+  S->>F: build (era probe)
+  S->>F: build (pinned instance)
+  C->>S: tools/call
+  S->>Q: handler → invokeCli → queue.run (same queue for every instance)
+```
+
+PR #89 first gave `createServer`'s context a test-only `createQueue` seam to
+prove the shared queue. Review (finding F2, owner ruling, commit `76ceeb7`)
+removed it: the queue is already on the returned surface, so a spy on
+`app.queue.run` proves the same thing without widening the kernel node's
+context. The split is a touch on `createServer`, the boot-spine entry point
+and one of the kernel nodes: its return shape lost `server` and renamed
+`triggerShutdown` to `shutdown`. `createLogger`, `createQueue` and
+`UpstreamError` did not change.
 
 Server-wide access settings arrive the same way. Since PR #88, `createServer`'s
 context takes an optional `env` (default `process.env`), the environment the
@@ -96,33 +145,66 @@ registered tool has a `docs/tools/<name>.md`. It collects **every** missing
 file and throws once, rather than failing on the first. A tool without
 documentation stops the server from starting.
 
-The low-level `Server` is used on purpose even though the SDK now marks it
-deprecated in favour of `McpServer`. The constitution requires SDK `Server`
-registration with explicit handlers, and moving the composition root to
-`McpServer` is a separate architectural decision. BI-067 (PR #78) recorded
-this as targeted lint disables rather than a migration.
+Until PR #89 the server ran on `@modelcontextprotocol/sdk` 1.x and the SDK's
+low-level `Server`, with two hand-written request handlers: `ListTools`
+(every descriptor) and `CallTool` (look the tool up by name, or return
+`TOOL_NOT_FOUND`). BI-067 (PR #78) kept that deprecated class on purpose,
+behind targeted `no-deprecated` lint disables, and called the move to
+`McpServer` a separate architectural decision. PR #89 is that decision:
+[ADR-039](decisions/ADR-039-dual-era-stdio-serving-on-sdk-v2-mcpserver.md)
+(Dual-Era Stdio Serving on MCP SDK v2 McpServer) replaces the low-level
+`Server`, both handlers and both disables, and supersedes ADR-036 (Modern-Only
+Protocol Era For Obsidian CLI MCP). There is no hand-written `tools/list` or
+`tools/call` left in `src/`.
 
 ### Registration — the one path from a schema to a published tool
 
 `registerTool` in [src/tools/_register.ts](../src/tools/_register.ts) is the
 only route by which a zod schema becomes an MCP tool (ADR-006, Centralized Tool
-Registration). It:
+Registration). Since PR #89 it returns a `RegisteredTool` with three parts:
+`descriptor` and `handler`, as before, and `register(server)`, which calls
+`McpServer.registerTool(name, { description, inputSchema }, handler)`
+(`src/tools/_register.ts:146`). `server.ts` calls `register` on every
+`McpServer` it builds. It:
 
-1. Converts the input schema to JSON Schema with `toMcpInputSchema`
-   ([src/tools/_shared.ts](../src/tools/_shared.ts)) — zod 4's built-in
-   `z.toJSONSchema` (draft-7 target), followed by `normalizeToDraft7Parity`, a
-   pass that reproduces the retired converter's output byte-for-byte (PR #78).
+1. Wraps the zod schema in **`toSdkInputSchema`** (`src/tools/_register.ts:52`),
+   a pass-through Standard Schema adapter, and hands that to the SDK as
+   `inputSchema`. Its `~standard.jsonSchema` is the zod schema's own emission
+   for the target the SDK asks for (draft-2020-12, named once as
+   `SDK_JSON_SCHEMA_TARGET`), so the published schema is the SDK-native
+   dialect. Its `~standard.validate` accepts every value unchanged. That is
+   the point of the adapter: `McpServer` validates input itself and would
+   replace the project's `{code, message, details}` envelope with free text
+   (`"Input validation error: …"`), with no hook to stop it (068 R2). Handing
+   it a validator that never fails leaves the tool's own zod parse in charge.
 2. Strips every nested `description` from that JSON Schema
-   ([src/help/strip-schema.ts](../src/help/strip-schema.ts)). Per-field
-   documentation is served by the `help` tool instead of being sent on every
-   `tools/list` (ADR-005, Token-Optimized Tool Definitions via Progressive
-   Disclosure).
-3. Wraps the handler so that a `ZodError` from **input** parsing becomes
+   ([src/help/strip-schema.ts](../src/help/strip-schema.ts)), inside the
+   adapter. Per-field documentation is served by the `help` tool instead of
+   being sent on every `tools/list` (ADR-005, Token-Optimized Tool Definitions
+   via Progressive Disclosure). PR #89 re-hosts this unchanged; spec 068 plans
+   to remove it in a later PR (C1).
+3. Refuses at boot a schema whose emission has no top-level
+   `"type": "object"` (`src/tools/_register.ts:76`, FR-002). The SDK would
+   silently add a missing root `type` to what it publishes, which would leave
+   the project's `descriptor` out of step with the wire. With the guard, the
+   SDK publishes the descriptor's bytes unchanged, and `_register.test.ts`
+   pins descriptor === published through a real client. This guard came out
+   of the PR #89 review (finding F1); every tool already emitted an object
+   root, so no published byte moved.
+4. Wraps the handler so that a `ZodError` from **input** parsing becomes
    `VALIDATION_ERROR` (or the tool's own `mapValidationError` shape), an
    `UpstreamError` becomes an MCP `isError` result carrying its `code`,
    `message` and `details`, and a `ZodError` thrown by the handler's own
    **output** check becomes `INTERNAL_ERROR`, not `VALIDATION_ERROR`, because
-   the client's input was valid.
+   the client's input was valid. These are **returned** as results, never
+   thrown, so the SDK passes them through untouched.
+
+Until PR #89, step 1 was `toMcpInputSchema` in `src/tools/_shared.ts`: zod 4's
+`z.toJSONSchema` with a draft-7 target, then `normalizeToDraft7Parity`, a
+four-rule pass that reproduced the retired `zod-to-json-schema` output
+byte-for-byte so the fingerprint baseline survived the zod 4 migration
+(PR #78). PR #89 deletes both (068 C3). Nothing is normalised to imitate a
+retired converter any more; the published dialect is what the SDK emits.
 
 Published descriptors are pinned. `src/tools/_register-baseline.json` holds a
 fingerprint for every tool, and `_register-baseline.test.ts` fails if a
@@ -130,6 +212,27 @@ descriptor changes without the baseline being regenerated with
 `npm run baseline:write` (BI-022, PR #24). The zod 4 migration landed with the
 baseline unchanged, which is how that PR showed the published surface did not
 move.
+
+Since PR #89 (068 R3) the gate reads the surface **as a client sees it**:
+`fingerprintLiveRegistry` in
+[src/tools/_register-baseline.ts](../src/tools/_register-baseline.ts) connects
+a v2 `Client` to a freshly built `McpServer` over an in-memory transport
+(`connectInMemoryClient`, `src/tools/_mcp-client-fixtures.ts`) and calls
+`listTools`. It used to read the low-level `Server`'s private
+`_requestHandlers` map. The baseline's `schemaVersion` is now `2`, and
+`scripts/write-register-baseline.ts` dumps the helper's own output instead of
+keeping an inline copy of the canonicalisation, so writer and verifier cannot
+drift. PR #89 regenerated the baseline on purpose: every `schemaFingerprint`
+changed (draft-07 → draft-2020-12), no `descriptionFingerprint` changed, and
+the tool names are the same. The PR body records the gate proof — one word
+added to a description failed the test, and reverting it passed.
+
+A one-off check of the real stdio path is `npm run probe:stdio -- --era
+legacy|modern` ([scripts/probe-stdio.ts](../scripts/probe-stdio.ts), PR #89).
+It spawns the built `dist/index.js` with a v2 client and prints the negotiated
+protocol version, `serverInfo`, whether `instructions` is present, and the tool
+count. On 2026-10-30 the 2025-era handshake negotiated `2025-11-25` and the
+2026-era handshake `2026-07-28` (research R10 T0).
 
 ### Runtime spine
 
@@ -229,10 +332,24 @@ Dispatch classifies a finished child in a fixed priority order:
 | (d) | otherwise | success |
 
 Alongside those: `CLI_TIMEOUT`, `CLI_OUTPUT_TOO_LARGE`, `CLI_BINARY_NOT_FOUND`
-from dispatch; `VALIDATION_ERROR`, `INTERNAL_ERROR`, `TOOL_NOT_FOUND` from
-registration; `FS_WRITE_FAILED`, `FILE_EXISTS`, `PATH_ESCAPES_VAULT` from the
+from dispatch; `VALIDATION_ERROR`, `INTERNAL_ERROR` from registration;
+`FS_WRITE_FAILED`, `FILE_EXISTS`, `PATH_ESCAPES_VAULT` from the
 direct-filesystem write cohort; `HELP_TOOL_NOT_FOUND`, `HELP_DOCS_MISSING` from
 `help`.
+
+Three things changed at the protocol edge with the move to `McpServer`
+(PR #89, ADR-039). None adds a code:
+
+- **An unknown tool name** is answered by the SDK with a JSON-RPC `-32602`
+  error before any project code runs (FR-016 allows it). `TOOL_NOT_FOUND`,
+  which the old `CallTool` handler returned, is no longer raised anywhere;
+  removing a code's last raise site is not a new code.
+- **A thrown error that is neither `UpstreamError` nor `ZodError`** reaches the
+  client as the SDK's `isError` text, which is the error's message. Before
+  PR #89 it surfaced as a JSON-RPC internal error.
+- **A `tools/call` with no `arguments`** reaches the tool as `{}`, the SDK's
+  default. A tool whose fields are all optional therefore succeeds instead of
+  failing validation; any other tool still returns `VALIDATION_ERROR`.
 
 The top-level set is meant to stay small and stable, so clients can switch on
 it. Tool-specific conditions are carried **inside** an existing code rather
@@ -400,8 +517,10 @@ that path), or `unexpected-output` (anything else; `detail` is the first 200
 characters of the output). The new method on the `Logger` returned by
 `createLogger()`, one of the kernel nodes, is additive.
 
-`SIGINT`, `SIGTERM` and transport close all lead to `triggerShutdown`, which
-runs once. It drains the queue (rejecting pending tasks), kills the in-flight
+`SIGINT`, `SIGTERM` (registered in `createServer`) and stdin `end`/`close`
+(wired in `index.ts`) all lead to `shutdown` (`src/server.ts:164`), which
+runs once. PR #89 renamed it from `triggerShutdown` and dropped the old
+`transport.onclose` hook, since `serveStdio` owns the transport. It drains the queue (rejecting pending tasks), kills the in-flight
 child, logs a single shutdown event with both counts, and exits 0. A shutdown
 that lands between a cold-start's first and second attempt skips the retry, so
 it cannot leave an orphaned child.
