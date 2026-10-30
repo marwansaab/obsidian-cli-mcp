@@ -288,7 +288,7 @@ protocol. **Independent tests**: quickstart Â§1 (gate) and Â§5.
 - [X] T057 Write `.decisions/ADR-040 - Published Parameter Descriptions and Server Instructions.md`, superseding ADR-005 (client tool deferral, tool search matching descriptions, descriptions grown back to about 77 KB). Add the row to `.decisions/Decision Log.md`. Confirm the number as in T041.
 - [X] T058 Run the gates. `npm run probe:stdio` for both eras prints the instructions length (< 2,000). **T0-live, release evidence for SC-006**: in Claude Code, two read-only calls in one turn run in parallel with no "may modify data" prompt. Record the result in the PR body. SC-006 itself passes on the T047 assertions.
   **Outcome (2026-10-30)**: lint zero warnings, typecheck and build clean, 2979 tests pass (6 skipped), statements 96.8%. `probe:stdio` lists 34 tools with `instructions` present at 1,847 characters for both eras (legacy negotiates `2025-11-25`, modern `2026-07-28`); the unfiltered text including the PR-5 `vaults` lines is 1,888 characters. SC-006 server-side evidence: `src/tools/_surface.test.ts` pins all 21 read-only-row tools at `readOnlyHint: true`, `destructiveHint: false`. The Claude Code parallel-read check (no "may modify data" prompt) cannot run in this unattended session, so it is still open for the owner before merge.
-- [ ] T059 PR-4 wrap:
+- [X] T059 PR-4 wrap:
   - `/speckit-git-commit`;
   - open **PR-4**. Checklist: Iâ€“V **Y**; Tool Surface **Y** for title, annotations, parameter descriptions, visible input rules (in descriptions) and instructions (closes B1/B2/C1), typed results **N/A (pending B5)**; ADR-010/013/014/015 **N/A**; Security Defaults **N/A**;
   - `/code-review` and fixes;
