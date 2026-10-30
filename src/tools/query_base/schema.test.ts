@@ -1,9 +1,9 @@
 // Original — no upstream. query_base schema tests — full validation-error cohort: base_path length/extension/traversal sub-states, view_name length sub-states, unknown-key strict rejection, output schema envelope refine, wire schema shape.
 import { expect, test } from "vitest";
+import { z } from "zod";
 
 import { queryBaseInputSchema, queryBaseOutputSchema, queryBaseWireSchema } from "./schema.js";
 import { messageForPath } from "../_schema-test-utils.js";
-import { toMcpInputSchema } from "../_shared.js";
 
 function paramsForPath(
   result: ReturnType<typeof queryBaseInputSchema.safeParse>,
@@ -395,8 +395,8 @@ test("wire: non-array stdout rejected", () => {
 // JSON Schema round-trip
 // =====================================================================
 
-test("toMcpInputSchema emits additionalProperties:false + expected property set", () => {
-  const json = toMcpInputSchema(queryBaseInputSchema) as Record<string, unknown>;
+test("z.toJSONSchema emits additionalProperties:false + expected property set", () => {
+  const json = z.toJSONSchema(queryBaseInputSchema, { io: "input", target: "draft-2020-12" }) as Record<string, unknown>;
   expect(json.type).toBe("object");
   expect(json.additionalProperties).toBe(false);
   const props = json.properties as Record<string, unknown>;

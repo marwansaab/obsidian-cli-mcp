@@ -73,7 +73,7 @@ interface InFlightContext {
 let inFlightChild: ChildProcess | null = null;
 let inFlightContext: InFlightContext | null = null;
 
-// Set by killInFlightChildren() (the server.ts triggerShutdown entry). Checked before the
+// Set by killInFlightChildren() (the server.ts shutdown entry). Checked before the
 // ADR-029 retry so a shutdown landing in the gap between attempt-1 settle and attempt-2 spawn
 // skips the retry — otherwise attempt 2 would spawn AFTER the shutdown sweep saw an empty
 // registry, orphaning the child (research D6).

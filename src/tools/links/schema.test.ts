@@ -1,5 +1,6 @@
-// Original — no upstream. Tests for the links input/output/eval-envelope schemas — target_mode discriminator inherited from targetModeBaseSchema, XOR locator + active-forbid refinements, optional total boolean, strict additionalProperties rejection, emitted JSON Schema round-trip via toMcpInputSchema.
+// Original — no upstream. Tests for the links input/output/eval-envelope schemas — target_mode discriminator inherited from targetModeBaseSchema, XOR locator + active-forbid refinements, optional total boolean, strict additionalProperties rejection, emitted JSON Schema round-trip via z.toJSONSchema.
 import { describe, expect, it, test, vi } from "vitest";
+import { z } from "zod";
 
 import {
   LINKS_EVAL_ERROR_CODES,
@@ -9,7 +10,6 @@ import {
   linksInputSchema,
   linksOutputSchema,
 } from "./schema.js";
-import { toMcpInputSchema } from "../_shared.js";
 import { targetModeWiringCases } from "../_target-mode-test-cases.js";
 
 // (1) specific + vault + path happy
@@ -105,8 +105,8 @@ describe("linksInputSchema — target-mode refinement wiring (shared battery)", 
 });
 
 // (8) emitted JSON Schema preserves target_mode enum constraint
-test("toMcpInputSchema(linksInputSchema) preserves target_mode enum constraint", () => {
-  const emitted = toMcpInputSchema(linksInputSchema) as Record<string, unknown>;
+test("z.toJSONSchema(linksInputSchema) preserves target_mode enum constraint", () => {
+  const emitted = z.toJSONSchema(linksInputSchema, { io: "input", target: "draft-2020-12" }) as Record<string, unknown>;
   // The emitted shape may be wrapped (allOf/anyOf) due to superRefine; walk it.
   let foundTargetModeEnum = false;
   const walk = (node: unknown): void => {

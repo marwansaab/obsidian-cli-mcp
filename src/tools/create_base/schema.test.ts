@@ -1,9 +1,9 @@
 // Original — no upstream.
 import { expect, test } from "vitest";
+import { z } from "zod";
 
 import { createBaseInputSchema, createBaseOutputSchema, MAX_CONTENT_LENGTH } from "./schema.js";
 import { messageForPath } from "../_schema-test-utils.js";
-import { toMcpInputSchema } from "../_shared.js";
 
 function paramsForPath(
   result: ReturnType<typeof createBaseInputSchema.safeParse>,
@@ -232,8 +232,8 @@ test("output: valid envelope accepted", () => {
 // JSON Schema round-trip
 // =====================================================================
 
-test("toMcpInputSchema emits expected shape", () => {
-  const json = toMcpInputSchema(createBaseInputSchema) as Record<string, unknown>;
+test("z.toJSONSchema emits expected shape", () => {
+  const json = z.toJSONSchema(createBaseInputSchema, { io: "input", target: "draft-2020-12" }) as Record<string, unknown>;
   expect(json.type).toBe("object");
   expect(json.additionalProperties).toBe(false);
   const props = json.properties as Record<string, unknown>;

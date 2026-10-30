@@ -1,5 +1,6 @@
-// Original — no upstream. Tests for the smart_connections_similar input/output/eval-envelope schemas — target_mode discriminator inherited from targetModeBaseSchema, XOR locator + active-forbid refinements, limit integer range 1..100 default 20, total optional boolean, strict additionalProperties rejection, emitted JSON Schema round-trip via toMcpInputSchema, matchEntrySchema strict three-field contract (path .md / headingPath array / score finite number), discriminated-union envelope with six error codes.
+// Original — no upstream. Tests for the smart_connections_similar input/output/eval-envelope schemas — target_mode discriminator inherited from targetModeBaseSchema, XOR locator + active-forbid refinements, limit integer range 1..100 default 20, total optional boolean, strict additionalProperties rejection, emitted JSON Schema round-trip via z.toJSONSchema, matchEntrySchema strict three-field contract (path .md / headingPath array / score finite number), discriminated-union envelope with six error codes.
 import { describe, expect, it, test, vi } from "vitest";
+import { z } from "zod";
 
 import {
   SMART_CONNECTIONS_SIMILAR_EVAL_ERROR_CODES,
@@ -8,7 +9,6 @@ import {
   smartConnectionsSimilarInputSchema,
   smartConnectionsSimilarOutputSchema,
 } from "./schema.js";
-import { toMcpInputSchema } from "../_shared.js";
 import { targetModeWiringCases } from "../_target-mode-test-cases.js";
 
 describe("smartConnectionsSimilarInputSchema — target-mode refinement wiring (shared battery)", () => {
@@ -210,8 +210,8 @@ test("limit:'20' (string) rejected", () => {
   expect(result.success).toBe(false);
 });
 
-test("toMcpInputSchema(smartConnectionsSimilarInputSchema) preserves target_mode enum constraint", () => {
-  const emitted = toMcpInputSchema(smartConnectionsSimilarInputSchema) as Record<string, unknown>;
+test("z.toJSONSchema(smartConnectionsSimilarInputSchema) preserves target_mode enum constraint", () => {
+  const emitted = z.toJSONSchema(smartConnectionsSimilarInputSchema, { io: "input", target: "draft-2020-12" }) as Record<string, unknown>;
   let foundTargetModeEnum = false;
   const walk = (node: unknown): void => {
     if (!node || typeof node !== "object") return;
