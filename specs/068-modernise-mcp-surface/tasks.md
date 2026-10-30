@@ -450,7 +450,7 @@ protocol. **Independent tests**: quickstart Â§1 (gate) and Â§5.
 - [X] T089 Set `version` in package.json (and package-lock.json) from 0.8.11 to `0.9.0`.
 - [X] T090 Run the gates. Run `npm run probe:stdio` with each env configuration in quickstart Â§8's table, plus `--no-elicitation`. **T0-live**: Claude Code confirm/decline for `delete permanent:true` and a vault-wide commit on `Sandbox/` fixtures, following the destructive-probe protocol; also a trash delete with no prompt. Record the results in the PR body.
   **Outcome (2026-10-30)**: lint zero warnings, typecheck and build clean, 3127 tests pass (6 skipped), statements 97%. `probe:stdio`, both eras (legacy `2025-11-25`, modern `2026-07-28`): default 35 tools (instructions 1,888 chars); `OBSIDIAN_MCP_READ_ONLY=1` 22 (1,341); `OBSIDIAN_MCP_TOOLS=read,search` 2; plus `OBSIDIAN_MCP_DISABLE=search` 1. `read,nope` + `zap`: exit 1 with one `bridge.fatal` line naming `nope (OBSIDIAN_MCP_TOOLS)` and `zap (OBSIDIAN_MCP_DISABLE)`. Live on `TestVault-Obsidian-CLI-MCP` (`Sandbox/`, cleaned up): `--no-elicitation` returned `CONFIRMATION_UNAVAILABLE` for both calls in both eras, and the fixture was unchanged. This unattended run cannot attach Claude Code, so a v2 client that declares form elicitation drove the built `dist/index.js` over real stdio in both eras instead. Decline gave `CONFIRMATION_DECLINED` for both tools, and the files were still there for the accept that followed. Accept deleted the note permanently (not in the trash) and rewrote both subfolder notes; the prompts named the vault and note, or the subfolder and "2 note(s)". A trash delete asked nothing (`toTrash: true`). It went to the OS Recycle Bin, because the vault has no `.trash`; the run removed its two Recycle Bin entries. The Claude Code confirm/decline check is still open for the owner before merge.
-- [ ] T091 PR-6 wrap:
+- [X] T091 PR-6 wrap:
   - `/speckit-git-commit`;
   - open **PR-6**. Checklist: Iâ€“V **Y** (IV: cancellation + progress close A3); ADR-015 **Y** (new pairs `CONFIRMATION_DECLINED` with `details.action`, `CONFIRMATION_UNAVAILABLE`); ADR-010/013/014 **N/A**; Tool Surface **Y**; Security Defaults **Y** (closes read-only/filtering and confirmation); MCP standard **Y**;
   - `/code-review` and fixes;
@@ -461,13 +461,16 @@ protocol. **Independent tests**: quickstart Â§1 (gate) and Â§5.
 
 ## Phase 9: Polish & post-implement (after PR-6 merges)
 
-- [ ] T092 Run `/graphify --update`, then the four CLAUDE.md post-implement checks. Record them in specs/068-modernise-mcp-surface/post-implement.md:
+- [X] T092 Run `/graphify --update`, then the four CLAUDE.md post-implement checks. Record them in specs/068-modernise-mcp-surface/post-implement.md:
   1. no new error-class nodes outside src/errors.ts;
   2. no production handler imports `createLogger`/`createQueue`;
   3. src/instructions/, src/tools/_confirm.ts and src/tools/vaults/ land in the expected communities (plan â†’ Graphify structural check);
   4. no orphaned production file.
-- [ ] T093 Walk spec SC-001â€¦SC-014 and the release-level acceptance (brief Â§7). Mark each pass/fail with its evidence link in post-implement.md.
-- [ ] T094 Raise the owner follow-ups (do not edit them yourself): the constitution v1.6.0 Sync Impact Report still says `list_vaults` and "0.8.20" (fold into the post-release PATCH amendment that removes "Adoption of v1.6.0"); the vault-side ADR amendment stanzas for ADR-036 and ADR-005; the vault Architecture page `list_vaults` mention; and re-checking BI-0156â€¦BI-0159 against SDK v2.
+  **Outcome (2026-10-30)**: incremental update at `e1f7804`: 207 code files (AST) and all 686 documents re-extracted semantically in 33 chunks, every file read to its end. Graph: 14,306 nodes, 25,313 edges, 737 communities. The export's lost-node guard was overridden on purpose: all 67 missing nodes came from files re-extracted in this run. Checks: (1) pass, `src/errors.ts` unchanged; the one `Error` subclass outside it, `ConfirmationRequested` in `_confirm.ts`, is an internal `input_required` signal, not an error code (ADR-043); (2) pass, only `createServer()` uses the factories in production; (3) pass, with `_confirm.ts` landing in the registration layer rather than beside `delete` / `find_and_replace`, as the ADR-043 design implies; (4) pass, no orphaned production file. Details in post-implement.md.
+- [X] T093 Walk spec SC-001â€¦SC-014 and the release-level acceptance (brief Â§7). Mark each pass/fail with its evidence link in post-implement.md.
+  **Outcome (2026-10-30)**: SC-001 to SC-014 all pass, each with its evidence link. SC-001 carries a note: before the fix, the stale search did not reproduce, so the code defect was proven instead. All 8 brief Part 2 section 7 items pass in the repository. The last item, the constitution amendment and new ADRs, still has its vault-side ADR stanzas open for the owner (T094).
+- [X] T094 Raise the owner follow-ups (do not edit them yourself): the constitution v1.6.0 Sync Impact Report still says `list_vaults` and "0.8.20" (fold into the post-release PATCH amendment that removes "Adoption of v1.6.0"); the vault-side ADR amendment stanzas for ADR-036 and ADR-005; the vault Architecture page `list_vaults` mention; and re-checking BI-0156â€¦BI-0159 against SDK v2.
+  **Outcome (2026-10-30)**: raised in post-implement.md, with nothing edited. That covers the four named items plus three more: other vault notes that still say `list_vaults` (TC-00010/12/13/15, two feature pages and BI-0040); Claude Code print mode, which declines every confirmation; and the eleven test-support modules that compile into the published `dist/`, which one `*fixtures*` exclude would not remove.
 
 ---
 
