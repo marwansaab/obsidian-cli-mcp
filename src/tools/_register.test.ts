@@ -4,11 +4,11 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { McpServer } from "@modelcontextprotocol/server";
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import { z } from "zod";
 
+import { connectInMemoryClient } from "./_mcp-client-fixtures.js";
 import { fingerprintLiveRegistry, type RegisterBaseline } from "./_register-baseline.js";
 import { registerTool, assertToolDocsExist, toSdkInputSchema } from "./_register.js";
 import { UpstreamError } from "../errors.js";
@@ -20,6 +20,7 @@ import {
 } from "../target-mode/target-mode.js";
 
 import type { RegisteredTool } from "./_shared.js";
+import type { Client } from "@modelcontextprotocol/client";
 
 const BASELINE_PATH = resolve(dirname(fileURLToPath(import.meta.url)), "_register-baseline.json");
 
@@ -27,20 +28,11 @@ function readBaseline(): RegisterBaseline {
   return JSON.parse(readFileSync(BASELINE_PATH, "utf8")) as RegisterBaseline;
 }
 
-/** Connect a v2 Client (2025 era) to `server` over a linked in-memory transport pair. */
-async function connectClient(server: McpServer): Promise<Client> {
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  await server.connect(serverTransport);
-  const client = new Client({ name: "register-test", version: "0.0.0" });
-  await client.connect(clientTransport);
-  return client;
-}
-
 /** Serve a single registered tool on a fresh McpServer and return a connected client. */
 async function serveOne(tool: RegisteredTool): Promise<Client> {
   const server = new McpServer({ name: "spike", version: "0.0.0" }, { capabilities: { tools: { listChanged: false } } });
   tool.register(server);
-  return connectClient(server);
+  return connectInMemoryClient(server, "register-test");
 }
 
 function textOf(result: unknown): string {
@@ -193,6 +185,20 @@ describe("registerTool — descriptor publication pipeline", () => {
       handler: async () => ({ ok: true }),
     });
     expect(tool.descriptor.inputSchema.type).toBe("object");
+  });
+
+  it("refuses at boot a schema that emits no object root, naming the tool (FR-002 boundary)", () => {
+    expect(() =>
+      registerTool({
+        name: "pip_union_root",
+        description: "test tool",
+        schema: z.discriminatedUnion("kind", [
+          z.strictObject({ kind: z.literal("a") }),
+          z.strictObject({ kind: z.literal("b") }),
+        ]),
+        handler: async () => ({ ok: true }),
+      }),
+    ).toThrow('pip_union_root: input schema must emit a top-level "type": "object" (FR-002), got undefined');
   });
 
   it("strips descriptions at every nested depth (FR-006)", () => {
@@ -773,7 +779,7 @@ describe("registry: published inputSchema invariants (post-010)", () => {
 
     beforeAll(async () => {
       const created = createServer({ registerSignalHandlers: false });
-      client = await connectClient(created.buildMcpServer());
+      client = await connectInMemoryClient(created.buildMcpServer(), "drift-detector");
       listResponse = (await client.listTools()) as typeof listResponse;
     });
 

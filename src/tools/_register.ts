@@ -34,6 +34,14 @@ export interface ToolSpec<TSchema extends z.ZodType, TDeps = undefined> {
 type JsonSchemaOptions = Parameters<StandardSchemaWithJSON["~standard"]["jsonSchema"]["input"]>[0];
 
 /**
+ * The JSON Schema target the SDK passes to `~standard.jsonSchema` when it publishes a
+ * tool (the SDK's private `JSON_SCHEMA_CONVERSION_TARGET`). The project descriptor is
+ * emitted with the same target so it carries the bytes clients receive; the
+ * descriptor-vs-published test in `_register.test.ts` fails if the SDK ever changes it.
+ */
+const SDK_JSON_SCHEMA_TARGET = "draft-2020-12";
+
+/**
  * Pass-through Standard Schema adapter for a tool's input schema (068 R2). Its JSON
  * Schema is the zod schema's own `~standard.jsonSchema` emission for the target the SDK
  * asks for (draft-2020-12), so the published bytes are SDK-native; descriptions below the
@@ -61,6 +69,15 @@ export function registerTool<TSchema extends z.ZodType, TDeps = undefined>(
   spec: ToolSpec<TSchema, TDeps>,
 ): RegisteredTool {
   const sdkInputSchema = toSdkInputSchema(spec.schema);
+  const inputSchema = sdkInputSchema["~standard"].jsonSchema.input({ target: SDK_JSON_SCHEMA_TARGET });
+  // MCP requires an object-root inputSchema (FR-002). The SDK would silently add a missing
+  // root `type: "object"` to what it publishes, leaving the descriptor out of step with the
+  // wire, so a schema that does not emit one is refused here, at boot.
+  if (inputSchema["type"] !== "object") {
+    throw new Error(
+      `${spec.name}: input schema must emit a top-level "type": "object" (FR-002), got ${JSON.stringify(inputSchema["type"])}`,
+    );
+  }
   const responseFormat: ResponseFormat = spec.responseFormat ?? "json";
 
   // INPUT-validation mapping only: the per-tool hook when supplied, else a generic
@@ -123,15 +140,11 @@ export function registerTool<TSchema extends z.ZodType, TDeps = undefined>(
     descriptor: {
       name: spec.name,
       description: spec.description,
-      inputSchema: sdkInputSchema["~standard"].jsonSchema.input({ target: "draft-2020-12" }),
+      inputSchema,
     },
     handler,
     register: (server: McpServer) => {
-      server.registerTool(
-        spec.name,
-        { description: spec.description, inputSchema: sdkInputSchema },
-        (args) => handler(args),
-      );
+      server.registerTool(spec.name, { description: spec.description, inputSchema: sdkInputSchema }, handler);
     },
   };
 }

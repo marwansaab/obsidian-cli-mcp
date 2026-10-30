@@ -5,9 +5,10 @@
 // in-memory transport — so the gate fingerprints the published surface, not project objects.
 import { createHash } from "node:crypto";
 
-import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
-
 import { createServer } from "../server.js";
+import { connectInMemoryClient } from "./_mcp-client-fixtures.js";
+
+import type { McpServer } from "@modelcontextprotocol/server";
 
 export interface BaselineEntry {
   name: string;
@@ -41,19 +42,16 @@ export function canonicalJSON(value: unknown): string {
 }
 
 export interface FingerprintDeps {
-  createServer?: typeof createServer;
+  /** Builds the server to fingerprint; defaults to the real composition root's `buildMcpServer`. */
+  buildMcpServer?: () => McpServer;
 }
 
 export async function fingerprintLiveRegistry(
   deps: FingerprintDeps = {},
 ): Promise<BaselineEntry[]> {
-  const create = deps.createServer ?? createServer;
-  const server = create({ registerSignalHandlers: false }).buildMcpServer();
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  await server.connect(serverTransport);
-  const client = new Client({ name: "register-baseline", version: "0.0.0" });
+  const build = deps.buildMcpServer ?? (() => createServer({ registerSignalHandlers: false }).buildMcpServer());
+  const client = await connectInMemoryClient(build(), "register-baseline");
   try {
-    await client.connect(clientTransport);
     const { tools } = await client.listTools(undefined, { cacheMode: "bypass" });
     const entries: BaselineEntry[] = tools.map((t) => ({
       name: t.name,

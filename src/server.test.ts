@@ -5,11 +5,13 @@ import { dirname, join, resolve } from "node:path";
 import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
-import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { McpServer } from "@modelcontextprotocol/server";
 import { afterEach, describe, it, test, expect, vi } from "vitest";
 
 import { createServer, DEFAULT_DOCS_DIR, type ShutdownContext } from "./server.js";
+import { connectInMemoryClient } from "./tools/_mcp-client-fixtures.js";
+
+import type { Client } from "@modelcontextprotocol/client";
 
 function captureStream(): { stream: Writable; lines: () => string[] } {
   const chunks: Buffer[] = [];
@@ -36,13 +38,8 @@ function makeContext() {
 }
 
 /** Build the composition root, serve one McpServer from it, and connect a 2025-era client in-process. */
-async function connectClient(ctx: ShutdownContext): Promise<Client> {
-  const server = createServer(ctx).buildMcpServer();
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  await server.connect(serverTransport);
-  const client = new Client({ name: "server-test", version: "0.0.0" });
-  await client.connect(clientTransport);
-  return client;
+function connectClient(ctx: ShutdownContext): Promise<Client> {
+  return connectInMemoryClient(createServer(ctx).buildMcpServer(), "server-test");
 }
 
 async function listPublishedTools(): Promise<{ name: string; description?: string; inputSchema: Record<string, unknown> }[]> {

@@ -4,12 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Writable } from "node:stream";
 
-import { Client, InMemoryTransport, ProtocolError, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
+import { Client, ProtocolError, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { createMcpHandler } from "@modelcontextprotocol/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createQueue, type Queue } from "./queue.js";
 import { createServer, type CreatedServer } from "./server.js";
+import { connectInMemoryClient } from "./tools/_mcp-client-fixtures.js";
 
 const { version: PACKAGE_VERSION } = createRequire(import.meta.url)("../package.json") as { version: string };
 
@@ -19,12 +20,8 @@ function quietServer(extra: { createQueue?: () => Queue } = {}): CreatedServer {
 }
 
 /** 2025 era: the default (legacy-negotiating) client over a linked in-memory transport pair. */
-async function connectLegacy(app: CreatedServer): Promise<Client> {
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  await app.buildMcpServer().connect(serverTransport);
-  const client = new Client({ name: "protocol-test-2025", version: "0.0.0" });
-  await client.connect(clientTransport);
-  return client;
+function connectLegacy(app: CreatedServer): Promise<Client> {
+  return connectInMemoryClient(app.buildMcpServer(), "protocol-test-2025");
 }
 
 /** 2026 era: the same factory behind createMcpHandler, reached through a fetch-backed HTTP client transport. */

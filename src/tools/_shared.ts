@@ -33,9 +33,11 @@ export function composeEvalCode(template: string, payload: unknown): string {
 
 /**
  * The project's own view of a registered tool's descriptor: the name, the description and
- * the same `inputSchema` JSON the SDK publishes from `toSdkInputSchema` (descriptions below
- * the root stripped, FR-006). Used for boot-time checks and co-located tests; clients read
- * the descriptor from the SDK's `tools/list`.
+ * the `inputSchema` JSON emitted from `toSdkInputSchema` at the SDK's target (descriptions
+ * below the root stripped, FR-006). `registerTool` refuses a schema without an object root,
+ * so the SDK publishes these bytes unchanged (`_register.test.ts` pins descriptor ===
+ * published through a real client). Used for boot-time checks and co-located tests;
+ * clients read the descriptor from the SDK's `tools/list`.
  */
 export interface ToolDescriptor {
   name: string;

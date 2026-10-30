@@ -2,7 +2,6 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { describe, expect, it } from "vitest";
 
-import { createServer } from "../server.js";
 import { canonicalJSON, fingerprintLiveRegistry, sha256 } from "./_register-baseline.js";
 
 describe("canonicalJSON", () => {
@@ -58,15 +57,13 @@ describe("fingerprintLiveRegistry", () => {
   });
 
   it("fingerprints exactly what a client receives from the injected server (happy — published surface)", async () => {
-    const fakeCreateServer = (() => ({
-      buildMcpServer: () => {
-        const server = new McpServer({ name: "fake", version: "0.0.0" }, { capabilities: { tools: { listChanged: false } } });
-        server.registerTool("only_tool", { description: "desc" }, () => ({ content: [] }));
-        return server;
-      },
-    })) as unknown as typeof createServer;
+    const buildMcpServer = () => {
+      const server = new McpServer({ name: "fake", version: "0.0.0" }, { capabilities: { tools: { listChanged: false } } });
+      server.registerTool("only_tool", { description: "desc" }, () => ({ content: [] }));
+      return server;
+    };
 
-    const entries = await fingerprintLiveRegistry({ createServer: fakeCreateServer });
+    const entries = await fingerprintLiveRegistry({ buildMcpServer });
     expect(entries).toEqual([
       {
         name: "only_tool",
@@ -77,10 +74,8 @@ describe("fingerprintLiveRegistry", () => {
   });
 
   it("yields no entries when the injected server declares no tools capability (boundary — empty published surface)", async () => {
-    const fakeCreateServer = (() => ({
-      buildMcpServer: () => new McpServer({ name: "fake", version: "0.0.0" }),
-    })) as unknown as typeof createServer;
+    const buildMcpServer = () => new McpServer({ name: "fake", version: "0.0.0" });
 
-    await expect(fingerprintLiveRegistry({ createServer: fakeCreateServer })).resolves.toEqual([]);
+    await expect(fingerprintLiveRegistry({ buildMcpServer })).resolves.toEqual([]);
   });
 });
