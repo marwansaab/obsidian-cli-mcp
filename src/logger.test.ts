@@ -191,6 +191,21 @@ test.each([
   });
 });
 
+test("logger commitCancelled emits find_and_replace.commit_cancelled with the committed and skipped notes (068 R11)", () => {
+  const cap = captureStream();
+  const logger = createLogger({ stream: cap.stream });
+  logger.commitCancelled({ vault: null, committed: ["a.md"], skipped: ["b.md", "c.md"] });
+  const lines = cap.lines();
+  expect(lines.length).toBe(1);
+  expect(JSON.parse(lines[0]!)).toEqual({
+    event: "find_and_replace.commit_cancelled",
+    ts: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+    vault: null,
+    committed: ["a.md"],
+    skipped: ["b.md", "c.md"],
+  });
+});
+
 test("logger defaults to process.stderr when no stream injected (smoke)", () => {
   const logger = createLogger();
   expect(typeof logger.shutdown).toBe("function");
@@ -201,4 +216,5 @@ test("logger defaults to process.stderr when no stream injected (smoke)", () => 
   expect(typeof logger.dispatchRecovery).toBe("function");
   expect(typeof logger.pathEscapeAttempt).toBe("function");
   expect(typeof logger.metadataRefreshFailed).toBe("function");
+  expect(typeof logger.commitCancelled).toBe("function");
 });

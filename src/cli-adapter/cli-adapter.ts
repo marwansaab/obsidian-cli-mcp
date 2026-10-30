@@ -1,5 +1,14 @@
-// Original — no upstream. invokeCli typed-tool facade: top-level vault field (symmetric with invokeBoundedCli per Code-5 / 2026-05-08), target-mode locator strip on parameters, queue-wrapped routing through dispatchCli with fixed 10 s / 10 MiB bounds (ADR-007, FR-013), success-path stdout inspection re-classifying unknown-vault responses to CLI_REPORTED_ERROR (BI 011-write-note R5 / T002 — verbatim CLI wording captured at T0.4: "Vault not found." on stdout, exit 0).
-import { dispatchCli, killInFlightChildren, type DispatchInput, type LaunchFn, type ResolveBinaryFn, type SpawnLike } from "./_dispatch.js";
+// Original — no upstream. invokeCli typed-tool facade: top-level vault field (symmetric with invokeBoundedCli per Code-5 / 2026-05-08), target-mode locator strip on parameters, queue-wrapped routing through dispatchCli with fixed 10 s / 10 MiB bounds (ADR-007, FR-013), success-path stdout inspection re-classifying unknown-vault responses to CLI_REPORTED_ERROR (BI 011-write-note R5 / T002 — verbatim CLI wording captured at T0.4: "Vault not found." on stdout, exit 0). 068 R11: the per-call signal and progress reporter pass to the queue and to dispatchCli.
+import {
+  dispatchCli,
+  killInFlightChildren,
+  type CallScope,
+  type DispatchInput,
+  type LaunchFn,
+  type ReportProgress,
+  type ResolveBinaryFn,
+  type SpawnLike,
+} from "./_dispatch.js";
 import { UpstreamError } from "../errors.js";
 
 import type { Logger } from "../logger.js";
@@ -30,7 +39,7 @@ export interface InvokeCliSuccess {
   stderr: string;
 }
 
-export interface InvokeCliDeps {
+export interface InvokeCliDeps extends CallScope {
   spawnFn?: SpawnLike;
   env?: NodeJS.ProcessEnv;
   logger: Logger;
@@ -42,7 +51,7 @@ export interface InvokeCliDeps {
 }
 
 export { UpstreamError, killInFlightChildren };
-export type { LaunchFn, ResolveBinaryFn, SpawnLike };
+export type { CallScope, LaunchFn, ReportProgress, ResolveBinaryFn, SpawnLike };
 
 const TARGET_LOCATOR_KEYS = new Set(["vault", "file", "path"]);
 
@@ -75,6 +84,8 @@ export function invokeCli(input: InvokeCliInput, deps: InvokeCliDeps): Promise<I
     timeoutMs: TYPED_TOOL_TIMEOUT_MS,
     outputCapBytes: TYPED_TOOL_OUTPUT_CAP_BYTES,
   };
+  // 068 R11: the signal reaches both the queue (a cancelled queued call never starts) and the
+  // dispatch (a cancelled running call kills its child).
   return deps.queue.run(async () => {
     const out = await dispatchCli(dispatchInput, {
       spawnFn: deps.spawnFn,
@@ -82,6 +93,8 @@ export function invokeCli(input: InvokeCliInput, deps: InvokeCliDeps): Promise<I
       logger: deps.logger,
       resolveBinary: deps.resolveBinary,
       launchFn: deps.launchFn,
+      signal: deps.signal,
+      reportProgress: deps.reportProgress,
     });
     // R5 / T002: success-path stdout inspection. The CLI returns exit 0 with
     // stdout `Vault not found.` for unknown vault display names, so the
@@ -99,5 +112,5 @@ export function invokeCli(input: InvokeCliInput, deps: InvokeCliDeps): Promise<I
       });
     }
     return { stdout: out.stdout, stderr: out.stderr };
-  });
+  }, { signal: deps.signal });
 }

@@ -10,7 +10,7 @@ import {
   type QueryBaseRow,
   type QueryBaseWire,
 } from "./schema.js";
-import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
+import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError, stringDetail } from "../../errors.js";
 import {
   assertCanonicalPath,
@@ -42,7 +42,7 @@ export interface FocusedVaultResponse {
   base: string;
 }
 
-export interface ExecuteDeps {
+export interface ExecuteDeps extends CallScope {
   logger: Logger;
   queue: Queue;
   vaultRegistry: VaultRegistry;
@@ -66,6 +66,8 @@ async function defaultInvokeEval(deps: ExecuteDeps): Promise<FocusedVaultRespons
       env: deps.env,
       logger: deps.logger,
       queue: deps.queue,
+      signal: deps.signal,
+      reportProgress: deps.reportProgress,
     },
   );
   // Shared double-decode + shape-check; query_base collapses both failure stages
@@ -388,6 +390,8 @@ export async function executeQueryBase(
         env: deps.env,
         logger: deps.logger,
         queue: deps.queue,
+        signal: deps.signal,
+        reportProgress: deps.reportProgress,
       },
     );
   } catch (err) {
@@ -440,6 +444,8 @@ export async function executeQueryBase(
         queue: deps.queue,
         spawnFn: deps.spawnFn,
         env: deps.env,
+        signal: deps.signal,
+        reportProgress: deps.reportProgress,
       },
     });
     if (isRegistered) {

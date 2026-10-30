@@ -21,7 +21,7 @@ export async function connectInMemoryClient(
 }
 
 /** Connect a 2026-era `Client` named `clientName` to `app`'s factory behind `createMcpHandler`; the caller closes it. */
-export async function connectModernClient(app: CreatedServer, clientName: string): Promise<Client> {
+export async function connectModernClient(app: Pick<CreatedServer, "buildMcpServer">, clientName: string): Promise<Client> {
   const handler = createMcpHandler(() => app.buildMcpServer());
   const transport = new StreamableHTTPClientTransport(new URL("http://localhost/mcp"), {
     fetch: (url, init) => handler.fetch(new Request(url, init)),

@@ -1,4 +1,4 @@
-// Original — no upstream. Composition root (068 R10, ADR-039): createServer runs once per process, builds the logger, single-flight queue, vault registry, the tool list via the createTool factories and the server instructions (068 FR-025), and owns the lifecycle handlers; buildMcpServer is the cheap per-connection McpServer builder that serveStdio calls for each era (FR-001, FR-005, FR-017, FR-028, FR-029).
+// Original — no upstream. Composition root (068 R10, ADR-039): createServer runs once per process, builds the logger, single-flight queue, vault registry, the tool list via the createTool factories, the offered subset from the owner's access settings (068 FR-043–FR-046: read-only, allow and deny lists, unknown names refused at boot) and the server instructions from that subset (068 FR-025), and owns the lifecycle handlers; buildMcpServer is the cheap per-connection McpServer builder that serveStdio calls for each era (FR-001, FR-005, FR-017, FR-028, FR-029).
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -76,6 +76,62 @@ export interface ShutdownContext {
   env?: NodeJS.ProcessEnv;
 }
 
+/** The owner's access settings, read once at boot (068 data-model §1, contracts/configuration). */
+export interface AccessConfig {
+  /** `OBSIDIAN_MCP_ALLOW_EVAL`: lets `obsidian_exec` run the blocked commands. */
+  allowEval: boolean;
+  /** `OBSIDIAN_MCP_READ_ONLY`: offer only tools whose `readOnlyHint` is true. */
+  readOnly: boolean;
+  /** `OBSIDIAN_MCP_TOOLS`: offer only these; absent means every tool. */
+  allow?: readonly string[];
+  /** `OBSIDIAN_MCP_DISABLE`: never offer these. */
+  deny: readonly string[];
+}
+
+/** Split a comma-separated tool list; blank entries are dropped, and a blank list counts as unset. */
+function toolNameList(raw: string | undefined): string[] | undefined {
+  const names = (raw ?? "")
+    .split(",")
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0);
+  return names.length === 0 ? undefined : names;
+}
+
+export function parseAccessConfig(env: NodeJS.ProcessEnv): AccessConfig {
+  const allow = toolNameList(env.OBSIDIAN_MCP_TOOLS);
+  return {
+    allowEval: envFlagEnabled(env.OBSIDIAN_MCP_ALLOW_EVAL),
+    readOnly: envFlagEnabled(env.OBSIDIAN_MCP_READ_ONLY),
+    ...(allow !== undefined && { allow }),
+    deny: toolNameList(env.OBSIDIAN_MCP_DISABLE) ?? [],
+  };
+}
+
+/**
+ * The tools to offer (068 FR-043–FR-045): the allow list first, then the deny list (deny wins on
+ * overlap), then read-only on top (a write tool on the allow list is still dropped). An empty
+ * result is allowed. Every unknown name in either list is reported in one error, before serving.
+ */
+export function selectOfferedTools(tools: readonly RegisteredTool[], config: AccessConfig): RegisteredTool[] {
+  const known = new Set(tools.map((tool) => tool.descriptor.name));
+  const unknown = [
+    ...(config.allow ?? []).filter((name) => !known.has(name)).map((name) => `${name} (OBSIDIAN_MCP_TOOLS)`),
+    ...config.deny.filter((name) => !known.has(name)).map((name) => `${name} (OBSIDIAN_MCP_DISABLE)`),
+  ];
+  if (unknown.length > 0) {
+    throw new Error(
+      `Unknown tool name(s) in OBSIDIAN_MCP_TOOLS / OBSIDIAN_MCP_DISABLE: ${unknown.join(", ")}. Valid names: ${[...known].sort().join(", ")}`,
+    );
+  }
+  const allow = config.allow === undefined ? undefined : new Set(config.allow);
+  const deny = new Set(config.deny);
+  return tools.filter(({ descriptor }) => {
+    if (allow !== undefined && !allow.has(descriptor.name)) return false;
+    if (deny.has(descriptor.name)) return false;
+    return !config.readOnly || descriptor.annotations.readOnlyHint;
+  });
+}
+
 export interface CreatedServer {
   /**
    * Build one `McpServer` with every tool registered. Cheap: the logger, queue, registry
@@ -93,9 +149,9 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
   const logger = createLogger({ stream: ctx.loggerStream });
   const queue = createQueue();
   const exit = ctx.exit ?? ((code: number) => process.exit(code));
-  const env = ctx.env ?? process.env;
-  // 068 FR-012: the passthrough denylist opt-in, parsed once here and injected (no call-time env reads).
-  const allowEval = envFlagEnabled(env.OBSIDIAN_MCP_ALLOW_EVAL);
+  // 068 FR-012, FR-043–FR-046: the owner's access settings, parsed once here and injected (no
+  // call-time env reads).
+  const access = parseAccessConfig(ctx.env ?? process.env);
 
   const vaultRegistry = createVaultRegistry({
     invokeProbe: async () => {
@@ -121,7 +177,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     createHelpTool(),
     createLinksTool({ logger, queue }),
     createMoveTool({ logger, queue }),
-    createObsidianExecTool({ logger, queue, allowEval }),
+    createObsidianExecTool({ logger, queue, allowEval: access.allowEval }),
     createOpenFileTool({ logger, queue, vaultRegistry }),
     createOutlineTool({ logger, queue }),
     createPatchBlockTool({ logger, queue, vaultRegistry }),
@@ -150,9 +206,12 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
   // single error listing every missing file).
   assertToolDocsExist(tools, ctx.docsDir ?? DEFAULT_DOCS_DIR);
 
-  // 068 FR-025: built once from the tools actually registered, so every era and every
-  // connection receives the same text.
-  const instructions = buildInstructions(tools.map((tool) => tool.descriptor.name));
+  // 068 FR-043–FR-045: only the offered tools are registered; an unknown name stops the boot.
+  const offered = selectOfferedTools(tools, access);
+
+  // 068 FR-025, FR-026a: built once from the tools actually offered, so every era and every
+  // connection receives the same text, and it never names a tool that is not there.
+  const instructions = buildInstructions(offered.map((tool) => tool.descriptor.name));
 
   // An unknown tool name is the SDK's JSON-RPC -32602 (068 R2, FR-016); TOOL_NOT_FOUND is no
   // longer raised. `listChanged: false` is declared truthfully: the list never changes after boot.
@@ -161,7 +220,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
       { name: "obsidian-cli-mcp", version: PACKAGE_VERSION },
       { capabilities: { tools: { listChanged: false } }, instructions },
     );
-    for (const tool of tools) tool.register(server);
+    for (const tool of offered) tool.register(server);
     return server;
   }
 

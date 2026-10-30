@@ -6,7 +6,7 @@ import {
   type LinksInput,
   type LinksOutput,
 } from "./schema.js";
-import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
+import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import { decodeEvalEnvelope } from "../_active-file.js";
 import { composeEvalCode } from "../_shared.js";
@@ -14,7 +14,7 @@ import { composeEvalCode } from "../_shared.js";
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
 
-export interface ExecuteDeps {
+export interface ExecuteDeps extends CallScope {
   logger: Logger;
   queue: Queue;
   spawnFn?: SpawnLike;
@@ -40,7 +40,7 @@ export async function executeLinks(
       flags: [],
       target_mode: input.target_mode,
     },
-    { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
+    { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue, signal: deps.signal, reportProgress: deps.reportProgress },
   );
 
   const validated = decodeEvalEnvelope(result.stdout, linksEvalResponseSchema, {

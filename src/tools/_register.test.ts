@@ -12,6 +12,7 @@ import { fingerprintLiveRegistry, type RegisterBaseline } from "./_register-base
 import { registerTool, assertToolDocsExist, toSdkInputSchema } from "./_register.js";
 import { UpstreamError } from "../errors.js";
 import { createServer } from "../server.js";
+import { READ_ONLY_HINTS } from "./_shared.js";
 import {
   applyTargetModeRefinement,
   targetModeBaseSchema,
@@ -866,5 +867,67 @@ describe("registry: stability baseline (FR-018)", () => {
       found,
       `retired names should be absent from baseline: ${found.join(", ")}`,
     ).toEqual([]);
+  });
+});
+
+describe("registerTool — per-call context (068 R11, R12, T077/T085)", () => {
+  const baseSpec = {
+    name: "ctx_probe",
+    title: "Context probe",
+    description: "Reports what its call context carried.",
+    annotations: READ_ONLY_HINTS,
+    schema: z.strictObject({}),
+  };
+
+  it("the call's signal and progress reporter are merged into a fresh deps object; the registered deps stay untouched", async () => {
+    const registeredDeps = { label: "boot" };
+    let seen: Record<string, unknown> | undefined;
+    const tool = registerTool({
+      ...baseSpec,
+      deps: registeredDeps,
+      handler: async (_input, deps) => {
+        seen = deps as unknown as Record<string, unknown>;
+        return {};
+      },
+    });
+    const controller = new AbortController();
+    const reportProgress = vi.fn();
+    await tool.handler({}, { signal: controller.signal, reportProgress, canConfirm: () => false, confirm: () => undefined });
+    expect(seen).toEqual({ label: "boot", signal: controller.signal, reportProgress });
+    expect(registeredDeps).toEqual({ label: "boot" });
+  });
+
+  it("a tool without deps still gets undefined deps, and a direct call gets the non-interactive context", async () => {
+    let seenDeps: unknown = "unset";
+    let canConfirm: boolean | undefined;
+    const tool = registerTool({
+      ...baseSpec,
+      handler: async (_input, deps, call) => {
+        seenDeps = deps;
+        canConfirm = call.canConfirm();
+        return {};
+      },
+    });
+    await tool.handler({});
+    expect(seenDeps).toBeUndefined();
+    expect(canConfirm).toBe(false);
+  });
+
+  it("an McpServer request hands the handler the request's AbortSignal", async () => {
+    let signal: AbortSignal | undefined;
+    const tool = registerTool({
+      ...baseSpec,
+      handler: async (_input, _deps, call) => {
+        signal = call.signal;
+        return {};
+      },
+    });
+    const client = await serveOne(tool, "ctx-probe");
+    try {
+      await client.callTool({ name: "ctx_probe", arguments: {} });
+      expect(signal).toBeInstanceOf(AbortSignal);
+    } finally {
+      await client.close();
+    }
   });
 });

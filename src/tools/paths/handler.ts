@@ -1,7 +1,7 @@
 // Original — no upstream. paths handler — single invokeCli wrapper around the eval subcommand with the frozen JS template + base64 JSON payload (anti-injection); single-call architecture branched at envelope-emission on `payload.total` (in-template); stage-0 closed-but-registered-vault detection via the shared `_eval-vault-closed-detection` module; stage-1 extraction uses the trimStart+startsWith pattern; stages 2-5 multi-stage parse (JSON.parse → envelope safeParse → discriminate on ok → output validation) with structured CLI_REPORTED_ERROR propagation; surfaces two details.code values (FOLDER_NOT_FOUND, NOT_A_FOLDER) under existing CLI_REPORTED_ERROR top-level code per the established sub-discriminator pattern.
 import { JS_TEMPLATE } from "./_template.js";
 import { pathsEvalEnvelopeSchema, pathsOutputSchema, type PathsInput, type PathsOutput } from "./schema.js";
-import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
+import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import { detectIfClosed } from "../_eval-vault-closed-detection/index.js";
 import { composeEvalCode } from "../_shared.js";
@@ -9,7 +9,7 @@ import { composeEvalCode } from "../_shared.js";
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
 
-export interface ExecuteDeps {
+export interface ExecuteDeps extends CallScope {
   logger: Logger;
   queue: Queue;
   spawnFn?: SpawnLike;
@@ -37,7 +37,7 @@ export async function executePaths(
       flags: [],
       target_mode: input.target_mode,
     },
-    { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
+    { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue, signal: deps.signal, reportProgress: deps.reportProgress },
   );
 
   // === Stage 3 — closed-but-registered-vault detection (shared module) ===

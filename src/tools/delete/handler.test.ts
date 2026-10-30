@@ -1,11 +1,11 @@
-// Original — no upstream. Tests for the delete handler — argv assembly (no rename), response parsing, structural toTrash, audit invariant, UpstreamError propagation.
-import { afterEach, beforeEach, expect, test } from "vitest";
+// Original — no upstream. Tests for the delete handler — argv assembly (no rename), response parsing, structural toTrash, audit invariant, UpstreamError propagation, permanent-delete confirmation (068 R12).
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import { executeDeleteNote } from "./handler.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { makeStubSpawn, silentLogger, captureRejection } from "../_handler-test-fixtures.js";
+import { answeredCall, makeStubSpawn, silentLogger, captureRejection } from "../_handler-test-fixtures.js";
 
 import type { DeleteNoteInput } from "./schema.js";
 
@@ -56,6 +56,7 @@ test("specific+permanent=true returns toTrash:false and emits 'permanent' flag (
   const result = await executeDeleteNote(
     { target_mode: "specific", vault: "V", path: "Old.md", permanent: true },
     { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    answeredCall(),
   );
   expect(result).toEqual({ deleted: true, path: "Old.md", toTrash: false });
   expect(recorded[0]!.argv[recorded[0]!.argv.length - 1]).toBe("permanent");
@@ -101,6 +102,7 @@ test("active mode + permanent emits ['delete','permanent'] and returns toTrash:f
   const result = await executeDeleteNote(
     { target_mode: "active", permanent: true },
     { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    answeredCall(),
   );
   expect(result).toEqual({
     deleted: true,
@@ -211,12 +213,76 @@ test.each<[string, DeleteNoteInput, boolean]>([
     ? "Moved to trash: P.md\n"
     : "Deleted permanently: P.md\n";
   const { spawnFn } = makeStubSpawn({ stdout, exitCode: 0 });
-  const result = await executeDeleteNote(input, {
+  const result = await executeDeleteNote(
+    input,
+    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    answeredCall(),
+  );
+  expect(result.toTrash).toBe(expectedToTrash);
+  expect(result.toTrash).toBe(!input.permanent);
+});
+
+// 068 R12 / FR-047–FR-050 (T079): permanent delete needs the human's confirmation, before any spawn.
+describe("permanent delete confirmation (068 R12, T079)", () => {
+  const input: DeleteNoteInput = { target_mode: "specific", vault: "V", path: "Old.md", permanent: true };
+  const deps = (spawnFn: ReturnType<typeof makeStubSpawn>["spawnFn"]) => ({
     logger: silentLogger(),
     queue: createQueue(),
     spawnFn,
     env: {},
   });
-  expect(result.toTrash).toBe(expectedToTrash);
-  expect(result.toTrash).toBe(!input.permanent);
+
+  test("confirmed → argv carries `permanent`; the question names the vault and the note", async () => {
+    const { spawnFn, recorded } = makeStubSpawn({ stdout: "Deleted permanently: Old.md\n", exitCode: 0 });
+    const asked: string[] = [];
+    const confirmed = answeredCall();
+    await executeDeleteNote(input, deps(spawnFn), {
+      ...confirmed,
+      confirm: (message) => {
+        asked.push(message);
+        confirmed.confirm(message);
+      },
+    });
+    expect(recorded[0]!.argv).toContain("permanent");
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toContain('"Old.md"');
+    expect(asked[0]).toContain('"V"');
+  });
+
+  test.each([
+    ["decline", { action: "decline" as const }],
+    ["cancel", { action: "cancel" as const }],
+    ["accept with confirm:false", { action: "accept" as const, content: { confirm: false } }],
+  ])("%s → CONFIRMATION_DECLINED and nothing is spawned", async (_label, answer) => {
+    const { spawnFn, recorded } = makeStubSpawn({ stdout: "Deleted permanently: Old.md\n", exitCode: 0 });
+    const err = (await captureRejection(executeDeleteNote(input, deps(spawnFn), answeredCall(answer)))) as UpstreamError;
+    expect(err.code).toBe("VALIDATION_ERROR");
+    expect(err.details).toEqual({ code: "CONFIRMATION_DECLINED", action: answer.action });
+    expect(err.message).toBe("test_tool: confirmation was declined; nothing was changed.");
+    expect(recorded).toHaveLength(0);
+  });
+
+  test("a client that cannot confirm → CONFIRMATION_UNAVAILABLE naming the trash route, nothing spawned", async () => {
+    const { spawnFn, recorded } = makeStubSpawn({ stdout: "Deleted permanently: Old.md\n", exitCode: 0 });
+    const err = (await captureRejection(executeDeleteNote(input, deps(spawnFn)))) as UpstreamError;
+    expect(err.code).toBe("VALIDATION_ERROR");
+    expect(err.details).toEqual({ code: "CONFIRMATION_UNAVAILABLE" });
+    expect(err.message).toContain("Delete to the trash instead (omit `permanent`)");
+    expect(recorded).toHaveLength(0);
+  });
+
+  test("permanent absent → no confirmation is asked (FR-050)", async () => {
+    const { spawnFn, recorded } = makeStubSpawn({ stdout: "Moved to trash: Old.md\n", exitCode: 0 });
+    const neverAsk = {
+      canConfirm: () => {
+        throw new Error("canConfirm must not be called for a trash delete");
+      },
+      confirm: () => {
+        throw new Error("confirm must not be called for a trash delete");
+      },
+    };
+    const result = await executeDeleteNote({ ...input, permanent: false }, deps(spawnFn), neverAsk);
+    expect(result.toTrash).toBe(true);
+    expect(recorded).toHaveLength(1);
+  });
 });

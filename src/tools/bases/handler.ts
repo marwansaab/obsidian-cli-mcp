@@ -2,12 +2,12 @@
 // the membership filter keeps only clean-exit stdout lines ending in `.base`
 // (case-insensitive), so an empty vault's informational line yields { bases: [], count: 0 }.
 import { basesOutputSchema, type BasesInput, type BasesOutput } from "./schema.js";
-import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
+import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
 
-export interface ExecuteDeps {
+export interface ExecuteDeps extends CallScope {
   logger: Logger;
   queue: Queue;
   spawnFn?: SpawnLike;
@@ -30,6 +30,8 @@ export async function executeBases(
       env: deps.env,
       logger: deps.logger,
       queue: deps.queue,
+      signal: deps.signal,
+      reportProgress: deps.reportProgress,
     },
   );
 

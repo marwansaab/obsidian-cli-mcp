@@ -19,6 +19,10 @@ import { Readable, Writable } from "node:stream";
 
 import { type SpawnLike } from "../cli-adapter/_dispatch.js";
 import { createLogger, type Logger } from "../logger.js";
+import { confirmFromResponse } from "./_confirm.js";
+
+import type { ToolCall } from "./_shared.js";
+import type { ServerContext } from "@modelcontextprotocol/server";
 
 /** A single queued spawn response for {@link makeQueuedSpawn}. */
 export interface StubResponse {
@@ -177,4 +181,22 @@ export async function captureRejection(promise: Promise<unknown>): Promise<unkno
   } catch (e) {
     return e;
   }
+}
+
+/**
+ * A `ToolCall` whose client can confirm and whose human gave `answer` (068 R12): it runs the real
+ * `confirmFromResponse` against a request carrying that answer. Omit `answer` for "already
+ * accepted with confirm: true". No signal, no progress.
+ */
+export function answeredCall(
+  answer: { action: "accept" | "decline" | "cancel"; content?: Record<string, unknown> } = {
+    action: "accept",
+    content: { confirm: true },
+  },
+): ToolCall {
+  const ctx = { mcpReq: { inputResponses: { confirm: answer } } } as unknown as ServerContext;
+  return {
+    canConfirm: () => true,
+    confirm: (message) => confirmFromResponse(ctx, "test_tool", message),
+  };
 }

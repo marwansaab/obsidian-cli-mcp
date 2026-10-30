@@ -1,7 +1,7 @@
 // Original — no upstream. prepend handler per BI-045 — CLI-wrap of upstream `obsidian prepend` (cohort divergence from BI-044's fs-direct; rationale in research.md R1). Specific-mode vault-registry resolve (+ pre-flight `obsidian file` TSV resolver for wikilink-form `file`) OR active-mode focused-file eval → Layer 2 canonical path check → stat (pre) → invokeCli prepend with optional `inline` flag → stat (post) → bytes_written delta → typed output envelope. NOTE_NOT_FOUND (FR-016) + EXTERNAL_EDITOR_CONFLICT (FR-022) re-classification on upstream stdout/stderr inspection. No fs read/write/rename — upstream owns the byte-level write; the wrapper only stats for the byte-count delta + realpath for Layer 2.
 import * as nodeFs from "node:fs/promises";
 
-import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
+import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError, stringDetail } from "../../errors.js";
 import {
   assertCanonicalPath,
@@ -20,7 +20,7 @@ export interface ExecuteFs {
   stat: (p: string) => Promise<{ size: number }>;
 }
 
-export interface ExecuteDeps {
+export interface ExecuteDeps extends CallScope {
   logger: Logger;
   queue: Queue;
   vaultRegistry: VaultRegistry;
@@ -183,7 +183,7 @@ export async function executePrepend(
         flags: input.inline ? ["inline"] : [],
         target_mode: "specific",
       },
-      { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
+      { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue, signal: deps.signal, reportProgress: deps.reportProgress },
     );
   } catch (err) {
     classifyUpstreamFailure(err, relPath, vaultDisplayName);

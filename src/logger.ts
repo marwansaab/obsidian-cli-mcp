@@ -1,4 +1,4 @@
-// Original — no upstream. JSON-lines stderr logger for failure-lifecycle dispatch events and shutdown (FR-018a, data-model §9).
+// Original — no upstream. JSON-lines stderr logger for failure-lifecycle dispatch events and shutdown (FR-018a, data-model §9). 068 adds metadataRefreshFailed (A1) and commitCancelled (R11: the partial outcome of a cancelled multi-note find_and_replace commit).
 import type { Writable } from "node:stream";
 
 export type ErrorCode =
@@ -78,6 +78,16 @@ export interface MetadataRefreshFailedEvent {
   detail: string;
 }
 
+/** A cancelled multi-note `find_and_replace` commit (068 R11, spec Clarifications Q1): what was written, what was not. */
+export interface CommitCancelledEvent {
+  /** Vault display name; null when the commit targeted the focused vault. */
+  vault: string | null;
+  /** Vault-relative paths written before the cancel landed, in commit order. */
+  committed: string[];
+  /** Vault-relative paths left unchanged. */
+  skipped: string[];
+}
+
 export interface Logger {
   shutdown(event: ShutdownEvent): void;
   dispatchTimeout(event: DispatchTimeoutEvent): void;
@@ -87,6 +97,7 @@ export interface Logger {
   dispatchRecovery(event: DispatchRecoveryEvent): void;
   pathEscapeAttempt(event: PathEscapeAttemptEvent): void;
   metadataRefreshFailed(event: MetadataRefreshFailedEvent): void;
+  commitCancelled(event: CommitCancelledEvent): void;
 }
 
 export interface LoggerOptions {
@@ -180,6 +191,15 @@ export function createLogger(options: LoggerOptions = {}): Logger {
         relPath: event.relPath,
         reason: event.reason,
         detail: event.detail,
+      });
+    },
+    commitCancelled(event: CommitCancelledEvent): void {
+      emit({
+        event: "find_and_replace.commit_cancelled",
+        ts: new Date().toISOString(),
+        vault: event.vault,
+        committed: event.committed,
+        skipped: event.skipped,
       });
     },
   };

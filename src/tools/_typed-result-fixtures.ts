@@ -159,7 +159,9 @@ export const TYPED_RESULT_FIXTURES: readonly TypedResultFixture[] = [
   {
     name: "find_and_replace",
     build: findReplaceTool,
-    args: { vault: "V", pattern: "alpha", replacement: "gamma", commit: true },
+    // A single-note commit: a multi-note one asks for confirmation first (068 R12), which this
+    // client cannot give; the commit result has the same shape either way.
+    args: { vault: "V", path: "Notes/a.md", pattern: "alpha", replacement: "gamma", commit: true },
   },
   {
     name: "find_by_property",

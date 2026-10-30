@@ -108,6 +108,37 @@ To lift the block, set `OBSIDIAN_MCP_ALLOW_EVAL` to `1`, `true`, `yes` or `on` (
 }
 ```
 
+### Limit which tools are offered
+
+Three settings narrow the tools the server offers. All three are read once at start-up; a change takes effect the next time the server starts.
+
+- `OBSIDIAN_MCP_READ_ONLY`: set to `1`, `true`, `yes` or `on` (case-insensitive) to offer only the tools that never change your vault (the 22 read-only tools, such as `read`, `search` and `vaults`).
+- `OBSIDIAN_MCP_TOOLS`: a comma-separated list of tool names. Only these are offered.
+- `OBSIDIAN_MCP_DISABLE`: a comma-separated list of tool names that are never offered.
+
+They apply in this order: the `OBSIDIAN_MCP_TOOLS` list first, then `OBSIDIAN_MCP_DISABLE` (a name in both lists is not offered), then `OBSIDIAN_MCP_READ_ONLY` (a write tool is dropped even if `OBSIDIAN_MCP_TOOLS` names it). Spaces around names and empty entries are ignored. If nothing is left, the server still starts and offers no tools. The server's opening instructions to the model mention only the tools it offers.
+
+If either list names a tool that does not exist, the server does not start. It writes one error to stderr that names every unknown entry and lists the valid names, for example `Unknown tool name(s) in OBSIDIAN_MCP_TOOLS / OBSIDIAN_MCP_DISABLE: nope (OBSIDIAN_MCP_TOOLS), zap (OBSIDIAN_MCP_DISABLE). Valid names: append_note, backlinks, …`.
+
+```json
+{
+  "mcpServers": {
+    "obsidian-cli": {
+      "command": "npx",
+      "args": ["-y", "@marwansaab/obsidian-cli-mcp"],
+      "env": {
+        "OBSIDIAN_MCP_READ_ONLY": "1",
+        "OBSIDIAN_MCP_DISABLE": "smart_connections_query,smart_connections_similar"
+      }
+    }
+  }
+}
+```
+
+### Confirmation before irreversible changes
+
+Two actions cannot be undone, so the server asks you to confirm them first, through your MCP client: `delete` with `permanent: true`, and a `find_and_replace` commit that is not limited to one note (no `file`, `path` or `active_note`; a `subfolder` commit still asks). The prompt names the vault and the note, or the scope and the number of notes. If you decline, nothing is changed and the call returns `VALIDATION_ERROR` with `details.code: "CONFIRMATION_DECLINED"`. If your client cannot show such a prompt, the call is refused before anything runs, with `details.code: "CONFIRMATION_UNAVAILABLE"`; delete to the trash instead (omit `permanent`), or commit one note at a time.
+
 ## Multi-vault support
 
 The Obsidian Integrated CLI can address any vault registered in Obsidian, and this server exposes that directly. You do **not** need to manually switch Obsidian to the vault you want to act on — every tool that accepts a `vault` argument routes to that vault by display name, whether it is the focused vault, an open-but-unfocused vault in another window, or a registered vault that is currently closed.

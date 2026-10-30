@@ -7,7 +7,7 @@ import {
   type PatternSearchMatch,
   type PatternSearchOutput,
 } from "./schema.js";
-import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
+import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import { detectIfClosed } from "../_eval-vault-closed-detection/index.js";
 import { composeEvalCode } from "../_shared.js";
@@ -18,7 +18,7 @@ import type { Queue } from "../../queue.js";
 
 const DEFAULT_CAP = 1000;
 
-export interface ExecuteDeps {
+export interface ExecuteDeps extends CallScope {
   logger: Logger;
   queue: Queue;
   spawnFn?: SpawnLike;
@@ -55,7 +55,7 @@ export async function executePatternSearch(
       flags: [],
       target_mode: "specific",
     },
-    { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
+    { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue, signal: deps.signal, reportProgress: deps.reportProgress },
   );
 
   // === Stage 4 — strip eval prefix ===

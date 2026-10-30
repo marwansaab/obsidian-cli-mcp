@@ -20,7 +20,7 @@ import {
   type ContextSearchMatch,
   type ContextSearchOutput,
 } from "./schema.js";
-import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
+import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import { stripBoundarySlashes } from "../search/handler.js";
 import { searchContextWireSchema } from "../search/schema.js";
@@ -28,7 +28,7 @@ import { searchContextWireSchema } from "../search/schema.js";
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
 
-export interface ExecuteDeps {
+export interface ExecuteDeps extends CallScope {
   logger: Logger;
   queue: Queue;
   spawnFn?: SpawnLike;
@@ -83,6 +83,8 @@ export async function executeContextSearch(
       env: deps.env,
       logger: deps.logger,
       queue: deps.queue,
+      signal: deps.signal,
+      reportProgress: deps.reportProgress,
     },
   );
 
@@ -105,6 +107,8 @@ export async function executeContextSearch(
           env: deps.env,
           logger: deps.logger,
           queue: deps.queue,
+          signal: deps.signal,
+          reportProgress: deps.reportProgress,
         },
       );
     }

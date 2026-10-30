@@ -1,14 +1,14 @@
 // Original — no upstream. find_by_property handler: single invokeCli wrapper around the eval subcommand with a frozen JS template + base64 payload (R6 anti-injection); two-stage response parse (=> prefix strip + JSON.parse + output schema validate); R4 target_mode mapping (vault undefined → active, vault set → specific); count/paths invariant defensive check. BI-034 (spec branch 034-fix-unicode-lookups): JS_TEMPLATE extracted to sibling `_template.ts` so the cohort layout matches `read_heading/_template.ts` etc.; payload compose uses the shared `composeEvalCode` helper.
 import { JS_TEMPLATE } from "./_template.js";
 import { findByPropertyOutputSchema, type FindByPropertyInput, type FindByPropertyOutput } from "./schema.js";
-import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
+import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import { composeEvalCode } from "../_shared.js";
 
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
 
-export interface ExecuteDeps {
+export interface ExecuteDeps extends CallScope {
   logger: Logger;
   queue: Queue;
   spawnFn?: SpawnLike;
@@ -36,7 +36,7 @@ export async function executeFindByProperty(
       flags: [],
       target_mode,
     },
-    { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
+    { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue, signal: deps.signal, reportProgress: deps.reportProgress },
   );
 
   let stdout = result.stdout.trimStart();

@@ -1,4 +1,4 @@
-// Original — no upstream. find_and_replace handler per ADR-009 / US1+US2+US3+US4 — direct-fs scan + write; vault resolution via injected registry OR one bug-safe FOCUSED_VAULT_TEMPLATE eval round-trip when input.vault is absent (parity with write_note's FOCUSED_FILE_TEMPLATE); two-layer path safety on vault root + per-note locator; region-aware line-scoped scan with fence + html-comment skip by default; preview returns deterministic per-occurrence envelope; commit re-scans (drift compare), re-checks the OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES bound, and performs per-note temp+rename writes serialized through the injected Queue; FS read failures surface as FS_WRITE_FAILED + details.reason:"read" with no partial flag; write failures surface as FS_WRITE_FAILED + details.reason:"write" with the partial-commit envelope inlined in details.
+// Original — no upstream. find_and_replace handler per ADR-009 / US1+US2+US3+US4 — direct-fs scan + write; vault resolution via injected registry OR one bug-safe FOCUSED_VAULT_TEMPLATE eval round-trip when input.vault is absent (parity with write_note's FOCUSED_FILE_TEMPLATE); two-layer path safety on vault root + per-note locator; region-aware line-scoped scan with fence + html-comment skip by default; preview returns deterministic per-occurrence envelope; commit re-scans (drift compare), re-checks the OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES bound, and performs per-note temp+rename writes serialized through the injected Queue; FS read failures surface as FS_WRITE_FAILED + details.reason:"read" with no partial flag; write failures surface as FS_WRITE_FAILED + details.reason:"write" with the partial-commit envelope inlined in details. 068 R11/R12: a commit with no single-note scope is confirmed by the human — capability checked before vault resolution (CONFIRMATION_UNAVAILABLE, nothing spawned), question asked after the re-scan and before the first write (CONFIRMATION_DECLINED); a cancel stops the commit between notes and logs commitCancelled; each written note reports progress.
 import { randomUUID as nodeRandomUUID } from "node:crypto";
 import * as nodeFs from "node:fs/promises";
 import { relative, resolve, sep } from "node:path";
@@ -14,7 +14,7 @@ import {
   type FindAndReplaceOccurrence,
   type FindAndReplaceOutput,
 } from "./schema.js";
-import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
+import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import {
   assertCanonicalPath,
@@ -25,11 +25,13 @@ import {
   resolveVaultDisplayName,
   resolveVaultRootOrRemap,
 } from "../_active-file.js";
+import { confirmationUnavailable, NON_INTERACTIVE_CALL } from "../_confirm.js";
 import { invalidateMetadataCache, writeAtomic } from "../_note-io.js";
 
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
 import type { VaultRegistry } from "../../vault-registry/registry.js";
+import type { ToolCall } from "../_shared.js";
 import type { Dirent } from "node:fs";
 
 export interface ExecuteFs {
@@ -48,7 +50,7 @@ export interface FocusedVaultResponse {
   base: string;
 }
 
-export interface ExecuteDeps {
+export interface ExecuteDeps extends CallScope {
   logger: Logger;
   queue: Queue;
   vaultRegistry: VaultRegistry;
@@ -193,6 +195,8 @@ async function defaultInvokeEval(deps: ExecuteDeps): Promise<FocusedVaultRespons
       env: deps.env,
       logger: deps.logger,
       queue: deps.queue,
+      signal: deps.signal,
+      reportProgress: deps.reportProgress,
     },
   );
   // Shared double-decode + shape-check; find_and_replace keeps the json-parse /
@@ -559,13 +563,32 @@ async function resolveScope(
   };
 }
 
+const MULTI_NOTE_UNAVAILABLE_MESSAGE =
+  "find_and_replace: this client cannot ask you to confirm a multi-note replace. Nothing was changed. Commit one note at a time with `file` or `path`.";
+
+/** The confirmation question for a multi-note commit: the action, the vault and the scope with its note count. */
+function multiNoteCommitQuestion(input: FindAndReplaceInput, noteCount: number, occurrences: number): string {
+  const vault = input.vault !== undefined ? `vault "${input.vault}"` : "the focused vault";
+  const scope =
+    input.subfolder !== undefined && input.subfolder.length > 0 ? `under "${input.subfolder}" in ${vault}` : `across ${vault}`;
+  return `Replace ${occurrences} occurrence(s) of "${input.pattern}" in ${noteCount} note(s) ${scope}? The notes are rewritten in place.`;
+}
+
 export async function executeFindAndReplace(
   input: FindAndReplaceInput,
   deps: ExecuteDeps,
+  call: ToolCall = NON_INTERACTIVE_CALL,
 ): Promise<FindAndReplaceOutput> {
   const fs = deps.fs ?? DEFAULT_FS;
   const randomUUIDFn = deps.randomUUID ?? nodeRandomUUID;
   const vaultLabel = input.vault ?? null;
+
+  // 068 R12 / FR-048 step 1: a commit with no single-note scope (a subfolder still counts as
+  // multi-note) is confirmed by the human. Checked here, before vault resolution — which spawns
+  // Obsidian — so a client that cannot ask gets the refusal with nothing spawned or written.
+  const needsConfirmation =
+    input.commit === true && input.file === undefined && input.path === undefined && input.active_note !== true;
+  if (needsConfirmation && !call.canConfirm()) throw confirmationUnavailable(MULTI_NOTE_UNAVAILABLE_MESSAGE);
 
   // === Stages 1–3 — scope resolution (single-note OR subfolder / vault-wide) ===
   const { vaultRoot, listNotes } = await resolveScope(input, deps, fs, vaultLabel);
@@ -633,9 +656,24 @@ export async function executeFindAndReplace(
 
   // === Stage 7 — per-note writes through the queue ===
   const orderedRelPaths = [...secondScan.counts.perNote.keys()].sort();
+
+  // 068 R12 step 2: ask only now, after the re-scan, so the question carries the scope and note
+  // count; nothing has been written yet. A commit with nothing to write changes nothing and asks
+  // nothing. On re-entry with the answer, everything above runs again (read-only) and the drift
+  // check still guards the writes.
+  if (needsConfirmation && orderedRelPaths.length > 0) {
+    call.confirm(multiNoteCommitQuestion(input, orderedRelPaths.length, secondScan.counts.totalOccurrences));
+  }
+
   const changedNotes: string[] = [];
   let occurrencesReplaced = 0;
-  for (const rel of orderedRelPaths) {
+  for (const [index, rel] of orderedRelPaths.entries()) {
+    // 068 R11 / FR-052: a cancel stops the commit between notes (no rollback, spec Q1). The
+    // cancelled request gets no response, so the partial outcome goes to stderr.
+    if (deps.signal?.aborted) {
+      deps.logger.commitCancelled({ vault: vaultLabel, committed: changedNotes, skipped: orderedRelPaths.slice(index) });
+      throw deps.signal.reason;
+    }
     const absPath = await assertCanonicalPath(vaultRoot, rel.split("/").join(sep), {
       realpath: fs.realpath,
       logger: deps.logger,
@@ -662,6 +700,7 @@ export async function executeFindAndReplace(
     // queued write resolves, never inside the queue.run callback: the refresh goes through
     // invokeCli and therefore the same single-flight queue, so nesting it would deadlock.
     await invalidateMetadataCache(deps, { vault: input.vault, relPath: rel });
+    deps.reportProgress?.(changedNotes.length, orderedRelPaths.length, rel);
   }
 
   return {

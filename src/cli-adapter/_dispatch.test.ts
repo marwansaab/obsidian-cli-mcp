@@ -18,6 +18,7 @@ import {
   isAppNotRunning,
   isColdStart,
   killInFlightChildren,
+  LAUNCH_MAX_POLLS,
   LAUNCH_POLL_INTERVAL_MS,
   OBSIDIAN_LAUNCH_READINESS_TIMEOUT_MS,
   SIGKILL_GRACE_MS,
@@ -1509,5 +1510,165 @@ describe("BI-060 no-overhead / no-false-fire — strictly reactive recovery (T01
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 068 R11 (T083, T087): cancellation kills the running child; the auto-launch readiness poll
+// reports progress only when a reporter is given.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A held child that ignores SIGTERM and exits only on SIGKILL, recording every kill signal. */
+function makeStubbornSpawn(): { spawnFn: SpawnLike; kills: NodeJS.Signals[]; spawned: () => number } {
+  const kills: NodeJS.Signals[] = [];
+  let spawned = 0;
+  const spawnFn: SpawnLike = () => {
+    spawned += 1;
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: Readable;
+      stderr: Readable;
+      kill: (signal?: NodeJS.Signals) => boolean;
+      pid?: number;
+    };
+    child.stdout = new Readable({ read() {} });
+    child.stderr = new Readable({ read() {} });
+    child.pid = 5151;
+    child.kill = (signal?: NodeJS.Signals) => {
+      const sig = signal ?? "SIGTERM";
+      kills.push(sig);
+      if (sig === "SIGKILL") setImmediate(() => child.emit("exit", null, "SIGKILL"));
+      return true;
+    };
+    return child as unknown as ReturnType<SpawnLike>;
+  };
+  return { spawnFn, kills, spawned: () => spawned };
+}
+
+describe("dispatchCli — cancellation (068 R11, T083)", () => {
+  it("an abort while the child runs sends SIGTERM, then SIGKILL after the grace period, and the call settles with the abort reason", async () => {
+    vi.useFakeTimers();
+    try {
+      const cap = captureLines();
+      const { spawnFn, kills } = makeStubbornSpawn();
+      const controller = new AbortController();
+      const settled = dispatchCli(baseInput({ command: "read" }), {
+        spawnFn,
+        env: {},
+        logger: cap.logger,
+        resolveBinary: stubResolveBinary,
+        signal: controller.signal,
+      }).then(
+        () => "resolved",
+        (e: unknown) => e,
+      );
+      await vi.advanceTimersByTimeAsync(0);
+      const reason = new Error("cancelled by client");
+      controller.abort(reason);
+      expect(kills).toEqual(["SIGTERM"]);
+      await vi.advanceTimersByTimeAsync(SIGKILL_GRACE_MS + 1);
+      expect(kills).toEqual(["SIGTERM", "SIGKILL"]);
+      expect(await settled).toBe(reason);
+      // No timeout / cap classification and no log line: a cancelled request has no response.
+      expect(cap.lines()).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("an already-aborted signal starts no process", async () => {
+    const cap = captureLines();
+    const { spawnFn, spawned } = makeStubbornSpawn();
+    const controller = new AbortController();
+    controller.abort("gone");
+    await expect(
+      dispatchCli(baseInput(), { spawnFn, env: {}, logger: cap.logger, resolveBinary: stubResolveBinary, signal: controller.signal }),
+    ).rejects.toBe("gone");
+    expect(spawned()).toBe(0);
+  });
+
+  it("the abort listener is removed once the call settles normally", async () => {
+    const cap = captureLines();
+    const { spawnFn } = makeStubSpawn({ stdout: "ok\n", exitCode: 0 });
+    const controller = new AbortController();
+    const remove = vi.spyOn(controller.signal, "removeEventListener");
+    const out = await dispatchCli(baseInput(), {
+      spawnFn,
+      env: {},
+      logger: cap.logger,
+      resolveBinary: stubResolveBinary,
+      signal: controller.signal,
+    });
+    expect(out.stdout).toBe("ok\n");
+    expect(remove).toHaveBeenCalledWith("abort", expect.any(Function));
+  });
+
+  it("an abort during the auto-launch poll ends the loop without another spawn", async () => {
+    vi.useFakeTimers();
+    try {
+      const cap = captureLines();
+      const { spawnFn, recorded } = makeStubSpawn(appDownSpec());
+      const controller = new AbortController();
+      const settled = dispatchCli(baseInput({ command: "files" }), {
+        spawnFn,
+        env: {},
+        logger: cap.logger,
+        resolveBinary: stubResolveBinary,
+        launchFn: makeLaunchSpy().launchFn,
+        signal: controller.signal,
+      }).then(
+        () => "resolved",
+        (e: unknown) => e,
+      );
+      await vi.advanceTimersByTimeAsync(LAUNCH_POLL_INTERVAL_MS * 2);
+      const spawnsBeforeAbort = recorded.length;
+      controller.abort("stop");
+      await vi.advanceTimersByTimeAsync(LAUNCH_POLL_INTERVAL_MS * 4);
+      expect(await settled).toBe("stop");
+      expect(recorded.length).toBe(spawnsBeforeAbort);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("dispatchCli — auto-launch progress (068 R11, T087)", () => {
+  it("each readiness poll reports increasing progress against the poll budget", async () => {
+    vi.useFakeTimers();
+    try {
+      const cap = captureLines();
+      const { spawnFn } = makeScriptedSpawn([appDownSpec(), appDownSpec(), appDownSpec(), { stdout: "ok\n", exitCode: 0 }]);
+      const reports: Array<[number, number, string]> = [];
+      const out = dispatchCli(baseInput({ command: "read" }), {
+        spawnFn,
+        env: {},
+        logger: cap.logger,
+        resolveBinary: stubResolveBinary,
+        launchFn: makeLaunchSpy().launchFn,
+        reportProgress: (progress, total, message) => reports.push([progress, total, message]),
+      });
+      await vi.advanceTimersByTimeAsync(LAUNCH_POLL_INTERVAL_MS * 3);
+      expect((await out).stdout).toBe("ok\n");
+      expect(reports).toEqual([
+        [1, LAUNCH_MAX_POLLS, "waiting for Obsidian to start"],
+        [2, LAUNCH_MAX_POLLS, "waiting for Obsidian to start"],
+        [3, LAUNCH_MAX_POLLS, "waiting for Obsidian to start"],
+      ]);
+      expect(LAUNCH_MAX_POLLS).toBe(40);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("no reporter: the recovery loop runs unchanged", async () => {
+    const cap = captureLines();
+    const { spawnFn } = makeScriptedSpawn([appDownSpec(), { stdout: "ok\n", exitCode: 0 }]);
+    const out = await dispatchCli(baseInput({ command: "read" }), {
+      spawnFn,
+      env: {},
+      logger: cap.logger,
+      resolveBinary: stubResolveBinary,
+      launchFn: makeLaunchSpy().launchFn,
+    });
+    expect(out.stdout).toBe("ok\n");
   });
 });

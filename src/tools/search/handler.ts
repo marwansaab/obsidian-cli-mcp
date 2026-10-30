@@ -27,13 +27,13 @@ import {
   type SearchInput,
   type SearchLineOutput,
 } from "./schema.js";
-import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
+import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
 
-export interface ExecuteDeps {
+export interface ExecuteDeps extends CallScope {
   logger: Logger;
   queue: Queue;
   spawnFn?: SpawnLike;
@@ -82,6 +82,8 @@ export async function executeSearch(
       env: deps.env,
       logger: deps.logger,
       queue: deps.queue,
+      signal: deps.signal,
+      reportProgress: deps.reportProgress,
     },
   );
 

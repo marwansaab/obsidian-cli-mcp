@@ -23,14 +23,14 @@ import {
   type GetActiveFileInput,
   type GetActiveFileOutput,
 } from "./schema.js";
-import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
+import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { decodeEvalEnvelope, resolveVaultRootOrRemap } from "../_active-file.js";
 
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
-export interface ExecuteDeps {
+export interface ExecuteDeps extends CallScope {
   logger: Logger;
   queue: Queue;
   vaultRegistry: VaultRegistry;
@@ -66,7 +66,7 @@ export async function executeGetActiveFile(
       flags: [],
       target_mode: input.target_mode,
     },
-    { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
+    { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue, signal: deps.signal, reportProgress: deps.reportProgress },
   );
 
   // Strip the "=> " echo → JSON.parse → safeParse straight into the output schema. The frozen template

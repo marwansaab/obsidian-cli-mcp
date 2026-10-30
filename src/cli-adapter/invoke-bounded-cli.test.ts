@@ -1,4 +1,4 @@
-// Original — no upstream. Co-located vitest cases for the invokeBoundedCli escape-hatch facade — defaults, override, silent 120 s clamp, copy flag, queue-serialization (Q1 / FR-011).
+// Original — no upstream. Co-located vitest cases for the invokeBoundedCli escape-hatch facade — defaults, override, copy flag, queue-serialization, cancellation (FR-011, 068 R11).
 import { type SpawnOptions } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { Readable, Writable } from "node:stream";
@@ -183,7 +183,7 @@ describe("invokeBoundedCli — argv assembly (FR-012)", () => {
   });
 });
 
-describe("invokeBoundedCli — timeout default and silent clamp (Q1 / FR-011)", () => {
+describe("invokeBoundedCli — timeout default and override (FR-011)", () => {
   it("default 30 s timeout fires when no override", async () => {
     vi.useFakeTimers();
     try {
@@ -228,35 +228,33 @@ describe("invokeBoundedCli — timeout default and silent clamp (Q1 / FR-011)", 
     }
   });
 
-  it("override > 120 s SILENTLY clamps to 120 s — no VALIDATION_ERROR, no warning, only the single dispatch.timeout line", async () => {
-    vi.useFakeTimers();
-    try {
-      const cap = captureLines();
-      const { spawnFn } = makeStubSpawn({ hold: true });
-      const rejected = pendingRejection(
-        invokeBoundedCli(
-          { command: "read" },
-          { timeoutMs: 200_000 },
-          { spawnFn, env: {}, logger: cap.logger, queue: createQueue(), resolveBinary: stubResolveBinary },
-        ),
-      );
-      await vi.advanceTimersByTimeAsync(0);
-      // At 119 s the call should still be running.
-      await vi.advanceTimersByTimeAsync(119_000);
-      // But by 120.5 s the timeout fires.
-      await vi.advanceTimersByTimeAsync(1_500);
-      const err = await rejected;
-      expect(err.code).toBe("CLI_TIMEOUT");
-      expect(err.details).toMatchObject({ timeoutMs: 120_000 });
-      // No VALIDATION_ERROR was raised (we got a CLI_TIMEOUT).
-      // Exactly ONE log line — the dispatch.timeout from the dispatch primitive.
-      // No clamp-warning line was emitted.
-      const lines = cap.lines();
-      expect(lines.length).toBe(1);
-      expect(JSON.parse(lines[0]!).event).toBe("dispatch.timeout");
-    } finally {
-      vi.useRealTimers();
-    }
+  // The 120 s ceiling is the obsidian_exec schema's `max(120000)` (schema.test.ts refuses
+  // 120001); the facade no longer clamps (068 R11).
+});
+
+describe("invokeBoundedCli — cancellation (068 R11, T084)", () => {
+  it("a call queued behind another and cancelled before it starts never spawns", async () => {
+    const cap = captureLines();
+    const queue = createQueue();
+    let release: (() => void) | undefined;
+    const blocker = queue.run(
+      () =>
+        new Promise<void>((r) => {
+          release = r;
+        }),
+    );
+    const { spawnFn, recorded } = makeStubSpawn({ stdout: "ok", exitCode: 0 });
+    const controller = new AbortController();
+    const cancelled = invokeBoundedCli(
+      { command: "read" },
+      {},
+      { spawnFn, env: {}, logger: cap.logger, queue, resolveBinary: stubResolveBinary, signal: controller.signal },
+    );
+    controller.abort("cancelled");
+    await expect(cancelled).rejects.toBe("cancelled");
+    release!();
+    await blocker;
+    expect(recorded).toHaveLength(0);
   });
 });
 

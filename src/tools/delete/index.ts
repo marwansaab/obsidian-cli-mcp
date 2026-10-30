@@ -20,6 +20,6 @@ export function createDeleteTool(deps: RegisterDeps): RegisteredTool {
     schema: deleteInputSchema,
     outputSchema: deleteNoteOutputSchema,
     deps,
-    handler: async (input, d) => executeDeleteNote(input, d),
+    handler: async (input, d, call) => executeDeleteNote(input, d, call),
   });
 }
