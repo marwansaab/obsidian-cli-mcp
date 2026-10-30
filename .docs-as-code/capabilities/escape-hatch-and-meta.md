@@ -82,13 +82,23 @@ The gate sits only in the passthrough. The typed tools that run fixed `eval`
 templates go through `invokeCli`, not `invokeBoundedCli`, and are unaffected
 (FR-013) — PR #88 changed none of their tests.
 
-## `help` — progressive disclosure
+## `help` — the long reference
 
-`help` (BI-030, PR #6) is half of ADR-005 (Token-Optimized Tool Definitions via
-Progressive Disclosure). `registerTool` strips per-field descriptions from
-every published input schema, so `tools/list` stays small. `help` serves the
-long form on demand. With no argument it returns `docs/tools/index.md`; with
-`tool_name` it returns `docs/tools/<tool_name>.md`.
+`help` (BI-030, PR #6) was built as half of ADR-005 (Token-Optimized Tool
+Definitions via Progressive Disclosure): `registerTool` stripped per-field
+descriptions from every published input schema so `tools/list` stayed small,
+every tool description ended "Call help(...) for full parameter docs", and
+`help` served the long form on demand. PR #90 retired the stripping and the
+call-help sentence; ADR-040 (Published Parameter Descriptions and Server
+Instructions,
+[decisions/ADR-040](../decisions/ADR-040-published-parameter-descriptions-and-server-instructions.md))
+supersedes ADR-005. Parameter descriptions are now in the published schema,
+and `help` stays as the place for what a one-line description cannot hold:
+worked examples, error rosters and recovery hints. The server instructions'
+last rule points there.
+
+With no argument it returns `docs/tools/index.md`; with `tool_name` it returns
+`docs/tools/<tool_name>.md`.
 
 It reads from the package's own `docs/tools/` directory, resolved relative to
 the compiled handler, so it works the same from `src/` in development and
@@ -112,8 +122,12 @@ start if any registered tool lacks its doc file
 - `obsidian_exec`'s published description
   ([src/tools/obsidian_exec/index.ts](../../src/tools/obsidian_exec/index.ts))
   still reads "Invoke any Obsidian Integrated CLI subcommand". PR #88 left
-  every descriptor unchanged; the descriptor work is later in the 068 plan.
-  The `help` page and the README carry the blocked list.
+  every descriptor unchanged. PR #90's descriptor pass removed only its
+  call-help sentence and did not add the blocked list, so the `help` page and
+  the README are still the only places that carry it. Since PR #90 the tool is
+  published with the passthrough hint row — destructive and open-world, the
+  only open-world tool. Its optional `vault` is the shared
+  `focusedVaultField`.
 - `docs/tools/` still holds stub pages for `list_notes`, `list_vaults` and
   `search_vault`. They are not registered tools, so `help` serves a "not yet
   implemented" page for names a client cannot call. `docs/tools/index.md`

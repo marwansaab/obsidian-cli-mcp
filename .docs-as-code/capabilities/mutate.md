@@ -128,6 +128,24 @@ active mode, because adding cannot destroy anything. `write_note` defaults to
 create a note for `append_note`/`prepend`: those return `NOTE_NOT_FOUND` for a
 missing target.
 
+## Published surface
+
+Since PR #90 every tool here publishes a title and all four behaviour hints,
+from the rows in `src/tools/_shared.ts`
+([architecture](../architecture.md#registration--the-one-path-from-a-schema-to-a-published-tool)):
+
+| Row | Tools here | Why |
+| --- | --- | --- |
+| destructive | `write_note`, `delete`, `move`, `rename`, `find_and_replace` | they overwrite, remove or relocate content, so a client should confirm |
+| additive write | `append_note`, `prepend`, `patch_heading`, `patch_block` | they change a note without destroying it, but a repeat adds again |
+| repeat-safe write | `set_property` | setting the same value twice leaves the same note |
+
+`find_and_replace` is marked destructive even though its default call is a
+preview, because the tool as a whole can rewrite notes in bulk. The rule
+"preview first, then `commit: true`" moved out of its description into the
+server instructions' Rules
+([server instructions](../architecture.md#server-instructions)).
+
 ## Known limits
 
 - `rename` only handles `.md` notes. Other file types go through
@@ -146,3 +164,9 @@ missing target.
 - `write_note open: true` opens the note by its vault-relative path in the
   written vault (`vault=` in specific mode, PR #87). Before that it passed an
   absolute path in active mode. The open is still silent on failure.
+- `append_note`, `prepend`, `patch_heading`, `patch_block` and `set_property`
+  still keep a "Targeting:" paragraph in their descriptions that restates the
+  locator rule the `target_mode` field descriptions now carry (as does
+  `backlinks`). PR #90's T051 list did not include them and they use none of
+  the banned phrases, so the surface test passes; the PR body leaves their
+  removal to the owner.

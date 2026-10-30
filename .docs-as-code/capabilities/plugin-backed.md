@@ -36,6 +36,15 @@ with two differences:
   `smart_connections_similar`. It was extracted for `smart_connections_query`
   and later reused by `tag`, `paths`, `pattern_search` and `query_base`.
 
+Published surface (PR #90; [architecture](../architecture.md#registration--the-one-path-from-a-schema-to-a-published-tool)):
+both carry the read-only hint row, including "beyond vault" (`openWorldHint`)
+false, as spec 068 FR-024 classifies them. `smart_connections_query`'s
+optional `vault` is the shared `focusedVaultField`
+(`src/tools/_vault-field.ts`). The routing guide in the server instructions
+lists both under "Semantic search (Smart Connections)", and that line is shown
+only when both tools are offered
+([server instructions](../architecture.md#server-instructions)).
+
 ## Failure
 
 All conditions are `CLI_REPORTED_ERROR` with `details.code`, split further by

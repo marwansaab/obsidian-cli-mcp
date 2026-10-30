@@ -29,6 +29,14 @@ count is computed after filtering instead of using the CLI's recursive total.
 takes `target_mode`, because it reads one note. `properties` is vault-scoped:
 an optional `vault`, with the focused vault as the default.
 
+Published surface (PR #90; [architecture](../architecture.md#registration--the-one-path-from-a-schema-to-a-published-tool)):
+all four carry the read-only hint row. `files` and `paths` (with
+`get_active_file`) build on `folderScopedTargetModeBaseSchema`, whose
+published descriptions say that `file` and `path` are not accepted and that
+`vault` is required with `"specific"`
+([targeting](../architecture.md#targeting-target_mode)). `properties` takes the
+shared `focusedVaultField` (`src/tools/_vault-field.ts`).
+
 ## Failure
 
 `paths` reports a missing folder or a folder path that names a file as

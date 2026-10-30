@@ -29,7 +29,9 @@ version 0.8.11), after PR #82. Each later run of `/speckit-docs-as-code`
 extends it.
 
 - [architecture.md](architecture.md) — the boot, runtime and error spines;
-  dual-era serving on SDK v2 `McpServer` and the registration adapter; the
+  dual-era serving on SDK v2 `McpServer` and the registration adapter; tool
+  titles, behaviour hints, published parameter descriptions and the server
+  instructions; the
   queue, dispatch, cold-start retry and auto-launch; error classification and
   sub-discriminators; `target_mode`; the direct-filesystem write path; the
   `eval` template pattern; logging, shutdown and module layout.
@@ -73,7 +75,11 @@ applies. Records written since:
   — the server moves to MCP SDK v2 `McpServer` behind a pass-through input
   adapter, split composition root and dual-era `serveStdio`; supersedes
   ADR-036 and the BI-067 low-level `Server` decision (PR #89).
+- [decisions/ADR-040-published-parameter-descriptions-and-server-instructions.md](decisions/ADR-040-published-parameter-descriptions-and-server-instructions.md)
+  — every tool publishes a title, four behaviour hints and a description on
+  every parameter, and the server sends instructions carrying the
+  cross-cutting rules; supersedes ADR-005 (PR #90).
 - [decisions/ADR-041-exec-gate-matches-the-command-field.md](decisions/ADR-041-exec-gate-matches-the-command-field.md)
   — `obsidian_exec`'s code-execution gate matches the `command` field, and
-  the schema refuses `=` in it (PR #88). ADR-040 is reserved by the 068 plan
-  for a decision that lands in a later PR.
+  the schema refuses `=` in it (PR #88). It was numbered while ADR-040 was
+  reserved by the 068 plan; ADR-040 landed with PR #90.

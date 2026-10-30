@@ -46,6 +46,15 @@ Obsidian.
 added that filter after an empty vault returned the CLI's "no bases" message
 as a fake Base entry. An empty vault now returns `count: 0`.
 
+Published surface (PR #90; [architecture](../architecture.md#registration--the-one-path-from-a-schema-to-a-published-tool)):
+`bases`, `views_base` and `query_base` carry the read-only hint row;
+`create_base` is an additive write (not read-only, not destructive, not
+idempotent). `create_base`'s `path` and `query_base`'s `base_path` publish
+the same description, `BASE_PATH_DESCRIPTION` in `src/tools/_base-path.ts`,
+built from `BASE_PATH_MAX`; `views_base` interpolates `BASE_PATH_MAX` into its
+own, so the stated limit cannot drift from the enforced one. `query_base`'s optional
+`vault` is the shared `focusedVaultField` (`src/tools/_vault-field.ts`).
+
 ## Failure
 
 Errors are `CLI_REPORTED_ERROR` with `details.code` — `BASE_NOT_FOUND`,
@@ -65,3 +74,8 @@ These are inherited from the CLI and documented in each tool's description:
   does not exist. On a name collision the CLI auto-increments the new note's
   name, and the response reports the actual name.
 - `views_base` with `base_path` changes Obsidian's focus as a side effect.
+- Since PR #90 the `vault` field descriptions of `bases` and `create_base` say
+  it is accepted but ignored by the CLI. `create_base`'s `content` ("Default:
+  none") and `view` ("omit for the default") descriptions are hedged, because
+  the CLI's behaviour when they are omitted was not confirmed; the PR body
+  leaves them for the owner to check.

@@ -54,6 +54,18 @@ Focus; PRs #66 and #67). `open_file` does switch focus, because that is its
 job. `get_active_file` is a pure read: "nothing focused" is the success value
 `{ active: null }`, not `ERR_NO_ACTIVE_FILE`.
 
+**Published surface** (PR #90;
+[architecture](../architecture.md#registration--the-one-path-from-a-schema-to-a-published-tool)).
+Every tool here carries the read-only hint row except `open_file`, which is a
+repeat-safe write (not read-only, not destructive, idempotent) because it
+changes Obsidian's focus. The five vault-scoped searches publish one shared
+optional `vault` field, `focusedVaultField` in `src/tools/_vault-field.ts`
+("Omit to use the vault focused in Obsidian"), which the PR #90 review
+introduced to replace identical per-tool copies; tools whose `vault` follows a
+different rule keep their own declaration. `get_active_file` builds on
+`folderScopedTargetModeBaseSchema`
+([targeting](../architecture.md#targeting-target_mode)).
+
 ## Failure
 
 Shared across the group: an unknown vault (`CLI_REPORTED_ERROR`,
@@ -75,3 +87,7 @@ than an empty result; an invalid regex in
   reconciled.
 - `tag` folds case with ASCII lower-casing only, so non-ASCII tags match
   case-sensitively.
+- `backlinks`'s description still keeps a "Targeting:" paragraph that
+  restates the locator rule now carried by the field descriptions. PR #90's
+  T051 list did not include it, and the PR body leaves its removal to the
+  owner (the same applies to five write tools, [mutate](mutate.md#known-limits)).
