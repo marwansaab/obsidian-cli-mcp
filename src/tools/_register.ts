@@ -1,12 +1,17 @@
-// Original — no upstream. registerTool factory and assertToolDocsExist aggregator: the only path from a zod schema to a tool registered on an MCP SDK v2 McpServer (ADR-006, ADR-039, FR-001..FR-006). 068 R2: the SDK receives the input schema through toSdkInputSchema, a pass-through Standard Schema adapter that publishes the zod schema's own JSON Schema emission and never rejects, so the tool's own zod parse, mapValidationError hook and {code, message, details} envelope stay in force; the callback returns (never throws) asToolError results.
+// Original — no upstream. registerTool factory and assertToolDocsExist aggregator: the only path from a zod schema to a tool registered on an MCP SDK v2 McpServer (ADR-006, ADR-039, FR-001..FR-006). 068 R2: the SDK receives the input schema through toSdkInputSchema, a pass-through Standard Schema adapter that publishes the zod schema's own JSON Schema emission and never rejects, so the tool's own zod parse, mapValidationError hook and {code, message, details} envelope stay in force; the callback returns (never throws) asToolError results. 068 PR 4: every spec carries a title and all four annotations, and parameter descriptions are published unstripped (ADR-040).
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { ZodError, type z } from "zod";
 
 import { UpstreamError } from "../errors.js";
-import { asToolError, type RegisteredTool, type ToolCallResult, type ToolErrorPayload } from "./_shared.js";
-import { stripSchemaDescriptions, type JsonSchemaObject } from "../help/strip-schema.js";
+import {
+  asToolError,
+  type RegisteredTool,
+  type ToolAnnotations,
+  type ToolCallResult,
+  type ToolErrorPayload,
+} from "./_shared.js";
 
 import type { McpServer, StandardSchemaWithJSON } from "@modelcontextprotocol/server";
 
@@ -14,7 +19,11 @@ export type ResponseFormat = "json" | "raw";
 
 export interface ToolSpec<TSchema extends z.ZodType, TDeps = undefined> {
   name: string;
+  /** Human-readable name shown by clients (068 FR-019). */
+  title: string;
   description: string;
+  /** All four behaviour hints, explicit (068 FR-020, FR-024). */
+  annotations: ToolAnnotations;
   schema: TSchema;
   deps?: TDeps;
   responseFormat?: ResponseFormat;
@@ -31,8 +40,6 @@ export interface ToolSpec<TSchema extends z.ZodType, TDeps = undefined> {
   mapValidationError?: (issues: z.core.$ZodIssue[], rawArgs: unknown) => ToolErrorPayload;
 }
 
-type JsonSchemaOptions = Parameters<StandardSchemaWithJSON["~standard"]["jsonSchema"]["input"]>[0];
-
 /**
  * The JSON Schema target the SDK passes to `~standard.jsonSchema` when it publishes a
  * tool (the SDK's private `JSON_SCHEMA_CONVERSION_TARGET`). The project descriptor is
@@ -44,23 +51,18 @@ const SDK_JSON_SCHEMA_TARGET = "draft-2020-12";
 /**
  * Pass-through Standard Schema adapter for a tool's input schema (068 R2). Its JSON
  * Schema is the zod schema's own `~standard.jsonSchema` emission for the target the SDK
- * asks for (draft-2020-12), so the published bytes are SDK-native; descriptions below the
- * root are still stripped until PR 4 (C1). Its `validate` accepts every value unchanged:
- * the SDK's own input check would replace the project envelope with free text, so the
- * registered callback runs the zod parse instead.
+ * asks for (draft-2020-12), so the published bytes are SDK-native, parameter descriptions
+ * included (068 FR-029, ADR-040). Its `validate` accepts every value unchanged: the SDK's
+ * own input check would replace the project envelope with free text, so the registered
+ * callback runs the zod parse instead.
  */
 export function toSdkInputSchema(schema: z.ZodType): StandardSchemaWithJSON {
-  const zodJsonSchema = schema["~standard"].jsonSchema;
-  const emit =
-    (io: "input" | "output") =>
-    (options: JsonSchemaOptions): Record<string, unknown> =>
-      stripSchemaDescriptions(zodJsonSchema[io](options) as JsonSchemaObject);
   return {
     "~standard": {
       version: 1,
       vendor: "obsidian-cli-mcp",
       validate: (value: unknown) => ({ value }),
-      jsonSchema: { input: emit("input"), output: emit("output") },
+      jsonSchema: schema["~standard"].jsonSchema,
     },
   };
 }
@@ -139,12 +141,23 @@ export function registerTool<TSchema extends z.ZodType, TDeps = undefined>(
   return {
     descriptor: {
       name: spec.name,
+      title: spec.title,
       description: spec.description,
+      annotations: spec.annotations,
       inputSchema,
     },
     handler,
     register: (server: McpServer) => {
-      server.registerTool(spec.name, { description: spec.description, inputSchema: sdkInputSchema }, handler);
+      server.registerTool(
+        spec.name,
+        {
+          title: spec.title,
+          description: spec.description,
+          annotations: spec.annotations,
+          inputSchema: sdkInputSchema,
+        },
+        handler,
+      );
     },
   };
 }

@@ -8,13 +8,15 @@ import type { RegisteredTool } from "../_shared.js";
 export const PATHS_TOOL_NAME = "paths";
 
 export const PATHS_DESCRIPTION =
-  'Flat path list under a vault folder (recursive). Returns { count, paths: string[] }; folder entries end with "/", file entries do not. Required target_mode ("specific"|"active"). Supply vault in specific mode; active mode uses the focused vault. Optional folder (defaults to vault root), depth (positive integer; unbounded by default), ext (filter, e.g. "md"), total (true returns only the count). Call help({ tool_name: "paths" }) for full parameter docs, inherited limitations, and the error roster.';
+  'Flat path list under a vault folder (recursive). Returns { count, paths: string[] }; folder entries end with "/", file entries do not. Required target_mode ("specific"|"active"); active mode uses the focused vault. Optional folder (defaults to vault root), depth (positive integer; unbounded by default), ext (filter, e.g. "md"), total (true returns only the count).';
 
 export type RegisterDeps = ExecuteDeps;
 
 export function createPathsTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: PATHS_TOOL_NAME,
+    title: "Paths",
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     description: PATHS_DESCRIPTION,
     schema: pathsInputSchema,
     deps,

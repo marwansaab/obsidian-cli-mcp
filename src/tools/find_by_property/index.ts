@@ -22,15 +22,15 @@ Inputs: \`{ vault?, property, value, folder?, arrayMatch?, caseSensitive? }\`.
 
 \`folder\` narrows to a vault-relative subtree.
 
-\`vault\` should be passed explicitly in multi-vault setups to avoid focused-vault basename ambiguity.
-
-Call \`help({ tool_name: "find_by_property" })\` for worked examples, full parameter docs, and the error roster with recovery hints.`;
+\`vault\` should be passed explicitly in multi-vault setups to avoid focused-vault basename ambiguity.`;
 
 export type RegisterDeps = ExecuteDeps;
 
 export function createFindByPropertyTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: FIND_BY_PROPERTY_TOOL_NAME,
+    title: "Find By Property",
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     description: FIND_BY_PROPERTY_DESCRIPTION,
     schema: findByPropertyInputSchema,
     deps,

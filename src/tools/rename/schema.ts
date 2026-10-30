@@ -11,7 +11,8 @@ export const renameInputSchema = applyTargetModeRefinement(
       .regex(
         /^[^/\\]+$/,
         "name must not contain folder separators; use move_note to relocate the file to a different folder",
-      ),
+      )
+      .describe('New file name for the note, in the same folder (e.g. "Renamed Note"); no "/" or "\\".'),
   }),
 );
 

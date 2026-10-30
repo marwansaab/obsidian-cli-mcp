@@ -9,9 +9,17 @@ const RESPONSE_ROW_CAP = 1000;
 
 export const queryBaseInputSchema = z
   .strictObject({
-    base_path: requiredString("base_path"),
-    view_name: requiredString("view_name"),
-    vault: z.string().min(1).optional(),
+    base_path: requiredString("base_path").describe(
+      'Vault-relative path to the .base file (e.g. "Projects/Tasks.base"), 1..1000 chars; must end with .base.',
+    ),
+    view_name: requiredString("view_name").describe(
+      "Exact, case-sensitive name of the view to run (as listed by views_base), 1..1000 chars.",
+    ),
+    vault: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("Obsidian vault display name. Omit to use the vault focused in Obsidian."),
   })
   .superRefine((v, ctx) => {
     if (typeof v.base_path === "string") appendBasePathIssues(ctx, v.base_path, "base_path");

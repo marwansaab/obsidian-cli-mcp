@@ -296,9 +296,10 @@ describe("registry consistency", () => {
     }
   });
 
-  it("every registered tool's stripped inputSchema is description-free at every depth (Story 1 AC#5, FR-006, SC-002)", async () => {
+  // 068 FR-029 retires the FR-006 stripping; src/tools/_surface.test.ts requires a description on every property.
+  it("every registered tool's published inputSchema keeps its parameter descriptions (068 FR-029)", async () => {
     for (const tool of await listPublishedTools()) {
-      expect(hasNestedDescription(tool.inputSchema), `Tool '${tool.name}' has a nested description in inputSchema`).toBe(false);
+      expect(hasNestedDescription(tool.inputSchema), `Tool '${tool.name}' has no parameter description in inputSchema`).toBe(true);
     }
   });
 

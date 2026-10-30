@@ -31,15 +31,17 @@ Timing: the answer is a point-in-time snapshot of the active file at lookup time
 
 Response is file-only: no \`vault\` / \`target_mode\` echo, no pane / split / leaf info, no cursor / heading / block position.
 
-Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (missing \`vault\` in specific mode; \`vault\` supplied in active mode; any \`file\`/\`path\` locator; unknown field); \`CLI_REPORTED_ERROR\` with \`details.code: "VAULT_NOT_FOUND"\` / \`reason: "unknown"\` (an unregistered \`vault\` — never \`{ active: null }\`, never another vault's data) or a malformed eval response; \`CLI_NON_ZERO_EXIT\` / \`details.reason: "obsidian-not-running"\` (app down and could not be launched, e.g. \`OBSIDIAN_AUTO_LAUNCH=0\`); \`CLI_BINARY_NOT_FOUND\` (the \`obsidian\` binary is missing). A registered vault that is merely closed or unfocused is NOT an error — it is a success path (inherited recovery).
+Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (a broken \`target_mode\` rule; any \`file\`/\`path\` locator; unknown field); \`CLI_REPORTED_ERROR\` with \`details.code: "VAULT_NOT_FOUND"\` / \`reason: "unknown"\` (an unregistered \`vault\` — never \`{ active: null }\`, never another vault's data) or a malformed eval response; \`CLI_NON_ZERO_EXIT\` / \`details.reason: "obsidian-not-running"\` (app down and could not be launched, e.g. \`OBSIDIAN_AUTO_LAUNCH=0\`); \`CLI_BINARY_NOT_FOUND\` (the \`obsidian\` binary is missing). A registered vault that is merely closed or unfocused is NOT an error — it is a success path (inherited recovery).
 
-Out of scope: never changes which file is active (pure read); reports no pane/split/leaf or cursor/heading/block position; does not report a non-file view as the active file. Call \`help({ tool_name: "get_active_file" })\` for worked examples and the full error roster with recovery hints.`;
+Out of scope: never changes which file is active (pure read); reports no pane/split/leaf or cursor/heading/block position; does not report a non-file view as the active file.`;
 
 export type RegisterDeps = ExecuteDeps;
 
 export function createGetActiveFileTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: GET_ACTIVE_FILE_TOOL_NAME,
+    title: "Get Active File",
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     description: GET_ACTIVE_FILE_DESCRIPTION,
     schema: getActiveFileInputSchema,
     deps,

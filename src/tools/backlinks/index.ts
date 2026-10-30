@@ -25,15 +25,17 @@ Source corpus is restricted to \`.md\` files only — \`.canvas\` / \`.base\` / 
 
 Cross-folder reach: when the target's basename is unique vault-wide, bare-basename wikilinks (\`[[<basename>]]\`) from any folder resolve to the target. When two notes share a case-folded basename, Obsidian's resolver picks one canonical destination and the other receives zero bare-basename backlinks — use folder-prefixed wikilinks to disambiguate.
 
-Non-Markdown target locators (\`.canvas\`, \`.pdf\`, attachments) surface as \`CLI_REPORTED_ERROR\` with \`details.code: "NOT_MARKDOWN"\`. Unknown vault display names surface as \`CLI_REPORTED_ERROR\` with \`details.message: "Vault not found."\` (no silent routing to focused vault).
+Non-Markdown target locators (\`.canvas\`, \`.pdf\`, attachments) surface as \`CLI_REPORTED_ERROR\` with \`details.code: "NOT_MARKDOWN"\`. Unknown vault names surface as \`CLI_REPORTED_ERROR\` with \`details.message: "Vault not found."\` (no silent routing to focused vault).
 
-Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\`, \`CLI_REPORTED_ERROR\` (with sub-discriminators \`VAULT_NOT_FOUND\` / \`FILE_NOT_FOUND\` / \`NOT_MARKDOWN\`), \`ERR_NO_ACTIVE_FILE\`, \`CLI_NON_ZERO_EXIT\`, \`CLI_BINARY_NOT_FOUND\`. Call \`help({ tool_name: "backlinks" })\` for worked examples (with_counts / total / capped / truncated), the self-reference + frontmatter-inclusion semantics, and the full error roster with recovery hints.`;
+Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\`, \`CLI_REPORTED_ERROR\` (with sub-discriminators \`VAULT_NOT_FOUND\` / \`FILE_NOT_FOUND\` / \`NOT_MARKDOWN\`), \`ERR_NO_ACTIVE_FILE\`, \`CLI_NON_ZERO_EXIT\`, \`CLI_BINARY_NOT_FOUND\`.`;
 
 export type RegisterDeps = ExecuteDeps;
 
 export function createBacklinksTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: BACKLINKS_TOOL_NAME,
+    title: "Backlinks",
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     description: BACKLINKS_DESCRIPTION,
     schema: backlinksInputSchema,
     deps,

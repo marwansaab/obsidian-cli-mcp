@@ -23,7 +23,8 @@ export const readHeadingInputSchema = applyTargetModeRefinement(
       .min(1)
       .refine((v) => validateHeadingPath(v) === true, {
         error: (issue) => validateHeadingPath(issue.input as string) as string,
-      }),
+      })
+      .describe('Heading path from the top-level heading down, `::`-separated, at least two segments (e.g. "H1::H2").'),
   }),
 );
 

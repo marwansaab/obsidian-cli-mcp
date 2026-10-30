@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the smart_connections_query tool registration — descriptor shape, stripped schema (ADR-005), help mention + plugin-namespace name + plugin-lifecycle codes + sub-discriminator reasons in description, docs presence + content completeness, FR-018 baseline drift detector entry. 5 cases per data-model.md inventory.
+// Original — no upstream. Tests for the smart_connections_query tool registration — descriptor shape, described schema (068 FR-030), no help() pointer + plugin-namespace name + plugin-lifecycle codes + sub-discriminator reasons in description, docs presence + content completeness, FR-018 baseline drift detector entry. 5 cases per data-model.md inventory.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -32,27 +32,28 @@ describe("createSmartConnectionsQueryTool — descriptor", () => {
     expect(tool.descriptor.description).toBe(SMART_CONNECTIONS_QUERY_DESCRIPTION);
   });
 
-  // (2) Stripped emitted schema — ADR-005
-  it("strips descriptions at every nested depth", () => {
+  // (2) Every published parameter is described — 068 FR-030 (ADR-005 stripping retired by ADR-040)
+  it("publishes a description on every input property", () => {
     const tool = createSmartConnectionsQueryTool({
       logger: silentLogger(),
       queue: createQueue(),
       spawnFn: makeStubSpawn(),
     });
-    const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    expect(countDescriptionKeys(schema)).toBe(0);
+    const props = (tool.descriptor.inputSchema as { properties: Record<string, { description?: string }> }).properties;
+    for (const [key, prop] of Object.entries(props)) expect(prop.description, key).toBeTruthy();
+    expect(countDescriptionKeys(tool.descriptor.inputSchema)).toBe(Object.keys(props).length);
   });
 
-  // (3) Description references help(), tool name, plugin-lifecycle codes incl. sub-reasons, headingPath
-  it("description references help(), 'smart_connections_query', plugin-lifecycle codes incl. api-missing/embed-failed, headingPath, limit/total", () => {
+  // (3) Description references sibling tools, plugin-lifecycle codes incl. sub-reasons, headingPath; no help() pointer (068 FR-032)
+  it("description references smart_connections_similar, plugin-lifecycle codes incl. api-missing/embed-failed, headingPath, limit/total, and no help() pointer", () => {
     const tool = createSmartConnectionsQueryTool({
       logger: silentLogger(),
       queue: createQueue(),
       spawnFn: makeStubSpawn(),
     });
     const desc = tool.descriptor.description;
-    expect(desc).toContain("help");
-    expect(desc).toContain("smart_connections_query");
+    expect(desc).not.toMatch(/call `?help\(/i);
+    expect(desc).toContain("smart_connections_similar");
     expect(desc).toContain("headingPath");
     expect(desc).toContain("limit");
     expect(desc).toContain("total");

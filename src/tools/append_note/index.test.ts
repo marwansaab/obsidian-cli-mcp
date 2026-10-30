@@ -37,10 +37,10 @@ describe("createAppendNoteTool — descriptor (BI-044 / ADR-005)", () => {
     expect(tool.descriptor.name).toBe("append_note");
   });
 
-  it("description references the help-pointer for append_note (ADR-005)", () => {
+  it("description no longer points at help() (068 FR-032)", () => {
     const tool = build();
     expect(tool.descriptor.description).toBe(APPEND_NOTE_DESCRIPTION);
-    expect(tool.descriptor.description).toContain('help({ tool_name: "append_note" })');
+    expect(tool.descriptor.description).not.toMatch(/call `?help\(/i);
   });
 
   it("docs/tools/append_note.md exists at the expected path", () => {

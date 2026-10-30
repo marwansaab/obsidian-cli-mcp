@@ -22,7 +22,7 @@ Separator: a newline is auto-inserted between your content and the existing body
 
 Content: preserved byte-for-byte, non-empty, max ${MAX_CONTENT_LENGTH} characters. Over-cap fails fast with \`VALIDATION_ERROR\`. The cap is bounded by an upstream Obsidian CLI defect that hangs the host process around 4 KB on Windows; chunking does not help.
 
-Typed errors via \`UpstreamError.code\`: \`NOTE_NOT_FOUND\`, \`EXTERNAL_EDITOR_CONFLICT\`, \`FS_WRITE_FAILED\`, \`ERR_NO_ACTIVE_FILE\`, \`PATH_ESCAPES_VAULT\`, \`VALIDATION_ERROR\`. Call \`help({ tool_name: "prepend" })\` for recovery hints, worked examples, and the full schema.`;
+Typed errors via \`UpstreamError.code\`: \`NOTE_NOT_FOUND\`, \`EXTERNAL_EDITOR_CONFLICT\`, \`FS_WRITE_FAILED\`, \`ERR_NO_ACTIVE_FILE\`, \`PATH_ESCAPES_VAULT\`, \`VALIDATION_ERROR\`.`;
 
 export type RegisterDeps = ExecuteDeps;
 
@@ -68,6 +68,8 @@ function mapZodIssuesToToolError(issues: z.core.$ZodIssue[], rawArgs: unknown): 
 export function createPrependTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: PREPEND_TOOL_NAME,
+    title: "Prepend",
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     description: PREPEND_DESCRIPTION,
     schema: prependInputSchema,
     deps,

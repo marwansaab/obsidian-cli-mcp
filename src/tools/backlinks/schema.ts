@@ -5,9 +5,21 @@ import { applyTargetModeRefinement, targetModeBaseSchema } from "../../target-mo
 
 export const backlinksInputSchema = applyTargetModeRefinement(
   targetModeBaseSchema.extend({
-    with_counts: z.boolean().optional(),
-    total: z.boolean().optional(),
-    limit: z.number().int().min(1).max(10000).optional(),
+    with_counts: z
+      .boolean()
+      .optional()
+      .describe("When true, add each source's reference count to its entry. Default false."),
+    total: z
+      .boolean()
+      .optional()
+      .describe("When true, return only the full count with an empty backlinks list (ignores the cap). Default false."),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(10000)
+      .optional()
+      .describe("Maximum number of source entries, integer 1–10000. Default 1000."),
   }),
 );
 

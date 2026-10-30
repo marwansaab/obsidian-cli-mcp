@@ -8,13 +8,15 @@ import type { RegisteredTool } from "../_shared.js";
 export const RENAME_TOOL_NAME = "rename";
 
 export const RENAME_DESCRIPTION =
-  'Rename a note in an Obsidian vault in place. Honours the vault\'s "Automatically update internal links" setting; link-rewriting is vault-config-dependent. Scoped to .md notes — non-.md targets use obsidian_exec rename directly. Call help({ tool_name: "rename" }) for full parameter docs and the error-code roster.';
+  'Rename a note in an Obsidian vault in place. Honours the vault\'s "Automatically update internal links" setting; link-rewriting is vault-config-dependent. Scoped to .md notes — non-.md targets use obsidian_exec rename directly.';
 
 export type RegisterDeps = ExecuteDeps;
 
 export function createRenameTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: RENAME_TOOL_NAME,
+    title: "Rename",
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     description: RENAME_DESCRIPTION,
     schema: renameInputSchema,
     deps,

@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the outline tool registration — descriptor name + description, stripped JSON Schema (ADR-005), help-facility doc presence + content completeness (≥4 worked examples + error roster), and the FR-018 baseline drift-detector lock (rolled forward by `npm run baseline:write` post-T009).
+// Original — no upstream. Tests for the outline tool registration — descriptor name + description, described JSON Schema (068 FR-030), help-facility doc presence + content completeness (≥4 worked examples + error roster), and the FR-018 baseline drift-detector lock (rolled forward by `npm run baseline:write` post-T009).
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,7 +10,6 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -23,18 +22,18 @@ describe("createOutlineTool — descriptor", () => {
     expect(tool.descriptor.name).toBe("outline");
   });
 
-  // (b) inputSchema has descriptions stripped (ADR-005)
-  it("emits inputSchema with descriptions stripped at every nested depth", () => {
+  // (b) every inputSchema property carries a description (068 FR-030)
+  it("emits inputSchema with a description on every property", () => {
     const tool = createOutlineTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
-    const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    expect(countDescriptionKeys(schema)).toBe(0);
+    const props = tool.descriptor.inputSchema.properties as Record<string, { description?: unknown }>;
+    for (const [key, prop] of Object.entries(props)) expect(typeof prop.description, key).toBe("string");
   });
 
-  // (c) OUTLINE_DESCRIPTION mentions help({ tool_name: "outline" })
-  it("OUTLINE_DESCRIPTION mentions help({ tool_name: \"outline\" })", () => {
+  // (c) OUTLINE_DESCRIPTION no longer defers to help (068 FR-032)
+  it("OUTLINE_DESCRIPTION does not say 'Call help('", () => {
     const tool = createOutlineTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     expect(tool.descriptor.description).toBe(OUTLINE_DESCRIPTION);
-    expect(OUTLINE_DESCRIPTION).toContain('help({ tool_name: "outline" })');
+    expect(OUTLINE_DESCRIPTION).not.toMatch(/call `?help\(/i);
   });
 
   // (c2) Handler-closure execution: VALID input passes Zod, so registerTool runs the

@@ -110,10 +110,10 @@ describe("createPatchBlockTool — descriptor (BI-043 / ADR-005)", () => {
     expect(tool.descriptor.name).toBe("patch_block");
   });
 
-  it("description references the help-pointer for patch_block (ADR-005)", () => {
+  it("description no longer points at help() (068 FR-032)", () => {
     const tool = build();
     expect(tool.descriptor.description).toBe(PATCH_BLOCK_DESCRIPTION);
-    expect(tool.descriptor.description).toContain('help({ tool_name: "patch_block" })');
+    expect(tool.descriptor.description).not.toMatch(/call `?help\(/i);
   });
 
   it("docs/tools/patch_block.md exists at the expected path", () => {

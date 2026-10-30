@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the delete tool registration — descriptor shape, stripped schema, help mention + irreversibility warning, docs presence.
+// Original — no upstream. Tests for the delete tool registration — descriptor shape, described schema, no help() pointer + irreversibility warning, docs presence.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,7 +10,6 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -25,19 +24,21 @@ describe("createDeleteTool — descriptor", () => {
   });
 
   // (b) Story 7 AC#1 + AC#2 — emitted inputSchema shape
-  it("emits a post-010 inputSchema with descriptions stripped at every nested depth (Story 7 AC#2)", () => {
+  it("emits a post-010 inputSchema with every property described (Story 7 AC#2; 068 FR-030)", () => {
     const tool = createDeleteTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
     expect(schema.oneOf).toBeUndefined();
-    expect(countDescriptionKeys(schema)).toBe(0);
+    for (const [key, prop] of Object.entries(schema.properties as Record<string, { description?: unknown }>)) {
+      expect(typeof prop.description, key).toBe("string");
+    }
   });
 
   // (c) Story 7 AC#3 — description mentions help, the tool's own name, AND surfaces the safety-default disclosure
-  it("description references help(), the tool name 'delete', and surfaces the safety-default + irreversibility disclosure (Story 7 AC#3, FR-012)", () => {
+  it("description names the tool 'delete', no longer points at help() (068 FR-032), and surfaces the safety-default + irreversibility disclosure (Story 7 AC#3, FR-012)", () => {
     const tool = createDeleteTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     const desc = tool.descriptor.description;
     const lower = desc.toLowerCase();
-    expect(lower).toContain("help");
+    expect(desc).not.toMatch(/call `?help\(/i);
     expect(lower).toContain("delete");
     expect(desc).toMatch(/trash|recoverable|irreversible|permanent/i);
     expect(desc.length).toBeGreaterThan(0);

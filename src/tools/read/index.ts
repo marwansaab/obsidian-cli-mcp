@@ -8,13 +8,15 @@ import type { RegisteredTool } from "../_shared.js";
 export const READ_TOOL_NAME = "read";
 
 export const READ_DESCRIPTION =
-  'Read a note from an Obsidian vault. Returns the note\'s raw UTF-8 text as { content: <stdout> }. Specific mode: vault + exactly one of file (wikilink) or path (vault-relative). Active mode: no locator — reads the focused note. Call help({ tool_name: "read" }) for full parameter docs and the error-code roster.';
+  'Read a note from an Obsidian vault. Returns the note\'s raw UTF-8 text as { content: <stdout> }. In active mode it reads the focused note.';
 
 export type RegisterDeps = ExecuteDeps;
 
 export function createReadTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: READ_TOOL_NAME,
+    title: "Read",
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     description: READ_DESCRIPTION,
     schema: readInputSchema,
     deps,

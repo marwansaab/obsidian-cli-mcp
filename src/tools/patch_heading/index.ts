@@ -25,13 +25,15 @@ Targeting: \`target_mode: "specific"\` + \`vault\` + EXACTLY ONE of \`file\` / \
 
 Concurrent calls against the same note publish a \`HEADING_RACE\` discriminator when both calls target the same heading and a race is detected — callers can branch on it and retry. (Sibling \`patch_block\` does NOT publish a race discriminator; it just resolves last-write-wins.)
 
-Typed errors via \`UpstreamError.details.code\`: \`HEADING_NOT_FOUND\` (use [\`outline\`](./outline.md) to enumerate the file's actual headings, then retry with a valid path), \`HEADING_RACE\`, \`EXTERNAL_EDITOR_CONFLICT\` (file locked — ask user to save and close, retry), \`INVALID_HEADING_PATH\`, \`EMPTY_CONTENT\`. Plus the standard \`VALIDATION_ERROR\`, \`NOTE_NOT_FOUND\`, \`PATH_ESCAPES_VAULT\`, \`FS_WRITE_FAILED\`, \`VAULT_NOT_FOUND\`, \`ERR_NO_ACTIVE_FILE\`. Call \`help({ tool_name: "patch_heading" })\` for worked examples, per-mode gotchas, and recovery hints.`;
+Typed errors via \`UpstreamError.details.code\`: \`HEADING_NOT_FOUND\` (use [\`outline\`](./outline.md) to enumerate the file's actual headings, then retry with a valid path), \`HEADING_RACE\`, \`EXTERNAL_EDITOR_CONFLICT\` (file locked — ask user to save and close, retry), \`INVALID_HEADING_PATH\`, \`EMPTY_CONTENT\`. Plus the standard \`VALIDATION_ERROR\`, \`NOTE_NOT_FOUND\`, \`PATH_ESCAPES_VAULT\`, \`FS_WRITE_FAILED\`, \`VAULT_NOT_FOUND\`, \`ERR_NO_ACTIVE_FILE\`.`;
 
 export type RegisterDeps = ExecuteDeps;
 
 export function createPatchHeadingTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: PATCH_HEADING_TOOL_NAME,
+    title: "Patch Heading",
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     description: PATCH_HEADING_DESCRIPTION,
     schema: patchHeadingInputSchema,
     deps,

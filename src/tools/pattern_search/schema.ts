@@ -6,16 +6,25 @@ export const patternSearchInputSchema = z
     pattern: z
       .string()
       .min(1, "pattern is required")
-      .max(1000, "pattern exceeds 1000 chars"),
-    folder: z.string().min(1).optional(),
+      .max(1000, "pattern exceeds 1000 chars")
+      .describe("ECMAScript regular expression without slashes or flags, 1–1000 characters (e.g. TODO\\b)."),
+    folder: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("Vault-relative folder to search under, recursively (e.g. \"Projects\"). Default: the whole vault."),
     limit: z
       .number()
       .int()
       .min(1, "limit must be >= 1")
       .max(10000, "limit must be <= 10000")
-      .optional(),
-    case_sensitive: z.boolean().optional(),
-    vault: z.string().min(1).optional(),
+      .optional()
+      .describe("Maximum number of matches, integer 1–10000. Default 1000."),
+    case_sensitive: z
+      .boolean()
+      .optional()
+      .describe("Match case exactly when true; false adds the regex i flag. Default true."),
+    vault: z.string().min(1).optional().describe("Obsidian vault display name. Omit to use the vault focused in Obsidian."),
   })
   .superRefine((v, ctx) => {
     if (v.pattern.trim().length === 0) {

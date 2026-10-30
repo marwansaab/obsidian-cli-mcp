@@ -1,7 +1,7 @@
 // Original — no upstream. Shared schema-test utility (BI-058 F-C): the recursive
 // walkSchema helper that ~19 src/tools/<name>/index.test.ts files each defined
-// verbatim. Used to assert a published JSON Schema carries no nested `description`
-// keys (the per-tool shape invariants — type / properties-set / required /
+// verbatim. Used to count the nested `description` keys of a published JSON Schema
+// (068 PR 4: every property is now described; the per-tool shape invariants — type / properties-set / required /
 // additionalProperties — are covered centrally by tools/_register.test.ts'
 // assertInvariant, so they no longer need per-tool re-assertion). BI-067 / PR #78
 // review adds messageForPath, the exact-string message extractor the FR-010 suites

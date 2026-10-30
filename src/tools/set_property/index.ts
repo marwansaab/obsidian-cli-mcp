@@ -16,15 +16,15 @@ Targeting: \`target_mode: "specific"\` + \`vault\` + EXACTLY ONE of \`file\` (wi
 
 \`value\` accepts \`string | number | boolean | string[]\`. \`type\` is one of \`text\` / \`list\` / \`number\` / \`checkbox\` / \`date\` / \`datetime\` — inferred from value's shape when omitted. \`date\` / \`datetime\` REQUIRE explicit \`type\` (the inferrer can't distinguish them from a plain string). Empty array writes an empty YAML list. Cross-type overwrite is supported (the resolved type wins).
 
-**Cowork-pathway caveat**: on the Cowork MCP client, non-string \`value\` payloads (numbers, booleans, arrays) may be coerced to strings client-side before reaching the wrapper. To force the wrapper to write the intended YAML type, **pass an explicit \`type\`** for list / number / checkbox writes. Without it, the wrapper sees a string and may write the wrong YAML shape.
-
-Call \`help({ tool_name: "set_property" })\` for the type-inference table, worked examples, and the error roster with recovery hints.`;
+**Cowork-pathway caveat**: on the Cowork MCP client, non-string \`value\` payloads (numbers, booleans, arrays) may be coerced to strings client-side before reaching the wrapper. To force the wrapper to write the intended YAML type, **pass an explicit \`type\`** for list / number / checkbox writes. Without it, the wrapper sees a string and may write the wrong YAML shape.`;
 
 export type RegisterDeps = ExecuteDeps;
 
 export function createSetPropertyTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: SET_PROPERTY_TOOL_NAME,
+    title: "Set Property",
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     description: SET_PROPERTY_DESCRIPTION,
     schema: setPropertyInputSchema,
     deps,

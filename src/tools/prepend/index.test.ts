@@ -37,10 +37,10 @@ describe("createPrependTool — descriptor (BI-045 / ADR-005 / ADR-010)", () => 
     expect(tool.descriptor.name).not.toBe("prepend_note");
   });
 
-  it("description references the help-pointer for prepend (ADR-005)", () => {
+  it("description no longer points at help() (068 FR-032)", () => {
     const tool = build();
     expect(tool.descriptor.description).toBe(PREPEND_DESCRIPTION);
-    expect(tool.descriptor.description).toContain('help({ tool_name: "prepend" })');
+    expect(tool.descriptor.description).not.toMatch(/call `?help\(/i);
   });
 
   it("description names the content cap (SC-008 contract-and-implementation match)", () => {

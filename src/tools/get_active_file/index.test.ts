@@ -1,7 +1,7 @@
 // Original — no upstream. get_active_file registration tests (BI-063) — descriptor name "get_active_file"
-// (ADR-010 N/A — descriptive, eval-composed), the stripped emitted inputSchema (target_mode/vault/file/path;
-// additionalProperties:false; required={target_mode}; no description keys), a description that references
-// both modes / the four fields / the { active: null } success / cross-vault / the error roster / help(),
+// (ADR-010 N/A — descriptive, eval-composed), the emitted inputSchema (target_mode/vault/file/path;
+// additionalProperties:false; required={target_mode}; every property described, 068 FR-030), a description that
+// references both modes / the four fields / the { active: null } success / cross-vault / the error roster (no help() pointer),
 // the schema boundary rejecting bad input + running the closure on valid input, docs presence + completeness,
 // and the FR-018 baseline fingerprint gate.
 import { existsSync, readFileSync } from "node:fs";
@@ -42,18 +42,23 @@ describe("createGetActiveFileTool — descriptor", () => {
     expect(tool.descriptor.description.length).toBeGreaterThan(300);
   });
 
-  it("emits inputSchema with target_mode/vault/file/path, required={target_mode}, additionalProperties:false, no description keys", () => {
+  it("emits inputSchema with target_mode/vault/file/path, required={target_mode}, additionalProperties:false, every property described (068 FR-030)", () => {
     const schema = makeTool().descriptor.inputSchema as Record<string, unknown>;
-    const props = schema.properties as Record<string, unknown>;
+    const props = schema.properties as Record<string, { description?: string }>;
     expect(new Set(Object.keys(props))).toEqual(new Set(["target_mode", "vault", "file", "path"]));
     expect(schema.required).toEqual(["target_mode"]);
     expect(schema.additionalProperties).toBe(false);
-    expect(countDescriptionKeys(schema)).toBe(0);
+    expect(countDescriptionKeys(schema)).toBe(4);
+    // Folder-scoped wording: the locators are published but not accepted.
+    expect(props.file!.description).toContain("Not accepted by this tool");
+    expect(props.path!.description).toContain("Not accepted by this tool");
   });
 
-  it("description references help(), the tool name, both modes, the four fields, the null success, cross-vault, and the error roster", () => {
-    const lower = makeTool().descriptor.description.toLowerCase();
-    expect(lower).toContain("help");
+  it("description references the tool name, both modes, the four fields, the null success, cross-vault, and the error roster; no help() pointer (068 FR-032)", () => {
+    const desc = makeTool().descriptor.description;
+    expect(desc).not.toMatch(/call `?help\(/i);
+    expect(desc).not.toMatch(/specific mode/i);
+    const lower = desc.toLowerCase();
     expect(lower).toContain("get_active_file");
     expect(lower).toContain('target_mode: "active"');
     expect(lower).toContain('target_mode: "specific"');

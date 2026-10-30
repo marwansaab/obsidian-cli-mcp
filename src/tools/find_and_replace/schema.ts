@@ -35,24 +35,63 @@ export const findAndReplaceInputSchema = z
     pattern: z
       .string()
       .min(1, "pattern must not be empty")
-      .max(PATTERN_MAX, `pattern exceeds ${PATTERN_MAX} chars`),
+      .max(PATTERN_MAX, `pattern exceeds ${PATTERN_MAX} chars`)
+      .describe(`Text or ECMAScript regex to find, matched within single lines; 1 to ${PATTERN_MAX} characters.`),
     replacement: z
       .string()
-      .max(REPLACEMENT_MAX, `replacement exceeds ${REPLACEMENT_MAX} chars`),
-    mode: z.enum(["literal", "regex"]).optional().default("literal"),
-    case_insensitive: z.boolean().optional().default(false),
-    subfolder: z.string().optional(),
-    include_code_blocks: z.boolean().optional().default(false),
-    include_html_comments: z.boolean().optional().default(false),
-    commit: z.boolean().optional().default(false),
-    vault: z.string().min(1).optional(),
+      .max(REPLACEMENT_MAX, `replacement exceeds ${REPLACEMENT_MAX} chars`)
+      .describe(
+        `Replacement text, 0 to ${REPLACEMENT_MAX} characters (empty deletes the match); $1/$&/$$ interpolate in regex mode.`,
+      ),
+    mode: z
+      .enum(["literal", "regex"])
+      .optional()
+      .default("literal")
+      .describe('How pattern is read: "literal" (verbatim text) or "regex" (ECMAScript). Default "literal".'),
+    case_insensitive: z.boolean().optional().default(false).describe("Match ignoring case when true. Default false."),
+    subfolder: z
+      .string()
+      .optional()
+      .describe("Vault-relative folder to confine the scan to, recursively. Omit for the whole vault; not combinable with file/path/active_note."),
+    include_code_blocks: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe("Also replace inside fenced code blocks when true. Default false (skipped)."),
+    include_html_comments: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe("Also replace inside <!-- --> HTML comments when true. Default false (skipped)."),
+    commit: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe("Write the replacements to disk when true. Default false (preview only, nothing changes)."),
+    vault: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("Obsidian vault display name. Omit to use the vault focused in Obsidian; not allowed with active_note."),
     // Single-note scope locators (066-file-scope). All optional — omitting all
     // three preserves the vault-wide / subfolder default byte-for-byte (FR-014).
     // `file` is a bare note name resolved like a wikilink (shortest-unique-name);
     // `path` is an exact vault-relative path; `active_note` confines to the open note.
-    file: z.string().min(1).optional(),
-    path: z.string().min(1).optional(),
-    active_note: z.boolean().optional().default(false),
+    file: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('Confine to one note named like a wikilink (e.g. "Alpha"), no [[ ]] brackets. Not combinable with path or subfolder.'),
+    path: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('Confine to one note by exact vault-relative path (e.g. "Projects/Alpha.md"). Not combinable with file or subfolder.'),
+    active_note: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe("Confine to the note open in Obsidian when true. Default false; not combinable with file, path, subfolder or vault."),
   })
   .superRefine((v, ctx) => {
     if (v.mode === "regex") {

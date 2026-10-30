@@ -1,4 +1,4 @@
-// Original — no upstream. backlinks registration tests — descriptor name + stripped emitted schema (target_mode/vault/file/path/with_counts/total/limit; additionalProperties:false; required={target_mode}; no description keys), help() / sibling-pointer / cap-bypass references in the description, docs presence + content completeness, baseline fingerprint roll-forward gate.
+// Original — no upstream. backlinks registration tests — descriptor name + described emitted schema (target_mode/vault/file/path/with_counts/total/limit; every property described), no help() deferral / sibling-pointer / cap-bypass references in the description, docs presence + content completeness, baseline fingerprint roll-forward gate.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,7 +14,6 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -33,19 +32,19 @@ describe("createBacklinksTool — descriptor", () => {
     expect(tool.descriptor.description.length).toBeGreaterThan(200);
   });
 
-  // (b) Stripped emitted schema — ADR-005
-  it("strips descriptions at every nested depth", () => {
+  // (b) Every emitted property is described (068 FR-030; supersedes the ADR-005 stripping)
+  it("publishes a description on every input property", () => {
     const tool = createBacklinksTool({
       logger: silentLogger(),
       queue: createQueue(),
       spawnFn: makeStubSpawn(),
     });
-    const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    expect(countDescriptionKeys(schema)).toBe(0);
+    const props = tool.descriptor.inputSchema.properties as Record<string, { description?: unknown }>;
+    for (const [key, prop] of Object.entries(props)) expect(typeof prop.description, key).toBe("string");
   });
 
-  // (c) Description references help(), the tool name, the sibling `links`, the .md-only and cap-bypass clarifications
-  it("description references help(), the tool name 'backlinks', the sibling 'links', .md-only corpus, and the total cap-bypass", () => {
+  // (c) Description no longer defers to help (068 FR-032); keeps the sibling `links`, the .md-only and cap-bypass clarifications
+  it("description does not say 'Call help(', and names 'backlinks', the sibling 'links', .md-only corpus, and the total cap-bypass", () => {
     const tool = createBacklinksTool({
       logger: silentLogger(),
       queue: createQueue(),
@@ -53,7 +52,7 @@ describe("createBacklinksTool — descriptor", () => {
     });
     const desc = tool.descriptor.description;
     const lower = desc.toLowerCase();
-    expect(lower).toContain("help");
+    expect(desc).not.toMatch(/call `?help\(/i);
     expect(lower).toContain("backlinks");
     expect(lower).toContain("links");
     expect(lower).toContain(".md");

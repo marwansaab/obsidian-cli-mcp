@@ -34,12 +34,10 @@ describe("createWriteNoteTool — descriptor (US5 / FR-022 / ADR-005)", () => {
     expect(tool.descriptor.name).toBe("write_note");
   });
 
-  // (2) Tool description ends with `Call help({ tool_name: "write_note" })` per ADR-005
-  it("description references the help-pointer for write_note (ADR-005)", () => {
+  it("description no longer points at help() (068 FR-032)", () => {
     const tool = build();
     expect(tool.descriptor.description).toBe(WRITE_NOTE_DESCRIPTION);
-    // Help-pointer convention — present and references the tool name verbatim.
-    expect(tool.descriptor.description).toContain('help({ tool_name: "write_note" })');
+    expect(tool.descriptor.description).not.toMatch(/call `?help\(/i);
   });
 
   // (3) docs/tools/write_note.md exists at the import.meta.url-anchored path (ADR-005)

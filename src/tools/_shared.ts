@@ -32,16 +32,29 @@ export function composeEvalCode(template: string, payload: unknown): string {
 }
 
 /**
- * The project's own view of a registered tool's descriptor: the name, the description and
- * the `inputSchema` JSON emitted from `toSdkInputSchema` at the SDK's target (descriptions
- * below the root stripped, FR-006). `registerTool` refuses a schema without an object root,
- * so the SDK publishes these bytes unchanged (`_register.test.ts` pins descriptor ===
- * published through a real client). Used for boot-time checks and co-located tests;
- * clients read the descriptor from the SDK's `tools/list`.
+ * The four MCP behaviour hints, all required so TypeScript refuses a tool that leaves one
+ * out (068 FR-020; values per spec FR-024, pinned by `_surface.test.ts`).
+ */
+export interface ToolAnnotations {
+  readOnlyHint: boolean;
+  destructiveHint: boolean;
+  idempotentHint: boolean;
+  openWorldHint: boolean;
+}
+
+/**
+ * The project's own view of a registered tool's descriptor: the name, title, description,
+ * annotations and the `inputSchema` JSON emitted from `toSdkInputSchema` at the SDK's target
+ * (parameter descriptions kept, 068 FR-029). `registerTool` refuses a schema without an
+ * object root, so the SDK publishes these bytes unchanged (`_register.test.ts` pins
+ * descriptor === published through a real client). Used for boot-time checks and co-located
+ * tests; clients read the descriptor from the SDK's `tools/list`.
  */
 export interface ToolDescriptor {
   name: string;
+  title: string;
   description: string;
+  annotations: ToolAnnotations;
   inputSchema: Record<string, unknown>;
 }
 

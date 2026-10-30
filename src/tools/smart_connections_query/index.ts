@@ -22,15 +22,15 @@ Runtime dependency: the Smart Connections plugin (by Brian Petro; ≥ v4.5.0) mu
 
 Closed-but-registered vaults: when \`vault\` is in \`obsidian vaults\` but not currently open, the CLI transparently begins opening it as a side effect — error returned with \`details.code: VAULT_NOT_FOUND\`, \`details.reason: "not-open"\`. Retry after a brief delay.
 
-Error-precedence (outer to inner): VAULT_NOT_FOUND(unknown) → VAULT_NOT_FOUND(not-open) → SMART_CONNECTIONS_NOT_INSTALLED → SMART_CONNECTIONS_NOT_READY(api-missing) → SMART_CONNECTIONS_NOT_READY(embed-failed) → success.
-
-Call \`help({ tool_name: "smart_connections_query" })\` for worked examples, full error roster with recovery hints, and inherited-limitation details (indexing freshness, folder exclusions, local-model silent truncation, score-band caveats).`;
+Error-precedence (outer to inner): VAULT_NOT_FOUND(unknown) → VAULT_NOT_FOUND(not-open) → SMART_CONNECTIONS_NOT_INSTALLED → SMART_CONNECTIONS_NOT_READY(api-missing) → SMART_CONNECTIONS_NOT_READY(embed-failed) → success.`;
 
 export type RegisterDeps = ExecuteDeps;
 
 export function createSmartConnectionsQueryTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: SMART_CONNECTIONS_QUERY_TOOL_NAME,
+    title: "Smart Connections Query",
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     description: SMART_CONNECTIONS_QUERY_DESCRIPTION,
     schema: smartConnectionsQueryInputSchema,
     deps,

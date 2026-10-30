@@ -9,11 +9,26 @@ export const MAX_CONTENT_LENGTH = 3072;
 
 export const createBaseInputSchema = z
   .strictObject({
-    path: requiredString("path"),
-    name: requiredString("name"),
-    content: z.string().optional(),
-    view: z.string().min(1).optional(),
-    vault: z.string().min(1).optional(),
+    path: requiredString("path").describe(
+      'Vault-relative path to the .base file (e.g. "Projects/Tasks.base"), 1..1000 chars; must end with .base.',
+    ),
+    name: requiredString("name").describe(
+      "Name of the new item, 1..1000 chars; becomes the Markdown file name (auto-incremented on collision).",
+    ),
+    content: z
+      .string()
+      .optional()
+      .describe(`Body text of the new item, up to ${MAX_CONTENT_LENGTH} UTF-16 code units. Default: none.`),
+    view: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("View name inside the base to create the item in. Not checked by the CLI; omit for the default."),
+    vault: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("Obsidian vault display name. Accepted for parity but currently ignored by the CLI."),
   })
   .superRefine((v, ctx) => {
     if (typeof v.path === "string") appendBasePathIssues(ctx, v.path, "path");

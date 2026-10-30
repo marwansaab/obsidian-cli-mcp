@@ -22,9 +22,14 @@ const valueSchema = z.union([
 
 export const setPropertyInputSchema = applyTargetModeRefinement(
   targetModeBaseSchema.extend({
-    name: z.string().min(1),
-    value: valueSchema,
-    type: z.enum(PROPERTY_WRITE_TYPE_LABELS).optional(),
+    name: z.string().min(1).describe('Frontmatter property name to write (e.g. "status").'),
+    value: valueSchema.describe("Value to write: a string, number, boolean or array of strings."),
+    type: z
+      .enum(PROPERTY_WRITE_TYPE_LABELS)
+      .optional()
+      .describe(
+        'Obsidian property type to write as. Inferred from value when omitted; required for "date" and "datetime".',
+      ),
   }),
 );
 

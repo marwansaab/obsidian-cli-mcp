@@ -18,13 +18,15 @@ Separator: a newline is auto-inserted between the existing file content and your
 
 Content: preserved byte-for-byte (no trim, no normalisation, no auto-appended trailing newline — caller controls whether the file ends with a newline after the call). Must be non-empty. No wrapper-imposed size cap.
 
-Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (with \`details.code: CONTENT_EMPTY\`), \`NOTE_NOT_FOUND\`, \`EXTERNAL_EDITOR_CONFLICT\` (Windows file-lock detection only), \`FS_WRITE_FAILED\`, \`PATH_ESCAPES_VAULT\`, \`VAULT_NOT_FOUND\`, \`ERR_NO_ACTIVE_FILE\`. Call \`help({ tool_name: "append_note" })\` for recovery hints, worked examples, and the cross-invocation last-write-wins contract.`;
+Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (with \`details.code: CONTENT_EMPTY\`), \`NOTE_NOT_FOUND\`, \`EXTERNAL_EDITOR_CONFLICT\` (Windows file-lock detection only), \`FS_WRITE_FAILED\`, \`PATH_ESCAPES_VAULT\`, \`VAULT_NOT_FOUND\`, \`ERR_NO_ACTIVE_FILE\`.`;
 
 export type RegisterDeps = ExecuteDeps;
 
 export function createAppendNoteTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: APPEND_NOTE_TOOL_NAME,
+    title: "Append Note",
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     description: APPEND_NOTE_DESCRIPTION,
     schema: appendNoteInputSchema,
     deps,

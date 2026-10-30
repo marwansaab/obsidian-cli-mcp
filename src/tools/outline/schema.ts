@@ -5,7 +5,10 @@ import { applyTargetModeRefinement, targetModeBaseSchema } from "../../target-mo
 
 export const outlineInputSchema = applyTargetModeRefinement(
   targetModeBaseSchema.extend({
-    total: z.boolean().optional(),
+    total: z
+      .boolean()
+      .optional()
+      .describe("When true, return only the count with an empty headings list. Default false."),
   }),
 );
 

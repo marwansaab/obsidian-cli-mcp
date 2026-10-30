@@ -14,9 +14,10 @@ export const tagInputSchema = z
       .refine(
         (s) => !s.split("/").some((seg) => seg.length === 0),
         "tag contains empty hierarchical segment (e.g. /foo, foo/, foo//bar)",
-      ),
-    vault: z.string().min(1).optional(),
-    total: z.boolean().optional(),
+      )
+      .describe('Tag to find, with or without a leading "#", up to 200 characters; matches child tags too (e.g. "project/alpha").'),
+    vault: z.string().min(1).optional().describe("Obsidian vault display name. Omit to use the vault focused in Obsidian."),
+    total: z.boolean().optional().describe("When true, return only the match count as a bare integer. Default false."),
   });
 
 export const tagDefaultOutputSchema = z

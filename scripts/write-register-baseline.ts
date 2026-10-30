@@ -18,6 +18,8 @@ interface BaselineEntry {
   name: string;
   descriptionFingerprint: string;
   schemaFingerprint: string;
+  titleFingerprint: string;
+  annotationsFingerprint: string;
 }
 
 async function fingerprintViaVitest(): Promise<BaselineEntry[]> {

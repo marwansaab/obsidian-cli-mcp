@@ -9,15 +9,15 @@ import { z } from "zod";
 
 import {
   applyTargetModeRefinementForFolderScoped,
-  targetModeBaseSchema,
+  folderScopedTargetModeBaseSchema,
 } from "../../target-mode/target-mode.js";
 
 // Input: the shared folder-scoped refinement applied to the base target-mode object. Because
-// targetModeBaseSchema declares `file`/`path` as optional, the emitted MCP inputSchema lists them
+// folderScopedTargetModeBaseSchema declares `file`/`path` as optional, the emitted MCP inputSchema lists them
 // even though the refinement always rejects them — identical published-but-rejected shape to the
 // shipped `files`/`paths` tools (accepted cohort convention; data-model I1 / spec FR-009).
 export const getActiveFileInputSchema =
-  applyTargetModeRefinementForFolderScoped(targetModeBaseSchema);
+  applyTargetModeRefinementForFolderScoped(folderScopedTargetModeBaseSchema);
 export type GetActiveFileInput = z.infer<typeof getActiveFileInputSchema>;
 
 // The four Obsidian-native TFile identity fields (FR-001..004). `name` = `basename` + `extension`;

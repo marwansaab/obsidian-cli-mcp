@@ -16,13 +16,15 @@ Response: \`{ path: string, name: string }\`. \`path\` is the wrapper-constructe
 
 Write operation — creates a new Markdown note in the vault.
 
-Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (\`INVALID_BASE_PATH\` with sub-reasons \`empty\`/\`too-long\`/\`wrong-extension\`/\`path-traversal\`; \`INVALID_NAME\` with sub-reasons \`empty\`/\`too-long\`; \`CONTENT_TOO_LARGE\`); \`CLI_REPORTED_ERROR\` (\`BASE_NOT_FOUND\` when the specified base file does not exist). Call \`help({ tool_name: "create_base" })\` for worked examples and recovery hints.`;
+Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (\`INVALID_BASE_PATH\` with sub-reasons \`empty\`/\`too-long\`/\`wrong-extension\`/\`path-traversal\`; \`INVALID_NAME\` with sub-reasons \`empty\`/\`too-long\`; \`CONTENT_TOO_LARGE\`); \`CLI_REPORTED_ERROR\` (\`BASE_NOT_FOUND\` when the specified base file does not exist).`;
 
 export type RegisterDeps = ExecuteDeps;
 
 export function createCreateBaseTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: CREATE_BASE_TOOL_NAME,
+    title: "Create Base",
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     description: CREATE_BASE_DESCRIPTION,
     schema: createBaseInputSchema,
     deps,

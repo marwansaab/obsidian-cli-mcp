@@ -13,17 +13,26 @@ export const searchInputSchema = z
     query: z
       .string()
       .min(1, "query is required")
-      .max(1000, "query exceeds 1000 chars (FR-010)"),
-    folder: z.string().min(1).optional(),
+      .max(1000, "query exceeds 1000 chars (FR-010)")
+      .describe("Literal substring to find in note text, 1–1000 characters, not whitespace-only."),
+    folder: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("Vault-relative folder to search under (e.g. \"Projects\"). Default: the whole vault."),
     limit: z
       .number()
       .int()
       .min(1, "limit must be >= 1 (FR-008)")
       .max(10000, "limit must be <= 10000 (FR-008 / Q3)")
-      .optional(),
-    case_sensitive: z.boolean().optional(),
-    context_lines: z.boolean().optional(),
-    vault: z.string().min(1).optional(),
+      .optional()
+      .describe("Maximum number of results, integer 1–10000. Default 1000."),
+    case_sensitive: z.boolean().optional().describe("Match case exactly when true. Default false (ASCII case fold)."),
+    context_lines: z
+      .boolean()
+      .optional()
+      .describe("Deprecated: when true, return per-line matches instead of paths; prefer context_search. Default false."),
+    vault: z.string().min(1).optional().describe("Obsidian vault display name. Omit to use the vault focused in Obsidian."),
   })
   .superRefine((v, ctx) => {
     if (v.query.trim().length === 0) {

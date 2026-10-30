@@ -11,7 +11,7 @@ export const FIND_AND_REPLACE_TOOL_NAME = "find_and_replace";
 export const FIND_AND_REPLACE_DESCRIPTION =
   `Find-and-replace with **preview-then-commit** semantics. Scan a vault, a sub-folder, or a single note for a literal-or-regex pattern; default returns a preview, \`commit: true\` rewrites the matches on disk.
 
-**SCOPE — default is vault-wide; narrow it deliberately.** With no scope field this tool replaces matches across EVERY eligible \`.md\` file in the vault (or the named \`subfolder\`, recursively). To confine a change to ONE note, use a single-note scope (below) so the SCOPE — not a globally-unique pattern — bounds the blast radius. Agents have corrupted unintended files by committing wide-pattern replacements; ALWAYS preview first and inspect \`affected_notes\` before \`commit: true\`.
+**SCOPE — default is vault-wide; narrow it deliberately.** With no scope field this tool replaces matches across EVERY eligible \`.md\` file in the vault (or the named \`subfolder\`, recursively). To confine a change to ONE note, use a single-note scope (below) so the SCOPE — not a globally-unique pattern — bounds the blast radius. Agents have corrupted unintended files by committing wide-pattern replacements.
 
 Required \`pattern\` (1..1000 UTF-16 code units). Required \`replacement\` (0..1000 chars; empty = deletion).
 
@@ -39,9 +39,7 @@ Eligible files: \`.md\` extension (case-insensitive) AND every path segment NOT 
 
 Line-scoped only — \`\\n\` in \`pattern\` does NOT match cross-line; line endings preserved byte-for-byte. Zero-width regex matches (\`a*\`, \`^\`, \`$\`, \`\\b\`, lookarounds) are skipped. Frontmatter / indented code blocks / inline code spans are treated as PROSE.
 
-Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` with sub-discriminators (\`INVALID_PATTERN\`/\`empty\`|\`too-long\`|\`regex-syntax\`; \`INVALID_REPLACEMENT\`; \`INVALID_SUBFOLDER\`/\`path-traversal\`|\`not-found\`; \`OCCURRENCE_COUNT_EXCEEDED\`; \`OCCURRENCE_COUNT_DRIFT\`); \`CLI_REPORTED_ERROR\` (\`VAULT_NOT_FOUND\`/\`unknown\`|\`not-open\`); \`PATH_ESCAPES_VAULT\` (canonical escape, security event logged); \`FS_WRITE_FAILED\` (\`details.reason: "read"\` no-op, OR \`"write"\` with \`partial: true\` + \`failing_note_locator\` + \`changed_notes\`).
-
-Call \`help({ tool_name: "find_and_replace" })\` for worked examples (literal preview, regex preview, commit, error envelopes for each discriminator) and the full failure roster with recovery hints.`;
+Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` with sub-discriminators (\`INVALID_PATTERN\`/\`empty\`|\`too-long\`|\`regex-syntax\`; \`INVALID_REPLACEMENT\`; \`INVALID_SUBFOLDER\`/\`path-traversal\`|\`not-found\`; \`OCCURRENCE_COUNT_EXCEEDED\`; \`OCCURRENCE_COUNT_DRIFT\`); \`CLI_REPORTED_ERROR\` (\`VAULT_NOT_FOUND\`/\`unknown\`|\`not-open\`); \`PATH_ESCAPES_VAULT\` (canonical escape, security event logged); \`FS_WRITE_FAILED\` (\`details.reason: "read"\` no-op, OR \`"write"\` with \`partial: true\` + \`failing_note_locator\` + \`changed_notes\`).`;
 
 export type RegisterDeps = ExecuteDeps;
 
@@ -154,6 +152,8 @@ function mapZodIssuesToToolError(issues: z.core.$ZodIssue[]): ToolErrorPayload {
 export function createFindAndReplaceTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: FIND_AND_REPLACE_TOOL_NAME,
+    title: "Find And Replace",
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     description: FIND_AND_REPLACE_DESCRIPTION,
     schema: findAndReplaceInputSchema,
     deps,

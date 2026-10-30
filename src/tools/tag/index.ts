@@ -22,19 +22,21 @@ Required \`tag\` (string): wrapper trims whitespace, strips a single leading \`#
 
 Both body inline tags (\`#tag\`) and frontmatter tag arrays (\`tags: [...]\`) contribute equally. Per-note de-duplication — a body that says \`#dup #dup\` contributes once.
 
-Optional \`vault\` (string): routes to a named vault even when it is open but unfocused (B1 falsified — BI-0134 / ADR-031); omitted routes to the focused vault. Residual limit: genuine same-display-name collision (focus does not fix it — give colliding vaults distinct display names).
+Optional \`vault\` (string): routes to a named vault even when it is open but unfocused (B1 falsified — BI-0134 / ADR-031); omitted routes to the focused vault. Residual limit: genuine same-vault-name collision (focus does not fix it — give colliding vaults distinct vault names).
 
 Optional \`total: true\` returns the bare integer count (token-economical pre-flight); the count is invariant across both modes for the same vault state.
 
 Paths sort byte-ascending. Zero-match returns \`{ count: 0, paths: [] }\` (or \`0\` in count-only mode) — NEVER an error.
 
-Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\`; \`CLI_REPORTED_ERROR\` (\`VAULT_NOT_FOUND\` with sub-reasons \`unknown\` / \`not-open\`); \`CLI_TIMEOUT\`; \`CLI_OUTPUT_TOO_LARGE\`; \`CLI_BINARY_NOT_FOUND\`. Call \`help({ tool_name: "tag" })\` for worked examples, the inherited-limitation details (ASCII-only fold; metadataCache freshness; no pagination), and the full failure roster.`;
+Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\`; \`CLI_REPORTED_ERROR\` (\`VAULT_NOT_FOUND\` with sub-reasons \`unknown\` / \`not-open\`); \`CLI_TIMEOUT\`; \`CLI_OUTPUT_TOO_LARGE\`; \`CLI_BINARY_NOT_FOUND\`.`;
 
 export type RegisterDeps = ExecuteDeps;
 
 export function createTagTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: TAG_TOOL_NAME,
+    title: "Tag",
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     description: TAG_DESCRIPTION,
     schema: tagInputSchema,
     deps,

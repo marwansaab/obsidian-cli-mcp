@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the tag tool registration — descriptor name + description, stripped JSON Schema (ADR-005), docs file presence + content completeness, and the FR-018 baseline drift-detector lock rolled forward by `npm run baseline:write` post-implementation.
+// Original — no upstream. Tests for the tag tool registration — descriptor name + description, described JSON Schema (068 FR-030), docs file presence + content completeness, and the FR-018 baseline drift-detector lock rolled forward by `npm run baseline:write` post-implementation.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,7 +10,6 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -27,26 +26,26 @@ describe("createTagTool — descriptor", () => {
     expect(tool.descriptor.name).toBe("tag");
   });
 
-  // (2) inputSchema has descriptions stripped (ADR-005)
-  it("strips descriptions at every nested depth", () => {
+  // (2) every inputSchema property carries a description (068 FR-030)
+  it("publishes a description on every input property", () => {
     const tool = createTagTool({
       logger: silentLogger(),
       queue: createQueue(),
       spawnFn: makeStubSpawn(),
     });
-    const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    expect(countDescriptionKeys(schema)).toBe(0);
+    const props = tool.descriptor.inputSchema.properties as Record<string, { description?: unknown }>;
+    for (const [key, prop] of Object.entries(props)) expect(typeof prop.description, key).toBe("string");
   });
 
-  // (3) TAG_DESCRIPTION mentions help({ tool_name: "tag" })
-  it('TAG_DESCRIPTION mentions help({ tool_name: "tag" })', () => {
+  // (3) TAG_DESCRIPTION no longer defers to help (068 FR-032)
+  it("TAG_DESCRIPTION does not say 'Call help('", () => {
     const tool = createTagTool({
       logger: silentLogger(),
       queue: createQueue(),
       spawnFn: makeStubSpawn(),
     });
     expect(tool.descriptor.description).toBe(TAG_DESCRIPTION);
-    expect(TAG_DESCRIPTION).toContain('help({ tool_name: "tag" })');
+    expect(TAG_DESCRIPTION).not.toMatch(/call `?help\(/i);
   });
 });
 

@@ -22,15 +22,15 @@ Names sort alphabetically ascending, case-insensitive. Upstream applies case-ins
 
 Upstream's per-entry \`type\` field (\`aliases\`, \`text\`, \`date\`, \`multitext\`, \`number\`, \`tags\`, \`checkbox\`, etc.) is dropped — type-aware enumeration is out of scope; route through \`obsidian_exec\` if you need it.
 
-Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (unknown top-level key, empty \`vault\`, non-boolean \`total\`); \`CLI_REPORTED_ERROR\` (\`Vault not found.\`); \`CLI_NON_ZERO_EXIT\` / \`CLI_OUTPUT_TOO_LARGE\` (pathologically large inventories — use \`total: true\` to bypass); \`CLI_BINARY_NOT_FOUND\`. No \`ERR_NO_ACTIVE_FILE\` — this tool has no active mode.
-
-Call \`help({ tool_name: "properties" })\` for worked examples, the case-variant collapse semantics, and recovery hints.`;
+Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (unknown top-level key, empty \`vault\`, non-boolean \`total\`); \`CLI_REPORTED_ERROR\` (\`Vault not found.\`); \`CLI_NON_ZERO_EXIT\` / \`CLI_OUTPUT_TOO_LARGE\` (pathologically large inventories — use \`total: true\` to bypass); \`CLI_BINARY_NOT_FOUND\`. No \`ERR_NO_ACTIVE_FILE\` — this tool has no active mode.`;
 
 export type RegisterDeps = ExecuteDeps;
 
 export function createPropertiesTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: PROPERTIES_TOOL_NAME,
+    title: "Properties",
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     description: PROPERTIES_DESCRIPTION,
     schema: propertiesInputSchema,
     deps,

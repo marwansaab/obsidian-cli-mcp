@@ -3,8 +3,11 @@ import { z } from "zod";
 
 export const propertiesInputSchema = z
   .strictObject({
-    vault: z.string().min(1).optional(),
-    total: z.boolean().optional(),
+    vault: z.string().min(1).optional().describe("Obsidian vault display name. Omit to use the vault focused in Obsidian."),
+    total: z
+      .boolean()
+      .optional()
+      .describe("When true, return only the count with an empty properties list. Default false."),
   })
   .describe(
     // BI-041 FR-011 — case-insensitive collapse contract promoted from spec

@@ -243,49 +243,51 @@ protocol. **Independent tests**: quickstart Â§1 (gate) and Â§5.
 **Branch**: `068-pr4-tool-surface` from updated `main` (PR-3 merged).
 **Independent test**: quickstart Â§6.
 
-- [ ] T044 Create branch `068-pr4-tool-surface`.
+- [X] T044 Create branch `068-pr4-tool-surface`.
 
 ### User Story 6: tools declare their nature (P2)
 
-- [ ] T045 [US6] Extend `ToolSpec` in src/tools/_register.ts with required `title: string` and `annotations: { readOnlyHint; destructiveHint; idempotentHint; openWorldHint }`, all required booleans so TypeScript enforces completeness. Pass both to `server.registerTool` config.
-- [ ] T046 [P] [US6] Add `title` + `annotations` to each of the 34 `src/tools/<tool>/index.ts` exactly per spec FR-024 / [contracts/tool-surface.contract.md](contracts/tool-surface.contract.md). Batches can run in parallel by file: the read row (21 tools now; `vaults` comes in PR-5), then write/edit/destructive/open/exec.
-- [ ] T047 [US6] Add enforcement tests in a new src/tools/_surface.test.ts (header `// Original â€” no upstream. Registry-wide published tool-surface enforcement tests.`) that walks `client.listTools()` over InMemoryTransport:
+- [X] T045 [US6] Extend `ToolSpec` in src/tools/_register.ts with required `title: string` and `annotations: { readOnlyHint; destructiveHint; idempotentHint; openWorldHint }`, all required booleans so TypeScript enforces completeness. Pass both to `server.registerTool` config.
+- [X] T046 [P] [US6] Add `title` + `annotations` to each of the 34 `src/tools/<tool>/index.ts` exactly per spec FR-024 / [contracts/tool-surface.contract.md](contracts/tool-surface.contract.md). Batches can run in parallel by file: the read row (21 tools now; `vaults` comes in PR-5), then write/edit/destructive/open/exec.
+- [X] T047 [US6] Add enforcement tests in a new src/tools/_surface.test.ts (header `// Original â€” no upstream. Registry-wide published tool-surface enforcement tests.`) that walks `client.listTools()` over InMemoryTransport:
   - every tool has a non-empty `title` and all four hints as booleans (FR-023);
   - a pinned table asserts each tool's four values (FR-024);
   - every read-only-row tool has `readOnlyHint: true` and `destructiveHint: false`, which is the server-side evidence for SC-006.
 
 ### User Story 8: every parameter is described (P2)
 
-- [ ] T048 [US8] Remove `stripSchemaDescriptions` from `toSdkInputSchema` (src/tools/_register.ts). Delete src/help/strip-schema.ts and src/help/strip-schema.test.ts; the only production caller is `_register.ts` (graph-verified).
-- [ ] T049 [US8] Add rule-bearing `.describe()` text to `targetModeBaseSchema` and the folder-scoped variant in src/target-mode/target-mode.ts, per the tool-surface contract (target_mode, vault, file, path). Keep `superRefine` unchanged (ADR-003, C1 ruling). Test in src/target-mode/target-mode.test.ts that the emitted JSON Schema descriptions state each rule.
-- [ ] T050 [P] [US8] Add a one-line `.describe()` (what, format, default) to every property of every input schema in `src/tools/*/schema.ts` (all 34 tools). Batches can run in parallel by tool group: read/search, write/edit, bases/plugin/meta.
-- [ ] T051 [US8] In every `src/tools/*/index.ts` `*_DESCRIPTION` constant (34), remove the `Call help({ tool_name: "â€¦" }) for full parameter docsâ€¦` sentence (FR-032). Remove the cross-cutting rule repeats now owned by the instructions: "Specific mode" in files, get_active_file, links, outline, paths, read, read_heading, read_property, smart_connections_similar, write_note; "display name" in backlinks, links, tag; "preview first" in find_and_replace (FR-028).
-- [ ] T052 [US8] Extend src/tools/_surface.test.ts with:
+- [X] T048 [US8] Remove `stripSchemaDescriptions` from `toSdkInputSchema` (src/tools/_register.ts). Delete src/help/strip-schema.ts and src/help/strip-schema.test.ts; the only production caller is `_register.ts` (graph-verified).
+- [X] T049 [US8] Add rule-bearing `.describe()` text to `targetModeBaseSchema` and the folder-scoped variant in src/target-mode/target-mode.ts, per the tool-surface contract (target_mode, vault, file, path). Keep `superRefine` unchanged (ADR-003, C1 ruling). Test in src/target-mode/target-mode.test.ts that the emitted JSON Schema descriptions state each rule.
+- [X] T050 [P] [US8] Add a one-line `.describe()` (what, format, default) to every property of every input schema in `src/tools/*/schema.ts` (all 34 tools). Batches can run in parallel by tool group: read/search, write/edit, bases/plugin/meta.
+- [X] T051 [US8] In every `src/tools/*/index.ts` `*_DESCRIPTION` constant (34), remove the `Call help({ tool_name: "â€¦" }) for full parameter docsâ€¦` sentence (FR-032). Remove the cross-cutting rule repeats now owned by the instructions: "Specific mode" in files, get_active_file, links, outline, paths, read, read_heading, read_property, smart_connections_similar, write_note; "display name" in backlinks, links, tag; "preview first" in find_and_replace (FR-028).
+- [X] T052 [US8] Extend src/tools/_surface.test.ts with:
   - a recursive walk of every published `inputSchema` (properties, nested objects, array items) that fails on any property without `description` (FR-030);
   - no description contains `Call help(`;
   - no description repeats the instruction-owned rule sentences.
 
 ### User Story 7: the model is oriented at session start (P2)
 
-- [ ] T053 [US7] Create src/instructions/instructions.ts (`// Original â€” no upstream.`) exporting `buildInstructions(offeredToolNames: readonly string[]): string` per R7 / data-model Â§5:
+- [X] T053 [US7] Create src/instructions/instructions.ts (`// Original â€” no upstream.`) exporting `buildInstructions(offeredToolNames: readonly string[]): string` per R7 / data-model Â§5:
   - a fixed opening of â‰¤ 512 characters ending on a sentence, naming no hideable tool;
   - routing lines and rules as `{text, tools}`, each kept only if all its tools are offered;
   - tool names always in backticks.
 
   The rules come from spec FR-027. The `vaults` rule is tagged `["vaults"]` and drops out until PR-5.
-- [ ] T054 [P] [US7] Add tests in a new src/instructions/instructions.test.ts (header `// Original â€” no upstream. Tests for the server instructions builder.`):
+- [X] T054 [P] [US7] Add tests in a new src/instructions/instructions.test.ts (header `// Original â€” no upstream. Tests for the server instructions builder.`):
   - the unfiltered text (all names, including `vaults`) is < 2,000 characters;
   - the first 512 characters end on a complete sentence;
   - the opening is identical for full, read-only and single-tool sets;
   - lines naming an absent tool are omitted;
   - the read-only set's text contains no backticked non-read-only tool name (FR-026a).
-- [ ] T055 [US7] In `createServer()` (src/server.ts), build the instructions once from the registered spec names and pass `instructions` in the `McpServer` options in `buildMcpServer`. Extend src/server.protocol.test.ts so both eras receive byte-identical `instructions`.
+- [X] T055 [US7] In `createServer()` (src/server.ts), build the instructions once from the registered spec names and pass `instructions` in the `McpServer` options in `buildMcpServer`. Extend src/server.protocol.test.ts so both eras receive byte-identical `instructions`.
 
 ### PR-4 wrap
 
-- [ ] T056 Add `titleFingerprint` and `annotationsFingerprint` to `fingerprintLiveRegistry` (src/tools/_register-baseline.ts), run `npm run baseline:write`, and review the diff: every tool's description, schema, title and annotations change.
-- [ ] T057 Write `.decisions/ADR-040 - Published Parameter Descriptions and Server Instructions.md`, superseding ADR-005 (client tool deferral, tool search matching descriptions, descriptions grown back to about 77 KB). Add the row to `.decisions/Decision Log.md`. Confirm the number as in T041.
-- [ ] T058 Run the gates. `npm run probe:stdio` for both eras prints the instructions length (< 2,000). **T0-live, release evidence for SC-006**: in Claude Code, two read-only calls in one turn run in parallel with no "may modify data" prompt. Record the result in the PR body. SC-006 itself passes on the T047 assertions.
+- [X] T056 Add `titleFingerprint` and `annotationsFingerprint` to `fingerprintLiveRegistry` (src/tools/_register-baseline.ts), run `npm run baseline:write`, and review the diff: every tool's description, schema, title and annotations change.
+  **Outcome (2026-10-30)**: 34 of 34 `descriptionFingerprint` and 34 of 34 `schemaFingerprint` values changed, the 34 names are identical, and `schemaVersion` stays 2. The new fields hold 34 distinct `titleFingerprint` values and 5 distinct `annotationsFingerprint` values (one per FR-024 row: read-only, additive write, repeat-safe write, destructive, passthrough).
+- [X] T057 Write `.decisions/ADR-040 - Published Parameter Descriptions and Server Instructions.md`, superseding ADR-005 (client tool deferral, tool search matching descriptions, descriptions grown back to about 77 KB). Add the row to `.decisions/Decision Log.md`. Confirm the number as in T041.
+- [X] T058 Run the gates. `npm run probe:stdio` for both eras prints the instructions length (< 2,000). **T0-live, release evidence for SC-006**: in Claude Code, two read-only calls in one turn run in parallel with no "may modify data" prompt. Record the result in the PR body. SC-006 itself passes on the T047 assertions.
+  **Outcome (2026-10-30)**: lint zero warnings, typecheck and build clean, 2979 tests pass (6 skipped), statements 96.8%. `probe:stdio` lists 34 tools with `instructions` present at 1,847 characters for both eras (legacy negotiates `2025-11-25`, modern `2026-07-28`); the unfiltered text including the PR-5 `vaults` lines is 1,888 characters. SC-006 server-side evidence: `src/tools/_surface.test.ts` pins all 21 read-only-row tools at `readOnlyHint: true`, `destructiveHint: false`. The Claude Code parallel-read check (no "may modify data" prompt) cannot run in this unattended session, so it is still open for the owner before merge.
 - [ ] T059 PR-4 wrap:
   - `/speckit-git-commit`;
   - open **PR-4**. Checklist: Iâ€“V **Y**; Tool Surface **Y** for title, annotations, parameter descriptions, visible input rules (in descriptions) and instructions (closes B1/B2/C1), typed results **N/A (pending B5)**; ADR-010/013/014/015 **N/A**; Security Defaults **N/A**;

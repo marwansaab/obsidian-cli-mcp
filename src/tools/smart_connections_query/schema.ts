@@ -13,10 +13,28 @@ export const MAX_QUERY_LENGTH = 2000;
 
 export const smartConnectionsQueryInputSchema = z
   .strictObject({
-    query: z.string().trim().min(1).max(MAX_QUERY_LENGTH),
-    vault: z.string().min(1).optional(),
-    limit: z.number().int().min(1).max(100).default(20),
-    total: z.boolean().optional(),
+    query: z
+      .string()
+      .trim()
+      .min(1)
+      .max(MAX_QUERY_LENGTH)
+      .describe(`Free-text natural-language query, trimmed, 1..${MAX_QUERY_LENGTH} chars.`),
+    vault: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("Obsidian vault display name. Omit to use the vault focused in Obsidian."),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(100)
+      .default(20)
+      .describe("Maximum number of matches to return, integer 1..100. Default 20."),
+    total: z
+      .boolean()
+      .optional()
+      .describe("When true, return only the count with matches: []. Default false."),
   });
 
 export const matchEntrySchema = z

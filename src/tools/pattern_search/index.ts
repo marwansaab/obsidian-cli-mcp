@@ -32,13 +32,15 @@ Optional \`vault\` (string): routes to a named vault; omitted routes to the focu
 
 Zero-match valid pattern returns \`{ count: 0, matches: [] }\` (never an error). With \`folder\` supplied, a missing folder surfaces as \`CLI_REPORTED_ERROR\` with \`details.code: "FOLDER_NOT_FOUND"\` (distinguishes wrong-folder from no-matches).
 
-Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (including invalid regex), \`CLI_REPORTED_ERROR\` (with sub-discriminators \`FOLDER_NOT_FOUND\` / \`VAULT_NOT_FOUND\` / json-parse / envelope-parse), \`CLI_NON_ZERO_EXIT\`, \`CLI_TIMEOUT\`, \`CLI_OUTPUT_TOO_LARGE\`, \`CLI_BINARY_NOT_FOUND\`. Call \`help({ tool_name: "pattern_search" })\` for ECMAScript-dialect notes, worked examples, and the full failure roster with recovery hints.`;
+Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (including invalid regex), \`CLI_REPORTED_ERROR\` (with sub-discriminators \`FOLDER_NOT_FOUND\` / \`VAULT_NOT_FOUND\` / json-parse / envelope-parse), \`CLI_NON_ZERO_EXIT\`, \`CLI_TIMEOUT\`, \`CLI_OUTPUT_TOO_LARGE\`, \`CLI_BINARY_NOT_FOUND\`.`;
 
 export type RegisterDeps = ExecuteDeps;
 
 export function createPatternSearchTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: PATTERN_SEARCH_TOOL_NAME,
+    title: "Pattern Search",
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     description: PATTERN_SEARCH_DESCRIPTION,
     schema: patternSearchInputSchema,
     deps,

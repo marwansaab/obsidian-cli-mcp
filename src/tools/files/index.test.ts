@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the files tool registration — descriptor name + description, stripped JSON Schema (ADR-005), help-facility index reference, docs file presence + content completeness.
+// Original — no upstream. Tests for the files tool registration — descriptor name + description, described JSON Schema (068 FR-030), no help deferral, docs file presence + content completeness.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,7 +9,6 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-import { countDescriptionKeys } from "../_schema-test-utils.js";
 import { createFilesTool, FILES_DESCRIPTION, FILES_TOOL_NAME } from "./index.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -23,8 +22,8 @@ describe("createFilesTool — descriptor", () => {
     expect(tool.descriptor.name).toBe("files");
   });
 
-  // (2) description mentions target_mode, folder, total, and "help"
-  it("description references target_mode, folder, total, files, and help", () => {
+  // (2) description mentions target_mode, folder, total, and no longer defers to help (068 FR-032)
+  it("description references target_mode, folder, total, files, and does not say 'Call help('", () => {
     const tool = createFilesTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     expect(tool.descriptor.description).toBe(FILES_DESCRIPTION);
     const lower = FILES_DESCRIPTION.toLowerCase();
@@ -32,14 +31,15 @@ describe("createFilesTool — descriptor", () => {
     expect(lower).toContain("folder");
     expect(lower).toContain("total");
     expect(lower).toContain("files");
-    expect(lower).toContain("help");
+    expect(FILES_DESCRIPTION).not.toMatch(/call `?help\(/i);
   });
 
-  // (3) emitted inputSchema strips descriptions per ADR-005
-  it("emits inputSchema with descriptions stripped at every nested depth", () => {
+  // (3) every emitted inputSchema property carries a description (068 FR-030)
+  it("emits inputSchema with a description on every property, stating the folder-scoped rule", () => {
     const tool = createFilesTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
-    const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    expect(countDescriptionKeys(schema)).toBe(0);
+    const props = tool.descriptor.inputSchema.properties as Record<string, { description?: unknown }>;
+    for (const [key, prop] of Object.entries(props)) expect(typeof prop.description, key).toBe("string");
+    expect(props.file!.description).toContain("Not accepted by this tool");
   });
 });
 

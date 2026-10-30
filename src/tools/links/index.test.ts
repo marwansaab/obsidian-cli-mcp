@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the links tool registration — descriptor shape, stripped schema, help mention, docs presence + content completeness.
+// Original — no upstream. Tests for the links tool registration — descriptor shape, described schema, no help deferral, docs presence + content completeness.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,7 +14,6 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -32,19 +31,19 @@ describe("createLinksTool — descriptor", () => {
     expect(tool.descriptor.description).toBe(LINKS_DESCRIPTION);
   });
 
-  // (b) Stripped emitted schema — ADR-005
-  it("strips descriptions at every nested depth", () => {
+  // (b) Every emitted property is described (068 FR-030; supersedes the ADR-005 stripping)
+  it("publishes a description on every input property", () => {
     const tool = createLinksTool({
       logger: silentLogger(),
       queue: createQueue(),
       spawnFn: makeStubSpawn(),
     });
-    const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    expect(countDescriptionKeys(schema)).toBe(0);
+    const props = tool.descriptor.inputSchema.properties as Record<string, { description?: unknown }>;
+    for (const [key, prop] of Object.entries(props)) expect(typeof prop.description, key).toBe("string");
   });
 
-  // (c) Description references help(), the tool name, and the closed kind enum + total flag
-  it("description references help(), the tool name 'links', the closed kind enum, and the count-only mode", () => {
+  // (c) Description no longer defers to help (068 FR-032); keeps the closed kind enum + total flag
+  it("description does not say 'Call help(', and names 'links', the closed kind enum, and the count-only mode", () => {
     const tool = createLinksTool({
       logger: silentLogger(),
       queue: createQueue(),
@@ -52,7 +51,7 @@ describe("createLinksTool — descriptor", () => {
     });
     const desc = tool.descriptor.description;
     const lower = desc.toLowerCase();
-    expect(lower).toContain("help");
+    expect(desc).not.toMatch(/call `?help\(/i);
     expect(lower).toContain("links");
     expect(lower).toContain("wikilink");
     expect(lower).toContain("embed");

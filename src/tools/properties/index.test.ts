@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the properties tool registration — descriptor name + description, stripped JSON Schema (ADR-005), help-facility doc presence + content completeness (≥4 worked examples + error roster), and the FR-018 baseline drift-detector lock (rolled forward by `npm run baseline:write` post-T009).
+// Original — no upstream. Tests for the properties tool registration — descriptor name + description, described JSON Schema (068 FR-030), help-facility doc presence + content completeness (≥4 worked examples + error roster), and the FR-018 baseline drift-detector lock (rolled forward by `npm run baseline:write` post-T009).
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,7 +10,6 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -47,27 +46,21 @@ describe("createPropertiesTool — descriptor", () => {
     expect(tool.descriptor.name).toBe("properties");
   });
 
-  // (b) inputSchema has nested descriptions stripped (ADR-005); BI-041 introduces
-  //     a root-level description carrying the case-insensitive collapse contract,
-  //     preserved by stripSchemaDescriptions per FR-003.
-  it("strips descriptions at every nested depth (root description allowed per FR-003)", () => {
+  // (b) every inputSchema property is described (068 FR-030); the BI-041 root-level
+  //     description carrying the case-insensitive collapse contract stays.
+  it("publishes a description on every input property and keeps the root description", () => {
     const tool = createPropertiesTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    const props = schema.properties as Record<string, unknown>;
-    // Walk children only — root description is preserved by stripSchemaDescriptions
-    // per FR-003 (BI-041 introduces a root-level description carrying the collapse contract).
-    let nestedDescriptionKeysFound = 0;
-    for (const child of Object.values(props)) {
-      nestedDescriptionKeysFound += countDescriptionKeys(child);
-    }
-    expect(nestedDescriptionKeysFound).toBe(0);
+    expect(schema.description).toContain("Dedup contract");
+    const props = schema.properties as Record<string, { description?: unknown }>;
+    for (const [key, prop] of Object.entries(props)) expect(typeof prop.description, key).toBe("string");
   });
 
-  // (c) PROPERTIES_DESCRIPTION mentions help({ tool_name: "properties" })
-  it("PROPERTIES_DESCRIPTION mentions help({ tool_name: \"properties\" })", () => {
+  // (c) PROPERTIES_DESCRIPTION no longer defers to help (068 FR-032)
+  it("PROPERTIES_DESCRIPTION does not say 'Call help('", () => {
     const tool = createPropertiesTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     expect(tool.descriptor.description).toBe(PROPERTIES_DESCRIPTION);
-    expect(PROPERTIES_DESCRIPTION).toContain('help({ tool_name: "properties" })');
+    expect(PROPERTIES_DESCRIPTION).not.toMatch(/call `?help\(/i);
   });
 });
 

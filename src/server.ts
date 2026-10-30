@@ -1,4 +1,4 @@
-// Original — no upstream. Composition root (068 R10, ADR-039): createServer runs once per process, builds the logger, single-flight queue, vault registry and the tool list via the createTool factories, and owns the lifecycle handlers; buildMcpServer is the cheap per-connection McpServer builder that serveStdio calls for each era (FR-001, FR-005, FR-017, FR-028, FR-029).
+// Original — no upstream. Composition root (068 R10, ADR-039): createServer runs once per process, builds the logger, single-flight queue, vault registry, the tool list via the createTool factories and the server instructions (068 FR-025), and owns the lifecycle handlers; buildMcpServer is the cheap per-connection McpServer builder that serveStdio calls for each era (FR-001, FR-005, FR-017, FR-028, FR-029).
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,6 +7,7 @@ import { McpServer } from "@modelcontextprotocol/server";
 
 import { invokeCli, killInFlightChildren as defaultKillInFlightChildren } from "./cli-adapter/cli-adapter.js";
 import { envFlagEnabled } from "./env-flags.js";
+import { buildInstructions } from "./instructions/instructions.js";
 import { createLogger, type Logger, type ShutdownReason } from "./logger.js";
 import { createQueue, type Queue } from "./queue.js";
 import { assertToolDocsExist } from "./tools/_register.js";
@@ -147,12 +148,16 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
   // single error listing every missing file).
   assertToolDocsExist(tools, ctx.docsDir ?? DEFAULT_DOCS_DIR);
 
+  // 068 FR-025: built once from the tools actually registered, so every era and every
+  // connection receives the same text.
+  const instructions = buildInstructions(tools.map((tool) => tool.descriptor.name));
+
   // An unknown tool name is the SDK's JSON-RPC -32602 (068 R2, FR-016); TOOL_NOT_FOUND is no
   // longer raised. `listChanged: false` is declared truthfully: the list never changes after boot.
   function buildMcpServer(): McpServer {
     const server = new McpServer(
       { name: "obsidian-cli-mcp", version: PACKAGE_VERSION },
-      { capabilities: { tools: { listChanged: false } } },
+      { capabilities: { tools: { listChanged: false } }, instructions },
     );
     for (const tool of tools) tool.register(server);
     return server;
