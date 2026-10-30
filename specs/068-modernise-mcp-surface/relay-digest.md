@@ -2,12 +2,12 @@
 
 | | |
 |---|---|
-| Run | `obsidian-cli-mcp-bi-0165-pr4-2026-10-30` |
+| Run | `obsidian-cli-mcp-bi-0165-pr5-2026-10-30` |
 | Project | obsidian-cli-mcp (pack speckit) |
 | Status | running |
-| Started | 2026-10-30T01:35:27.233Z |
+| Started | 2026-10-30T03:50:50.790Z |
 | Finished | not yet |
-| Elapsed | 15 min 34 s |
+| Elapsed | 18 min 53 s |
 | Questions | 0 (0 needed the owner) |
 | Requests to the advisor | 1 (0 needed the owner) |
 | Escalations | 0 |
@@ -19,7 +19,7 @@
 - `dry_run`: no
 - `continue_feature`: specs/068-modernise-mcp-surface
 - `continue_branch`: 068-modernise-mcp-surface
-- `tasks_scope`: Phase 6: PR-4 (what the model sees) only
+- `tasks_scope`: Phase 7: PR-5 (vaults and typed results) only
 - `repo`: C:\Github\obsidian-cli-mcp
 - `cowork_path`: C:\Marwan-Saab-ADO\My-Setup\My-Setup\My-Setup
 - `initiative`: Obsidian CLI MCP
@@ -29,19 +29,19 @@
 
 ## Sessions and steps
 
-### checks (`79925ee6-802f-41fb-96ba-4840a7c7be01`)
+### checks (`807e6b15-c3b2-4d03-be9d-1755eef4d649`)
 
 - Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\.specify exists.
 
 - **preflight**: done.
 
-> All six preflight checks pass for BI-0165.
+> Preflight for BI-0165 passed: all six checks are green, and the session is ready for clarification questions.
 >
 > - **Vault identity:** `My-Setup-Vault` returns `vault_id` = `my-setup`, which matches `expected_vault_id`. PASS. The session-start reads were already done earlier in this conversation.
 > - **Note:** `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0165 - Ship 0.9.0 SDK V2 And Safety Release.md`, titled "BI-0165 — Ship 0.9.0 SDK V2 And Safety Release". PASS.
 > - **Initiative:** `[[Obsidian CLI MCP]]`. PASS.
-> - **Status:** `in-review`. PRs 1–3 (#87, #88, #89) are waiting for the owner to merge them. The latest `spec_branch` is `068-pr3-sdk-v2`. The work is not finished, so the run carries on. PASS.
-> - **Specify prompt:** the `## /speckit-specify prompt` section starts at line 45. Its command, on line 54, is `/speckit-specify Modernise MCP surface`, in the dash form. PASS. I did not change the note.
+> - **Status:** `in-review`. PRs 1–4 (#87–#90) are waiting for the owner to merge them, and the latest `spec_branch` is `068-pr4-tool-surface`. The work is not finished, so the run carries on. PASS.
+> - **Specify prompt:** the `## /speckit-specify prompt` section starts at line 47. Its command, on line 56, is `/speckit-specify Modernise MCP surface`, in the dash form. PASS. I did not change the note.
 > - **Clarify skill:** `anthropic-skills:speckit-clarify-skill` was loaded earlier in this conversation for "BI-0165 - Ship 0.9.0 SDK V2 And Safety Release". Its answering rules still apply.
 >
 > Awaiting clarification questions.
@@ -60,49 +60,41 @@ Skipped.
 - **analyze**: skipped.
 - **resolve-analysis**: skipped.
 
-### continue (`6c4ffa29-e7b2-4f22-be59-d3426cc7283e`)
+### continue (`4d156552-9958-47c6-a73a-50f492b048cc`)
 
 - Condition `shell-exit-0` (run_when): met. "node -e "process.exit('specs/068-modernise-mcp-surface' === '' ? 1 : 0)"" exited 0.
 - Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\specs\068-modernise-mcp-surface\tasks.md exists.
 
-- **prepare**: done, 12 turns.
+- **prepare**: done, 11 turns.
 
-> The PR-3 run records are archived and the branch is ready for the PR-4 run.
->
-> - **Run records:** copied relay-digest.md and relay-qa-log.md as they were in the working tree, uncommitted end-of-run changes included, to relay-runs/obsidian-cli-mcp-bi-0165-pr3-2026-10-30/. Then discarded the uncommitted changes to the live copies. There were no other uncommitted changes.
-> - **Branch:** fetched origin, checked out 068-modernise-mcp-surface and fast-forwarded it to origin/main (9c0b617, the merge of PR #89). There were no conflicts.
-> - **feature.json:** .specify/feature.json already pointed to specs/068-modernise-mcp-surface, so it was not changed.
-> - **tasks.md:** ticked T043 (PR-3 wrap). It is confirmed by commit 2bb2643, PR #89 (merged 2026-10-30, with the dependency justification and compliance checklist in its description), the review fixes 0b5018c and 76ceeb7, and the docs-as-code commit ccb8cf8. No open tasks were left unconfirmed. The other open tasks outside Phase 6 are T060–T094 (Phases 7–9: PR-5, PR-6 and polish), which have not started.
-> - **Commit:** committed as b9381c9 following CONTRIBUTING.md. Not pushed.
+> I copied the PR-4 run's relay-digest.md and relay-qa-log.md, with their uncommitted changes, to specs/068-modernise-mcp-surface/relay-runs/obsidian-cli-mcp-bi-0165-pr4-2026-10-30/, then discarded those changes in the live files. No other uncommitted change was present. After fetching origin, I checked out 068-modernise-mcp-surface and fast-forwarded it to origin/main, which now includes merged PR #90 (PR-4). There were no conflicts. .specify/feature.json already pointed to specs/068-modernise-mcp-surface. In tasks.md I ticked T059 (the PR-4 wrap): PR #90 has its commit d6f04d6, review fixes in 3c71bf7 and docs-as-code in b635094, and the owner merged it on 2026-10-30. No other open task outside Phase 7 has merged work: Phases 8 and 9 (PR-6 and polish, T073–T094) have not started, so they stay open. I committed this as f5434cd on 068-modernise-mcp-surface and did not push.
 
 
-### implementation (`5710e01d-24a1-4daa-95b5-529946caa902`)
+### implementation (`3c32fbca-46e7-4187-96ac-26130270798f`)
 
 - Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\specs\068-modernise-mcp-surface\tasks.md exists.
 
-- **implement**: done, 144 turns.
+- **implement**: done, 209 turns.
 
-> PR-4 tasks T044–T058 are done on branch 068-pr4-tool-surface, cut from 068-modernise-mcp-surface, which is origin/main plus the PR-3 archive commit. Nothing is committed. T059 (commit, PR, /code-review, docs-as-code) is left for the later steps, and the optional after_implement commit hook was skipped.
+> PR-5 tasks T060–T071 are done on branch 068-pr5-vaults-typed, cut from 068-modernise-mcp-surface (origin/main plus the PR-4 archive commit). Nothing is committed; T072 (commit, PR, /code-review, docs-as-code) is left for the later steps, and the optional after_implement commit hook was skipped.
 >
-> Gates: lint zero warnings, typecheck and build clean, 2979 tests pass (6 skipped), statement coverage 96.8%. probe:stdio lists 34 tools in both eras (legacy 2025-11-25, modern 2026-07-28), with byte-identical instructions of 1,847 characters. The unfiltered text, including the PR-5 vaults lines, is 1,888.
+> Gates: lint zero warnings, typecheck and build clean, 3044 tests pass (6 skipped), statements 96.85%. probe:stdio lists 35 tools in both eras (legacy 2025-11-25, modern 2026-07-28); instructions are 1,888 characters with the vaults rule included.
 >
 > What changed:
-> - **Titles and annotations:** ToolSpec and ToolDescriptor carry a required title and all four annotation hints, passed to McpServer.registerTool and set on all 34 tools per FR-024.
-> - **Descriptions published:** stripSchemaDescriptions is removed and src/help/strip-schema.ts and its test are deleted. toSdkInputSchema now passes zod's jsonSchema through unchanged.
-> - **Target-mode rules:** stated in the descriptions in target-mode.ts. A new folderScopedTargetModeBaseSchema covers files, paths and get_active_file, and TARGET_MODE_* description constants are exported for tools that override fields.
-> - **All 34 tools:** every input-schema property has a .describe(), the "Call help(...)" sentence is removed, and the T051 rule repeats are removed. The tool work was done by three parallel forks.
-> - **Instructions:** new src/instructions/instructions.ts (buildInstructions) and its test. createServer builds the text once and passes it as McpServer instructions, and server.protocol.test.ts asserts both eras receive identical text.
-> - **Surface test:** new src/tools/_surface.test.ts checks titles and hints, pins the FR-024 hints per tool, covers SC-006, walks every schema recursively for undescribed properties (FR-030), and bans the old phrases.
-> - **Baseline:** titleFingerprint and annotationsFingerprint added and regenerated. 34 of 34 description and schema fingerprints changed, names unchanged, 34 distinct titles, 5 distinct annotation rows.
-> - **ADR-040:** written, superseding ADR-005, with its row and note in the Decision Log. The number was confirmed free (vault highest 037, mirror highest 039).
-> - **Graph:** refreshed with graphify update.
+> - Registry: list() always re-probes. A cache miss re-probes once before the unknown-vault error, whose message no longer advises a restart. list() is on a separate VaultLister interface, so the 32 name-resolution test stubs are unchanged.
+> - vaults tool: new and read-only, with tests. It returns {count, vaults:[{name, path, open:null}]}; the CLI has no open marker (evidence-b4.md).
+> - Docs: list_vaults.md was renamed to vaults.md with a full reference. The docs index, help example, README (vault sentence, tool count 35, inventory row) and the views_base.md restart row were updated.
+> - Typed results: new toSdkOutputSchema adapter and an optional ToolSpec.outputSchema. 31 tools return structuredContent plus the identical text; errors stay text-only. registerTool refuses a non-object output root at boot. search gained a published union schema of its two modes.
+> - Era test: all 31 output schemas are identical in both eras with an object root, so nothing needed raising (research R6 "T0 result").
+> - Round trip: 33 stubbed success fixtures (new src/tools/_typed-result-fixtures.ts) go through a real client and validate against the published schema with the client SDK's Ajv validator; the text parses to the same object.
+> - Baseline: the 34 existing entries are unchanged, vaults is added, and every entry gains outputSchemaFingerprint.
 >
-> Kernel-node touch: createServer() now builds the instructions.
->
-> Open items for the owner:
-> - The Claude Code parallel-read check (T0-live, SC-006 release evidence) could not run unattended and is still open before merge.
-> - append_note, prepend, patch_heading, patch_block, set_property and backlinks still carry a "Targeting:" paragraph repeating the locator rule. T051 does not list them, so they were left; optional follow-up.
-> - The create_base content/view descriptions are hedged.
+> For the owner:
+> - evidence-b4.md shows only the test vault's row verbatim; the other six personal vault names and paths are placeholders because repo visibility could not be checked.
+> - tag has no outputSchema because its count-only form is a bare integer; the PR body must state this.
+> - SDK 2.4.0 already stamps type:object on unions of objects; the adapter makes this explicit, as R6 specifies.
+> - The live step of adding a new vault in Obsidian after start-up needs a GUI action and is still open before merge. The rest of the live check passed in both eras.
+> - Sandbox/ still holds pr3-check-2026-10-30.md from an earlier run; it was left untouched.
 
 - **open-pr**: in progress.
 
@@ -131,4 +123,4 @@ None.
 ## Files
 
 - Q&A log: `relay-qa-log.md`
-- Run state: `C:\Marwan-Saab-ADO\My-Setup\Relay\.relay\runs\obsidian-cli-mcp\obsidian-cli-mcp-bi-0165-pr4-2026-10-30`
+- Run state: `C:\Marwan-Saab-ADO\My-Setup\Relay\.relay\runs\obsidian-cli-mcp\obsidian-cli-mcp-bi-0165-pr5-2026-10-30`
