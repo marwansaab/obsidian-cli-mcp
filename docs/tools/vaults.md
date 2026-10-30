@@ -53,7 +53,8 @@ Other tools also re-read the list once on their own when they are given a vault 
 |---|---|---|
 | `VALIDATION_ERROR` | Any input key was given (the input must be `{}`) | Call with no arguments. |
 | `CLI_BINARY_NOT_FOUND` | The Obsidian CLI is not installed or not on `PATH` | Install Obsidian 1.12+ with the CLI enabled, or set `OBSIDIAN_BIN`. |
-| `CLI_REPORTED_ERROR` | Obsidian could not be reached, even after the usual auto-launch | Start Obsidian and retry. An error is returned rather than an empty list. |
+| `CLI_NON_ZERO_EXIT` (`details.reason: "obsidian-not-running"`) | Obsidian could not be reached, even after the usual auto-launch (or auto-launch is off) | Start Obsidian and retry. An error is returned rather than an empty list. |
+| `CLI_REPORTED_ERROR` | The CLI reported an error of its own on stdout | Read `message`; retry once Obsidian is responsive. |
 | `CLI_TIMEOUT` | The CLI did not answer in time | Retry; check that Obsidian is responsive. |
 
 ## Worked examples

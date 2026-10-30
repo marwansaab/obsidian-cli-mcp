@@ -72,7 +72,8 @@ path, not the transport's.
 [src/server.ts](../src/server.ts) is the composition root. It is the **only
 production file** that constructs `createLogger()`, `createQueue()` and
 `createVaultRegistry()`. It builds every tool by calling its
-`createXTool({ logger, queue, vaultRegistry? })` factory, and returns
+`createXTool({ logger, queue, vaultRegistry? })` factory (`vaults`, added in
+PR #91, takes only `{ vaultRegistry }`: it never calls the CLI itself), and returns
 `{ buildMcpServer, shutdown, logger, queue }`. Handlers never reach back into
 `server.ts`; their dependencies arrive through the factory arguments.
 
@@ -167,11 +168,12 @@ Protocol Era For Obsidian CLI MCP). There is no hand-written `tools/list` or
 only route by which a zod schema becomes an MCP tool (ADR-006, Centralized Tool
 Registration). Since PR #89 it returns a `RegisteredTool` with three parts:
 `descriptor` and `handler`, as before, and `register(server)`, which calls
-`McpServer.registerTool(name, { title, description, annotations, inputSchema
-}, handler)` (`src/tools/_register.ts:150`). `server.ts` calls `register` on
-every `McpServer` it builds. It:
+`McpServer.registerTool(name, { title, description, annotations, inputSchema,
+outputSchema? }, handler)` (`src/tools/_register.ts:214`; `outputSchema` since
+PR #91, see [typed results](#typed-results-outputschema-and-structuredcontent)).
+`server.ts` calls `register` on every `McpServer` it builds. It:
 
-1. Wraps the zod schema in **`toSdkInputSchema`** (`src/tools/_register.ts:59`),
+1. Wraps the zod schema in **`toSdkInputSchema`** (`src/tools/_register.ts:76`),
    a pass-through Standard Schema adapter, and hands that to the SDK as
    `inputSchema`. Its `~standard.jsonSchema` is the zod schema's own emission
    for the target the SDK asks for (draft-2020-12, named once as
@@ -192,7 +194,7 @@ every `McpServer` it builds. It:
    Definitions via Progressive Disclosure, which ADR-040 supersedes). PR #89
    had re-hosted the stripping inside the adapter unchanged.
 3. Refuses at boot a schema whose emission has no top-level
-   `"type": "object"` (`src/tools/_register.ts:75`, FR-002). The SDK would
+   `"type": "object"` (`src/tools/_register.ts:130`, FR-002). The SDK would
    silently add a missing root `type` to what it publishes, which would leave
    the project's `descriptor` out of step with the wire. With the guard, the
    SDK publishes the descriptor's bytes unchanged, and `_register.test.ts`
@@ -202,10 +204,12 @@ every `McpServer` it builds. It:
 4. Wraps the handler so that a `ZodError` from **input** parsing becomes
    `VALIDATION_ERROR` (or the tool's own `mapValidationError` shape), an
    `UpstreamError` becomes an MCP `isError` result carrying its `code`,
-   `message` and `details`, and a `ZodError` thrown by the handler's own
-   **output** check becomes `INTERNAL_ERROR`, not `VALIDATION_ERROR`, because
-   the client's input was valid. These are **returned** as results, never
-   thrown, so the SDK passes them through untouched.
+   `message` and `details`, and a `ZodError` from an **output** check — the
+   handler's own trailing `.parse()`, or since PR #91 `registerTool`'s check
+   against the tool's `outputSchema` — becomes `INTERNAL_ERROR`, not
+   `VALIDATION_ERROR`, because the client's input was valid. These are
+   **returned** as results, never thrown, so the SDK passes them through
+   untouched.
 
 Since PR #90 (068 FR-019 to FR-024) a `ToolSpec` cannot be written without a
 `title` and an `annotations` object holding all four MCP behaviour hints
@@ -276,6 +280,14 @@ every schema), with the same tool names. Its review commit `3c71bf7` then
 restructured the source and passed the gate against that committed baseline
 without regenerating it, which is how it showed the wire surface did not move.
 
+PR #91 added `outputSchemaFingerprint` (the published `outputSchema`, or the
+fingerprint of `null` for a tool that publishes none) and regenerated the
+baseline on purpose for the new `vaults` entry and the new field. No existing
+tool's description, input schema, title or annotations fingerprint moved.
+Tools with identical result shapes share one output fingerprint, and the four
+untyped tools share the `null` one. Its review commits (`25a2e83`, `4e35987`)
+passed the gate against that baseline without regenerating it.
+
 A one-off check of the real stdio path is `npm run probe:stdio -- --era
 legacy|modern` ([scripts/probe-stdio.ts](../scripts/probe-stdio.ts), PR #89).
 It spawns the built `dist/index.js` with a v2 client and prints the negotiated
@@ -283,6 +295,103 @@ protocol version, `serverInfo`, whether `instructions` is present, and the tool
 count. On 2026-10-30 the 2025-era handshake negotiated `2025-11-25` and the
 2026-era handshake `2026-07-28` (research R10 T0). Since PR #90 the probe
 also reports `instructions` present in both eras.
+
+### Typed results: `outputSchema` and `structuredContent`
+
+Since PR #91 (068 FR-039 to FR-042, research R6) every tool whose result is
+always a JSON object publishes that shape as an MCP `outputSchema`, and a
+success carries the result twice: as `structuredContent`, and as the identical
+JSON in the text block a client without structured-content support reads.
+Failures are unchanged and text-only — `isError: true`, the
+`{code, message, details}` envelope, no `structuredContent` (FR-040). The
+decision record is
+[ADR-042](decisions/ADR-042-typed-results-checked-in-registertool.md)
+(Typed Results Checked in registerTool Behind a Pass-Through Output Adapter).
+
+A tool opts in by giving its `ToolSpec` an `outputSchema`, which is always the
+zod output schema the tool already had. `ToolSpec` is a type with three result
+cases, and only these type-check (review finding S1, commit `25a2e83`):
+
+| Case | Handler returns | Wire |
+| --- | --- | --- |
+| `responseFormat: "raw"` | a `ToolCallResult` it built itself | as returned (`help`) |
+| JSON, no `outputSchema` | any value | one JSON text block (`read`, `obsidian_exec`, `tag`) |
+| JSON with `outputSchema` | `z.input` of that schema | JSON text block plus `structuredContent` |
+
+An `outputSchema` on a raw tool cannot be written, and a handler whose return
+type drifts from its schema fails `npm run typecheck`. The registration path
+for a typed tool:
+
+```mermaid
+flowchart LR
+  zs[zod output schema] --> ad["toSdkOutputSchema — publish zod's own emission (+ object root for a union of objects); validate accepts everything"]
+  ad --> g{"root type: object?"}
+  g -- no --> boot[throw at boot]
+  g -- yes --> pub[published outputSchema, identical in both eras]
+  h[handler result] --> chk["registerTool: spec.outputSchema.parse(result)"]
+  chk -- drift --> ie["INTERNAL_ERROR envelope, no structuredContent"]
+  chk -- ok --> ok["content: JSON text + structuredContent: same value"]
+```
+
+- **`toSdkOutputSchema`** (`src/tools/_register.ts:97`) is the mirror of
+  `toSdkInputSchema`. It publishes the zod schema's own draft-2020-12
+  emission, with one addition: a root that is a union whose variants are all
+  `type: "object"` gains root `type: "object"`. zod emits `search`
+  (`anyOf`, default | line) and `find_and_replace` (`oneOf`, preview |
+  commit) with no root `type`. With the addition, the 2025-era codec has
+  nothing to wrap, so both protocol eras publish the same bytes. The result
+  data is never wrapped. SDK 2.4.0's own conversion happens to add the same
+  root, but the rule lives in project code so the published bytes do not
+  depend on private SDK behaviour.
+- **Boot guard** (`src/tools/_register.ts:139`). An output schema whose
+  emission has no root `type: "object"` throws at boot, so no tool can ship
+  with an era-specific schema unnoticed.
+- **The check runs in `registerTool`, not the SDK** (`src/tools/_register.ts:171`).
+  The adapter's `validate` accepts every value; the registered callback runs
+  `spec.outputSchema.parse(result)` inside the same `try` as the handler, so
+  drift lands in the existing output-contract catch: `INTERNAL_ERROR`,
+  "`<tool>` produced a response that failed its output contract",
+  `details.issues`, no `structuredContent`. The check only validates — the
+  handler's own value is what goes on the wire, so text and
+  `structuredContent` are the same bytes. PR #91 first let `validate` delegate
+  to zod so the SDK ran the check; review finding B2 showed that SDK v2
+  reports a failed output check as free text (`"Output validation error:
+  …"`), so a tool without its own trailing `.parse()` surfaced drift as text
+  and a tool with one surfaced `INTERNAL_ERROR`. The owner ruled for the
+  envelope (commit `4e35987`; the rejected path is in ADR-042).
+
+Which tools are typed: 31 — every tool that had a zod output schema except
+`tag`, plus `vaults`. `search` gained `searchOutputSchema`, the union of its
+two mode schemas, as its published shape; its results did not change. Four
+publish no `outputSchema`:
+
+| Tool | Why not |
+| --- | --- |
+| `read` | its `{ content }` text block stays byte-identical to before (FR-041) |
+| `help` | raw Markdown (FR-041) |
+| `obsidian_exec` | free-form CLI output, no zod schema |
+| `tag` | count-only mode (`total: true`) returns a bare integer, so its result is not always an object; its text block is unchanged. Flagged in the PR #91 body for owner review |
+
+`ToolCallResult` (`src/tools/_shared.ts`) gained the optional
+`structuredContent` on its success case. `ToolDescriptor` did **not** gain
+`outputSchema`: PR #91 added it, and review (finding L1) removed it because
+only one test read it; that test now compares the published schema with the
+adapter's own emission.
+
+The proofs are in `src/tools/_surface.test.ts`. It lists the registry through
+a 2025-era and a 2026-era client and requires every `outputSchema` to be
+deep-equal across the two with an object root, and it round-trips one success
+fixture per typed tool (two for `search` and `find_and_replace`) from
+`src/tools/_typed-result-fixtures.ts`: `structuredContent` validates against
+the published schema with the client SDK's Ajv validator — not zod — and the
+text parses to the same object. A failing input and a failing upstream call
+carry no `structuredContent`. `src/tools/_register.output.test.ts` pins the
+three `ToolSpec` cases with `@ts-expect-error` and injects a drifted result
+through a real client to see the `INTERNAL_ERROR` envelope.
+
+Known rough edge: the handlers' own trailing output `.parse()` calls are now
+redundant with `registerTool`'s check. Removing them was left out of PR #91 by
+owner ruling.
 
 ### Server instructions
 
@@ -307,8 +416,10 @@ tools are read from its own backticked names — every tool name, and nothing
 else, is written in backticks — so the text and the filter cannot disagree.
 PR #90 first gave each line a hand-written tool list; the review (commit
 `3c71bf7`) derived it from the text instead, closing a gap where a line could
-name a tool absent from its list and still be shown. The `vaults` rule is
-written now and stays hidden until PR-5 adds that tool. The unfiltered text is
+name a tool absent from its list and still be shown. PR #90 wrote the
+rule "`vaults` lists the vault names to use." while the
+tool did not exist, so the filter hid it; since PR #91 registers `vaults` it
+is shown, with no change to the builder. The unfiltered text is
 held under 2,000 characters by test (FR-027), and `src/server.protocol.test.ts`
 asserts that both eras receive byte-identical `instructions`.
 
@@ -414,7 +525,10 @@ Dispatch classifies a finished child in a fixed priority order:
 | (d) | otherwise | success |
 
 Alongside those: `CLI_TIMEOUT`, `CLI_OUTPUT_TOO_LARGE`, `CLI_BINARY_NOT_FOUND`
-from dispatch; `VALIDATION_ERROR`, `INTERNAL_ERROR` from registration;
+from dispatch; `VALIDATION_ERROR`, `INTERNAL_ERROR` from registration
+(`INTERNAL_ERROR` also for a success that fails its published `outputSchema`,
+since PR #91); `VALIDATION_ERROR` from the vault registry for a vault name
+Obsidian does not know;
 `FS_WRITE_FAILED`, `FILE_EXISTS`, `PATH_ESCAPES_VAULT` from the
 direct-filesystem write cohort; `HELP_TOOL_NOT_FOUND`, `HELP_DOCS_MISSING` from
 `help`.
@@ -503,10 +617,25 @@ The direct path needs three things the CLI used to provide:
 
 1. **The vault's absolute root.** The vault registry
    ([src/vault-registry/registry.ts](../src/vault-registry/registry.ts)) runs
-   `obsidian vaults verbose` once, lazily, on first use. It caches the
-   name → path map for the life of the process, retries on failure, and
-   de-duplicates concurrent first calls. It is injected only into the tools
-   that need it.
+   `obsidian vaults verbose` lazily, on first use, and caches the parsed rows.
+   Probes are single-flight (a concurrent caller joins the probe in flight)
+   and a failed probe is retried on the next call. It is injected only into
+   the tools that need it.
+
+   Until PR #91 the first successful probe was cached for the life of the
+   process, so a vault added in Obsidian afterwards was unknown until the
+   server restarted, and the unknown-vault message said so. Since PR #91
+   (068 R9, FR-036, FR-037) the cache is refreshed in two places: a
+   `resolveVaultPath` that misses the cache re-probes once before failing,
+   and `list()` — on a separate `VaultLister` interface, used only by the
+   `vaults` tool — always re-probes. A cache hit does not re-probe. The
+   unknown-vault error (`VALIDATION_ERROR` with `details.requestedVault` and
+   `details.knownVaults`) no longer tells the caller to restart.
+   `createVaultRegistry` returns `VaultRegistry & VaultLister`, so the many
+   test stubs that implement only `VaultRegistry` for name resolution did not
+   change. The cache keeps every row, so `list()` reports two vaults that
+   share a display name separately; resolving that name still gives its last
+   row, as before.
 2. **A guarantee the target is inside the vault.** Two layers. A schema-level
    check ([src/path-safety/schema.ts](../src/path-safety/schema.ts)) rejects
    `..` segments, absolute markers, drive letters and control characters at
@@ -639,7 +768,7 @@ src/
   cli-adapter/                   the two facades, dispatch, the spawn-site guard test
   binary-resolver/, app-launcher/  what dispatch spawns, and how it finds it
   target-mode/, path-safety/     boundary schema primitives
-  vault-registry/                vault name → absolute root
+  vault-registry/                vault name → absolute root, and the vault list (PR #91)
   instructions/                  server instructions builder (PR #90)
   tools/
     _*.ts, _eval-vault-closed-detection/   cohort-shared helpers (leading underscore)

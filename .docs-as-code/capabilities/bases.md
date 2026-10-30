@@ -54,6 +54,9 @@ the same description, `BASE_PATH_DESCRIPTION` in `src/tools/_base-path.ts`,
 built from `BASE_PATH_MAX`; `views_base` interpolates `BASE_PATH_MAX` into its
 own, so the stated limit cannot drift from the enforced one. `query_base`'s optional
 `vault` is the shared `focusedVaultField` (`src/tools/_vault-field.ts`).
+Since PR #91 all four publish an `outputSchema` and return their result as
+`structuredContent` beside the identical text
+([typed results](../architecture.md#typed-results-outputschema-and-structuredcontent)).
 
 ## Failure
 

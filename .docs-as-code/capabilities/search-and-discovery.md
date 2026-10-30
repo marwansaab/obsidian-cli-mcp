@@ -66,6 +66,17 @@ different rule keep their own declaration. `get_active_file` builds on
 `folderScopedTargetModeBaseSchema`
 ([targeting](../architecture.md#targeting-target_mode)).
 
+**Typed results** (PR #91;
+[architecture](../architecture.md#typed-results-outputschema-and-structuredcontent)).
+Every tool here except `tag` publishes an `outputSchema` and returns its
+result as `structuredContent` beside the identical text. `search` has two
+result shapes chosen by mode, so PR #91 added `searchOutputSchema`, the union
+of the default (paths) and line (matches) schemas, as its published shape; it
+publishes with an object root wrapping both variants, and its results did not
+change. `tag` publishes none, because `total: true` returns a bare integer
+rather than an object; its text is unchanged. PR #91 put that exclusion to
+the owner for review.
+
 ## Failure
 
 Shared across the group: an unknown vault (`CLI_REPORTED_ERROR`,
