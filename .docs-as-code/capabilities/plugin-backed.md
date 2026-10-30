@@ -43,7 +43,10 @@ optional `vault` is the shared `focusedVaultField`
 (`src/tools/_vault-field.ts`). The routing guide in the server instructions
 lists both under "Semantic search (Smart Connections)", and that line is shown
 only when both tools are offered
-([server instructions](../architecture.md#server-instructions)).
+([server instructions](../architecture.md#server-instructions)). Since PR #91
+both publish an `outputSchema` and return their result as `structuredContent`
+beside the identical text
+([typed results](../architecture.md#typed-results-outputschema-and-structuredcontent)).
 
 ## Failure
 

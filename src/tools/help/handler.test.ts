@@ -146,7 +146,7 @@ describe("executeHelp", () => {
     // Stub doc files are present in docs/tools/ but their tools are not registered yet —
     // this is the orphan case in production. The handler must succeed and return the file
     // content (FR-008 filesystem-as-source-of-truth). The remaining orphan stubs at this
-    // BI are list_notes / list_vaults / search_vault.
+    // BI are list_notes / search_vault.
     const result = await executeHelp({ tool_name: "list_notes" });
     expect(result.content[0]!.text).toContain("<!-- TODO(BI-");
   });

@@ -1,7 +1,7 @@
 // Original — no upstream. smart_connections_similar tool registration via registerTool — plugin-backed semantic-similarity primitive returning a typed { count, matches: [{ path, headingPath, score }] } envelope; responseFormat: "json" (default) wraps the envelope for the MCP wire.
 import { registerTool } from "../_register.js";
 import { executeSmartConnectionsSimilar, type ExecuteDeps } from "./handler.js";
-import { smartConnectionsSimilarInputSchema } from "./schema.js";
+import { smartConnectionsSimilarInputSchema, smartConnectionsSimilarOutputSchema } from "./schema.js";
 import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const SMART_CONNECTIONS_SIMILAR_TOOL_NAME = "smart_connections_similar";
@@ -30,6 +30,7 @@ export function createSmartConnectionsSimilarTool(deps: RegisterDeps): Registere
     annotations: READ_ONLY_HINTS,
     description: SMART_CONNECTIONS_SIMILAR_DESCRIPTION,
     schema: smartConnectionsSimilarInputSchema,
+    outputSchema: smartConnectionsSimilarOutputSchema,
     deps,
     handler: async (input, d) => executeSmartConnectionsSimilar(input, d),
   });

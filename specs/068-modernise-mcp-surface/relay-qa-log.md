@@ -1,8 +1,8 @@
 # Relay Q&A log: speckit
 
-Run `obsidian-cli-mcp-bi-0165-pr4-2026-10-30`, started 2026-10-30T01:35:27.233Z.
+Run `obsidian-cli-mcp-bi-0165-pr5-2026-10-30`, started 2026-10-30T03:50:50.790Z.
 
-## 1. checks / preflight (2026-10-30T01:35:27.299Z)
+## 1. checks / preflight (2026-10-30T03:50:50.839Z)
 
 **Question (verbatim):**
 
@@ -23,13 +23,13 @@ Run `obsidian-cli-mcp-bi-0165-pr4-2026-10-30`, started 2026-10-30T01:35:27.233Z.
 
 **Advisor** (escalate: none):
 
-> All six preflight checks pass for BI-0165.
+> Preflight for BI-0165 passed: all six checks are green, and the session is ready for clarification questions.
 >
 > - **Vault identity:** `My-Setup-Vault` returns `vault_id` = `my-setup`, which matches `expected_vault_id`. PASS. The session-start reads were already done earlier in this conversation.
 > - **Note:** `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0165 - Ship 0.9.0 SDK V2 And Safety Release.md`, titled "BI-0165 — Ship 0.9.0 SDK V2 And Safety Release". PASS.
 > - **Initiative:** `[[Obsidian CLI MCP]]`. PASS.
-> - **Status:** `in-review`. PRs 1–3 (#87, #88, #89) are waiting for the owner to merge them. The latest `spec_branch` is `068-pr3-sdk-v2`. The work is not finished, so the run carries on. PASS.
-> - **Specify prompt:** the `## /speckit-specify prompt` section starts at line 45. Its command, on line 54, is `/speckit-specify Modernise MCP surface`, in the dash form. PASS. I did not change the note.
+> - **Status:** `in-review`. PRs 1–4 (#87–#90) are waiting for the owner to merge them, and the latest `spec_branch` is `068-pr4-tool-surface`. The work is not finished, so the run carries on. PASS.
+> - **Specify prompt:** the `## /speckit-specify prompt` section starts at line 47. Its command, on line 56, is `/speckit-specify Modernise MCP surface`, in the dash form. PASS. I did not change the note.
 > - **Clarify skill:** `anthropic-skills:speckit-clarify-skill` was loaded earlier in this conversation for "BI-0165 - Ship 0.9.0 SDK V2 And Safety Release". Its answering rules still apply.
 >
 > Awaiting clarification questions.
@@ -38,13 +38,13 @@ Sources: `000-Meta/Vault Identity.md`, `421-Custom Connectors/Obsidian CLI MCP/O
 
 **Sent to the step:**
 
-> All six preflight checks pass for BI-0165.
+> Preflight for BI-0165 passed: all six checks are green, and the session is ready for clarification questions.
 >
 > - **Vault identity:** `My-Setup-Vault` returns `vault_id` = `my-setup`, which matches `expected_vault_id`. PASS. The session-start reads were already done earlier in this conversation.
 > - **Note:** `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0165 - Ship 0.9.0 SDK V2 And Safety Release.md`, titled "BI-0165 — Ship 0.9.0 SDK V2 And Safety Release". PASS.
 > - **Initiative:** `[[Obsidian CLI MCP]]`. PASS.
-> - **Status:** `in-review`. PRs 1–3 (#87, #88, #89) are waiting for the owner to merge them. The latest `spec_branch` is `068-pr3-sdk-v2`. The work is not finished, so the run carries on. PASS.
-> - **Specify prompt:** the `## /speckit-specify prompt` section starts at line 45. Its command, on line 54, is `/speckit-specify Modernise MCP surface`, in the dash form. PASS. I did not change the note.
+> - **Status:** `in-review`. PRs 1–4 (#87–#90) are waiting for the owner to merge them, and the latest `spec_branch` is `068-pr4-tool-surface`. The work is not finished, so the run carries on. PASS.
+> - **Specify prompt:** the `## /speckit-specify prompt` section starts at line 47. Its command, on line 56, is `/speckit-specify Modernise MCP surface`, in the dash form. PASS. I did not change the note.
 > - **Clarify skill:** `anthropic-skills:speckit-clarify-skill` was loaded earlier in this conversation for "BI-0165 - Ship 0.9.0 SDK V2 And Safety Release". Its answering rules still apply.
 >
 > Awaiting clarification questions.

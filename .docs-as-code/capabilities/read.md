@@ -39,6 +39,11 @@ descriptions no longer restate the locator rule or end with a call-help
 sentence; the rule is in the shared `target_mode`, `vault`, `file` and `path`
 descriptions ([targeting](../architecture.md#targeting-target_mode)).
 
+Typed results (PR #91; [architecture](../architecture.md#typed-results-outputschema-and-structuredcontent)):
+`read_heading` and `read_property` publish an `outputSchema` and return their
+result as `structuredContent` as well as the identical text. `read` does not:
+its `{ content }` text block is kept byte-identical (068 FR-041).
+
 ## Failure
 
 The usual dispatch codes apply. Beyond them: `ERR_NO_ACTIVE_FILE` when active

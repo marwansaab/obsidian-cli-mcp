@@ -4,11 +4,10 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { McpServer } from "@modelcontextprotocol/server";
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import { z } from "zod";
 
-import { connectInMemoryClient } from "./_mcp-client-fixtures.js";
+import { connectInMemoryClient, serveOne, textOf } from "./_mcp-client-fixtures.js";
 import { fingerprintLiveRegistry, type RegisterBaseline } from "./_register-baseline.js";
 import { registerTool, assertToolDocsExist, toSdkInputSchema } from "./_register.js";
 import { UpstreamError } from "../errors.js";
@@ -33,17 +32,6 @@ function readBaseline(): RegisterBaseline {
   return JSON.parse(readFileSync(BASELINE_PATH, "utf8")) as RegisterBaseline;
 }
 
-/** Serve a single registered tool on a fresh McpServer and return a connected client. */
-async function serveOne(tool: RegisteredTool): Promise<Client> {
-  const server = new McpServer({ name: "spike", version: "0.0.0" }, { capabilities: { tools: { listChanged: false } } });
-  tool.register(server);
-  return connectInMemoryClient(server, "register-test");
-}
-
-function textOf(result: unknown): string {
-  return (result as { content: Array<{ type: string; text: string }> }).content[0]!.text;
-}
-
 // 068 T030 (research R2, T0 spike): McpServer validates input itself and would replace the
 // project's {code, message, details} envelope with free text, so the SDK receives a
 // pass-through adapter. These cases prove the adapter publishes zod's own draft-2020-12
@@ -63,7 +51,7 @@ describe("toSdkInputSchema — SDK v2 pass-through adapter (068 R2, T030)", () =
   let client: Client;
 
   beforeAll(async () => {
-    client = await serveOne(tool);
+    client = await serveOne(tool, "register-test");
   });
 
   afterAll(async () => {
@@ -134,6 +122,7 @@ describe("registerTool — callback outcomes through McpServer (068 T033)", () =
           throw new UpstreamError({ code: "CLI_TIMEOUT", cause: null, details: { timeoutMs: 1 }, message: "timed out" });
         },
       }),
+      "register-test",
     );
     try {
       const result = await client.callTool({ name: "cb_upstream", arguments: {} });
@@ -155,6 +144,7 @@ describe("registerTool — callback outcomes through McpServer (068 T033)", () =
           throw new TypeError("boom");
         },
       }),
+      "register-test",
     );
     try {
       const result = await client.callTool({ name: "cb_rethrow", arguments: {} });
@@ -178,6 +168,7 @@ describe("registerTool — callback outcomes through McpServer (068 T033)", () =
           return { ok: true };
         },
       }),
+      "register-test",
     );
     try {
       const result = await client.callTool({ name: "cb_noargs" });
@@ -754,6 +745,12 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
     type: "object",
     properties_equals_set: ["query", "folder", "limit", "case_sensitive", "context_lines", "vault"],
     required_equals: ["query"],
+    additionalProperties: false,
+  },
+  vaults: {
+    type: "object",
+    properties_equals_set: [],
+    required_equals: [],
     additionalProperties: false,
   },
   synthetic_pattern_a: {

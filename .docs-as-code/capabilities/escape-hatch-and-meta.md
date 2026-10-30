@@ -128,7 +128,13 @@ start if any registered tool lacks its doc file
   published with the passthrough hint row — destructive and open-world, the
   only open-world tool. Its optional `vault` is the shared
   `focusedVaultField`.
-- `docs/tools/` still holds stub pages for `list_notes`, `list_vaults` and
-  `search_vault`. They are not registered tools, so `help` serves a "not yet
-  implemented" page for names a client cannot call. `docs/tools/index.md`
-  lists them as documentation pending.
+- `docs/tools/` still holds stub pages for `list_notes` and `search_vault`.
+  They are not registered tools, so `help` serves a "not yet implemented" page
+  for names a client cannot call. `docs/tools/index.md` lists them as
+  documentation pending. The third stub, `list_vaults`, became the real
+  `docs/tools/vaults.md` when PR #91 shipped the tool under the name `vaults`
+  ([list and inventory](list-and-inventory.md#vaults)).
+- Neither tool publishes an `outputSchema` (PR #91,
+  [typed results](../architecture.md#typed-results-outputschema-and-structuredcontent)):
+  `help` returns raw Markdown, and `obsidian_exec` returns free-form CLI
+  output with no zod schema. Both stay text-only.

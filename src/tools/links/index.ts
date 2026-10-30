@@ -1,7 +1,7 @@
 // Original — no upstream. links tool registration via registerTool — link-graph primitive returning a typed { count, links: [{ target, line, kind, displayText? }] } envelope; responseFormat: "json" (default) wraps the envelope for the MCP wire.
 import { registerTool } from "../_register.js";
 import { executeLinks, type ExecuteDeps } from "./handler.js";
-import { linksInputSchema } from "./schema.js";
+import { linksInputSchema, linksOutputSchema } from "./schema.js";
 import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const LINKS_TOOL_NAME = "links";
@@ -18,6 +18,7 @@ export function createLinksTool(deps: RegisterDeps): RegisteredTool {
     annotations: READ_ONLY_HINTS,
     description: LINKS_DESCRIPTION,
     schema: linksInputSchema,
+    outputSchema: linksOutputSchema,
     deps,
     handler: async (input, d) => executeLinks(input, d),
   });

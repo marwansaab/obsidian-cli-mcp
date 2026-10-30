@@ -146,6 +146,17 @@ preview, because the tool as a whole can rewrite notes in bulk. The rule
 server instructions' Rules
 ([server instructions](../architecture.md#server-instructions)).
 
+Since PR #91 every tool here publishes an `outputSchema` and returns its
+result as `structuredContent` beside the identical text
+([typed results](../architecture.md#typed-results-outputschema-and-structuredcontent)).
+`find_and_replace`'s result is a `preview | commit` union (zod `oneOf`); it
+publishes with an object root wrapping both variants, and the result data is
+not wrapped. Several handlers here (`append_note`, `delete`, `move`,
+`write_note` among them) had no trailing output `.parse()` of their own, so
+until review finding B2 was fixed (commit `4e35987`) a result that drifted
+from their schema would have reached the client as SDK free text rather than
+`INTERNAL_ERROR`.
+
 ## Known limits
 
 - `rename` only handles `.md` notes. Other file types go through

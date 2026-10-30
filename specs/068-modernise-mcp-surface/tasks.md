@@ -288,7 +288,7 @@ protocol. **Independent tests**: quickstart Â§1 (gate) and Â§5.
 - [X] T057 Write `.decisions/ADR-040 - Published Parameter Descriptions and Server Instructions.md`, superseding ADR-005 (client tool deferral, tool search matching descriptions, descriptions grown back to about 77 KB). Add the row to `.decisions/Decision Log.md`. Confirm the number as in T041.
 - [X] T058 Run the gates. `npm run probe:stdio` for both eras prints the instructions length (< 2,000). **T0-live, release evidence for SC-006**: in Claude Code, two read-only calls in one turn run in parallel with no "may modify data" prompt. Record the result in the PR body. SC-006 itself passes on the T047 assertions.
   **Outcome (2026-10-30)**: lint zero warnings, typecheck and build clean, 2979 tests pass (6 skipped), statements 96.8%. `probe:stdio` lists 34 tools with `instructions` present at 1,847 characters for both eras (legacy negotiates `2025-11-25`, modern `2026-07-28`); the unfiltered text including the PR-5 `vaults` lines is 1,888 characters. SC-006 server-side evidence: `src/tools/_surface.test.ts` pins all 21 read-only-row tools at `readOnlyHint: true`, `destructiveHint: false`. The Claude Code parallel-read check (no "may modify data" prompt) cannot run in this unattended session, so it is still open for the owner before merge.
-- [ ] T059 PR-4 wrap:
+- [X] T059 PR-4 wrap:
   - `/speckit-git-commit`;
   - open **PR-4**. Checklist: Iâ€“V **Y**; Tool Surface **Y** for title, annotations, parameter descriptions, visible input rules (in descriptions) and instructions (closes B1/B2/C1), typed results **N/A (pending B5)**; ADR-010/013/014/015 **N/A**; Security Defaults **N/A**;
   - `/code-review` and fixes;
@@ -301,26 +301,29 @@ protocol. **Independent tests**: quickstart Â§1 (gate) and Â§5.
 
 **Branch**: `068-pr5-vaults-typed` from updated `main`. **Independent test**: quickstart Â§7.
 
-- [ ] T060 Create branch `068-pr5-vaults-typed`.
+- [X] T060 Create branch `068-pr5-vaults-typed`.
 
 ### User Story 11: list vaults and pick up new ones (P3)
 
-- [ ] T061 [US11] **T0-live**: capture the verbatim output of `Obsidian.com vaults verbose` and `Obsidian.com help vaults` in specs/068-modernise-mcp-surface/evidence-b4.md. Decide `open`: a CLI per-vault open marker exists â†’ map it; none â†’ `open: null` always (R9).
-- [ ] T062 [US11] In src/vault-registry/registry.ts:
+- [X] T061 [US11] **T0-live**: capture the verbatim output of `Obsidian.com vaults verbose` and `Obsidian.com help vaults` in specs/068-modernise-mcp-surface/evidence-b4.md. Decide `open`: a CLI per-vault open marker exists â†’ map it; none â†’ `open: null` always (R9).
+  **Outcome (2026-10-30)**: there is no marker. `help vaults` lists only `total` and `verbose`, and `vaults verbose` prints `<name>\t<path>` per vault and nothing else, so `open` is always `null`. In evidence-b4.md only the test vault's row is verbatim; the owner's six other vault names and paths are replaced with placeholders so they do not enter the repository.
+- [X] T062 [US11] In src/vault-registry/registry.ts:
   - add `list(): Promise<VaultEntry[]>`, which always re-probes and refreshes the cache (single-flight via `inFlightProbe`);
   - make `resolve(name)` re-probe once on a miss before failing;
   - drop "restart the MCP server" from the message at :73;
   - update the header.
 
   Tests in src/vault-registry/registry.test.ts: a hit uses the cache; a miss then a hit after one refresh; a miss twice gives the existing error with no restart text; concurrent first calls produce one probe.
-- [ ] T063 [US11] Create the `vaults` tool in src/tools/vaults/:
+  **Outcome**: `list()` lives on a separate `VaultLister` interface (`createVaultRegistry` returns `VaultRegistry & VaultLister`), so the 32 test stubs that implement `VaultRegistry` for name resolution are unchanged. Duplicate display names are kept in `list()`; lookup by such a name still resolves to its last row, as before. The first lookup of an unknown vault probes once, not twice.
+- [X] T063 [US11] Create the `vaults` tool in src/tools/vaults/:
   - `schema.ts`: empty strict input; output `{count, vaults:[{name, path, open: boolean|null}]}`;
   - `handler.ts`: calls `registry.list()`;
   - `index.ts`: description, `title: "Vaults"`, read-only annotations.
 
   Add schema.test.ts, handler.test.ts (listing, empty list, duplicate display names kept, CLI failure â†’ structured error) and index.test.ts. Every one of these six new files carries `// Original â€” no upstream. <one-line intent>.`, as in the Notes rule. Register the tool in `createServer()` (src/server.ts) with `vaultRegistry` deps.
-- [ ] T064 [US11] Docs: `git mv docs/tools/list_vaults.md docs/tools/vaults.md` and replace the stub with a full reference doc (boot needs it, `assertToolDocsExist`). Update docs/tools/index.md:18 and the docs/tools/help.md:65 example to `vaults`, and README.md:115 (the vault-enumeration sentence) to describe `vaults`.
-- [ ] T065 [US11] Update the instructions and surface tests for the new tool:
+- [X] T064 [US11] Docs: `git mv docs/tools/list_vaults.md docs/tools/vaults.md` and replace the stub with a full reference doc (boot needs it, `assertToolDocsExist`). Update docs/tools/index.md:18 and the docs/tools/help.md:65 example to `vaults`, and README.md:115 (the vault-enumeration sentence) to describe `vaults`.
+  **Outcome**: also corrected the README tool count (thirty-five) and its List + inventory table, and the docs/tools/views_base.md error row that still advised restarting the bridge.
+- [X] T065 [US11] Update the instructions and surface tests for the new tool:
   - the `vaults` rule now appears (src/instructions/instructions.test.ts);
   - the `vaults` row is in the pinned classification table (src/tools/_surface.test.ts);
   - the protocol tests expect 35 tools (src/server.protocol.test.ts);
@@ -328,10 +331,10 @@ protocol. **Independent tests**: quickstart Â§1 (gate) and Â§5.
 
 ### User Story 12: typed results (P3)
 
-- [ ] T066 [US12] Add the output pass-through adapter `toSdkOutputSchema(schema)` to src/tools/_register.ts (R6):
+- [X] T066 [US12] Add the output pass-through adapter `toSdkOutputSchema(schema)` to src/tools/_register.ts (R6):
   - its `~standard.jsonSchema.output` is the zod schema's own `{target:"draft-2020-12"}` emission;
   - when the root is a union whose variants are all `type: "object"`, the root gains `type: "object"`, and nothing else changes;
-  - its `~standard.validate` delegates to zod.
+  - its `~standard.validate` delegates to zod. *Amended 2026-10-30 (PR #91 review B2, owner option A): `validate` accepts every value; `registerTool` checks the result against the output schema and reports drift as `INTERNAL_ERROR` (research R6).*
 
   **T0** in src/tools/_surface.test.ts: publish `search` and `find_and_replace` through it and read them back with a 2025-era client (InMemoryTransport) and a 2026-era client (`createMcpHandler`). Assert:
   - both eras' `outputSchema` values are deep-equal and have root `type: "object"`;
@@ -339,14 +342,18 @@ protocol. **Independent tests**: quickstart Â§1 (gate) and Â§5.
   - the 2025 codec did not wrap them.
 
   Record the outcome in research.md R6 (append "T0 result"). If any tool cannot carry an identical schema in both eras, **STOP and raise it to the owner**. Never exempt it silently (FR-039, BI-0165 B5).
-- [ ] T067 [US12] Add optional `outputSchema?: z.ZodType` to `ToolSpec` (src/tools/_register.ts). When it is set, pass it to `server.registerTool` and return `{ content:[{type:"text", text: JSON.stringify(result)}], structuredContent: result }`. Error results stay text-only via `asToolError`. `responseFormat: "raw"` tools are unchanged.
-- [ ] T068 [P] [US12] Set `outputSchema` in the eligible `src/tools/*/index.ts`: the 31 schema-bearing tools minus `tag`, plus `vaults` (data-model Â§4). `search` and `find_and_replace` go through `toSdkOutputSchema`. Leave `read`, `help`, `tag` and `obsidian_exec` without one, because their results are not structured objects. State the `tag` exclusion and its reason (a bare-integer count-only form) in the PR-5 body for owner review.
-- [ ] T069 [US12] Add a round-trip test in src/tools/_surface.test.ts (FR-042): for every tool with an `outputSchema`, call it through the client with a stubbed `invokeCli`/fs fixture that yields a success. Assert that `structuredContent` validates against the published schema and that `JSON.parse(content[0].text)` deep-equals it. Also assert one failing call per kind has no `structuredContent`. Reuse the existing `_handler-fixtures.ts` stubs where they exist.
-- [ ] T070 Add `outputSchemaFingerprint` to `fingerprintLiveRegistry`, run `npm run baseline:write` (35 tools), and review the diff.
+  **Outcome (2026-10-30)**: passed (research R6, "T0 result"). All 31 published output schemas are deep-equal across the 2025 and 2026 eras and have root `type: "object"`; no tool needed raising. `search` gained a published `searchOutputSchema` union of its two mode schemas.
+- [X] T067 [US12] Add optional `outputSchema?: z.ZodType` to `ToolSpec` (src/tools/_register.ts). When it is set, pass it to `server.registerTool` and return `{ content:[{type:"text", text: JSON.stringify(result)}], structuredContent: result }`. Error results stay text-only via `asToolError`. `responseFormat: "raw"` tools are unchanged.
+- [X] T068 [P] [US12] Set `outputSchema` in the eligible `src/tools/*/index.ts`: the 31 schema-bearing tools minus `tag`, plus `vaults` (data-model Â§4). `search` and `find_and_replace` go through `toSdkOutputSchema`. Leave `read`, `help`, `tag` and `obsidian_exec` without one, because their results are not structured objects. State the `tag` exclusion and its reason (a bare-integer count-only form) in the PR-5 body for owner review.
+- [X] T069 [US12] Add a round-trip test in src/tools/_surface.test.ts (FR-042): for every tool with an `outputSchema`, call it through the client with a stubbed `invokeCli`/fs fixture that yields a success. Assert that `structuredContent` validates against the published schema and that `JSON.parse(content[0].text)` deep-equals it. Also assert one failing call per kind has no `structuredContent`. Reuse the existing `_handler-fixtures.ts` stubs where they exist.
+  **Outcome**: the 33 success fixtures (31 tools, plus a second variant each for `search` and `find_and_replace`) live in the new vitest-free src/tools/_typed-result-fixtures.ts, cribbed from each tool's own stubs. Every one round-trips through a real client: `structuredContent` validates against the published schema with the client SDK's `AjvJsonSchemaValidator`, and the text parses to the same object. No tool's real result failed its own schema. A test also pins that every typed tool has a fixture.
+- [X] T070 Add `outputSchemaFingerprint` to `fingerprintLiveRegistry`, run `npm run baseline:write` (35 tools), and review the diff.
+  **Outcome (2026-10-30)**: 35 entries, `schemaVersion` 2. For the 34 existing tools, no `descriptionFingerprint`, `schemaFingerprint`, `titleFingerprint` or `annotationsFingerprint` changed; `vaults` is the one new entry. Every entry gains `outputSchemaFingerprint`: 28 distinct values, with `help`, `obsidian_exec`, `read` and `tag` sharing the `null` fingerprint, and tools with identical result shapes sharing one (`append_note`/`prepend`; `files`/`find_by_property`/`paths`; the two `smart_connections_*` tools).
 
 ### PR-5 wrap
 
-- [ ] T071 Run the gates; `npm run probe:stdio` shows 35 tools for both eras. **T0-live**: open a second vault in Obsidian after the server starts and `read` from it by name with no restart; an unknown name gives the error without restart text (quickstart Â§7).
+- [X] T071 Run the gates; `npm run probe:stdio` shows 35 tools for both eras. **T0-live**: open a second vault in Obsidian after the server starts and `read` from it by name with no restart; an unknown name gives the error without restart text (quickstart Â§7).
+  **Outcome (2026-10-30)**: lint zero warnings, typecheck and build clean, 3044 tests pass (6 skipped), statements 96.85%. `probe:stdio` lists 35 tools for both eras (legacy negotiates `2025-11-25`, modern `2026-07-28`), with `instructions` at 1,888 characters, the `vaults` rule included. Live check on `TestVault-Obsidian-CLI-MCP` (`Sandbox/`, cleaned up): a v2 MCP client drove the built `dist/index.js` over real stdio in both eras. `vaults` returned 7 vaults with `structuredContent`, every `open` null and the text equal to the structured data; `read` by vault name returned the seeded note as text only; `files` on `Sandbox` returned `structuredContent` matching its text; `help` was text only; and an unknown vault name gave `CLI_REPORTED_ERROR` / `VAULT_NOT_FOUND` with no restart advice. Registering a new vault in Obsidian after start-up needs a GUI action, which this unattended run cannot do, so that step is still open for the owner before merge (unit evidence: registry.test.ts "cache miss re-probes once and resolves a vault added after start-up"). `Sandbox/` already held `pr3-check-2026-10-30.md` from an earlier run; it was not created or removed here.
 - [ ] T072 PR-5 wrap:
   - `/speckit-git-commit`;
   - open **PR-5**. Checklist: Iâ€“V **Y**; ADR-010 **Y** (`vaults` mirrors `obsidian vaults`); ADR-013/014/015 **N/A**; Tool Surface typed results **Y** (closes B5; list any R6 exclusions); Security Defaults **N/A**;

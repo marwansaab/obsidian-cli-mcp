@@ -1,7 +1,7 @@
 // Original — no upstream. append_note tool registration per BI-044 / ADR-009 — wraps the executeAppendNote direct-fs read-modify-write handler via registerTool (ADR-006); responseFormat: "json" emits the { path, vault, bytes_written, inline } envelope on the MCP wire.
 import { registerTool } from "../_register.js";
 import { executeAppendNote, type ExecuteDeps } from "./handler.js";
-import { appendNoteInputSchema } from "./schema.js";
+import { appendNoteInputSchema, appendNoteOutputSchema } from "./schema.js";
 import { ADDITIVE_WRITE_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const APPEND_NOTE_TOOL_NAME = "append_note";
@@ -28,6 +28,7 @@ export function createAppendNoteTool(deps: RegisterDeps): RegisteredTool {
     annotations: ADDITIVE_WRITE_HINTS,
     description: APPEND_NOTE_DESCRIPTION,
     schema: appendNoteInputSchema,
+    outputSchema: appendNoteOutputSchema,
     deps,
     handler: async (input, d) => executeAppendNote(input, d),
   });

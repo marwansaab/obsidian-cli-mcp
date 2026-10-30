@@ -1,5 +1,5 @@
 // Original — no upstream. Co-located tests for the FR-018 fingerprint helper module (BI-022); 068 R3: fingerprints come from a v2 Client's view of the published tools/list.
-import { McpServer } from "@modelcontextprotocol/server";
+import { fromJsonSchema, McpServer } from "@modelcontextprotocol/server";
 import { describe, expect, it } from "vitest";
 
 import { canonicalJSON, fingerprintLiveRegistry, sha256 } from "./_register-baseline.js";
@@ -47,7 +47,7 @@ describe("sha256", () => {
 describe("fingerprintLiveRegistry", () => {
   it("returns one entry per registered tool, sorted by name", async () => {
     const entries = await fingerprintLiveRegistry();
-    expect(entries.length).toBe(34);
+    expect(entries.length).toBe(35);
     const names = entries.map((e) => e.name);
     expect(names).toEqual([...names].sort());
     for (const entry of entries) {
@@ -55,7 +55,25 @@ describe("fingerprintLiveRegistry", () => {
       expect(entry.schemaFingerprint).toMatch(/^[0-9a-f]{64}$/);
       expect(entry.titleFingerprint).toMatch(/^[0-9a-f]{64}$/);
       expect(entry.annotationsFingerprint).toMatch(/^[0-9a-f]{64}$/);
+      expect(entry.outputSchemaFingerprint).toMatch(/^[0-9a-f]{64}$/);
     }
+  });
+
+  it("fingerprints a published outputSchema, and a tool without one as null (068 PR 5)", async () => {
+    const outputSchema = { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"] };
+    const buildMcpServer = () => {
+      const server = new McpServer({ name: "fake", version: "0.0.0" }, { capabilities: { tools: { listChanged: false } } });
+      server.registerTool("typed_tool", { description: "typed", outputSchema: fromJsonSchema(outputSchema) }, () => ({
+        content: [],
+        structuredContent: { ok: true },
+      }));
+      server.registerTool("untyped_tool", { description: "untyped" }, () => ({ content: [] }));
+      return server;
+    };
+
+    const [typed, untyped] = await fingerprintLiveRegistry({ buildMcpServer });
+    expect(typed!.outputSchemaFingerprint).toBe(sha256(canonicalJSON(outputSchema)));
+    expect(untyped!.outputSchemaFingerprint).toBe(sha256(canonicalJSON(null)));
   });
 
   it("fingerprints exactly what a client receives from the injected server (happy — published surface)", async () => {
@@ -74,6 +92,7 @@ describe("fingerprintLiveRegistry", () => {
         schemaFingerprint: sha256(canonicalJSON({ type: "object", properties: {} })),
         titleFingerprint: sha256("Only Tool"),
         annotationsFingerprint: sha256(canonicalJSON(annotations)),
+        outputSchemaFingerprint: sha256(canonicalJSON(null)),
       },
     ]);
   });

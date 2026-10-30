@@ -2,22 +2,16 @@
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Writable } from "node:stream";
 
-import { Client, ProtocolError, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
-import { createMcpHandler } from "@modelcontextprotocol/server";
+import { ProtocolError, type Client } from "@modelcontextprotocol/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildInstructions } from "./instructions/instructions.js";
-import { createServer, type CreatedServer } from "./server.js";
-import { connectInMemoryClient } from "./tools/_mcp-client-fixtures.js";
+import { connectInMemoryClient, connectModernClient, quietServer, textOf } from "./tools/_mcp-client-fixtures.js";
+
+import type { CreatedServer } from "./server.js";
 
 const { version: PACKAGE_VERSION } = createRequire(import.meta.url)("../package.json") as { version: string };
-
-function quietServer(): CreatedServer {
-  const sink = new Writable({ write: (_chunk, _enc, cb) => cb() });
-  return createServer({ loggerStream: sink, registerSignalHandlers: false, exit: () => undefined });
-}
 
 /** 2025 era: the default (legacy-negotiating) client over a linked in-memory transport pair. */
 function connectLegacy(app: CreatedServer): Promise<Client> {
@@ -25,21 +19,8 @@ function connectLegacy(app: CreatedServer): Promise<Client> {
 }
 
 /** 2026 era: the same factory behind createMcpHandler, reached through a fetch-backed HTTP client transport. */
-async function connectModern(app: CreatedServer): Promise<Client> {
-  const handler = createMcpHandler(() => app.buildMcpServer());
-  const transport = new StreamableHTTPClientTransport(new URL("http://localhost/mcp"), {
-    fetch: (url, init) => handler.fetch(new Request(url, init)),
-  });
-  const client = new Client(
-    { name: "protocol-test-2026", version: "0.0.0" },
-    { versionNegotiation: { mode: "auto" } },
-  );
-  await client.connect(transport);
-  return client;
-}
-
-function textOf(result: unknown): string {
-  return (result as { content: Array<{ type: string; text: string }> }).content[0]!.text;
+function connectModern(app: CreatedServer): Promise<Client> {
+  return connectModernClient(app, "protocol-test-2026");
 }
 
 describe.each([
@@ -63,9 +44,9 @@ describe.each([
     expect(caps?.logging).toBeUndefined();
   });
 
-  it("listTools returns all 34 tools", async () => {
+  it("listTools returns all 35 tools", async () => {
     const { tools } = await client.listTools();
-    expect(tools.length).toBe(34);
+    expect(tools.length).toBe(35);
   });
 
   it("callTool('help') succeeds", async () => {
@@ -103,6 +84,8 @@ describe("MCP protocol — server instructions (068 FR-025, T055)", () => {
       const { tools } = await legacy.listTools();
       expect(fromLegacy).toBe(buildInstructions(tools.map((t) => t.name)));
       expect(fromLegacy!.length).toBeLessThan(2000);
+      // The `vaults` rule appears now that the tool is registered (068 PR 5, T065).
+      expect(fromLegacy).toContain("`vaults` lists the vault names to use.");
     } finally {
       await legacy.close();
       await modern.close();

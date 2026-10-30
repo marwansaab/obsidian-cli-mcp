@@ -31,7 +31,7 @@ extends it.
 - [architecture.md](architecture.md) — the boot, runtime and error spines;
   dual-era serving on SDK v2 `McpServer` and the registration adapter; tool
   titles, behaviour hints, published parameter descriptions and the server
-  instructions; the
+  instructions; typed results (`outputSchema` and `structuredContent`); the
   queue, dispatch, cold-start retry and auto-launch; error classification and
   sub-discriminators; `target_mode`; the direct-filesystem write path; the
   `eval` template pattern; logging, shutdown and module layout.
@@ -49,7 +49,7 @@ extends it.
     write cohort, `find_and_replace`, `prepend`, `set_property`, `delete`,
     `rename`, `move`.
   - [capabilities/list-and-inventory.md](capabilities/list-and-inventory.md) —
-    `files`, `paths`, `outline`, `properties`.
+    `files`, `paths`, `outline`, `properties`, `vaults`.
   - [capabilities/bases.md](capabilities/bases.md) — `bases`, `views_base`,
     `query_base`, `create_base`.
   - [capabilities/plugin-backed.md](capabilities/plugin-backed.md) — the two
@@ -83,3 +83,7 @@ applies. Records written since:
   — `obsidian_exec`'s code-execution gate matches the `command` field, and
   the schema refuses `=` in it (PR #88). It was numbered while ADR-040 was
   reserved by the 068 plan; ADR-040 landed with PR #90.
+- [decisions/ADR-042-typed-results-checked-in-registertool.md](decisions/ADR-042-typed-results-checked-in-registertool.md)
+  — typed results publish through a pass-through output adapter with an
+  object root for unions of objects, and `registerTool`, not the SDK, checks
+  each success so drift is the `INTERNAL_ERROR` envelope (PR #91).

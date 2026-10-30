@@ -1,7 +1,7 @@
 // Original — no upstream. move tool registration via registerTool — responseFormat: "json" wraps the { moved, fromPath, toPath } envelope for the MCP wire.
 import { registerTool } from "../_register.js";
 import { executeMove, type ExecuteDeps } from "./handler.js";
-import { moveInputSchema } from "./schema.js";
+import { moveInputSchema, moveOutputSchema } from "./schema.js";
 import { DESTRUCTIVE_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const MOVE_TOOL_NAME = "move";
@@ -18,6 +18,7 @@ export function createMoveTool(deps: RegisterDeps): RegisteredTool {
     annotations: DESTRUCTIVE_HINTS,
     description: MOVE_DESCRIPTION,
     schema: moveInputSchema,
+    outputSchema: moveOutputSchema,
     deps,
     handler: async (input, d) => executeMove(input, d),
   });

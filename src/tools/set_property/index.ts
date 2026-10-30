@@ -1,7 +1,7 @@
 // Original — no upstream. set_property tool registration via registerTool — responseFormat: "json" (default) wraps the { written, path, name } envelope for the MCP wire.
 import { registerTool } from "../_register.js";
 import { executeWriteProperty, type ExecuteDeps } from "./handler.js";
-import { setPropertyInputSchema } from "./schema.js";
+import { setPropertyInputSchema, writePropertyOutputSchema } from "./schema.js";
 import { REPEATABLE_WRITE_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const SET_PROPERTY_TOOL_NAME = "set_property";
@@ -26,6 +26,7 @@ export function createSetPropertyTool(deps: RegisterDeps): RegisteredTool {
     annotations: REPEATABLE_WRITE_HINTS,
     description: SET_PROPERTY_DESCRIPTION,
     schema: setPropertyInputSchema,
+    outputSchema: writePropertyOutputSchema,
     deps,
     handler: async (input, d) => executeWriteProperty(input, d),
   });

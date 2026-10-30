@@ -1,11 +1,13 @@
 // Original — no upstream. Registry-wide published tool-surface enforcement tests.
-import { Writable } from "node:stream";
-
+import { AjvJsonSchemaValidator } from "@modelcontextprotocol/client/validators/ajv";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { connectInMemoryClient } from "./_mcp-client-fixtures.js";
+import { connectInMemoryClient, connectModernClient, quietServer, serveOne } from "./_mcp-client-fixtures.js";
 import { undescribedProperties } from "./_schema-test-utils.js";
-import { createServer } from "../server.js";
+import { TYPED_RESULT_FIXTURES } from "./_typed-result-fixtures.js";
+import { UpstreamError } from "../errors.js";
+import { createVaultsTool } from "./vaults/index.js";
+import { createVaultRegistry } from "../vault-registry/registry.js";
 
 import type { Client } from "@modelcontextprotocol/client";
 
@@ -15,6 +17,12 @@ interface PublishedTool {
   description?: string;
   inputSchema: Record<string, unknown>;
   annotations?: Record<string, unknown>;
+  outputSchema?: Record<string, unknown>;
+}
+
+/** Validate `value` against a published JSON Schema with the client SDK's own validator (not zod). */
+function validatesAgainst(schema: Record<string, unknown>, value: unknown): boolean {
+  return new AjvJsonSchemaValidator().getValidator(schema as never)(value).valid;
 }
 
 type Hints = readonly [readOnly: boolean, destructive: boolean, idempotent: boolean, openWorld: boolean];
@@ -25,7 +33,7 @@ const REPEATABLE_WRITE: Hints = [false, false, true, false];
 const DESTRUCTIVE: Hints = [false, true, false, false];
 const PASSTHROUGH: Hints = [false, true, false, true];
 
-// Spec FR-024, one row per tool (FR-023 second test). `vaults` joins the read-only row in PR 5.
+// Spec FR-024, one row per tool (FR-023 second test).
 const CLASSIFICATION: Readonly<Record<string, Hints>> = {
   read: READ_ONLY,
   read_heading: READ_ONLY,
@@ -46,6 +54,7 @@ const CLASSIFICATION: Readonly<Record<string, Hints>> = {
   query_base: READ_ONLY,
   get_active_file: READ_ONLY,
   help: READ_ONLY,
+  vaults: READ_ONLY,
   smart_connections_query: READ_ONLY,
   smart_connections_similar: READ_ONLY,
   append_note: ADDITIVE_WRITE,
@@ -78,9 +87,7 @@ describe("published tool surface (068 US6, US8)", () => {
   let tools: PublishedTool[];
 
   beforeAll(async () => {
-    const sink = new Writable({ write: (_chunk, _enc, cb) => cb() });
-    const app = createServer({ loggerStream: sink, registerSignalHandlers: false, exit: () => undefined });
-    client = await connectInMemoryClient(app.buildMcpServer(), "surface-test");
+    client = await connectInMemoryClient(quietServer().buildMcpServer(), "surface-test");
     ({ tools } = (await client.listTools()) as { tools: PublishedTool[] });
   });
 
@@ -119,7 +126,7 @@ describe("published tool surface (068 US6, US8)", () => {
       const readOnlyRow = Object.entries(CLASSIFICATION)
         .filter(([, hints]) => hints === READ_ONLY)
         .map(([name]) => name);
-      expect(readOnlyRow.length).toBe(21);
+      expect(readOnlyRow.length).toBe(22);
       for (const name of readOnlyRow) {
         expect(toolNamed(name).annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false });
       }
@@ -143,5 +150,130 @@ describe("published tool surface (068 US6, US8)", () => {
       const offenders = tools.filter((t) => pattern.test(t.description ?? "")).map((t) => t.name);
       expect(offenders).toEqual([]);
     });
+  });
+});
+
+// Tools whose result is not always a JSON object publish no outputSchema (068 FR-041, R6):
+// `read` and `help` are text, `obsidian_exec` is free-form CLI output, and `tag`'s count-only
+// form is a bare integer.
+const UNTYPED_TOOLS = ["help", "obsidian_exec", "read", "tag"];
+
+// One sample per variant of each union-of-objects result (068 R6, T066).
+const UNION_VARIANT_SAMPLES: Readonly<Record<string, readonly unknown[]>> = {
+  search: [
+    { count: 1, paths: ["Notes/a.md"] },
+    { count: 1, matches: [{ path: "Notes/a.md", line: 3, text: "a match" }], truncated: true },
+  ],
+  find_and_replace: [
+    {
+      mode: "preview",
+      affected_notes: [
+        {
+          path: "Notes/a.md",
+          occurrence_count: 1,
+          occurrences: [{ line_number: 1, full_line: "foo", matched_substring: "foo", replacement_substring: "bar" }],
+        },
+      ],
+      total_occurrences: 1,
+    },
+    { mode: "commit", changed_notes: ["Notes/a.md"], total_occurrences_replaced: 1, partial: false },
+  ],
+};
+
+describe("published outputSchema in both eras (068 US12, FR-039, R6 T0)", () => {
+  let legacy: Client;
+  let modern: Client;
+  let legacyTools: PublishedTool[];
+  let modernTools: PublishedTool[];
+
+  beforeAll(async () => {
+    const app = quietServer();
+    legacy = await connectInMemoryClient(app.buildMcpServer(), "surface-test-2025");
+    modern = await connectModernClient(app, "surface-test-2026");
+    ({ tools: legacyTools } = (await legacy.listTools()) as { tools: PublishedTool[] });
+    ({ tools: modernTools } = (await modern.listTools()) as { tools: PublishedTool[] });
+  });
+
+  afterAll(async () => {
+    await legacy.close();
+    await modern.close();
+  });
+
+  it("the two clients negotiated different eras", () => {
+    expect(legacy.getNegotiatedProtocolVersion()).toMatch(/^2025-/);
+    expect(modern.getNegotiatedProtocolVersion()).toBe("2026-07-28");
+  });
+
+  it("every tool except the untyped four publishes an outputSchema with an object root", () => {
+    const untyped = legacyTools.filter((t) => t.outputSchema === undefined).map((t) => t.name);
+    expect(untyped.sort()).toEqual(UNTYPED_TOOLS);
+    for (const tool of legacyTools.filter((t) => t.outputSchema !== undefined)) {
+      expect(tool.outputSchema!.type, tool.name).toBe("object");
+    }
+  });
+
+  it("every outputSchema is identical in both eras (no era exception)", () => {
+    const byName = (list: PublishedTool[]) => Object.fromEntries(list.map((t) => [t.name, t.outputSchema]));
+    expect(byName(modernTools)).toEqual(byName(legacyTools));
+  });
+
+  it.each(Object.keys(UNION_VARIANT_SAMPLES))(
+    "%s publishes its union as an object root wrapping the variants, unwrapped by the 2025 codec",
+    (name) => {
+      const schema = legacyTools.find((t) => t.name === name)!.outputSchema!;
+      expect(schema.type).toBe("object");
+      const variants = (schema["anyOf"] ?? schema["oneOf"]) as Array<Record<string, unknown>>;
+      expect(variants.length).toBe(2);
+      for (const variant of variants) expect(variant.type).toBe("object");
+      // The 2025-era codec wraps a non-object root as {properties: {result: …}}; it did not here.
+      expect(schema["properties"]).toBeUndefined();
+      for (const sample of UNION_VARIANT_SAMPLES[name]!) expect(validatesAgainst(schema, sample)).toBe(true);
+      expect(validatesAgainst(schema, { count: 1 })).toBe(false);
+    },
+  );
+
+  it("every typed tool has a round-trip fixture below", () => {
+    const typed = legacyTools.filter((t) => t.outputSchema !== undefined).map((t) => t.name);
+    expect(new Set(TYPED_RESULT_FIXTURES.map((f) => f.name))).toEqual(new Set(typed));
+  });
+});
+
+type ToolResult = { isError?: boolean; structuredContent?: unknown; content: Array<{ type: string; text: string }> };
+
+// FR-042 / T069: a stubbed success through a real client validates against the published schema,
+// and its text block parses to the same object.
+describe("typed-result round trip (068 FR-042, T069)", () => {
+  it.each(TYPED_RESULT_FIXTURES.map((f, i) => [`${f.name} #${i}`, f] as const))("%s", async (_label, fixture) => {
+    const client = await serveOne(fixture.build(), "surface-round-trip");
+    try {
+      const { tools } = (await client.listTools()) as { tools: PublishedTool[] };
+      const schema = tools[0]!.outputSchema!;
+      const result = (await client.callTool({ name: fixture.name, arguments: fixture.args })) as ToolResult;
+      expect(result.isError, result.content[0]?.text).toBeFalsy();
+      expect(result.structuredContent).toBeDefined();
+      expect(validatesAgainst(schema, result.structuredContent)).toBe(true);
+      expect(JSON.parse(result.content[0]!.text)).toEqual(result.structuredContent);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("an input-validation failure and an upstream failure are text-only (FR-040)", async () => {
+    const failure = new UpstreamError({ code: "CLI_REPORTED_ERROR", cause: null, details: {}, message: "app down" });
+    const client = await serveOne(
+      createVaultsTool({ vaultRegistry: createVaultRegistry({ invokeProbe: () => Promise.reject(failure) }) }),
+      "surface-round-trip",
+    );
+    try {
+      const invalid = (await client.callTool({ name: "vaults", arguments: { vault: "x" } })) as ToolResult;
+      const upstream = (await client.callTool({ name: "vaults", arguments: {} })) as ToolResult;
+      for (const [result, code] of [[invalid, "VALIDATION_ERROR"], [upstream, "CLI_REPORTED_ERROR"]] as const) {
+        expect(result.isError).toBe(true);
+        expect(result.structuredContent).toBeUndefined();
+        expect(JSON.parse(result.content[0]!.text).code).toBe(code);
+      }
+    } finally {
+      await client.close();
+    }
   });
 });

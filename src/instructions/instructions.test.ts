@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildInstructions } from "./instructions.js";
 
-// Spec FR-024 read-only row (vaults arrives in PR 5; it is listed so the longest case is measured).
+// Spec FR-024 read-only row (22 tools, `vaults` included since PR 5).
 const READ_ONLY_TOOLS = [
   "read",
   "read_heading",

@@ -6,7 +6,7 @@
 // with read_property (property:read) / set_property (property:set).
 import { registerTool } from "../_register.js";
 import { executeContextSearch, type ExecuteDeps } from "./handler.js";
-import { contextSearchInputSchema } from "./schema.js";
+import { contextSearchInputSchema, contextSearchOutputSchema } from "./schema.js";
 import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const CONTEXT_SEARCH_TOOL_NAME = "context_search";
@@ -41,6 +41,7 @@ export function createContextSearchTool(deps: RegisterDeps): RegisteredTool {
     annotations: READ_ONLY_HINTS,
     description: CONTEXT_SEARCH_DESCRIPTION,
     schema: contextSearchInputSchema,
+    outputSchema: contextSearchOutputSchema,
     deps,
     handler: async (input, d) => executeContextSearch(input, d),
   });

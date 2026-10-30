@@ -5,7 +5,7 @@
 // returning { active: { path, name, basename, extension } | null }. Zero new top-level error codes —
 // Constitution Principle IV streak preserved (recovery inherited from dispatchCli; no launcher import).
 import { executeGetActiveFile, type ExecuteDeps } from "./handler.js";
-import { getActiveFileInputSchema } from "./schema.js";
+import { getActiveFileInputSchema, getActiveFileOutputSchema } from "./schema.js";
 import { registerTool } from "../_register.js";
 import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
@@ -43,6 +43,7 @@ export function createGetActiveFileTool(deps: RegisterDeps): RegisteredTool {
     annotations: READ_ONLY_HINTS,
     description: GET_ACTIVE_FILE_DESCRIPTION,
     schema: getActiveFileInputSchema,
+    outputSchema: getActiveFileOutputSchema,
     deps,
     handler: async (input, d) => executeGetActiveFile(input, d),
   });

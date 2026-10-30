@@ -1,7 +1,7 @@
 // Original — no upstream. backlinks tool registration via registerTool — link-graph primitive returning a typed { count, backlinks: [{ source, count? }], truncated? } envelope; responseFormat: "json" (default) wraps the envelope for the MCP wire.
 import { registerTool } from "../_register.js";
 import { executeBacklinks, type ExecuteDeps } from "./handler.js";
-import { backlinksInputSchema } from "./schema.js";
+import { backlinksInputSchema, backlinksOutputSchema } from "./schema.js";
 import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const BACKLINKS_TOOL_NAME = "backlinks";
@@ -37,6 +37,7 @@ export function createBacklinksTool(deps: RegisterDeps): RegisteredTool {
     annotations: READ_ONLY_HINTS,
     description: BACKLINKS_DESCRIPTION,
     schema: backlinksInputSchema,
+    outputSchema: backlinksOutputSchema,
     deps,
     handler: async (input, d) => executeBacklinks(input, d),
   });

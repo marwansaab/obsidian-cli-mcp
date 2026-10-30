@@ -1,7 +1,7 @@
 // Original — no upstream. query_base tool registration via registerTool — wraps the upstream `obsidian base:query` subcommand to return matched rows from a named view inside an Obsidian Bases (.base) file as a structured `{ columns, rows, truncated, total_rows? }` envelope. Sixteenth typed-tool wrap; ADR-010 mechanical name from `base:query`.
 import { registerTool } from "../_register.js";
 import { executeQueryBase, type ExecuteDeps } from "./handler.js";
-import { queryBaseInputSchema } from "./schema.js";
+import { queryBaseInputSchema, queryBaseOutputSchema } from "./schema.js";
 import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const QUERY_BASE_TOOL_NAME = "query_base";
@@ -34,6 +34,7 @@ export function createQueryBaseTool(deps: RegisterDeps): RegisteredTool {
     annotations: READ_ONLY_HINTS,
     description: QUERY_BASE_DESCRIPTION,
     schema: queryBaseInputSchema,
+    outputSchema: queryBaseOutputSchema,
     deps,
     handler: executeQueryBase,
   });

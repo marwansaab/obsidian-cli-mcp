@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the lazy vault registry per ADR-009 / FR-012 — first-call probe + cache hits, parser tolerance, retry-on-failure, concurrent-first-call deduplication.
+// Original — no upstream. Tests for the lazy vault registry per ADR-009 / FR-012 — first-call probe + cache hits, parser tolerance, retry-on-failure, concurrent-first-call deduplication; 068 R9 re-probe on a miss and the always-fresh list().
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import { createVaultRegistry, type VaultRegistry } from "./registry.js";
@@ -191,6 +191,120 @@ test("resolveVaultDisplayName returns null for an unknown basePath", async () =>
   const reg = createVaultRegistry({ invokeProbe: probe });
   await reg.resolveVaultPath("The Setup");
   expect(reg.resolveVaultDisplayName!("/no/such/vault")).toBe(null);
+});
+
+// 068 T062 / FR-037 — a cache miss re-probes once before failing.
+test("cache hit after the first probe does not re-probe", async () => {
+  const probe = vi.fn().mockResolvedValue(TWO_VAULT_STDOUT);
+  const reg = createVaultRegistry({ invokeProbe: probe });
+  await reg.resolveVaultPath("The Setup");
+  await reg.resolveVaultPath("TestVault-Obsidian-CLI-MCP");
+  expect(probe).toHaveBeenCalledTimes(1);
+});
+
+test("cache miss re-probes once and resolves a vault added after start-up", async () => {
+  const probe = vi
+    .fn()
+    .mockResolvedValueOnce(TWO_VAULT_STDOUT)
+    .mockResolvedValueOnce(TWO_VAULT_STDOUT + "NewVault\t/abs/new\n");
+  const reg = createVaultRegistry({ invokeProbe: probe });
+  await reg.resolveVaultPath("The Setup");
+  expect(await reg.resolveVaultPath("NewVault")).toBe("/abs/new");
+  expect(probe).toHaveBeenCalledTimes(2);
+  // The refreshed cache now serves the new vault without another probe.
+  expect(await reg.resolveVaultPath("NewVault")).toBe("/abs/new");
+  expect(probe).toHaveBeenCalledTimes(2);
+});
+
+test("a miss on the cache and again after the re-probe gives the unknown-vault error with no restart advice", async () => {
+  const probe = vi.fn().mockResolvedValue(TWO_VAULT_STDOUT);
+  const reg = createVaultRegistry({ invokeProbe: probe });
+  await reg.resolveVaultPath("The Setup");
+  const err = await captureRejection(reg.resolveVaultPath("Nonexistent"));
+  expect(probe).toHaveBeenCalledTimes(2);
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect((err as UpstreamError).code).toBe("VALIDATION_ERROR");
+  expect((err as UpstreamError).message).toBe('Vault "Nonexistent" is not registered with Obsidian.');
+  expect((err as UpstreamError).message).not.toMatch(/restart/i);
+});
+
+test("the first lookup of an unknown vault probes once, not twice", async () => {
+  const probe = vi.fn().mockResolvedValue(TWO_VAULT_STDOUT);
+  const reg = createVaultRegistry({ invokeProbe: probe });
+  await captureRejection(reg.resolveVaultPath("Nonexistent"));
+  expect(probe).toHaveBeenCalledTimes(1);
+});
+
+// 068 T062 / FR-036 — list() always re-probes and refreshes the cache.
+test("list returns every row in CLI order and re-probes on every call", async () => {
+  const probe = vi.fn().mockResolvedValue(TWO_VAULT_STDOUT);
+  const reg = createVaultRegistry({ invokeProbe: probe });
+  const expected = [
+    {
+      name: "TestVault-Obsidian-CLI-MCP",
+      path: "C:\\Marwan-Saab-ADO\\Marwan at Metcash\\Obsidian\\TestVault-Obsidian-CLI-MCP",
+    },
+    { name: "The Setup", path: "C:\\Marwan-Saab-ADO\\Marwan at Metcash\\Obsidian\\The Setup" },
+  ];
+  expect(await reg.list()).toEqual(expected);
+  expect(await reg.list()).toEqual(expected);
+  expect(probe).toHaveBeenCalledTimes(2);
+});
+
+test("list keeps duplicate display names as separate entries; lookup by that name still resolves", async () => {
+  const probe = vi.fn().mockResolvedValue("Twin\t/abs/one\nTwin\t/abs/two\n");
+  const reg = createVaultRegistry({ invokeProbe: probe });
+  expect(await reg.list()).toEqual([
+    { name: "Twin", path: "/abs/one" },
+    { name: "Twin", path: "/abs/two" },
+  ]);
+  // Unchanged pre-068 behaviour: the last row of a duplicated name wins the lookup.
+  expect(await reg.resolveVaultPath("Twin")).toBe("/abs/two");
+});
+
+test("list refreshes the cache that resolveVaultPath reads", async () => {
+  const probe = vi
+    .fn()
+    .mockResolvedValueOnce(TWO_VAULT_STDOUT)
+    .mockResolvedValueOnce("NewVault\t/abs/new\n");
+  const reg = createVaultRegistry({ invokeProbe: probe });
+  await reg.resolveVaultPath("The Setup");
+  await reg.list();
+  expect(await reg.resolveVaultPath("NewVault")).toBe("/abs/new");
+  expect(probe).toHaveBeenCalledTimes(2);
+});
+
+test("concurrent first list and lookup share one probe", async () => {
+  let resolveProbe!: (value: string) => void;
+  const probe = vi.fn().mockImplementation(
+    () =>
+      new Promise<string>((resolve) => {
+        resolveProbe = resolve;
+      }),
+  );
+  const reg = createVaultRegistry({ invokeProbe: probe });
+  const listed = reg.list();
+  const resolved = reg.resolveVaultPath("The Setup");
+  const listedAgain = reg.list();
+  expect(probe).toHaveBeenCalledTimes(1);
+  resolveProbe(TWO_VAULT_STDOUT);
+  const [a, b, c] = await Promise.all([listed, resolved, listedAgain]);
+  expect(a).toHaveLength(2);
+  expect(b).toBe("C:\\Marwan-Saab-ADO\\Marwan at Metcash\\Obsidian\\The Setup");
+  expect(c).toEqual(a);
+  expect(probe).toHaveBeenCalledTimes(1);
+});
+
+test("list propagates a probe failure rather than returning an empty list", async () => {
+  const probeError = new UpstreamError({
+    code: "CLI_REPORTED_ERROR",
+    cause: null,
+    details: {},
+    message: "Obsidian not running",
+  });
+  const probe = vi.fn().mockRejectedValueOnce(probeError);
+  const reg = createVaultRegistry({ invokeProbe: probe });
+  expect(await captureRejection(reg.list())).toBe(probeError);
 });
 
 test("resolveVaultDisplayName returns null when the cache has not been primed", async () => {

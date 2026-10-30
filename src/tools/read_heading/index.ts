@@ -1,7 +1,7 @@
 // Original — no upstream. read_heading tool registration via registerTool — wraps the { content } envelope for the MCP wire.
 import { registerTool } from "../_register.js";
 import { executeReadHeading, type ExecuteDeps } from "./handler.js";
-import { readHeadingInputSchema } from "./schema.js";
+import { readHeadingInputSchema, readHeadingOutputSchema } from "./schema.js";
 import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const READ_HEADING_TOOL_NAME = "read_heading";
@@ -18,6 +18,7 @@ export function createReadHeadingTool(deps: RegisterDeps): RegisteredTool {
     annotations: READ_ONLY_HINTS,
     description: READ_HEADING_DESCRIPTION,
     schema: readHeadingInputSchema,
+    outputSchema: readHeadingOutputSchema,
     deps,
     handler: async (input, d) => executeReadHeading(input, d),
   });

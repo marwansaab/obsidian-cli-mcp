@@ -6,7 +6,7 @@
 // mechanism write_note's `open` parameter uses, ADR-009). Zero new top-level error codes — Constitution
 // Principle IV streak preserved (recovery is inherited from dispatchCli; no launcher import).
 import { executeOpenFile, type ExecuteDeps } from "./handler.js";
-import { openFileInputSchema } from "./schema.js";
+import { openFileInputSchema, openFileOutputSchema } from "./schema.js";
 import { registerTool } from "../_register.js";
 import { REPEATABLE_WRITE_HINTS, type RegisteredTool } from "../_shared.js";
 
@@ -39,6 +39,7 @@ export function createOpenFileTool(deps: RegisterDeps): RegisteredTool {
     annotations: REPEATABLE_WRITE_HINTS,
     description: OPEN_FILE_DESCRIPTION,
     schema: openFileInputSchema,
+    outputSchema: openFileOutputSchema,
     deps,
     handler: async (input, d) => executeOpenFile(input, d),
   });

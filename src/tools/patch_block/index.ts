@@ -1,7 +1,7 @@
 // Original — no upstream. patch_block tool registration per BI-043 / ADR-009 — wraps the executePatchBlock direct-fs-write handler via registerTool (ADR-006); responseFormat: "json" emits the { path, vault, block_id, block_shape, bytes_written } envelope on the MCP wire.
 import { registerTool } from "../_register.js";
 import { executePatchBlock, type ExecuteDeps } from "./handler.js";
-import { patchBlockInputSchema } from "./schema.js";
+import { patchBlockInputSchema, patchBlockOutputSchema } from "./schema.js";
 import { ADDITIVE_WRITE_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const PATCH_BLOCK_TOOL_NAME = "patch_block";
@@ -37,6 +37,7 @@ export function createPatchBlockTool(deps: RegisterDeps): RegisteredTool {
     annotations: ADDITIVE_WRITE_HINTS,
     description: PATCH_BLOCK_DESCRIPTION,
     schema: patchBlockInputSchema,
+    outputSchema: patchBlockOutputSchema,
     deps,
     handler: async (input, d) => executePatchBlock(input, d),
   });
