@@ -7,6 +7,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 
 import { invokeCli, killInFlightChildren as defaultKillInFlightChildren } from "./cli-adapter/cli-adapter.js";
+import { envFlagEnabled } from "./env-flags.js";
 import { createLogger, type Logger, type ShutdownReason } from "./logger.js";
 import { createQueue, type Queue } from "./queue.js";
 import { assertToolDocsExist } from "./tools/_register.js";
@@ -66,6 +67,12 @@ export interface ShutdownContext {
   registerSignalHandlers?: boolean;
   killInFlightChildren?: () => boolean;
   docsDir?: string;
+  /**
+   * Environment the `OBSIDIAN_MCP_*` access flags are read from, once at boot (068 data-model §1;
+   * plan: `ctx.env`). Defaults to `process.env`. It does not reach the CLI layer: `OBSIDIAN_BIN` and
+   * `OBSIDIAN_AUTO_LAUNCH` are still read from `process.env` at dispatch time.
+   */
+  env?: NodeJS.ProcessEnv;
 }
 
 export interface CreatedServer {
@@ -85,6 +92,9 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
   const logger = createLogger({ stream: ctx.loggerStream });
   const queue = createQueue();
   const exit = ctx.exit ?? ((code: number) => process.exit(code));
+  const env = ctx.env ?? process.env;
+  // 068 FR-012: the passthrough denylist opt-in, parsed once here and injected (no call-time env reads).
+  const allowEval = envFlagEnabled(env.OBSIDIAN_MCP_ALLOW_EVAL);
 
   // BI-067: deliberate low-level Server usage; see CreatedServer.server above.
   // eslint-disable-next-line @typescript-eslint/no-deprecated
@@ -124,7 +134,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     createHelpTool(),
     createLinksTool({ logger, queue }),
     createMoveTool({ logger, queue }),
-    createObsidianExecTool({ logger, queue }),
+    createObsidianExecTool({ logger, queue, allowEval }),
     createOpenFileTool({ logger, queue, vaultRegistry }),
     createOutlineTool({ logger, queue }),
     createPatchBlockTool({ logger, queue, vaultRegistry }),

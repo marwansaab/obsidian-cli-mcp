@@ -3,14 +3,14 @@ import { type SpawnOptions } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { Writable, Readable } from "node:stream";
 
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, test } from "vitest";
 
-import { executeObsidianExec } from "./handler.js";
+import { executeObsidianExec, isBlockedCommand, OBSIDIAN_EXEC_BLOCKED_EXACT } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger, captureRejection } from "../_handler-test-fixtures.js";
+import { silentLogger, captureRejection, makeQueuedSpawn } from "../_handler-test-fixtures.js";
 
 
 interface MockChildSpec {
@@ -239,4 +239,115 @@ test("handler emits ZERO call.start/call.end log lines (R3 — failure-only logg
   );
   const lines = Buffer.concat(chunks).toString("utf8").split("\n").filter(Boolean);
   expect(lines.length).toBe(0);
+});
+
+describe("isBlockedCommand — passthrough denylist (068 FR-010, research R4)", () => {
+  it("pins the exact-name set from the live help output (evidence-c2.md)", () => {
+    expect([...OBSIDIAN_EXEC_BLOCKED_EXACT].sort()).toEqual(
+      ["devtools", "eval", "plugin:disable", "plugin:enable", "plugin:install", "restart"],
+    );
+  });
+
+  it.each(["eval", "devtools", "restart", "plugin:install", "plugin:enable", "plugin:disable"])(
+    "blocks %j",
+    (name) => {
+      expect(isBlockedCommand(name)).toBe(true);
+    },
+  );
+
+  it.each([" EVAL ", "Eval", "\tdevtools\n", "PLUGIN:Install", " Restart"])(
+    "blocks %j regardless of case and surrounding whitespace",
+    (name) => {
+      expect(isBlockedCommand(name)).toBe(true);
+    },
+  );
+
+  it.each(["dev:cdp", "dev:console", "dev:debug", "dev:screenshot", "DEV:dom", "dev:"])(
+    "blocks every dev:* command (%j)",
+    (name) => {
+      expect(isBlockedCommand(name)).toBe(true);
+    },
+  );
+
+  it.each(["plugin:reload", "command", "search", "read", "plugins", "plugin", "plugin:uninstall", "reload", "evaluate", "developer"])(
+    "allows %j",
+    (name) => {
+      expect(isBlockedCommand(name)).toBe(false);
+    },
+  );
+});
+
+describe("executeObsidianExec — COMMAND_BLOCKED gate (068 FR-010..FR-013)", () => {
+  it.each(["eval", " EVAL ", "devtools", "dev:cdp", "restart", "plugin:install", "plugin:enable", "plugin:disable"])(
+    "%j → VALIDATION_ERROR / COMMAND_BLOCKED with no spawn",
+    async (command) => {
+      const { spawnFn, getCount } = makeQueuedSpawn([]);
+      const err = (await captureRejection(
+        executeObsidianExec(
+          { command, parameters: { code: "1+1" } },
+          { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+        ),
+      )) as UpstreamError;
+      expect(err).toBeInstanceOf(UpstreamError);
+      expect(err.code).toBe("VALIDATION_ERROR");
+      expect(err.details).toEqual({ code: "COMMAND_BLOCKED", command });
+      expect(err.message).toBe(
+        `obsidian_exec: command \`${command}\` is blocked by default because it can run arbitrary code or drive developer tooling. The vault owner can allow it by setting OBSIDIAN_MCP_ALLOW_EVAL=1.`,
+      );
+      expect(getCount()).toBe(0);
+    },
+  );
+
+  it("allowEval: false behaves as the default (blocked)", async () => {
+    const { spawnFn, getCount } = makeQueuedSpawn([]);
+    const err = (await captureRejection(
+      executeObsidianExec(
+        { command: "eval", parameters: { code: "1+1" } },
+        { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, allowEval: false },
+      ),
+    )) as UpstreamError;
+    expect(err.details.code).toBe("COMMAND_BLOCKED");
+    expect(getCount()).toBe(0);
+  });
+
+  it("allowEval: true spawns a blocked command as before", async () => {
+    const { spawnFn, recorded } = makeMockSpawn({ stdoutChunks: [Buffer.from("2\n", "utf8")], exitCode: 0 });
+    const result = await executeObsidianExec(
+      { command: "eval", parameters: { code: "1+1" } },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, allowEval: true },
+    );
+    expect(result.stdout).toBe("2\n");
+    expect(result.argv).toEqual(["obsidian", "eval", "code=1+1"]);
+    expect(recorded).toHaveLength(1);
+  });
+
+  it.each(["plugin:reload", "command"])("%j is allowed by default (accepted residual risk)", async (command) => {
+    const { spawnFn, recorded } = makeMockSpawn({ exitCode: 0 });
+    const result = await executeObsidianExec(
+      { command, parameters: { id: "x" } },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    );
+    expect(result.argv).toEqual(["obsidian", command, "id=x"]);
+    expect(recorded).toHaveLength(1);
+  });
+
+  it("a blocked word inside a parameter value is not refused (search query=\"eval\")", async () => {
+    const { spawnFn, recorded } = makeMockSpawn({ exitCode: 0 });
+    const result = await executeObsidianExec(
+      { command: "search", parameters: { query: "eval" } },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    );
+    expect(result.argv).toEqual(["obsidian", "search", "query=eval"]);
+    expect(recorded).toHaveLength(1);
+  });
+
+  it("an explicit vault field leaves `command` as the command token", async () => {
+    const { spawnFn, recorded } = makeMockSpawn({ exitCode: 0 });
+    const result = await executeObsidianExec(
+      { vault: "work", command: "search", parameters: { query: "eval" } },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    );
+    expect(result.argv).toEqual(["obsidian", "vault=work", "search", "query=eval"]);
+    expect(recorded).toHaveLength(1);
+  });
 });

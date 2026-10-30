@@ -1,6 +1,6 @@
 # `obsidian_exec`
 
-Invoke any Obsidian Integrated CLI subcommand on the host where the bridge is running. Bridges MCP clients (including sandboxed ones that cannot exec the `obsidian` binary directly) to the running Obsidian desktop instance.
+Invoke an Obsidian Integrated CLI subcommand on the host where the bridge is running. Commands that run arbitrary code or drive developer tooling are [blocked by default](#blocked-commands) (this page said "any subcommand" until PR #88 added the block). Bridges MCP clients (including sandboxed ones that cannot exec the `obsidian` binary directly) to the running Obsidian desktop instance.
 
 > **Freeform escape hatch.** This tool bypasses every typed-tool safety net: no per-mode validation, no per-field constraint enforcement, no structured output shape. The error-roster classifier still maps non-zero exits and `Error:`-prefixed in-band failures to `UpstreamError` codes, but malformed parameter combinations that a typed tool would reject at the schema layer reach the CLI here. Reserve `obsidian_exec` for cases where the typed tools genuinely don't fit.
 
@@ -20,15 +20,31 @@ The most common Obsidian CLI subcommands have dedicated typed wrappers — prefe
 | Read / write a frontmatter property | [`read_property`](./read_property.md) / [`set_property`](./set_property.md) |
 | Append, prepend, patch heading/block | [`append_note`](./append_note.md), [`prepend`](./prepend.md), [`patch_heading`](./patch_heading.md), [`patch_block`](./patch_block.md) |
 | Search vault content | [`search`](./search.md), [`pattern_search`](./pattern_search.md), [`context_search`](./context_search.md) |
-| Use the `newtab` flag on `create`, run `obsidian version` / `help`, or any unwrapped subcommand | `obsidian_exec` |
+| Use the `newtab` flag on `create`, run `obsidian version` / `help`, or another unwrapped subcommand that is not [blocked](#blocked-commands) | `obsidian_exec` |
 
 The typed tools enforce per-mode validation, structured error propagation, and clean output shapes that `obsidian_exec` cannot.
+
+## Blocked commands
+
+By default, `obsidian_exec` refuses commands that run arbitrary code or drive developer tooling. The refusal happens before any process is spawned, so nothing runs.
+
+| Rule | Commands |
+|---|---|
+| Exact name | `eval`, `devtools`, `restart`, `plugin:install`, `plugin:enable`, `plugin:disable` |
+| Prefix | every `dev:*` command (`dev:cdp`, `dev:console`, `dev:debug`, `dev:dom`, …) |
+
+- The match is on the command name only, after trimming whitespace and lower-casing, so `" EVAL "` is refused too. Parameter values are never inspected: `search` with `query: "eval"` runs normally.
+- A `command` containing `=` is refused as a `VALIDATION_ERROR` on the `command` field, whatever `OBSIDIAN_MCP_ALLOW_EVAL` says. No command name contains `=`; CLI arguments go in `parameters` and the vault in `vault`. This keeps `command` the token the CLI runs: the CLI would otherwise treat a `command` of `vault=<name>` as the vault and run the next token, so `{ "command": "vault=Notes", "flags": ["eval"] }` would run `eval`.
+- `command` (run a command-palette command by ID) and `plugin:reload` are not blocked. A palette command can still trigger plugin code; that indirect path is an accepted residual risk.
+- Plugin-contributed commands are not blocked; their names depend on the plugins each vault has installed.
+
+The vault owner can lift the block for every listed command by setting `OBSIDIAN_MCP_ALLOW_EVAL=1` (also `true`, `yes` or `on`, case-insensitive) in the server's environment. The value is read once when the server starts. Typed tools that run fixed internal scripts (`backlinks`, `links`, `outline`, `find_by_property`, …) are not affected by the block or the setting.
 
 ## Input
 
 | Field | Type | Required | Constraint | Description |
 |-------|------|----------|------------|-------------|
-| `command` | string | YES | length ≥ 1 | The CLI subcommand to invoke (the first positional after the binary). Examples: `"version"`, `"help"`, `"eval"`, `"search"`, `"read"`, `"tasks"`. |
+| `command` | string | YES | length ≥ 1, no `=` | The CLI subcommand to invoke (the first positional after the binary). Examples: `"version"`, `"help"`, `"eval"` (blocked unless `OBSIDIAN_MCP_ALLOW_EVAL` is on), `"search"`, `"read"`, `"tasks"`. |
 | `parameters` | object | NO | values are `string \| number \| boolean` | Key/value pairs assembled into argv as `key=value` tokens (numbers and booleans stringified). Order in the spawned argv matches the object's property declaration order. Example: `{ "query": "meeting", "limit": 10 }` → `'query=meeting' 'limit=10'`. |
 | `flags` | string[] | NO | each element non-empty, no `--` prefix | Bare-word boolean flags (no leading `--`). Each appended verbatim to argv. Example: `["silent", "overwrite"]`. The schema rejects any element starting with `--` — use the `copy` field for the one supported `--`-prefixed flag. |
 | `vault` | string | NO | length ≥ 1 | Vault name or ID. When set, the bridge prepends `vault=<value>` as the FIRST positional argument after the binary, before the command name. When omitted, the command targets Obsidian's currently focused vault. |
@@ -65,6 +81,7 @@ All failure surfaces flow through `UpstreamError`. The codes that can fire from 
 | Code | When | Recovery |
 |------|------|----------|
 | `VALIDATION_ERROR` | `params.arguments` failed schema validation (missing `command`, malformed `parameters` value type, `flags` element starting with `--`, etc.). | Retry with corrected input. `details.issues` carries the zod-issue paths. |
+| `VALIDATION_ERROR` with `details.code: "COMMAND_BLOCKED"` | The command is on the [blocked list](#blocked-commands) and `OBSIDIAN_MCP_ALLOW_EVAL` is off. Raised before any spawn. `details.command` names the blocked command. | Use a typed tool, or ask the vault owner to set `OBSIDIAN_MCP_ALLOW_EVAL=1` if the command is genuinely needed. Retrying unchanged will not help. |
 | `TOOL_NOT_FOUND` | The dispatch received `params.name` other than `"obsidian_exec"`. | Retry with `name: "obsidian_exec"`. |
 | `CLI_NON_ZERO_EXIT` | The spawned `obsidian` child exited with a non-zero code. | `details.{exitCode, signal, stdout, stderr, argv}` carry the failure context. Inspect `stderr` for diagnostic output. |
 | `CLI_BINARY_NOT_FOUND` | `spawn` emitted `ENOENT` — the binary couldn't be resolved on PATH and `OBSIDIAN_BIN` was unset/invalid. | Operator-side: install or expose the `obsidian` binary, OR set `OBSIDIAN_BIN` to a valid path. |

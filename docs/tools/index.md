@@ -17,7 +17,7 @@ Call `help({ tool_name: "<name>" })` to read the full Markdown documentation for
 - **list_notes** — _(documentation pending — owned by a future BI)_.
 - **list_vaults** — _(documentation pending — owned by a future BI)_.
 - **move** — Move a note in a vault (optionally renaming); honours the vault's auto-update-links setting.
-- **obsidian_exec** — Invoke any Obsidian Integrated CLI subcommand.
+- **obsidian_exec** — Invoke an Obsidian Integrated CLI subcommand directly; commands that run code or drive developer tooling are blocked unless the vault owner sets `OBSIDIAN_MCP_ALLOW_EVAL`.
 - **open_file** — Make an existing vault file (note, canvas, PDF, image, attachment) the focused, visible, active file in Obsidian (opens in the named `vault` whether it is focused, open in the background, or closed-but-registered, and moves focus there; reports whether a new tab was created, an existing tab reused, or the active tab used; `new_tab` opt-in).
 - **outline** — Return the flat ordered list of every heading in a Markdown note (returns `{ count, headings: [{ level, text, line }] }` — structural-discovery primitive; `total: true` switches to count-only mode).
 - **patch_block** — Surgically replace the body tied to a named `^block-id` block-reference marker inside a markdown note (the marker and every byte outside the block stay unchanged; recognises paragraph, list-item, and separately-placed block shapes; first match wins on duplicate ids).

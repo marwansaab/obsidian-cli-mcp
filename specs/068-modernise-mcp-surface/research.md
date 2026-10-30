@@ -158,13 +158,33 @@ before `invokeBoundedCli`. It is NOT placed in `invokeBoundedCli` or `invokeCli`
 
 **Truthy parser**: today `autoLaunchEnabled` (`_dispatch.ts:154-158`) is
 default-on/off-set. The new flags are default-off/on-set (`1 / true / yes / on`). PR 2
-adds one exported `envFlagEnabled(value)` beside the existing disable set, and
-`OBSIDIAN_MCP_READ_ONLY` (PR 6) reuses it. Lower-case and trim come from the same
-convention.
+adds one exported `envFlagEnabled(value)`, and `OBSIDIAN_MCP_READ_ONLY` (PR 6) reuses it.
+Lower-case and trim come from the same convention. It lives in its own leaf module,
+`src/env-flags.ts`, not beside the disable set in `_dispatch.ts`: dispatch never calls it,
+and its consumers (`createServer()` now, `parseAccessConfig` in PR 6) are server
+configuration, so `server.ts` need not import the private dispatch module (PR #88 review).
+The two parsers are kept separate on purpose: they disagree on values outside both sets
+(`"2"` leaves auto-launch on and the opt-in flags off).
 
 **Alternatives rejected**:
 - An allowlist of safe commands: overruled by the owner (Q3).
 - Matching anywhere in the argv: would block searches for the text "eval" (spec edge case).
+
+**T0 result (2026-10-30, T020, [evidence-c2.md](evidence-c2.md))**: the live `obsidian help`
+lists the plugin lifecycle commands as `plugin:install`, `plugin:enable` and
+`plugin:disable`; those three are pinned in `OBSIDIAN_EXEC_BLOCKED_EXACT`. The same probe
+showed that the CLI consumes one leading `vault=<name>` token and runs the next token as
+the command, matching case and whitespace exactly. Because `assembleArgv` emits `[vault=…?,
+command, kvs…, flags…]`, a `command` of `vault=X` with no `vault` field would move the
+first flag into command position (`{command: "vault=X", flags: ["eval", "code=…"]}` runs
+`eval`). PR 2 first closed this by gating the *effective* command (the first argv token not
+starting with `vault=`). The PR #88 review replaced that with a simpler rule (owner ruling
+2026-10-30): the input schema refuses any `command` containing `=`, as a plain
+`VALIDATION_ERROR` on the `command` path, before the gate and regardless of `allowEval`.
+No command name contains `=` (CLI arguments go in `parameters`, the vault in `vault`), so
+`command` is always the token the CLI runs, the gate matches `input.command` alone, and
+`details.command` is always the caller's value. Validation sits at the zod boundary
+(Principle III), and the refusal still happens before anything spawns.
 
 ---
 
