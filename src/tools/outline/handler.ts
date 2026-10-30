@@ -34,14 +34,7 @@ export async function executeOutline(
       flags,
       target_mode: input.target_mode,
     },
-    {
-      spawnFn: deps.spawnFn,
-      env: deps.env,
-      logger: deps.logger,
-      queue: deps.queue,
-      signal: deps.signal,
-      reportProgress: deps.reportProgress,
-    },
+    deps,
   );
 
   const trimmed = result.stdout.trim();

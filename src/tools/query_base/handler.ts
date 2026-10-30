@@ -61,14 +61,7 @@ async function defaultInvokeEval(deps: ExecuteDeps): Promise<FocusedVaultRespons
       flags: [],
       target_mode: "active",
     },
-    {
-      spawnFn: deps.spawnFn,
-      env: deps.env,
-      logger: deps.logger,
-      queue: deps.queue,
-      signal: deps.signal,
-      reportProgress: deps.reportProgress,
-    },
+    deps,
   );
   // Shared double-decode + shape-check; query_base collapses both failure stages
   // into its single focused-vault-resolve stage and discards the cause.
@@ -385,14 +378,7 @@ export async function executeQueryBase(
         flags: [],
         target_mode: "specific",
       },
-      {
-        spawnFn: deps.spawnFn,
-        env: deps.env,
-        logger: deps.logger,
-        queue: deps.queue,
-        signal: deps.signal,
-        reportProgress: deps.reportProgress,
-      },
+      deps,
     );
   } catch (err) {
     // BI-041 FR-003 / FR-004: the upstream CLI emits "Error: View not found: <name>"
@@ -439,14 +425,7 @@ export async function executeQueryBase(
   ) {
     const isRegistered = await detectIfClosed({
       vaultName: input.vault,
-      deps: {
-        logger: deps.logger,
-        queue: deps.queue,
-        spawnFn: deps.spawnFn,
-        env: deps.env,
-        signal: deps.signal,
-        reportProgress: deps.reportProgress,
-      },
+      deps,
     });
     if (isRegistered) {
       throw new UpstreamError({

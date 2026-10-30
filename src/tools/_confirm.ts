@@ -1,4 +1,4 @@
-// Original — no upstream. Confirmation before irreversible actions (068 R12, FR-047–FR-050, B3 ruling): the two-step helper behind a handler's `call.canConfirm()` (does the client declare form elicitation? no I/O) and `call.confirm(message)` (ask through an input_required elicitation, then read the human's answer on re-entry). Refusals are VALIDATION_ERROR with details.code CONFIRMATION_UNAVAILABLE or CONFIRMATION_DECLINED (ADR-015; no new top-level code).
+// Original — no upstream. Confirmation before irreversible actions (068 R12, FR-047–FR-050, B3 ruling): builds the two-step `Confirmation` a handler receives — `requireConfirmable(message)` (does the client declare form elicitation? no I/O; refuses otherwise) and `confirm(message)` (ask through an input_required elicitation, then read the human's answer on re-entry). Refusals are VALIDATION_ERROR with details.code CONFIRMATION_UNAVAILABLE or CONFIRMATION_DECLINED (ADR-015; no new top-level code).
 import {
   CLIENT_CAPABILITIES_META_KEY,
   inputRequired,
@@ -12,7 +12,7 @@ import { z } from "zod";
 
 import { UpstreamError } from "../errors.js";
 
-import type { ToolCall } from "./_shared.js";
+import type { Confirmation, ToolCall } from "./_shared.js";
 
 /** The `inputRequests` key of the confirmation form, and the form itself: one boolean. */
 const CONFIRM_KEY = "confirm";
@@ -54,12 +54,16 @@ export function clientCanConfirm(server: McpServer, ctx: ServerContext): boolean
 }
 
 /**
- * Step 2 (R12). With no answer on the request yet, throws `ConfirmationRequested` carrying the
- * one-boolean form. With an answer: `accept` with `confirm: true` returns; anything else throws
- * CONFIRMATION_DECLINED with the action the human took.
+ * Step 2 (R12), over the request's `inputResponses`. With no answer yet, throws
+ * `ConfirmationRequested` carrying the one-boolean form. With an answer: `accept` with
+ * `confirm: true` returns; anything else throws CONFIRMATION_DECLINED with the action the human took.
  */
-export function confirmFromResponse(ctx: ServerContext, toolName: string, message: string): void {
-  const answer = inputResponse(ctx.mcpReq.inputResponses, CONFIRM_KEY);
+export function confirmFromResponse(
+  inputResponses: Record<string, unknown> | undefined,
+  toolName: string,
+  message: string,
+): void {
+  const answer = inputResponse(inputResponses, CONFIRM_KEY);
   if (answer.kind === "missing") {
     throw new ConfirmationRequested(
       inputRequired({
@@ -76,20 +80,8 @@ export function confirmFromResponse(ctx: ServerContext, toolName: string, messag
   });
 }
 
-/**
- * The context of a call that does not come from an MCP request (a direct `RegisteredTool.handler`
- * or `execute*` call): no signal, no progress, and no way to confirm, so a confirmation-gated
- * action refuses with CONFIRMATION_UNAVAILABLE.
- */
-export const NON_INTERACTIVE_CALL: ToolCall = {
-  canConfirm: () => false,
-  confirm: () => {
-    throw new Error("confirm() called on a call that cannot confirm; check canConfirm() first");
-  },
-};
-
-/** The refusal a handler raises when step 1 says the client cannot confirm; `message` names the safe route. */
-export function confirmationUnavailable(message: string): UpstreamError {
+/** The refusal step 1 raises when the client cannot confirm; `message` names the safe route. */
+function confirmationUnavailable(message: string): UpstreamError {
   return new UpstreamError({
     code: "VALIDATION_ERROR",
     cause: null,
@@ -97,3 +89,33 @@ export function confirmationUnavailable(message: string): UpstreamError {
     message,
   });
 }
+
+/** The confirmation steps of one `tools/call` request to `toolName`. */
+export function requestConfirmation(server: McpServer, ctx: ServerContext, toolName: string): Confirmation {
+  return {
+    requireConfirmable: (message) => {
+      if (!clientCanConfirm(server, ctx)) throw confirmationUnavailable(message);
+    },
+    confirm: (message) => confirmFromResponse(ctx.mcpReq.inputResponses, toolName, message),
+  };
+}
+
+/**
+ * The context of a call that does not come from an MCP request (a direct `RegisteredTool.handler`
+ * or `execute*` call): no signal, no progress, and no way to confirm, so a confirmation-gated
+ * action refuses with CONFIRMATION_UNAVAILABLE.
+ */
+export const NON_INTERACTIVE_CALL: ToolCall = {
+  requireConfirmable: (message) => {
+    throw confirmationUnavailable(message);
+  },
+  confirm: () => {
+    // Unreachable through a handler that calls requireConfirmable first, which always throws here.
+    throw new UpstreamError({
+      code: "INTERNAL_ERROR",
+      cause: null,
+      details: {},
+      message: "confirm() called on a call that cannot confirm; call requireConfirmable() first",
+    });
+  },
+};

@@ -2,7 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executePatchBlock, type ExecuteDeps } from "./handler.js";
 import { patchBlockInputSchema, patchBlockOutputSchema } from "./schema.js";
-import { ADDITIVE_WRITE_HINTS, type RegisteredTool } from "../_shared.js";
+import { ADDITIVE_WRITE_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const PATCH_BLOCK_TOOL_NAME = "patch_block";
 
@@ -28,7 +28,7 @@ Concurrent calls against the same note resolve **last-write-wins**.
 
 Typed errors via \`UpstreamError.details.code\`: \`BLOCK_NOT_FOUND\`, \`BLOCK_ON_HEADING\` (use \`patch_heading\`), \`NOTE_NOT_FOUND\`, \`INVALID_BLOCK_ID\`, \`EXTERNAL_EDITOR_CONFLICT\` (file locked — ask user to save and close, retry). Plus the standard \`VALIDATION_ERROR\`, \`PATH_ESCAPES_VAULT\`, \`FS_WRITE_FAILED\`, \`VAULT_NOT_FOUND\`, \`ERR_NO_ACTIVE_FILE\`.`;
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 export function createPatchBlockTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({

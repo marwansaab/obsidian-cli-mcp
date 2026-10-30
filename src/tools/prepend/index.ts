@@ -4,7 +4,7 @@ import { type z } from "zod";
 import { executePrepend, type ExecuteDeps } from "./handler.js";
 import { MAX_CONTENT_LENGTH, prependInputSchema, prependOutputSchema } from "./schema.js";
 import { registerTool } from "../_register.js";
-import { ADDITIVE_WRITE_HINTS, type RegisteredTool, type ToolErrorPayload } from "../_shared.js";
+import { ADDITIVE_WRITE_HINTS, type BootDeps, type RegisteredTool, type ToolErrorPayload } from "../_shared.js";
 
 export const PREPEND_TOOL_NAME = "prepend";
 
@@ -24,7 +24,7 @@ Content: preserved byte-for-byte, non-empty, max ${MAX_CONTENT_LENGTH} character
 
 Typed errors via \`UpstreamError.code\`: \`NOTE_NOT_FOUND\`, \`EXTERNAL_EDITOR_CONFLICT\`, \`FS_WRITE_FAILED\`, \`ERR_NO_ACTIVE_FILE\`, \`PATH_ESCAPES_VAULT\`, \`VALIDATION_ERROR\`.`;
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 function mapZodIssuesToToolError(issues: z.core.$ZodIssue[], rawArgs: unknown): ToolErrorPayload {
   // Intercept the cap-rejection path (too_big on content) and emit the

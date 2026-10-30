@@ -2,7 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeVaults, type ExecuteDeps } from "./handler.js";
 import { vaultsInputSchema, vaultsOutputSchema } from "./schema.js";
-import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const VAULTS_TOOL_NAME = "vaults";
 
@@ -17,7 +17,7 @@ Read-only: the tool never changes a vault.
 
 Typed errors via \`UpstreamError.code\`: \`CLI_BINARY_NOT_FOUND\` (Obsidian CLI not installed); \`CLI_REPORTED_ERROR\` or \`CLI_TIMEOUT\` (Obsidian could not be reached, even after the usual auto-launch; an error is returned rather than an empty list); \`VALIDATION_ERROR\` (any input key given).`;
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 export function createVaultsTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({

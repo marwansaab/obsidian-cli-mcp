@@ -5,9 +5,10 @@ import { resolve } from "node:path";
 import { ZodError, type z } from "zod";
 
 import { UpstreamError } from "../errors.js";
-import { clientCanConfirm, ConfirmationRequested, confirmFromResponse, NON_INTERACTIVE_CALL } from "./_confirm.js";
+import { ConfirmationRequested, NON_INTERACTIVE_CALL, requestConfirmation } from "./_confirm.js";
 import {
   asToolError,
+  type Confirmation,
   type RegisteredTool,
   type ToolAnnotations,
   type ToolCall,
@@ -15,6 +16,7 @@ import {
   type ToolErrorPayload,
 } from "./_shared.js";
 
+import type { CallScope } from "../cli-adapter/cli-adapter.js";
 import type { McpServer, ServerContext, StandardSchemaWithJSON } from "@modelcontextprotocol/server";
 
 /** Build the call context of one `tools/call` request from the SDK's handler context. */
@@ -33,8 +35,7 @@ function toolCallFromRequest(server: McpServer, ctx: ServerContext, toolName: st
               .notify({ method: "notifications/progress", params: { progressToken, progress, total, message } })
               .catch(() => undefined);
           },
-    canConfirm: () => clientCanConfirm(server, ctx),
-    confirm: (message) => confirmFromResponse(ctx, toolName, message),
+    ...requestConfirmation(server, ctx, toolName),
   };
 }
 
@@ -59,10 +60,13 @@ interface ToolSpecBase<TSchema extends z.ZodType, TDeps> {
   mapValidationError?: (issues: z.core.$ZodIssue[], rawArgs: unknown) => ToolErrorPayload;
 }
 
+/** A call's deps: the tool's boot-time deps plus the request's scope (068 R11); none for a tool without deps. */
+type CallDeps<TDeps> = TDeps extends undefined ? undefined : TDeps & CallScope;
+
 type Handler<TSchema extends z.ZodType, TDeps, TResult> = (
   input: z.infer<TSchema>,
-  deps: TDeps,
-  call: ToolCall,
+  deps: CallDeps<TDeps>,
+  confirmation: Confirmation,
 ) => Promise<TResult>;
 
 /**
@@ -193,7 +197,7 @@ export function registerTool<TSchema extends z.ZodType, TDeps = undefined, TOutp
     // 068 R11: per-call deps, so the request's signal and progress reporter reach invokeCli.
     const deps = (
       spec.deps === undefined ? undefined : { ...spec.deps, signal: call.signal, reportProgress: call.reportProgress }
-    ) as TDeps;
+    ) as CallDeps<TDeps>;
 
     let result: unknown;
     try {

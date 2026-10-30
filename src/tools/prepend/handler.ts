@@ -183,7 +183,7 @@ export async function executePrepend(
         flags: input.inline ? ["inline"] : [],
         target_mode: "specific",
       },
-      { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue, signal: deps.signal, reportProgress: deps.reportProgress },
+      deps,
     );
   } catch (err) {
     classifyUpstreamFailure(err, relPath, vaultDisplayName);

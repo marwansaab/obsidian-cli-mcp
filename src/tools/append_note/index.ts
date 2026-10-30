@@ -2,7 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeAppendNote, type ExecuteDeps } from "./handler.js";
 import { appendNoteInputSchema, appendNoteOutputSchema } from "./schema.js";
-import { ADDITIVE_WRITE_HINTS, type RegisteredTool } from "../_shared.js";
+import { ADDITIVE_WRITE_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const APPEND_NOTE_TOOL_NAME = "append_note";
 
@@ -19,7 +19,7 @@ Content: preserved byte-for-byte (no trim, no normalisation, no auto-appended tr
 
 Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (with \`details.code: CONTENT_EMPTY\`), \`NOTE_NOT_FOUND\`, \`EXTERNAL_EDITOR_CONFLICT\` (Windows file-lock detection only), \`FS_WRITE_FAILED\`, \`PATH_ESCAPES_VAULT\`, \`VAULT_NOT_FOUND\`, \`ERR_NO_ACTIVE_FILE\`.`;
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 export function createAppendNoteTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({

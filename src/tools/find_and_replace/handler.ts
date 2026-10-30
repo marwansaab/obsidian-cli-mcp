@@ -25,13 +25,13 @@ import {
   resolveVaultDisplayName,
   resolveVaultRootOrRemap,
 } from "../_active-file.js";
-import { confirmationUnavailable, NON_INTERACTIVE_CALL } from "../_confirm.js";
+import { NON_INTERACTIVE_CALL } from "../_confirm.js";
 import { invalidateMetadataCache, writeAtomic } from "../_note-io.js";
 
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
 import type { VaultRegistry } from "../../vault-registry/registry.js";
-import type { ToolCall } from "../_shared.js";
+import type { Confirmation } from "../_shared.js";
 import type { Dirent } from "node:fs";
 
 export interface ExecuteFs {
@@ -190,14 +190,7 @@ async function defaultInvokeEval(deps: ExecuteDeps): Promise<FocusedVaultRespons
       flags: [],
       target_mode: "active",
     },
-    {
-      spawnFn: deps.spawnFn,
-      env: deps.env,
-      logger: deps.logger,
-      queue: deps.queue,
-      signal: deps.signal,
-      reportProgress: deps.reportProgress,
-    },
+    deps,
   );
   // Shared double-decode + shape-check; find_and_replace keeps the json-parse /
   // envelope-parse stage distinction (and the cause) the helper surfaces.
@@ -508,6 +501,16 @@ async function resolveSingleNoteScope(
   return { vaultRoot, listNotes: () => Promise.resolve(eligible) };
 }
 
+/** Whether the input names one note (`file` / `path` / `active_note`); otherwise the scope is a subfolder or the whole vault. */
+function isSingleNoteScope(input: FindAndReplaceInput): boolean {
+  return input.active_note === true || input.file !== undefined || input.path !== undefined;
+}
+
+/** The subfolder the scan is limited to, or null for the whole vault (an empty `subfolder` counts as absent). */
+function effectiveSubfolder(input: FindAndReplaceInput): string | null {
+  return input.subfolder !== undefined && input.subfolder.length > 0 ? input.subfolder : null;
+}
+
 /**
  * Front-end scope dispatch. Any of `file` / `path` / `active_note` routes to the
  * single-note resolver; otherwise the unchanged subfolder / vault-wide resolve-and-walk.
@@ -518,7 +521,7 @@ async function resolveScope(
   fs: ExecuteFs,
   vaultLabel: string | null,
 ): Promise<ResolvedScope> {
-  if (input.active_note === true || input.file !== undefined || input.path !== undefined) {
+  if (isSingleNoteScope(input)) {
     return resolveSingleNoteScope(input, deps, fs, vaultLabel);
   }
 
@@ -530,8 +533,7 @@ async function resolveScope(
 
   // === UNCHANGED — subfolder OR whole-vault scope resolution ===
   let scanRoot = vaultRoot;
-  const subfolder =
-    input.subfolder !== undefined && input.subfolder.length > 0 ? input.subfolder : null;
+  const subfolder = effectiveSubfolder(input);
   if (subfolder !== null) {
     const subResolved = await assertCanonicalPath(vaultRoot, subfolder, guard);
     // Verify the subfolder exists — checkCanonicalPath returns ok with the
@@ -569,15 +571,15 @@ const MULTI_NOTE_UNAVAILABLE_MESSAGE =
 /** The confirmation question for a multi-note commit: the action, the vault and the scope with its note count. */
 function multiNoteCommitQuestion(input: FindAndReplaceInput, noteCount: number, occurrences: number): string {
   const vault = input.vault !== undefined ? `vault "${input.vault}"` : "the focused vault";
-  const scope =
-    input.subfolder !== undefined && input.subfolder.length > 0 ? `under "${input.subfolder}" in ${vault}` : `across ${vault}`;
+  const subfolder = effectiveSubfolder(input);
+  const scope = subfolder !== null ? `under "${subfolder}" in ${vault}` : `across ${vault}`;
   return `Replace ${occurrences} occurrence(s) of "${input.pattern}" in ${noteCount} note(s) ${scope}? The notes are rewritten in place.`;
 }
 
 export async function executeFindAndReplace(
   input: FindAndReplaceInput,
   deps: ExecuteDeps,
-  call: ToolCall = NON_INTERACTIVE_CALL,
+  confirmation: Confirmation = NON_INTERACTIVE_CALL,
 ): Promise<FindAndReplaceOutput> {
   const fs = deps.fs ?? DEFAULT_FS;
   const randomUUIDFn = deps.randomUUID ?? nodeRandomUUID;
@@ -586,9 +588,8 @@ export async function executeFindAndReplace(
   // 068 R12 / FR-048 step 1: a commit with no single-note scope (a subfolder still counts as
   // multi-note) is confirmed by the human. Checked here, before vault resolution — which spawns
   // Obsidian — so a client that cannot ask gets the refusal with nothing spawned or written.
-  const needsConfirmation =
-    input.commit === true && input.file === undefined && input.path === undefined && input.active_note !== true;
-  if (needsConfirmation && !call.canConfirm()) throw confirmationUnavailable(MULTI_NOTE_UNAVAILABLE_MESSAGE);
+  const needsConfirmation = input.commit === true && !isSingleNoteScope(input);
+  if (needsConfirmation) confirmation.requireConfirmable(MULTI_NOTE_UNAVAILABLE_MESSAGE);
 
   // === Stages 1–3 — scope resolution (single-note OR subfolder / vault-wide) ===
   const { vaultRoot, listNotes } = await resolveScope(input, deps, fs, vaultLabel);
@@ -662,7 +663,7 @@ export async function executeFindAndReplace(
   // nothing. On re-entry with the answer, everything above runs again (read-only) and the drift
   // check still guards the writes.
   if (needsConfirmation && orderedRelPaths.length > 0) {
-    call.confirm(multiNoteCommitQuestion(input, orderedRelPaths.length, secondScan.counts.totalOccurrences));
+    confirmation.confirm(multiNoteCommitQuestion(input, orderedRelPaths.length, secondScan.counts.totalOccurrences));
   }
 
   const changedNotes: string[] = [];

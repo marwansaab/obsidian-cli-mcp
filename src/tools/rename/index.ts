@@ -2,14 +2,14 @@
 import { registerTool } from "../_register.js";
 import { executeRenameNote, type ExecuteDeps } from "./handler.js";
 import { renameInputSchema, renameNoteOutputSchema } from "./schema.js";
-import { DESTRUCTIVE_HINTS, type RegisteredTool } from "../_shared.js";
+import { DESTRUCTIVE_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const RENAME_TOOL_NAME = "rename";
 
 export const RENAME_DESCRIPTION =
   'Rename a note in an Obsidian vault in place. Honours the vault\'s "Automatically update internal links" setting; link-rewriting is vault-config-dependent. Scoped to .md notes — non-.md targets use obsidian_exec rename directly.';
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 export function createRenameTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({

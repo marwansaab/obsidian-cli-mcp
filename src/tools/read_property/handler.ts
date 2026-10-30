@@ -41,7 +41,6 @@ export async function executeReadProperty(
 ): Promise<ReadPropertyOutput> {
   const isSpecific = input.target_mode === "specific";
   const vault = isSpecific ? input.vault! : undefined;
-  const adapterDeps = { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue, signal: deps.signal, reportProgress: deps.reportProgress };
   const parametersA: Record<string, string> = isSpecific
     ? {
         ...(input.file !== undefined ? { file: input.file } : {}),
@@ -51,7 +50,7 @@ export async function executeReadProperty(
     : { format: "json" };
   const callA = await invokeCli(
     { command: "properties", vault, parameters: parametersA, flags: isSpecific ? [] : ["active"], target_mode: input.target_mode },
-    adapterDeps,
+    deps,
   );
   if (callA.stdout.trimStart().startsWith(NO_FRONTMATTER_PREFIX)) {
     return { value: null, type: "unknown" };
@@ -63,7 +62,7 @@ export async function executeReadProperty(
   const value = parsedA[input.name];
   const callB = await invokeCli(
     { command: "properties", vault, parameters: { format: "json" }, flags: [], target_mode: input.target_mode },
-    adapterDeps,
+    deps,
   );
   const parsedB = parseOrThrow<Array<{ name: string; type: string; count: number }>>(callB.stdout, "B");
   const entry = parsedB.find((p) => p.name === input.name);

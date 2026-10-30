@@ -26,7 +26,7 @@ export async function detectIfClosed(input: DetectIfClosedInput): Promise<boolea
       flags: ["verbose"],
       target_mode: "specific",
     },
-    { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue, signal: deps.signal, reportProgress: deps.reportProgress },
+    deps,
   );
   return parseVaultRegistry(result.stdout, vaultName);
 }

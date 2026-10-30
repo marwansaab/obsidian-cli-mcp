@@ -2,7 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeProperties, type ExecuteDeps } from "./handler.js";
 import { propertiesInputSchema, propertiesOutputSchema } from "./schema.js";
-import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const PROPERTIES_TOOL_NAME = "properties";
 
@@ -23,7 +23,7 @@ Upstream's per-entry \`type\` field (\`aliases\`, \`text\`, \`date\`, \`multitex
 
 Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (unknown top-level key, empty \`vault\`, non-boolean \`total\`); \`CLI_REPORTED_ERROR\` (\`Vault not found.\`); \`CLI_NON_ZERO_EXIT\` / \`CLI_OUTPUT_TOO_LARGE\` (pathologically large inventories — use \`total: true\` to bypass); \`CLI_BINARY_NOT_FOUND\`. No \`ERR_NO_ACTIVE_FILE\` — this tool has no active mode.`;
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 export function createPropertiesTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({

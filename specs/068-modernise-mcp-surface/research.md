@@ -515,7 +515,7 @@ error, so `fingerprintLiveRegistry`'s boundary test asserts `[]`.
 follows the B3 ruling (refuse before any change) and FR-049 (no Obsidian process is
 started for the refusal).
 
-1. **Step 1, capability check at handler entry** (`call.canConfirm()`):
+1. **Step 1, capability check at handler entry** (`confirmation.requireConfirmable(message)`, which throws `CONFIRMATION_UNAVAILABLE` when the client cannot elicit):
    - Modern requests read `ctx.mcpReq.envelope?.[CLIENT_CAPABILITIES_META_KEY]?.elicitation`;
      legacy requests read `server.server.getClientCapabilities()?.elicitation`.
    - It runs first in the `delete` and `find_and_replace` handlers when a trigger applies,

@@ -2,7 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeWriteNote, type ExecuteDeps } from "./handler.js";
 import { writeNoteInputSchema, writeNoteOutputSchema } from "./schema.js";
-import { DESTRUCTIVE_HINTS, type RegisteredTool } from "../_shared.js";
+import { DESTRUCTIVE_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const WRITE_NOTE_TOOL_NAME = "write_note";
 
@@ -15,7 +15,7 @@ For larger-than-cap appends, prepends, or heading/block patches that need fs-dir
 
 The legacy \`template\` parameter is no longer accepted; use obsidian_exec for template-based creation.`;
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 export function createWriteNoteTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({

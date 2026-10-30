@@ -2,7 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeWriteProperty, type ExecuteDeps } from "./handler.js";
 import { setPropertyInputSchema, writePropertyOutputSchema } from "./schema.js";
-import { REPEATABLE_WRITE_HINTS, type RegisteredTool } from "../_shared.js";
+import { REPEATABLE_WRITE_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const SET_PROPERTY_TOOL_NAME = "set_property";
 
@@ -17,7 +17,7 @@ Targeting: \`target_mode: "specific"\` + \`vault\` + EXACTLY ONE of \`file\` (wi
 
 **Cowork-pathway caveat**: on the Cowork MCP client, non-string \`value\` payloads (numbers, booleans, arrays) may be coerced to strings client-side before reaching the wrapper. To force the wrapper to write the intended YAML type, **pass an explicit \`type\`** for list / number / checkbox writes. Without it, the wrapper sees a string and may write the wrong YAML shape.`;
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 export function createSetPropertyTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({

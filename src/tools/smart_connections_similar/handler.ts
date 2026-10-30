@@ -41,7 +41,7 @@ export async function executeSmartConnectionsSimilar(
       flags: [],
       target_mode: input.target_mode,
     },
-    { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue, signal: deps.signal, reportProgress: deps.reportProgress },
+    deps,
   );
 
   // === Stage 0 — closed-but-registered-vault detection (R5a / FR-017a / SC-011a) ===

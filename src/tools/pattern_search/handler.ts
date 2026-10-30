@@ -55,7 +55,7 @@ export async function executePatternSearch(
       flags: [],
       target_mode: "specific",
     },
-    { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue, signal: deps.signal, reportProgress: deps.reportProgress },
+    deps,
   );
 
   // === Stage 4 — strip eval prefix ===

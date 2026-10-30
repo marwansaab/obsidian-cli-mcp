@@ -7,7 +7,7 @@
 import { registerTool } from "../_register.js";
 import { executeContextSearch, type ExecuteDeps } from "./handler.js";
 import { contextSearchInputSchema, contextSearchOutputSchema } from "./schema.js";
-import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const CONTEXT_SEARCH_TOOL_NAME = "context_search";
 
@@ -32,7 +32,7 @@ Response \`{ count, matches: [{ path, line, text }], truncated? }\`. Sorted by \
 
 Unknown vault → \`CLI_REPORTED_ERROR\` with \`details.message: "Vault not found."\`. CLI parse failures → \`CLI_REPORTED_ERROR\` with \`details.stage: "json-parse"\` or \`"wire-parse"\`.`;
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 export function createContextSearchTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({

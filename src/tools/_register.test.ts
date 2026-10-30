@@ -892,33 +892,39 @@ describe("registerTool — per-call context (068 R11, R12, T077/T085)", () => {
     });
     const controller = new AbortController();
     const reportProgress = vi.fn();
-    await tool.handler({}, { signal: controller.signal, reportProgress, canConfirm: () => false, confirm: () => undefined });
+    await tool.handler({}, { signal: controller.signal, reportProgress, requireConfirmable: () => undefined, confirm: () => undefined });
     expect(seen).toEqual({ label: "boot", signal: controller.signal, reportProgress });
     expect(registeredDeps).toEqual({ label: "boot" });
   });
 
   it("a tool without deps still gets undefined deps, and a direct call gets the non-interactive context", async () => {
     let seenDeps: unknown = "unset";
-    let canConfirm: boolean | undefined;
+    let refusal: unknown;
     const tool = registerTool({
       ...baseSpec,
-      handler: async (_input, deps, call) => {
+      handler: async (_input, deps, confirmation) => {
         seenDeps = deps;
-        canConfirm = call.canConfirm();
+        try {
+          confirmation.requireConfirmable("probe: cannot ask.");
+        } catch (err) {
+          refusal = err;
+        }
         return {};
       },
     });
     await tool.handler({});
     expect(seenDeps).toBeUndefined();
-    expect(canConfirm).toBe(false);
+    expect(refusal).toBeInstanceOf(UpstreamError);
+    expect((refusal as UpstreamError).details).toEqual({ code: "CONFIRMATION_UNAVAILABLE" });
   });
 
-  it("an McpServer request hands the handler the request's AbortSignal", async () => {
+  it("an McpServer request puts the request's AbortSignal on the call's deps", async () => {
     let signal: AbortSignal | undefined;
     const tool = registerTool({
       ...baseSpec,
-      handler: async (_input, _deps, call) => {
-        signal = call.signal;
+      deps: {},
+      handler: async (_input, deps) => {
+        signal = deps.signal;
         return {};
       },
     });

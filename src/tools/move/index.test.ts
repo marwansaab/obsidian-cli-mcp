@@ -137,7 +137,8 @@ describe("handler.ts thin-handler logger drift lock (FR-009 / R1)", () => {
     );
     const source = readFileSync(handlerPath, "utf8");
     expect(source).not.toMatch(/logger\.(callStart|callEndSuccess|callEndFailure|callEnd)\b/);
-    const matches = source.match(/logger:\s*deps\.logger/g) ?? [];
-    expect(matches.length).toBe(1);
+    // The handler never touches deps.logger itself: its deps go to invokeCli whole.
+    expect(source).not.toMatch(/deps\.logger/);
+    expect(source).toMatch(/invokeCli\([\s\S]*?\s+deps,\s*\)/);
   });
 });

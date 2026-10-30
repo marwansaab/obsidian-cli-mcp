@@ -2,14 +2,14 @@
 import { registerTool } from "../_register.js";
 import { executeReadNote, type ExecuteDeps } from "./handler.js";
 import { readInputSchema } from "./schema.js";
-import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const READ_TOOL_NAME = "read";
 
 export const READ_DESCRIPTION =
   'Read a note from an Obsidian vault. Returns the note\'s raw UTF-8 text as { content: <stdout> }. In active mode it reads the focused note.';
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 export function createReadTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({

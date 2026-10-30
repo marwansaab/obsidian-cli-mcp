@@ -21,8 +21,7 @@ import { type SpawnLike } from "../cli-adapter/_dispatch.js";
 import { createLogger, type Logger } from "../logger.js";
 import { confirmFromResponse } from "./_confirm.js";
 
-import type { ToolCall } from "./_shared.js";
-import type { ServerContext } from "@modelcontextprotocol/server";
+import type { Confirmation } from "./_shared.js";
 
 /** A single queued spawn response for {@link makeQueuedSpawn}. */
 export interface StubResponse {
@@ -184,19 +183,19 @@ export async function captureRejection(promise: Promise<unknown>): Promise<unkno
 }
 
 /**
- * A `ToolCall` whose client can confirm and whose human gave `answer` (068 R12): it runs the real
- * `confirmFromResponse` against a request carrying that answer. Omit `answer` for "already
- * accepted with confirm: true". No signal, no progress.
+ * The `Confirmation` of a call to `toolName` whose client can confirm and whose human gave
+ * `answer` (068 R12): it runs the real `confirmFromResponse` against a request carrying that
+ * answer. Omit `answer` for "already accepted with confirm: true".
  */
 export function answeredCall(
+  toolName: string,
   answer: { action: "accept" | "decline" | "cancel"; content?: Record<string, unknown> } = {
     action: "accept",
     content: { confirm: true },
   },
-): ToolCall {
-  const ctx = { mcpReq: { inputResponses: { confirm: answer } } } as unknown as ServerContext;
+): Confirmation {
   return {
-    canConfirm: () => true,
-    confirm: (message) => confirmFromResponse(ctx, "test_tool", message),
+    requireConfirmable: () => undefined,
+    confirm: (message) => confirmFromResponse({ confirm: answer }, toolName, message),
   };
 }

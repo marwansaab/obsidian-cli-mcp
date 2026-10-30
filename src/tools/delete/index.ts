@@ -2,14 +2,14 @@
 import { registerTool } from "../_register.js";
 import { executeDeleteNote, type ExecuteDeps } from "./handler.js";
 import { deleteInputSchema, deleteNoteOutputSchema } from "./schema.js";
-import { DESTRUCTIVE_HINTS, type RegisteredTool } from "../_shared.js";
+import { DESTRUCTIVE_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const DELETE_TOOL_NAME = "delete";
 
 export const DELETE_DESCRIPTION =
   'Delete a note from an Obsidian vault. Default sends the file to the OS trash (recoverable); permanent: true bypasses trash and is irreversible.';
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 export function createDeleteTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
@@ -20,6 +20,6 @@ export function createDeleteTool(deps: RegisterDeps): RegisteredTool {
     schema: deleteInputSchema,
     outputSchema: deleteNoteOutputSchema,
     deps,
-    handler: async (input, d, call) => executeDeleteNote(input, d, call),
+    handler: async (input, d, confirmation) => executeDeleteNote(input, d, confirmation),
   });
 }

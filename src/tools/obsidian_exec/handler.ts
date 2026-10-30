@@ -70,6 +70,6 @@ export async function executeObsidianExec(input: ObsidianExecInput, deps: Execut
       copy: input.copy,
     },
     { timeoutMs: input.timeoutMs },
-    { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue, signal: deps.signal, reportProgress: deps.reportProgress },
+    deps,
   );
 }

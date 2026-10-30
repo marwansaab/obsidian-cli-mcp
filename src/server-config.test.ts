@@ -3,7 +3,8 @@ import { Writable } from "node:stream";
 
 import { describe, expect, it } from "vitest";
 
-import { createServer, parseAccessConfig, selectOfferedTools } from "./server.js";
+import { parseAccessConfig, selectOfferedTools } from "./server-config.js";
+import { createServer } from "./server.js";
 import { connectInMemoryClient } from "./tools/_mcp-client-fixtures.js";
 
 /** The names `tools/list` returns, and the instructions, for a server built with `env`. */

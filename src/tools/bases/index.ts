@@ -2,7 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeBases, type ExecuteDeps } from "./handler.js";
 import { basesInputSchema, basesOutputSchema } from "./schema.js";
-import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const BASES_TOOL_NAME = "bases";
 
@@ -17,7 +17,7 @@ Read-only — the tool never mutates vault contents.
 
 Typed errors via \`UpstreamError.code\`: \`CLI_REPORTED_ERROR\` (upstream CLI failure); \`VALIDATION_ERROR\` (malformed input, e.g. unknown keys in strict mode).`;
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 export function createBasesTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({

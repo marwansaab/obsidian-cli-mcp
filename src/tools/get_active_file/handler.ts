@@ -66,7 +66,7 @@ export async function executeGetActiveFile(
       flags: [],
       target_mode: input.target_mode,
     },
-    { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue, signal: deps.signal, reportProgress: deps.reportProgress },
+    deps,
   );
 
   // Strip the "=> " echo → JSON.parse → safeParse straight into the output schema. The frozen template

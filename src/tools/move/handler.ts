@@ -63,7 +63,7 @@ export async function executeMove(input: MoveInput, deps: ExecuteDeps): Promise<
       : { to: resolvedTo };
   const { stdout } = await invokeCli(
     { command: "move", vault: input.target_mode === "specific" ? input.vault! : undefined, parameters, flags: [], target_mode: input.target_mode },
-    { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue, signal: deps.signal, reportProgress: deps.reportProgress },
+    deps,
   );
   const { fromPath, toPath } = parseMoveResponse(stdout, input, resolvedTo);
   return { moved: true, fromPath, toPath };

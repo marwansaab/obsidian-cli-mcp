@@ -121,7 +121,7 @@ describe.each([
   { era: "2025", connect: (server: McpServer) => connectInMemoryClient(server, "progress-test-2025") },
   { era: "2026", connect: (server: McpServer) => connectModernClient({ buildMcpServer: () => server }, "progress-test-2026") },
 ])("MCP protocol — progress notifications, $era era (068 FR-054, T088)", ({ connect }) => {
-  // A tool that reports two steps through its call context; the reporter exists only when the
+  // A tool that reports two steps through its call deps; the reporter exists only when the
   // request carried a progress token.
   function progressServer(): McpServer {
     const server = new McpServer({ name: "progress-test", version: "0.0.0" }, { capabilities: { tools: { listChanged: false } } });
@@ -131,10 +131,11 @@ describe.each([
       description: "Reports two progress steps.",
       annotations: READ_ONLY_HINTS,
       schema: z.strictObject({}),
-      handler: async (_input, _deps, call) => {
-        call.reportProgress?.(1, 2, "first");
-        call.reportProgress?.(2, 2, "second");
-        return { reported: call.reportProgress !== undefined };
+      deps: {},
+      handler: async (_input, deps) => {
+        deps.reportProgress?.(1, 2, "first");
+        deps.reportProgress?.(2, 2, "second");
+        return { reported: deps.reportProgress !== undefined };
       },
     }).register(server);
     return server;

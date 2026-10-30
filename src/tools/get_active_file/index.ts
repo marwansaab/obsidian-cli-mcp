@@ -7,7 +7,7 @@
 import { executeGetActiveFile, type ExecuteDeps } from "./handler.js";
 import { getActiveFileInputSchema, getActiveFileOutputSchema } from "./schema.js";
 import { registerTool } from "../_register.js";
-import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const GET_ACTIVE_FILE_TOOL_NAME = "get_active_file";
 
@@ -34,7 +34,7 @@ Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (a broken \`target
 
 Out of scope: never changes which file is active (pure read); reports no pane/split/leaf or cursor/heading/block position; does not report a non-file view as the active file.`;
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 export function createGetActiveFileTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({

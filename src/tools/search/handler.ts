@@ -77,14 +77,7 @@ export async function executeSearch(
       flags: [],
       target_mode: "specific",
     },
-    {
-      spawnFn: deps.spawnFn,
-      env: deps.env,
-      logger: deps.logger,
-      queue: deps.queue,
-      signal: deps.signal,
-      reportProgress: deps.reportProgress,
-    },
+    deps,
   );
 
   if (result.stdout.trim() === ZERO_MATCH_SENTINEL) {

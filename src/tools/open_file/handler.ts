@@ -73,7 +73,7 @@ export async function executeOpenFile(
   // the cohort's CLI_* error — never a fabricated success.
   const result = await invokeCli(
     { command: "eval", vault: input.vault, parameters: { code }, flags: [], target_mode: "specific" },
-    { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue, signal: deps.signal, reportProgress: deps.reportProgress },
+    deps,
   );
 
   // Single-stage decode via the shared eval-envelope decoder: strip the "=> " echo

@@ -78,15 +78,6 @@ export async function executeWriteProperty(
   input: WritePropertyInput,
   deps: ExecuteDeps,
 ): Promise<WritePropertyOutput> {
-  const adapterDeps = {
-    spawnFn: deps.spawnFn,
-    env: deps.env,
-    logger: deps.logger,
-    queue: deps.queue,
-    signal: deps.signal,
-    reportProgress: deps.reportProgress,
-  };
-
   const resolvedType = inferType(input.value, input.type);
   const serialisedValue = serialiseValue(input.value);
 
@@ -101,7 +92,7 @@ export async function executeWriteProperty(
         flags: [],
         target_mode: "active",
       },
-      adapterDeps,
+      deps,
     );
     let parsed: unknown;
     try {
@@ -146,7 +137,7 @@ export async function executeWriteProperty(
         flags: [],
         target_mode: "specific",
       },
-      adapterDeps,
+      deps,
     );
     writeVault = input.vault!;
     writePath = parseFileTSV(fileInfo.stdout).path;
@@ -165,7 +156,7 @@ export async function executeWriteProperty(
       flags: [],
       target_mode: "specific",
     },
-    adapterDeps,
+    deps,
   );
 
   return {

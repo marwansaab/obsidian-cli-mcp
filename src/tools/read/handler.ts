@@ -36,7 +36,7 @@ export async function executeReadNote(input: ReadNoteInput, deps: ExecuteDeps): 
       flags: [],
       target_mode: input.target_mode,
     },
-    { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue, resolveBinary: deps.resolveBinary, signal: deps.signal, reportProgress: deps.reportProgress },
+    deps,
   );
   return { content: stdout };
 }

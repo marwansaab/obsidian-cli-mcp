@@ -4,7 +4,7 @@ import { type z } from "zod";
 import { executeFindAndReplace, type ExecuteDeps } from "./handler.js";
 import { findAndReplaceInputSchema, findAndReplaceOutputSchema } from "./schema.js";
 import { registerTool } from "../_register.js";
-import { DESTRUCTIVE_HINTS, type RegisteredTool, type ToolErrorPayload } from "../_shared.js";
+import { DESTRUCTIVE_HINTS, type BootDeps, type RegisteredTool, type ToolErrorPayload } from "../_shared.js";
 
 export const FIND_AND_REPLACE_TOOL_NAME = "find_and_replace";
 
@@ -41,7 +41,7 @@ Line-scoped only — \`\\n\` in \`pattern\` does NOT match cross-line; line endi
 
 Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` with sub-discriminators (\`INVALID_PATTERN\`/\`empty\`|\`too-long\`|\`regex-syntax\`; \`INVALID_REPLACEMENT\`; \`INVALID_SUBFOLDER\`/\`path-traversal\`|\`not-found\`; \`OCCURRENCE_COUNT_EXCEEDED\`; \`OCCURRENCE_COUNT_DRIFT\`); \`CLI_REPORTED_ERROR\` (\`VAULT_NOT_FOUND\`/\`unknown\`|\`not-open\`); \`PATH_ESCAPES_VAULT\` (canonical escape, security event logged); \`FS_WRITE_FAILED\` (\`details.reason: "read"\` no-op, OR \`"write"\` with \`partial: true\` + \`failing_note_locator\` + \`changed_notes\`).`;
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 function mapZodIssuesToToolError(issues: z.core.$ZodIssue[]): ToolErrorPayload {
   const mappedIssues = issues.map((i) => ({

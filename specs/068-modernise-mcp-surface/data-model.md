@@ -190,11 +190,11 @@ spawn. Bypassed entirely when `allowEval` is true.
 
 **Two steps** (research R12; B3 ruling: refuse before any change):
 
-1. **Capability check** (`call.canConfirm()`): at handler entry, right after input
-   validation, and **before vault resolution** (which can spawn Obsidian). If the client
-   cannot elicit, the handler returns `CONFIRMATION_UNAVAILABLE`; nothing is spawned and
-   nothing is written.
-2. **Human prompt** (`call.confirm(message)`):
+1. **Capability check** (`confirmation.requireConfirmable(message)`): at handler entry,
+   right after input validation, and **before vault resolution** (which can spawn
+   Obsidian). If the client cannot elicit, it throws `CONFIRMATION_UNAVAILABLE` carrying
+   `message`; nothing is spawned and nothing is written.
+2. **Human prompt** (`confirmation.confirm(message)`):
    - `delete`: straight after step 1, before `invokeCli`;
    - `find_and_replace`: only after the commit's re-scan (so the message carries the
      scope and note count) and before the first `writeAtomic`.

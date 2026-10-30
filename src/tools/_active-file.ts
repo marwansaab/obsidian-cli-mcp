@@ -43,10 +43,6 @@ export interface EvalDeps extends CallScope {
   env?: NodeJS.ProcessEnv;
 }
 
-function adapterDeps(deps: EvalDeps) {
-  return { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue, signal: deps.signal, reportProgress: deps.reportProgress };
-}
-
 /**
  * Run `code` through `obsidian eval` in the named vault (`vault=` on the argv, specific mode),
  * or in the focused vault when `vault` is undefined (active mode). Resolves to the raw stdout;
@@ -61,7 +57,7 @@ export async function evalInVault(deps: EvalDeps, code: string, vault: string | 
       flags: [],
       target_mode: vault === undefined ? "active" : "specific",
     },
-    adapterDeps(deps),
+    deps,
   );
   return stdout;
 }
@@ -191,7 +187,7 @@ export async function resolveActiveFocusedFile(
 ): Promise<ActiveFileLocator> {
   const focused = await invokeCli(
     { command: "eval", parameters: { code: FOCUSED_FILE_TEMPLATE }, flags: [], target_mode: "active" },
-    adapterDeps(deps),
+    deps,
   );
   let parsed: unknown;
   try {
@@ -274,7 +270,7 @@ export async function resolveFileByTsv(
 ): Promise<string> {
   const fileInfo = await invokeCli(
     { command: "file", vault, parameters: { file }, flags: [], target_mode: "specific" },
-    adapterDeps(deps),
+    deps,
   );
   for (const line of fileInfo.stdout.split("\n")) {
     if (line.startsWith("path\t")) {

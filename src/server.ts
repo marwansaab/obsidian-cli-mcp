@@ -1,4 +1,4 @@
-// Original — no upstream. Composition root (068 R10, ADR-039): createServer runs once per process, builds the logger, single-flight queue, vault registry, the tool list via the createTool factories, the offered subset from the owner's access settings (068 FR-043–FR-046: read-only, allow and deny lists, unknown names refused at boot) and the server instructions from that subset (068 FR-025), and owns the lifecycle handlers; buildMcpServer is the cheap per-connection McpServer builder that serveStdio calls for each era (FR-001, FR-005, FR-017, FR-028, FR-029).
+// Original — no upstream. Composition root (068 R10, ADR-039): createServer runs once per process, builds the logger, single-flight queue, vault registry, the tool list via the createTool factories, the offered subset from the owner's access settings (068 FR-043–FR-046, parsed and applied by server-config.ts) and the server instructions from that subset (068 FR-025), and owns the lifecycle handlers; buildMcpServer is the cheap per-connection McpServer builder that serveStdio calls for each era (FR-001, FR-005, FR-017, FR-028, FR-029).
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -6,10 +6,10 @@ import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/server";
 
 import { invokeCli, killInFlightChildren as defaultKillInFlightChildren } from "./cli-adapter/cli-adapter.js";
-import { envFlagEnabled } from "./env-flags.js";
 import { buildInstructions } from "./instructions/instructions.js";
 import { createLogger, type Logger, type ShutdownReason } from "./logger.js";
 import { createQueue, type Queue } from "./queue.js";
+import { parseAccessConfig, selectOfferedTools } from "./server-config.js";
 import { assertToolDocsExist } from "./tools/_register.js";
 import { type RegisteredTool } from "./tools/_shared.js";
 import { createAppendNoteTool } from "./tools/append_note/index.js";
@@ -74,62 +74,6 @@ export interface ShutdownContext {
    * `OBSIDIAN_AUTO_LAUNCH` are still read from `process.env` at dispatch time.
    */
   env?: NodeJS.ProcessEnv;
-}
-
-/** The owner's access settings, read once at boot (068 data-model §1, contracts/configuration). */
-export interface AccessConfig {
-  /** `OBSIDIAN_MCP_ALLOW_EVAL`: lets `obsidian_exec` run the blocked commands. */
-  allowEval: boolean;
-  /** `OBSIDIAN_MCP_READ_ONLY`: offer only tools whose `readOnlyHint` is true. */
-  readOnly: boolean;
-  /** `OBSIDIAN_MCP_TOOLS`: offer only these; absent means every tool. */
-  allow?: readonly string[];
-  /** `OBSIDIAN_MCP_DISABLE`: never offer these. */
-  deny: readonly string[];
-}
-
-/** Split a comma-separated tool list; blank entries are dropped, and a blank list counts as unset. */
-function toolNameList(raw: string | undefined): string[] | undefined {
-  const names = (raw ?? "")
-    .split(",")
-    .map((name) => name.trim())
-    .filter((name) => name.length > 0);
-  return names.length === 0 ? undefined : names;
-}
-
-export function parseAccessConfig(env: NodeJS.ProcessEnv): AccessConfig {
-  const allow = toolNameList(env.OBSIDIAN_MCP_TOOLS);
-  return {
-    allowEval: envFlagEnabled(env.OBSIDIAN_MCP_ALLOW_EVAL),
-    readOnly: envFlagEnabled(env.OBSIDIAN_MCP_READ_ONLY),
-    ...(allow !== undefined && { allow }),
-    deny: toolNameList(env.OBSIDIAN_MCP_DISABLE) ?? [],
-  };
-}
-
-/**
- * The tools to offer (068 FR-043–FR-045): the allow list first, then the deny list (deny wins on
- * overlap), then read-only on top (a write tool on the allow list is still dropped). An empty
- * result is allowed. Every unknown name in either list is reported in one error, before serving.
- */
-export function selectOfferedTools(tools: readonly RegisteredTool[], config: AccessConfig): RegisteredTool[] {
-  const known = new Set(tools.map((tool) => tool.descriptor.name));
-  const unknown = [
-    ...(config.allow ?? []).filter((name) => !known.has(name)).map((name) => `${name} (OBSIDIAN_MCP_TOOLS)`),
-    ...config.deny.filter((name) => !known.has(name)).map((name) => `${name} (OBSIDIAN_MCP_DISABLE)`),
-  ];
-  if (unknown.length > 0) {
-    throw new Error(
-      `Unknown tool name(s) in OBSIDIAN_MCP_TOOLS / OBSIDIAN_MCP_DISABLE: ${unknown.join(", ")}. Valid names: ${[...known].sort().join(", ")}`,
-    );
-  }
-  const allow = config.allow === undefined ? undefined : new Set(config.allow);
-  const deny = new Set(config.deny);
-  return tools.filter(({ descriptor }) => {
-    if (allow !== undefined && !allow.has(descriptor.name)) return false;
-    if (deny.has(descriptor.name)) return false;
-    return !config.readOnly || descriptor.annotations.readOnlyHint;
-  });
 }
 
 export interface CreatedServer {

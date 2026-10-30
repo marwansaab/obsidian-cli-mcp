@@ -4,7 +4,7 @@ import { createMcpHandler, McpServer, type ServerContext } from "@modelcontextpr
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { clientCanConfirm, ConfirmationRequested, confirmationUnavailable, confirmFromResponse, NON_INTERACTIVE_CALL } from "./_confirm.js";
+import { clientCanConfirm, ConfirmationRequested, confirmFromResponse, NON_INTERACTIVE_CALL, requestConfirmation } from "./_confirm.js";
 import { textOf } from "./_mcp-client-fixtures.js";
 import { registerTool } from "./_register.js";
 import { READ_ONLY_HINTS, type RegisteredTool } from "./_shared.js";
@@ -55,7 +55,7 @@ describe("confirmFromResponse — step 2", () => {
   it("no answer yet → throws ConfirmationRequested carrying a one-boolean form elicitation", () => {
     let thrown: unknown;
     try {
-      confirmFromResponse(modernCtx({ elicitation: {} }), "delete", "Permanently delete X?");
+      confirmFromResponse(undefined, "delete", "Permanently delete X?");
     } catch (err) {
       thrown = err;
     }
@@ -70,8 +70,8 @@ describe("confirmFromResponse — step 2", () => {
   });
 
   it("accept with confirm: true → returns", () => {
-    const ctx = modernCtx(undefined, { confirm: { action: "accept", content: { confirm: true } } });
-    expect(() => confirmFromResponse(ctx, "delete", "?")).not.toThrow();
+    const responses = { confirm: { action: "accept", content: { confirm: true } } };
+    expect(() => confirmFromResponse(responses, "delete", "?")).not.toThrow();
   });
 
   it.each([
@@ -81,10 +81,9 @@ describe("confirmFromResponse — step 2", () => {
     ["accept with no content", { action: "accept" }, "accept"],
     ["a response of another kind", { roots: [] }, "cancel"],
   ])("%s → CONFIRMATION_DECLINED with details.action %s", (_label, answer, action) => {
-    const ctx = modernCtx(undefined, { confirm: answer });
     let thrown: unknown;
     try {
-      confirmFromResponse(ctx, "find_and_replace", "?");
+      confirmFromResponse({ confirm: answer }, "find_and_replace", "?");
     } catch (err) {
       thrown = err;
     }
@@ -95,17 +94,41 @@ describe("confirmFromResponse — step 2", () => {
   });
 });
 
-describe("confirmationUnavailable and NON_INTERACTIVE_CALL", () => {
-  it("builds the CONFIRMATION_UNAVAILABLE refusal with the given message", () => {
-    const err = confirmationUnavailable("x: cannot ask.");
+/** The UpstreamError `run` throws (fails the test when it throws nothing). */
+function thrownBy(run: () => void): UpstreamError {
+  try {
+    run();
+  } catch (err) {
+    expect(err).toBeInstanceOf(UpstreamError);
+    return err as UpstreamError;
+  }
+  throw new Error("expected a throw");
+}
+
+describe("requestConfirmation and NON_INTERACTIVE_CALL", () => {
+  it("requireConfirmable refuses with CONFIRMATION_UNAVAILABLE and the given message when the client cannot confirm", () => {
+    const err = thrownBy(() => requestConfirmation(unusedServer, modernCtx({ sampling: {} }), "x").requireConfirmable("x: cannot ask."));
     expect(err.code).toBe("VALIDATION_ERROR");
     expect(err.details).toEqual({ code: "CONFIRMATION_UNAVAILABLE" });
     expect(err.message).toBe("x: cannot ask.");
   });
 
-  it("a non-interactive call cannot confirm and refuses to be asked", () => {
-    expect(NON_INTERACTIVE_CALL.canConfirm()).toBe(false);
-    expect(() => NON_INTERACTIVE_CALL.confirm("?")).toThrow(/check canConfirm/);
+  it("requireConfirmable returns when the client can confirm, and confirm reads the request's answer", () => {
+    const ctx = modernCtx({ elicitation: {} }, { confirm: { action: "decline" } });
+    const confirmation = requestConfirmation(unusedServer, ctx, "delete");
+    expect(() => confirmation.requireConfirmable("?")).not.toThrow();
+    const err = thrownBy(() => confirmation.confirm("?"));
+    expect(err.details).toEqual({ code: "CONFIRMATION_DECLINED", action: "decline" });
+    expect(err.message).toBe("delete: confirmation was declined; nothing was changed.");
+  });
+
+  it("a non-interactive call refuses with CONFIRMATION_UNAVAILABLE, and confirm without the check is an internal error", () => {
+    const refusal = thrownBy(() => NON_INTERACTIVE_CALL.requireConfirmable("x: cannot ask."));
+    expect(refusal.details).toEqual({ code: "CONFIRMATION_UNAVAILABLE" });
+    expect(refusal.message).toBe("x: cannot ask.");
+    const misuse = thrownBy(() => NON_INTERACTIVE_CALL.confirm("?"));
+    expect(misuse.code).toBe("INTERNAL_ERROR");
+    expect(misuse.message).toMatch(/call requireConfirmable\(\) first/);
   });
 });
 
@@ -117,9 +140,9 @@ function gatedTool(): RegisteredTool {
     description: "Confirms, then succeeds.",
     annotations: READ_ONLY_HINTS,
     schema: z.strictObject({}),
-    handler: async (_input, _deps, call) => {
-      if (!call.canConfirm()) throw confirmationUnavailable("gated: cannot ask.");
-      call.confirm("Go ahead?");
+    handler: async (_input, _deps, confirmation) => {
+      confirmation.requireConfirmable("gated: cannot ask.");
+      confirmation.confirm("Go ahead?");
       return { done: true };
     },
   });
