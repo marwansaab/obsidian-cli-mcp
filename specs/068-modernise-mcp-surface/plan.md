@@ -187,15 +187,17 @@ Queries run at plan time (2026-10-28, AST graph at HEAD) with `graphify explain`
     all 34 `createXTool()` factories, `assertToolDocsExist()`, `invokeCli()` (registry
     probe) and `asToolError()`. Every one of those edges survives; the `asToolError`
     edge moves into `_register.ts`. PRs 4 and 6 add instructions and filtering here.
-    Its `ctx` also gains two fields:
+    Its `ctx` also gains one field:
     - `ctx.env` (PR 2, T024): the environment the access flags are read from;
       `process.env` when absent.
-    - `ctx.createQueue` (PR 3, T036): a test seam, defaulting to `createQueue`. It lets a
-      test prove that repeated `buildMcpServer` calls share one queue. `server.ts`
-      remains the only production caller of the real factory.
 
-    Both are kernel-node touches and are named in those PRs' checklists for reviewer
-    attention.
+    It is a kernel-node touch and is named in PR 2's checklist for reviewer attention.
+    `ctx` gains no queue seam: the shared single-flight queue (BI-0165 A3, FR-053) is
+    proven through the `queue` that `createServer` already returns. A test spies on
+    `app.queue.run`, serves two clients from two `buildMcpServer` instances, makes one
+    call through each, and sees both calls on that one queue (T036). This replaces the
+    `ctx.createQueue` seam the analyze pass suggested (U1) and keeps a test-only field
+    off `createServer` (Constitution Principle I; PR #89 review, owner ruling).
   - `createQueue()` (src/queue.ts) gets an **API extension** in PR 6:
     `run(task, {signal})`. It is among the top god-nodes. The graph links it to
     `createServer()` and to the handler test cohort that builds real queues

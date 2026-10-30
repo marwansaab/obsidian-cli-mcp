@@ -8,15 +8,14 @@ import { Client, ProtocolError, StreamableHTTPClientTransport } from "@modelcont
 import { createMcpHandler } from "@modelcontextprotocol/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createQueue, type Queue } from "./queue.js";
 import { createServer, type CreatedServer } from "./server.js";
 import { connectInMemoryClient } from "./tools/_mcp-client-fixtures.js";
 
 const { version: PACKAGE_VERSION } = createRequire(import.meta.url)("../package.json") as { version: string };
 
-function quietServer(extra: { createQueue?: () => Queue } = {}): CreatedServer {
+function quietServer(): CreatedServer {
   const sink = new Writable({ write: (_chunk, _enc, cb) => cb() });
-  return createServer({ loggerStream: sink, registerSignalHandlers: false, exit: () => undefined, ...extra });
+  return createServer({ loggerStream: sink, registerSignalHandlers: false, exit: () => undefined });
 }
 
 /** 2025 era: the default (legacy-negotiating) client over a linked in-memory transport pair. */
@@ -119,10 +118,8 @@ describe("composition root — one queue across buildMcpServer calls (FR-053, 06
     // An unresolvable OBSIDIAN_BIN fails binary resolution inside the queued task, so the
     // calls go through the queue without starting a real process.
     vi.stubEnv("OBSIDIAN_BIN", join(tmpdir(), "no-such-obsidian-068-t036"));
-    const realQueue = createQueue();
-    const runSpy = vi.spyOn(realQueue, "run");
-    const createQueueSpy = vi.fn(() => realQueue);
-    const app = quietServer({ createQueue: createQueueSpy });
+    const app = quietServer();
+    const runSpy = vi.spyOn(app.queue, "run");
 
     const first = await connectLegacy(app);
     const second = await connectLegacy(app);
@@ -132,7 +129,7 @@ describe("composition root — one queue across buildMcpServer calls (FR-053, 06
       const r2 = await second.callTool({ name: "read", arguments: args });
       expect(JSON.parse(textOf(r1)).code).toBe("CLI_BINARY_NOT_FOUND");
       expect(JSON.parse(textOf(r2)).code).toBe("CLI_BINARY_NOT_FOUND");
-      expect(createQueueSpy).toHaveBeenCalledTimes(1);
+      // Both servers' calls went through the one queue createServer returned.
       expect(runSpy).toHaveBeenCalledTimes(2);
     } finally {
       await first.close();

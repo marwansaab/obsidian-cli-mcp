@@ -203,7 +203,7 @@ protocol. **Independent tests**: quickstart Â§1 (gate) and Â§5.
 - [X] T035 [US4] [US5] Rewrite src/index.ts: `const app = await createServer(...)`; `serveStdio(() => app.buildMcpServer())` from `@modelcontextprotocol/server/stdio` (pass `ctx.era` through only if used); stdin `end`/`close` â†’ `app.shutdown("transport_closed")`; keep the `bridge.fatal` handler.
 - [X] T036 [P] [US5] Add a 2025-era protocol test in a new src/server.protocol.test.ts (header `// Original â€” no upstream. In-process protocol tests for both MCP eras.`) using `Client` + `InMemoryTransport.createLinkedPair()`.
 
-  **Sub-step (kernel-node touch)**: first add an optional `createQueue?: () => Queue` test seam to `createServer`'s ctx (src/server.ts), defaulting to the real `createQueue`. `server.ts` stays the only production caller of the real factory. Name this touch in the PR-3 checklist.
+  **No queue seam** (PR #89 review, owner ruling; replaces the analyze pass's U1 `ctx.createQueue` seam): `createServer`'s ctx gains no test-only field. The shared queue is proven through the `queue` that `createServer` already returns.
 
   The test covers:
   - `initialize` serverInfo and capabilities (`tools.listChanged === false`, no `logging`);
@@ -211,7 +211,7 @@ protocol. **Independent tests**: quickstart Â§1 (gate) and Â§5.
   - `callTool("help")` succeeds;
   - an invalid-input call returns the project `VALIDATION_ERROR` envelope;
   - an unknown tool gives JSON-RPC `-32602`;
-  - calling `buildMcpServer` twice yields servers that share one queue: the spy passed as `ctx.createQueue` was called exactly once, and both servers route calls through that instance.
+  - calling `buildMcpServer` twice yields servers that share one queue: with a spy on `app.queue.run`, two clients (one per server) each make one call, and the spy sees both calls.
 - [X] T037 [P] [US4] Add a 2026-era protocol test in src/server.protocol.test.ts using `createMcpHandler(factory)` + `StreamableHTTPClientTransport(url, { fetch: (u, i) => handler.fetch(new Request(u, i)) })` + `Client(..., { versionNegotiation: { mode: "auto" } })`. Same assertions as T036, and it asserts the negotiated version is `2026-07-28`.
 - [X] T038 [P] [US4] Create scripts/probe-stdio.ts (`// Original â€” no upstream.`). It spawns `node dist/index.js` with `StdioClientTransport` and takes `--era legacy|modern` (and `--no-elicitation`, which declares no elicitation capability, for PR-6). It prints the negotiated protocol version, serverInfo, whether `instructions` is present (plus its length) and the tool count. Exit code is non-zero on failure. Add an `npm run probe:stdio` script in package.json.
 - [X] T039 [US9] Rebuild `fingerprintLiveRegistry` in src/tools/_register-baseline.ts (R3): build via `createServer({registerSignalHandlers:false})`, connect a `Client` over `InMemoryTransport`, `listTools(undefined, {cacheMode:"bypass"})`, and fingerprint `description` + `inputSchema` per tool. Set `schemaVersion: 2`. Make scripts/write-register-baseline.ts reuse this helper (delete its inline `canonicalJSON`/`sha256` copy) and update src/tools/_register-baseline.test.ts.
@@ -231,7 +231,7 @@ protocol. **Independent tests**: quickstart Â§1 (gate) and Â§5.
     - Tool Surface: titles/annotations, instructions and typed results **N/A (pending B1/B2/B5)**;
     - Security Defaults **N/A**;
     - ADR-010/013/014/015 **N/A**;
-    - kernel-node touches named: `createServer` (composition-root split, `ctx.createQueue` seam);
+    - kernel-node touches named: `createServer` (composition-root split);
   - `/code-review` and fixes;
   - `/speckit-docs-as-code <n>` (tech-stack and architecture pages; any docs promising a `TOOL_NOT_FOUND` result);
   - **STOP**: owner merges.
@@ -531,5 +531,6 @@ PR-6 after T077:   T082 src/queue.ts âˆ¥ T083 src/cli-adapter/_dispatch.ts â
   Existing files whose role changes get their header updated in the task that changes
   them.
 - **Kernel-node touches added by analyze remediation**: `createServer` ctx gains `env`
-  (T024, PR-2) and the `createQueue` test seam (T036, PR-3). Both are named in their PR
-  checklists.
+  (T024, PR-2), named in the PR-2 checklist. The `createQueue` test seam the analyze pass
+  proposed for T036 (U1) was dropped at the PR #89 review: T036 spies on the returned
+  `app.queue.run` instead.

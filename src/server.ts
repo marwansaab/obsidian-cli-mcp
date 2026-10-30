@@ -8,7 +8,7 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { invokeCli, killInFlightChildren as defaultKillInFlightChildren } from "./cli-adapter/cli-adapter.js";
 import { envFlagEnabled } from "./env-flags.js";
 import { createLogger, type Logger, type ShutdownReason } from "./logger.js";
-import { createQueue as defaultCreateQueue, type Queue } from "./queue.js";
+import { createQueue, type Queue } from "./queue.js";
 import { assertToolDocsExist } from "./tools/_register.js";
 import { type RegisteredTool } from "./tools/_shared.js";
 import { createAppendNoteTool } from "./tools/append_note/index.js";
@@ -72,12 +72,6 @@ export interface ShutdownContext {
    * `OBSIDIAN_AUTO_LAUNCH` are still read from `process.env` at dispatch time.
    */
   env?: NodeJS.ProcessEnv;
-  /**
-   * Test seam for the single-flight queue factory (068 T036). Defaults to the real
-   * `createQueue`; this file stays its only production caller. A test passes a spy to prove
-   * that every `buildMcpServer` instance shares the one queue built here (FR-053).
-   */
-  createQueue?: () => Queue;
 }
 
 export interface CreatedServer {
@@ -95,7 +89,7 @@ export interface CreatedServer {
 
 export function createServer(ctx: ShutdownContext = {}): CreatedServer {
   const logger = createLogger({ stream: ctx.loggerStream });
-  const queue = (ctx.createQueue ?? defaultCreateQueue)();
+  const queue = createQueue();
   const exit = ctx.exit ?? ((code: number) => process.exit(code));
   const env = ctx.env ?? process.env;
   // 068 FR-012: the passthrough denylist opt-in, parsed once here and injected (no call-time env reads).
