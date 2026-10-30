@@ -28,7 +28,8 @@ The baseline was written on 2026-10-24 from `main` at `b8b6fef` (package
 version 0.8.11), after PR #82. Each later run of `/speckit-docs-as-code`
 extends it.
 
-- [architecture.md](architecture.md) — the boot, runtime and error spines; the
+- [architecture.md](architecture.md) — the boot, runtime and error spines;
+  dual-era serving on SDK v2 `McpServer` and the registration adapter; the
   queue, dispatch, cold-start retry and auto-launch; error classification and
   sub-discriminators; `target_mode`; the direct-filesystem write path; the
   `eval` template pattern; logging, shutdown and module layout.
@@ -68,7 +69,11 @@ The baseline adds no new records. Every decision visible in the tracked
 history is already an ADR in the series, and the pages cite it where it
 applies. Records written since:
 
+- [decisions/ADR-039-dual-era-stdio-serving-on-sdk-v2-mcpserver.md](decisions/ADR-039-dual-era-stdio-serving-on-sdk-v2-mcpserver.md)
+  — the server moves to MCP SDK v2 `McpServer` behind a pass-through input
+  adapter, split composition root and dual-era `serveStdio`; supersedes
+  ADR-036 and the BI-067 low-level `Server` decision (PR #89).
 - [decisions/ADR-041-exec-gate-matches-the-command-field.md](decisions/ADR-041-exec-gate-matches-the-command-field.md)
   — `obsidian_exec`'s code-execution gate matches the `command` field, and
-  the schema refuses `=` in it (PR #88). ADR-039 and ADR-040 are reserved by
-  the 068 plan for decisions that land in later PRs.
+  the schema refuses `=` in it (PR #88). ADR-040 is reserved by the 068 plan
+  for a decision that lands in a later PR.

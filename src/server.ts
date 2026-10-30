@@ -1,17 +1,16 @@
-// Original — no upstream. MCP Server bootstrap, tool registration via createTool factories, and lifecycle handlers (FR-001, FR-005, FR-017, FR-028, FR-029).
+// Original — no upstream. Composition root (068 R10, ADR-039): createServer runs once per process, builds the logger, single-flight queue, vault registry and the tool list via the createTool factories, and owns the lifecycle handlers; buildMcpServer is the cheap per-connection McpServer builder that serveStdio calls for each era (FR-001, FR-005, FR-017, FR-028, FR-029).
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { McpServer } from "@modelcontextprotocol/server";
 
 import { invokeCli, killInFlightChildren as defaultKillInFlightChildren } from "./cli-adapter/cli-adapter.js";
 import { envFlagEnabled } from "./env-flags.js";
 import { createLogger, type Logger, type ShutdownReason } from "./logger.js";
 import { createQueue, type Queue } from "./queue.js";
 import { assertToolDocsExist } from "./tools/_register.js";
-import { asToolError, type RegisteredTool } from "./tools/_shared.js";
+import { type RegisteredTool } from "./tools/_shared.js";
 import { createAppendNoteTool } from "./tools/append_note/index.js";
 import { createBacklinksTool } from "./tools/backlinks/index.js";
 import { createBasesTool } from "./tools/bases/index.js";
@@ -76,16 +75,16 @@ export interface ShutdownContext {
 }
 
 export interface CreatedServer {
-  // BI-067: the SDK tags the low-level Server as deprecated in favor of McpServer, but
-  // this repo deliberately uses the low-level API (constitution Technical Standards: SDK
-  // `Server` API registration with explicit ListTools/CallTool handlers). Migrating the
-  // composition root is a separate architectural decision, not a dependency-refresh side
-  // effect — hence the targeted disables here and at the constructor call below.
-  // eslint-disable-next-line @typescript-eslint/no-deprecated
-  server: Server;
+  /**
+   * Build one `McpServer` with every tool registered. Cheap: the logger, queue, registry
+   * and tool list are built once by `createServer` and shared by every instance, so
+   * `serveStdio` may call it once per connection plus once for its era-discovery probe
+   * (068 R10, ADR-039). The ADR-039 decision replaces BI-067's low-level `Server`.
+   */
+  buildMcpServer: () => McpServer;
+  shutdown: (reason: ShutdownReason) => void;
   logger: Logger;
   queue: Queue;
-  triggerShutdown: (reason: ShutdownReason) => void;
 }
 
 export function createServer(ctx: ShutdownContext = {}): CreatedServer {
@@ -95,20 +94,6 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
   const env = ctx.env ?? process.env;
   // 068 FR-012: the passthrough denylist opt-in, parsed once here and injected (no call-time env reads).
   const allowEval = envFlagEnabled(env.OBSIDIAN_MCP_ALLOW_EVAL);
-
-  // BI-067: deliberate low-level Server usage; see CreatedServer.server above.
-  // eslint-disable-next-line @typescript-eslint/no-deprecated
-  const server = new Server(
-    {
-      name: "obsidian-cli-mcp",
-      version: PACKAGE_VERSION,
-    },
-    {
-      capabilities: {
-        tools: {},
-      },
-    },
-  );
 
   const vaultRegistry = createVaultRegistry({
     invokeProbe: async () => {
@@ -162,31 +147,21 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
   // single error listing every missing file).
   assertToolDocsExist(tools, ctx.docsDir ?? DEFAULT_DOCS_DIR);
 
-  const toolByName = new Map(tools.map((t) => [t.descriptor.name, t]));
-
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: tools.map((t) => t.descriptor),
-  }));
-
-  server.setRequestHandler(CallToolRequestSchema, async (req) => {
-    const tool = toolByName.get(req.params.name);
-    if (!tool) {
-      return asToolError({
-        code: "TOOL_NOT_FOUND",
-        message: `Unknown tool: ${req.params.name}`,
-        details: {
-          requestedName: req.params.name,
-          knownTools: tools.map((t) => t.descriptor.name),
-        },
-      });
-    }
-    return tool.handler(req.params.arguments);
-  });
+  // An unknown tool name is the SDK's JSON-RPC -32602 (068 R2, FR-016); TOOL_NOT_FOUND is no
+  // longer raised. `listChanged: false` is declared truthfully: the list never changes after boot.
+  function buildMcpServer(): McpServer {
+    const server = new McpServer(
+      { name: "obsidian-cli-mcp", version: PACKAGE_VERSION },
+      { capabilities: { tools: { listChanged: false } } },
+    );
+    for (const tool of tools) tool.register(server);
+    return server;
+  }
 
   const killInFlight = ctx.killInFlightChildren ?? defaultKillInFlightChildren;
 
   let shuttingDown = false;
-  function triggerShutdown(reason: ShutdownReason): void {
+  function shutdown(reason: ShutdownReason): void {
     if (shuttingDown) return;
     shuttingDown = true;
     const queuedDropped = queue.shutdown();
@@ -196,9 +171,9 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
   }
 
   if (ctx.registerSignalHandlers !== false) {
-    process.on("SIGINT", () => triggerShutdown("signal:SIGINT"));
-    process.on("SIGTERM", () => triggerShutdown("signal:SIGTERM"));
+    process.on("SIGINT", () => shutdown("signal:SIGINT"));
+    process.on("SIGTERM", () => shutdown("signal:SIGTERM"));
   }
 
-  return { server, logger, queue, triggerShutdown };
+  return { buildMcpServer, shutdown, logger, queue };
 }

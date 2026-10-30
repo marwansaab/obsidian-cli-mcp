@@ -162,7 +162,7 @@ logged. **Independent test**: quickstart Â§2.
   Tests: in src/tools/obsidian_exec/index.test.ts, the deps reach the handler; in src/server.test.ts, `createServer({env: {OBSIDIAN_MCP_ALLOW_EVAL: "1"}})` enables it and an absent value leaves it off.
 - [X] T025 [P] [US3] Docs: add `OBSIDIAN_MCP_ALLOW_EVAL` to the README env-var section with a plain warning (it allows arbitrary code with the user's rights; palette commands remain an accepted residual path). In docs/tools/obsidian_exec.md add the blocked list, the `COMMAND_BLOCKED` error-roster row and the opt-in.
 - [X] T026 [US3] Run the full suite and confirm every typed tool's eval-based tests pass unchanged (`backlinks`, `links`, `open_file`, `read_heading`, `find_by_property`, `outline`, `_eval-vault-closed-detection`, â€¦). That proves the gate sits only in the passthrough (FR-013).
-- [ ] T027 PR-2 wrap:
+- [X] T027 PR-2 wrap:
   - gates as in T016, with the baseline unchanged;
   - `/speckit-git-commit`;
   - open **PR-2**. Checklist: Iâ€“V **Y**; ADR-015 **Y** (new pair `VALIDATION_ERROR/COMMAND_BLOCKED`); ADR-010/013/014 **N/A**; MCP standard **N/A (pending A2)**; Tool Surface **N/A (pending)**; Security Defaults **Y** (closes escape hatches); kernel-node touch named: `createServer` ctx gains `env` (T024);
@@ -177,33 +177,33 @@ logged. **Independent test**: quickstart Â§2.
 **Branch**: `068-pr3-sdk-v2` from updated `main`. Behaviour is unchanged apart from the
 protocol. **Independent tests**: quickstart Â§1 (gate) and Â§5.
 
-- [ ] T028 Create branch `068-pr3-sdk-v2`.
-- [ ] T029 [US4] Dependencies (R1): `npm uninstall @modelcontextprotocol/sdk`, `npm install @modelcontextprotocol/server@^2.4.0`, `npm install -D @modelcontextprotocol/client@^2.4.0` (package.json, package-lock.json). Do not touch zod, TypeScript or engines.
-- [ ] T030 [US4] **T0 spike** (R2) in src/tools/_register.test.ts: build an `McpServer`, register one tool through the new pass-through adapter, connect a `Client` over `InMemoryTransport.createLinkedPair()`, and assert:
+- [X] T028 Create branch `068-pr3-sdk-v2`.
+- [X] T029 [US4] Dependencies (R1): `npm uninstall @modelcontextprotocol/sdk`, `npm install @modelcontextprotocol/server@^2.4.0`, `npm install -D @modelcontextprotocol/client@^2.4.0` (package.json, package-lock.json). Do not touch zod, TypeScript or engines.
+- [X] T030 [US4] **T0 spike** (R2) in src/tools/_register.test.ts: build an `McpServer`, register one tool through the new pass-through adapter, connect a `Client` over `InMemoryTransport.createLinkedPair()`, and assert:
   1. the published `inputSchema` deep-equals `z.toJSONSchema(schema, {io:"input", target:"draft-2020-12"})` after today's description stripping;
   2. `additionalProperties: false` is present;
   3. an invalid input reaches the callback and returns the `{code:"VALIDATION_ERROR", message, details}` envelope.
 
   If any assertion is impossible, STOP and report before continuing.
-- [ ] T031 [US4] Implement the adapter `toSdkInputSchema(schema)` in src/tools/_register.ts. It is a Standard Schema whose `~standard.jsonSchema.input/output` return `stripSchemaDescriptions(<zod schema's own ~standard.jsonSchema[io]({target:"draft-2020-12"})>)`. Stripping stays until PR-4 (C1), as existing non-conformance pending C1. Its `~standard.validate` passes the value through.
-- [ ] T032 [US4] Delete `toMcpInputSchema`, `normalizeToDraft7Parity` and `normalizeNode` from src/tools/_shared.ts, and their tests from src/tools/_shared.test.ts (C3). Move every `src/tools/*/schema.test.ts` that imports `toMcpInputSchema` (find them with `grep -l toMcpInputSchema src`) to `z.toJSONSchema(schema, {io:"input", target:"draft-2020-12"})`. Update `ToolDescriptor` in `_shared.ts` or remove it if unused.
-- [ ] T033 [US4] Rewrite `registerTool` / `ToolSpec` in src/tools/_register.ts: a spec now exposes `register(server: McpServer)`, which calls `server.registerTool(name, { description, inputSchema: toSdkInputSchema(schema) }, cb)`. Rules for `cb`:
+- [X] T031 [US4] Implement the adapter `toSdkInputSchema(schema)` in src/tools/_register.ts. It is a Standard Schema whose `~standard.jsonSchema.input/output` return `stripSchemaDescriptions(<zod schema's own ~standard.jsonSchema[io]({target:"draft-2020-12"})>)`. Stripping stays until PR-4 (C1), as existing non-conformance pending C1. Its `~standard.validate` passes the value through.
+- [X] T032 [US4] Delete `toMcpInputSchema`, `normalizeToDraft7Parity` and `normalizeNode` from src/tools/_shared.ts, and their tests from src/tools/_shared.test.ts (C3). Move every `src/tools/*/schema.test.ts` that imports `toMcpInputSchema` (find them with `grep -l toMcpInputSchema src`) to `z.toJSONSchema(schema, {io:"input", target:"draft-2020-12"})`. Update `ToolDescriptor` in `_shared.ts` or remove it if unused.
+- [X] T033 [US4] Rewrite `registerTool` / `ToolSpec` in src/tools/_register.ts: a spec now exposes `register(server: McpServer)`, which calls `server.registerTool(name, { description, inputSchema: toSdkInputSchema(schema) }, cb)`. Rules for `cb`:
   - it runs today's `safeParse`, `mapValidationError` and `responseFormat` handling unchanged;
   - it **returns** `asToolError(...)` for `UpstreamError` (and `INTERNAL_ERROR` for a handler `ZodError`) instead of throwing;
   - it rethrows other errors, as today.
 
   Update src/tools/_register.test.ts throughout.
-- [ ] T034 [US4] [US5] Split src/server.ts per R10:
+- [X] T034 [US4] [US5] Split src/server.ts per R10:
   - `createServer(ctx)` stays the only constructor of `createLogger()`/`createQueue()` and the registry, and builds the 34 tool specs and runs `assertToolDocsExist` once;
   - it returns `{ buildMcpServer(era), shutdown() }`;
   - `buildMcpServer` creates `new McpServer({name:"obsidian-cli-mcp", version}, { capabilities: { tools: { listChanged: false } } })` and registers each spec;
   - delete the low-level `Server`, both hand-written handlers, the `TOOL_NOT_FOUND` path and both `eslint-disable @typescript-eslint/no-deprecated` lines;
   - keep SIGINT/SIGTERM â†’ `shutdown()`;
   - update the header and the BI-067 comment (point to ADR-039).
-- [ ] T035 [US4] [US5] Rewrite src/index.ts: `const app = await createServer(...)`; `serveStdio(() => app.buildMcpServer())` from `@modelcontextprotocol/server/stdio` (pass `ctx.era` through only if used); stdin `end`/`close` â†’ `app.shutdown("transport_closed")`; keep the `bridge.fatal` handler.
-- [ ] T036 [P] [US5] Add a 2025-era protocol test in a new src/server.protocol.test.ts (header `// Original â€” no upstream. In-process protocol tests for both MCP eras.`) using `Client` + `InMemoryTransport.createLinkedPair()`.
+- [X] T035 [US4] [US5] Rewrite src/index.ts: `const app = await createServer(...)`; `serveStdio(() => app.buildMcpServer())` from `@modelcontextprotocol/server/stdio` (pass `ctx.era` through only if used); stdin `end`/`close` â†’ `app.shutdown("transport_closed")`; keep the `bridge.fatal` handler.
+- [X] T036 [P] [US5] Add a 2025-era protocol test in a new src/server.protocol.test.ts (header `// Original â€” no upstream. In-process protocol tests for both MCP eras.`) using `Client` + `InMemoryTransport.createLinkedPair()`.
 
-  **Sub-step (kernel-node touch)**: first add an optional `createQueue?: () => Queue` test seam to `createServer`'s ctx (src/server.ts), defaulting to the real `createQueue`. `server.ts` stays the only production caller of the real factory. Name this touch in the PR-3 checklist.
+  **No queue seam** (PR #89 review, owner ruling; replaces the analyze pass's U1 `ctx.createQueue` seam): `createServer`'s ctx gains no test-only field. The shared queue is proven through the `queue` that `createServer` already returns.
 
   The test covers:
   - `initialize` serverInfo and capabilities (`tools.listChanged === false`, no `logging`);
@@ -211,13 +211,15 @@ protocol. **Independent tests**: quickstart Â§1 (gate) and Â§5.
   - `callTool("help")` succeeds;
   - an invalid-input call returns the project `VALIDATION_ERROR` envelope;
   - an unknown tool gives JSON-RPC `-32602`;
-  - calling `buildMcpServer` twice yields servers that share one queue: the spy passed as `ctx.createQueue` was called exactly once, and both servers route calls through that instance.
-- [ ] T037 [P] [US4] Add a 2026-era protocol test in src/server.protocol.test.ts using `createMcpHandler(factory)` + `StreamableHTTPClientTransport(url, { fetch: (u, i) => handler.fetch(new Request(u, i)) })` + `Client(..., { versionNegotiation: { mode: "auto" } })`. Same assertions as T036, and it asserts the negotiated version is `2026-07-28`.
-- [ ] T038 [P] [US4] Create scripts/probe-stdio.ts (`// Original â€” no upstream.`). It spawns `node dist/index.js` with `StdioClientTransport` and takes `--era legacy|modern` (and `--no-elicitation`, which declares no elicitation capability, for PR-6). It prints the negotiated protocol version, serverInfo, whether `instructions` is present (plus its length) and the tool count. Exit code is non-zero on failure. Add an `npm run probe:stdio` script in package.json.
-- [ ] T039 [US9] Rebuild `fingerprintLiveRegistry` in src/tools/_register-baseline.ts (R3): build via `createServer({registerSignalHandlers:false})`, connect a `Client` over `InMemoryTransport`, `listTools(undefined, {cacheMode:"bypass"})`, and fingerprint `description` + `inputSchema` per tool. Set `schemaVersion: 2`. Make scripts/write-register-baseline.ts reuse this helper (delete its inline `canonicalJSON`/`sha256` copy) and update src/tools/_register-baseline.test.ts.
-- [ ] T040 [US9] Run `npm run baseline:write` and review the diff of src/tools/_register-baseline.json: every `schemaFingerprint` changes (dialect), while `descriptionFingerprint` values and the 34 names do not. Then prove the gate: edit one description, `npm test` fails on the baseline test, revert. Note the proof in the PR body.
-- [ ] T041 Write `.decisions/ADR-039 - Dual-Era Stdio Serving on MCP SDK v2 McpServer.md`. It supersedes ADR-036 (modern-only era) and the BI-067 low-level-`Server` decision, and records R2, R10 and the `-32602` unknown-tool change. Add the row to `.decisions/Decision Log.md`. Before writing, confirm 039 is free in the vault Decision Log (one project-wide series); if not, use the next free number and update the plan/research references.
-- [ ] T042 Run the gates: `npm run lint` (zero warnings, and `grep -rn "no-deprecated" src` shows no SDK disable), typecheck, test, build. Run `npm run probe:stdio -- --era legacy` and `-- --era modern`, both listing 34. **T0-live**: Claude Code connects to the built server and calls `read` and `write_note` (specific, `Sandbox/`) on the test vault, plus one failing `read`, whose envelope matches the pre-upgrade text. Record the results in the PR body.
+  - calling `buildMcpServer` twice yields servers that share one queue: with a spy on `app.queue.run`, two clients (one per server) each make one call, and the spy sees both calls.
+- [X] T037 [P] [US4] Add a 2026-era protocol test in src/server.protocol.test.ts using `createMcpHandler(factory)` + `StreamableHTTPClientTransport(url, { fetch: (u, i) => handler.fetch(new Request(u, i)) })` + `Client(..., { versionNegotiation: { mode: "auto" } })`. Same assertions as T036, and it asserts the negotiated version is `2026-07-28`.
+- [X] T038 [P] [US4] Create scripts/probe-stdio.ts (`// Original â€” no upstream.`). It spawns `node dist/index.js` with `StdioClientTransport` and takes `--era legacy|modern` (and `--no-elicitation`, which declares no elicitation capability, for PR-6). It prints the negotiated protocol version, serverInfo, whether `instructions` is present (plus its length) and the tool count. Exit code is non-zero on failure. Add an `npm run probe:stdio` script in package.json.
+- [X] T039 [US9] Rebuild `fingerprintLiveRegistry` in src/tools/_register-baseline.ts (R3): build via `createServer({registerSignalHandlers:false})`, connect a `Client` over `InMemoryTransport`, `listTools(undefined, {cacheMode:"bypass"})`, and fingerprint `description` + `inputSchema` per tool. Set `schemaVersion: 2`. Make scripts/write-register-baseline.ts reuse this helper (delete its inline `canonicalJSON`/`sha256` copy) and update src/tools/_register-baseline.test.ts.
+- [X] T040 [US9] Run `npm run baseline:write` and review the diff of src/tools/_register-baseline.json: every `schemaFingerprint` changes (dialect), while `descriptionFingerprint` values and the 34 names do not. Then prove the gate: edit one description, `npm test` fails on the baseline test, revert. Note the proof in the PR body.
+  **Outcome (2026-10-30)**: 34 of 34 `schemaFingerprint` values changed (draft-07 → draft-2020-12), 0 `descriptionFingerprint` values changed, and the 34 names are identical; `schemaVersion` is 2. Gate proof: adding one word to the `backlinks` description made "live registry fingerprints match the checked-in baseline" fail with the backlinks `descriptionFingerprint` diff; reverting made it pass again.
+- [X] T041 Write `.decisions/ADR-039 - Dual-Era Stdio Serving on MCP SDK v2 McpServer.md`. It supersedes ADR-036 (modern-only era) and the BI-067 low-level-`Server` decision, and records R2, R10 and the `-32602` unknown-tool change. Add the row to `.decisions/Decision Log.md`. Before writing, confirm 039 is free in the vault Decision Log (one project-wide series); if not, use the next free number and update the plan/research references.
+- [X] T042 Run the gates: `npm run lint` (zero warnings, and `grep -rn "no-deprecated" src` shows no SDK disable), typecheck, test, build. Run `npm run probe:stdio -- --era legacy` and `-- --era modern`, both listing 34. **T0-live**: Claude Code connects to the built server and calls `read` and `write_note` (specific, `Sandbox/`) on the test vault, plus one failing `read`, whose envelope matches the pre-upgrade text. Record the results in the PR body.
+  **Outcome (2026-10-30)**: lint zero warnings, no SDK `no-deprecated` disable left in `src`, typecheck and build clean, 2927 tests pass (6 skipped), statements 96.81%. `probe:stdio` lists 34 tools for both eras (legacy negotiates `2025-11-25`, modern `2026-07-28`). Live check on `TestVault-Obsidian-CLI-MCP` (`Sandbox/`, cleaned up): this unattended run cannot attach Claude Code, so a v2 MCP client drove the built `dist/index.js` over real stdio in both eras instead. `write_note` and `read` succeeded in each era, and a failing `read` of a missing note returned `CLI_REPORTED_ERROR` with text byte-identical to the same call against a build of `main` (SDK v1). A Claude Code session check is still open for the owner before merge.
 - [ ] T043 PR-3 wrap:
   - `/speckit-git-commit`;
   - open **PR-3** with a **dependency justification** citing constitution v1.6.0 â†’ Dependencies (pre-justified swap; the client is a test-only devDependency, R1);
@@ -229,7 +231,7 @@ protocol. **Independent tests**: quickstart Â§1 (gate) and Â§5.
     - Tool Surface: titles/annotations, instructions and typed results **N/A (pending B1/B2/B5)**;
     - Security Defaults **N/A**;
     - ADR-010/013/014/015 **N/A**;
-    - kernel-node touches named: `createServer` (composition-root split, `ctx.createQueue` seam);
+    - kernel-node touches named: `createServer` (composition-root split);
   - `/code-review` and fixes;
   - `/speckit-docs-as-code <n>` (tech-stack and architecture pages; any docs promising a `TOOL_NOT_FOUND` result);
   - **STOP**: owner merges.
@@ -529,5 +531,6 @@ PR-6 after T077:   T082 src/queue.ts âˆ¥ T083 src/cli-adapter/_dispatch.ts â
   Existing files whose role changes get their header updated in the task that changes
   them.
 - **Kernel-node touches added by analyze remediation**: `createServer` ctx gains `env`
-  (T024, PR-2) and the `createQueue` test seam (T036, PR-3). Both are named in their PR
-  checklists.
+  (T024, PR-2), named in the PR-2 checklist. The `createQueue` test seam the analyze pass
+  proposed for T036 (U1) was dropped at the PR #89 review: T036 spies on the returned
+  `app.queue.run` instead.

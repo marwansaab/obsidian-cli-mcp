@@ -1,17 +1,18 @@
-// Original — no upstream. Co-located tests for the registerTool publication pipeline + assertToolDocsExist aggregator. Drift detector consolidated post-010 from three groups to one (registry walk + SDK round-trip + synthetic Pattern (a) fixture).
+// Original — no upstream. Co-located tests for the registerTool publication pipeline + assertToolDocsExist aggregator. Drift detector consolidated post-010 from three groups to one (registry walk + SDK round-trip + synthetic Pattern (a) fixture). 068 (T030/T033): the SDK v2 pass-through input-schema adapter is proven through a real Client over an in-memory transport, and every registry read goes through the published tools/list.
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { McpServer } from "@modelcontextprotocol/server";
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import { z } from "zod";
 
+import { connectInMemoryClient } from "./_mcp-client-fixtures.js";
 import { fingerprintLiveRegistry, type RegisterBaseline } from "./_register-baseline.js";
-import { registerTool, assertToolDocsExist } from "./_register.js";
+import { registerTool, assertToolDocsExist, toSdkInputSchema } from "./_register.js";
 import { UpstreamError } from "../errors.js";
+import { stripSchemaDescriptions, type JsonSchemaObject } from "../help/strip-schema.js";
 import { createServer } from "../server.js";
 import {
   applyTargetModeRefinement,
@@ -19,12 +20,161 @@ import {
 } from "../target-mode/target-mode.js";
 
 import type { RegisteredTool } from "./_shared.js";
+import type { Client } from "@modelcontextprotocol/client";
 
 const BASELINE_PATH = resolve(dirname(fileURLToPath(import.meta.url)), "_register-baseline.json");
 
 function readBaseline(): RegisterBaseline {
   return JSON.parse(readFileSync(BASELINE_PATH, "utf8")) as RegisterBaseline;
 }
+
+/** Serve a single registered tool on a fresh McpServer and return a connected client. */
+async function serveOne(tool: RegisteredTool): Promise<Client> {
+  const server = new McpServer({ name: "spike", version: "0.0.0" }, { capabilities: { tools: { listChanged: false } } });
+  tool.register(server);
+  return connectInMemoryClient(server, "register-test");
+}
+
+function textOf(result: unknown): string {
+  return (result as { content: Array<{ type: string; text: string }> }).content[0]!.text;
+}
+
+// 068 T030 (research R2, T0 spike): McpServer validates input itself and would replace the
+// project's {code, message, details} envelope with free text, so the SDK receives a
+// pass-through adapter. These cases prove the adapter publishes zod's own draft-2020-12
+// emission and that a bad input still reaches the project callback.
+describe("toSdkInputSchema — SDK v2 pass-through adapter (068 R2, T030)", () => {
+  const schema = z.strictObject({
+    name: z.string().min(1).describe("who to greet"),
+    loud: z.boolean().optional().default(false),
+  });
+  const tool = registerTool({
+    name: "spike_greet",
+    description: "spike tool",
+    schema,
+    handler: async (input) => ({ greeting: `hello ${input.name}` }),
+  });
+  let client: Client;
+
+  beforeAll(async () => {
+    client = await serveOne(tool);
+  });
+
+  afterAll(async () => {
+    await client.close();
+  });
+
+  it("published inputSchema deep-equals z.toJSONSchema(schema, {io:'input', target:'draft-2020-12'}) after description stripping", async () => {
+    const { tools } = await client.listTools();
+    const expected = stripSchemaDescriptions(
+      z.toJSONSchema(schema, { io: "input", target: "draft-2020-12" }) as JsonSchemaObject,
+    );
+    expect(tools[0]!.inputSchema).toEqual(expected);
+    expect(tools[0]!.inputSchema.$schema).toBe("https://json-schema.org/draft/2020-12/schema");
+  });
+
+  it("keeps additionalProperties: false from strictObject, and a defaulted field is not required (io: input)", async () => {
+    const { tools } = await client.listTools();
+    expect(tools[0]!.inputSchema.additionalProperties).toBe(false);
+    expect(tools[0]!.inputSchema.required).toEqual(["name"]);
+  });
+
+  it("the project descriptor carries the same inputSchema the client receives", async () => {
+    const { tools } = await client.listTools();
+    expect(tool.descriptor.inputSchema).toEqual(tools[0]!.inputSchema);
+  });
+
+  it("an invalid input reaches the callback and returns the VALIDATION_ERROR envelope, not SDK text", async () => {
+    const result = await client.callTool({ name: "spike_greet", arguments: { name: 5 } });
+    expect(result.isError).toBe(true);
+    const payload = JSON.parse(textOf(result));
+    expect(payload.code).toBe("VALIDATION_ERROR");
+    expect(payload.message).toBe("spike_greet input failed schema validation");
+    expect(payload.details.issues[0].path).toEqual(["name"]);
+  });
+
+  it("a valid input succeeds through the client", async () => {
+    const result = await client.callTool({ name: "spike_greet", arguments: { name: "world" } });
+    expect(result.isError).toBeFalsy();
+    expect(JSON.parse(textOf(result))).toEqual({ greeting: "hello world" });
+  });
+
+  it("the adapter's validate accepts any value unchanged", async () => {
+    const adapter = toSdkInputSchema(schema);
+    const value = { anything: [1, 2] };
+    expect(await adapter["~standard"].validate(value)).toEqual({ value });
+  });
+
+  it("the adapter's output emission strips nested descriptions too", () => {
+    const adapter = toSdkInputSchema(schema);
+    const out = adapter["~standard"].jsonSchema.output({ target: "draft-2020-12" });
+    expect(JSON.stringify(out)).not.toContain("who to greet");
+  });
+});
+
+describe("registerTool — callback outcomes through McpServer (068 T033)", () => {
+  it("an UpstreamError is returned as the project envelope (isError, code/message/details)", async () => {
+    const client = await serveOne(
+      registerTool({
+        name: "cb_upstream",
+        description: "upstream",
+        schema: z.strictObject({}),
+        handler: async () => {
+          throw new UpstreamError({ code: "CLI_TIMEOUT", cause: null, details: { timeoutMs: 1 }, message: "timed out" });
+        },
+      }),
+    );
+    try {
+      const result = await client.callTool({ name: "cb_upstream", arguments: {} });
+      expect(result.isError).toBe(true);
+      expect(JSON.parse(textOf(result))).toEqual({ code: "CLI_TIMEOUT", message: "timed out", details: { timeoutMs: 1 } });
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("any other thrown error is rethrown by the callback and becomes the SDK's isError text", async () => {
+    const client = await serveOne(
+      registerTool({
+        name: "cb_rethrow",
+        description: "rethrow",
+        schema: z.strictObject({}),
+        handler: async () => {
+          throw new TypeError("boom");
+        },
+      }),
+    );
+    try {
+      const result = await client.callTool({ name: "cb_rethrow", arguments: {} });
+      expect(result.isError).toBe(true);
+      expect(textOf(result)).toBe("boom");
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("a call with no arguments reaches the callback as an empty object", async () => {
+    let seen: unknown;
+    const client = await serveOne(
+      registerTool({
+        name: "cb_noargs",
+        description: "no args",
+        schema: z.strictObject({}),
+        handler: async (input) => {
+          seen = input;
+          return { ok: true };
+        },
+      }),
+    );
+    try {
+      const result = await client.callTool({ name: "cb_noargs" });
+      expect(result.isError).toBeFalsy();
+      expect(seen).toEqual({});
+    } finally {
+      await client.close();
+    }
+  });
+});
 
 describe("registerTool — descriptor publication pipeline", () => {
   it("publishes inputSchema with top-level type === 'object' (FR-002)", () => {
@@ -35,6 +185,20 @@ describe("registerTool — descriptor publication pipeline", () => {
       handler: async () => ({ ok: true }),
     });
     expect(tool.descriptor.inputSchema.type).toBe("object");
+  });
+
+  it("refuses at boot a schema that emits no object root, naming the tool (FR-002 boundary)", () => {
+    expect(() =>
+      registerTool({
+        name: "pip_union_root",
+        description: "test tool",
+        schema: z.discriminatedUnion("kind", [
+          z.strictObject({ kind: z.literal("a") }),
+          z.strictObject({ kind: z.literal("b") }),
+        ]),
+        handler: async () => ({ ok: true }),
+      }),
+    ).toThrow('pip_union_root: input schema must emit a top-level "type": "object" (FR-002), got undefined');
   });
 
   it("strips descriptions at every nested depth (FR-006)", () => {
@@ -294,6 +458,7 @@ describe("assertToolDocsExist — aggregated boot-failure message (FR-005 / Q4)"
     return {
       descriptor: { name, description: "x", inputSchema: { type: "object" } },
       handler: async () => ({ content: [{ type: "text", text: "" }] }),
+      register: () => undefined,
     };
   }
 
@@ -336,8 +501,9 @@ describe("assertToolDocsExist — aggregated boot-failure message (FR-005 / Q4)"
 });
 
 // Post-010 consolidated drift detector (FR-008 / FR-009 / SC-005 / SC-008).
-// Single describe; two layers (registry walk + SDK round-trip) plus one synthetic
-// Pattern (a) fixture. Supersedes feature 009's three-group structure.
+// Single describe; the SDK round-trip (068: the only registry read, through the published
+// tools/list) plus one synthetic Pattern (a) fixture. Supersedes feature 009's three-group
+// structure.
 
 type ToolInvariant = {
   type: "object";
@@ -606,53 +772,24 @@ function assertInvariant(name: string, schema: Record<string, unknown>): void {
   );
 }
 
-type ListToolsHandler = (req: unknown) => Promise<{
-  tools: Array<{ name: string; description: string; inputSchema: Record<string, unknown> }>;
-}>;
-
-async function listToolsViaRegistry(): Promise<
-  Array<{ name: string; description: string; inputSchema: Record<string, unknown> }>
-> {
-  const { server } = createServer({ registerSignalHandlers: false });
-  const handlers = (server as unknown as { _requestHandlers: Map<string, ListToolsHandler> })
-    ._requestHandlers;
-  const listHandler = handlers.get("tools/list");
-  if (!listHandler) throw new Error("tools/list handler not registered");
-  const result = await listHandler({ method: "tools/list", params: {} });
-  return result.tools;
-}
-
 describe("registry: published inputSchema invariants (post-010)", () => {
-  describe("registry walk", () => {
-    it("every registered tool has an invariant entry", async () => {
-      const tools = await listToolsViaRegistry();
-      const missing = tools.map((t) => t.name).filter((n) => !(n in invariants));
-      expect(missing, `tools missing invariant entry: ${missing.join(", ")}`).toEqual([]);
-    });
-
-    it.each(liveRegistryToolNames)("tool %s satisfies its invariant", async (toolName: string) => {
-      const tools = await listToolsViaRegistry();
-      const tool = tools.find((t) => t.name === toolName);
-      expect(tool, `Tool '${toolName}' not found in live registry`).toBeDefined();
-      assertInvariant(toolName, tool!.inputSchema);
-    });
-  });
-
   describe("SDK round-trip", () => {
     let client: Client;
     let listResponse: { tools: Array<{ name: string; inputSchema: Record<string, unknown> }> };
 
     beforeAll(async () => {
-      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
       const created = createServer({ registerSignalHandlers: false });
-      await created.server.connect(serverTransport);
-      client = new Client({ name: "drift-detector", version: "0.0.0" }, { capabilities: {} });
-      await client.connect(clientTransport);
+      client = await connectInMemoryClient(created.buildMcpServer(), "drift-detector");
       listResponse = (await client.listTools()) as typeof listResponse;
     });
 
     afterAll(async () => {
       await client.close();
+    });
+
+    it("every registered tool has an invariant entry", () => {
+      const missing = listResponse.tools.map((t) => t.name).filter((n) => !(n in invariants));
+      expect(missing, `tools missing invariant entry: ${missing.join(", ")}`).toEqual([]);
     });
 
     it.each(liveRegistryToolNames)(
@@ -663,17 +800,16 @@ describe("registry: published inputSchema invariants (post-010)", () => {
         assertInvariant(toolName, tool!.inputSchema);
       },
     );
-  });
 
-  it("does NOT publish any retired tool name (BI-022)", async () => {
-    const tools = await listToolsViaRegistry();
-    const live = tools.map((t) => t.name);
-    const retired = ["read_note", "delete_note", "list_files", "write_property", "rename_note"];
-    const intersection = retired.filter((r) => live.includes(r));
-    expect(
-      intersection,
-      `retired names re-appeared in tools/list: ${intersection.join(", ")}`,
-    ).toEqual([]);
+    it("does NOT publish any retired tool name (BI-022)", () => {
+      const live = listResponse.tools.map((t) => t.name);
+      const retired = ["read_note", "delete_note", "list_files", "write_property", "rename_note"];
+      const intersection = retired.filter((r) => live.includes(r));
+      expect(
+        intersection,
+        `retired names re-appeared in tools/list: ${intersection.join(", ")}`,
+      ).toEqual([]);
+    });
   });
 
   it("synthetic Pattern (a) — applyTargetModeRefinement(base.extend({ note_text })) publishes the union of base + extension keys", () => {
@@ -699,7 +835,7 @@ describe("registry: stability baseline (FR-018)", () => {
 
   it("baseline file conforms to the documented schema", () => {
     const baseline = readBaseline();
-    expect(baseline.schemaVersion).toBe(1);
+    expect(baseline.schemaVersion).toBe(2);
     expect(Array.isArray(baseline.tools)).toBe(true);
     for (const entry of baseline.tools) {
       expect(typeof entry.name).toBe("string");

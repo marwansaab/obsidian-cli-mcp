@@ -1,5 +1,6 @@
 // Original — no upstream. pattern_search schema tests.
 import { afterEach, expect, test } from "vitest";
+import { z } from "zod";
 
 import {
   patternSearchInputSchema,
@@ -7,7 +8,6 @@ import {
   patternSearchOutputSchema,
   patternSearchEvalEnvelopeSchema,
 } from "./schema.js";
-import { toMcpInputSchema } from "../_shared.js";
 
 // Helper — restore globalThis.RegExp after every test that monkey-patches it.
 let savedRegExp: typeof RegExp | null = null;
@@ -183,9 +183,9 @@ test("missing pattern → fail path=['pattern']", () => {
   }
 });
 
-// (17) JSON Schema round-trip via toMcpInputSchema
-test("toMcpInputSchema emits additionalProperties:false and the expected property set", () => {
-  const json = toMcpInputSchema(patternSearchInputSchema) as Record<string, unknown>;
+// (17) JSON Schema round-trip via z.toJSONSchema
+test("z.toJSONSchema emits additionalProperties:false and the expected property set", () => {
+  const json = z.toJSONSchema(patternSearchInputSchema, { io: "input", target: "draft-2020-12" }) as Record<string, unknown>;
   expect(json.type).toBe("object");
   expect(json.additionalProperties).toBe(false);
   const props = json.properties as Record<string, unknown>;

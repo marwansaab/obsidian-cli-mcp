@@ -1,9 +1,8 @@
-// Original — no upstream. Co-located vitest cases for the schema-stripping utility (FR-017: 4 minimum + 2 recommended + 1 C2 remediation). BI-067: zod-derived fixtures now flow through the production toMcpInputSchema pipeline (zod 4 built-in conversion + parity normalizer) instead of the retired v3-era converter; stripped-help assertions are unchanged.
+// Original — no upstream. Co-located vitest cases for the schema-stripping utility (FR-017: 4 minimum + 2 recommended + 1 C2 remediation). 068 (C3): zod-derived fixtures come from zod 4's own draft-2020-12 emission, the same JSON the MCP SDK publishes, now that toMcpInputSchema and its draft-07 parity normaliser are gone; stripped-help assertions are unchanged.
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
 
 import { stripSchemaDescriptions, type JsonSchemaObject } from "./strip-schema.js";
-import { toMcpInputSchema } from "../tools/_shared.js";
 
 describe("stripSchemaDescriptions", () => {
   it("strips description from every property of a flat schema (Story 1 AC#1)", () => {
@@ -11,7 +10,7 @@ describe("stripSchemaDescriptions", () => {
       name: z.string().describe("a person's name"),
       age: z.number().int().describe("their age in years"),
     });
-    const raw = toMcpInputSchema(schema) as JsonSchemaObject;
+    const raw = z.toJSONSchema(schema, { io: "input", target: "draft-2020-12" }) as JsonSchemaObject;
     expect((raw.properties?.name as JsonSchemaObject).description).toBe("a person's name");
 
     const result = stripSchemaDescriptions(raw);
@@ -34,7 +33,7 @@ describe("stripSchemaDescriptions", () => {
         other: z.string().describe("other field"),
       }),
     ]);
-    const raw = toMcpInputSchema(schema) as JsonSchemaObject;
+    const raw = z.toJSONSchema(schema, { io: "input", target: "draft-2020-12" }) as JsonSchemaObject;
     expect(JSON.stringify(raw).includes("description")).toBe(true);
 
     const result = stripSchemaDescriptions(raw);
@@ -47,7 +46,7 @@ describe("stripSchemaDescriptions", () => {
       name: z.string(),
       age: z.number().int(),
     });
-    const raw = toMcpInputSchema(schema) as JsonSchemaObject;
+    const raw = z.toJSONSchema(schema, { io: "input", target: "draft-2020-12" }) as JsonSchemaObject;
 
     const result = stripSchemaDescriptions(raw);
 
@@ -58,7 +57,7 @@ describe("stripSchemaDescriptions", () => {
     const schema = z.object({
       field: z.string().describe("a field"),
     });
-    const raw = toMcpInputSchema(schema) as JsonSchemaObject;
+    const raw = z.toJSONSchema(schema, { io: "input", target: "draft-2020-12" }) as JsonSchemaObject;
     const snapshot = structuredClone(raw);
 
     stripSchemaDescriptions(raw);
@@ -166,7 +165,7 @@ describe("stripSchemaDescriptions", () => {
         inner: z.string().describe("inner field"),
       })
       .describe("root description goes here");
-    const raw = toMcpInputSchema(schema) as JsonSchemaObject;
+    const raw = z.toJSONSchema(schema, { io: "input", target: "draft-2020-12" }) as JsonSchemaObject;
     expect(raw.description).toBe("root description goes here");
 
     const result = stripSchemaDescriptions(raw);

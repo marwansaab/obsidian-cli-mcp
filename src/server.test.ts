@@ -5,9 +5,13 @@ import { dirname, join, resolve } from "node:path";
 import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
+import { McpServer } from "@modelcontextprotocol/server";
 import { afterEach, describe, it, test, expect, vi } from "vitest";
 
 import { createServer, DEFAULT_DOCS_DIR, type ShutdownContext } from "./server.js";
+import { connectInMemoryClient } from "./tools/_mcp-client-fixtures.js";
+
+import type { Client } from "@modelcontextprotocol/client";
 
 function captureStream(): { stream: Writable; lines: () => string[] } {
   const chunks: Buffer[] = [];
@@ -33,51 +37,45 @@ function makeContext() {
   return { cap, ctx, getExitCode: () => exitCode };
 }
 
-test("createServer constructs MCP Server with name and version metadata", () => {
+/** Build the composition root, serve one McpServer from it, and connect a 2025-era client in-process. */
+function connectClient(ctx: ShutdownContext): Promise<Client> {
+  return connectInMemoryClient(createServer(ctx).buildMcpServer(), "server-test");
+}
+
+async function listPublishedTools(): Promise<{ name: string; description?: string; inputSchema: Record<string, unknown> }[]> {
+  const client = await connectClient(makeContext().ctx);
+  try {
+    return (await client.listTools()).tools;
+  } finally {
+    await client.close();
+  }
+}
+
+test("buildMcpServer returns an SDK v2 McpServer", () => {
   const { ctx } = makeContext();
-  const { server } = createServer(ctx);
-  expect(server).toBeTruthy();
+  expect(createServer(ctx).buildMcpServer()).toBeInstanceOf(McpServer);
 });
 
 test("createServer registers exactly THIRTY-FOUR tools (FR-001 + FR-007 + P8 aggregator + BI-003 + BI-011 + BI-012 + BI-013 + BI-014 + BI-015 + BI-018 + BI-019 + BI-021 + BI-022 + BI-023 + BI-024 + BI-025 + BI-026 + BI-027 + BI-028 + BI-029 + BI-030 + BI-033 + BI-035 + BI-036 + BI-037 + BI-038 + BI-039 + BI-040 + BI-043 + BI-044 + BI-045 + BI-049 + BI-057 + BI-082 + BI-083 + BI-063)", async () => {
-  const { ctx } = makeContext();
-  const { server } = createServer(ctx);
-  const handlers = (server as unknown as { _requestHandlers: Map<string, (req: unknown) => Promise<unknown>> })._requestHandlers;
-  const listHandler = handlers.get("tools/list");
-  expect(listHandler).toBeTruthy();
-  const result = (await listHandler!({ method: "tools/list", params: {} })) as { tools: { name: string }[] };
-  expect(result.tools.length).toBe(34);
-  const names = result.tools.map((t) => t.name).sort();
+  const tools = await listPublishedTools();
+  expect(tools.length).toBe(34);
+  const names = tools.map((t) => t.name).sort();
   expect(names).toEqual(["append_note", "backlinks", "bases", "context_search", "create_base", "delete", "files", "find_and_replace", "find_by_property", "get_active_file", "help", "links", "move", "obsidian_exec", "open_file", "outline", "patch_block", "patch_heading", "paths", "pattern_search", "prepend", "properties", "query_base", "read", "read_heading", "read_property", "rename", "search", "set_property", "smart_connections_query", "smart_connections_similar", "tag", "views_base", "write_note"]);
-});
-
-test("CallToolRequest dispatches by name with TOOL_NOT_FOUND fallback (P8 aggregator)", async () => {
-  const { ctx } = makeContext();
-  const { server } = createServer(ctx);
-  const handlers = (server as unknown as { _requestHandlers: Map<string, (req: unknown) => Promise<unknown>> })._requestHandlers;
-  const callHandler = handlers.get("tools/call");
-  expect(callHandler).toBeTruthy();
-  const result = (await callHandler!({
-    method: "tools/call",
-    params: { name: "not_a_real_tool", arguments: {} },
-  })) as { isError?: boolean; content: { type: string; text: string }[] };
-  expect(result.isError).toBe(true);
-  const payload = JSON.parse(result.content[0]!.text);
-  expect(payload.code).toBe("TOOL_NOT_FOUND");
-  expect(payload.details.knownTools).toContain("obsidian_exec");
-  expect(payload.details.knownTools).toContain("help");
 });
 
 describe("OBSIDIAN_MCP_ALLOW_EVAL wiring (068 FR-012, T024)", () => {
   async function callExecEval(env: NodeJS.ProcessEnv | undefined) {
     const { ctx } = makeContext();
-    const { server } = createServer({ ...ctx, env });
-    const handlers = (server as unknown as { _requestHandlers: Map<string, (req: unknown) => Promise<unknown>> })._requestHandlers;
-    const result = (await handlers.get("tools/call")!({
-      method: "tools/call",
-      params: { name: "obsidian_exec", arguments: { command: "eval", parameters: { code: "1+1" } } },
-    })) as { isError?: boolean; content: { type: string; text: string }[] };
-    return { isError: result.isError, payload: JSON.parse(result.content[0]!.text) as { code: string; details: Record<string, unknown> } };
+    const client = await connectClient({ ...ctx, env });
+    try {
+      const result = (await client.callTool({
+        name: "obsidian_exec",
+        arguments: { command: "eval", parameters: { code: "1+1" } },
+      })) as { isError?: boolean; content: { type: string; text: string }[] };
+      return { isError: result.isError, payload: JSON.parse(result.content[0]!.text) as { code: string; details: Record<string, unknown> } };
+    } finally {
+      await client.close();
+    }
   }
 
   // An unresolvable OBSIDIAN_BIN makes the binary resolver fail before any spawn, so the
@@ -115,8 +113,8 @@ describe("OBSIDIAN_MCP_ALLOW_EVAL wiring (068 FR-012, T024)", () => {
 
 test("transport-close shutdown emits bridge.shutdown with reason transport_closed and exits 0", () => {
   const { cap, ctx, getExitCode } = makeContext();
-  const { triggerShutdown } = createServer(ctx);
-  triggerShutdown("transport_closed");
+  const { shutdown } = createServer(ctx);
+  shutdown("transport_closed");
   const lines = cap.lines();
   expect(lines.length).toBe(1);
   const event = JSON.parse(lines[0]!);
@@ -129,8 +127,8 @@ test("transport-close shutdown emits bridge.shutdown with reason transport_close
 
 test("SIGINT-style shutdown emits reason signal:SIGINT", () => {
   const { cap, ctx, getExitCode } = makeContext();
-  const { triggerShutdown } = createServer(ctx);
-  triggerShutdown("signal:SIGINT");
+  const { shutdown } = createServer(ctx);
+  shutdown("signal:SIGINT");
   const event = JSON.parse(cap.lines()[0]!);
   expect(event.reason).toBe("signal:SIGINT");
   expect(getExitCode()).toBe(0);
@@ -138,8 +136,8 @@ test("SIGINT-style shutdown emits reason signal:SIGINT", () => {
 
 test("SIGTERM-style shutdown emits reason signal:SIGTERM", () => {
   const { cap, ctx, getExitCode } = makeContext();
-  const { triggerShutdown } = createServer(ctx);
-  triggerShutdown("signal:SIGTERM");
+  const { shutdown } = createServer(ctx);
+  shutdown("signal:SIGTERM");
   const event = JSON.parse(cap.lines()[0]!);
   expect(event.reason).toBe("signal:SIGTERM");
   expect(getExitCode()).toBe(0);
@@ -147,10 +145,10 @@ test("SIGTERM-style shutdown emits reason signal:SIGTERM", () => {
 
 test("shutdown is idempotent — second call is a no-op", () => {
   const { cap, ctx, getExitCode } = makeContext();
-  const { triggerShutdown } = createServer(ctx);
-  triggerShutdown("transport_closed");
-  triggerShutdown("signal:SIGINT");
-  triggerShutdown("signal:SIGTERM");
+  const { shutdown } = createServer(ctx);
+  shutdown("transport_closed");
+  shutdown("signal:SIGINT");
+  shutdown("signal:SIGTERM");
   const lines = cap.lines();
   expect(lines.length).toBe(1);
   expect(getExitCode()).toBe(0);
@@ -163,8 +161,8 @@ test("shutdown calls killInFlightChildren and reports inFlightKilled in the brid
     killCalled = true;
     return true;
   };
-  const { triggerShutdown } = createServer(ctx);
-  triggerShutdown("transport_closed");
+  const { shutdown } = createServer(ctx);
+  shutdown("transport_closed");
   expect(killCalled).toBe(true);
   const event = JSON.parse(cap.lines()[0]!);
   expect(event.inFlightKilled).toBe(true);
@@ -174,8 +172,8 @@ test("shutdown calls killInFlightChildren and reports inFlightKilled in the brid
 test("shutdown reports inFlightKilled: false when no child was in flight", () => {
   const { cap, ctx } = makeContext();
   ctx.killInFlightChildren = () => false;
-  const { triggerShutdown } = createServer(ctx);
-  triggerShutdown("transport_closed");
+  const { shutdown } = createServer(ctx);
+  shutdown("transport_closed");
   const event = JSON.parse(cap.lines()[0]!);
   expect(event.inFlightKilled).toBe(false);
 });
@@ -183,7 +181,7 @@ test("shutdown reports inFlightKilled: false when no child was in flight", () =>
 test("shutdown reports queuedDropped from queue.shutdown's return value (FR-029)", () => {
   const { cap, ctx } = makeContext();
   ctx.killInFlightChildren = () => false;
-  const { triggerShutdown, queue } = createServer(ctx);
+  const { shutdown, queue } = createServer(ctx);
   let release: (() => void) | undefined;
   const blocker = new Promise<void>((r) => { release = r; });
   const inFlight = queue.run(() => blocker.then(() => "first"));
@@ -192,7 +190,7 @@ test("shutdown reports queuedDropped from queue.shutdown's return value (FR-029)
   const q2 = queue.run(async () => "q2");
   q1.catch(() => undefined);
   q2.catch(() => undefined);
-  triggerShutdown("signal:SIGTERM");
+  shutdown("signal:SIGTERM");
   const event = JSON.parse(cap.lines()[0]!);
   expect(event.reason).toBe("signal:SIGTERM");
   expect(event.queuedDropped).toBe(2);
@@ -292,35 +290,20 @@ const DOCS_DIR_FROM_TEST = resolve(dirname(fileURLToPath(import.meta.url)), ".."
 
 describe("registry consistency", () => {
   it("every registered tool has a corresponding docs/tools/<name>.md file (Q5, FR-017, SC-011)", async () => {
-    const { ctx } = makeContext();
-    const { server } = createServer(ctx);
-    const handlers = (server as unknown as { _requestHandlers: Map<string, (req: unknown) => Promise<unknown>> })._requestHandlers;
-    const listHandler = handlers.get("tools/list");
-    const result = (await listHandler!({ method: "tools/list", params: {} })) as { tools: { name: string }[] };
-    for (const tool of result.tools) {
+    for (const tool of await listPublishedTools()) {
       const docPath = resolve(DOCS_DIR_FROM_TEST, `${tool.name}.md`);
       expect(existsSync(docPath), `Missing docs/tools/${tool.name}.md for registered tool '${tool.name}'`).toBe(true);
     }
   });
 
   it("every registered tool's stripped inputSchema is description-free at every depth (Story 1 AC#5, FR-006, SC-002)", async () => {
-    const { ctx } = makeContext();
-    const { server } = createServer(ctx);
-    const handlers = (server as unknown as { _requestHandlers: Map<string, (req: unknown) => Promise<unknown>> })._requestHandlers;
-    const listHandler = handlers.get("tools/list");
-    const result = (await listHandler!({ method: "tools/list", params: {} })) as { tools: { name: string; inputSchema: unknown }[] };
-    for (const tool of result.tools) {
+    for (const tool of await listPublishedTools()) {
       expect(hasNestedDescription(tool.inputSchema), `Tool '${tool.name}' has a nested description in inputSchema`).toBe(false);
     }
   });
 
   it("every registered tool's inputSchema declares type === 'object' at the top level (Story 1 AC#2, FR-002, FR-006, SC-001)", async () => {
-    const { ctx } = makeContext();
-    const { server } = createServer(ctx);
-    const handlers = (server as unknown as { _requestHandlers: Map<string, (req: unknown) => Promise<unknown>> })._requestHandlers;
-    const listHandler = handlers.get("tools/list");
-    const result = (await listHandler!({ method: "tools/list", params: {} })) as { tools: { name: string; inputSchema: unknown }[] };
-    for (const tool of result.tools) {
+    for (const tool of await listPublishedTools()) {
       const actualType = (tool.inputSchema as { type?: unknown } | null | undefined)?.type;
       expect(
         actualType,
@@ -337,13 +320,7 @@ describe("registry consistency", () => {
   // surfaces here.
   describe("FR-019 wire-shape pinning vs 0.1.7", () => {
     async function listTools() {
-      const { ctx } = makeContext();
-      const { server } = createServer(ctx);
-      const handlers = (server as unknown as { _requestHandlers: Map<string, (req: unknown) => Promise<unknown>> })._requestHandlers;
-      const result = (await handlers.get("tools/list")!({ method: "tools/list", params: {} })) as {
-        tools: { name: string; description: string; inputSchema: Record<string, unknown> }[];
-      };
-      return new Map(result.tools.map((t) => [t.name, t]));
+      return new Map((await listPublishedTools()).map((t) => [t.name, t]));
     }
 
     it("MCP Tool envelope: each tool has { name: string, description: string, inputSchema: object }", async () => {
@@ -351,7 +328,7 @@ describe("registry consistency", () => {
       for (const t of tools.values()) {
         expect(typeof t.name).toBe("string");
         expect(typeof t.description).toBe("string");
-        expect(t.description.length).toBeGreaterThan(0);
+        expect(t.description!.length).toBeGreaterThan(0);
         expect(typeof t.inputSchema).toBe("object");
         expect(t.inputSchema.type).toBe("object");
       }

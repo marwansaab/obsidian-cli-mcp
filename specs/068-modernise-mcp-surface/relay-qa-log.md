@@ -1,8 +1,8 @@
 # Relay Q&A log: speckit
 
-Run `obsidian-cli-mcp-bi-0165-pr2-2026-10-30`, started 2026-10-29T23:30:30.479Z.
+Run `obsidian-cli-mcp-bi-0165-pr3-2026-10-30`, started 2026-10-30T00:14:29.704Z.
 
-## 1. checks / preflight (2026-10-29T23:30:30.527Z)
+## 1. checks / preflight (2026-10-30T00:14:29.752Z)
 
 **Question (verbatim):**
 
@@ -23,16 +23,14 @@ Run `obsidian-cli-mcp-bi-0165-pr2-2026-10-30`, started 2026-10-29T23:30:30.479Z.
 
 **Advisor** (escalate: none):
 
-> BI-0165 preflight: all six checks pass, and the session is ready for clarification questions.
+> Preflight for BI-0165 passed: all six checks are green and the session is ready for questions.
 >
-> - **Vault identity:** `My-Setup-Vault` has `vault_id` = `my-setup`, matching `expected_vault_id`. PASS. The session-start reads were already done in this conversation.
+> - **Vault identity:** `My-Setup-Vault` returns `vault_id` = `my-setup`, which matches `expected_vault_id`. PASS. The session-start reads were done earlier in this conversation.
 > - **Note:** `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0165 - Ship 0.9.0 SDK V2 And Safety Release.md`, titled "BI-0165 — Ship 0.9.0 SDK V2 And Safety Release". PASS.
 > - **Initiative:** `[[Obsidian CLI MCP]]`. PASS.
-> - **Status:** `in-review`. PR 1 of 6 is open as #87 on `068-pr1-fixes`, waiting for the owner to merge it. The work is not finished, so the run carries on. PASS.
-> - **Specify prompt:** the "/speckit-specify prompt" section is there and its command is `/speckit-specify Modernise MCP surface`, the dash form. PASS. The note was not changed.
-> - **Clarify skill:** `anthropic-skills:speckit-clarify-skill` was already loaded earlier in this conversation for "BI-0165 - Ship 0.9.0 SDK V2 And Safety Release", and its answering rules still apply.
->
-> For context, owner rulings already recorded on the note: C1 (descriptions now, union later), B3 (refuse when the client cannot confirm), the C2 denylist exactly as briefed, the tool named `vaults`, and one Relay run per PR.
+> - **Status:** `in-review`. PR 1 (#87) and PR 2 (#88) are waiting for the owner to merge; the latest `spec_branch` is `068-pr2-exec-gate`. The work isn't finished, so the run carries on. PASS.
+> - **Specify prompt:** the "/speckit-specify prompt" section is there, and its command line (line 52) is `/speckit-specify Modernise MCP surface`, in the dash form. PASS. The note was not changed.
+> - **Clarify skill:** `anthropic-skills:speckit-clarify-skill` was already loaded earlier in this conversation for "BI-0165 - Ship 0.9.0 SDK V2 And Safety Release". Its answering rules stay in force.
 >
 > Awaiting clarification questions.
 
@@ -40,15 +38,13 @@ Sources: `000-Meta/Vault Identity.md`, `421-Custom Connectors/Obsidian CLI MCP/O
 
 **Sent to the step:**
 
-> BI-0165 preflight: all six checks pass, and the session is ready for clarification questions.
+> Preflight for BI-0165 passed: all six checks are green and the session is ready for questions.
 >
-> - **Vault identity:** `My-Setup-Vault` has `vault_id` = `my-setup`, matching `expected_vault_id`. PASS. The session-start reads were already done in this conversation.
+> - **Vault identity:** `My-Setup-Vault` returns `vault_id` = `my-setup`, which matches `expected_vault_id`. PASS. The session-start reads were done earlier in this conversation.
 > - **Note:** `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0165 - Ship 0.9.0 SDK V2 And Safety Release.md`, titled "BI-0165 — Ship 0.9.0 SDK V2 And Safety Release". PASS.
 > - **Initiative:** `[[Obsidian CLI MCP]]`. PASS.
-> - **Status:** `in-review`. PR 1 of 6 is open as #87 on `068-pr1-fixes`, waiting for the owner to merge it. The work is not finished, so the run carries on. PASS.
-> - **Specify prompt:** the "/speckit-specify prompt" section is there and its command is `/speckit-specify Modernise MCP surface`, the dash form. PASS. The note was not changed.
-> - **Clarify skill:** `anthropic-skills:speckit-clarify-skill` was already loaded earlier in this conversation for "BI-0165 - Ship 0.9.0 SDK V2 And Safety Release", and its answering rules still apply.
->
-> For context, owner rulings already recorded on the note: C1 (descriptions now, union later), B3 (refuse when the client cannot confirm), the C2 denylist exactly as briefed, the tool named `vaults`, and one Relay run per PR.
+> - **Status:** `in-review`. PR 1 (#87) and PR 2 (#88) are waiting for the owner to merge; the latest `spec_branch` is `068-pr2-exec-gate`. The work isn't finished, so the run carries on. PASS.
+> - **Specify prompt:** the "/speckit-specify prompt" section is there, and its command line (line 52) is `/speckit-specify Modernise MCP surface`, in the dash form. PASS. The note was not changed.
+> - **Clarify skill:** `anthropic-skills:speckit-clarify-skill` was already loaded earlier in this conversation for "BI-0165 - Ship 0.9.0 SDK V2 And Safety Release". Its answering rules stay in force.
 >
 > Awaiting clarification questions.

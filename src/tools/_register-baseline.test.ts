@@ -1,7 +1,7 @@
-// Original — no upstream. Co-located tests for the FR-018 fingerprint helper module (BI-022).
+// Original — no upstream. Co-located tests for the FR-018 fingerprint helper module (BI-022); 068 R3: fingerprints come from a v2 Client's view of the published tools/list.
+import { McpServer } from "@modelcontextprotocol/server";
 import { describe, expect, it } from "vitest";
 
-import { createServer } from "../server.js";
 import { canonicalJSON, fingerprintLiveRegistry, sha256 } from "./_register-baseline.js";
 
 describe("canonicalJSON", () => {
@@ -56,15 +56,26 @@ describe("fingerprintLiveRegistry", () => {
     }
   });
 
-  it("throws when the injected server has no tools/list handler registered (boundary — L57 defensive throw)", async () => {
-    // Inject a fake createServer whose Server exposes an empty _requestHandlers
-    // Map, so handlers.get("tools/list") is undefined and L57 fires.
-    const fakeCreateServer = (() => ({
-      server: { _requestHandlers: new Map() },
-    })) as unknown as typeof createServer;
+  it("fingerprints exactly what a client receives from the injected server (happy — published surface)", async () => {
+    const buildMcpServer = () => {
+      const server = new McpServer({ name: "fake", version: "0.0.0" }, { capabilities: { tools: { listChanged: false } } });
+      server.registerTool("only_tool", { description: "desc" }, () => ({ content: [] }));
+      return server;
+    };
 
-    await expect(fingerprintLiveRegistry({ createServer: fakeCreateServer })).rejects.toThrow(
-      "tools/list handler not registered",
-    );
+    const entries = await fingerprintLiveRegistry({ buildMcpServer });
+    expect(entries).toEqual([
+      {
+        name: "only_tool",
+        descriptionFingerprint: sha256("desc"),
+        schemaFingerprint: sha256(canonicalJSON({ type: "object", properties: {} })),
+      },
+    ]);
+  });
+
+  it("yields no entries when the injected server declares no tools capability (boundary — empty published surface)", async () => {
+    const buildMcpServer = () => new McpServer({ name: "fake", version: "0.0.0" });
+
+    await expect(fingerprintLiveRegistry({ buildMcpServer })).resolves.toEqual([]);
   });
 });

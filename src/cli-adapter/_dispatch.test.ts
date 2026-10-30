@@ -1031,7 +1031,7 @@ describe("dispatchCli — ADR-029 cold-start single retry", () => {
   // US3 (T026) — shutdown race (research D6): if shutdown begins before the retry decision,
   // the retry is skipped, attempt-1's error propagates, and NO second spawn happens. The
   // module-level shuttingDown flag is set by killInFlightChildren() — the production shutdown
-  // entry point invoked from server.ts triggerShutdown — so this exercises the real path.
+  // entry point invoked from server.ts shutdown — so this exercises the real path.
   it("US3: shutdown before the retry → retry skipped, attempt-1 error propagates, calls()===1", async () => {
     const cap = captureLines();
     const { spawnFn, calls } = makeScriptedSpawn([

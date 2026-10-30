@@ -102,6 +102,16 @@ asserts all of these:
 3. `.describe()` text survives;
 4. a bad input reaches the callback and returns the project envelope.
 
+**T0 result (2026-10-30, T030, `src/tools/_register.test.ts`)**: assertions 1, 2 and 4 pass
+through a real v2 `Client` over `InMemoryTransport`, so the design stands. Assertion 3 is
+deferred to PR 4: description stripping is still re-hosted inside `toSdkInputSchema` in PR 3,
+so nested `.describe()` text is removed by design until the C1 change. The SDK always calls
+the adapter's converter with `{target: "draft-2020-12"}` and spreads `type: "object"` in front
+of the result; the project descriptor carries the same JSON. Two side effects of the SDK's
+`tools/call` path are now recorded in ADR-039: a call with no `arguments` reaches the callback
+as `{}`, and a handler error that is neither `UpstreamError` nor `ZodError` reaches the client
+as the SDK's `isError` text (the error message) instead of a JSON-RPC internal error.
+
 ---
 
 ## R3 — Reading the published tool list for the fingerprint gate (PR 3)
@@ -410,6 +420,15 @@ stdin `end`/`close` → shutdown hooks and moves `transport.onclose` to the docu
 
 **UNVERIFIED (T0, PR 3)**: the exact legacy protocol-version strings `serveStdio` accepts.
 The probe script prints the negotiated version for each era.
+
+**T0 result (2026-10-30, T038/T042, `npm run probe:stdio` against `dist/`)**: over real stdio
+the 2025-era handshake (`--era legacy`, `initialize`) negotiates `2025-11-25` and the 2026-era
+handshake (`--era modern`, `server/discover`) negotiates `2026-07-28`; both list 34 tools, and
+stdin EOF reaches the project `shutdown` (`bridge.shutdown`, `transport_closed`). The
+in-process tests match: the 2025-era client negotiates a `2025-` revision and the
+`createMcpHandler` client negotiates `2026-07-28`. One related fact: a v2 `Client` returns an
+empty list from `listTools` when the server declares no `tools` capability, rather than an
+error, so `fingerprintLiveRegistry`'s boundary test asserts `[]`.
 
 ---
 

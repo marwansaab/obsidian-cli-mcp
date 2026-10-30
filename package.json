@@ -23,15 +23,17 @@
     "test": "vitest run --coverage",
     "test:watch": "vitest",
     "baseline:write": "node scripts/write-register-baseline.ts",
+    "probe:stdio": "node scripts/probe-stdio.ts",
     "lint": "eslint .",
     "format:check": "prettier --check .",
     "format:write": "prettier --write ."
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/server": "^2.4.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "^2.4.0",
     "@types/node": "^22.20.0",
     "@vitest/coverage-v8": "^4.1.9",
     "eslint": "^10.6.0",

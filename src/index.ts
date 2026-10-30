@@ -1,20 +1,23 @@
 #!/usr/bin/env node
-// Original — no upstream. Entrypoint: constructs the MCP server, connects the stdio transport, idles on the event loop.
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+// Original — no upstream. Entrypoint: builds the composition root once, serves both MCP eras over stdio with serveStdio (068 R10, ADR-039), idles on the event loop.
+import { serveStdio } from "@modelcontextprotocol/server/stdio";
 
 import { createServer } from "./server.js";
 
-async function main(): Promise<void> {
-  const { server, triggerShutdown } = createServer();
-  const transport = new StdioServerTransport();
-  transport.onclose = () => triggerShutdown("transport_closed");
-  // The SDK's StdioServerTransport does not auto-detect stdin EOF — wire it explicitly.
-  process.stdin.once("end", () => triggerShutdown("transport_closed"));
-  process.stdin.once("close", () => triggerShutdown("transport_closed"));
-  await server.connect(transport);
+function main(): void {
+  const app = createServer();
+  // serveStdio may call the factory more than once (an era-discovery probe, then the pinned
+  // instance); every instance shares the one queue and registry built above.
+  serveStdio(() => app.buildMcpServer());
+  // Shut down on stdin EOF explicitly: dropping queued work and killing in-flight children
+  // is the project's own shutdown path, not the transport's.
+  process.stdin.once("end", () => app.shutdown("transport_closed"));
+  process.stdin.once("close", () => app.shutdown("transport_closed"));
 }
 
-main().catch((err: unknown) => {
+try {
+  main();
+} catch (err: unknown) {
   process.stderr.write(JSON.stringify({ event: "bridge.fatal", ts: new Date().toISOString(), error: String(err) }) + "\n");
   process.exit(1);
-});
+}

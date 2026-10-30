@@ -1,5 +1,6 @@
-// Original — no upstream. backlinks schema tests — target_mode discriminator inherited from targetModeBaseSchema, XOR locator + active-forbid refinements, optional with_counts / total booleans, optional limit integer (range 1..10000), strict additionalProperties rejection, emitted JSON Schema round-trip via toMcpInputSchema, discriminated-union eval-envelope shape.
+// Original — no upstream. backlinks schema tests — target_mode discriminator inherited from targetModeBaseSchema, XOR locator + active-forbid refinements, optional with_counts / total booleans, optional limit integer (range 1..10000), strict additionalProperties rejection, emitted JSON Schema round-trip via z.toJSONSchema, discriminated-union eval-envelope shape.
 import { describe, expect, it, test, vi } from "vitest";
+import { z } from "zod";
 
 import {
   BACKLINKS_EVAL_ERROR_CODES,
@@ -8,7 +9,6 @@ import {
   backlinksInputSchema,
   backlinksOutputSchema,
 } from "./schema.js";
-import { toMcpInputSchema } from "../_shared.js";
 import { targetModeWiringCases } from "../_target-mode-test-cases.js";
 
 // (1) specific + vault + path happy
@@ -174,8 +174,8 @@ test("limit:1.5 rejected (non-integer)", () => {
 });
 
 // (22) JSON Schema round-trip emits additionalProperties:false
-test("toMcpInputSchema(backlinksInputSchema) emits additionalProperties:false and the expected property set", () => {
-  const emitted = toMcpInputSchema(backlinksInputSchema) as Record<string, unknown>;
+test("z.toJSONSchema(backlinksInputSchema) emits additionalProperties:false and the expected property set", () => {
+  const emitted = z.toJSONSchema(backlinksInputSchema, { io: "input", target: "draft-2020-12" }) as Record<string, unknown>;
   expect(emitted.type).toBe("object");
   expect(emitted.additionalProperties).toBe(false);
   const props = emitted.properties as Record<string, unknown>;

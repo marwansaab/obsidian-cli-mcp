@@ -1,8 +1,8 @@
 // Original — no upstream.
 import { expect, test } from "vitest";
+import { z } from "zod";
 
 import { viewsBaseInputSchema, viewsBaseOutputSchema } from "./schema.js";
-import { toMcpInputSchema } from "../_shared.js";
 
 function firstParams(r: ReturnType<typeof viewsBaseInputSchema.safeParse>): Record<string, unknown> | undefined {
   if (r.success) return undefined;
@@ -99,8 +99,8 @@ test("output: count mismatch rejected (refine fires)", () => {
   expect(r.success).toBe(false);
 });
 
-test("toMcpInputSchema emits expected shape with vault + base_path", () => {
-  const json = toMcpInputSchema(viewsBaseInputSchema) as Record<string, unknown>;
+test("z.toJSONSchema emits expected shape with vault + base_path", () => {
+  const json = z.toJSONSchema(viewsBaseInputSchema, { io: "input", target: "draft-2020-12" }) as Record<string, unknown>;
   expect(json.type).toBe("object");
   expect(json.additionalProperties).toBe(false);
   const props = json.properties as Record<string, unknown>;

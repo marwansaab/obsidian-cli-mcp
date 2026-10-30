@@ -1,5 +1,6 @@
 // Original — no upstream. Tests for smart_connections_query input/output/eval-envelope schemas — flat schema (NO target_mode per FR-001/R4); query trim+min(1)+max(MAX_QUERY_LENGTH=2000, lowered from 4000 in tool-docs audit to stay below the upstream Obsidian.com argv-IPC defect at ~4 KB); vault optional+min(1); limit integer 1..100 default 20; total optional boolean; strict additionalProperties rejection; matchEntrySchema strict three-field contract (.md path / heading array / finite score); discriminated-union envelope with three error codes. 16+ cases per data-model.md inventory.
 import { expect, test, vi } from "vitest";
+import { z } from "zod";
 
 import {
   MAX_QUERY_LENGTH,
@@ -9,7 +10,6 @@ import {
   smartConnectionsQueryInputSchema,
   smartConnectionsQueryOutputSchema,
 } from "./schema.js";
-import { toMcpInputSchema } from "../_shared.js";
 
 // (1) Minimum valid input: { query: "x" }
 test("minimum valid input { query: 'x' }: parses OK; limit default 20 applied", () => {
@@ -146,7 +146,7 @@ test("unknown top-level key rejected (strict mode)", () => {
 
 // (16) Emitted JSON Schema round-trip: required:['query'] AND additionalProperties:false
 test("emitted JSON Schema: required:['query'] AND additionalProperties:false", () => {
-  const emitted = toMcpInputSchema(smartConnectionsQueryInputSchema) as Record<string, unknown>;
+  const emitted = z.toJSONSchema(smartConnectionsQueryInputSchema, { io: "input", target: "draft-2020-12" }) as Record<string, unknown>;
   expect(emitted.required).toEqual(["query"]);
   expect(emitted.additionalProperties).toBe(false);
   const props = emitted.properties as Record<string, Record<string, unknown>>;
