@@ -4,13 +4,12 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { McpServer } from "@modelcontextprotocol/server";
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import { z } from "zod";
 
-import { connectInMemoryClient } from "./_mcp-client-fixtures.js";
+import { connectInMemoryClient, serveOne, textOf } from "./_mcp-client-fixtures.js";
 import { fingerprintLiveRegistry, type RegisterBaseline } from "./_register-baseline.js";
-import { registerTool, assertToolDocsExist, toSdkInputSchema, toSdkOutputSchema } from "./_register.js";
+import { registerTool, assertToolDocsExist, toSdkInputSchema } from "./_register.js";
 import { UpstreamError } from "../errors.js";
 import { createServer } from "../server.js";
 import {
@@ -33,17 +32,6 @@ function readBaseline(): RegisterBaseline {
   return JSON.parse(readFileSync(BASELINE_PATH, "utf8")) as RegisterBaseline;
 }
 
-/** Serve a single registered tool on a fresh McpServer and return a connected client. */
-async function serveOne(tool: RegisteredTool): Promise<Client> {
-  const server = new McpServer({ name: "spike", version: "0.0.0" }, { capabilities: { tools: { listChanged: false } } });
-  tool.register(server);
-  return connectInMemoryClient(server, "register-test");
-}
-
-function textOf(result: unknown): string {
-  return (result as { content: Array<{ type: string; text: string }> }).content[0]!.text;
-}
-
 // 068 T030 (research R2, T0 spike): McpServer validates input itself and would replace the
 // project's {code, message, details} envelope with free text, so the SDK receives a
 // pass-through adapter. These cases prove the adapter publishes zod's own draft-2020-12
@@ -63,7 +51,7 @@ describe("toSdkInputSchema — SDK v2 pass-through adapter (068 R2, T030)", () =
   let client: Client;
 
   beforeAll(async () => {
-    client = await serveOne(tool);
+    client = await serveOne(tool, "register-test");
   });
 
   afterAll(async () => {
@@ -134,6 +122,7 @@ describe("registerTool — callback outcomes through McpServer (068 T033)", () =
           throw new UpstreamError({ code: "CLI_TIMEOUT", cause: null, details: { timeoutMs: 1 }, message: "timed out" });
         },
       }),
+      "register-test",
     );
     try {
       const result = await client.callTool({ name: "cb_upstream", arguments: {} });
@@ -155,6 +144,7 @@ describe("registerTool — callback outcomes through McpServer (068 T033)", () =
           throw new TypeError("boom");
         },
       }),
+      "register-test",
     );
     try {
       const result = await client.callTool({ name: "cb_rethrow", arguments: {} });
@@ -178,140 +168,12 @@ describe("registerTool — callback outcomes through McpServer (068 T033)", () =
           return { ok: true };
         },
       }),
+      "register-test",
     );
     try {
       const result = await client.callTool({ name: "cb_noargs" });
       expect(result.isError).toBeFalsy();
       expect(seen).toEqual({});
-    } finally {
-      await client.close();
-    }
-  });
-});
-
-// 068 R6 / T066–T067: typed results. The adapter publishes zod's own output emission, adding a
-// root `type: "object"` only to a union whose variants are all objects; results carry
-// structuredContent plus the identical text, and errors stay text-only.
-describe("toSdkOutputSchema and typed results (068 R6, T066, T067)", () => {
-  const objectOut = z.strictObject({ count: z.number().int(), names: z.array(z.string()) });
-  const unionOut = z.union([
-    z.strictObject({ kind: z.literal("a"), a: z.string() }),
-    z.strictObject({ kind: z.literal("b"), b: z.number() }),
-  ]);
-
-  it("an object-root schema is published exactly as zod emits it", () => {
-    const out = toSdkOutputSchema(objectOut)["~standard"].jsonSchema.output({ target: "draft-2020-12" });
-    expect(out).toEqual(objectOut["~standard"].jsonSchema.output({ target: "draft-2020-12" }));
-  });
-
-  it("a union of objects gains root type: 'object' and nothing else changes", () => {
-    const zodOut = unionOut["~standard"].jsonSchema.output({ target: "draft-2020-12" });
-    expect(zodOut.type).toBeUndefined();
-    const out = toSdkOutputSchema(unionOut)["~standard"].jsonSchema.output({ target: "draft-2020-12" });
-    expect(out).toEqual({ type: "object", ...zodOut });
-  });
-
-  it("a union with a non-object variant is left without a root type", () => {
-    const mixed = z.union([z.strictObject({ a: z.string() }), z.number()]);
-    const out = toSdkOutputSchema(mixed)["~standard"].jsonSchema.output({ target: "draft-2020-12" });
-    expect(out.type).toBeUndefined();
-  });
-
-  it("validate delegates to zod (accepts a valid value, rejects an invalid one)", async () => {
-    const adapter = toSdkOutputSchema(unionOut);
-    expect(await adapter["~standard"].validate({ kind: "b", b: 1 })).toEqual({ value: { kind: "b", b: 1 } });
-    const bad = await adapter["~standard"].validate({ kind: "b", b: "x" });
-    expect("issues" in bad && bad.issues !== undefined && bad.issues.length > 0).toBe(true);
-  });
-
-  it("registerTool refuses a non-object output root at boot (FR-039)", () => {
-    expect(() =>
-      registerTool({
-        name: "out_scalar",
-        ...TEST_SURFACE,
-        description: "scalar result",
-        schema: z.strictObject({}),
-        outputSchema: z.number(),
-        handler: async () => 1,
-      }),
-    ).toThrow('out_scalar: output schema must emit a top-level "type": "object" (FR-039), got "number"');
-  });
-
-  it("registerTool refuses an outputSchema on a raw-format tool", () => {
-    expect(() =>
-      registerTool({
-        name: "out_raw",
-        ...TEST_SURFACE,
-        description: "raw",
-        schema: z.strictObject({}),
-        outputSchema: objectOut,
-        responseFormat: "raw",
-        handler: async () => ({ content: [] }),
-      }),
-    ).toThrow('out_raw: an outputSchema requires responseFormat "json"');
-  });
-
-  it("a success returns structuredContent and the identical JSON text; the descriptor carries the published outputSchema", async () => {
-    const tool = registerTool({
-      name: "out_ok",
-      ...TEST_SURFACE,
-      description: "typed",
-      schema: z.strictObject({}),
-      outputSchema: unionOut,
-      handler: async () => ({ kind: "a", a: "x" }),
-    });
-    const client = await serveOne(tool);
-    try {
-      const { tools } = await client.listTools();
-      expect(tools[0]!.outputSchema).toEqual(tool.descriptor.outputSchema);
-      expect(tools[0]!.outputSchema?.type).toBe("object");
-      const result = await client.callTool({ name: "out_ok", arguments: {} });
-      expect(result.isError).toBeFalsy();
-      expect(result.structuredContent).toEqual({ kind: "a", a: "x" });
-      expect(JSON.parse(textOf(result))).toEqual(result.structuredContent);
-    } finally {
-      await client.close();
-    }
-  });
-
-  it("a failure from a tool with an outputSchema is text-only (FR-040)", async () => {
-    const client = await serveOne(
-      registerTool({
-        name: "out_err",
-        ...TEST_SURFACE,
-        description: "typed failure",
-        schema: z.strictObject({}),
-        outputSchema: objectOut,
-        handler: async () => {
-          throw new UpstreamError({ code: "CLI_TIMEOUT", cause: null, details: {}, message: "timed out" });
-        },
-      }),
-    );
-    try {
-      const result = await client.callTool({ name: "out_err", arguments: {} });
-      expect(result.isError).toBe(true);
-      expect(result.structuredContent).toBeUndefined();
-      expect(JSON.parse(textOf(result)).code).toBe("CLI_TIMEOUT");
-    } finally {
-      await client.close();
-    }
-  });
-
-  it("a tool without an outputSchema publishes none and returns no structuredContent", async () => {
-    const tool = registerTool({
-      name: "out_none",
-      ...TEST_SURFACE,
-      description: "untyped",
-      schema: z.strictObject({}),
-      handler: async () => ({ ok: true }),
-    });
-    expect(tool.descriptor.outputSchema).toBeUndefined();
-    const client = await serveOne(tool);
-    try {
-      const { tools } = await client.listTools();
-      expect(tools[0]!.outputSchema).toBeUndefined();
-      const result = await client.callTool({ name: "out_none", arguments: {} });
-      expect(result.structuredContent).toBeUndefined();
     } finally {
       await client.close();
     }

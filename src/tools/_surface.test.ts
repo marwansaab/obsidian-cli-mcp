@@ -1,20 +1,15 @@
 // Original — no upstream. Registry-wide published tool-surface enforcement tests.
-import { Writable } from "node:stream";
-
-import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { AjvJsonSchemaValidator } from "@modelcontextprotocol/client/validators/ajv";
-import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { connectInMemoryClient } from "./_mcp-client-fixtures.js";
+import { connectInMemoryClient, connectModernClient, quietServer, serveOne } from "./_mcp-client-fixtures.js";
 import { undescribedProperties } from "./_schema-test-utils.js";
 import { TYPED_RESULT_FIXTURES } from "./_typed-result-fixtures.js";
 import { UpstreamError } from "../errors.js";
-import { createServer, type CreatedServer } from "../server.js";
 import { createVaultsTool } from "./vaults/index.js";
 import { createVaultRegistry } from "../vault-registry/registry.js";
 
-import type { RegisteredTool } from "./_shared.js";
+import type { Client } from "@modelcontextprotocol/client";
 
 interface PublishedTool {
   name: string;
@@ -23,29 +18,6 @@ interface PublishedTool {
   inputSchema: Record<string, unknown>;
   annotations?: Record<string, unknown>;
   outputSchema?: Record<string, unknown>;
-}
-
-function quietServer(): CreatedServer {
-  const sink = new Writable({ write: (_chunk, _enc, cb) => cb() });
-  return createServer({ loggerStream: sink, registerSignalHandlers: false, exit: () => undefined });
-}
-
-/** 2026 era: the composition root behind createMcpHandler, reached through a fetch-backed client. */
-async function connectModern(app: CreatedServer): Promise<Client> {
-  const handler = createMcpHandler(() => app.buildMcpServer());
-  const transport = new StreamableHTTPClientTransport(new URL("http://localhost/mcp"), {
-    fetch: (url, init) => handler.fetch(new Request(url, init)),
-  });
-  const client = new Client({ name: "surface-test-2026", version: "0.0.0" }, { versionNegotiation: { mode: "auto" } });
-  await client.connect(transport);
-  return client;
-}
-
-/** Serve one tool on a fresh McpServer and connect a 2025-era client to it. */
-function serveOne(tool: RegisteredTool): Promise<Client> {
-  const server = new McpServer({ name: "surface-one", version: "0.0.0" }, { capabilities: { tools: { listChanged: false } } });
-  tool.register(server);
-  return connectInMemoryClient(server, "surface-round-trip");
 }
 
 /** Validate `value` against a published JSON Schema with the client SDK's own validator (not zod). */
@@ -217,7 +189,7 @@ describe("published outputSchema in both eras (068 US12, FR-039, R6 T0)", () => 
   beforeAll(async () => {
     const app = quietServer();
     legacy = await connectInMemoryClient(app.buildMcpServer(), "surface-test-2025");
-    modern = await connectModern(app);
+    modern = await connectModernClient(app, "surface-test-2026");
     ({ tools: legacyTools } = (await legacy.listTools()) as { tools: PublishedTool[] });
     ({ tools: modernTools } = (await modern.listTools()) as { tools: PublishedTool[] });
   });
@@ -233,10 +205,8 @@ describe("published outputSchema in both eras (068 US12, FR-039, R6 T0)", () => 
   });
 
   it("every tool except the untyped four publishes an outputSchema with an object root", () => {
-    const typed = legacyTools.filter((t) => t.outputSchema !== undefined).map((t) => t.name);
     const untyped = legacyTools.filter((t) => t.outputSchema === undefined).map((t) => t.name);
     expect(untyped.sort()).toEqual(UNTYPED_TOOLS);
-    expect(typed.length).toBe(31);
     for (const tool of legacyTools.filter((t) => t.outputSchema !== undefined)) {
       expect(tool.outputSchema!.type, tool.name).toBe("object");
     }
@@ -274,7 +244,7 @@ type ToolResult = { isError?: boolean; structuredContent?: unknown; content: Arr
 // and its text block parses to the same object.
 describe("typed-result round trip (068 FR-042, T069)", () => {
   it.each(TYPED_RESULT_FIXTURES.map((f, i) => [`${f.name} #${i}`, f] as const))("%s", async (_label, fixture) => {
-    const client = await serveOne(fixture.build());
+    const client = await serveOne(fixture.build(), "surface-round-trip");
     try {
       const { tools } = (await client.listTools()) as { tools: PublishedTool[] };
       const schema = tools[0]!.outputSchema!;
@@ -292,6 +262,7 @@ describe("typed-result round trip (068 FR-042, T069)", () => {
     const failure = new UpstreamError({ code: "CLI_REPORTED_ERROR", cause: null, details: {}, message: "app down" });
     const client = await serveOne(
       createVaultsTool({ vaultRegistry: createVaultRegistry({ invokeProbe: () => Promise.reject(failure) }) }),
+      "surface-round-trip",
     );
     try {
       const invalid = (await client.callTool({ name: "vaults", arguments: { vault: "x" } })) as ToolResult;

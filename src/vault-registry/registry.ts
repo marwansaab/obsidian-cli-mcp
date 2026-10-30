@@ -21,7 +21,7 @@ export interface VaultLister {
    * Every vault Obsidian knows, in CLI order, duplicates kept. Always re-probes (joining a
    * probe already in flight) and refreshes the cache that `resolveVaultPath` reads (068 R9).
    */
-  list(): Promise<VaultEntry[]>;
+  list(): Promise<readonly VaultEntry[]>;
 }
 
 export interface VaultRegistry {
@@ -86,25 +86,23 @@ export function createVaultRegistry(deps: VaultRegistryDeps): VaultRegistry & Va
 
   return {
     async resolveVaultPath(vaultName: string): Promise<string> {
-      let path = cache?.byName.get(vaultName);
+      const cached = cache?.byName.get(vaultName);
+      if (cached !== undefined) return cached;
       // First lookup, or a cache miss: probe once (068 FR-037), then fail if still unknown.
+      const known = await probe();
+      const path = known.byName.get(vaultName);
       if (path === undefined) {
-        const known = await probe();
-        path = known.byName.get(vaultName);
-        if (path === undefined) {
-          throw new UpstreamError({
-            code: "VALIDATION_ERROR",
-            cause: null,
-            details: { requestedVault: vaultName, knownVaults: [...known.byName.keys()] },
-            message: `Vault "${vaultName}" is not registered with Obsidian.`,
-          });
-        }
+        throw new UpstreamError({
+          code: "VALIDATION_ERROR",
+          cause: null,
+          details: { requestedVault: vaultName, knownVaults: [...known.byName.keys()] },
+          message: `Vault "${vaultName}" is not registered with Obsidian.`,
+        });
       }
       return path;
     },
-    async list(): Promise<VaultEntry[]> {
-      const { entries } = await probe();
-      return [...entries];
+    async list(): Promise<readonly VaultEntry[]> {
+      return (await probe()).entries;
     },
     resolveVaultDisplayName(basePath: string): string | null {
       if (cache === null) return null;

@@ -89,8 +89,6 @@ export interface ToolDescriptor {
   description: string;
   annotations: ToolAnnotations;
   inputSchema: Record<string, unknown>;
-  /** The published `outputSchema` JSON (from `toSdkOutputSchema`), when the tool has one (068 FR-039). */
-  outputSchema?: Record<string, unknown>;
 }
 
 /**

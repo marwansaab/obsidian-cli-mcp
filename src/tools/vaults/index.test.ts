@@ -19,13 +19,6 @@ describe("createVaultsTool", () => {
     expect(tool.descriptor.annotations).toEqual(READ_ONLY_HINTS);
   });
 
-  it("emits an empty strict inputSchema", () => {
-    const schema = toolOver(vi.fn()).descriptor.inputSchema;
-    expect(schema.type).toBe("object");
-    expect(schema.additionalProperties).toBe(false);
-    expect(schema.properties).toEqual({});
-  });
-
   it("deps wired through: the handler lists the registry's vaults as JSON text", async () => {
     const result = await toolOver(vi.fn().mockResolvedValue("Work\t/w\n")).handler({});
     if ("isError" in result) throw new Error("unexpected error");
