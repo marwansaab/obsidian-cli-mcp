@@ -1,4 +1,15 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["dist", "node_modules", "src/**/*.test.ts"]
+  // Test-support modules are imported only by tests and scripts, never by the server, so they
+  // stay out of the published dist/. `npm run typecheck` (tsconfig.json) still checks them.
+  "exclude": [
+    "dist",
+    "node_modules",
+    "src/**/*.test.ts",
+    "src/**/_*fixtures.ts",
+    "src/**/_registration-stub.ts",
+    "src/**/_schema-test-utils.ts",
+    "src/**/_target-mode-test-cases.ts",
+    "src/tools/_register-baseline.ts"
+  ]
 }
