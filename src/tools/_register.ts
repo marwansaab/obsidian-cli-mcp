@@ -1,4 +1,4 @@
-// Original — no upstream. registerTool factory and assertToolDocsExist aggregator: the only path from a zod schema to a tool registered on an MCP SDK v2 McpServer (ADR-006, ADR-039, FR-001..FR-006). 068 R2: the SDK receives the input schema through toSdkInputSchema, a pass-through Standard Schema adapter that publishes the zod schema's own JSON Schema emission and never rejects, so the tool's own zod parse, mapValidationError hook and {code, message, details} envelope stay in force; the callback returns (never throws) asToolError results. 068 PR 4: every spec carries a title and all four annotations, and parameter descriptions are published unstripped (ADR-040). 068 PR 5 (R6, FR-039): a spec may carry an outputSchema, published through the toSdkOutputSchema adapter (object root for unions of objects, zod validation); its success results carry structuredContent plus the identical JSON text.
+// Original — no upstream. registerTool factory and assertToolDocsExist aggregator: the only path from a zod schema to a tool registered on an MCP SDK v2 McpServer (ADR-006, ADR-039, FR-001..FR-006). 068 R2: the SDK receives the input schema through toSdkInputSchema, a pass-through Standard Schema adapter that publishes the zod schema's own JSON Schema emission and never rejects, so the tool's own zod parse, mapValidationError hook and {code, message, details} envelope stay in force; the callback returns (never throws) asToolError results. 068 PR 4: every spec carries a title and all four annotations, and parameter descriptions are published unstripped (ADR-040). 068 PR 5 (R6, FR-039): a spec may carry an outputSchema, published through the toSdkOutputSchema pass-through adapter (object root for unions of objects); the callback checks each success against it, reporting drift as INTERNAL_ERROR, and successes carry structuredContent plus the identical JSON text.
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -44,9 +44,10 @@ type Handler<TSchema extends z.ZodType, TDeps, TResult> = (input: z.infer<TSchem
  * - `responseFormat: "raw"`: the handler builds the `ToolCallResult` itself.
  * - JSON (the default): the result is sent as one JSON text block.
  * - JSON with an `outputSchema` (068 FR-039): the schema is published through
- *   `toSdkOutputSchema`, the handler must return a value of that schema, and a success
- *   carries it both as `structuredContent` and as the identical JSON text. Only for a
- *   result that is always a JSON object.
+ *   `toSdkOutputSchema`, the handler must return a value of that schema (checked at run
+ *   time too; drift is INTERNAL_ERROR), and a success carries it both as
+ *   `structuredContent` and as the identical JSON text. Only for a result that is always
+ *   a JSON object.
  */
 export type ToolSpec<TSchema extends z.ZodType, TDeps = undefined, TOutput extends z.ZodType = z.ZodType> =
   ToolSpecBase<TSchema, TDeps> &
@@ -84,13 +85,14 @@ export function toSdkInputSchema(schema: z.ZodType): StandardSchemaWithJSON {
 }
 
 /**
- * Standard Schema adapter for a tool's output schema (068 R6, the counterpart of
+ * Pass-through Standard Schema adapter for a tool's output schema (068 R6, the mirror of
  * `toSdkInputSchema`). Its JSON Schema is the zod schema's own emission with one addition: a
  * root that is a union whose variants are all `type: "object"` (zod emits it with no root
  * `type`) gains `type: "object"`, so the published schema has an object root, which the 2025-era
  * codec leaves unwrapped and both eras publish identically (FR-039). Nothing else changes, and
- * the result data is never wrapped. Unlike the input adapter it is not a pass-through: its
- * `validate` delegates to zod, so the SDK's output check runs the tool's own schema.
+ * the result data is never wrapped. Its `validate` accepts every value unchanged: the SDK's own
+ * output check would report a failure as free text, so the registered callback runs the zod
+ * check instead and reports drift as the INTERNAL_ERROR envelope (Principle IV).
  */
 export function toSdkOutputSchema(schema: z.ZodType): StandardSchemaWithJSON {
   const zod = schema["~standard"];
@@ -98,7 +100,7 @@ export function toSdkOutputSchema(schema: z.ZodType): StandardSchemaWithJSON {
     "~standard": {
       version: 1,
       vendor: "obsidian-cli-mcp",
-      validate: (value: unknown) => zod.validate(value),
+      validate: (value: unknown) => ({ value }),
       jsonSchema: {
         input: zod.jsonSchema.input,
         output: (options) => withObjectRootForObjectUnion(zod.jsonSchema.output(options)),
@@ -164,9 +166,12 @@ export function registerTool<TSchema extends z.ZodType, TDeps = undefined, TOutp
     let result: unknown;
     try {
       result = await spec.handler(parsed, spec.deps as TDeps);
+      // 068 R6: the published output contract is checked here, not by the SDK. Validation
+      // only — the handler's own value is what goes on the wire.
+      spec.outputSchema?.parse(result);
     } catch (err) {
-      // A runtime ZodError here is the handler's OWN output failing its defensive
-      // `schema.parse` — an output-contract break, NOT bad client input. Surface
+      // A runtime ZodError here is the handler's output failing its outputSchema or its own
+      // defensive `schema.parse` — an output-contract break, NOT bad client input. Surface
       // it as INTERNAL_ERROR (never VALIDATION_ERROR, and never through the
       // input-shaped mapValidationError hook) so the client is not told to fix
       // input that was valid. INTERNAL_ERROR is already in the code set — the

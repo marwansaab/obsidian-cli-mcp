@@ -334,7 +334,7 @@ protocol. **Independent tests**: quickstart Â§1 (gate) and Â§5.
 - [X] T066 [US12] Add the output pass-through adapter `toSdkOutputSchema(schema)` to src/tools/_register.ts (R6):
   - its `~standard.jsonSchema.output` is the zod schema's own `{target:"draft-2020-12"}` emission;
   - when the root is a union whose variants are all `type: "object"`, the root gains `type: "object"`, and nothing else changes;
-  - its `~standard.validate` delegates to zod.
+  - its `~standard.validate` delegates to zod. *Amended 2026-10-30 (PR #91 review B2, owner option A): `validate` accepts every value; `registerTool` checks the result against the output schema and reports drift as `INTERNAL_ERROR` (research R6).*
 
   **T0** in src/tools/_surface.test.ts: publish `search` and `find_and_replace` through it and read them back with a 2025-era client (InMemoryTransport) and a 2026-era client (`createMcpHandler`). Assert:
   - both eras' `outputSchema` values are deep-equal and have root `type: "object"`;

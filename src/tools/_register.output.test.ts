@@ -1,4 +1,4 @@
-// Original — no upstream. Co-located tests for the registerTool typed-result path (068 R6, T066, T067): the toSdkOutputSchema adapter, the boot check on the output root, the three ToolSpec result cases, and structuredContent on success only. Split from _register.test.ts in the PR #91 review to keep that file under 1000 lines.
+// Original — no upstream. Co-located tests for the registerTool typed-result path (068 R6, T066, T067): the toSdkOutputSchema pass-through adapter, the boot check on the output root, the three ToolSpec result cases, output drift as INTERNAL_ERROR, and structuredContent on success only. Split from _register.test.ts in the PR #91 review to keep that file under 1000 lines.
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
@@ -37,11 +37,41 @@ describe("toSdkOutputSchema and typed results (068 R6, T066, T067)", () => {
     expect(out.type).toBeUndefined();
   });
 
-  it("validate delegates to zod (accepts a valid value, rejects an invalid one)", async () => {
+  it("validate accepts every value unchanged, so the SDK never reports output drift as free text", async () => {
     const adapter = toSdkOutputSchema(unionOut);
-    expect(await adapter["~standard"].validate({ kind: "b", b: 1 })).toEqual({ value: { kind: "b", b: 1 } });
-    const bad = await adapter["~standard"].validate({ kind: "b", b: "x" });
-    expect("issues" in bad && bad.issues !== undefined && bad.issues.length > 0).toBe(true);
+    const bad = { kind: "b", b: "x" };
+    const result = await adapter["~standard"].validate(bad);
+    expect(result).toEqual({ value: bad });
+    expect("issues" in result).toBe(false);
+  });
+
+  it("output drift returns the INTERNAL_ERROR envelope, text-only, through a real client (Principle IV)", async () => {
+    const drifted: unknown = { count: "two", names: ["a"] };
+    const client = await serveOne(
+      registerTool({
+        name: "out_drift",
+        ...SURFACE,
+        description: "drifted result",
+        schema: z.strictObject({}),
+        outputSchema: objectOut,
+        // Simulates a handler whose result no longer matches its published schema.
+        handler: async () => drifted as z.input<typeof objectOut>,
+      }),
+      "register-output-test",
+    );
+    try {
+      const result = await client.callTool({ name: "out_drift", arguments: {} });
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toBeUndefined();
+      const payload = JSON.parse(textOf(result)) as { code: string; message: string; details: { issues: unknown[] } };
+      expect(payload.code).toBe("INTERNAL_ERROR");
+      expect(payload.message).toBe("out_drift produced a response that failed its output contract");
+      expect(payload.details.issues).toEqual([
+        expect.objectContaining({ path: ["count"], code: "invalid_type" }),
+      ]);
+    } finally {
+      await client.close();
+    }
   });
 
   it("registerTool refuses a non-object output root at boot (FR-039)", () => {
