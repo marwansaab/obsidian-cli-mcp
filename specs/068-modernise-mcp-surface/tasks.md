@@ -470,7 +470,7 @@ protocol. **Independent tests**: quickstart Â§1 (gate) and Â§5.
 - [X] T093 Walk spec SC-001â€¦SC-014 and the release-level acceptance (brief Â§7). Mark each pass/fail with its evidence link in post-implement.md.
   **Outcome (2026-10-30)**: SC-001 to SC-014 all pass, each with its evidence link. SC-001 carries a note: before the fix, the stale search did not reproduce, so the code defect was proven instead. All 8 brief Part 2 section 7 items pass in the repository. The last item, the constitution amendment and new ADRs, still has its vault-side ADR stanzas open for the owner (T094).
 - [X] T094 Raise the owner follow-ups (do not edit them yourself): the constitution v1.6.0 Sync Impact Report still says `list_vaults` and "0.8.20" (fold into the post-release PATCH amendment that removes "Adoption of v1.6.0"); the vault-side ADR amendment stanzas for ADR-036 and ADR-005; the vault Architecture page `list_vaults` mention; and re-checking BI-0156â€¦BI-0159 against SDK v2.
-  **Outcome (2026-10-30)**: raised in post-implement.md, with nothing edited. That covers the four named items plus three more: other vault notes that still say `list_vaults` (TC-00010/12/13/15, two feature pages and BI-0040); Claude Code print mode, which declines every confirmation; and the test-fixture modules that compile into the published `dist/`.
+  **Outcome (2026-10-30)**: raised in post-implement.md, with nothing edited. That covers the four named items plus three more: other vault notes that still say `list_vaults` (TC-00010/12/13/15, two feature pages and BI-0040); Claude Code print mode, which declines every confirmation; and the eleven test-support modules that compile into the published `dist/`, which one `*fixtures*` exclude would not remove.
 
 ---
 

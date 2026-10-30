@@ -44,7 +44,7 @@ windows-latest × Node 22 and 24):
 | # | Check | Result | Evidence |
 |---|---|---|---|
 | 1 | No new error-class nodes outside `src/errors.ts` | **Pass, with one recorded exception** | `UpstreamError` is the only error class in `src/errors.ts`, and that file has not changed since `1e0282d` (064). One class extending `Error` exists outside it: `ConfirmationRequested` in `src/tools/_confirm.ts`, added by PR-6. It is not an error code and never reaches a client as an error. It is an internal signal that `registerTool` turns into the SDK's `input_required` result while a confirmation is pending (ADR-043). Every client-visible refusal is still an `UpstreamError` (`CONFIRMATION_DECLINED`, `CONFIRMATION_UNAVAILABLE`). It sits in its own community with `_confirm.test.ts`, `_shared.ts`, `_register.ts` and ADR-043, not in the error spine. |
-| 2 | No production handler imports `createLogger` / `createQueue` | **Pass** | Graph edges into both factories come only from `createServer()` / `server.ts` among production files. `rg` agrees. The other importers are test-support modules (`src/tools/_handler-test-fixtures.ts`, `_typed-result-fixtures.ts`, and `find_and_replace/`, `prepend/`, `write_note/` `_handler-fixtures.ts`), which only tests import. They do compile into `dist/`; see T094 follow-up 6. |
+| 2 | No production handler imports `createLogger` / `createQueue` | **Pass** | Graph edges into both factories come only from `createServer()` / `server.ts` among production files. `rg` agrees. The other importers are test-support modules (`src/tools/_handler-test-fixtures.ts`, `_typed-result-fixtures.ts`, and `find_and_replace/`, `prepend/`, `write_note/` `_handler-fixtures.ts`), which only tests import. They and the other test-support modules do compile into `dist/`; see T094 follow-up 6. |
 | 3 | New modules land in the expected communities (plan → Graphify structural check) | **Pass, with one deviation explained** | `src/instructions/instructions.ts` and `src/server-config.ts` are in the `createServer()` community, the boot spine, as planned. `src/tools/vaults/schema.ts` and `handler.ts` share a community with `createVaultRegistry()` and `src/vault-registry/registry.ts`, as planned. `vaults/index.ts` sits with `server.ts` like the other tool index files. **Deviation**: the plan expected `_confirm.ts` to land with `delete` / `find_and_replace`. It lands in the registration layer instead (`_register.ts`, `_shared.ts`, ADR-043), with one import edge from each of the two handlers. That follows the PR-6 design: `registerTool` builds the per-call `Confirmation` and passes it to handlers as their third argument (ADR-043), so the module's structural home is registration, not the two handlers. This is intended, not a smell. |
 | 4 | No orphaned production file | **Pass** | All 159 production files in `src/` (tests and fixtures excluded) and `scripts/` have at least one edge to another file. `scripts/probe-stdio.ts` is connected too. |
 
@@ -113,10 +113,24 @@ These are for the owner. None of them was edited in this run.
    declines every request, so a permanent `delete` or a multi-note commit there always
    returns `CONFIRMATION_DECLINED`. The README documents it; whether to raise it upstream is
    the owner's call.
-6. **Test fixtures ship in the package** (found by graph check 2): `tsconfig.build.json`
-   excludes only `src/**/*.test.ts`, so the test-support modules
-   (`src/tools/_handler-test-fixtures.ts`, `_typed-result-fixtures.ts` and the three
-   `*/_handler-fixtures.ts`) compile into `dist/`, which `package.json` `files` publishes.
-   Nothing in production imports them, so they are dead weight, not a defect. Excluding
-   `src/**/*fixtures*.ts` from the build would drop them; it is a small change for a later
-   PR.
+6. **Test-support modules ship in the package** (found by graph check 2):
+   `tsconfig.build.json` excludes only `src/**/*.test.ts`, so every test-support module
+   compiles into `dist/`, which `package.json` `files` publishes. A local `npm run build`
+   puts eleven of them there: in `src/tools/`, `_handler-test-fixtures.ts`,
+   `_typed-result-fixtures.ts`, `_mcp-client-fixtures.ts`, `_schema-test-utils.ts`,
+   `_target-mode-test-cases.ts`, `_registration-stub.ts` and `_register-baseline.ts` (the
+   baseline writer's helper); the three `*/_handler-fixtures.ts`; and
+   `src/path-safety/_realpath-fixtures.ts`. Nothing in the server's runtime imports them, so
+   they are dead weight, not a defect. A single `src/**/*fixtures*.ts` exclude would not be
+   enough, for two reasons:
+   - It misses `_schema-test-utils.ts`, `_target-mode-test-cases.ts`,
+     `_registration-stub.ts` and `_register-baseline.ts`. The coverage-exclude list in
+     `vitest.config.ts` already names most of these and is the better pattern to copy.
+   - A tsconfig `exclude` only trims the starting file set. TypeScript still compiles an
+     excluded file that a built file imports, and `_register-baseline.ts` imports
+     `_mcp-client-fixtures.ts`. `_register-baseline.ts` has to be excluded too. That is
+     safe, because `npm run baseline:write` runs `node scripts/write-register-baseline.ts`
+     on the sources, not on `dist/`.
+
+   Check the result with a fresh build and a listing of `dist/tools/` and
+   `dist/path-safety/`. This is a small change for a later PR.
