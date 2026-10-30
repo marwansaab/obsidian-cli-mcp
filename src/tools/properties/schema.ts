@@ -1,9 +1,11 @@
 // Original — no upstream. properties input/output/upstream-wire schemas — vault-only surface (NO target_mode discriminator per R4/FR-004); optional vault (min 1) + optional total boolean; strict output { count, properties: [{ name, noteCount }] } uniform across both modes (FR-006/FR-006a); passthrough upstream array schema tolerant to future upstream field additions.
 import { z } from "zod";
 
+import { focusedVaultField } from "../_vault-field.js";
+
 export const propertiesInputSchema = z
   .strictObject({
-    vault: z.string().min(1).optional().describe("Obsidian vault display name. Omit to use the vault focused in Obsidian."),
+    vault: focusedVaultField,
     total: z
       .boolean()
       .optional()

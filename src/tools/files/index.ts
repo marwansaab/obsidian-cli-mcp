@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeListFiles, type ExecuteDeps } from "./handler.js";
 import { filesInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const FILES_TOOL_NAME = "files";
 
@@ -16,7 +15,7 @@ export function createFilesTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: FILES_TOOL_NAME,
     title: "Files",
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: READ_ONLY_HINTS,
     description: FILES_DESCRIPTION,
     schema: filesInputSchema,
     deps,

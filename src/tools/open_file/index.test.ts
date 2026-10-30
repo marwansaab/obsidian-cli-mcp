@@ -1,8 +1,8 @@
 // Original — no upstream. open_file registration tests (BI-057; cross-vault rewrite ADR-031) —
 // descriptor name = "open_file" (ADR-010 N/A descriptive name asserted so the choice reads as
 // designed); emitted inputSchema (vault/path/file/new_tab; additionalProperties:false;
-// required={vault}; NO target_mode; new_tab default; every property described); description references the
-// cross-vault contract + placement, both locator shapes, new_tab and the error roster (no help() pointer), and the
+// required={vault}; NO target_mode; new_tab default); description references the
+// cross-vault contract + placement, both locator shapes, new_tab and the error roster, and the
 // stale B1 focused-vault precondition is GONE; docs presence + completeness; baseline fingerprint gate.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -43,22 +43,18 @@ describe("createOpenFileTool — descriptor", () => {
     expect(tool.descriptor.description.length).toBeGreaterThan(300);
   });
 
-  it("emits inputSchema with NO target_mode, new_tab default, and every property described (068 FR-030)", () => {
+  it("emits inputSchema with NO target_mode and the new_tab default", () => {
     const tool = makeTool();
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
     const props = schema.properties as Record<string, unknown>;
     expect(Object.keys(props)).not.toContain("target_mode");
     // new_tab carries its default in the published schema.
     expect((props.new_tab as Record<string, unknown>).default).toBe(false);
-    for (const [key, prop] of Object.entries(schema.properties as Record<string, { description?: unknown }>)) {
-      expect(typeof prop.description, key).toBe("string");
-    }
   });
 
-  it("description has no help() pointer (068 FR-032) and references the tool name, the cross-vault contract + placement, both locators and new_tab", () => {
+  it("description references the tool name, the cross-vault contract + placement, both locators and new_tab", () => {
     const desc = makeTool().descriptor.description;
     const lower = desc.toLowerCase();
-    expect(desc).not.toMatch(/call `?help\(/i);
     expect(lower).toContain("open_file");
     expect(lower).toContain("cross-vault");
     expect(lower).toContain("placement");

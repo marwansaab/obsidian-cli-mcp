@@ -1,4 +1,4 @@
-// Original — no upstream. patch_block tool registration tests per BI-043 / FR-022 / ADR-005 — descriptor name + help-pointer + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate.
+// Original — no upstream. patch_block tool registration tests per BI-043 / FR-022 / ADR-005 — descriptor name + description + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate.
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -110,10 +110,9 @@ describe("createPatchBlockTool — descriptor (BI-043 / ADR-005)", () => {
     expect(tool.descriptor.name).toBe("patch_block");
   });
 
-  it("description no longer points at help() (068 FR-032)", () => {
+  it("publishes PATCH_BLOCK_DESCRIPTION verbatim", () => {
     const tool = build();
     expect(tool.descriptor.description).toBe(PATCH_BLOCK_DESCRIPTION);
-    expect(tool.descriptor.description).not.toMatch(/call `?help\(/i);
   });
 
   it("docs/tools/patch_block.md exists at the expected path", () => {

@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executePatchBlock, type ExecuteDeps } from "./handler.js";
 import { patchBlockInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { ADDITIVE_WRITE_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const PATCH_BLOCK_TOOL_NAME = "patch_block";
 
@@ -35,7 +34,7 @@ export function createPatchBlockTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: PATCH_BLOCK_TOOL_NAME,
     title: "Patch Block",
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    annotations: ADDITIVE_WRITE_HINTS,
     description: PATCH_BLOCK_DESCRIPTION,
     schema: patchBlockInputSchema,
     deps,

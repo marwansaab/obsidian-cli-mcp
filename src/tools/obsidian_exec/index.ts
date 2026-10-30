@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeObsidianExec, type ExecuteDeps } from "./handler.js";
 import { obsidianExecSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { PASSTHROUGH_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const OBSIDIAN_EXEC_TOOL_NAME = "obsidian_exec";
 
@@ -16,7 +15,7 @@ export function createObsidianExecTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: OBSIDIAN_EXEC_TOOL_NAME,
     title: "Obsidian Exec",
-    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+    annotations: PASSTHROUGH_HINTS,
     description: OBSIDIAN_EXEC_DESCRIPTION,
     schema: obsidianExecSchema,
     deps,

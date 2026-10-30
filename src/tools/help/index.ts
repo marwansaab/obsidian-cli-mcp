@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeHelp } from "./handler.js";
 import { helpInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const HELP_TOOL_NAME = "help";
 
@@ -14,7 +13,7 @@ export function createHelpTool(): RegisteredTool {
   return registerTool({
     name: HELP_TOOL_NAME,
     title: "Help",
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: READ_ONLY_HINTS,
     description: HELP_DESCRIPTION,
     schema: helpInputSchema,
     handler: async (input) => executeHelp(input),

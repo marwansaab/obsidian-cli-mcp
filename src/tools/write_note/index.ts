@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeWriteNote, type ExecuteDeps } from "./handler.js";
 import { writeNoteInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { DESTRUCTIVE_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const WRITE_NOTE_TOOL_NAME = "write_note";
 
@@ -22,7 +21,7 @@ export function createWriteNoteTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: WRITE_NOTE_TOOL_NAME,
     title: "Write Note",
-    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+    annotations: DESTRUCTIVE_HINTS,
     description: WRITE_NOTE_DESCRIPTION,
     schema: writeNoteInputSchema,
     deps,

@@ -1,7 +1,7 @@
 // Original — no upstream.
 import { z } from "zod";
 
-import { appendBasePathIssues } from "../_base-path.js";
+import { appendBasePathIssues, BASE_PATH_DESCRIPTION } from "../_base-path.js";
 import { requiredString } from "../_required-string.js";
 
 const NAME_MAX = 1000;
@@ -9,9 +9,7 @@ export const MAX_CONTENT_LENGTH = 3072;
 
 export const createBaseInputSchema = z
   .strictObject({
-    path: requiredString("path").describe(
-      'Vault-relative path to the .base file (e.g. "Projects/Tasks.base"), 1..1000 chars; must end with .base.',
-    ),
+    path: requiredString("path").describe(BASE_PATH_DESCRIPTION),
     name: requiredString("name").describe(
       "Name of the new item, 1..1000 chars; becomes the Markdown file name (auto-incremented on collision).",
     ),

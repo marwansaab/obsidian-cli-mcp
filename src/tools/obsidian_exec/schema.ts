@@ -1,6 +1,8 @@
 // Original — no upstream. Canonical zod schema for obsidian_exec — single source of truth (Principle III, FR-002).
 import { z } from "zod";
 
+import { focusedVaultField } from "../_vault-field.js";
+
 export const obsidianExecSchema = z
   .strictObject({
     // 068 FR-010 (research R4): a command name never contains "=" (CLI arguments go in
@@ -18,11 +20,7 @@ export const obsidianExecSchema = z
       .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
       .optional()
       .describe('CLI arguments as key/value pairs, passed as key=value (e.g. { "folder": "Projects" }). Default: none.'),
-    vault: z
-      .string()
-      .min(1)
-      .optional()
-      .describe("Obsidian vault display name. Omit to use the vault focused in Obsidian."),
+    vault: focusedVaultField,
     flags: z
       .array(z.string().min(1).regex(/^(?!--).*/, "flags must be bare-word (no '--' prefix)"))
       .optional()

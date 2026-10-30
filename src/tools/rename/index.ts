@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeRenameNote, type ExecuteDeps } from "./handler.js";
 import { renameInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { DESTRUCTIVE_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const RENAME_TOOL_NAME = "rename";
 
@@ -16,7 +15,7 @@ export function createRenameTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: RENAME_TOOL_NAME,
     title: "Rename",
-    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+    annotations: DESTRUCTIVE_HINTS,
     description: RENAME_DESCRIPTION,
     schema: renameInputSchema,
     deps,

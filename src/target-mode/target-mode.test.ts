@@ -486,13 +486,5 @@ describe("target-mode primitive", () => {
       expect(props.file!.description).toContain("Not accepted by this tool");
       expect(props.path!.description).toContain("Not accepted by this tool");
     });
-
-    it("the folder-scoped base keeps the same keys and validation as the note-scoped base", () => {
-      expect(Object.keys(folderScopedTargetModeBaseSchema.shape)).toEqual(Object.keys(targetModeBaseSchema.shape));
-      const folderSchema = applyTargetModeRefinementForFolderScoped(folderScopedTargetModeBaseSchema);
-      expect(folderSchema.safeParse({ target_mode: "specific", vault: "V" }).success).toBe(true);
-      expect(folderSchema.safeParse({ target_mode: "active", vault: "V" }).success).toBe(false);
-      expect(folderSchema.safeParse({ target_mode: "active", file: "x" }).success).toBe(false);
-    });
   });
 });

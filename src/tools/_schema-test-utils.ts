@@ -1,33 +1,39 @@
-// Original — no upstream. Shared schema-test utility (BI-058 F-C): the recursive
-// walkSchema helper that ~19 src/tools/<name>/index.test.ts files each defined
-// verbatim. Used to count the nested `description` keys of a published JSON Schema
-// (068 PR 4: every property is now described; the per-tool shape invariants — type / properties-set / required /
-// additionalProperties — are covered centrally by tools/_register.test.ts'
-// assertInvariant, so they no longer need per-tool re-assertion). BI-067 / PR #78
-// review adds messageForPath, the exact-string message extractor the FR-010 suites
-// (create_base, query_base) previously each defined verbatim. Pure and
-// vitest-free, so the build compiles it as a harmless dist orphan like
+// Original — no upstream. Shared schema-test utility. undescribedProperties is the one walk
+// that checks a published JSON Schema describes every property at every depth (068 FR-030);
+// tools/_surface.test.ts runs it over every published tool, so per-tool index tests do not
+// re-assert it (the per-tool shape invariants — type / properties-set / required /
+// additionalProperties — are likewise covered centrally by tools/_register.test.ts'
+// assertInvariant). BI-067 / PR #78 review adds messageForPath, the exact-string message
+// extractor the FR-010 suites (create_base, query_base) previously each defined verbatim.
+// Pure and vitest-free, so the build compiles it as a harmless dist orphan like
 // _registration-stub.ts; fully covered by its co-located .test.ts.
 import type { z } from "zod";
 
-/** Depth-first visit of every plain-object node in a JSON-Schema-shaped value. */
-export function walkSchema(node: unknown, fn: (n: Record<string, unknown>) => void): void {
-  if (!node || typeof node !== "object") return;
-  if (Array.isArray(node)) {
-    for (const item of node) walkSchema(item, fn);
-    return;
+/**
+ * Every path to a property (at any depth) that has no non-empty description. Recurses into
+ * the values of `properties` (never treating a field name as a keyword), array `items`,
+ * `anyOf` / `oneOf` / `allOf` branches and `additionalProperties`.
+ */
+export function undescribedProperties(node: unknown, at: string): string[] {
+  if (typeof node !== "object" || node === null) return [];
+  const schema = node as Record<string, unknown>;
+  const missing: string[] = [];
+  const properties = schema.properties as Record<string, Record<string, unknown>> | undefined;
+  for (const [key, child] of Object.entries(properties ?? {})) {
+    const description = child.description;
+    if (typeof description !== "string" || description.trim() === "") missing.push(`${at}.${key}`);
+    missing.push(...undescribedProperties(child, `${at}.${key}`));
   }
-  fn(node as Record<string, unknown>);
-  for (const value of Object.values(node as Record<string, unknown>)) walkSchema(value, fn);
-}
-
-/** Count nested `description` keys anywhere in a published JSON Schema. */
-export function countDescriptionKeys(schema: unknown): number {
-  let found = 0;
-  walkSchema(schema, (n) => {
-    if (Object.prototype.hasOwnProperty.call(n, "description")) found += 1;
-  });
-  return found;
+  const items = schema.items;
+  for (const item of Array.isArray(items) ? items : [items]) missing.push(...undescribedProperties(item, `${at}[]`));
+  for (const keyword of ["anyOf", "oneOf", "allOf"] as const) {
+    const branches = schema[keyword];
+    if (Array.isArray(branches)) {
+      branches.forEach((branch, i) => missing.push(...undescribedProperties(branch, `${at}/${keyword}/${i}`)));
+    }
+  }
+  missing.push(...undescribedProperties(schema.additionalProperties, `${at}{}`));
+  return missing;
 }
 
 /**

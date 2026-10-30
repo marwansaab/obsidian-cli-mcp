@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeViewsBase, type ExecuteDeps } from "./handler.js";
 import { viewsBaseInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const VIEWS_BASE_TOOL_NAME = "views_base";
 
@@ -26,7 +25,7 @@ export function createViewsBaseTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: VIEWS_BASE_TOOL_NAME,
     title: "Views Base",
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: READ_ONLY_HINTS,
     description: VIEWS_BASE_DESCRIPTION,
     schema: viewsBaseInputSchema,
     deps,

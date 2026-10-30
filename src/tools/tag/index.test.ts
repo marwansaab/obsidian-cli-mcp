@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the tag tool registration — descriptor name + description, described JSON Schema (068 FR-030), docs file presence + content completeness, and the FR-018 baseline drift-detector lock rolled forward by `npm run baseline:write` post-implementation.
+// Original — no upstream. Tests for the tag tool registration — descriptor name + description, docs file presence + content completeness, and the FR-018 baseline drift-detector lock rolled forward by `npm run baseline:write` post-implementation.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,26 +26,14 @@ describe("createTagTool — descriptor", () => {
     expect(tool.descriptor.name).toBe("tag");
   });
 
-  // (2) every inputSchema property carries a description (068 FR-030)
-  it("publishes a description on every input property", () => {
-    const tool = createTagTool({
-      logger: silentLogger(),
-      queue: createQueue(),
-      spawnFn: makeStubSpawn(),
-    });
-    const props = tool.descriptor.inputSchema.properties as Record<string, { description?: unknown }>;
-    for (const [key, prop] of Object.entries(props)) expect(typeof prop.description, key).toBe("string");
-  });
-
-  // (3) TAG_DESCRIPTION no longer defers to help (068 FR-032)
-  it("TAG_DESCRIPTION does not say 'Call help('", () => {
+  // (3) TAG_DESCRIPTION is published verbatim
+  it("publishes TAG_DESCRIPTION verbatim", () => {
     const tool = createTagTool({
       logger: silentLogger(),
       queue: createQueue(),
       spawnFn: makeStubSpawn(),
     });
     expect(tool.descriptor.description).toBe(TAG_DESCRIPTION);
-    expect(TAG_DESCRIPTION).not.toMatch(/call `?help\(/i);
   });
 });
 

@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeReadProperty, type ExecuteDeps } from "./handler.js";
 import { readPropertyInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const READ_PROPERTY_TOOL_NAME = "read_property";
 
@@ -16,7 +15,7 @@ export function createReadPropertyTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: READ_PROPERTY_TOOL_NAME,
     title: "Read Property",
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: READ_ONLY_HINTS,
     description: READ_PROPERTY_DESCRIPTION,
     schema: readPropertyInputSchema,
     deps,

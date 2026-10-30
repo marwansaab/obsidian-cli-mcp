@@ -4,6 +4,7 @@ import { Writable } from "node:stream";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { connectInMemoryClient } from "./_mcp-client-fixtures.js";
+import { undescribedProperties } from "./_schema-test-utils.js";
 import { createServer } from "../server.js";
 
 import type { Client } from "@modelcontextprotocol/client";
@@ -71,29 +72,6 @@ const FORBIDDEN_IN_DESCRIPTIONS: ReadonlyArray<readonly [label: string, pattern:
   ["the vault display-name rule", /display name/i],
   ["the preview-before-commit rule", /preview first/i],
 ];
-
-/** Every JSON-pointer-ish path to a property (at any depth) that has no non-empty description. */
-function undescribedProperties(node: unknown, at: string): string[] {
-  if (typeof node !== "object" || node === null) return [];
-  const schema = node as Record<string, unknown>;
-  const missing: string[] = [];
-  const properties = schema.properties as Record<string, Record<string, unknown>> | undefined;
-  for (const [key, child] of Object.entries(properties ?? {})) {
-    const description = child.description;
-    if (typeof description !== "string" || description.trim() === "") missing.push(`${at}.${key}`);
-    missing.push(...undescribedProperties(child, `${at}.${key}`));
-  }
-  const items = schema.items;
-  for (const item of Array.isArray(items) ? items : [items]) missing.push(...undescribedProperties(item, `${at}[]`));
-  for (const keyword of ["anyOf", "oneOf", "allOf"] as const) {
-    const branches = schema[keyword];
-    if (Array.isArray(branches)) {
-      branches.forEach((branch, i) => missing.push(...undescribedProperties(branch, `${at}/${keyword}/${i}`)));
-    }
-  }
-  missing.push(...undescribedProperties(schema.additionalProperties, `${at}{}`));
-  return missing;
-}
 
 describe("published tool surface (068 US6, US8)", () => {
   let client: Client;
@@ -164,31 +142,6 @@ describe("published tool surface (068 US6, US8)", () => {
     it.each(FORBIDDEN_IN_DESCRIPTIONS)("no tool description contains %s", (_label, pattern) => {
       const offenders = tools.filter((t) => pattern.test(t.description ?? "")).map((t) => t.name);
       expect(offenders).toEqual([]);
-    });
-  });
-
-  describe("the recursive description walk itself", () => {
-    it("reports undescribed properties in nested objects, array items and union branches", () => {
-      const schema = {
-        type: "object",
-        properties: {
-          ok: { type: "string", description: "described" },
-          bare: { type: "string" },
-          nested: { type: "object", description: "d", properties: { inner: { type: "string" } } },
-          list: {
-            type: "array",
-            description: "d",
-            items: { type: "object", properties: { item: { type: "number", description: "  " } } },
-          },
-          either: { description: "d", anyOf: [{ type: "object", properties: { branch: { type: "boolean" } } }] },
-        },
-      };
-      expect(undescribedProperties(schema, "t")).toEqual([
-        "t.bare",
-        "t.nested.inner",
-        "t.list[].item",
-        "t.either/anyOf/0.branch",
-      ]);
     });
   });
 });

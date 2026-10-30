@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executePaths, type ExecuteDeps } from "./handler.js";
 import { pathsInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const PATHS_TOOL_NAME = "paths";
 
@@ -16,7 +15,7 @@ export function createPathsTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: PATHS_TOOL_NAME,
     title: "Paths",
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: READ_ONLY_HINTS,
     description: PATHS_DESCRIPTION,
     schema: pathsInputSchema,
     deps,

@@ -10,8 +10,7 @@
 import { registerTool } from "../_register.js";
 import { executeSearch, type ExecuteDeps } from "./handler.js";
 import { searchInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const SEARCH_TOOL_NAME = "search";
 
@@ -48,7 +47,7 @@ export function createSearchTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: SEARCH_TOOL_NAME,
     title: "Search",
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: READ_ONLY_HINTS,
     description: SEARCH_DESCRIPTION,
     schema: searchInputSchema,
     deps,

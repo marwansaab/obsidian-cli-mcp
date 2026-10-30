@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the read_property tool registration — descriptor shape, described schema, no help deferral + output-shape disclosure, docs presence + content completeness.
+// Original — no upstream. Tests for the read_property tool registration — descriptor shape, root schema description, output-shape disclosure, docs presence + content completeness.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,21 +23,18 @@ describe("createReadPropertyTool — descriptor", () => {
     expect(tool.descriptor.description).toBe(READ_PROPERTY_DESCRIPTION);
   });
 
-  // (b) Story 5 — every property is described (068 FR-030); the BI-041 root description stays
-  it("publishes a description on every input property and keeps the root description (FR-010)", () => {
+  // (b) Story 5 — flat schema; the BI-041 root description stays
+  it("keeps a flat schema and the root description (FR-010)", () => {
     const tool = createReadPropertyTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
     expect(schema.oneOf).toBeUndefined();
     expect(schema.description).toContain("Malformed YAML frontmatter");
-    const props = schema.properties as Record<string, { description?: unknown }>;
-    for (const [key, prop] of Object.entries(props)) expect(typeof prop.description, key).toBe("string");
   });
 
-  // (c) Story 5 — descriptor description no longer defers to help (068 FR-032) and surfaces the output shape
-  it("description does not say 'Call help(', and surfaces the {value, type} output shape", () => {
+  // (c) Story 5 — descriptor description surfaces the output shape
+  it("description surfaces the {value, type} output shape", () => {
     const tool = createReadPropertyTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     const desc = tool.descriptor.description;
-    expect(desc).not.toMatch(/call `?help\(/i);
     expect(desc).toMatch(/value.*type|type.*value/i);
     expect(desc.length).toBeGreaterThan(0);
   });

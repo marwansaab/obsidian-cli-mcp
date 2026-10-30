@@ -1,6 +1,8 @@
 // Original — no upstream. pattern_search input/output/eval-envelope schemas — ECMAScript-regex search predicate with optional folder scope, optional case_sensitive toggle (default true per FR-007), optional limit (1..10000, implicit 1000); strict per-entry match shape carries path/line/offset/match/text; discriminated-union eval-envelope wire format mirrors the in-eval IIFE return shape including FOLDER_NOT_FOUND failure branch.
 import { z } from "zod";
 
+import { focusedVaultField } from "../_vault-field.js";
+
 export const patternSearchInputSchema = z
   .strictObject({
     pattern: z
@@ -24,7 +26,7 @@ export const patternSearchInputSchema = z
       .boolean()
       .optional()
       .describe("Match case exactly when true; false adds the regex i flag. Default true."),
-    vault: z.string().min(1).optional().describe("Obsidian vault display name. Omit to use the vault focused in Obsidian."),
+    vault: focusedVaultField,
   })
   .superRefine((v, ctx) => {
     if (v.pattern.trim().length === 0) {

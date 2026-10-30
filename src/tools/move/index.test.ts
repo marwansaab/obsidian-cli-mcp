@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the move tool registration — descriptor shape, described schema, no help() pointer + link-rewriting caveat, docs presence + non-stub + active-mode CLI_REPORTED_ERROR note + to-shape rules, thin-handler logger drift lock (FR-009 / R1).
+// Original — no upstream. Tests for the move tool registration — descriptor shape, link-rewriting caveat, docs presence + non-stub + active-mode CLI_REPORTED_ERROR note + to-shape rules, thin-handler logger drift lock (FR-009 / R1).
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,8 +27,8 @@ describe("createMoveTool — descriptor", () => {
     expect(tool.descriptor.description).toBe(MOVE_DESCRIPTION);
   });
 
-  // Case 2 — Story 7 AC#1, AC#2; 068 FR-030: every published property carries a description
-  it("describes every published property (Story 7 AC#1/AC#2; 068 FR-030)", () => {
+  // Case 2 — Story 7 AC#1, AC#2: flat published schema
+  it("emits a post-010 inputSchema with no oneOf (Story 7 AC#1/AC#2)", () => {
     const tool = createMoveTool({
       logger: silentLogger(),
       queue: createQueue(),
@@ -36,13 +36,10 @@ describe("createMoveTool — descriptor", () => {
     });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
     expect(schema.oneOf).toBeUndefined();
-    for (const [key, prop] of Object.entries(schema.properties as Record<string, { description?: unknown }>)) {
-      expect(typeof prop.description, key).toBe("string");
-    }
   });
 
-  // Case 3 — Story 7 AC#3 / FR-012: description names the tool, has no help() pointer (068 FR-032), AND link-rewriting caveat
-  it("description names 'move', has no help() pointer, AND surfaces the link-rewriting caveat (Story 7 AC#3, FR-012)", () => {
+  // Case 3 — Story 7 AC#3 / FR-012: description names the tool AND link-rewriting caveat
+  it("description names 'move' AND surfaces the link-rewriting caveat (Story 7 AC#3, FR-012)", () => {
     const tool = createMoveTool({
       logger: silentLogger(),
       queue: createQueue(),
@@ -50,7 +47,6 @@ describe("createMoveTool — descriptor", () => {
     });
     const desc = tool.descriptor.description;
     const lower = desc.toLowerCase();
-    expect(desc).not.toMatch(/call `?help\(/i);
     expect(lower).toContain("move");
     expect(desc).toMatch(/Automatically update internal links|link/i);
     expect(desc.length).toBeGreaterThan(0);

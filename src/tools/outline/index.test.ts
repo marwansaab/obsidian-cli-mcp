@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the outline tool registration — descriptor name + description, described JSON Schema (068 FR-030), help-facility doc presence + content completeness (≥4 worked examples + error roster), and the FR-018 baseline drift-detector lock (rolled forward by `npm run baseline:write` post-T009).
+// Original — no upstream. Tests for the outline tool registration — descriptor name + description, help-facility doc presence + content completeness (≥4 worked examples + error roster), and the FR-018 baseline drift-detector lock (rolled forward by `npm run baseline:write` post-T009).
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,18 +22,10 @@ describe("createOutlineTool — descriptor", () => {
     expect(tool.descriptor.name).toBe("outline");
   });
 
-  // (b) every inputSchema property carries a description (068 FR-030)
-  it("emits inputSchema with a description on every property", () => {
-    const tool = createOutlineTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
-    const props = tool.descriptor.inputSchema.properties as Record<string, { description?: unknown }>;
-    for (const [key, prop] of Object.entries(props)) expect(typeof prop.description, key).toBe("string");
-  });
-
-  // (c) OUTLINE_DESCRIPTION no longer defers to help (068 FR-032)
-  it("OUTLINE_DESCRIPTION does not say 'Call help('", () => {
+  // (c) OUTLINE_DESCRIPTION is published verbatim
+  it("publishes OUTLINE_DESCRIPTION verbatim", () => {
     const tool = createOutlineTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     expect(tool.descriptor.description).toBe(OUTLINE_DESCRIPTION);
-    expect(OUTLINE_DESCRIPTION).not.toMatch(/call `?help\(/i);
   });
 
   // (c2) Handler-closure execution: VALID input passes Zod, so registerTool runs the

@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeBacklinks, type ExecuteDeps } from "./handler.js";
 import { backlinksInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const BACKLINKS_TOOL_NAME = "backlinks";
 
@@ -35,7 +34,7 @@ export function createBacklinksTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: BACKLINKS_TOOL_NAME,
     title: "Backlinks",
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: READ_ONLY_HINTS,
     description: BACKLINKS_DESCRIPTION,
     schema: backlinksInputSchema,
     deps,

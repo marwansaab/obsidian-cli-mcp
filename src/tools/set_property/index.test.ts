@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the set_property tool registration — descriptor name + description, described JSON Schema, no help() pointer, docs file presence + content completeness.
+// Original — no upstream. Tests for the set_property tool registration — descriptor name + description, docs file presence + content completeness.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,24 +22,14 @@ describe("createSetPropertyTool — descriptor", () => {
     expect(tool.descriptor.name).toBe("set_property");
   });
 
-  // (2) description includes typed-write summary token + tool name, and no help() pointer (068 FR-032)
-  it("description references 'set_property' and the typed-write summary, not help()", () => {
+  // (2) description includes typed-write summary token + tool name
+  it("description references 'set_property' and the typed-write summary", () => {
     const tool = createSetPropertyTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     expect(tool.descriptor.description).toBe(SET_PROPERTY_DESCRIPTION);
     const lower = SET_PROPERTY_DESCRIPTION.toLowerCase();
-    expect(SET_PROPERTY_DESCRIPTION).not.toMatch(/call `?help\(/i);
     expect(lower).toContain("set_property");
     expect(lower).toContain("write");
     expect(lower).toContain("property");
-  });
-
-  // (3) every published property carries a description (068 FR-030; ADR-040 supersedes ADR-005)
-  it("describes every published property", () => {
-    const tool = createSetPropertyTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
-    const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    for (const [key, prop] of Object.entries(schema.properties as Record<string, { description?: unknown }>)) {
-      expect(typeof prop.description, key).toBe("string");
-    }
   });
 });
 

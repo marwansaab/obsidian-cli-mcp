@@ -1,6 +1,8 @@
 // Original — no upstream. tag input/output/eval-envelope schemas — vault-only surface (NO target_mode discriminator per FR-001/R4); structural normalisation chain (trim → strip-leading-`#` → empty/length/segment refinements); discriminated-union eval-envelope wire format with two ok:true mode variants (default {count, paths} and count-only {total}) per cross-mode envelope architecture (R3 / FR-019); third-rail base64-decoded payload is anti-injection (FR-020) and rides on the frozen JS template.
 import { z } from "zod";
 
+import { focusedVaultField } from "../_vault-field.js";
+
 export const tagInputSchema = z
   .strictObject({
     tag: z
@@ -16,7 +18,7 @@ export const tagInputSchema = z
         "tag contains empty hierarchical segment (e.g. /foo, foo/, foo//bar)",
       )
       .describe('Tag to find, with or without a leading "#", up to 200 characters; matches child tags too (e.g. "project/alpha").'),
-    vault: z.string().min(1).optional().describe("Obsidian vault display name. Omit to use the vault focused in Obsidian."),
+    vault: focusedVaultField,
     total: z.boolean().optional().describe("When true, return only the match count as a bare integer. Default false."),
   });
 

@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeProperties, type ExecuteDeps } from "./handler.js";
 import { propertiesInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const PROPERTIES_TOOL_NAME = "properties";
 
@@ -30,7 +29,7 @@ export function createPropertiesTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: PROPERTIES_TOOL_NAME,
     title: "Properties",
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: READ_ONLY_HINTS,
     description: PROPERTIES_DESCRIPTION,
     schema: propertiesInputSchema,
     deps,

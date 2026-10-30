@@ -4,7 +4,7 @@ import { type z } from "zod";
 import { executePrepend, type ExecuteDeps } from "./handler.js";
 import { MAX_CONTENT_LENGTH, prependInputSchema } from "./schema.js";
 import { registerTool } from "../_register.js";
-import { type RegisteredTool, type ToolErrorPayload } from "../_shared.js";
+import { ADDITIVE_WRITE_HINTS, type RegisteredTool, type ToolErrorPayload } from "../_shared.js";
 
 export const PREPEND_TOOL_NAME = "prepend";
 
@@ -69,7 +69,7 @@ export function createPrependTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: PREPEND_TOOL_NAME,
     title: "Prepend",
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    annotations: ADDITIVE_WRITE_HINTS,
     description: PREPEND_DESCRIPTION,
     schema: prependInputSchema,
     deps,

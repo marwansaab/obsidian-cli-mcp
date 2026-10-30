@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeLinks, type ExecuteDeps } from "./handler.js";
 import { linksInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const LINKS_TOOL_NAME = "links";
 
@@ -16,7 +15,7 @@ export function createLinksTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: LINKS_TOOL_NAME,
     title: "Links",
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: READ_ONLY_HINTS,
     description: LINKS_DESCRIPTION,
     schema: linksInputSchema,
     deps,

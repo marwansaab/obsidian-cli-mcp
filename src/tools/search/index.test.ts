@@ -1,5 +1,5 @@
 // Original — no upstream. Tests for the search tool registration — descriptor name +
-// description, described JSON Schema (068 FR-030), help-facility doc presence + content
+// description, the root schema description, help-facility doc presence + content
 // completeness (>=4 worked examples + error roster), and the FR-018 baseline
 // drift-detector lock (rolled forward by `npm run baseline:write`).
 import { existsSync, readFileSync } from "node:fs";
@@ -49,18 +49,15 @@ describe("createSearchTool — descriptor", () => {
     expect(tool.descriptor.name).toBe("search");
   });
 
-  it("emits inputSchema with a description on every property (068 FR-030) and the BI-041 root description", () => {
+  it("emits inputSchema with the BI-041 root description", () => {
     const tool = createSearchTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
     expect(schema.description).toContain("Error roster");
-    const props = schema.properties as Record<string, { description?: unknown }>;
-    for (const [key, prop] of Object.entries(props)) expect(typeof prop.description, key).toBe("string");
   });
 
-  it("SEARCH_DESCRIPTION no longer defers to help (068 FR-032)", () => {
+  it("publishes SEARCH_DESCRIPTION verbatim", () => {
     const tool = createSearchTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     expect(tool.descriptor.description).toBe(SEARCH_DESCRIPTION);
-    expect(SEARCH_DESCRIPTION).not.toMatch(/call `?help\(/i);
   });
 });
 

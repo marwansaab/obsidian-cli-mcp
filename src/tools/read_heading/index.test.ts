@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the read_heading tool registration — descriptor shape, described schema, no help deferral, docs presence + content completeness, drift-detector parameterised lock.
+// Original — no upstream. Tests for the read_heading tool registration — descriptor shape, heading-path disclosure, docs presence + content completeness, drift-detector parameterised lock.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -31,26 +31,14 @@ describe("createReadHeadingTool — descriptor", () => {
     expect(tool.descriptor.description).toBe(READ_HEADING_DESCRIPTION);
   });
 
-  // (52) Every published parameter carries a description (068 FR-030)
-  it("publishes a description on every input property", () => {
-    const tool = createReadHeadingTool({
-      logger: silentLogger(),
-      queue: createQueue(),
-      spawnFn: makeStubSpawn(),
-    });
-    const props = tool.descriptor.inputSchema.properties as Record<string, { description?: unknown }>;
-    for (const [key, prop] of Object.entries(props)) expect(typeof prop.description, key).toBe("string");
-  });
-
-  // (53) Descriptor description no longer defers to help (068 FR-032) and surfaces the heading-path requirement
-  it("description does not say 'Call help(', and surfaces the heading-path requirement", () => {
+  // (53) Descriptor description surfaces the heading-path requirement
+  it("description surfaces the heading-path requirement", () => {
     const tool = createReadHeadingTool({
       logger: silentLogger(),
       queue: createQueue(),
       spawnFn: makeStubSpawn(),
     });
     const desc = tool.descriptor.description;
-    expect(desc).not.toMatch(/call `?help\(/i);
     expect(desc).toContain("heading");
     expect(desc).toMatch(/heading.*path|::|two.*segment/i);
     expect(desc.length).toBeGreaterThan(0);

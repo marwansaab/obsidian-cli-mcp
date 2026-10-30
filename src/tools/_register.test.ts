@@ -80,7 +80,6 @@ describe("toSdkInputSchema — SDK v2 pass-through adapter (068 R2, T030)", () =
     const { tools } = await client.listTools();
     expect(tools[0]!.title).toBe(TEST_SURFACE.title);
     expect(tools[0]!.annotations).toEqual(TEST_SURFACE.annotations);
-    expect(tool.descriptor.title).toBe(TEST_SURFACE.title);
     expect(tool.descriptor.annotations).toEqual(TEST_SURFACE.annotations);
   });
 
@@ -468,7 +467,7 @@ describe("registerTool — wrapped handler runtime", () => {
 describe("assertToolDocsExist — aggregated boot-failure message (FR-005 / Q4)", () => {
   function fakeTool(name: string): RegisteredTool {
     return {
-      descriptor: { name, ...TEST_SURFACE, description: "x", inputSchema: { type: "object" } },
+      descriptor: { name, description: "x", annotations: TEST_SURFACE.annotations, inputSchema: { type: "object" } },
       handler: async () => ({ content: [{ type: "text", text: "" }] }),
       register: () => undefined,
     };

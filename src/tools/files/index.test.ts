@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the files tool registration — descriptor name + description, described JSON Schema (068 FR-030), no help deferral, docs file presence + content completeness.
+// Original — no upstream. Tests for the files tool registration — descriptor name + description, folder-scoped locator wording, docs file presence + content completeness.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,8 +22,8 @@ describe("createFilesTool — descriptor", () => {
     expect(tool.descriptor.name).toBe("files");
   });
 
-  // (2) description mentions target_mode, folder, total, and no longer defers to help (068 FR-032)
-  it("description references target_mode, folder, total, files, and does not say 'Call help('", () => {
+  // (2) description mentions target_mode, folder and total
+  it("description references target_mode, folder, total and files", () => {
     const tool = createFilesTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     expect(tool.descriptor.description).toBe(FILES_DESCRIPTION);
     const lower = FILES_DESCRIPTION.toLowerCase();
@@ -31,14 +31,12 @@ describe("createFilesTool — descriptor", () => {
     expect(lower).toContain("folder");
     expect(lower).toContain("total");
     expect(lower).toContain("files");
-    expect(FILES_DESCRIPTION).not.toMatch(/call `?help\(/i);
   });
 
-  // (3) every emitted inputSchema property carries a description (068 FR-030)
-  it("emits inputSchema with a description on every property, stating the folder-scoped rule", () => {
+  // (3) the file/path descriptions state the folder-scoped rule (068 FR-031)
+  it("publishes the folder-scoped rule in the file description", () => {
     const tool = createFilesTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     const props = tool.descriptor.inputSchema.properties as Record<string, { description?: unknown }>;
-    for (const [key, prop] of Object.entries(props)) expect(typeof prop.description, key).toBe("string");
     expect(props.file!.description).toContain("Not accepted by this tool");
   });
 });

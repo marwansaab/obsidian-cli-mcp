@@ -8,8 +8,7 @@
 import { executeOpenFile, type ExecuteDeps } from "./handler.js";
 import { openFileInputSchema } from "./schema.js";
 import { registerTool } from "../_register.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { REPEATABLE_WRITE_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const OPEN_FILE_TOOL_NAME = "open_file";
 
@@ -37,7 +36,7 @@ export function createOpenFileTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: OPEN_FILE_TOOL_NAME,
     title: "Open File",
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: REPEATABLE_WRITE_HINTS,
     description: OPEN_FILE_DESCRIPTION,
     schema: openFileInputSchema,
     deps,

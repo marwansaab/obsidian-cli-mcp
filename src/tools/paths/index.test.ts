@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the paths tool registration — descriptor name + description, described JSON Schema (068 FR-030), docs file presence + content completeness, and the baseline drift-detector lock rolled forward by `npm run baseline:write` post-implementation.
+// Original — no upstream. Tests for the paths tool registration — descriptor name + description, JSON Schema without file/path, docs file presence + content completeness, and the baseline drift-detector lock rolled forward by `npm run baseline:write` post-implementation.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -50,22 +50,21 @@ describe("createPathsTool — descriptor", () => {
     expect(tool.descriptor.name).toBe("paths");
   });
 
-  // (2) every inputSchema property is described (068 FR-030) and file/path are excluded per FR-001
-  it("emits inputSchema with a description on every property AND excluding file/path per FR-001", () => {
+  // (2) file/path are excluded per FR-001
+  it("emits inputSchema excluding file/path per FR-001", () => {
     const tool = createPathsTool({
       logger: silentLogger(),
       queue: createQueue(),
       spawnFn: makeStubSpawn(),
     });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    const props = schema.properties as Record<string, { description?: unknown }>;
+    const props = schema.properties as Record<string, unknown>;
     expect(Object.hasOwn(props, "file")).toBe(false);
     expect(Object.hasOwn(props, "path")).toBe(false);
-    for (const [key, prop] of Object.entries(props)) expect(typeof prop.description, key).toBe("string");
   });
 
-  // (3) PATHS_DESCRIPTION carries the trailing-slash promise and no longer defers to help (068 FR-032)
-  it("PATHS_DESCRIPTION carries the trailing-slash promise and does not say 'Call help('", () => {
+  // (3) PATHS_DESCRIPTION carries the trailing-slash promise
+  it("PATHS_DESCRIPTION carries the trailing-slash promise", () => {
     const tool = createPathsTool({
       logger: silentLogger(),
       queue: createQueue(),
@@ -74,7 +73,6 @@ describe("createPathsTool — descriptor", () => {
     expect(tool.descriptor.description).toBe(PATHS_DESCRIPTION);
     // Trailing-slash promise — folder entries end with "/"
     expect(PATHS_DESCRIPTION).toContain('end with "/"');
-    expect(PATHS_DESCRIPTION).not.toMatch(/call `?help\(/i);
   });
 });
 

@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeSmartConnectionsSimilar, type ExecuteDeps } from "./handler.js";
 import { smartConnectionsSimilarInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const SMART_CONNECTIONS_SIMILAR_TOOL_NAME = "smart_connections_similar";
 
@@ -28,7 +27,7 @@ export function createSmartConnectionsSimilarTool(deps: RegisterDeps): Registere
   return registerTool({
     name: SMART_CONNECTIONS_SIMILAR_TOOL_NAME,
     title: "Smart Connections Similar",
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: READ_ONLY_HINTS,
     description: SMART_CONNECTIONS_SIMILAR_DESCRIPTION,
     schema: smartConnectionsSimilarInputSchema,
     deps,

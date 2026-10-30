@@ -141,7 +141,6 @@ export function registerTool<TSchema extends z.ZodType, TDeps = undefined>(
   return {
     descriptor: {
       name: spec.name,
-      title: spec.title,
       description: spec.description,
       annotations: spec.annotations,
       inputSchema,

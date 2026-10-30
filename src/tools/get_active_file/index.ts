@@ -7,8 +7,7 @@
 import { executeGetActiveFile, type ExecuteDeps } from "./handler.js";
 import { getActiveFileInputSchema } from "./schema.js";
 import { registerTool } from "../_register.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const GET_ACTIVE_FILE_TOOL_NAME = "get_active_file";
 
@@ -41,7 +40,7 @@ export function createGetActiveFileTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: GET_ACTIVE_FILE_TOOL_NAME,
     title: "Get Active File",
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: READ_ONLY_HINTS,
     description: GET_ACTIVE_FILE_DESCRIPTION,
     schema: getActiveFileInputSchema,
     deps,

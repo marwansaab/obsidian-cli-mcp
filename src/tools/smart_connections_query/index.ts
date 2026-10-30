@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeSmartConnectionsQuery, type ExecuteDeps } from "./handler.js";
 import { MAX_QUERY_LENGTH, smartConnectionsQueryInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const SMART_CONNECTIONS_QUERY_TOOL_NAME = "smart_connections_query";
 
@@ -30,7 +29,7 @@ export function createSmartConnectionsQueryTool(deps: RegisterDeps): RegisteredT
   return registerTool({
     name: SMART_CONNECTIONS_QUERY_TOOL_NAME,
     title: "Smart Connections Query",
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: READ_ONLY_HINTS,
     description: SMART_CONNECTIONS_QUERY_DESCRIPTION,
     schema: smartConnectionsQueryInputSchema,
     deps,

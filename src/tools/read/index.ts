@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeReadNote, type ExecuteDeps } from "./handler.js";
 import { readInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const READ_TOOL_NAME = "read";
 
@@ -16,7 +15,7 @@ export function createReadTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: READ_TOOL_NAME,
     title: "Read",
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: READ_ONLY_HINTS,
     description: READ_DESCRIPTION,
     schema: readInputSchema,
     deps,

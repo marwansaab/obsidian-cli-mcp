@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeCreateBase, type ExecuteDeps } from "./handler.js";
 import { createBaseInputSchema, MAX_CONTENT_LENGTH } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { ADDITIVE_WRITE_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const CREATE_BASE_TOOL_NAME = "create_base";
 
@@ -24,7 +23,7 @@ export function createCreateBaseTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: CREATE_BASE_TOOL_NAME,
     title: "Create Base",
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    annotations: ADDITIVE_WRITE_HINTS,
     description: CREATE_BASE_DESCRIPTION,
     schema: createBaseInputSchema,
     deps,

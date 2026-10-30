@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeDeleteNote, type ExecuteDeps } from "./handler.js";
 import { deleteInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { DESTRUCTIVE_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const DELETE_TOOL_NAME = "delete";
 
@@ -16,7 +15,7 @@ export function createDeleteTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: DELETE_TOOL_NAME,
     title: "Delete",
-    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+    annotations: DESTRUCTIVE_HINTS,
     description: DELETE_DESCRIPTION,
     schema: deleteInputSchema,
     deps,

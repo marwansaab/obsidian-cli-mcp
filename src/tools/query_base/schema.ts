@@ -1,25 +1,20 @@
 // Original — no upstream. query_base input/output/wire-envelope schemas — boundary validation per Constitution Principle III; strict mode rejects unknown top-level keys; refinements attach `params: { code, reason, field, value_length? }` to each custom issue per ADR-015 sub-discrimination convention (callers programmatically branch on `issue.params.code`); shared with handler via `z.infer`; no parallel TypeScript interfaces.
 import { z } from "zod";
 
-import { appendBasePathIssues, BASE_PATH_MAX } from "../_base-path.js";
+import { appendBasePathIssues, BASE_PATH_DESCRIPTION, BASE_PATH_MAX } from "../_base-path.js";
 import { requiredString } from "../_required-string.js";
+import { focusedVaultField } from "../_vault-field.js";
 
 const VIEW_NAME_MAX = 1000;
 const RESPONSE_ROW_CAP = 1000;
 
 export const queryBaseInputSchema = z
   .strictObject({
-    base_path: requiredString("base_path").describe(
-      'Vault-relative path to the .base file (e.g. "Projects/Tasks.base"), 1..1000 chars; must end with .base.',
-    ),
+    base_path: requiredString("base_path").describe(BASE_PATH_DESCRIPTION),
     view_name: requiredString("view_name").describe(
       "Exact, case-sensitive name of the view to run (as listed by views_base), 1..1000 chars.",
     ),
-    vault: z
-      .string()
-      .min(1)
-      .optional()
-      .describe("Obsidian vault display name. Omit to use the vault focused in Obsidian."),
+    vault: focusedVaultField,
   })
   .superRefine((v, ctx) => {
     if (typeof v.base_path === "string") appendBasePathIssues(ctx, v.base_path, "base_path");

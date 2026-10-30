@@ -7,8 +7,7 @@
 import { registerTool } from "../_register.js";
 import { executeContextSearch, type ExecuteDeps } from "./handler.js";
 import { contextSearchInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const CONTEXT_SEARCH_TOOL_NAME = "context_search";
 
@@ -39,7 +38,7 @@ export function createContextSearchTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: CONTEXT_SEARCH_TOOL_NAME,
     title: "Context Search",
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: READ_ONLY_HINTS,
     description: CONTEXT_SEARCH_DESCRIPTION,
     schema: contextSearchInputSchema,
     deps,

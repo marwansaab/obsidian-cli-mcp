@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeMove, type ExecuteDeps } from "./handler.js";
 import { moveInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { DESTRUCTIVE_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const MOVE_TOOL_NAME = "move";
 
@@ -16,7 +15,7 @@ export function createMoveTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: MOVE_TOOL_NAME,
     title: "Move",
-    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+    annotations: DESTRUCTIVE_HINTS,
     description: MOVE_DESCRIPTION,
     schema: moveInputSchema,
     deps,

@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executePatchHeading, type ExecuteDeps } from "./handler.js";
 import { patchHeadingInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { ADDITIVE_WRITE_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const PATCH_HEADING_TOOL_NAME = "patch_heading";
 
@@ -33,7 +32,7 @@ export function createPatchHeadingTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: PATCH_HEADING_TOOL_NAME,
     title: "Patch Heading",
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    annotations: ADDITIVE_WRITE_HINTS,
     description: PATCH_HEADING_DESCRIPTION,
     schema: patchHeadingInputSchema,
     deps,

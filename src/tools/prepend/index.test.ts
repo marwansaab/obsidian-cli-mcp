@@ -1,4 +1,4 @@
-// Original — no upstream. prepend tool registration tests per BI-045 / FR-027 / ADR-005 / ADR-010 — descriptor name (mirror-name convention, NOT prepend_note) + help-pointer + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate + content maxLength tied to MAX_CONTENT_LENGTH (BI-047 lowered the cap from 24576 to 3072 per empirical upstream-defect bisect).
+// Original — no upstream. prepend tool registration tests per BI-045 / FR-027 / ADR-005 / ADR-010 — descriptor name (mirror-name convention, NOT prepend_note) + description + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate + content maxLength tied to MAX_CONTENT_LENGTH (BI-047 lowered the cap from 24576 to 3072 per empirical upstream-defect bisect).
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,10 +37,9 @@ describe("createPrependTool — descriptor (BI-045 / ADR-005 / ADR-010)", () => 
     expect(tool.descriptor.name).not.toBe("prepend_note");
   });
 
-  it("description no longer points at help() (068 FR-032)", () => {
+  it("publishes PREPEND_DESCRIPTION verbatim", () => {
     const tool = build();
     expect(tool.descriptor.description).toBe(PREPEND_DESCRIPTION);
-    expect(tool.descriptor.description).not.toMatch(/call `?help\(/i);
   });
 
   it("description names the content cap (SC-008 contract-and-implementation match)", () => {

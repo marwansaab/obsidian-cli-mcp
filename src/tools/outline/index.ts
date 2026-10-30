@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeOutline, type ExecuteDeps } from "./handler.js";
 import { outlineInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const OUTLINE_TOOL_NAME = "outline";
 
@@ -16,7 +15,7 @@ export function createOutlineTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: OUTLINE_TOOL_NAME,
     title: "Outline",
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: READ_ONLY_HINTS,
     description: OUTLINE_DESCRIPTION,
     schema: outlineInputSchema,
     deps,

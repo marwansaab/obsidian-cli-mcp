@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeTag, type ExecuteDeps } from "./handler.js";
 import { tagInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const TAG_TOOL_NAME = "tag";
 
@@ -36,7 +35,7 @@ export function createTagTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: TAG_TOOL_NAME,
     title: "Tag",
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: READ_ONLY_HINTS,
     description: TAG_DESCRIPTION,
     schema: tagInputSchema,
     deps,

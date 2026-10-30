@@ -8,6 +8,8 @@
 // present when truncation fires (FR-023 / I-11).
 import { z } from "zod";
 
+import { focusedVaultField } from "../_vault-field.js";
+
 export const searchInputSchema = z
   .strictObject({
     query: z
@@ -32,7 +34,7 @@ export const searchInputSchema = z
       .boolean()
       .optional()
       .describe("Deprecated: when true, return per-line matches instead of paths; prefer context_search. Default false."),
-    vault: z.string().min(1).optional().describe("Obsidian vault display name. Omit to use the vault focused in Obsidian."),
+    vault: focusedVaultField,
   })
   .superRefine((v, ctx) => {
     if (v.query.trim().length === 0) {

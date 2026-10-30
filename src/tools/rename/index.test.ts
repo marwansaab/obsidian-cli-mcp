@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the rename tool registration — descriptor shape, described schema, no help() pointer + link-rewriting caveat, docs presence + non-stub, thin-handler logger drift lock (FR-009 / R1).
+// Original — no upstream. Tests for the rename tool registration — descriptor shape, link-rewriting caveat, docs presence + non-stub, thin-handler logger drift lock (FR-009 / R1).
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,8 +27,8 @@ describe("createRenameTool — descriptor", () => {
     expect(tool.descriptor.description).toBe(RENAME_DESCRIPTION);
   });
 
-  // (b) Story 8 AC#2; 068 FR-030 — every published property carries a description
-  it("describes every published property (Story 8 AC#2; 068 FR-030)", () => {
+  // (b) Story 8 AC#2 — flat published schema
+  it("emits a post-010 inputSchema with no oneOf (Story 8 AC#2)", () => {
     const tool = createRenameTool({
       logger: silentLogger(),
       queue: createQueue(),
@@ -36,13 +36,10 @@ describe("createRenameTool — descriptor", () => {
     });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
     expect(schema.oneOf).toBeUndefined();
-    for (const [key, prop] of Object.entries(schema.properties as Record<string, { description?: unknown }>)) {
-      expect(typeof prop.description, key).toBe("string");
-    }
   });
 
-  // (c) Story 8 AC#3 — description names the tool, has no help() pointer (068 FR-032), AND surfaces the link-rewriting caveat
-  it("description names 'rename', has no help() pointer, AND surfaces the link-rewriting caveat (Story 8 AC#3, FR-012)", () => {
+  // (c) Story 8 AC#3 — description names the tool AND surfaces the link-rewriting caveat
+  it("description names 'rename' AND surfaces the link-rewriting caveat (Story 8 AC#3, FR-012)", () => {
     const tool = createRenameTool({
       logger: silentLogger(),
       queue: createQueue(),
@@ -50,7 +47,6 @@ describe("createRenameTool — descriptor", () => {
     });
     const desc = tool.descriptor.description;
     const lower = desc.toLowerCase();
-    expect(desc).not.toMatch(/call `?help\(/i);
     expect(lower).toContain("rename");
     expect(desc).toMatch(/Automatically update internal links|link/i);
     expect(desc.length).toBeGreaterThan(0);

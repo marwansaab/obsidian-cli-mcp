@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeFindByProperty, type ExecuteDeps } from "./handler.js";
 import { findByPropertyInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const FIND_BY_PROPERTY_TOOL_NAME = "find_by_property";
 
@@ -30,7 +29,7 @@ export function createFindByPropertyTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: FIND_BY_PROPERTY_TOOL_NAME,
     title: "Find By Property",
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: READ_ONLY_HINTS,
     description: FIND_BY_PROPERTY_DESCRIPTION,
     schema: findByPropertyInputSchema,
     deps,

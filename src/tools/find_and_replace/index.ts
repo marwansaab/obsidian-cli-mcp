@@ -4,7 +4,7 @@ import { type z } from "zod";
 import { executeFindAndReplace, type ExecuteDeps } from "./handler.js";
 import { findAndReplaceInputSchema } from "./schema.js";
 import { registerTool } from "../_register.js";
-import { type RegisteredTool, type ToolErrorPayload } from "../_shared.js";
+import { DESTRUCTIVE_HINTS, type RegisteredTool, type ToolErrorPayload } from "../_shared.js";
 
 export const FIND_AND_REPLACE_TOOL_NAME = "find_and_replace";
 
@@ -153,7 +153,7 @@ export function createFindAndReplaceTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: FIND_AND_REPLACE_TOOL_NAME,
     title: "Find And Replace",
-    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+    annotations: DESTRUCTIVE_HINTS,
     description: FIND_AND_REPLACE_DESCRIPTION,
     schema: findAndReplaceInputSchema,
     deps,

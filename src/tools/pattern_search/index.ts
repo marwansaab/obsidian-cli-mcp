@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executePatternSearch, type ExecuteDeps } from "./handler.js";
 import { patternSearchInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const PATTERN_SEARCH_TOOL_NAME = "pattern_search";
 
@@ -40,7 +39,7 @@ export function createPatternSearchTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: PATTERN_SEARCH_TOOL_NAME,
     title: "Pattern Search",
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: READ_ONLY_HINTS,
     description: PATTERN_SEARCH_DESCRIPTION,
     schema: patternSearchInputSchema,
     deps,

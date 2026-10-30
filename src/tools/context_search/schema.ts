@@ -4,6 +4,8 @@
 // for the upstream parse step (R8).
 import { z } from "zod";
 
+import { focusedVaultField } from "../_vault-field.js";
+
 export const contextSearchInputSchema = z
   .strictObject({
     query: z
@@ -24,7 +26,7 @@ export const contextSearchInputSchema = z
       .optional()
       .describe("Maximum number of matches, integer 1–10000. Default 1000."),
     case_sensitive: z.boolean().optional().describe("Match case exactly when true. Default false (ASCII case fold)."),
-    vault: z.string().min(1).optional().describe("Obsidian vault display name. Omit to use the vault focused in Obsidian."),
+    vault: focusedVaultField,
   })
   .superRefine((v, ctx) => {
     if (v.query.trim().length === 0) {

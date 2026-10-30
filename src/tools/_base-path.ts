@@ -14,6 +14,9 @@ import { isStructurallySafePath } from "../path-safety/schema.js";
 /** Maximum accepted length, in UTF-16 code units, of a `.base` path locator. */
 export const BASE_PATH_MAX = 1000;
 
+/** Published description of a required `.base` path locator (create_base, query_base; 068 FR-030). */
+export const BASE_PATH_DESCRIPTION = `Vault-relative path to the .base file (e.g. "Projects/Tasks.base"), 1..${BASE_PATH_MAX} chars; must end with .base.`;
+
 /**
  * Append the INVALID_BASE_PATH sub-issues for a vault-relative `.base` path `value` to `ctx`.
  *

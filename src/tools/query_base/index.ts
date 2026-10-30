@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeQueryBase, type ExecuteDeps } from "./handler.js";
 import { queryBaseInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const QUERY_BASE_TOOL_NAME = "query_base";
 
@@ -32,7 +31,7 @@ export function createQueryBaseTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: QUERY_BASE_TOOL_NAME,
     title: "Query Base",
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: READ_ONLY_HINTS,
     description: QUERY_BASE_DESCRIPTION,
     schema: queryBaseInputSchema,
     deps,

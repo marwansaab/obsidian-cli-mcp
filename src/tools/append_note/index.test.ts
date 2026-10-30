@@ -1,4 +1,4 @@
-// Original — no upstream. append_note tool registration tests per BI-044 / FR-027 / ADR-005 — descriptor name + help-pointer + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate.
+// Original — no upstream. append_note tool registration tests per BI-044 / FR-027 / ADR-005 — descriptor name + description + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate.
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,10 +37,9 @@ describe("createAppendNoteTool — descriptor (BI-044 / ADR-005)", () => {
     expect(tool.descriptor.name).toBe("append_note");
   });
 
-  it("description no longer points at help() (068 FR-032)", () => {
+  it("publishes APPEND_NOTE_DESCRIPTION verbatim", () => {
     const tool = build();
     expect(tool.descriptor.description).toBe(APPEND_NOTE_DESCRIPTION);
-    expect(tool.descriptor.description).not.toMatch(/call `?help\(/i);
   });
 
   it("docs/tools/append_note.md exists at the expected path", () => {

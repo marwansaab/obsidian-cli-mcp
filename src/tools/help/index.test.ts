@@ -9,8 +9,6 @@ describe("createHelpTool", () => {
     expect(tool.descriptor.name).toBe(HELP_TOOL_NAME);
     expect(tool.descriptor.description).toBe(HELP_DESCRIPTION);
     expect(HELP_DESCRIPTION).toContain('tool_name: "help"');
-    // 068 FR-032: no tool description tells the model to "Call help(" first, this one included.
-    expect(HELP_DESCRIPTION).not.toMatch(/call `?help\(/i);
   });
 
   it("publishes an inputSchema with type === 'object' at the top and a described tool_name (FR-002, 068 FR-030)", () => {

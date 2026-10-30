@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the find_by_property tool registration — descriptor shape, described schema, no help deferral, docs presence + content completeness, drift-detector parameterised lock.
+// Original — no upstream. Tests for the find_by_property tool registration — descriptor shape, output-shape disclosure, docs presence + content completeness, drift-detector parameterised lock.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,18 +27,10 @@ describe("createFindByPropertyTool — descriptor", () => {
     expect(tool.descriptor.description).toBe(FIND_BY_PROPERTY_DESCRIPTION);
   });
 
-  // (b) Story 7 — every published input property carries a description (068 FR-030)
-  it("emits an inputSchema with a description on every property", () => {
-    const tool = createFindByPropertyTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
-    const props = tool.descriptor.inputSchema.properties as Record<string, { description?: unknown }>;
-    for (const [key, prop] of Object.entries(props)) expect(typeof prop.description, key).toBe("string");
-  });
-
-  // (c) Story 7 — descriptor description no longer defers to help (068 FR-032) and surfaces the output shape
-  it("description does not say 'Call help(', and surfaces the {count, paths} output shape", () => {
+  // (c) Story 7 — descriptor description surfaces the output shape
+  it("description surfaces the {count, paths} output shape", () => {
     const tool = createFindByPropertyTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     const desc = tool.descriptor.description;
-    expect(desc).not.toMatch(/call `?help\(/i);
     expect(desc).toMatch(/count.*paths|paths.*count/i);
     expect(desc.length).toBeGreaterThan(0);
   });

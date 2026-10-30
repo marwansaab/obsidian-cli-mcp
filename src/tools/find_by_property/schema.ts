@@ -1,6 +1,8 @@
 // Original — no upstream. find_by_property input/output schemas — flat z.object (no target_mode discriminator per FR-002); polymorphic value union for type-faithful matching; folder-traversal regex per Q2/FR-021; cross-field superRefine rejecting array value when arrayMatch:true.
 import { z } from "zod";
 
+import { focusedVaultField } from "../_vault-field.js";
+
 export const FOLDER_TRAVERSAL_REGEX = /(?:^[/\\])|(?:^|[/\\])\.\.(?:[/\\]|$)/;
 
 const scalarValueSchema = z.union([
@@ -12,7 +14,7 @@ const scalarValueSchema = z.union([
 
 export const findByPropertyInputSchema = z
   .strictObject({
-    vault: z.string().min(1).optional().describe("Obsidian vault display name. Omit to use the vault focused in Obsidian."),
+    vault: focusedVaultField,
     property: z.string().min(1).describe('Frontmatter property name to match, exactly (e.g. "status").'),
     value: z
       .union([

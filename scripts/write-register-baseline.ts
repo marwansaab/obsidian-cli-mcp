@@ -14,15 +14,9 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-interface BaselineEntry {
-  name: string;
-  descriptionFingerprint: string;
-  schemaFingerprint: string;
-  titleFingerprint: string;
-  annotationsFingerprint: string;
-}
-
-async function fingerprintViaVitest(): Promise<BaselineEntry[]> {
+// The entries are passed through untouched; their shape is `BaselineEntry` in
+// src/tools/_register-baseline.ts, the one definition.
+async function fingerprintViaVitest(): Promise<unknown[]> {
   const scratch = mkdtempSync(join(tmpdir(), "baseline-writer-"));
   const dumpPath = join(scratch, "entries.json");
   const dumperPath = resolve(import.meta.dirname, "..", "src", "tools", "__baseline-dumper.test.ts");
@@ -52,7 +46,7 @@ it("dump registry fingerprints to ${dumpPath.replaceAll("\\", "\\\\")}", async (
       });
       child.on("error", rejectP);
     });
-    return JSON.parse(readFileSync(dumpPath, "utf8")) as BaselineEntry[];
+    return JSON.parse(readFileSync(dumpPath, "utf8")) as unknown[];
   } finally {
     rmSync(dumperPath, { force: true });
     rmSync(scratch, { recursive: true, force: true });

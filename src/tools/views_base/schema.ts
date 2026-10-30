@@ -19,7 +19,7 @@ export const viewsBaseInputSchema = z
       .string()
       .optional()
       .describe(
-        'Vault-relative path to a .base file (e.g. "Projects/Tasks.base"), 1..1000 chars. Omit to list the views of the Base focused in Obsidian.',
+        `Vault-relative path to a .base file (e.g. "Projects/Tasks.base"), 1..${BASE_PATH_MAX} chars. Omit to list the views of the Base focused in Obsidian.`,
       ),
   })
   .superRefine((v, ctx) => {

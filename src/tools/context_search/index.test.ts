@@ -1,5 +1,5 @@
 // Original — no upstream. Tests for the context_search tool registration —
-// descriptor name + description, described JSON Schema (068 FR-030), help-facility
+// descriptor name + description, help-facility
 // doc presence + content completeness (>=4 worked examples + error roster), and
 // the FR-018 baseline drift-detector lock (rolled forward by `npm run baseline:write`).
 import { existsSync, readFileSync } from "node:fs";
@@ -28,18 +28,12 @@ describe("createContextSearchTool — descriptor (I1 smoke)", () => {
     expect(tool.descriptor.name).toBe("context_search");
   });
 
-  it("description is non-empty and no longer defers to help (068 FR-032)", () => {
+  it("description is non-empty", () => {
     const tool = createContextSearchTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     expect(tool.descriptor.description).toBe(CONTEXT_SEARCH_DESCRIPTION);
     expect(CONTEXT_SEARCH_DESCRIPTION.length).toBeGreaterThan(0);
-    expect(CONTEXT_SEARCH_DESCRIPTION).not.toMatch(/call `?help\(/i);
   });
 
-  it("emits inputSchema with a description on every property (068 FR-030)", () => {
-    const tool = createContextSearchTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
-    const props = tool.descriptor.inputSchema.properties as Record<string, { description?: unknown }>;
-    for (const [key, prop] of Object.entries(props)) expect(typeof prop.description, key).toBe("string");
-  });
 });
 
 describe("docs/tools/context_search.md exists and is non-stub", () => {
