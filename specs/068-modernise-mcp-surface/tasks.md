@@ -461,13 +461,16 @@ protocol. **Independent tests**: quickstart Â§1 (gate) and Â§5.
 
 ## Phase 9: Polish & post-implement (after PR-6 merges)
 
-- [ ] T092 Run `/graphify --update`, then the four CLAUDE.md post-implement checks. Record them in specs/068-modernise-mcp-surface/post-implement.md:
+- [X] T092 Run `/graphify --update`, then the four CLAUDE.md post-implement checks. Record them in specs/068-modernise-mcp-surface/post-implement.md:
   1. no new error-class nodes outside src/errors.ts;
   2. no production handler imports `createLogger`/`createQueue`;
   3. src/instructions/, src/tools/_confirm.ts and src/tools/vaults/ land in the expected communities (plan â†’ Graphify structural check);
   4. no orphaned production file.
-- [ ] T093 Walk spec SC-001â€¦SC-014 and the release-level acceptance (brief Â§7). Mark each pass/fail with its evidence link in post-implement.md.
-- [ ] T094 Raise the owner follow-ups (do not edit them yourself): the constitution v1.6.0 Sync Impact Report still says `list_vaults` and "0.8.20" (fold into the post-release PATCH amendment that removes "Adoption of v1.6.0"); the vault-side ADR amendment stanzas for ADR-036 and ADR-005; the vault Architecture page `list_vaults` mention; and re-checking BI-0156â€¦BI-0159 against SDK v2.
+  **Outcome (2026-10-30)**: incremental update at `e1f7804`: 207 code files (AST) and all 686 documents re-extracted semantically in 33 chunks, every file read to its end. Graph: 14,306 nodes, 25,313 edges, 737 communities. The export's lost-node guard was overridden on purpose: all 67 missing nodes came from files re-extracted in this run. Checks: (1) pass, `src/errors.ts` unchanged; the one `Error` subclass outside it, `ConfirmationRequested` in `_confirm.ts`, is an internal `input_required` signal, not an error code (ADR-043); (2) pass, only `createServer()` uses the factories in production; (3) pass, with `_confirm.ts` landing in the registration layer rather than beside `delete` / `find_and_replace`, as the ADR-043 design implies; (4) pass, no orphaned production file. Details in post-implement.md.
+- [X] T093 Walk spec SC-001â€¦SC-014 and the release-level acceptance (brief Â§7). Mark each pass/fail with its evidence link in post-implement.md.
+  **Outcome (2026-10-30)**: SC-001 to SC-014 all pass, each with its evidence link. SC-001 carries a note: before the fix, the stale search did not reproduce, so the code defect was proven instead. All 8 brief Part 2 section 7 items pass in the repository. The last item, the constitution amendment and new ADRs, still has its vault-side ADR stanzas open for the owner (T094).
+- [X] T094 Raise the owner follow-ups (do not edit them yourself): the constitution v1.6.0 Sync Impact Report still says `list_vaults` and "0.8.20" (fold into the post-release PATCH amendment that removes "Adoption of v1.6.0"); the vault-side ADR amendment stanzas for ADR-036 and ADR-005; the vault Architecture page `list_vaults` mention; and re-checking BI-0156â€¦BI-0159 against SDK v2.
+  **Outcome (2026-10-30)**: raised in post-implement.md, with nothing edited. That covers the four named items plus three more: other vault notes that still say `list_vaults` (TC-00010/12/13/15, two feature pages and BI-0040); Claude Code print mode, which declines every confirmation; and the test-fixture modules that compile into the published `dist/`.
 
 ---
 
