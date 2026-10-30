@@ -11,7 +11,7 @@ tool. Per-tool contracts are the `docs/tools/` pages linked below.
 
 ## `obsidian_exec` — the single escape hatch
 
-The server's stance ([README](../../README.md#vision)) is a small set of typed
+The server's stance ([README](../../README.md#what-it-offers)) is a small set of typed
 tools with narrow contracts, plus **one** explicit escape hatch for the long
 tail of subcommands. `obsidian_exec` (part of the original bridge, PR #1) is
 that escape hatch, and it is the only caller of `invokeBoundedCli`. It gets

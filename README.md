@@ -3,36 +3,68 @@
 [![npm version](https://img.shields.io/npm/v/@marwansaab/obsidian-cli-mcp.svg)](https://www.npmjs.com/package/@marwansaab/obsidian-cli-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A small MCP server that bridges Claude (and other MCP clients) to the [Obsidian Integrated CLI](https://help.obsidian.md/cli), exposing an Obsidian vault as a set of typed, schema-validated tools.
+An MCP server that gives Claude and other MCP clients typed, schema-validated tools for working with Obsidian vaults, through the [Obsidian Integrated CLI](https://help.obsidian.md/cli).
 
 > [!NOTE]
-> **Status — actively work in progress.** The tool surface, error contracts, and module layout still evolve from release to release. Pin a version if stability matters; expect breaking changes before `v1.0`.
+> **Status: work in progress.** The tool surface, error contracts and module layout still change from release to release. Pin a version if stability matters, and expect breaking changes before `v1.0`.
 
 > [!IMPORTANT]
-> **Personal project.** Built and maintained for my own use. External support is not guaranteed — use at your own discretion. Issues and pull requests are welcome but may sit unattended.
+> **Personal project.** Built and maintained for my own use. External support is not guaranteed, so use it at your own discretion. Issues and pull requests are welcome but may sit unattended.
 
-## Purpose
+## What it offers
 
-Most MCP-driven Obsidian workflows reach for a single "do anything" escape hatch and rebuild the same primitives in every prompt. This server takes the opposite approach: a handful of **typed tools** for the operations a language model actually performs against a vault (read a note, read one frontmatter field, list files in a folder, find notes by property value, write a note, rename a note, list headings, list outbound links, and so on), plus one explicit escape hatch (`obsidian_exec`) for everything else.
+Thirty-five tools for the things a model does in a vault: read a note, a heading or a single property; search by text, pattern, tag, property or link; list folders, files, headings, properties and vaults; write, append, prepend, patch, rename, move and delete notes; preview and commit a find-and-replace; query Obsidian Bases; and run semantic searches through the Smart Connections plugin. One passthrough tool, `obsidian_exec`, reaches the rest of the CLI.
 
-Each typed tool has:
+Every tool has:
 
-- A `zod`-validated input schema, surfaced as JSON Schema to the MCP client.
-- A stable output shape — strings, structured arrays, or `{ count, items }` envelopes — defined once and verified by co-located tests.
-- Structured failures via a small set of error codes (`VALIDATION_ERROR`, `CLI_REPORTED_ERROR`, `FILE_NOT_FOUND`, `ERR_NO_ACTIVE_FILE`, `CLI_BINARY_NOT_FOUND`, `CLI_TIMEOUT`, etc.), so clients can pattern-match instead of parsing free-text stderr.
+- **A validated input schema**, published to the client with a description on every parameter.
+- **A stable result**, defined once and checked by tests. Most tools also publish the result's schema (see [Typed results](#typed-results)).
+- **Structured failures**: a small, stable set of error codes, with the specific condition in `details.code` or `details.reason`, so a client can act on a failure without parsing free text (see [Errors](#errors)).
 
-## Vision
+It works across every vault registered in Obsidian, by name, without switching Obsidian to that vault first (see [Working with vaults](#working-with-vaults)). Writes are checked to stay inside the target vault, and a property the server writes is visible to the next search.
 
-A thin, well-typed bridge — not a feature-for-feature mirror of the upstream CLI. The aim is to cover the small set of vault primitives that real LLM workflows need with stable contracts and predictable failure modes, and to let the escape hatch absorb the long tail of less-used CLI subcommands. The bar for adding a new typed tool is that it materially replaces a brittle pattern (e.g., "full-file read + client-side Markdown parse") with a single call whose contract a model can rely on.
+## Built for how clients use MCP servers now
 
-## Smart Connections tools — plugin dependency
+MCP clients increasingly decide for themselves which calls need the user's approval, which can run side by side, and how to check and use a result, and they expect a server to tell them. Release 0.9.0 moves this server onto the current MCP standard so clients can do that.
 
-The `smart_connections_*` cohort wraps the [Smart Connections](https://github.com/brianpetro/obsidian-smart-connections) Obsidian plugin's runtime API via the CLI's `eval` subcommand. **These tools only work when:**
+### Current and older clients, one server
 
-- The Smart Connections plugin is installed and **enabled** in the target vault.
-- The plugin has finished embedding the vault (its index reports ready).
+The server is built on MCP SDK v2. A single stdio server answers both the current protocol (`2026-07-28`, which starts with `server/discover`) and the previous one (`2025-11-25`, which starts with `initialize`), so current and older clients connect with no setting to change.
 
-If those conditions aren't met, the affected tools return a structured error (`SMART_CONNECTIONS_NOT_INSTALLED` or `SMART_CONNECTIONS_NOT_READY`) — they do not silently degrade. All other tools in this server have no such dependency; if you don't use Smart Connections, you can ignore the cohort entirely.
+### Tools that say what they do
+
+Every tool has a readable title and declares all four behaviour hints: whether it only reads, whether it can overwrite or delete, whether repeating it is safe, and whether it reaches outside the vault. Clients use these to decide what needs your approval. The 22 read-only tools can run in parallel without a prompt in clients that honour the hints, such as Claude Code. The [tool inventory](#tool-inventory) shows each tool's kind.
+
+### The model is oriented from the start
+
+At session start the server sends instructions: what it is for, which tool fits which task, and the rules that apply to every tool. These include using `target_mode: "specific"` for automation, previewing `find_and_replace` before committing, and treating note content as data rather than as instructions. The instructions mention only the tools the server actually offers. Every parameter's description is published in the tool's schema, so a model can call any tool correctly straight away. `help` is still there for a tool's full reference, with worked examples and its error roster.
+
+### Typed results
+
+Thirty-one tools publish an output schema. A successful call returns its result as `structuredContent` and also as the same JSON in the text block, so a client can validate and use the result directly, while clients that only read text are unaffected. Failures are text only. A result that does not match its own schema is reported as `INTERNAL_ERROR` rather than sent. Four tools have no output schema: `read` and `help` return text, `obsidian_exec` returns the CLI's own output, and `tag`'s count-only form is a bare number.
+
+### Asking before irreversible changes
+
+Two actions cannot be undone, so the server asks you to confirm them through your client first: `delete` with `permanent: true`, and a `find_and_replace` commit that is not limited to one note. This uses MCP elicitation, so it works only in clients that can show a confirmation form. See [Confirmation before irreversible changes](#confirmation-before-irreversible-changes).
+
+### Cancellation and progress
+
+If you cancel a call in your client, the server stops it:
+
+- A call still waiting in the queue never starts.
+- A running Obsidian CLI process is stopped.
+- A `find_and_replace` commit stops before its next note. The note being written is finished.
+
+The server runs one CLI call at a time, so cancelling a slow call lets the next one go ahead.
+
+When the client asks for progress, the server reports it while it waits for Obsidian to start (up to 30 seconds) and after each note of a `find_and_replace` commit.
+
+### You decide what the server can do
+
+- **Code execution is off by default.** `obsidian_exec` refuses the commands that run arbitrary code or drive developer tooling.
+- **Fewer tools.** You can offer only the read-only tools, or an allow list or deny list of tools.
+
+Both are read once at start-up. See [Settings](#settings).
 
 ## Install
 
@@ -43,12 +75,18 @@ npm install -g @marwansaab/obsidian-cli-mcp
 Requirements:
 
 - **Node.js** 22.11 or later.
-- **Obsidian** 1.12 or later with the Integrated CLI binary on `PATH`, or the path set via the `OBSIDIAN_BIN` environment variable.
-- Supported on Windows, macOS, and Linux.
+- **Obsidian** 1.12 or later, with the Integrated CLI binary on `PATH` or its path set in `OBSIDIAN_BIN`.
+- Windows, macOS or Linux. Every change is tested on Linux and Windows, with Node 22 and 24.
 
 ## Configure your MCP client
 
-Example configuration for Claude Desktop (the same shape works for other MCP clients that accept `command` + `args`):
+Claude Code:
+
+```sh
+claude mcp add obsidian-cli -s user -- npx -y @marwansaab/obsidian-cli-mcp
+```
+
+Claude Desktop, and other clients that take a `command` and `args`:
 
 ```json
 {
@@ -64,61 +102,60 @@ Example configuration for Claude Desktop (the same shape works for other MCP cli
 }
 ```
 
-Omit `OBSIDIAN_BIN` if the Obsidian CLI is already on `PATH`. On Linux, the Obsidian AppImage typically needs its CLI entry point exposed on `~/.local/bin`.
+Omit `OBSIDIAN_BIN` if the Obsidian CLI is already on `PATH`. On Linux, the Obsidian AppImage usually needs its CLI entry point exposed on `~/.local/bin`.
+
+## Settings
+
+All settings are environment variables, read when the server starts. A change takes effect the next time it starts.
+
+| Variable | Default | Effect |
+|---|---|---|
+| `OBSIDIAN_BIN` | found automatically | Path to the Obsidian CLI binary. |
+| `OBSIDIAN_AUTO_LAUNCH` | on | `0`, `false`, `no` or `off` stops the server from starting Obsidian when it is closed. |
+| `OBSIDIAN_MCP_ALLOW_EVAL` | off | `1`, `true`, `yes` or `on` lets `obsidian_exec` run code. Read the warning below first. |
+| `OBSIDIAN_MCP_READ_ONLY` | off | `1`, `true`, `yes` or `on` offers only the 22 read-only tools. |
+| `OBSIDIAN_MCP_TOOLS` | all tools | Comma-separated list of the only tools to offer. |
+| `OBSIDIAN_MCP_DISABLE` | none | Comma-separated list of tools never to offer. |
+| `OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES` | 500 | The most replacements one `find_and_replace` call may make. |
+
+Flag values are case-insensitive.
 
 ### Auto-launch when Obsidian is closed
 
-If the Obsidian **application** is not running when a tool is called, the server recovers automatically: it detects the app-not-running condition, launches Obsidian via the OS-registered `obsidian://` URI (Windows `start` / macOS `open` / Linux `xdg-open`) — targeting the requested vault when one is named, so recovery lands on the right vault — waits a bounded period (up to 30 seconds) for the app to become ready, and re-runs the original command so the caller gets the normal result from a single call. The already-running path is untouched — recovery is strictly reactive and adds no overhead when Obsidian is open. Re-running is side-effect-safe even for mutating commands, because an app-not-running failure means the CLI errored before the command ever executed.
+If the Obsidian application is not running when a tool is called, the server:
 
-Auto-launch is **on by default**. To disable it (for headless, CI, or locked-down hosts where starting a GUI app is undesirable), set the `OBSIDIAN_AUTO_LAUNCH` environment variable to one of `0`, `false`, `no`, or `off` (case-insensitive). With auto-launch disabled, a call made while Obsidian is closed fails fast with a distinct, actionable error (`CLI_NON_ZERO_EXIT` carrying `details.reason: "obsidian-not-running"`) instead of launching the app. The same distinct error surfaces when a launch is attempted but the app does not become ready within the bound.
+1. starts Obsidian through the system's `obsidian://` handler, on the requested vault when one is named;
+2. waits up to 30 seconds for it to be ready;
+3. runs the original command again, so a single call still returns the normal result.
 
-```json
-{
-  "mcpServers": {
-    "obsidian-cli": {
-      "command": "npx",
-      "args": ["-y", "@marwansaab/obsidian-cli-mcp"],
-      "env": {
-        "OBSIDIAN_AUTO_LAUNCH": "off"
-      }
-    }
-  }
-}
-```
+Running the command again is safe even for writes, because the CLI fails before it does anything when Obsidian is not running. When Obsidian is already open, this adds nothing.
+
+With `OBSIDIAN_AUTO_LAUNCH` off, for example on a headless or locked-down machine, a call made while Obsidian is closed fails straight away. It returns `CLI_NON_ZERO_EXIT` with `details.reason: "obsidian-not-running"`. The same error is returned if Obsidian is started but is not ready within 30 seconds.
 
 ### Code execution through `obsidian_exec` (off by default)
 
-The general-purpose `obsidian_exec` tool refuses, by default, the CLI commands that run arbitrary code or drive developer tooling: `eval`, `devtools`, every `dev:*` command, `restart`, and `plugin:install` / `plugin:enable` / `plugin:disable`. A refused call returns a `VALIDATION_ERROR` with `details.code: "COMMAND_BLOCKED"`, and nothing is run. This protects you if a model is steered by text it read in a note, for example a note written to trick it into running code. The typed tools are unaffected. See [docs/tools/obsidian_exec.md](docs/tools/obsidian_exec.md#blocked-commands) for the exact rules.
+By default, `obsidian_exec` refuses these commands:
 
-To lift the block, set `OBSIDIAN_MCP_ALLOW_EVAL` to `1`, `true`, `yes` or `on` (case-insensitive). The value is read once at start-up.
+- `eval`;
+- `devtools` and every `dev:*` command;
+- `restart`;
+- `plugin:install`, `plugin:enable` and `plugin:disable`.
 
-> **Warning:** with `OBSIDIAN_MCP_ALLOW_EVAL` set, any connected model can run arbitrary JavaScript inside Obsidian with your user account's rights: it can read, change or delete any file you can, and reach the network. Set it only on a machine and vault where you accept that. Even with the block on, `obsidian_exec` can still run command-palette commands (`command`) and reload plugins (`plugin:reload`), which can trigger plugin code indirectly; that is an accepted residual risk.
+A refused call returns `VALIDATION_ERROR` with `details.code: "COMMAND_BLOCKED"`, and nothing runs. A `command` that contains `=` is also refused, so the check cannot be bypassed by passing a vault in `command`. This protects you if a model is steered by text it read in a note. The typed tools are unaffected. [docs/tools/obsidian_exec.md](docs/tools/obsidian_exec.md#blocked-commands) has the exact rules.
 
-```json
-{
-  "mcpServers": {
-    "obsidian-cli": {
-      "command": "npx",
-      "args": ["-y", "@marwansaab/obsidian-cli-mcp"],
-      "env": {
-        "OBSIDIAN_MCP_ALLOW_EVAL": "1"
-      }
-    }
-  }
-}
-```
+> **Warning:** with `OBSIDIAN_MCP_ALLOW_EVAL` set, any connected model can run arbitrary JavaScript inside Obsidian with your user account's rights. It can read, change or delete any file you can, and reach the network. Set it only on a machine and vault where you accept that. Even with the block on, `obsidian_exec` can still run command-palette commands (`command`) and reload plugins (`plugin:reload`), which can run plugin code indirectly. That is an accepted residual risk.
 
 ### Limit which tools are offered
 
-Three settings narrow the tools the server offers. All three are read once at start-up; a change takes effect the next time the server starts.
+`OBSIDIAN_MCP_READ_ONLY`, `OBSIDIAN_MCP_TOOLS` and `OBSIDIAN_MCP_DISABLE` apply in this order:
 
-- `OBSIDIAN_MCP_READ_ONLY`: set to `1`, `true`, `yes` or `on` (case-insensitive) to offer only the tools that never change your vault (the 22 read-only tools, such as `read`, `search` and `vaults`).
-- `OBSIDIAN_MCP_TOOLS`: a comma-separated list of tool names. Only these are offered.
-- `OBSIDIAN_MCP_DISABLE`: a comma-separated list of tool names that are never offered.
+1. the `OBSIDIAN_MCP_TOOLS` list;
+2. then `OBSIDIAN_MCP_DISABLE`, so a name in both lists is not offered;
+3. then `OBSIDIAN_MCP_READ_ONLY`, which drops a write tool even when `OBSIDIAN_MCP_TOOLS` names it.
 
-They apply in this order: the `OBSIDIAN_MCP_TOOLS` list first, then `OBSIDIAN_MCP_DISABLE` (a name in both lists is not offered), then `OBSIDIAN_MCP_READ_ONLY` (a write tool is dropped even if `OBSIDIAN_MCP_TOOLS` names it). Spaces around names and empty entries are ignored. If nothing is left, the server still starts and offers no tools. The server's opening instructions to the model mention only the tools it offers.
+Spaces around names and empty entries are ignored. If nothing is left, the server still starts, with no tools. The server's instructions to the model mention only the tools it offers.
 
-If either list names a tool that does not exist, the server does not start. It writes one error to stderr that names every unknown entry and lists the valid names, for example `Unknown tool name(s) in OBSIDIAN_MCP_TOOLS / OBSIDIAN_MCP_DISABLE: nope (OBSIDIAN_MCP_TOOLS), zap (OBSIDIAN_MCP_DISABLE). Valid names: append_note, backlinks, …`.
+If either list names a tool that does not exist, the server does not start. It writes one error to stderr that names every unknown entry and lists the valid names.
 
 ```json
 {
@@ -137,116 +174,156 @@ If either list names a tool that does not exist, the server does not start. It w
 
 ### Confirmation before irreversible changes
 
-Two actions cannot be undone, so the server asks you to confirm them first, through your MCP client: `delete` with `permanent: true`, and a `find_and_replace` commit that is not limited to one note (no `file`, `path` or `active_note`; a `subfolder` commit still asks). The prompt names the vault and the note, or the scope and the number of notes. If you decline, nothing is changed and the call returns `VALIDATION_ERROR` with `details.code: "CONFIRMATION_DECLINED"`. If your client cannot show such a prompt, the call is refused before anything runs, with `details.code: "CONFIRMATION_UNAVAILABLE"`; delete to the trash instead (omit `permanent`), or commit one note at a time.
+Two calls ask you to confirm first:
 
-## Multi-vault support
+- `delete` with `permanent: true`;
+- a `find_and_replace` commit with none of `file`, `path` or `active_note`. A commit limited to a `subfolder` still asks.
 
-The Obsidian Integrated CLI can address any vault registered in Obsidian, and this server exposes that directly. You do **not** need to manually switch Obsidian to the vault you want to act on — every tool that accepts a `vault` argument routes to that vault by display name, whether it is the focused vault, an open-but-unfocused vault in another window, or a registered vault that is currently closed.
+The prompt names the vault and the note, or the scope and the number of notes.
+
+- **If you decline**, nothing changes, and the call returns `VALIDATION_ERROR` with `details.code: "CONFIRMATION_DECLINED"`.
+- **If your client cannot show the prompt**, the call is refused before anything runs, with `details.code: "CONFIRMATION_UNAVAILABLE"`. Instead, delete to the trash (omit `permanent`), or commit one note at a time.
+
+## Working with vaults
+
+Every tool that takes a `vault` acts on that vault by its display name. It doesn't matter whether that vault is focused, open in another window, or registered but closed, so you never need to switch Obsidian to it first.
 
 ### Two ways to target a vault
 
-- **Specific mode** — pass `vault: "<display name>"` (the name as it appears in Obsidian's vault switcher). The call runs against that vault regardless of which vault is focused. Vault-wide tools (`tag`, `find_by_property`, `paths`, `properties`, `pattern_search`, …) take an optional `vault`; file-targeted tools take `target_mode: "specific"` + `vault` + a `file`/`path` locator.
-- **Active mode** — omit `vault` (or pass `target_mode: "active"`). The call runs against whichever note/vault Obsidian currently has **focused**. Convenient for "act on what I'm looking at", but it depends on Obsidian's live focus state — prefer specific mode for unattended or multi-vault automation.
+- **Specific mode.** Pass the vault's display name, exactly as it appears in Obsidian's vault switcher. The call runs against that vault whichever one is focused.
+  - Vault-wide tools, such as `tag`, `find_by_property`, `paths`, `properties` and `pattern_search`, take an optional `vault`.
+  - Note tools take `target_mode: "specific"` with a `vault` and exactly one of `file` or `path`.
+- **Active mode.** Omit `vault`, or pass `target_mode: "active"`. The call runs against the note and vault Obsidian has focused. This is handy for "act on what I'm looking at", but it depends on what is focused at that moment, so use specific mode for unattended or multi-vault work.
 
 ### What to expect
 
-| Scenario | Behaviour |
+| Situation | Behaviour |
 |---|---|
-| `vault=` names the **focused** vault | Runs against it. |
-| `vault=` names an **open but unfocused** vault | Runs against it. For reads/queries/writes the focus does **not** move, so your current view is undisturbed — no need to switch vaults first. |
-| `vault=` names a **registered but closed** vault | The server transparently opens it and retries once, then returns the normal result from the single call. The first call on a cold vault pays a short startup delay. |
-| Obsidian **application is not running** | Auto-launch recovery opens Obsidian on the requested vault and re-runs the command (see [Auto-launch when Obsidian is closed](#auto-launch-when-obsidian-is-closed)). |
-| `vault=` names an **unregistered / unknown** vault | Fails fast with a structured `CLI_REPORTED_ERROR` (`details.code: "VAULT_NOT_FOUND"`, `details.reason: "unknown"`) — never a silent wrong-vault answer. |
-| **Active mode**, no note focused | `ERR_NO_ACTIVE_FILE` — open a note, or use specific mode. |
+| The vault is focused | Runs against it. |
+| The vault is open but not focused | Runs against it. Reads, searches and writes don't move the focus, so your view is undisturbed. |
+| The vault is registered but closed | Obsidian opens it and the server retries once, then returns the normal result. The first call to a closed vault takes a little longer. |
+| Obsidian is not running | The server starts Obsidian on that vault and runs the command again (see [Auto-launch](#auto-launch-when-obsidian-is-closed)). |
+| The vault name is unknown | A structured error, never an answer from the wrong vault. Tools that go through the CLI return `CLI_REPORTED_ERROR` with `details.code: "VAULT_NOT_FOUND"`. Tools that write files directly return `VALIDATION_ERROR` listing the known vault names. |
+| Active mode with no note focused | `ERR_NO_ACTIVE_FILE`. Open a note, or use specific mode. |
 
-### Opening files across vaults
+### Finding vault names, including new vaults
 
-`open_file` is the one tool that intentionally changes focus: it opens the requested file **in the vault you name** and switches Obsidian's focus to that vault, reporting how the file was placed (`new_tab_created`, `existing_tab_reused`, or `active_tab_used`). It works against the focused vault, an open-but-unfocused vault, or a closed-but-registered vault (which it opens first) — so an automation can surface any file in any registered vault without a human pre-switching vaults.
-
-### Vault names and discovery
-
-Use the **exact** Obsidian display name. The `vaults` tool lists every vault Obsidian knows, with its display name and folder. Each call re-reads Obsidian's list, and a tool given a vault name the server has not seen re-reads it once before failing, so a vault added after the server started can be used by name without a restart.
+`vaults` lists every vault Obsidian knows, with its display name and folder. Each call reads Obsidian's current list. A tool given a vault name the server hasn't seen reads the list again before failing. So a vault added after the server started can be used by name straight away, with no restart.
 
 > [!NOTE]
-> **Duplicate display names.** If two registered vaults share the *same* display name, `vault=` cannot tell them apart, and focusing one does not help. Give colliding vaults distinct display names to disambiguate.
+> **Duplicate display names.** If two vaults share a display name, `vault` cannot tell them apart. `vaults` lists both, but a call by that name goes to only one of them. Give each vault a distinct name.
+
+### Opening a file
+
+`open_file` is the one tool meant to change focus. It opens the file in the vault you name, switches Obsidian to that vault, and reports how the file was placed: `new_tab_created`, `existing_tab_reused` or `active_tab_used`. This works whether the vault is focused, open in another window, or registered but closed (in which case it is opened first). `get_active_file` is its read counterpart.
+
+## Errors
+
+Every failure is returned as an MCP error result with a `{ code, message, details }` envelope. The top-level codes are few and stable:
+
+- `VALIDATION_ERROR`
+- `CLI_REPORTED_ERROR`
+- `CLI_NON_ZERO_EXIT`
+- `ERR_NO_ACTIVE_FILE`
+- `CLI_TIMEOUT`
+- `CLI_OUTPUT_TOO_LARGE`
+- `CLI_BINARY_NOT_FOUND`
+- `FS_WRITE_FAILED`
+- `FILE_EXISTS`
+- `PATH_ESCAPES_VAULT`
+- `INTERNAL_ERROR`
+- `HELP_TOOL_NOT_FOUND`
+- `HELP_DOCS_MISSING`
+
+The specific condition goes in `details.code`, for example `FILE_NOT_FOUND`, `VAULT_NOT_FOUND`, `COMMAND_BLOCKED` or `CONFIRMATION_DECLINED`. The state of a condition goes in `details.reason`, for example `obsidian-not-running`. Each tool's `docs/tools/<name>.md` lists the codes it can return.
 
 ## Tool inventory
 
-The server currently registers thirty-five public tools. Call `help({ tool_name: "<name>" })` at runtime for the full per-tool documentation (parameters, output shape, error roster, and worked examples) — the listing below is just the index.
+The server registers 35 tools. **Kind** is the tool's declared behaviour:
 
-### Read (full + surgical)
+- **read-only** never changes anything;
+- **additive** adds content without overwriting;
+- **repeatable** changes something, but repeating it gives the same result;
+- **destructive** can overwrite, move or delete;
+- **open-world** can reach beyond the vault.
 
-| Tool | Purpose |
-|---|---|
-| `read` | Read a note's full body. |
-| `read_heading` | Read the body under a single named heading. |
-| `read_property` | Read one frontmatter property as a typed `{ value, type }` envelope. |
+Every tool except `read`, `help`, `obsidian_exec` and `tag` returns typed results.
 
-### Search + discovery
+### Read
 
-| Tool | Purpose |
-|---|---|
-| `search` | Vault-wide literal-string search; returns matching paths, or per-line matches when `context_lines: true`. Wraps the upstream CLI's `search` / `search:context` subcommands natively. |
-| `context_search` | Per-line literal-phrase search returning `{ path, line, text }` per match — collapses the "find file → read file → locate line" three-call pattern to one call. |
-| `pattern_search` | ECMAScript-regex search across notes; returns one entry per non-empty match with `{ path, line, offset, match, text }`. Regex companion to `context_search`. |
-| `find_by_property` | Find notes whose frontmatter field matches a value (scalar or list); type-faithful comparison. |
-| `tag` | Vault-relative paths of every Markdown note carrying a given tag, as `{ count, paths }`, or a bare integer in count-only mode. |
-| `backlinks` | Incoming-link inventory — every source note referencing a target note via wikilink. Inverse of [`links`](#); cohort-uniform LEADING truncation when the source cap fires. |
-| `links` | Outbound-link inventory for a single note (the outgoing-direction sibling of `backlinks`). |
-| `open_file` | Surface an existing vault file (any recognised type — note, canvas, PDF, image, attachment) as the focused, active file in the running Obsidian workspace. Opens in the vault you name — focused, open-but-unfocused, or closed-but-registered (opened on demand) — and switches focus to it, reporting tab placement (`new_tab_created` / `existing_tab_reused` / `active_tab_used`); `new_tab` opt-in. |
-| `get_active_file` | Report which file Obsidian currently has focused — the read counterpart of `open_file`. `target_mode: "active"` reads the focused vault; `target_mode: "specific"` + `vault` reads a named vault without changing focus. No active file is the success value `{ active: null }`. |
+| Tool | Kind | Purpose |
+|---|---|---|
+| `read` | read-only | A note's full content. |
+| `read_heading` | read-only | The content under one heading, addressed by its heading path. |
+| `read_property` | read-only | One frontmatter property, as `{ value, type }`. |
 
-### Mutate (single note + property)
+### Search and discovery
 
-| Tool | Purpose |
-|---|---|
-| `append_note` | Append content at the end of an existing note in a single call; default-separator (file's existing trailing line break IS the separator) or `inline:true` fuse; active mode requires no opt-in flag (additive-not-destructive cohort exception); content preserved byte-for-byte verbatim. |
-| `find_and_replace` | Preview-then-commit find-and-replace across a vault (or subfolder); code blocks + HTML comments skipped by default; bounded by `OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES`. |
-| `patch_block` | Surgically replace the body tied to a named `^block-id` block-reference marker inside a note. Single placement mode (replace); three success shapes (paragraph, list-item, separately-placed); first-match-wins on duplicate ids. |
-| `patch_heading` | Surgically rewrite the body under a named heading inside a note. Three placement modes (append, prepend, replace); heading addressed by its full hierarchical `#`-separated path. |
-| `prepend` | Prepend content at the LOGICAL top of an existing note in a single call — frontmatter-aware (lands AFTER any YAML frontmatter, preserving the frontmatter byte-for-byte); default-separator with FR-006a symmetric (content's trailing newline IS the separator); `inline:true` fuses onto the existing leading body line. Content capped at 3072 UTF-16 code units — use `write_note` for longer content. (Earlier versions of this README said 24 KiB; BI-047 lowered the cap after larger writes left the Obsidian GUI degraded.) CLI-wraps upstream `obsidian prepend`. |
-| `write_note` | Create or overwrite a note. |
-| `set_property` | Write a single frontmatter property. |
-| `delete` | Delete a note. |
-| `rename` | Rename a note in place. |
-| `move` | Move a note (optionally renaming); honours the vault's auto-update-links setting. |
+| Tool | Kind | Purpose |
+|---|---|---|
+| `search` | read-only | Literal-text search across the vault. Returns matching paths, or matching lines with `context_lines: true`. |
+| `context_search` | read-only | Literal-phrase search returning `{ path, line, text }` for every match, in one call. |
+| `pattern_search` | read-only | Regular-expression (ECMAScript) search returning `{ path, line, offset, match, text }` for every match. |
+| `find_by_property` | read-only | Notes whose frontmatter property matches a value (scalar or list), compared by type. |
+| `tag` | read-only | Notes carrying a tag, as `{ count, paths }`, or just the count. |
+| `backlinks` | read-only | Every note that links to a note. |
+| `links` | read-only | Every link going out of a note. |
+| `get_active_file` | read-only | The file Obsidian has focused, in the focused vault or a named one. No focused file is `{ active: null }`. |
+| `open_file` | repeatable | Open a file (note, canvas, PDF, image or attachment) in the named vault and focus it. |
 
-### List + inventory
+### Change notes and properties
 
-| Tool | Purpose |
-|---|---|
-| `files` | List files directly inside a folder (single-level, no recursion). |
-| `paths` | Recursive enumeration of every file and folder under a vault or sub-folder; `{ count, paths }` envelope. |
-| `outline` | List headings in a note. |
-| `properties` | Vault-wide inventory of frontmatter property names with per-property note counts. |
-| `vaults` | List every vault Obsidian knows as `{ count, vaults: [{ name, path, open }] }`; `open` is `null` (the CLI does not report it). |
+| Tool | Kind | Purpose |
+|---|---|---|
+| `write_note` | destructive | Create a note, or overwrite one. No size limit. |
+| `append_note` | additive | Add content at the end of a note, byte for byte. |
+| `prepend` | additive | Add content at the top of a note, after any frontmatter. Up to 3,072 characters; use `write_note` for more. |
+| `patch_heading` | additive | Append, prepend or replace the content under a heading. |
+| `patch_block` | additive | Replace the content tied to a `^block-id`. |
+| `set_property` | repeatable | Set one frontmatter property. |
+| `find_and_replace` | destructive | Preview, then commit, a find-and-replace across a vault, a folder or one note. Code blocks and HTML comments are skipped by default. A commit beyond one note asks for confirmation. |
+| `rename` | destructive | Rename a note in place. |
+| `move` | destructive | Move a note, optionally renaming it, following the vault's setting for updating links. |
+| `delete` | destructive | Delete a note to the trash, or permanently after confirmation. |
+
+### List and inventory
+
+| Tool | Kind | Purpose |
+|---|---|---|
+| `files` | read-only | Files directly inside a folder (not recursive). |
+| `paths` | read-only | Every file and folder under a vault or folder, as `{ count, paths }`. |
+| `outline` | read-only | The headings in a note. |
+| `properties` | read-only | Every frontmatter property name in the vault, with the number of notes using it. |
+| `vaults` | read-only | Every vault Obsidian knows, as `{ count, vaults: [{ name, path, open }] }`. `open` is `null`, because the CLI doesn't report it. |
 
 ### Obsidian Bases
 
-| Tool | Purpose |
-|---|---|
-| `bases` | Enumerate all `.base` files in the vault; returns `{ bases, count }` with paths sorted lexicographically. |
-| `views_base` | List the views inside a `.base` file — the one named by `base_path` (focused as a side effect), or the one currently open in Obsidian when `base_path` is omitted; returns `{ views, count }`. |
-| `query_base` | Run a named view from an Obsidian Bases (`.base`) file; returns `{ columns, rows, truncated, total_rows? }` with reserved row-locator `path` at `columns[0]`. |
-| `create_base` | Create a new item (Markdown note) within a `.base` file; returns `{ path, name }` with the actual filename (auto-increments on collision). |
+| Tool | Kind | Purpose |
+|---|---|---|
+| `bases` | read-only | Every `.base` file in the vault, sorted by path. |
+| `views_base` | read-only | The views in a `.base` file, or in the one open in Obsidian. |
+| `query_base` | read-only | Run a view of a `.base` file, returning `{ columns, rows, truncated }`. |
+| `create_base` | additive | Create a new item (a note) in a `.base` file, returning its actual path. |
 
-### Plugin-backed (require Smart Connections)
+### Smart Connections
 
-| Tool | Purpose |
-|---|---|
-| `smart_connections_similar` | Find notes similar to a given source note via Smart Connections' embedding index. |
-| `smart_connections_query` | Free-text natural-language semantic search; returns the nearest block-level matches as `{ count, matches: [{ path, headingPath, score }] }`. |
+| Tool | Kind | Purpose |
+|---|---|---|
+| `smart_connections_similar` | read-only | Notes similar to a given note. |
+| `smart_connections_query` | read-only | Semantic search from free text, returning the nearest blocks with their scores. |
 
-### Escape hatch + meta
+These two tools use the [Smart Connections](https://github.com/brianpetro/obsidian-smart-connections) plugin. They work only when the plugin is installed and enabled in the target vault and has finished building its index. Otherwise they return `SMART_CONNECTIONS_NOT_INSTALLED` or `SMART_CONNECTIONS_NOT_READY`. No other tool depends on the plugin.
 
-| Tool | Purpose |
-|---|---|
-| `obsidian_exec` | Escape hatch — invoke Obsidian CLI subcommands directly. Code-running and developer commands are [blocked by default](#code-execution-through-obsidian_exec-off-by-default). |
-| `help` | Progressive-disclosure documentation for the tools above. |
+### Passthrough and reference
+
+| Tool | Kind | Purpose |
+|---|---|---|
+| `obsidian_exec` | open-world, destructive | Run an Obsidian CLI command directly. Code-running and developer commands are [blocked by default](#code-execution-through-obsidian_exec-off-by-default). |
+| `help` | read-only | The full reference for any tool: parameters, result, errors and worked examples. |
 
 ## How it is built
 
-[.docs-as-code/](.docs-as-code/README.md) describes the server as built: its architecture, its tech stack, and how each tool group works. It is updated in the same pull request as the code it describes.
+[.docs-as-code/](.docs-as-code/README.md) describes the server as built: its architecture, tech stack, decisions and how each group of tools works. It is updated in the same pull request as the code it describes. The published tool surface is pinned by a fingerprint baseline, so a change to any tool's description or schema has to be deliberate.
 
 ## License
 
@@ -254,5 +331,5 @@ MIT. See [LICENSE](LICENSE).
 
 ## Acknowledgements
 
-- The [Obsidian](https://obsidian.md) team for the Integrated CLI that this server wraps.
-- [Smart Connections](https://github.com/brianpetro/obsidian-smart-connections) by Brian Petro for the embeddings powering the `smart_connections_*` tools.
+- The [Obsidian](https://obsidian.md) team, for the Integrated CLI this server wraps.
+- [Smart Connections](https://github.com/brianpetro/obsidian-smart-connections) by Brian Petro, for the embeddings behind the `smart_connections_*` tools.
