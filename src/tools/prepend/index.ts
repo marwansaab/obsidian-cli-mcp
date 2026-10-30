@@ -2,7 +2,7 @@
 import { type z } from "zod";
 
 import { executePrepend, type ExecuteDeps } from "./handler.js";
-import { MAX_CONTENT_LENGTH, prependInputSchema } from "./schema.js";
+import { MAX_CONTENT_LENGTH, prependInputSchema, prependOutputSchema } from "./schema.js";
 import { registerTool } from "../_register.js";
 import { ADDITIVE_WRITE_HINTS, type RegisteredTool, type ToolErrorPayload } from "../_shared.js";
 
@@ -72,6 +72,7 @@ export function createPrependTool(deps: RegisterDeps): RegisteredTool {
     annotations: ADDITIVE_WRITE_HINTS,
     description: PREPEND_DESCRIPTION,
     schema: prependInputSchema,
+    outputSchema: prependOutputSchema,
     deps,
     handler: executePrepend,
     mapValidationError: mapZodIssuesToToolError,

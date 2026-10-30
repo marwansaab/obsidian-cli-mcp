@@ -2,7 +2,8 @@
 // Shared between `_register.test.ts` (the verifier) and `scripts/write-register-baseline.ts` (the
 // regenerator) so canonicalisation cannot drift between writer and reader. 068 R3: the registry is
 // read as a client sees it — a v2 `Client` lists the tools of a freshly built `McpServer` over an
-// in-memory transport — so the gate fingerprints the published surface, not project objects.
+// in-memory transport — so the gate fingerprints the published surface, not project objects. 068 PR 5
+// adds the published outputSchema to each entry.
 import { createHash } from "node:crypto";
 
 import { createServer } from "../server.js";
@@ -18,6 +19,8 @@ export interface BaselineEntry {
   titleFingerprint: string;
   /** 068 PR 4: the published `annotations` (all four hints). */
   annotationsFingerprint: string;
+  /** 068 PR 5: the published `outputSchema`, or `null` for a tool that publishes none. */
+  outputSchemaFingerprint: string;
 }
 
 export interface RegisterBaseline {
@@ -63,6 +66,7 @@ export async function fingerprintLiveRegistry(
       schemaFingerprint: sha256(canonicalJSON(t.inputSchema)),
       titleFingerprint: sha256(t.title ?? ""),
       annotationsFingerprint: sha256(canonicalJSON(t.annotations ?? null)),
+      outputSchemaFingerprint: sha256(canonicalJSON(t.outputSchema ?? null)),
     }));
     entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
     return entries;

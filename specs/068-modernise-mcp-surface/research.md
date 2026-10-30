@@ -277,6 +277,26 @@ with a test.
 structuredContent: result }`. Errors stay text-only via `asToolError` (no
 `structuredContent`). The SDK skips output validation on `isError`.
 
+**T0 result (PR 5, T066, 2026-10-30)**: passed; no tool needed raising to the owner.
+- `src/tools/_surface.test.ts` lists the full registry through a 2025-era client
+  (in-memory, negotiates a `2025-` revision) and a 2026-era client (`createMcpHandler`,
+  negotiates `2026-07-28`). All 31 `outputSchema` values are deep-equal across the two
+  eras, and every one has root `type: "object"`.
+- zod emits `search` as `{ $schema, anyOf: [default, line] }` and `find_and_replace` as
+  `{ $schema, oneOf: [preview, commit] }`, with no root `type`. Through
+  `toSdkOutputSchema` both publish with root `type: "object"` and the variants unchanged.
+  Neither carries the 2025 codec's `{properties: {result: …}}` wrap. A sample of each
+  variant validates against the published schema with the client SDK's
+  `AjvJsonSchemaValidator`, and a value matching no variant does not.
+- `search` had two separate output schemas selected by mode; PR 5 adds
+  `searchOutputSchema = z.union([default, line])` as its published shape. The results are
+  unchanged.
+- Observation: SDK 2.4.0's own `standardSchemaToJsonSchema(…, "output")` would also add
+  root `type: "object"` to a typeless union whose members are all objects. The adapter
+  states the rule in the project's code, so the published bytes do not depend on that
+  private SDK behaviour, and `registerTool` refuses any output root that is not
+  `type: "object"` at boot, so a non-conforming tool cannot be published silently.
+
 **Alternatives rejected**:
 - Wrapping union *results* in a synthetic object (for example `{result: …}`): changes the
   result shape agents rely on today. Only the schema root gains `type: "object"`; the

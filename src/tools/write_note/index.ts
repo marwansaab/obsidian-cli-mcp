@@ -1,7 +1,7 @@
 // Original — no upstream. write_note tool registration — wraps the direct-fs-write handler via registerTool; responseFormat: "json" emits the { created, path } envelope on the MCP wire.
 import { registerTool } from "../_register.js";
 import { executeWriteNote, type ExecuteDeps } from "./handler.js";
-import { writeNoteInputSchema } from "./schema.js";
+import { writeNoteInputSchema, writeNoteOutputSchema } from "./schema.js";
 import { DESTRUCTIVE_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const WRITE_NOTE_TOOL_NAME = "write_note";
@@ -24,6 +24,7 @@ export function createWriteNoteTool(deps: RegisterDeps): RegisteredTool {
     annotations: DESTRUCTIVE_HINTS,
     description: WRITE_NOTE_DESCRIPTION,
     schema: writeNoteInputSchema,
+    outputSchema: writeNoteOutputSchema,
     deps,
     handler: async (input, d) => executeWriteNote(input, d),
   });

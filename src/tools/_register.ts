@@ -1,4 +1,4 @@
-// Original — no upstream. registerTool factory and assertToolDocsExist aggregator: the only path from a zod schema to a tool registered on an MCP SDK v2 McpServer (ADR-006, ADR-039, FR-001..FR-006). 068 R2: the SDK receives the input schema through toSdkInputSchema, a pass-through Standard Schema adapter that publishes the zod schema's own JSON Schema emission and never rejects, so the tool's own zod parse, mapValidationError hook and {code, message, details} envelope stay in force; the callback returns (never throws) asToolError results. 068 PR 4: every spec carries a title and all four annotations, and parameter descriptions are published unstripped (ADR-040).
+// Original — no upstream. registerTool factory and assertToolDocsExist aggregator: the only path from a zod schema to a tool registered on an MCP SDK v2 McpServer (ADR-006, ADR-039, FR-001..FR-006). 068 R2: the SDK receives the input schema through toSdkInputSchema, a pass-through Standard Schema adapter that publishes the zod schema's own JSON Schema emission and never rejects, so the tool's own zod parse, mapValidationError hook and {code, message, details} envelope stay in force; the callback returns (never throws) asToolError results. 068 PR 4: every spec carries a title and all four annotations, and parameter descriptions are published unstripped (ADR-040). 068 PR 5 (R6, FR-039): a spec may carry an outputSchema, published through the toSdkOutputSchema pass-through adapter (object root for unions of objects, zod validation); its success results carry structuredContent plus the identical JSON text.
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -28,6 +28,13 @@ export interface ToolSpec<TSchema extends z.ZodType, TDeps = undefined> {
   deps?: TDeps;
   responseFormat?: ResponseFormat;
   handler: (input: z.infer<TSchema>, deps: TDeps) => Promise<unknown | ToolCallResult>;
+  /**
+   * Zod schema of the success result (068 FR-039). When set, it is published as the tool's
+   * `outputSchema` through `toSdkOutputSchema`, and a success returns the result both as
+   * `structuredContent` and as the identical JSON text. Only for `responseFormat: "json"` tools
+   * whose result is always a JSON object.
+   */
+  outputSchema?: z.ZodType;
   /**
    * Optional mapper from Zod issues to a structured VALIDATION_ERROR payload for
    * INPUT-validation failures (the schema `.parse` of the incoming args). When
@@ -67,6 +74,40 @@ export function toSdkInputSchema(schema: z.ZodType): StandardSchemaWithJSON {
   };
 }
 
+/**
+ * Pass-through Standard Schema adapter for a tool's output schema (068 R6, the mirror of
+ * `toSdkInputSchema`). Its JSON Schema is the zod schema's own emission with one addition: a
+ * root that is a union whose variants are all `type: "object"` (zod emits it with no root
+ * `type`) gains `type: "object"`, so the published schema has an object root, which the 2025-era
+ * codec leaves unwrapped and both eras publish identically (FR-039). Nothing else changes, and
+ * the result data is never wrapped. Its `validate` delegates to zod, so the SDK's output check
+ * still runs the tool's own schema.
+ */
+export function toSdkOutputSchema(schema: z.ZodType): StandardSchemaWithJSON {
+  const zod = schema["~standard"];
+  return {
+    "~standard": {
+      version: 1,
+      vendor: "obsidian-cli-mcp",
+      validate: (value: unknown) => zod.validate(value),
+      jsonSchema: {
+        input: zod.jsonSchema.input,
+        output: (options) => withObjectRootForObjectUnion(zod.jsonSchema.output(options)),
+      },
+    },
+  };
+}
+
+function withObjectRootForObjectUnion(json: Record<string, unknown>): Record<string, unknown> {
+  if (json["type"] !== undefined) return json;
+  const variants = json["anyOf"] ?? json["oneOf"];
+  const allObjects =
+    Array.isArray(variants) &&
+    variants.length > 0 &&
+    variants.every((v) => typeof v === "object" && v !== null && (v as Record<string, unknown>)["type"] === "object");
+  return allObjects ? { type: "object", ...json } : json;
+}
+
 export function registerTool<TSchema extends z.ZodType, TDeps = undefined>(
   spec: ToolSpec<TSchema, TDeps>,
 ): RegisteredTool {
@@ -80,7 +121,19 @@ export function registerTool<TSchema extends z.ZodType, TDeps = undefined>(
       `${spec.name}: input schema must emit a top-level "type": "object" (FR-002), got ${JSON.stringify(inputSchema["type"])}`,
     );
   }
+  const sdkOutputSchema = spec.outputSchema === undefined ? undefined : toSdkOutputSchema(spec.outputSchema);
+  const outputSchema = sdkOutputSchema?.["~standard"].jsonSchema.output({ target: SDK_JSON_SCHEMA_TARGET });
+  // A non-object output root would be wrapped by the 2025-era codec, so the two eras would
+  // publish different schemas. FR-039 allows no era exception: refuse it at boot instead.
+  if (outputSchema !== undefined && outputSchema["type"] !== "object") {
+    throw new Error(
+      `${spec.name}: output schema must emit a top-level "type": "object" (FR-039), got ${JSON.stringify(outputSchema["type"])}`,
+    );
+  }
   const responseFormat: ResponseFormat = spec.responseFormat ?? "json";
+  if (sdkOutputSchema !== undefined && responseFormat !== "json") {
+    throw new Error(`${spec.name}: an outputSchema requires responseFormat "json"`);
+  }
 
   // INPUT-validation mapping only: the per-tool hook when supplied, else a generic
   // issues-listing envelope. A runtime/output ZodError thrown by the handler does
@@ -133,7 +186,10 @@ export function registerTool<TSchema extends z.ZodType, TDeps = undefined>(
     }
 
     if (responseFormat === "json") {
-      return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+      const content = [{ type: "text" as const, text: JSON.stringify(result) }];
+      // 068 FR-039: the same object as structured data. Errors above stay text-only (FR-040).
+      if (sdkOutputSchema !== undefined) return { content, structuredContent: result as Record<string, unknown> };
+      return { content };
     }
     return result as ToolCallResult;
   };
@@ -144,6 +200,7 @@ export function registerTool<TSchema extends z.ZodType, TDeps = undefined>(
       description: spec.description,
       annotations: spec.annotations,
       inputSchema,
+      ...(outputSchema !== undefined && { outputSchema }),
     },
     handler,
     register: (server: McpServer) => {
@@ -154,6 +211,7 @@ export function registerTool<TSchema extends z.ZodType, TDeps = undefined>(
           description: spec.description,
           annotations: spec.annotations,
           inputSchema: sdkInputSchema,
+          ...(sdkOutputSchema !== undefined && { outputSchema: sdkOutputSchema }),
         },
         handler,
       );

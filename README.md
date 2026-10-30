@@ -134,14 +134,14 @@ The Obsidian Integrated CLI can address any vault registered in Obsidian, and th
 
 ### Vault names and discovery
 
-Use the **exact** Obsidian display name. The server has no in-band vault-enumeration tool yet, so supply the names your workflow needs out-of-band (e.g. in your client config or session context).
+Use the **exact** Obsidian display name. The `vaults` tool lists every vault Obsidian knows, with its display name and folder. Each call re-reads Obsidian's list, and a tool given a vault name the server has not seen re-reads it once before failing, so a vault added after the server started can be used by name without a restart.
 
 > [!NOTE]
 > **Duplicate display names.** If two registered vaults share the *same* display name, `vault=` cannot tell them apart, and focusing one does not help. Give colliding vaults distinct display names to disambiguate.
 
 ## Tool inventory
 
-The server currently registers thirty-four public tools. Call `help({ tool_name: "<name>" })` at runtime for the full per-tool documentation (parameters, output shape, error roster, and worked examples) — the listing below is just the index.
+The server currently registers thirty-five public tools. Call `help({ tool_name: "<name>" })` at runtime for the full per-tool documentation (parameters, output shape, error roster, and worked examples) — the listing below is just the index.
 
 ### Read (full + surgical)
 
@@ -188,6 +188,7 @@ The server currently registers thirty-four public tools. Call `help({ tool_name:
 | `paths` | Recursive enumeration of every file and folder under a vault or sub-folder; `{ count, paths }` envelope. |
 | `outline` | List headings in a note. |
 | `properties` | Vault-wide inventory of frontmatter property names with per-property note counts. |
+| `vaults` | List every vault Obsidian knows as `{ count, vaults: [{ name, path, open }] }`; `open` is `null` (the CLI does not report it). |
 
 ### Obsidian Bases
 

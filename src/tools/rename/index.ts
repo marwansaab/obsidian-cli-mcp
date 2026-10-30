@@ -1,7 +1,7 @@
 // Original — no upstream. rename tool registration via registerTool — responseFormat: "json" wraps the { renamed, fromPath, toPath } envelope for the MCP wire.
 import { registerTool } from "../_register.js";
 import { executeRenameNote, type ExecuteDeps } from "./handler.js";
-import { renameInputSchema } from "./schema.js";
+import { renameInputSchema, renameNoteOutputSchema } from "./schema.js";
 import { DESTRUCTIVE_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const RENAME_TOOL_NAME = "rename";
@@ -18,6 +18,7 @@ export function createRenameTool(deps: RegisterDeps): RegisteredTool {
     annotations: DESTRUCTIVE_HINTS,
     description: RENAME_DESCRIPTION,
     schema: renameInputSchema,
+    outputSchema: renameNoteOutputSchema,
     deps,
     handler: async (input, d) => executeRenameNote(input, d),
   });

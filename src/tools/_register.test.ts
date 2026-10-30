@@ -10,7 +10,7 @@ import { z } from "zod";
 
 import { connectInMemoryClient } from "./_mcp-client-fixtures.js";
 import { fingerprintLiveRegistry, type RegisterBaseline } from "./_register-baseline.js";
-import { registerTool, assertToolDocsExist, toSdkInputSchema } from "./_register.js";
+import { registerTool, assertToolDocsExist, toSdkInputSchema, toSdkOutputSchema } from "./_register.js";
 import { UpstreamError } from "../errors.js";
 import { createServer } from "../server.js";
 import {
@@ -183,6 +183,135 @@ describe("registerTool — callback outcomes through McpServer (068 T033)", () =
       const result = await client.callTool({ name: "cb_noargs" });
       expect(result.isError).toBeFalsy();
       expect(seen).toEqual({});
+    } finally {
+      await client.close();
+    }
+  });
+});
+
+// 068 R6 / T066–T067: typed results. The adapter publishes zod's own output emission, adding a
+// root `type: "object"` only to a union whose variants are all objects; results carry
+// structuredContent plus the identical text, and errors stay text-only.
+describe("toSdkOutputSchema and typed results (068 R6, T066, T067)", () => {
+  const objectOut = z.strictObject({ count: z.number().int(), names: z.array(z.string()) });
+  const unionOut = z.union([
+    z.strictObject({ kind: z.literal("a"), a: z.string() }),
+    z.strictObject({ kind: z.literal("b"), b: z.number() }),
+  ]);
+
+  it("an object-root schema is published exactly as zod emits it", () => {
+    const out = toSdkOutputSchema(objectOut)["~standard"].jsonSchema.output({ target: "draft-2020-12" });
+    expect(out).toEqual(objectOut["~standard"].jsonSchema.output({ target: "draft-2020-12" }));
+  });
+
+  it("a union of objects gains root type: 'object' and nothing else changes", () => {
+    const zodOut = unionOut["~standard"].jsonSchema.output({ target: "draft-2020-12" });
+    expect(zodOut.type).toBeUndefined();
+    const out = toSdkOutputSchema(unionOut)["~standard"].jsonSchema.output({ target: "draft-2020-12" });
+    expect(out).toEqual({ type: "object", ...zodOut });
+  });
+
+  it("a union with a non-object variant is left without a root type", () => {
+    const mixed = z.union([z.strictObject({ a: z.string() }), z.number()]);
+    const out = toSdkOutputSchema(mixed)["~standard"].jsonSchema.output({ target: "draft-2020-12" });
+    expect(out.type).toBeUndefined();
+  });
+
+  it("validate delegates to zod (accepts a valid value, rejects an invalid one)", async () => {
+    const adapter = toSdkOutputSchema(unionOut);
+    expect(await adapter["~standard"].validate({ kind: "b", b: 1 })).toEqual({ value: { kind: "b", b: 1 } });
+    const bad = await adapter["~standard"].validate({ kind: "b", b: "x" });
+    expect("issues" in bad && bad.issues !== undefined && bad.issues.length > 0).toBe(true);
+  });
+
+  it("registerTool refuses a non-object output root at boot (FR-039)", () => {
+    expect(() =>
+      registerTool({
+        name: "out_scalar",
+        ...TEST_SURFACE,
+        description: "scalar result",
+        schema: z.strictObject({}),
+        outputSchema: z.number(),
+        handler: async () => 1,
+      }),
+    ).toThrow('out_scalar: output schema must emit a top-level "type": "object" (FR-039), got "number"');
+  });
+
+  it("registerTool refuses an outputSchema on a raw-format tool", () => {
+    expect(() =>
+      registerTool({
+        name: "out_raw",
+        ...TEST_SURFACE,
+        description: "raw",
+        schema: z.strictObject({}),
+        outputSchema: objectOut,
+        responseFormat: "raw",
+        handler: async () => ({ content: [] }),
+      }),
+    ).toThrow('out_raw: an outputSchema requires responseFormat "json"');
+  });
+
+  it("a success returns structuredContent and the identical JSON text; the descriptor carries the published outputSchema", async () => {
+    const tool = registerTool({
+      name: "out_ok",
+      ...TEST_SURFACE,
+      description: "typed",
+      schema: z.strictObject({}),
+      outputSchema: unionOut,
+      handler: async () => ({ kind: "a", a: "x" }),
+    });
+    const client = await serveOne(tool);
+    try {
+      const { tools } = await client.listTools();
+      expect(tools[0]!.outputSchema).toEqual(tool.descriptor.outputSchema);
+      expect(tools[0]!.outputSchema?.type).toBe("object");
+      const result = await client.callTool({ name: "out_ok", arguments: {} });
+      expect(result.isError).toBeFalsy();
+      expect(result.structuredContent).toEqual({ kind: "a", a: "x" });
+      expect(JSON.parse(textOf(result))).toEqual(result.structuredContent);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("a failure from a tool with an outputSchema is text-only (FR-040)", async () => {
+    const client = await serveOne(
+      registerTool({
+        name: "out_err",
+        ...TEST_SURFACE,
+        description: "typed failure",
+        schema: z.strictObject({}),
+        outputSchema: objectOut,
+        handler: async () => {
+          throw new UpstreamError({ code: "CLI_TIMEOUT", cause: null, details: {}, message: "timed out" });
+        },
+      }),
+    );
+    try {
+      const result = await client.callTool({ name: "out_err", arguments: {} });
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toBeUndefined();
+      expect(JSON.parse(textOf(result)).code).toBe("CLI_TIMEOUT");
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("a tool without an outputSchema publishes none and returns no structuredContent", async () => {
+    const tool = registerTool({
+      name: "out_none",
+      ...TEST_SURFACE,
+      description: "untyped",
+      schema: z.strictObject({}),
+      handler: async () => ({ ok: true }),
+    });
+    expect(tool.descriptor.outputSchema).toBeUndefined();
+    const client = await serveOne(tool);
+    try {
+      const { tools } = await client.listTools();
+      expect(tools[0]!.outputSchema).toBeUndefined();
+      const result = await client.callTool({ name: "out_none", arguments: {} });
+      expect(result.structuredContent).toBeUndefined();
     } finally {
       await client.close();
     }
@@ -754,6 +883,12 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
     type: "object",
     properties_equals_set: ["query", "folder", "limit", "case_sensitive", "context_lines", "vault"],
     required_equals: ["query"],
+    additionalProperties: false,
+  },
+  vaults: {
+    type: "object",
+    properties_equals_set: [],
+    required_equals: [],
     additionalProperties: false,
   },
   synthetic_pattern_a: {

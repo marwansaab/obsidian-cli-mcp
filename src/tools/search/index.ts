@@ -9,7 +9,7 @@
 // subcommands).
 import { registerTool } from "../_register.js";
 import { executeSearch, type ExecuteDeps } from "./handler.js";
-import { searchInputSchema } from "./schema.js";
+import { searchInputSchema, searchOutputSchema } from "./schema.js";
 import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const SEARCH_TOOL_NAME = "search";
@@ -50,6 +50,7 @@ export function createSearchTool(deps: RegisterDeps): RegisteredTool {
     annotations: READ_ONLY_HINTS,
     description: SEARCH_DESCRIPTION,
     schema: searchInputSchema,
+    outputSchema: searchOutputSchema,
     deps,
     handler: async (input, d) => executeSearch(input, d),
   });

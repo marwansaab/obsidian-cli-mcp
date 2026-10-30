@@ -1,7 +1,7 @@
 // Original — no upstream. smart_connections_query tool registration via registerTool — plugin-backed semantic-query primitive returning a typed { count, matches: [{ path, headingPath, score }] } envelope; responseFormat: "json" (default) wraps the envelope for the MCP wire. Second member of the eval-driven plugin-backed cohort (after BI-026 smart_connections_similar) and first member of the FILELESS sub-cohort within that cohort (no target_mode discriminator; optional vault?). Tool name follows ADR-013's <plugin_name>_<operation> plugin-namespace convention.
 import { registerTool } from "../_register.js";
 import { executeSmartConnectionsQuery, type ExecuteDeps } from "./handler.js";
-import { MAX_QUERY_LENGTH, smartConnectionsQueryInputSchema } from "./schema.js";
+import { MAX_QUERY_LENGTH, smartConnectionsQueryInputSchema, smartConnectionsQueryOutputSchema } from "./schema.js";
 import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const SMART_CONNECTIONS_QUERY_TOOL_NAME = "smart_connections_query";
@@ -32,6 +32,7 @@ export function createSmartConnectionsQueryTool(deps: RegisterDeps): RegisteredT
     annotations: READ_ONLY_HINTS,
     description: SMART_CONNECTIONS_QUERY_DESCRIPTION,
     schema: smartConnectionsQueryInputSchema,
+    outputSchema: smartConnectionsQueryOutputSchema,
     deps,
     handler: async (input, d) => executeSmartConnectionsQuery(input, d),
   });

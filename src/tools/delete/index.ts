@@ -1,7 +1,7 @@
 // Original — no upstream. delete tool registration via registerTool — responseFormat: "json" wraps the { deleted, path, toTrash } envelope for the MCP wire.
 import { registerTool } from "../_register.js";
 import { executeDeleteNote, type ExecuteDeps } from "./handler.js";
-import { deleteInputSchema } from "./schema.js";
+import { deleteInputSchema, deleteNoteOutputSchema } from "./schema.js";
 import { DESTRUCTIVE_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const DELETE_TOOL_NAME = "delete";
@@ -18,6 +18,7 @@ export function createDeleteTool(deps: RegisterDeps): RegisteredTool {
     annotations: DESTRUCTIVE_HINTS,
     description: DELETE_DESCRIPTION,
     schema: deleteInputSchema,
+    outputSchema: deleteNoteOutputSchema,
     deps,
     handler: async (input, d) => executeDeleteNote(input, d),
   });

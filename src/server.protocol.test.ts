@@ -63,9 +63,9 @@ describe.each([
     expect(caps?.logging).toBeUndefined();
   });
 
-  it("listTools returns all 34 tools", async () => {
+  it("listTools returns all 35 tools", async () => {
     const { tools } = await client.listTools();
-    expect(tools.length).toBe(34);
+    expect(tools.length).toBe(35);
   });
 
   it("callTool('help') succeeds", async () => {
@@ -103,6 +103,8 @@ describe("MCP protocol — server instructions (068 FR-025, T055)", () => {
       const { tools } = await legacy.listTools();
       expect(fromLegacy).toBe(buildInstructions(tools.map((t) => t.name)));
       expect(fromLegacy!.length).toBeLessThan(2000);
+      // The `vaults` rule appears now that the tool is registered (068 PR 5, T065).
+      expect(fromLegacy).toContain("`vaults` lists the vault names to use.");
     } finally {
       await legacy.close();
       await modern.close();

@@ -1,7 +1,7 @@
 // Original — no upstream.
 import { registerTool } from "../_register.js";
 import { executeBases, type ExecuteDeps } from "./handler.js";
-import { basesInputSchema } from "./schema.js";
+import { basesInputSchema, basesOutputSchema } from "./schema.js";
 import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const BASES_TOOL_NAME = "bases";
@@ -26,6 +26,7 @@ export function createBasesTool(deps: RegisterDeps): RegisteredTool {
     annotations: READ_ONLY_HINTS,
     description: BASES_DESCRIPTION,
     schema: basesInputSchema,
+    outputSchema: basesOutputSchema,
     deps,
     handler: async (input, d) => executeBases(input, d),
   });

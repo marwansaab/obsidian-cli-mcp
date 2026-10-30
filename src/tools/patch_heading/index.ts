@@ -1,7 +1,7 @@
 // Original — no upstream. patch_heading tool registration per BI-040 / ADR-009 — wraps the executePatchHeading direct-fs-write handler via registerTool (ADR-006); responseFormat: "json" emits the { path, vault, heading_path, mode, bytes_written } envelope on the MCP wire.
 import { registerTool } from "../_register.js";
 import { executePatchHeading, type ExecuteDeps } from "./handler.js";
-import { patchHeadingInputSchema } from "./schema.js";
+import { patchHeadingInputSchema, patchHeadingOutputSchema } from "./schema.js";
 import { ADDITIVE_WRITE_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const PATCH_HEADING_TOOL_NAME = "patch_heading";
@@ -35,6 +35,7 @@ export function createPatchHeadingTool(deps: RegisterDeps): RegisteredTool {
     annotations: ADDITIVE_WRITE_HINTS,
     description: PATCH_HEADING_DESCRIPTION,
     schema: patchHeadingInputSchema,
+    outputSchema: patchHeadingOutputSchema,
     deps,
     handler: async (input, d) => executePatchHeading(input, d),
   });

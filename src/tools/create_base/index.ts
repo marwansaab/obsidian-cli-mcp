@@ -1,7 +1,7 @@
 // Original — no upstream.
 import { registerTool } from "../_register.js";
 import { executeCreateBase, type ExecuteDeps } from "./handler.js";
-import { createBaseInputSchema, MAX_CONTENT_LENGTH } from "./schema.js";
+import { createBaseInputSchema, createBaseOutputSchema, MAX_CONTENT_LENGTH } from "./schema.js";
 import { ADDITIVE_WRITE_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const CREATE_BASE_TOOL_NAME = "create_base";
@@ -26,6 +26,7 @@ export function createCreateBaseTool(deps: RegisterDeps): RegisteredTool {
     annotations: ADDITIVE_WRITE_HINTS,
     description: CREATE_BASE_DESCRIPTION,
     schema: createBaseInputSchema,
+    outputSchema: createBaseOutputSchema,
     deps,
     handler: async (input, d) => executeCreateBase(input, d),
   });

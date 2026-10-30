@@ -1,7 +1,7 @@
 // Original — no upstream. outline tool registration via registerTool — structural-discovery primitive returning a typed { count, headings: [...] } envelope; responseFormat: "json" (default) wraps the envelope for the MCP wire.
 import { registerTool } from "../_register.js";
 import { executeOutline, type ExecuteDeps } from "./handler.js";
-import { outlineInputSchema } from "./schema.js";
+import { outlineInputSchema, outlineOutputSchema } from "./schema.js";
 import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const OUTLINE_TOOL_NAME = "outline";
@@ -18,6 +18,7 @@ export function createOutlineTool(deps: RegisterDeps): RegisteredTool {
     annotations: READ_ONLY_HINTS,
     description: OUTLINE_DESCRIPTION,
     schema: outlineInputSchema,
+    outputSchema: outlineOutputSchema,
     deps,
     handler: async (input, d) => executeOutline(input, d),
   });

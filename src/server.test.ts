@@ -56,11 +56,11 @@ test("buildMcpServer returns an SDK v2 McpServer", () => {
   expect(createServer(ctx).buildMcpServer()).toBeInstanceOf(McpServer);
 });
 
-test("createServer registers exactly THIRTY-FOUR tools (FR-001 + FR-007 + P8 aggregator + BI-003 + BI-011 + BI-012 + BI-013 + BI-014 + BI-015 + BI-018 + BI-019 + BI-021 + BI-022 + BI-023 + BI-024 + BI-025 + BI-026 + BI-027 + BI-028 + BI-029 + BI-030 + BI-033 + BI-035 + BI-036 + BI-037 + BI-038 + BI-039 + BI-040 + BI-043 + BI-044 + BI-045 + BI-049 + BI-057 + BI-082 + BI-083 + BI-063)", async () => {
+test("createServer registers exactly THIRTY-FIVE tools (FR-001 + FR-007 + P8 aggregator + BI-003 + BI-011 + BI-012 + BI-013 + BI-014 + BI-015 + BI-018 + BI-019 + BI-021 + BI-022 + BI-023 + BI-024 + BI-025 + BI-026 + BI-027 + BI-028 + BI-029 + BI-030 + BI-033 + BI-035 + BI-036 + BI-037 + BI-038 + BI-039 + BI-040 + BI-043 + BI-044 + BI-045 + BI-049 + BI-057 + BI-082 + BI-083 + BI-063 + 068 FR-036)", async () => {
   const tools = await listPublishedTools();
-  expect(tools.length).toBe(34);
+  expect(tools.length).toBe(35);
   const names = tools.map((t) => t.name).sort();
-  expect(names).toEqual(["append_note", "backlinks", "bases", "context_search", "create_base", "delete", "files", "find_and_replace", "find_by_property", "get_active_file", "help", "links", "move", "obsidian_exec", "open_file", "outline", "patch_block", "patch_heading", "paths", "pattern_search", "prepend", "properties", "query_base", "read", "read_heading", "read_property", "rename", "search", "set_property", "smart_connections_query", "smart_connections_similar", "tag", "views_base", "write_note"]);
+  expect(names).toEqual(["append_note", "backlinks", "bases", "context_search", "create_base", "delete", "files", "find_and_replace", "find_by_property", "get_active_file", "help", "links", "move", "obsidian_exec", "open_file", "outline", "patch_block", "patch_heading", "paths", "pattern_search", "prepend", "properties", "query_base", "read", "read_heading", "read_property", "rename", "search", "set_property", "smart_connections_query", "smart_connections_similar", "tag", "vaults", "views_base", "write_note"]);
 });
 
 describe("OBSIDIAN_MCP_ALLOW_EVAL wiring (068 FR-012, T024)", () => {
@@ -299,6 +299,8 @@ describe("registry consistency", () => {
   // 068 FR-029 retires the FR-006 stripping; src/tools/_surface.test.ts requires a description on every property.
   it("every registered tool's published inputSchema keeps its parameter descriptions (068 FR-029)", async () => {
     for (const tool of await listPublishedTools()) {
+      // `vaults` takes no input, so it has no parameter to describe (068 FR-036).
+      if (tool.name === "vaults") continue;
       expect(hasNestedDescription(tool.inputSchema), `Tool '${tool.name}' has no parameter description in inputSchema`).toBe(true);
     }
   });

@@ -88,6 +88,9 @@ export const searchLineOutputSchema = z
   })
   .refine((o) => o.count === o.matches.length, "count must equal matches.length");
 
+// 068 FR-039: the published result shape, one object variant per mode (paths, or per-line matches).
+export const searchOutputSchema = z.union([searchDefaultOutputSchema, searchLineOutputSchema]);
+
 export const searchDefaultWireSchema = z.array(z.string().min(1));
 
 export const searchContextWireMatchSchema = z

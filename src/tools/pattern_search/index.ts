@@ -1,7 +1,7 @@
 // Original — no upstream. pattern_search tool registration via registerTool — ECMAScript-regex search primitive returning a typed { count, matches: [{path, line, offset, match, text}], truncated? } envelope; responseFormat: "json" (default) wraps the envelope for the MCP wire. Sixteenth typed-tool wrap.
 import { registerTool } from "../_register.js";
 import { executePatternSearch, type ExecuteDeps } from "./handler.js";
-import { patternSearchInputSchema } from "./schema.js";
+import { patternSearchInputSchema, patternSearchOutputSchema } from "./schema.js";
 import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const PATTERN_SEARCH_TOOL_NAME = "pattern_search";
@@ -42,6 +42,7 @@ export function createPatternSearchTool(deps: RegisterDeps): RegisteredTool {
     annotations: READ_ONLY_HINTS,
     description: PATTERN_SEARCH_DESCRIPTION,
     schema: patternSearchInputSchema,
+    outputSchema: patternSearchOutputSchema,
     deps,
     handler: async (input, d) => executePatternSearch(input, d),
   });

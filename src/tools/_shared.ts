@@ -89,16 +89,21 @@ export interface ToolDescriptor {
   description: string;
   annotations: ToolAnnotations;
   inputSchema: Record<string, unknown>;
+  /** The published `outputSchema` JSON (from `toSdkOutputSchema`), when the tool has one (068 FR-039). */
+  outputSchema?: Record<string, unknown>;
 }
 
 /**
  * The success / error envelope a tool's call-handler returns. Mirrors the MCP
- * SDK's `CallToolResult` shape. On the failure path, `isError: true` flags the
- * envelope as a structured error; the JSON-stringified payload in `content[0].text`
- * carries `code`, `message`, and `details` per the project's UpstreamError serialization.
+ * SDK's `CallToolResult` shape. A success from a tool with an `outputSchema` also
+ * carries `structuredContent`, the same object as the JSON text (068 FR-039). On the
+ * failure path, `isError: true` flags the envelope as a structured error; the
+ * JSON-stringified payload in `content[0].text` carries `code`, `message`, and
+ * `details` per the project's UpstreamError serialization, and there is no
+ * `structuredContent` (FR-040).
  */
 export type ToolCallResult =
-  | { content: Array<{ type: "text"; text: string }> }
+  | { content: Array<{ type: "text"; text: string }>; structuredContent?: Record<string, unknown> }
   | { isError: true; content: Array<{ type: "text"; text: string }> };
 
 /**

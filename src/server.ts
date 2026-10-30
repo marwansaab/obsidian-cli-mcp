@@ -44,6 +44,7 @@ import { createSetPropertyTool } from "./tools/set_property/index.js";
 import { createSmartConnectionsQueryTool } from "./tools/smart_connections_query/index.js";
 import { createSmartConnectionsSimilarTool } from "./tools/smart_connections_similar/index.js";
 import { createTagTool } from "./tools/tag/index.js";
+import { createVaultsTool } from "./tools/vaults/index.js";
 import { createViewsBaseTool } from "./tools/views_base/index.js";
 import { createWriteNoteTool } from "./tools/write_note/index.js";
 import { createVaultRegistry } from "./vault-registry/registry.js";
@@ -139,6 +140,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     createSmartConnectionsQueryTool({ logger, queue }),
     createSmartConnectionsSimilarTool({ logger, queue }),
     createTagTool({ logger, queue }),
+    createVaultsTool({ vaultRegistry }),
     createViewsBaseTool({ logger, queue, vaultRegistry }),
     createWriteNoteTool({ logger, queue, vaultRegistry }),
   ];

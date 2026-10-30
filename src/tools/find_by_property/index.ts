@@ -1,7 +1,7 @@
 // Original — no upstream. find_by_property tool registration via registerTool — wraps the { count, paths } envelope for the MCP wire.
 import { registerTool } from "../_register.js";
 import { executeFindByProperty, type ExecuteDeps } from "./handler.js";
-import { findByPropertyInputSchema } from "./schema.js";
+import { findByPropertyInputSchema, findByPropertyOutputSchema } from "./schema.js";
 import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const FIND_BY_PROPERTY_TOOL_NAME = "find_by_property";
@@ -32,6 +32,7 @@ export function createFindByPropertyTool(deps: RegisterDeps): RegisteredTool {
     annotations: READ_ONLY_HINTS,
     description: FIND_BY_PROPERTY_DESCRIPTION,
     schema: findByPropertyInputSchema,
+    outputSchema: findByPropertyOutputSchema,
     deps,
     handler: async (input, d) => executeFindByProperty(input, d),
   });

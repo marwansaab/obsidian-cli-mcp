@@ -1,7 +1,7 @@
 // Original — no upstream. read_property tool registration via registerTool — responseFormat: "json" wraps the { value, type } envelope for the MCP wire.
 import { registerTool } from "../_register.js";
 import { executeReadProperty, type ExecuteDeps } from "./handler.js";
-import { readPropertyInputSchema } from "./schema.js";
+import { readPropertyInputSchema, readPropertyOutputSchema } from "./schema.js";
 import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const READ_PROPERTY_TOOL_NAME = "read_property";
@@ -18,6 +18,7 @@ export function createReadPropertyTool(deps: RegisterDeps): RegisteredTool {
     annotations: READ_ONLY_HINTS,
     description: READ_PROPERTY_DESCRIPTION,
     schema: readPropertyInputSchema,
+    outputSchema: readPropertyOutputSchema,
     deps,
     handler: async (input, d) => executeReadProperty(input, d),
   });

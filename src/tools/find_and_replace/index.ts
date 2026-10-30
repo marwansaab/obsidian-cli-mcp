@@ -2,7 +2,7 @@
 import { type z } from "zod";
 
 import { executeFindAndReplace, type ExecuteDeps } from "./handler.js";
-import { findAndReplaceInputSchema } from "./schema.js";
+import { findAndReplaceInputSchema, findAndReplaceOutputSchema } from "./schema.js";
 import { registerTool } from "../_register.js";
 import { DESTRUCTIVE_HINTS, type RegisteredTool, type ToolErrorPayload } from "../_shared.js";
 
@@ -156,6 +156,7 @@ export function createFindAndReplaceTool(deps: RegisterDeps): RegisteredTool {
     annotations: DESTRUCTIVE_HINTS,
     description: FIND_AND_REPLACE_DESCRIPTION,
     schema: findAndReplaceInputSchema,
+    outputSchema: findAndReplaceOutputSchema,
     deps,
     handler: executeFindAndReplace,
     mapValidationError: mapZodIssuesToToolError,

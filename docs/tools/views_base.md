@@ -55,7 +55,7 @@ The native `base:views` subcommand emits each line as `<view name>\t<view type>`
 | `CLI_REPORTED_ERROR` | `BASE_NOT_FOUND`   | `named-missing`  | A named `.base` does not exist at `base_path` in the resolved vault | Check the path with `bases`; the named Base is not substituted by the open one. |
 | `CLI_REPORTED_ERROR` | `BASE_NOT_FOUND`   | `not-open`       | Open-Base mode: the focused file is not a `.base`, or nothing is focused | Focus a `.base` in Obsidian, or pass `base_path`. |
 | `CLI_REPORTED_ERROR` | `BASE_MALFORMED`   | —                | The named `.base` exists but Obsidian cannot use it | Repair the `.base` file. |
-| `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND`  | `unknown`        | The `vault` display name is not registered with Obsidian | Check the name with `vaults`; restart the bridge if the vault was added after it started. |
+| `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND`  | `unknown`        | The `vault` display name is not registered with Obsidian | Check the name with `vaults`. A vault added after the server started is found without a restart. |
 | `CLI_REPORTED_ERROR` | —                  | —                | Other upstream CLI failure / app down / binary missing | Retry; confirm Obsidian is running. |
 | `UPSTREAM_TIMEOUT`   | —                  | —                | Subprocess exceeded 10 s | Retry. |
 
