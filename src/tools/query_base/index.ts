@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeQueryBase, type ExecuteDeps } from "./handler.js";
 import { queryBaseInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const QUERY_BASE_TOOL_NAME = "query_base";
 
@@ -24,13 +23,15 @@ Response: \`{ columns: string[], rows: Array<Record<string, unknown>>, truncated
 
 Read-only — the tool never mutates vault contents.
 
-Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (\`INVALID_BASE_PATH\` with sub-reasons \`empty\`/\`too-long\`/\`wrong-extension\`/\`path-traversal\`; \`INVALID_VIEW_NAME\` with sub-reasons \`empty\`/\`too-long\`); \`CLI_REPORTED_ERROR\` (\`BASE_NOT_FOUND\`; \`BASE_MALFORMED\` with sub-reasons \`empty\`/\`invalid-yaml\`/\`missing-required-key\`/\`unsupported-schema-version\`/\`unknown\`; \`VIEW_NOT_FOUND\`; \`VAULT_NOT_FOUND\` with sub-reasons \`unknown\`/\`not-open\`); \`PATH_ESCAPES_VAULT\`. Call \`help({ tool_name: "query_base" })\` for worked examples and recovery hints.`;
+Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (\`INVALID_BASE_PATH\` with sub-reasons \`empty\`/\`too-long\`/\`wrong-extension\`/\`path-traversal\`; \`INVALID_VIEW_NAME\` with sub-reasons \`empty\`/\`too-long\`); \`CLI_REPORTED_ERROR\` (\`BASE_NOT_FOUND\`; \`BASE_MALFORMED\` with sub-reasons \`empty\`/\`invalid-yaml\`/\`missing-required-key\`/\`unsupported-schema-version\`/\`unknown\`; \`VIEW_NOT_FOUND\`; \`VAULT_NOT_FOUND\` with sub-reasons \`unknown\`/\`not-open\`); \`PATH_ESCAPES_VAULT\`.`;
 
 export type RegisterDeps = ExecuteDeps;
 
 export function createQueryBaseTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: QUERY_BASE_TOOL_NAME,
+    title: "Query Base",
+    annotations: READ_ONLY_HINTS,
     description: QUERY_BASE_DESCRIPTION,
     schema: queryBaseInputSchema,
     deps,

@@ -1,10 +1,15 @@
 // Original — no upstream. properties input/output/upstream-wire schemas — vault-only surface (NO target_mode discriminator per R4/FR-004); optional vault (min 1) + optional total boolean; strict output { count, properties: [{ name, noteCount }] } uniform across both modes (FR-006/FR-006a); passthrough upstream array schema tolerant to future upstream field additions.
 import { z } from "zod";
 
+import { focusedVaultField } from "../_vault-field.js";
+
 export const propertiesInputSchema = z
   .strictObject({
-    vault: z.string().min(1).optional(),
-    total: z.boolean().optional(),
+    vault: focusedVaultField,
+    total: z
+      .boolean()
+      .optional()
+      .describe("When true, return only the count with an empty properties list. Default false."),
   })
   .describe(
     // BI-041 FR-011 — case-insensitive collapse contract promoted from spec

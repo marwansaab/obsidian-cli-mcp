@@ -5,8 +5,17 @@ import { applyTargetModeRefinement, targetModeBaseSchema } from "../../target-mo
 
 export const smartConnectionsSimilarInputSchema = applyTargetModeRefinement(
   targetModeBaseSchema.extend({
-    limit: z.number().int().min(1).max(100).default(20),
-    total: z.boolean().optional(),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(100)
+      .default(20)
+      .describe("Maximum number of matches to return, integer 1..100. Default 20."),
+    total: z
+      .boolean()
+      .optional()
+      .describe("When true, return only the count with matches: []. Default false."),
   }),
 );
 

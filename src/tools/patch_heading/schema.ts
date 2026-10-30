@@ -5,7 +5,12 @@ import {
   isStructurallySafePath,
   STRUCTURALLY_UNSAFE_PATH_MESSAGE,
 } from "../../path-safety/schema.js";
-import { applyTargetModeRefinement, targetModeBaseSchema } from "../../target-mode/target-mode.js";
+import {
+  applyTargetModeRefinement,
+  TARGET_MODE_FILE_DESCRIPTION,
+  TARGET_MODE_PATH_DESCRIPTION,
+  targetModeBaseSchema,
+} from "../../target-mode/target-mode.js";
 
 const safePathField = z
   .string()
@@ -85,11 +90,19 @@ const headingPathField = z.string().superRefine((value, ctx) => {
 
 export const patchHeadingInputSchema = applyTargetModeRefinement(
   targetModeBaseSchema.extend({
-    file: safePathField.optional(),
-    path: safePathField.optional(),
-    heading_path: headingPathField,
-    mode: z.enum(["append", "prepend", "replace"]),
-    content: z.string(),
+    file: safePathField.optional().describe(TARGET_MODE_FILE_DESCRIPTION),
+    path: safePathField.optional().describe(TARGET_MODE_PATH_DESCRIPTION),
+    heading_path: headingPathField.describe(
+      `Full heading path from a top-level heading down, segments joined by "#" (e.g. "Project#Tasks"); at least two segments, up to ${HEADING_PATH_MAX} characters.`,
+    ),
+    mode: z
+      .enum(["append", "prepend", "replace"])
+      .describe(
+        '"append" adds at the end of the heading\'s section, "prepend" right after the heading line, "replace" swaps its direct body.',
+      ),
+    content: z
+      .string()
+      .describe('Markdown to insert or substitute; must be non-empty for "append"/"prepend", may be empty for "replace".'),
   }),
 ).superRefine((input, ctx) => {
   if (input.content === "" && (input.mode === "append" || input.mode === "prepend")) {

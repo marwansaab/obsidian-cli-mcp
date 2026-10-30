@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the read_heading tool registration — descriptor shape, stripped schema, help mention, docs presence + content completeness, drift-detector parameterised lock.
+// Original — no upstream. Tests for the read_heading tool registration — descriptor shape, heading-path disclosure, docs presence + content completeness, drift-detector parameterised lock.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,7 +14,6 @@ import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapt
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -32,28 +31,15 @@ describe("createReadHeadingTool — descriptor", () => {
     expect(tool.descriptor.description).toBe(READ_HEADING_DESCRIPTION);
   });
 
-  // (52) Stripped emitted schema
-  it("strips descriptions at every nested depth", () => {
-    const tool = createReadHeadingTool({
-      logger: silentLogger(),
-      queue: createQueue(),
-      spawnFn: makeStubSpawn(),
-    });
-    const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    expect(countDescriptionKeys(schema)).toBe(0);
-  });
-
-  // (53) Descriptor description references help, the tool name, and heading-path requirement
-  it("description references help(), the tool name 'read_heading', and surfaces the heading-path requirement", () => {
+  // (53) Descriptor description surfaces the heading-path requirement
+  it("description surfaces the heading-path requirement", () => {
     const tool = createReadHeadingTool({
       logger: silentLogger(),
       queue: createQueue(),
       spawnFn: makeStubSpawn(),
     });
     const desc = tool.descriptor.description;
-    const lower = desc.toLowerCase();
-    expect(lower).toContain("help");
-    expect(lower).toContain("read_heading");
+    expect(desc).toContain("heading");
     expect(desc).toMatch(/heading.*path|::|two.*segment/i);
     expect(desc.length).toBeGreaterThan(0);
   });

@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeBases, type ExecuteDeps } from "./handler.js";
 import { basesInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const BASES_TOOL_NAME = "bases";
 
@@ -16,13 +15,15 @@ Optional \`vault\` (string): accepted for cohort parity but currently silently i
 
 Read-only — the tool never mutates vault contents.
 
-Typed errors via \`UpstreamError.code\`: \`CLI_REPORTED_ERROR\` (upstream CLI failure); \`VALIDATION_ERROR\` (malformed input, e.g. unknown keys in strict mode). Call \`help({ tool_name: "bases" })\` for worked examples and the error-code roster.`;
+Typed errors via \`UpstreamError.code\`: \`CLI_REPORTED_ERROR\` (upstream CLI failure); \`VALIDATION_ERROR\` (malformed input, e.g. unknown keys in strict mode).`;
 
 export type RegisterDeps = ExecuteDeps;
 
 export function createBasesTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: BASES_TOOL_NAME,
+    title: "Bases",
+    annotations: READ_ONLY_HINTS,
     description: BASES_DESCRIPTION,
     schema: basesInputSchema,
     deps,

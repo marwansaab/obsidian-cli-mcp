@@ -7,8 +7,7 @@
 import { registerTool } from "../_register.js";
 import { executeContextSearch, type ExecuteDeps } from "./handler.js";
 import { contextSearchInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const CONTEXT_SEARCH_TOOL_NAME = "context_search";
 
@@ -31,15 +30,15 @@ Response \`{ count, matches: [{ path, line, text }], truncated? }\`. Sorted by \
 
 **Zero-match handling**: WITHOUT \`folder\`, returns \`{ count: 0, matches: [] }\` (never an error). WITH \`folder\`, the wrapper fires a second \`obsidian folder\` probe to distinguish "folder exists with no matches" from "folder missing" — a missing folder surfaces as \`CLI_REPORTED_ERROR\` with \`details.message\` starting \`"Error: Folder ..."\`.
 
-Unknown vault → \`CLI_REPORTED_ERROR\` with \`details.message: "Vault not found."\`. CLI parse failures → \`CLI_REPORTED_ERROR\` with \`details.stage: "json-parse"\` or \`"wire-parse"\`.
-
-Call \`help({ tool_name: "context_search" })\` for worked examples (folder-scoped, capped+truncated, folder-not-found error, mixed CRLF/LF source) and the full failure roster with recovery hints.`;
+Unknown vault → \`CLI_REPORTED_ERROR\` with \`details.message: "Vault not found."\`. CLI parse failures → \`CLI_REPORTED_ERROR\` with \`details.stage: "json-parse"\` or \`"wire-parse"\`.`;
 
 export type RegisterDeps = ExecuteDeps;
 
 export function createContextSearchTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: CONTEXT_SEARCH_TOOL_NAME,
+    title: "Context Search",
+    annotations: READ_ONLY_HINTS,
     description: CONTEXT_SEARCH_DESCRIPTION,
     schema: contextSearchInputSchema,
     deps,

@@ -53,13 +53,16 @@ describe("fingerprintLiveRegistry", () => {
     for (const entry of entries) {
       expect(entry.descriptionFingerprint).toMatch(/^[0-9a-f]{64}$/);
       expect(entry.schemaFingerprint).toMatch(/^[0-9a-f]{64}$/);
+      expect(entry.titleFingerprint).toMatch(/^[0-9a-f]{64}$/);
+      expect(entry.annotationsFingerprint).toMatch(/^[0-9a-f]{64}$/);
     }
   });
 
   it("fingerprints exactly what a client receives from the injected server (happy — published surface)", async () => {
+    const annotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
     const buildMcpServer = () => {
       const server = new McpServer({ name: "fake", version: "0.0.0" }, { capabilities: { tools: { listChanged: false } } });
-      server.registerTool("only_tool", { description: "desc" }, () => ({ content: [] }));
+      server.registerTool("only_tool", { title: "Only Tool", description: "desc", annotations }, () => ({ content: [] }));
       return server;
     };
 
@@ -69,8 +72,22 @@ describe("fingerprintLiveRegistry", () => {
         name: "only_tool",
         descriptionFingerprint: sha256("desc"),
         schemaFingerprint: sha256(canonicalJSON({ type: "object", properties: {} })),
+        titleFingerprint: sha256("Only Tool"),
+        annotationsFingerprint: sha256(canonicalJSON(annotations)),
       },
     ]);
+  });
+
+  it("fingerprints a tool with no title or annotations as the empty title and null (boundary)", async () => {
+    const buildMcpServer = () => {
+      const server = new McpServer({ name: "fake", version: "0.0.0" }, { capabilities: { tools: { listChanged: false } } });
+      server.registerTool("bare_tool", { description: "desc" }, () => ({ content: [] }));
+      return server;
+    };
+
+    const [entry] = await fingerprintLiveRegistry({ buildMcpServer });
+    expect(entry!.titleFingerprint).toBe(sha256(""));
+    expect(entry!.annotationsFingerprint).toBe(sha256(canonicalJSON(null)));
   });
 
   it("yields no entries when the injected server declares no tools capability (boundary — empty published surface)", async () => {

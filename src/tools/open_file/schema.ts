@@ -50,11 +50,25 @@ export const openFileInputSchema = z
     // whether it is focused, open-but-unfocused, or closed-but-registered
     // (ADR-031; B1 false). Locator acceptance is static — independent of which
     // vault is focused at call time (FR-006a / Principle III).
-    vault: z.string().min(1).max(MAX_LOCATOR_LENGTH),
-    path: safePathField.optional(),
-    file: safeFileField.optional(),
+    vault: z
+      .string()
+      .min(1)
+      .max(MAX_LOCATOR_LENGTH)
+      .describe("Obsidian vault display name to open the file in (required); focus switches to that vault."),
+    path: safePathField
+      .optional()
+      .describe('Exact vault-relative file path, any file type (e.g. "Projects/Plan.canvas"). Give exactly one of path or file.'),
+    file: safeFileField
+      .optional()
+      .describe(
+        'File name resolved like a wikilink, attachments included (e.g. "My Note"); no [[ ]] brackets. Give exactly one of path or file.',
+      ),
     // FR-008 — opt-in new tab; default false focuses an existing tab (no duplicate).
-    new_tab: z.boolean().optional().default(false),
+    new_tab: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe("Open in a fresh tab when true. Default false (reuse an existing tab for the file, else the active tab)."),
   })
   .superRefine((value, ctx) => {
     const hasPath = value.path !== undefined;

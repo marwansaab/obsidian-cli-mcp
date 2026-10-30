@@ -10,8 +10,7 @@
 import { registerTool } from "../_register.js";
 import { executeSearch, type ExecuteDeps } from "./handler.js";
 import { searchInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const SEARCH_TOOL_NAME = "search";
 
@@ -40,13 +39,15 @@ Response carries \`count\` plus the array (\`paths\` or \`matches\`) plus option
 
 Zero-match returns the empty envelope (never an error). Unknown vault → \`CLI_REPORTED_ERROR\` with \`details.code: "VAULT_NOT_FOUND"\`. CLI parse failures → \`CLI_REPORTED_ERROR\` with \`details.stage: "json-parse"\` or \`"wire-parse"\`.
 
-Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\`, \`CLI_REPORTED_ERROR\`, \`CLI_NON_ZERO_EXIT\`, \`CLI_TIMEOUT\`, \`CLI_OUTPUT_TOO_LARGE\`, \`CLI_BINARY_NOT_FOUND\`. Call \`help({ tool_name: "search" })\` for worked examples and the full failure roster with recovery hints.`;
+Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\`, \`CLI_REPORTED_ERROR\`, \`CLI_NON_ZERO_EXIT\`, \`CLI_TIMEOUT\`, \`CLI_OUTPUT_TOO_LARGE\`, \`CLI_BINARY_NOT_FOUND\`.`;
 
 export type RegisterDeps = ExecuteDeps;
 
 export function createSearchTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: SEARCH_TOOL_NAME,
+    title: "Search",
+    annotations: READ_ONLY_HINTS,
     description: SEARCH_DESCRIPTION,
     schema: searchInputSchema,
     deps,

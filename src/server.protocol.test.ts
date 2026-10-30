@@ -8,6 +8,7 @@ import { Client, ProtocolError, StreamableHTTPClientTransport } from "@modelcont
 import { createMcpHandler } from "@modelcontextprotocol/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { buildInstructions } from "./instructions/instructions.js";
 import { createServer, type CreatedServer } from "./server.js";
 import { connectInMemoryClient } from "./tools/_mcp-client-fixtures.js";
 
@@ -86,6 +87,26 @@ describe.each([
     const call = client.callTool({ name: "not_a_real_tool", arguments: {} });
     await expect(call).rejects.toBeInstanceOf(ProtocolError);
     await expect(call).rejects.toMatchObject({ code: -32602 });
+  });
+});
+
+describe("MCP protocol — server instructions (068 FR-025, T055)", () => {
+  it("both eras receive byte-identical instructions, built from the registered tools", async () => {
+    const app = quietServer();
+    const legacy = await connectLegacy(app);
+    const modern = await connectModern(app);
+    try {
+      const fromLegacy = legacy.getInstructions();
+      const fromModern = modern.getInstructions();
+      expect(fromLegacy).toBeDefined();
+      expect(fromModern).toBe(fromLegacy);
+      const { tools } = await legacy.listTools();
+      expect(fromLegacy).toBe(buildInstructions(tools.map((t) => t.name)));
+      expect(fromLegacy!.length).toBeLessThan(2000);
+    } finally {
+      await legacy.close();
+      await modern.close();
+    }
   });
 });
 

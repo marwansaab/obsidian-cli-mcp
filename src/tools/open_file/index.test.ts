@@ -1,8 +1,8 @@
 // Original — no upstream. open_file registration tests (BI-057; cross-vault rewrite ADR-031) —
 // descriptor name = "open_file" (ADR-010 N/A descriptive name asserted so the choice reads as
-// designed); stripped emitted inputSchema (vault/path/file/new_tab; additionalProperties:false;
-// required={vault}; NO target_mode; new_tab default; no description keys); description references the
-// cross-vault contract + placement, both locator shapes, new_tab, the error roster and help(), and the
+// designed); emitted inputSchema (vault/path/file/new_tab; additionalProperties:false;
+// required={vault}; NO target_mode; new_tab default); description references the
+// cross-vault contract + placement, both locator shapes, new_tab and the error roster, and the
 // stale B1 focused-vault precondition is GONE; docs presence + completeness; baseline fingerprint gate.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -17,7 +17,6 @@ import {
 } from "./index.js";
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
-import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -44,20 +43,18 @@ describe("createOpenFileTool — descriptor", () => {
     expect(tool.descriptor.description.length).toBeGreaterThan(300);
   });
 
-  it("emits inputSchema with NO target_mode, new_tab default, no description keys at any nested depth", () => {
+  it("emits inputSchema with NO target_mode and the new_tab default", () => {
     const tool = makeTool();
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
     const props = schema.properties as Record<string, unknown>;
     expect(Object.keys(props)).not.toContain("target_mode");
     // new_tab carries its default in the published schema.
     expect((props.new_tab as Record<string, unknown>).default).toBe(false);
-    expect(countDescriptionKeys(schema)).toBe(0);
   });
 
-  it("description references help(), the tool name, the cross-vault contract + placement, both locators and new_tab", () => {
+  it("description references the tool name, the cross-vault contract + placement, both locators and new_tab", () => {
     const desc = makeTool().descriptor.description;
     const lower = desc.toLowerCase();
-    expect(lower).toContain("help");
     expect(lower).toContain("open_file");
     expect(lower).toContain("cross-vault");
     expect(lower).toContain("placement");

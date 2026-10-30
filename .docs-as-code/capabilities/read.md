@@ -32,6 +32,13 @@ the section by a `::`-separated path such as `"H1::H2"`.
 `read_property` (PR #15) returns `{ value, type }` with the YAML type
 preserved, so a client can tell the number `7` from the string `"7"`.
 
+Published surface (PR #90; [architecture](../architecture.md#registration--the-one-path-from-a-schema-to-a-published-tool)):
+all three carry the read-only hint row, so a client that honours annotations
+can run them in parallel without a "may modify data" prompt (068 SC-006). Their
+descriptions no longer restate the locator rule or end with a call-help
+sentence; the rule is in the shared `target_mode`, `vault`, `file` and `path`
+descriptions ([targeting](../architecture.md#targeting-target_mode)).
+
 ## Failure
 
 The usual dispatch codes apply. Beyond them: `ERR_NO_ACTIVE_FILE` when active

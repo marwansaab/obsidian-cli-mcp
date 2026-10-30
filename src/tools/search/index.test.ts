@@ -1,5 +1,5 @@
 // Original — no upstream. Tests for the search tool registration — descriptor name +
-// description, stripped JSON Schema (ADR-005), help-facility doc presence + content
+// description, the root schema description, help-facility doc presence + content
 // completeness (>=4 worked examples + error roster), and the FR-018 baseline
 // drift-detector lock (rolled forward by `npm run baseline:write`).
 import { existsSync, readFileSync } from "node:fs";
@@ -13,7 +13,6 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -50,23 +49,15 @@ describe("createSearchTool — descriptor", () => {
     expect(tool.descriptor.name).toBe("search");
   });
 
-  it("emits inputSchema with descriptions stripped at every nested depth (root description allowed per FR-003)", () => {
+  it("emits inputSchema with the BI-041 root description", () => {
     const tool = createSearchTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    const props = schema.properties as Record<string, unknown>;
-    // Count children only — root description is preserved by stripSchemaDescriptions
-    // per FR-003 (BI-041 introduces a root-level description carrying the error roster).
-    const nestedDescriptionKeysFound = Object.values(props).reduce<number>(
-      (sum, child) => sum + countDescriptionKeys(child),
-      0,
-    );
-    expect(nestedDescriptionKeysFound).toBe(0);
+    expect(schema.description).toContain("Error roster");
   });
 
-  it("SEARCH_DESCRIPTION mentions help({ tool_name: \"search\" })", () => {
+  it("publishes SEARCH_DESCRIPTION verbatim", () => {
     const tool = createSearchTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     expect(tool.descriptor.description).toBe(SEARCH_DESCRIPTION);
-    expect(SEARCH_DESCRIPTION).toContain('help({ tool_name: "search" })');
   });
 });
 

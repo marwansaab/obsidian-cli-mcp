@@ -12,7 +12,6 @@ import { connectInMemoryClient } from "./_mcp-client-fixtures.js";
 import { fingerprintLiveRegistry, type RegisterBaseline } from "./_register-baseline.js";
 import { registerTool, assertToolDocsExist, toSdkInputSchema } from "./_register.js";
 import { UpstreamError } from "../errors.js";
-import { stripSchemaDescriptions, type JsonSchemaObject } from "../help/strip-schema.js";
 import { createServer } from "../server.js";
 import {
   applyTargetModeRefinement,
@@ -21,6 +20,12 @@ import {
 
 import type { RegisteredTool } from "./_shared.js";
 import type { Client } from "@modelcontextprotocol/client";
+
+/** Title and annotations every fixture spec needs (068 T045: both are required on ToolSpec). */
+const TEST_SURFACE = {
+  title: "Test Tool",
+  annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+} as const;
 
 const BASELINE_PATH = resolve(dirname(fileURLToPath(import.meta.url)), "_register-baseline.json");
 
@@ -50,6 +55,7 @@ describe("toSdkInputSchema — SDK v2 pass-through adapter (068 R2, T030)", () =
   });
   const tool = registerTool({
     name: "spike_greet",
+    ...TEST_SURFACE,
     description: "spike tool",
     schema,
     handler: async (input) => ({ greeting: `hello ${input.name}` }),
@@ -64,13 +70,17 @@ describe("toSdkInputSchema — SDK v2 pass-through adapter (068 R2, T030)", () =
     await client.close();
   });
 
-  it("published inputSchema deep-equals z.toJSONSchema(schema, {io:'input', target:'draft-2020-12'}) after description stripping", async () => {
+  it("published inputSchema deep-equals z.toJSONSchema(schema, {io:'input', target:'draft-2020-12'}), descriptions included", async () => {
     const { tools } = await client.listTools();
-    const expected = stripSchemaDescriptions(
-      z.toJSONSchema(schema, { io: "input", target: "draft-2020-12" }) as JsonSchemaObject,
-    );
-    expect(tools[0]!.inputSchema).toEqual(expected);
+    expect(tools[0]!.inputSchema).toEqual(z.toJSONSchema(schema, { io: "input", target: "draft-2020-12" }));
     expect(tools[0]!.inputSchema.$schema).toBe("https://json-schema.org/draft/2020-12/schema");
+  });
+
+  it("publishes the spec's title and all four annotations (068 T045)", async () => {
+    const { tools } = await client.listTools();
+    expect(tools[0]!.title).toBe(TEST_SURFACE.title);
+    expect(tools[0]!.annotations).toEqual(TEST_SURFACE.annotations);
+    expect(tool.descriptor.annotations).toEqual(TEST_SURFACE.annotations);
   });
 
   it("keeps additionalProperties: false from strictObject, and a defaulted field is not required (io: input)", async () => {
@@ -105,10 +115,10 @@ describe("toSdkInputSchema — SDK v2 pass-through adapter (068 R2, T030)", () =
     expect(await adapter["~standard"].validate(value)).toEqual({ value });
   });
 
-  it("the adapter's output emission strips nested descriptions too", () => {
+  it("the adapter's output emission keeps nested descriptions too (068 FR-029)", () => {
     const adapter = toSdkInputSchema(schema);
     const out = adapter["~standard"].jsonSchema.output({ target: "draft-2020-12" });
-    expect(JSON.stringify(out)).not.toContain("who to greet");
+    expect(JSON.stringify(out)).toContain("who to greet");
   });
 });
 
@@ -117,6 +127,7 @@ describe("registerTool — callback outcomes through McpServer (068 T033)", () =
     const client = await serveOne(
       registerTool({
         name: "cb_upstream",
+        ...TEST_SURFACE,
         description: "upstream",
         schema: z.strictObject({}),
         handler: async () => {
@@ -137,6 +148,7 @@ describe("registerTool — callback outcomes through McpServer (068 T033)", () =
     const client = await serveOne(
       registerTool({
         name: "cb_rethrow",
+        ...TEST_SURFACE,
         description: "rethrow",
         schema: z.strictObject({}),
         handler: async () => {
@@ -158,6 +170,7 @@ describe("registerTool — callback outcomes through McpServer (068 T033)", () =
     const client = await serveOne(
       registerTool({
         name: "cb_noargs",
+        ...TEST_SURFACE,
         description: "no args",
         schema: z.strictObject({}),
         handler: async (input) => {
@@ -180,6 +193,7 @@ describe("registerTool — descriptor publication pipeline", () => {
   it("publishes inputSchema with top-level type === 'object' (FR-002)", () => {
     const tool = registerTool({
       name: "pip_object",
+      ...TEST_SURFACE,
       description: "test tool",
       schema: z.strictObject({ a: z.string() }),
       handler: async () => ({ ok: true }),
@@ -191,6 +205,7 @@ describe("registerTool — descriptor publication pipeline", () => {
     expect(() =>
       registerTool({
         name: "pip_union_root",
+        ...TEST_SURFACE,
         description: "test tool",
         schema: z.discriminatedUnion("kind", [
           z.strictObject({ kind: z.literal("a") }),
@@ -201,42 +216,27 @@ describe("registerTool — descriptor publication pipeline", () => {
     ).toThrow('pip_union_root: input schema must emit a top-level "type": "object" (FR-002), got undefined');
   });
 
-  it("strips descriptions at every nested depth (FR-006)", () => {
-    const schema = z
-      .object({
-        outer: z.object({ inner: z.string().describe("inner desc") }).describe("outer desc"),
-      })
-      .describe("root desc");
+  it("keeps descriptions at every nested depth (068 FR-029; the FR-006 stripping is retired)", () => {
+    const schema = z.strictObject({
+      outer: z.strictObject({ inner: z.string().describe("inner desc") }).describe("outer desc"),
+    });
     const tool = registerTool({
-      name: "pip_strip",
+      name: "pip_keep",
+      ...TEST_SURFACE,
       description: "tool description must survive",
       schema,
       handler: async () => ({ ok: true }),
     });
-
-    function findDescriptionsBelowRoot(node: unknown, atRoot: boolean): string[] {
-      if (typeof node !== "object" || node === null) return [];
-      const found: string[] = [];
-      const obj = node as Record<string, unknown>;
-      if (!atRoot && typeof obj.description === "string") found.push(obj.description);
-      for (const [k, v] of Object.entries(obj)) {
-        if (k === "description" && atRoot) continue;
-        if (Array.isArray(v)) {
-          for (const item of v) found.push(...findDescriptionsBelowRoot(item, false));
-        } else if (typeof v === "object" && v !== null) {
-          found.push(...findDescriptionsBelowRoot(v, false));
-        }
-      }
-      return found;
-    }
-    expect(findDescriptionsBelowRoot(tool.descriptor.inputSchema, true)).toEqual([]);
-    expect(tool.descriptor.name).toBe("pip_strip");
+    const outer = (tool.descriptor.inputSchema.properties as Record<string, Record<string, unknown>>).outer!;
+    expect(outer.description).toBe("outer desc");
+    expect((outer.properties as Record<string, Record<string, unknown>>).inner!.description).toBe("inner desc");
     expect(tool.descriptor.description).toBe("tool description must survive");
   });
 
   it("preserves spec.description on the descriptor verbatim", () => {
     const tool = registerTool({
       name: "pip_desc",
+      ...TEST_SURFACE,
       description: "exact description text",
       schema: z.strictObject({}),
       handler: async () => ({}),
@@ -249,6 +249,7 @@ describe("registerTool — wrapped handler runtime", () => {
   it("responseFormat 'json' (default) wraps result in { content: [{ type: 'text', text: JSON.stringify(result) }] }", async () => {
     const tool = registerTool({
       name: "wh_json",
+      ...TEST_SURFACE,
       description: "json default",
       schema: z.strictObject({ name: z.string() }),
       handler: async (input) => ({ greeting: `hello ${input.name}` }),
@@ -266,6 +267,7 @@ describe("registerTool — wrapped handler runtime", () => {
     const passthrough = { content: [{ type: "text" as const, text: "## Markdown" }] };
     const tool = registerTool({
       name: "wh_raw",
+      ...TEST_SURFACE,
       description: "raw passthrough",
       schema: z.strictObject({}),
       handler: async () => passthrough,
@@ -278,6 +280,7 @@ describe("registerTool — wrapped handler runtime", () => {
   it("ZodError → VALIDATION_ERROR envelope with details.issues", async () => {
     const tool = registerTool({
       name: "wh_validate",
+      ...TEST_SURFACE,
       description: "validation",
       schema: z.strictObject({ a: z.string() }),
       handler: async () => ({}),
@@ -297,6 +300,7 @@ describe("registerTool — wrapped handler runtime", () => {
   it("UpstreamError thrown inside handler → asToolError envelope preserving code/message/details", async () => {
     const tool = registerTool({
       name: "wh_upstream",
+      ...TEST_SURFACE,
       description: "upstream",
       schema: z.strictObject({}),
       handler: async () => {
@@ -321,6 +325,7 @@ describe("registerTool — wrapped handler runtime", () => {
   it("non-Error throw inside handler is re-thrown unchanged", async () => {
     const tool = registerTool({
       name: "wh_rethrow",
+      ...TEST_SURFACE,
       description: "rethrow",
       schema: z.strictObject({}),
       handler: async () => {
@@ -334,6 +339,7 @@ describe("registerTool — wrapped handler runtime", () => {
     const schema = z.strictObject({});
     const tool = registerTool({
       name: "wh_parse_throw",
+      ...TEST_SURFACE,
       description: "parse throw",
       schema,
       handler: async () => ({}),
@@ -353,6 +359,7 @@ describe("registerTool — wrapped handler runtime", () => {
     const deps = { tag: "marker" };
     const tool = registerTool({
       name: "wh_deps",
+      ...TEST_SURFACE,
       description: "deps",
       schema: z.strictObject({}),
       deps,
@@ -367,6 +374,7 @@ describe("registerTool — wrapped handler runtime", () => {
   it("mapValidationError hook customises the input VALIDATION_ERROR envelope", async () => {
     const tool = registerTool({
       name: "wh_hook",
+      ...TEST_SURFACE,
       description: "hook",
       schema: z.strictObject({ a: z.string() }),
       handler: async () => ({}),
@@ -390,6 +398,7 @@ describe("registerTool — wrapped handler runtime", () => {
     let seen: unknown;
     const tool = registerTool({
       name: "wh_hook_args",
+      ...TEST_SURFACE,
       description: "hook args",
       schema: z.strictObject({ a: z.string() }),
       handler: async () => ({}),
@@ -405,6 +414,7 @@ describe("registerTool — wrapped handler runtime", () => {
   it("runtime ZodError thrown inside the handler → INTERNAL_ERROR (output-contract break, not input)", async () => {
     const tool = registerTool({
       name: "wh_runtime_zod",
+      ...TEST_SURFACE,
       description: "runtime zod",
       schema: z.strictObject({}),
       handler: async () => {
@@ -428,6 +438,7 @@ describe("registerTool — wrapped handler runtime", () => {
   it("runtime ZodError bypasses mapValidationError — an output-contract break is INTERNAL_ERROR even when an input hook is present", async () => {
     const tool = registerTool({
       name: "wh_runtime_hook",
+      ...TEST_SURFACE,
       description: "runtime hook",
       schema: z.strictObject({}),
       handler: async () => {
@@ -456,7 +467,7 @@ describe("registerTool — wrapped handler runtime", () => {
 describe("assertToolDocsExist — aggregated boot-failure message (FR-005 / Q4)", () => {
   function fakeTool(name: string): RegisteredTool {
     return {
-      descriptor: { name, description: "x", inputSchema: { type: "object" } },
+      descriptor: { name, description: "x", annotations: TEST_SURFACE.annotations, inputSchema: { type: "object" } },
       handler: async () => ({ content: [{ type: "text", text: "" }] }),
       register: () => undefined,
     };
@@ -818,6 +829,7 @@ describe("registry: published inputSchema invariants (post-010)", () => {
     );
     const tool = registerTool({
       name: "synthetic_pattern_a",
+      ...TEST_SURFACE,
       description: "drift-detector fixture",
       schema,
       handler: async () => ({ content: [{ type: "text" as const, text: "" }] }),
@@ -841,6 +853,8 @@ describe("registry: stability baseline (FR-018)", () => {
       expect(typeof entry.name).toBe("string");
       expect(entry.descriptionFingerprint).toMatch(/^[0-9a-f]{64}$/);
       expect(entry.schemaFingerprint).toMatch(/^[0-9a-f]{64}$/);
+      expect(entry.titleFingerprint).toMatch(/^[0-9a-f]{64}$/);
+      expect(entry.annotationsFingerprint).toMatch(/^[0-9a-f]{64}$/);
     }
     const sortedNames = [...baseline.tools].map((t) => t.name);
     expect(sortedNames).toEqual([...sortedNames].sort());

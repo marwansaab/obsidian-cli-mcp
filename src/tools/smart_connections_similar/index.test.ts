@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the smart_connections_similar tool registration — descriptor shape, stripped schema (ADR-005), help mention + plugin-namespace name + plugin-lifecycle codes in description, docs presence + content completeness, FR-018 baseline drift detector entry.
+// Original — no upstream. Tests for the smart_connections_similar tool registration — descriptor shape, plugin-namespace name + plugin-lifecycle codes in description, docs presence + content completeness, FR-018 baseline drift detector entry.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,7 +14,6 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -32,27 +31,15 @@ describe("createSmartConnectionsSimilarTool — descriptor", () => {
     expect(tool.descriptor.description).toBe(SMART_CONNECTIONS_SIMILAR_DESCRIPTION);
   });
 
-  // (b) Stripped emitted schema — ADR-005
-  it("strips descriptions at every nested depth", () => {
-    const tool = createSmartConnectionsSimilarTool({
-      logger: silentLogger(),
-      queue: createQueue(),
-      spawnFn: makeStubSpawn(),
-    });
-    const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    expect(countDescriptionKeys(schema)).toBe(0);
-  });
-
-  // (c) Description references help(), tool name, plugin-lifecycle codes, headingPath, total/limit
-  it("description references help(), 'smart_connections_similar', plugin-lifecycle codes, headingPath, limit/total", () => {
+  // (c) Description references plugin-lifecycle codes, headingPath, total/limit; no target-mode rule repeat (068 FR-028)
+  it("description references plugin-lifecycle codes, headingPath, limit/total, and repeats no target-mode rule", () => {
     const tool = createSmartConnectionsSimilarTool({
       logger: silentLogger(),
       queue: createQueue(),
       spawnFn: makeStubSpawn(),
     });
     const desc = tool.descriptor.description;
-    expect(desc).toContain("help");
-    expect(desc).toContain("smart_connections_similar");
+    expect(desc).not.toMatch(/specific mode/i);
     expect(desc).toContain("headingPath");
     expect(desc).toContain("limit");
     expect(desc).toContain("total");

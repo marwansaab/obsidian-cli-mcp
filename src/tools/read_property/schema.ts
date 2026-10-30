@@ -5,7 +5,7 @@ import { applyTargetModeRefinement, targetModeBaseSchema } from "../../target-mo
 
 export const readPropertyInputSchema = applyTargetModeRefinement(
   targetModeBaseSchema.extend({
-    name: z.string().min(1),
+    name: z.string().min(1).describe('Frontmatter property name to read, matched exactly (e.g. "status").'),
   }),
 ).describe(
   // BI-041 FR-010 — malformed-frontmatter contract unified with the live wrapper

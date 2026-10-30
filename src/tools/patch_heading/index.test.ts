@@ -1,4 +1,4 @@
-// Original — no upstream. patch_heading tool registration tests per BI-040 / FR-022 / ADR-005 — descriptor name + help-pointer + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate.
+// Original — no upstream. patch_heading tool registration tests per BI-040 / FR-022 / ADR-005 — descriptor name + description + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate.
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -133,10 +133,9 @@ describe("createPatchHeadingTool — descriptor (BI-040 / ADR-005)", () => {
     expect(tool.descriptor.name).toBe("patch_heading");
   });
 
-  it("description references the help-pointer for patch_heading (ADR-005)", () => {
+  it("publishes PATCH_HEADING_DESCRIPTION verbatim", () => {
     const tool = build();
     expect(tool.descriptor.description).toBe(PATCH_HEADING_DESCRIPTION);
-    expect(tool.descriptor.description).toContain('help({ tool_name: "patch_heading" })');
   });
 
   it("docs/tools/patch_heading.md exists at the expected path", () => {

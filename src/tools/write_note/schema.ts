@@ -5,7 +5,12 @@ import {
   isStructurallySafePath,
   STRUCTURALLY_UNSAFE_PATH_MESSAGE,
 } from "../../path-safety/schema.js";
-import { applyTargetModeRefinement, targetModeBaseSchema } from "../../target-mode/target-mode.js";
+import {
+  applyTargetModeRefinement,
+  TARGET_MODE_FILE_DESCRIPTION,
+  TARGET_MODE_PATH_DESCRIPTION,
+  targetModeBaseSchema,
+} from "../../target-mode/target-mode.js";
 
 const safePathField = z
   .string()
@@ -14,11 +19,22 @@ const safePathField = z
 
 export const writeNoteInputSchema = applyTargetModeRefinement(
   targetModeBaseSchema.extend({
-    file: safePathField.optional(),
-    path: safePathField.optional(),
-    content: z.string(),
-    overwrite: z.boolean().optional().default(false),
-    open: z.boolean().optional(),
+    file: safePathField
+      .optional()
+      .describe(`${TARGET_MODE_FILE_DESCRIPTION} For a new note, the name is created at the vault root.`),
+    path: safePathField.optional().describe(TARGET_MODE_PATH_DESCRIPTION),
+    content: z.string().describe("Full note body to write, as UTF-8 Markdown; replaces any existing content."),
+    overwrite: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe(
+        'Replace an existing note when true. Default false (an existing note returns FILE_EXISTS); must be true with target_mode "active".',
+      ),
+    open: z
+      .boolean()
+      .optional()
+      .describe('Open the note in Obsidian after writing. Default false; not allowed with target_mode "active".'),
   }),
 ).superRefine((input, ctx) => {
   if (input.target_mode !== "active") return;

@@ -5,7 +5,12 @@ import {
   isStructurallySafePath,
   STRUCTURALLY_UNSAFE_PATH_MESSAGE,
 } from "../../path-safety/schema.js";
-import { applyTargetModeRefinement, targetModeBaseSchema } from "../../target-mode/target-mode.js";
+import {
+  applyTargetModeRefinement,
+  TARGET_MODE_FILE_DESCRIPTION,
+  TARGET_MODE_PATH_DESCRIPTION,
+  targetModeBaseSchema,
+} from "../../target-mode/target-mode.js";
 
 // FR-018 — single source of truth for the content cap. Both the schema's
 // `.max()` and the description string in `index.ts` interpolate this constant
@@ -56,16 +61,28 @@ const safePathField = z
 
 export const prependInputSchema = applyTargetModeRefinement(
   targetModeBaseSchema.extend({
-    file: safeFileField.optional(),
-    path: safePathField.optional(),
+    file: safeFileField
+      .optional()
+      .describe(`${TARGET_MODE_FILE_DESCRIPTION} Bare name, no [[ ]] brackets.`),
+    path: safePathField.optional().describe(TARGET_MODE_PATH_DESCRIPTION),
     // FR-013 — empty content is rejected with Zod's `too_small` issue at the
     // schema layer (single-state details.code: CONTENT_EMPTY, reused from BI-044).
     // FR-018 — oversized content is rejected with Zod's `too_big` issue
     // (single-state details.code: CONTENT_TOO_LARGE, NEW in BI-045 per ADR-015).
-    content: z.string().min(1).max(MAX_CONTENT_LENGTH),
+    content: z
+      .string()
+      .min(1)
+      .max(MAX_CONTENT_LENGTH)
+      .describe(
+        `Text to add at the top of the note (after any frontmatter), written byte-for-byte; 1 to ${MAX_CONTENT_LENGTH} characters.`,
+      ),
     // FR-007 — inline opt-in defaults to false (FR-006 default-separator
     // behaviour fires when omitted).
-    inline: z.boolean().optional().default(false),
+    inline: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe("When true, skip the newline separator and join onto the first line. Default false."),
   }),
 );
 

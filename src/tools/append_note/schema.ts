@@ -5,7 +5,12 @@ import {
   isStructurallySafePath,
   STRUCTURALLY_UNSAFE_PATH_MESSAGE,
 } from "../../path-safety/schema.js";
-import { applyTargetModeRefinement, targetModeBaseSchema } from "../../target-mode/target-mode.js";
+import {
+  applyTargetModeRefinement,
+  TARGET_MODE_FILE_DESCRIPTION,
+  TARGET_MODE_PATH_DESCRIPTION,
+  targetModeBaseSchema,
+} from "../../target-mode/target-mode.js";
 
 const WIKILINK_BRACKET_REJECTION_MESSAGE =
   "wikilink-form locator MUST NOT contain `[[` or `]]` brackets — supply the bare note name (e.g. `My Note` not `[[My Note]]`)";
@@ -34,16 +39,25 @@ const safePathField = z
 
 export const appendNoteInputSchema = applyTargetModeRefinement(
   targetModeBaseSchema.extend({
-    file: safeFileField.optional(),
-    path: safePathField.optional(),
+    file: safeFileField
+      .optional()
+      .describe(`${TARGET_MODE_FILE_DESCRIPTION} Bare name, no [[ ]] brackets.`),
+    path: safePathField.optional().describe(TARGET_MODE_PATH_DESCRIPTION),
     // FR-013 — empty content is rejected with Zod's `too_small` issue at the
     // schema layer. ADR-015 single-state sub-discriminator documents the
     // (VALIDATION_ERROR, CONTENT_EMPTY) pair; programmatic callers branch on
     // the issue path ["content"] + code "too_small" to detect it.
-    content: z.string().min(1),
+    content: z
+      .string()
+      .min(1)
+      .describe("Text to add at the end of the note, written byte-for-byte; must be non-empty."),
     // FR-007 — inline opt-in defaults to false (FR-006 default-separator
     // behaviour fires when omitted).
-    inline: z.boolean().optional().default(false),
+    inline: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe("When true, skip the newline separator and join onto the last line. Default false."),
   }),
 );
 

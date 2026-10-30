@@ -5,11 +5,22 @@ import { appendBasePathIssues, BASE_PATH_MAX } from "../_base-path.js";
 
 export const viewsBaseInputSchema = z
   .strictObject({
-    vault: z.string().min(1).optional(),
+    vault: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "Obsidian vault display name. With base_path, routes to that vault; without base_path it is ignored (the focused Base is used).",
+      ),
     // Optional vault-relative `.base` locator. Omitted ⇒ open-Base active mode
     // (lists the views of the focused Base). Present ⇒ named-Base mode (focus the
     // named `.base`, then list its views), overriding whatever is focused.
-    base_path: z.string().optional(),
+    base_path: z
+      .string()
+      .optional()
+      .describe(
+        `Vault-relative path to a .base file (e.g. "Projects/Tasks.base"), 1..${BASE_PATH_MAX} chars. Omit to list the views of the Base focused in Obsidian.`,
+      ),
   })
   .superRefine((v, ctx) => {
     if (typeof v.base_path === "string") appendBasePathIssues(ctx, v.base_path, "base_path");

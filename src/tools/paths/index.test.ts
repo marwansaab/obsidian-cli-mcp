@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the paths tool registration — descriptor name + description, stripped JSON Schema (ADR-005), docs file presence + content completeness, and the baseline drift-detector lock rolled forward by `npm run baseline:write` post-implementation.
+// Original — no upstream. Tests for the paths tool registration — descriptor name + description, JSON Schema without file/path, docs file presence + content completeness, and the baseline drift-detector lock rolled forward by `npm run baseline:write` post-implementation.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,7 +10,6 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -51,8 +50,8 @@ describe("createPathsTool — descriptor", () => {
     expect(tool.descriptor.name).toBe("paths");
   });
 
-  // (2) inputSchema has descriptions stripped (ADR-005) and excludes file/path per FR-001
-  it("emits inputSchema with descriptions stripped at every nested depth AND excluding file/path per FR-001", () => {
+  // (2) file/path are excluded per FR-001
+  it("emits inputSchema excluding file/path per FR-001", () => {
     const tool = createPathsTool({
       logger: silentLogger(),
       queue: createQueue(),
@@ -62,11 +61,10 @@ describe("createPathsTool — descriptor", () => {
     const props = schema.properties as Record<string, unknown>;
     expect(Object.hasOwn(props, "file")).toBe(false);
     expect(Object.hasOwn(props, "path")).toBe(false);
-    expect(countDescriptionKeys(schema)).toBe(0);
   });
 
-  // (3) PATHS_DESCRIPTION carries the trailing-slash promise + mentions help
-  it('PATHS_DESCRIPTION carries the trailing-slash promise + mentions help({ tool_name: "paths" })', () => {
+  // (3) PATHS_DESCRIPTION carries the trailing-slash promise
+  it("PATHS_DESCRIPTION carries the trailing-slash promise", () => {
     const tool = createPathsTool({
       logger: silentLogger(),
       queue: createQueue(),
@@ -75,7 +73,6 @@ describe("createPathsTool — descriptor", () => {
     expect(tool.descriptor.description).toBe(PATHS_DESCRIPTION);
     // Trailing-slash promise — folder entries end with "/"
     expect(PATHS_DESCRIPTION).toContain('end with "/"');
-    expect(PATHS_DESCRIPTION).toContain('help({ tool_name: "paths" })');
   });
 });
 

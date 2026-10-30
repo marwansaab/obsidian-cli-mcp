@@ -8,8 +8,7 @@
 import { executeOpenFile, type ExecuteDeps } from "./handler.js";
 import { openFileInputSchema } from "./schema.js";
 import { registerTool } from "../_register.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { REPEATABLE_WRITE_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const OPEN_FILE_TOOL_NAME = "open_file";
 
@@ -29,13 +28,15 @@ After a successful open, the opened file becomes the active file: a subsequent \
 
 Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (missing \`vault\`; both/neither \`path\`/\`file\`; bracketed \`file\`; structurally-unsafe \`path\`/\`file\`; unknown field; non-boolean \`new_tab\`); \`CLI_REPORTED_ERROR\` with sub-discriminators (\`VAULT_NOT_FOUND\`/\`unknown\` — the sole hard vault error — for an unregistered name, \`FILE_NOT_FOUND\` for no such file/a folder in the requested vault, \`UNSUPPORTED_FILE_TYPE\` when Obsidian has no view for the extension — distinct from \`FILE_NOT_FOUND\`); \`CLI_NON_ZERO_EXIT\`/\`details.reason: "obsidian-not-running"\` (app down and could not be launched, e.g. \`OBSIDIAN_AUTO_LAUNCH=0\`); \`CLI_BINARY_NOT_FOUND\` (the \`obsidian\` binary is missing); \`INTERNAL_ERROR\` (malformed eval result). A registered vault that is merely closed or unfocused is NOT an error — it is a success path.
 
-Out of scope: does NOT open files outside the vault (external paths), create or delete a vault, close/split/move/rearrange tabs (only the \`new_tab\` opt-in), edit file content, or scroll to a heading/block within the file. Call \`help({ tool_name: "open_file" })\` for worked examples and the full error roster with recovery hints.`;
+Out of scope: does NOT open files outside the vault (external paths), create or delete a vault, close/split/move/rearrange tabs (only the \`new_tab\` opt-in), edit file content, or scroll to a heading/block within the file.`;
 
 export type RegisterDeps = ExecuteDeps;
 
 export function createOpenFileTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: OPEN_FILE_TOOL_NAME,
+    title: "Open File",
+    annotations: REPEATABLE_WRITE_HINTS,
     description: OPEN_FILE_DESCRIPTION,
     schema: openFileInputSchema,
     deps,

@@ -4,21 +4,29 @@
 // for the upstream parse step (R8).
 import { z } from "zod";
 
+import { focusedVaultField } from "../_vault-field.js";
+
 export const contextSearchInputSchema = z
   .strictObject({
     query: z
       .string()
       .min(1, "query is required")
-      .max(1000, "query exceeds 1000 chars (FR-008)"),
-    folder: z.string().min(1).optional(),
+      .max(1000, "query exceeds 1000 chars (FR-008)")
+      .describe("Literal substring to find in note text, 1–1000 characters, not whitespace-only; internal whitespace is kept."),
+    folder: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("Vault-relative folder to search under, recursively (e.g. \"Projects\"). Default: the whole vault."),
     limit: z
       .number()
       .int()
       .min(1, "limit must be >= 1 (FR-006)")
       .max(10000, "limit must be <= 10000 (FR-006)")
-      .optional(),
-    case_sensitive: z.boolean().optional(),
-    vault: z.string().min(1).optional(),
+      .optional()
+      .describe("Maximum number of matches, integer 1–10000. Default 1000."),
+    case_sensitive: z.boolean().optional().describe("Match case exactly when true. Default false (ASCII case fold)."),
+    vault: focusedVaultField,
   })
   .superRefine((v, ctx) => {
     if (v.query.trim().length === 0) {

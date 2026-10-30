@@ -1,177 +1,245 @@
 {
   "schemaVersion": 2,
-  "generatedFromBranch": "068-pr3-sdk-v2",
+  "generatedFromBranch": "068-pr4-tool-surface",
   "generatedAt": "2026-10-30",
   "tools": [
     {
       "name": "append_note",
-      "descriptionFingerprint": "62b4623c72825e4e950b021af3f4def2fd0d5ac74a8c1b1339e9e7c126bd87ce",
-      "schemaFingerprint": "0dbb134317662e59fe81139f284d57290ea77f352f0ca7b38905785ae1ad8671"
+      "descriptionFingerprint": "aa989a014472763c176aee7362f75bd52e5fba375fc907a3473fdf3f8357c69f",
+      "schemaFingerprint": "39475dbd51a0bc94efd3886ff9a2f9c0e86593df59a32507fbaaf79d183c71ab",
+      "titleFingerprint": "b4e70fcca8337df813856fe107b446f87d98dc05c431d5c0a2e860af8e04c957",
+      "annotationsFingerprint": "d72d3cb182e3d7fcf0b1c6782251eee772cdf2a99470e1a4bd6a006b5c8f4e25"
     },
     {
       "name": "backlinks",
-      "descriptionFingerprint": "9740fc5f9f38638ef84a9ec9d511c060a1f5e59b85c6c38c08d410116d96bb94",
-      "schemaFingerprint": "d79236ffc3c77cb960e2ab7fba00fd3f7f8ed62a801f5972cc86b00ef7cb3068"
+      "descriptionFingerprint": "80f101bd7fc63067d5b0b621bcba3423a08dfee6f0e31e9487e35b87caa58edf",
+      "schemaFingerprint": "18143675588c9486e4f6ddb1da87def80b8211716b3f256dc3be04d547cccdf3",
+      "titleFingerprint": "b4278c6aa5a4b3a57c5537d2bf2d6a435f029a1a9f868aac85fa2c82ba240dd4",
+      "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6"
     },
     {
       "name": "bases",
-      "descriptionFingerprint": "c6a5989f3b51d4cc2aba23ff376f11556163400d3642e0968f2c734975de88ed",
-      "schemaFingerprint": "038b6551907e29ab1de060cd19700b66e617c3388210ea811500b89c693d6d5f"
+      "descriptionFingerprint": "aeefbc01ad00d4e10b87489eb0e0abdb55d3166465a0d8d8680c45f7fc322f73",
+      "schemaFingerprint": "9cf2865c1acdcd16c9a84d54ed5851d02fd9755949ba52626b47f82ac2f82fc0",
+      "titleFingerprint": "363bc61a6dd3c78c7a6fa866e86873c1517ebdf1d8b232430e74e38c313e8dba",
+      "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6"
     },
     {
       "name": "context_search",
-      "descriptionFingerprint": "9faed98566094514612c08d364e587eb1b7e2f44f4ff92271c26b05a9f94d677",
-      "schemaFingerprint": "a0f21891717e0196fb1dac2b184900be4e48e543df018c6768729ba85bb139e1"
+      "descriptionFingerprint": "ac37a4cb10f9a6444cd661c1aad0044c517275c2f47797761002e455e8ad9086",
+      "schemaFingerprint": "5280544e4c7e574286cdae38b9ac3b8be1e1ca7e6bbde37888156c5e6f372650",
+      "titleFingerprint": "9aac415db0172c60f1864d70914bd6bc751ebe5ecb95abbdcb93681ddd9712ff",
+      "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6"
     },
     {
       "name": "create_base",
-      "descriptionFingerprint": "16a70b71b6d43b566b3ef4a58b2e1ae6ae584aeb3a12ea170d735b70bb4b5cc8",
-      "schemaFingerprint": "92ca5b0b63dbf64b648f9d94acea5defcae3d0a2ed9fa5c2c6da6eed16183e63"
+      "descriptionFingerprint": "033cf63ef787b8060c0185dcd8ba6437e9761b07c74aca5187c111bdd96022a1",
+      "schemaFingerprint": "5432c54988b24d052de919fb85934dc323a2789ee1ef115d9690e944a20d2fa7",
+      "titleFingerprint": "d09213fea04104b836a8bcd13a551dcb0d5ce6fe7103e46a78a2d433c1f1eba5",
+      "annotationsFingerprint": "d72d3cb182e3d7fcf0b1c6782251eee772cdf2a99470e1a4bd6a006b5c8f4e25"
     },
     {
       "name": "delete",
-      "descriptionFingerprint": "aabf3f3a85fbff85dd5b1d74d091cb1ebf05e1d84a17863a88337df96660a27b",
-      "schemaFingerprint": "a2e99cbad67a0dea6be7d985b6a80e42eb1ca526a00234ed90d5def192a6b070"
+      "descriptionFingerprint": "7df2a718ff73ab51d8914e7ea930fa9dd02bf480e3bbb6937de0d24ae2f81999",
+      "schemaFingerprint": "17b498e44dfbeebf3dab34c815d2377ecb5463f52d84810812effe2e69128310",
+      "titleFingerprint": "e2d0a54968ead24efc0dffa6ac78fc606dceec34a0f586177a74a54cc2272cf8",
+      "annotationsFingerprint": "b15393126f12ebd7533afe7d31a1beb8938a1e37d0bb2a52c382aaba4373f265"
     },
     {
       "name": "files",
-      "descriptionFingerprint": "70ba88c4aa5170d02d2fd73a14d9b81cde82df07b1a309e88200de7ff832cc36",
-      "schemaFingerprint": "7597115fdf5e699c63db4b4a2bcaafca391ddfa741ce9f133c5a2a1a01a95d87"
+      "descriptionFingerprint": "d43a9dc20750bc4c967eda5df24ba87f57c183d98d8d4db1eaeebca2a4215589",
+      "schemaFingerprint": "ed8292d04736352c56498712eb4f3cc42305ad939337dfaa2934ce8391da4fc8",
+      "titleFingerprint": "abc7e9892806b047b4d4786b3685285543f76ca314c4c76246d5f6544c7856c9",
+      "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6"
     },
     {
       "name": "find_and_replace",
-      "descriptionFingerprint": "e6edbde94ac7a1c450c78984f022ddbf9594b75bf2c9a9e2c0cce485216b5ebd",
-      "schemaFingerprint": "c521374686fb420c6c09870a7d75f865a4fa04010e9bdf774ae7185bd4d514a1"
+      "descriptionFingerprint": "c5ee886b020ce242122bb30300bbd037ca135fb71d4ec6ea0054adc22c7ac2a2",
+      "schemaFingerprint": "d04f3c6ff342505edeca8b1b84be0b4d749e1f8673545c9f88042c2801d90082",
+      "titleFingerprint": "770f80fa77ad69c756e602919e3c79b3d60a641d8949b7280c34dc0604be786f",
+      "annotationsFingerprint": "b15393126f12ebd7533afe7d31a1beb8938a1e37d0bb2a52c382aaba4373f265"
     },
     {
       "name": "find_by_property",
-      "descriptionFingerprint": "359143ab15513ac343f1b5430680d710869e46f112624ad723502a894321d15b",
-      "schemaFingerprint": "dde9990ac6bdab2a384b2680c71690ac9f30373e56cfc86466bb1d3ae8811a51"
+      "descriptionFingerprint": "e2d64db64bc69b63deb2e7dab780f536c1078ca138e35570bfee4a5430f21b11",
+      "schemaFingerprint": "8f09914f7ded6b064aa66064c05c44136d83cba03ff0bdaa28733033e74013ab",
+      "titleFingerprint": "d46f63728bf0b32fbc5102d4f9bb295b98a1e36f1a8c15db79babb07cf2513b0",
+      "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6"
     },
     {
       "name": "get_active_file",
-      "descriptionFingerprint": "efc8123e819dd4bf5a1dab2d620745540c8950a54221690280096f95978780c8",
-      "schemaFingerprint": "422fd15233de441e5d3af2648045263ae114ca56cf8f79da9ca87d62360a19c1"
+      "descriptionFingerprint": "5b3a0d945417b7fbed42de4c6f5a27cef450c2ccb744d5c148f5238d7665c734",
+      "schemaFingerprint": "8443d4e3c4440baf1c042410b90defdaeb46f1dfb572b89a43df39fa70dd4cba",
+      "titleFingerprint": "173b8920b22afb40ff84bc2d595456198882ea66ce9d5e0b06bab06f52241f83",
+      "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6"
     },
     {
       "name": "help",
-      "descriptionFingerprint": "7b3112a84ea0caad54008b5d853d36c698fb877c68715a19d2e9b3dee3a87b72",
-      "schemaFingerprint": "8289140cdef8fbc660a080a047469ab58f4b6ded8c1efc6e1678962d94fb6082"
+      "descriptionFingerprint": "3b0fca01ab899f4e39f85f033a7ca3b57595cb3f26e8cb071303ed8f3cde3c45",
+      "schemaFingerprint": "0d0bfb8587f71a5b01d78743900ee9c00e751a697c7f44285cbdc77826ebb69d",
+      "titleFingerprint": "b79cac926e0b2e347e72cc91d5174037c9e17ae7733fd7bdb570f71b10cd7bfc",
+      "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6"
     },
     {
       "name": "links",
-      "descriptionFingerprint": "8bca852fe141bd343dade2ccce49f7e0bf43cec577a498fb8bdb274d01d7996c",
-      "schemaFingerprint": "74411e4877bea8234142a1140bde3aa5c72fa412d3a31386954834c1c9929def"
+      "descriptionFingerprint": "2fbcc9f28f390297aa5c52d9be1fb65733e4187c19b0cd75ff4c22e6384cb437",
+      "schemaFingerprint": "85fcb7ebcbebdc2f04c321c9f4d5307c72c2e4158ce888f75a91cb6c60f4ff3b",
+      "titleFingerprint": "9024c197d84940e47ff6aa631b7711c4cbff4e7fb2fe1a574a3592b662983a0d",
+      "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6"
     },
     {
       "name": "move",
-      "descriptionFingerprint": "42f83240c2ff8fcec0d1d5ab42c82307b401254ca57d136ff0ade4944f2f7f93",
-      "schemaFingerprint": "b9aeaecd55165ef2fb7b1ba9078dbe3cb01c1547b42109cfba0eb7dd8953f448"
+      "descriptionFingerprint": "56ab321dae7214eab7f2ef7217603ddeb120a6b1f05642f84c8020ec7495fbf8",
+      "schemaFingerprint": "b4705c0943dbd89ee537a8640cf8885137cfa8ef2ec9a8dab922bc90ba9638d2",
+      "titleFingerprint": "6ecc3df6bffdd06c58cd4f6e276929e119c8f653c53f5a6a5a5e66dfa1c3fc93",
+      "annotationsFingerprint": "b15393126f12ebd7533afe7d31a1beb8938a1e37d0bb2a52c382aaba4373f265"
     },
     {
       "name": "obsidian_exec",
-      "descriptionFingerprint": "70234746fe95397e7f5000dcf25e42b9674d06117fed9279bf059d870af73b7a",
-      "schemaFingerprint": "206ebe96ac535a8e570ff10fc9f17588c2174e4c1bc265f516650f0c9e4fecbf"
+      "descriptionFingerprint": "664816d0036db5da2cdebb9b760d93495d7d94171d39ffa2f424e84cf4afabd0",
+      "schemaFingerprint": "4e6340880be5e9a95a555c141b95e6d6b0aec8b9e18ab268ca7e9ea3c587ef9c",
+      "titleFingerprint": "13192bfeb0b0e9673b7e211ac4c46f8f54c5c05369cc9cb4d20e27789e1cfa9f",
+      "annotationsFingerprint": "bbca3f90a8f37a2e09188309470b131134c395dbc4eccad15de06d2c2f94f06a"
     },
     {
       "name": "open_file",
-      "descriptionFingerprint": "03872bf62d37a3a897ba167a98b43214329aeffd6e0de4a049846a5a3e58bd17",
-      "schemaFingerprint": "c6851716f3acda5e023310ab31b9503552e4aa87f2e0a108ed204441c73cce52"
+      "descriptionFingerprint": "22d0c063257eb408b63db3264a93a7cfbf7361f10028d7591f0bc52e6b18cad8",
+      "schemaFingerprint": "a2332ada31ce3f293c51f66267831762104c8a731eef7f723e4f9c399deb0269",
+      "titleFingerprint": "1e8d18f62f2d2a2fcb2027969e109cad13bcf2a861737f80eabd6774406c8a10",
+      "annotationsFingerprint": "73a3e8d549eea999d3de31ff52b0e27d51638d6060a922263264427c67a8cbb4"
     },
     {
       "name": "outline",
-      "descriptionFingerprint": "d0f014b94449279e835626ce8a0b13b6caeaeade6567307fd289bf3cbf3953c6",
-      "schemaFingerprint": "74411e4877bea8234142a1140bde3aa5c72fa412d3a31386954834c1c9929def"
+      "descriptionFingerprint": "d72f5a50e00b272fc393b5cb71b92da189d705010d1e8386d5a9c1545bda823a",
+      "schemaFingerprint": "f3aca83312a82f59946b50defe1808ffc46b86d19c2444c0e27e6b587b130148",
+      "titleFingerprint": "eabbf3abaf8d98abb9763d83f29b04716524a9d697dfdd06ae3ed77bdd12c929",
+      "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6"
     },
     {
       "name": "patch_block",
-      "descriptionFingerprint": "53c3a7c89f8221fbd1c185052f3f81894a02fdc5df7ae670fab1b818444ddf28",
-      "schemaFingerprint": "3fd18ae83a36d2a0a18fb00daaa1a9b4cef192b3932ff0e8e84856b442ee2c42"
+      "descriptionFingerprint": "5464f5f810c0ee4e6d32d70e857958020a88a05f57c9f0eb350a9e60505375bd",
+      "schemaFingerprint": "b4fde5f50df8f082289dfd18411c4c6455f4dae804f21a75912e0714cb5b8d39",
+      "titleFingerprint": "9c4af05b67851af83c79920a6379bfad5f1a9cac683ad1f65dea85b47c1cb224",
+      "annotationsFingerprint": "d72d3cb182e3d7fcf0b1c6782251eee772cdf2a99470e1a4bd6a006b5c8f4e25"
     },
     {
       "name": "patch_heading",
-      "descriptionFingerprint": "925e881ced168ce607ccd57570ee26a4e99b81ac4dc4b714531060877c2a86ca",
-      "schemaFingerprint": "f41f0a8b1cd72d24e487da8f8e67a1e14882f4914686f08cf0bdcb54e2054fc5"
+      "descriptionFingerprint": "9cc24ce56436d3529d951660aea82c1dd1c1b3fd926242b964ab351d12aabf21",
+      "schemaFingerprint": "ead12f25ce3140af863c2793fe7d8e7bec138ec9c08ae88e933b7eced7ef07ec",
+      "titleFingerprint": "28f7bb84489352f6f0c1d3245afaa834ea4b18b44e56eb054ce69a1a759b7253",
+      "annotationsFingerprint": "d72d3cb182e3d7fcf0b1c6782251eee772cdf2a99470e1a4bd6a006b5c8f4e25"
     },
     {
       "name": "paths",
-      "descriptionFingerprint": "0ce2bd21b2330725b512b96fedda7375a008cd8caf9db8f8781f4e4fe64bdccb",
-      "schemaFingerprint": "3c4d7e754ea436411645b1729bddceb5ec6cd5a133952a66d6f4fa32f2a9342f"
+      "descriptionFingerprint": "5b981a31c66edc5f1c70f06db72ab08a731d0ef334dba588a3cf069d14464959",
+      "schemaFingerprint": "a31fc20fe1a1ee668c052164a30d8a1a471810ad3184aa584d0d6e9369c9a510",
+      "titleFingerprint": "9c7995b5bc817bc83ea1d10a4b8ec26176773b514c3d58c9ede0d5b40d1dcf13",
+      "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6"
     },
     {
       "name": "pattern_search",
-      "descriptionFingerprint": "b6081c03e065ace987f3c9f01b62a46d3baedb4957fa3f32653c886035b06cb1",
-      "schemaFingerprint": "d9b5535ebb5ce10ba5ee88e2c03c56f4d80c24d3156ca8e78a570a57374e5acb"
+      "descriptionFingerprint": "f9bb542bcd1d7af9cd60740ae3293e422c4d6885234f773eeda9dfe315dfa294",
+      "schemaFingerprint": "c5c753ed57c8e52c2e810db911db2f4786617fb14b4b642342f6772558e377ef",
+      "titleFingerprint": "505088564bc404047f2e11711fe44d772a83b6140ea0208e4d06d7f6680c645e",
+      "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6"
     },
     {
       "name": "prepend",
-      "descriptionFingerprint": "3bcbbb449b652dc23bfc626d386c070589371c2144f298f89985b83318d3fdbb",
-      "schemaFingerprint": "ee3251251faa8b128c7e5a6560cb2bea13d12d85f1c5f57dfa21d947b44b29ff"
+      "descriptionFingerprint": "1ec9ad99a44d1d570c6e987247352b93674b307826ca8bd67467e07a9089c03c",
+      "schemaFingerprint": "367ef00fb171150d7fd0368b91aa70f7360da3c71b06002afa92fec465a2512d",
+      "titleFingerprint": "90c4e4916a771305bcaa026b908457c81069b20bbf34f54007f4ddd29dbf8297",
+      "annotationsFingerprint": "d72d3cb182e3d7fcf0b1c6782251eee772cdf2a99470e1a4bd6a006b5c8f4e25"
     },
     {
       "name": "properties",
-      "descriptionFingerprint": "d0bc847648d7032ab6d07336a44a75309de80e4701f36d8c6d2341f0c6173701",
-      "schemaFingerprint": "8ee1e1674e54086c7608b5cc2792d0b6f385f59a2e3a7e4bfa7321f14e68b9b3"
+      "descriptionFingerprint": "9a3f128b1bfc7fb16c251b6736769e02bdc9039c5d8f3f6f1f8cdcde4ab5b1e2",
+      "schemaFingerprint": "4733c7549ce93a33f445f4e33c33e76ff7e87c25064f56f851abaa46062549a4",
+      "titleFingerprint": "ae43692b2a310b8ed2443d2b7d2a3e4cf0b6d73115badd72831b3d22381f235f",
+      "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6"
     },
     {
       "name": "query_base",
-      "descriptionFingerprint": "7877c8478c90ebd7a7d1f97b6d62be87f153ec63e94c4b0df8f79302fa11c488",
-      "schemaFingerprint": "1b6dfe41094200d4109fff0cd71cfc80a9e97edaafaad048d78dbae233a9935f"
+      "descriptionFingerprint": "09f3b28b2e6833f989725e0fd69d835f41e612ca17f6a064f823fb9a12fb1a7f",
+      "schemaFingerprint": "92c7283053e873e5d860b558c205e30192dff768706dda7c3492c1af5d83c8ee",
+      "titleFingerprint": "4c46e0348e2e3a707da0bc8975e96e69ecfb55fea144227fb59d0fca1b8dea43",
+      "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6"
     },
     {
       "name": "read",
-      "descriptionFingerprint": "9629db618da8496839941118cf90d77204ef61ef99e850231f78be4059549f89",
-      "schemaFingerprint": "422fd15233de441e5d3af2648045263ae114ca56cf8f79da9ca87d62360a19c1"
+      "descriptionFingerprint": "2656d3da7c72550827dcdc92e237c1916ba0d10a0bcb042d9f19f911577aa73d",
+      "schemaFingerprint": "2c04a98caa9e2c3e3f7aabb62d4c128669afca749a45dab94d1d925a150da0b0",
+      "titleFingerprint": "9b9a8d05a7ec353bda84f9c1bb3178c299de3001b5e970508ddc889c487f92ca",
+      "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6"
     },
     {
       "name": "read_heading",
-      "descriptionFingerprint": "63685ff674f11aaee7447db173c2b817c575a61a7db23e9178a11bc84506e750",
-      "schemaFingerprint": "2e969db7068af36062855746ff5473d52ea540b7d7912735cbfe438d5bd1e9f2"
+      "descriptionFingerprint": "a649d0a6d850b92516d11dc36fae1a34d999506577ac476fec95327b638fb6de",
+      "schemaFingerprint": "e4c02c9ad5783f673db695c98f72873095deab7bbac4b2cd68e44974200dad27",
+      "titleFingerprint": "75f0b4edadfeddee6cf45e732a3571fd4f2740e54c87e2087eaa42c61777306b",
+      "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6"
     },
     {
       "name": "read_property",
-      "descriptionFingerprint": "fe05770107c36752797d55bd9beb9765d2ffdf8ad3ca5e0e8fc6c38b8993b13f",
-      "schemaFingerprint": "ec322e3e3a74f05b08024f9fba657cdec97ab700bc1200637f852a3a0c9285fc"
+      "descriptionFingerprint": "9f25a9b52d18a9b0c155c217ef4813a7a80cf8c952a8da3674fe9a049dfc3089",
+      "schemaFingerprint": "d891d3affb12751ae42a9334bd804a6fa0b8a754a98e4b41a3885606b710faa4",
+      "titleFingerprint": "77bbc9d3095e032e503a7fb8f376f803f1229576d46a97549c4c849244601cc0",
+      "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6"
     },
     {
       "name": "rename",
-      "descriptionFingerprint": "e0788ce08f122b129430b2bbbbf056cf056722857768e1c9aaa2fbf5acd050bb",
-      "schemaFingerprint": "639f01328d305c474b2dca45e830d32794787a129f1606bfcbb0e45f3cfd77a3"
+      "descriptionFingerprint": "3d77032803a279715a30f521918647ceeda0ad9d103d8409d8e86b1595d54f98",
+      "schemaFingerprint": "0950e006a60a092dab100b09a8d70ce0f730bfaa20adf301f3e2289ffd851bee",
+      "titleFingerprint": "3064d79a295cefe4b384b8fe5cb29fd6b06d7eb1ad94b8895f4148039d06b330",
+      "annotationsFingerprint": "b15393126f12ebd7533afe7d31a1beb8938a1e37d0bb2a52c382aaba4373f265"
     },
     {
       "name": "search",
-      "descriptionFingerprint": "016300ab76167f66a091777d8c5973ec27e22aaed228c92d492e83efd89cc731",
-      "schemaFingerprint": "028ecaacbaa58c4e12da51fe0aaa0c7b701df6ec07c236d39bb32558dbe8186d"
+      "descriptionFingerprint": "e74af07cb4de63c67eb5f355a4504bcf7bc7f79872cfac3c27e570ab0ee9a059",
+      "schemaFingerprint": "68db6c767650146c060092972f367b43fd92a1e37703ffdc8e738060a64bd10d",
+      "titleFingerprint": "49c266baaaa70981ea188fa714d5c40cf13830d786a861c9943ae0d26a7f3fe9",
+      "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6"
     },
     {
       "name": "set_property",
-      "descriptionFingerprint": "4e3bc193880ec6f47bb54193d8342709270552104063eda49b983e6d24d56356",
-      "schemaFingerprint": "00d22e4e6d233fec3334022431974329816cbf7773de14c888b2fc25b9e6ccab"
+      "descriptionFingerprint": "67a7ebe768dfe48983c3f68c3fd6d5f15d376804eed7ff4880fdc73ad5e2b67e",
+      "schemaFingerprint": "95457a4ab12facd0401a00b61ab4bf777eb187f1316bd8c40779b5f859502143",
+      "titleFingerprint": "ba6e4d1b51f71d068252b8ec39266bff207c845d2b042cf13ec1696807c41bb3",
+      "annotationsFingerprint": "73a3e8d549eea999d3de31ff52b0e27d51638d6060a922263264427c67a8cbb4"
     },
     {
       "name": "smart_connections_query",
-      "descriptionFingerprint": "2e86a00221c897211e584e802d6bdc97a39c164ee6c058c906e456a0cc1bfde8",
-      "schemaFingerprint": "d9677c6a92fb4b8751e53084a84b57e0c4d3c52402d2da6e28d3e7f76aa030ae"
+      "descriptionFingerprint": "7f099baff0c6272d4400bc6f11816601ac859825038bb83e1ba2437474f1358c",
+      "schemaFingerprint": "23f6c5454e7464e08b1bc62e1a965bff03676d6e14e3c20ce3cf5397216c3d99",
+      "titleFingerprint": "48a6c2197bed455245cb51697d0bed3868a882848f57c02a440b642a37a741db",
+      "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6"
     },
     {
       "name": "smart_connections_similar",
-      "descriptionFingerprint": "ad1a733c7e79b2284b1d74481a03834964835ffee2ed6235d1258e82f3421733",
-      "schemaFingerprint": "215851a540735506b818a2d04c6ece29a9c3c89ef56e625a9231598cd3c6cb46"
+      "descriptionFingerprint": "b86902ab3dbe1234bc7186787145ffc2d4981135a2d614a025771659f36e7bd4",
+      "schemaFingerprint": "4456cf3eb306a37317caeecc1c23e89784e1d47c9b94c3a6e85e646447f8a122",
+      "titleFingerprint": "6c55797a3eace33aafe663b176bbeac2b082049945feeb3421476c0a44ff9acf",
+      "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6"
     },
     {
       "name": "tag",
-      "descriptionFingerprint": "eedb37f29cee65a89f2a5a5a2a8654438401db60100a12d5bd3770cd67893612",
-      "schemaFingerprint": "81f276952b28b55f283570021fdf6235ecabab49693a2ff4ce847e7b7dbf8e94"
+      "descriptionFingerprint": "ce9e90e68585bdf3e59bcd8b2fee1788c27dff4617f792ec002e2b270d9d67af",
+      "schemaFingerprint": "56ff9dd9a0695e99884fe0971055170f40a276a73704ead241889d4a023ff2c1",
+      "titleFingerprint": "1503916a2ab2b0fd6768d3455fd8f2d9aa3b31333a8507dadcad983704a975d7",
+      "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6"
     },
     {
       "name": "views_base",
-      "descriptionFingerprint": "b23fb523e5fbc9cb5bd2f9e33d3c9ba56900d4b20ccfa9786143c4b6380afe6e",
-      "schemaFingerprint": "6034a4980aeedf59bb1073d2bd8e69af8c447644d8e8417e0aeaa6b5d9085bc0"
+      "descriptionFingerprint": "a21b63592bf1cf7e6cc529d01095d77aabc3a23a3258168af03ca3608bf51f72",
+      "schemaFingerprint": "4022b9c25a31b7f47d652a112123198d3154029ff320df3fed86314966b9a2d7",
+      "titleFingerprint": "85b3373749c11643fd6f2def6eb84e8729f56065e6538f5046e008e8bfb5c25e",
+      "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6"
     },
     {
       "name": "write_note",
-      "descriptionFingerprint": "03c22f88d75f07959b0e519b31aa52faf45fda1091ce9287d0330493cb03de5a",
-      "schemaFingerprint": "bee4b049b9436bf0b5605c11a7d8e4f4ffd7fd3958be9cf35c041d11517a84c7"
+      "descriptionFingerprint": "0d2252c843a08b4f2cdc6e3ccb78ae74d62299d1e249c86a4c99a968e8e3a457",
+      "schemaFingerprint": "b791b9e9e1755d65d815cfe5c0579bcb3c747738c25ecb14c735bebc772aaa3d",
+      "titleFingerprint": "9879595288c11fef687d30326a66af6f79ffae68cd9560300853cc0e24ff757e",
+      "annotationsFingerprint": "b15393126f12ebd7533afe7d31a1beb8938a1e37d0bb2a52c382aaba4373f265"
     }
   ]
 }

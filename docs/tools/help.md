@@ -1,6 +1,8 @@
 # `help`
 
-Look up full Markdown documentation for any registered MCP tool. Companion to the schema-stripping utility that this connector applies at registration time per ADR-005 — the agent receives a stripped JSON Schema in `tools/list` (no parameter descriptions) and uses `help` to fetch full docs on demand.
+Look up full Markdown documentation for any registered MCP tool. Every tool's `tools/list` entry carries a one-line description on each parameter; `help` returns the long reference that a one-liner cannot hold — worked examples, the error-code roster and recovery hints.
+
+This page used to describe `help` as the companion to a schema-stripping step that removed every parameter description from `tools/list` (ADR-005). That stopped being true in 0.9.0 (PR #90): parameter descriptions are now published, the "Call help(...) for full parameter docs" sentence is gone from tool descriptions, and ADR-040 (Published Parameter Descriptions and Server Instructions) supersedes ADR-005. `help` itself did not change.
 
 ## Input
 
@@ -75,5 +77,5 @@ Doc files are resolved relative to the help tool's compiled module location (via
 
 ## Related
 
-- [ADR-005 — Token-Optimized Tool Definitions via Progressive Disclosure](../../.decisions/ADR-005%20-%20Token-Optimized%20Tool%20Definitions%20via%20Progressive%20Disclosure.md) — the design decision this tool implements.
+- ADR-005 (Token-Optimized Tool Definitions via Progressive Disclosure) — the design decision this tool was built for; superseded by ADR-040 (Published Parameter Descriptions and Server Instructions), which keeps `help` as the long reference. Both are cited by ID and title: the decision records are kept outside the published package.
 - [the index](./index.md) — listing of all available tool docs.

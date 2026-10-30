@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the tag tool registration — descriptor name + description, stripped JSON Schema (ADR-005), docs file presence + content completeness, and the FR-018 baseline drift-detector lock rolled forward by `npm run baseline:write` post-implementation.
+// Original — no upstream. Tests for the tag tool registration — descriptor name + description, docs file presence + content completeness, and the FR-018 baseline drift-detector lock rolled forward by `npm run baseline:write` post-implementation.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,7 +10,6 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -27,26 +26,14 @@ describe("createTagTool — descriptor", () => {
     expect(tool.descriptor.name).toBe("tag");
   });
 
-  // (2) inputSchema has descriptions stripped (ADR-005)
-  it("strips descriptions at every nested depth", () => {
-    const tool = createTagTool({
-      logger: silentLogger(),
-      queue: createQueue(),
-      spawnFn: makeStubSpawn(),
-    });
-    const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    expect(countDescriptionKeys(schema)).toBe(0);
-  });
-
-  // (3) TAG_DESCRIPTION mentions help({ tool_name: "tag" })
-  it('TAG_DESCRIPTION mentions help({ tool_name: "tag" })', () => {
+  // (3) TAG_DESCRIPTION is published verbatim
+  it("publishes TAG_DESCRIPTION verbatim", () => {
     const tool = createTagTool({
       logger: silentLogger(),
       queue: createQueue(),
       spawnFn: makeStubSpawn(),
     });
     expect(tool.descriptor.description).toBe(TAG_DESCRIPTION);
-    expect(TAG_DESCRIPTION).toContain('help({ tool_name: "tag" })');
   });
 });
 

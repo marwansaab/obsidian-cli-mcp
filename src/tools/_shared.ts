@@ -32,16 +32,62 @@ export function composeEvalCode(template: string, payload: unknown): string {
 }
 
 /**
- * The project's own view of a registered tool's descriptor: the name, the description and
- * the `inputSchema` JSON emitted from `toSdkInputSchema` at the SDK's target (descriptions
- * below the root stripped, FR-006). `registerTool` refuses a schema without an object root,
- * so the SDK publishes these bytes unchanged (`_register.test.ts` pins descriptor ===
- * published through a real client). Used for boot-time checks and co-located tests;
- * clients read the descriptor from the SDK's `tools/list`.
+ * The four MCP behaviour hints, all required so TypeScript refuses a tool that leaves one
+ * out (068 FR-020; values per spec FR-024, pinned by `_surface.test.ts`).
+ */
+export interface ToolAnnotations {
+  readOnlyHint: boolean;
+  destructiveHint: boolean;
+  idempotentHint: boolean;
+  openWorldHint: boolean;
+}
+
+// The five rows of the spec FR-024 classification table. Each tool names its row; the
+// per-tool pin in `_surface.test.ts` keeps its own literal copy on purpose (FR-023).
+export const READ_ONLY_HINTS: ToolAnnotations = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: false,
+};
+export const ADDITIVE_WRITE_HINTS: ToolAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: false,
+};
+export const REPEATABLE_WRITE_HINTS: ToolAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: false,
+};
+export const DESTRUCTIVE_HINTS: ToolAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: false,
+  openWorldHint: false,
+};
+export const PASSTHROUGH_HINTS: ToolAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: false,
+  openWorldHint: true,
+};
+
+/**
+ * The project's own view of a registered tool's descriptor: the name, description,
+ * annotations (the input of the planned read-only tool filter, 068 T074) and the `inputSchema`
+ * JSON emitted from `toSdkInputSchema` at the SDK's target (parameter descriptions kept, 068
+ * FR-029). `registerTool` refuses a schema without an object root, so the SDK publishes these
+ * bytes unchanged (`_register.test.ts` pins descriptor === published through a real client).
+ * Used for boot-time checks and co-located tests; clients read the descriptor, title included,
+ * from the SDK's `tools/list`.
  */
 export interface ToolDescriptor {
   name: string;
   description: string;
+  annotations: ToolAnnotations;
   inputSchema: Record<string, unknown>;
 }
 

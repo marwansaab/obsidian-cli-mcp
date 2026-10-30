@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executePatchBlock, type ExecuteDeps } from "./handler.js";
 import { patchBlockInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { ADDITIVE_WRITE_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const PATCH_BLOCK_TOOL_NAME = "patch_block";
 
@@ -27,13 +26,15 @@ Block-id that resolves to a heading-attached marker (ATX or setext) short-circui
 
 Concurrent calls against the same note resolve **last-write-wins**.
 
-Typed errors via \`UpstreamError.details.code\`: \`BLOCK_NOT_FOUND\`, \`BLOCK_ON_HEADING\` (use \`patch_heading\`), \`NOTE_NOT_FOUND\`, \`INVALID_BLOCK_ID\`, \`EXTERNAL_EDITOR_CONFLICT\` (file locked — ask user to save and close, retry). Plus the standard \`VALIDATION_ERROR\`, \`PATH_ESCAPES_VAULT\`, \`FS_WRITE_FAILED\`, \`VAULT_NOT_FOUND\`, \`ERR_NO_ACTIVE_FILE\`. Call \`help({ tool_name: "patch_block" })\` for worked examples, per-shape gotchas, and recovery hints.`;
+Typed errors via \`UpstreamError.details.code\`: \`BLOCK_NOT_FOUND\`, \`BLOCK_ON_HEADING\` (use \`patch_heading\`), \`NOTE_NOT_FOUND\`, \`INVALID_BLOCK_ID\`, \`EXTERNAL_EDITOR_CONFLICT\` (file locked — ask user to save and close, retry). Plus the standard \`VALIDATION_ERROR\`, \`PATH_ESCAPES_VAULT\`, \`FS_WRITE_FAILED\`, \`VAULT_NOT_FOUND\`, \`ERR_NO_ACTIVE_FILE\`.`;
 
 export type RegisterDeps = ExecuteDeps;
 
 export function createPatchBlockTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: PATCH_BLOCK_TOOL_NAME,
+    title: "Patch Block",
+    annotations: ADDITIVE_WRITE_HINTS,
     description: PATCH_BLOCK_DESCRIPTION,
     schema: patchBlockInputSchema,
     deps,

@@ -499,8 +499,9 @@ field structurally inert in active mode specifically.
   — the shared discriminated union the input schema composes via
   `applyTargetModeRefinement(targetModeBaseSchema.extend(...))`.
 - [help tool spec](../../specs/005-help-tool/spec.md) — the
-  schema-stripping contract and `help({ tool_name })` lookup that
-  surfaces this document.
+  `help({ tool_name })` lookup that surfaces this document. (Its
+  schema-stripping contract was retired in 0.9.0, PR #90: parameter
+  descriptions are now published in `tools/list`, per ADR-040.)
 - [obsidian_exec](./obsidian_exec.md) — the freeform escape hatch for
   property removal, comma-in-list-element edge cases, and any
   unwrapped subcommand needs.

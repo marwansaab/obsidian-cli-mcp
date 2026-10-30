@@ -8,18 +8,17 @@ describe("createHelpTool", () => {
     const tool = createHelpTool();
     expect(tool.descriptor.name).toBe(HELP_TOOL_NAME);
     expect(tool.descriptor.description).toBe(HELP_DESCRIPTION);
-    expect(HELP_DESCRIPTION).toContain("help(");
     expect(HELP_DESCRIPTION).toContain('tool_name: "help"');
   });
 
-  it("publishes a stripped inputSchema with type === 'object' at the top and no nested descriptions (FR-002, FR-006)", () => {
+  it("publishes an inputSchema with type === 'object' at the top and a described tool_name (FR-002, 068 FR-030)", () => {
     const tool = createHelpTool();
     const inputSchema = tool.descriptor.inputSchema as Record<string, unknown>;
     expect(inputSchema.type).toBe("object");
-    expect(hasNestedDescription(inputSchema)).toBe(false);
-    const props = inputSchema.properties as Record<string, unknown> | undefined;
+    expect(hasNestedDescription(inputSchema)).toBe(true);
+    const props = inputSchema.properties as Record<string, { description?: string }> | undefined;
     expect(props).toBeTruthy();
-    expect(props!.tool_name).toBeTruthy();
+    expect(props!.tool_name!.description).toBeTruthy();
   });
 
   it("HELP_TOOL_NOT_FOUND surfaces through the SDK error-response shape (FR-011 round-trip)", async () => {

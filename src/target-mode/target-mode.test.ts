@@ -5,6 +5,7 @@ import { z } from "zod";
 import {
   applyTargetModeRefinement,
   applyTargetModeRefinementForFolderScoped,
+  folderScopedTargetModeBaseSchema,
   targetModeBaseSchema,
   targetModeSchema,
   type TargetMode,
@@ -454,6 +455,36 @@ describe("target-mode primitive", () => {
       if (!r.success) {
         expect(r.error.issues.some((i) => i.path.includes("vault"))).toBe(true);
       }
+    });
+  });
+
+  // -----------------------------------------------------------------------------------------------
+  // 068 FR-031 — the parameter-combination rules are visible in the published descriptions
+  // -----------------------------------------------------------------------------------------------
+
+  describe("published descriptions state the combination rules (068 FR-031)", () => {
+    type Props = Record<string, { description?: string }>;
+    const propsOf = (schema: z.ZodType): Props =>
+      (z.toJSONSchema(schema, { io: "input", target: "draft-2020-12" }) as { properties: Props }).properties;
+
+    it("note-scoped: target_mode names both modes, vault and the locators state their rules", () => {
+      const props = propsOf(targetModeSchema);
+      expect(props.target_mode!.description).toContain('"specific"');
+      expect(props.target_mode!.description).toContain('"active"');
+      expect(props.vault!.description).toContain('Required when target_mode is "specific"');
+      expect(props.vault!.description).toContain('omit when "active"');
+      for (const key of ["file", "path"] as const) {
+        expect(props[key]!.description).toContain("exactly one of file or path");
+        expect(props[key]!.description).toContain('omit both with "active"');
+      }
+    });
+
+    it("folder-scoped: no note locator in either mode; vault required when specific, omitted when active", () => {
+      const props = propsOf(applyTargetModeRefinementForFolderScoped(folderScopedTargetModeBaseSchema));
+      expect(props.target_mode!.description).toContain('"active" targets the vault focused in Obsidian');
+      expect(props.vault!.description).toContain('Required when target_mode is "specific"');
+      expect(props.file!.description).toContain("Not accepted by this tool");
+      expect(props.path!.description).toContain("Not accepted by this tool");
     });
   });
 });

@@ -107,7 +107,10 @@ and [tech-stack.md](../tech-stack.md#mcp-transport).
   are all optional succeed instead of failing validation.
 - Description stripping is still in place, re-hosted inside the adapter.
   Spec 068 plans to remove it in a later PR, with its own ADR superseding
-  ADR-005.
+  ADR-005. *(Later: PR #90 removed it, and
+  [ADR-040](ADR-040-published-parameter-descriptions-and-server-instructions.md)
+  superseded ADR-005. The "Related" line above describes the state when this
+  record was written.)*
 - T042 asked for Claude Code itself to connect to the built server. The
   unattended run could not attach a Claude Code session, so a v2 client over
   the same real stdio stood in for it; the PR body leaves that check to the

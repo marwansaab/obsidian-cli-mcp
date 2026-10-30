@@ -5,7 +5,11 @@ import { applyTargetModeRefinement, targetModeBaseSchema } from "../../target-mo
 
 export const deleteInputSchema = applyTargetModeRefinement(
   targetModeBaseSchema.extend({
-    permanent: z.boolean().optional().default(false),
+    permanent: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe("Delete irreversibly, bypassing the OS trash, when true. Default false (sent to trash)."),
   }),
 );
 

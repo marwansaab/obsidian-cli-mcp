@@ -5,7 +5,12 @@ import { applyTargetModeRefinement, targetModeBaseSchema } from "../../target-mo
 
 export const moveInputSchema = applyTargetModeRefinement(
   targetModeBaseSchema.extend({
-    to: z.string().min(1),
+    to: z
+      .string()
+      .min(1)
+      .describe(
+        'Vault-relative destination: a folder ending in "/" (e.g. "Archive/") keeps the file name, otherwise a full new path (e.g. "Archive/Old.md").',
+      ),
   }),
 );
 

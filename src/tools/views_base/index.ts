@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeViewsBase, type ExecuteDeps } from "./handler.js";
 import { viewsBaseInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const VIEWS_BASE_TOOL_NAME = "views_base";
 
@@ -18,13 +17,15 @@ Response: \`{ views: string[], count: number }\`. Each name is a CLEAN, query-re
 
 Read-only — the tool never mutates vault contents (naming a Base changes which file is focused; no vault content is created, modified, or deleted).
 
-Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (malformed input; \`INVALID_BASE_PATH\` sub-issues for an empty / too-long / path-traversal / non-\`.base\` \`base_path\`); \`CLI_REPORTED_ERROR\` with \`details.code\` — \`BASE_NOT_FOUND\` (\`details.reason: "named-missing"\` when a named Base does not exist, \`"not-open"\` when no Base is focused — distinct, never a silent open-Base substitution), \`BASE_MALFORMED\` (the named \`.base\` is unusable), \`VAULT_NOT_FOUND\` (\`details.reason: "unknown"\` for an unregistered \`vault\`). Call \`help({ tool_name: "views_base" })\` for worked examples and the error-code roster.`;
+Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (malformed input; \`INVALID_BASE_PATH\` sub-issues for an empty / too-long / path-traversal / non-\`.base\` \`base_path\`); \`CLI_REPORTED_ERROR\` with \`details.code\` — \`BASE_NOT_FOUND\` (\`details.reason: "named-missing"\` when a named Base does not exist, \`"not-open"\` when no Base is focused — distinct, never a silent open-Base substitution), \`BASE_MALFORMED\` (the named \`.base\` is unusable), \`VAULT_NOT_FOUND\` (\`details.reason: "unknown"\` for an unregistered \`vault\`).`;
 
 export type RegisterDeps = ExecuteDeps;
 
 export function createViewsBaseTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: VIEWS_BASE_TOOL_NAME,
+    title: "Views Base",
+    annotations: READ_ONLY_HINTS,
     description: VIEWS_BASE_DESCRIPTION,
     schema: viewsBaseInputSchema,
     deps,

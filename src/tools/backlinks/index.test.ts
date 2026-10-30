@@ -1,4 +1,4 @@
-// Original — no upstream. backlinks registration tests — descriptor name + stripped emitted schema (target_mode/vault/file/path/with_counts/total/limit; additionalProperties:false; required={target_mode}; no description keys), help() / sibling-pointer / cap-bypass references in the description, docs presence + content completeness, baseline fingerprint roll-forward gate.
+// Original — no upstream. backlinks registration tests — descriptor name, sibling-pointer / cap-bypass references in the description, docs presence + content completeness, baseline fingerprint roll-forward gate.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,7 +14,6 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -33,19 +32,8 @@ describe("createBacklinksTool — descriptor", () => {
     expect(tool.descriptor.description.length).toBeGreaterThan(200);
   });
 
-  // (b) Stripped emitted schema — ADR-005
-  it("strips descriptions at every nested depth", () => {
-    const tool = createBacklinksTool({
-      logger: silentLogger(),
-      queue: createQueue(),
-      spawnFn: makeStubSpawn(),
-    });
-    const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    expect(countDescriptionKeys(schema)).toBe(0);
-  });
-
-  // (c) Description references help(), the tool name, the sibling `links`, the .md-only and cap-bypass clarifications
-  it("description references help(), the tool name 'backlinks', the sibling 'links', .md-only corpus, and the total cap-bypass", () => {
+  // (c) Description keeps the sibling `links`, the .md-only and cap-bypass clarifications
+  it("description names 'backlinks', the sibling 'links', .md-only corpus, and the total cap-bypass", () => {
     const tool = createBacklinksTool({
       logger: silentLogger(),
       queue: createQueue(),
@@ -53,7 +41,6 @@ describe("createBacklinksTool — descriptor", () => {
     });
     const desc = tool.descriptor.description;
     const lower = desc.toLowerCase();
-    expect(lower).toContain("help");
     expect(lower).toContain("backlinks");
     expect(lower).toContain("links");
     expect(lower).toContain(".md");

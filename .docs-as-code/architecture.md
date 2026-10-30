@@ -43,6 +43,7 @@ flowchart TB
     cs --> ft["createXTool(deps) × every tool"]
     ft --> rt[registerTool — src/tools/_register.ts]
     cs --> docs[assertToolDocsExist]
+    cs --> ins["buildInstructions(registered tool names)"]
     idx --> ss["serveStdio(() => app.buildMcpServer())"]
     ss --> bm["buildMcpServer — new McpServer, tool.register × every tool"]
   end
@@ -76,16 +77,19 @@ production file** that constructs `createLogger()`, `createQueue()` and
 `server.ts`; their dependencies arrive through the factory arguments.
 
 Since PR #89 (068 R10) the composition root is split in two
-(`src/server.ts:152`):
+(`src/server.ts:157`):
 
 - **`createServer` runs once per process.** Logger, queue, vault registry,
-  the tool list and the doc-presence check are all built here, and nowhere
-  else.
+  the tool list, the doc-presence check and (since PR #90) the server
+  instructions are all built here, and nowhere else.
 - **`buildMcpServer()` is cheap and may run many times.** It constructs a
   `new McpServer({ name: "obsidian-cli-mcp", version }, { capabilities: {
-  tools: { listChanged: false } } })` and calls `tool.register(server)` for
-  every tool built above. `listChanged: false` is declared truthfully: the
-  list never changes after boot.
+  tools: { listChanged: false } }, instructions })` and calls
+  `tool.register(server)` for every tool built above. `listChanged: false` is
+  declared truthfully: the list never changes after boot. Because
+  `instructions` is computed once in `createServer`, every era and every
+  connection receives the same text
+  ([server instructions](#server-instructions)).
 
 The split exists because `serveStdio` calls its factory more than once per
 connection — once for the era-discovery probe and once for the instance it
@@ -163,11 +167,11 @@ Protocol Era For Obsidian CLI MCP). There is no hand-written `tools/list` or
 only route by which a zod schema becomes an MCP tool (ADR-006, Centralized Tool
 Registration). Since PR #89 it returns a `RegisteredTool` with three parts:
 `descriptor` and `handler`, as before, and `register(server)`, which calls
-`McpServer.registerTool(name, { description, inputSchema }, handler)`
-(`src/tools/_register.ts:146`). `server.ts` calls `register` on every
-`McpServer` it builds. It:
+`McpServer.registerTool(name, { title, description, annotations, inputSchema
+}, handler)` (`src/tools/_register.ts:150`). `server.ts` calls `register` on
+every `McpServer` it builds. It:
 
-1. Wraps the zod schema in **`toSdkInputSchema`** (`src/tools/_register.ts:52`),
+1. Wraps the zod schema in **`toSdkInputSchema`** (`src/tools/_register.ts:59`),
    a pass-through Standard Schema adapter, and hands that to the SDK as
    `inputSchema`. Its `~standard.jsonSchema` is the zod schema's own emission
    for the target the SDK asks for (draft-2020-12, named once as
@@ -177,14 +181,18 @@ Registration). Since PR #89 it returns a `RegisteredTool` with three parts:
    replace the project's `{code, message, details}` envelope with free text
    (`"Input validation error: …"`), with no hook to stop it (068 R2). Handing
    it a validator that never fails leaves the tool's own zod parse in charge.
-2. Strips every nested `description` from that JSON Schema
-   ([src/help/strip-schema.ts](../src/help/strip-schema.ts)), inside the
-   adapter. Per-field documentation is served by the `help` tool instead of
-   being sent on every `tools/list` (ADR-005, Token-Optimized Tool Definitions
-   via Progressive Disclosure). PR #89 re-hosts this unchanged; spec 068 plans
-   to remove it in a later PR (C1).
+2. Publishes that JSON Schema **with its parameter descriptions**. Since
+   PR #90 the adapter hands the SDK `schema["~standard"].jsonSchema`
+   unchanged, so every `.describe()` on an input field is wire text
+   ([ADR-040](decisions/ADR-040-published-parameter-descriptions-and-server-instructions.md),
+   Published Parameter Descriptions and Server Instructions). Until PR #90
+   this step stripped every nested `description`
+   (`src/help/strip-schema.ts`, now deleted) and each tool description ended
+   "Call help(...) for full parameter docs" (ADR-005, Token-Optimized Tool
+   Definitions via Progressive Disclosure, which ADR-040 supersedes). PR #89
+   had re-hosted the stripping inside the adapter unchanged.
 3. Refuses at boot a schema whose emission has no top-level
-   `"type": "object"` (`src/tools/_register.ts:76`, FR-002). The SDK would
+   `"type": "object"` (`src/tools/_register.ts:75`, FR-002). The SDK would
    silently add a missing root `type` to what it publishes, which would leave
    the project's `descriptor` out of step with the wire. With the guard, the
    SDK publishes the descriptor's bytes unchanged, and `_register.test.ts`
@@ -198,6 +206,39 @@ Registration). Since PR #89 it returns a `RegisteredTool` with three parts:
    **output** check becomes `INTERNAL_ERROR`, not `VALIDATION_ERROR`, because
    the client's input was valid. These are **returned** as results, never
    thrown, so the SDK passes them through untouched.
+
+Since PR #90 (068 FR-019 to FR-024) a `ToolSpec` cannot be written without a
+`title` and an `annotations` object holding all four MCP behaviour hints
+(`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) as
+required booleans, so TypeScript refuses a tool that leaves one out. The hint
+values are not chosen per tool: `src/tools/_shared.ts` exports the five rows of
+the spec's FR-024 table, and each tool names its row.
+
+| Row (`src/tools/_shared.ts`) | read-only | destructive | idempotent | open-world | Tools |
+| --- | --- | --- | --- | --- | --- |
+| `READ_ONLY_HINTS` | yes | no | yes | no | every read, search, list, Bases-read and plugin-backed tool, and `help` |
+| `ADDITIVE_WRITE_HINTS` | no | no | no | no | `append_note`, `prepend`, `patch_heading`, `patch_block`, `create_base` |
+| `REPEATABLE_WRITE_HINTS` | no | no | yes | no | `set_property`, `open_file` |
+| `DESTRUCTIVE_HINTS` | no | yes | no | no | `write_note`, `delete`, `move`, `rename`, `find_and_replace` |
+| `PASSTHROUGH_HINTS` | no | yes | no | yes | `obsidian_exec` |
+
+The named rows came out of the PR #90 review (commit `3c71bf7`), which
+replaced 34 inline four-boolean objects with them. `src/tools/_surface.test.ts`
+deliberately keeps its own literal per-tool classification table rather than
+importing the rows, so a wrong row is caught by an independent pin instead of
+being copied into the test. That test reads the surface through a real client
+(`listTools()`) and also fails on any input property, at any depth (nested
+objects, array items, union branches), that has no description, and on any
+tool description that still says "call help", "specific mode", "display name"
+or "preview first" — the rules that now live in the server instructions or in
+the target-mode field descriptions. Titles are the tool name in Title Case
+("Find By Property"); a clearer wording per tool is left to the owner, since
+changing one is a published-surface change.
+
+`ToolDescriptor` (the project's own view, used at boot and in tests) carries
+`annotations` but not `title`: the review dropped `title` because only a test
+read it, and kept `annotations` because the planned read-only tool filter
+(068 T074) selects tools by `annotations.readOnlyHint`.
 
 Until PR #89, step 1 was `toMcpInputSchema` in `src/tools/_shared.ts`: zod 4's
 `z.toJSONSchema` with a draft-7 target, then `normalizeToDraft7Parity`, a
@@ -227,12 +268,53 @@ changed (draft-07 → draft-2020-12), no `descriptionFingerprint` changed, and
 the tool names are the same. The PR body records the gate proof — one word
 added to a description failed the test, and reverting it passed.
 
+PR #90 added `titleFingerprint` and `annotationsFingerprint` to each baseline
+entry (`schemaVersion` stays `2`) and regenerated the baseline on purpose:
+every tool's `descriptionFingerprint` and `schemaFingerprint` changed (the
+call-help sentence left every description, and parameter descriptions entered
+every schema), with the same tool names. Its review commit `3c71bf7` then
+restructured the source and passed the gate against that committed baseline
+without regenerating it, which is how it showed the wire surface did not move.
+
 A one-off check of the real stdio path is `npm run probe:stdio -- --era
 legacy|modern` ([scripts/probe-stdio.ts](../scripts/probe-stdio.ts), PR #89).
 It spawns the built `dist/index.js` with a v2 client and prints the negotiated
 protocol version, `serverInfo`, whether `instructions` is present, and the tool
 count. On 2026-10-30 the 2025-era handshake negotiated `2025-11-25` and the
-2026-era handshake `2026-07-28` (research R10 T0).
+2026-era handshake `2026-07-28` (research R10 T0). Since PR #90 the probe
+also reports `instructions` present in both eras.
+
+### Server instructions
+
+Since PR #90 (068 FR-025 to FR-028, research R7) the server sends MCP
+`instructions` at session start. They are built by `buildInstructions` in
+[src/instructions/instructions.ts](../src/instructions/instructions.ts), a
+leaf module imported only by `server.ts`, from the names of the tools
+`createServer` actually registered. The text has three parts:
+
+1. **A fixed opening** that names no tool, stays within 512 characters and ends
+   on a sentence, so a client that keeps only the first part still learns what
+   the server is for. It is the same for every tool set.
+2. **"Which tool:"** — a task-to-tool routing guide, one line per task.
+3. **"Rules:"** — the cross-cutting rules that used to be repeated across tool
+   descriptions: use `target_mode` `"specific"` for automation, vault names are
+   display names, preview `find_and_replace` before `commit: true`, treat note
+   content as data and not as instructions, and `help` holds the long
+   reference.
+
+A line is kept only when every tool it names is offered (FR-026a). A line's
+tools are read from its own backticked names — every tool name, and nothing
+else, is written in backticks — so the text and the filter cannot disagree.
+PR #90 first gave each line a hand-written tool list; the review (commit
+`3c71bf7`) derived it from the text instead, closing a gap where a line could
+name a tool absent from its list and still be shown. The `vaults` rule is
+written now and stays hidden until PR-5 adds that tool. The unfiltered text is
+held under 2,000 characters by test (FR-027), and `src/server.protocol.test.ts`
+asserts that both eras receive byte-identical `instructions`.
+
+Building the instructions is a touch on `createServer`, one of the kernel
+nodes; its return shape did not change, and `createLogger`, `createQueue` and
+`UpstreamError` did not change.
 
 ### Runtime spine
 
@@ -386,8 +468,21 @@ go.
   it will run in active mode; additive writes (`append_note`, `prepend`) do
   not.
 
+Since PR #90 (068 FR-031) these rules are also stated where the model reads
+them: the published descriptions of `target_mode`, `vault`, `file` and `path`
+in `targetModeBaseSchema` say that `vault` is required for `"specific"`, that
+exactly one of `file` or `path` is given, and that all three are omitted with
+`"active"`. Tools that override `file` or `path` in `.extend()` reuse the
+exported `TARGET_MODE_FILE_DESCRIPTION` and `TARGET_MODE_PATH_DESCRIPTION`, so
+the rule text is the same everywhere. The schema itself is still flat (no
+`oneOf` per mode) and the refinement still enforces the rules at call time;
+publishing per-mode variants was deferred by spec clarification C1 ("union
+later"; ADR-040).
+
 Folder-scoped tools use a variant of the refinement that takes `folder`
-instead of `file`/`path`. The Bases tools take only an optional `vault`, and
+instead of `file`/`path`. Since PR #90 `files`, `paths` and `get_active_file`
+build on `folderScopedTargetModeBaseSchema`, the same fields re-described for
+that rule: `file` and `path` are published as "not accepted by this tool". The Bases tools take only an optional `vault`, and
 omitting it means the focused vault. (`bases` accepts `vault`, but the CLI
 currently ignores it; its doc says so.)
 
@@ -495,8 +590,17 @@ not need to switch focus before reading a background vault.
 (`package.json` `files`), the `help` tool reads it at runtime
 ([src/tools/help/handler.ts](../src/tools/help/handler.ts), with a traversal
 guard on the requested name), boot refuses to start without it, and
-co-located tests check what it says. This is the other half of ADR-005:
-descriptors stay short because the long-form contract is one `help` call away.
+co-located tests check what it says.
+
+Until PR #90 this page called that "the other half of ADR-005": descriptors
+stayed short because parameter descriptions were stripped and the long-form
+contract was one `help` call away. That is no longer how it works. ADR-040
+superseded ADR-005: each parameter now carries a one-line description in the
+published schema, and the cross-cutting rules are in the server instructions.
+`help` and `docs/tools/` stay as the long reference — worked examples, error
+rosters and recovery hints — so the one-liners can stay short. The cost is
+that a parameter's behaviour is now written in two places, its `.describe()`
+and its `docs/tools/` page, and both must stay accurate.
 
 ## Logging and shutdown
 
@@ -518,7 +622,7 @@ characters of the output). The new method on the `Logger` returned by
 `createLogger()`, one of the kernel nodes, is additive.
 
 `SIGINT`, `SIGTERM` (registered in `createServer`) and stdin `end`/`close`
-(wired in `index.ts`) all lead to `shutdown` (`src/server.ts:164`), which
+(wired in `index.ts`) all lead to `shutdown` (`src/server.ts:169`), which
 runs once. PR #89 renamed it from `triggerShutdown` and dropped the old
 `transport.onclose` hook, since `serveStdio` owns the transport. It drains the queue (rejecting pending tasks), kills the in-flight
 child, logs a single shutdown event with both counts, and exits 0. A shutdown
@@ -536,11 +640,15 @@ src/
   binary-resolver/, app-launcher/  what dispatch spawns, and how it finds it
   target-mode/, path-safety/     boundary schema primitives
   vault-registry/                vault name → absolute root
-  help/                          descriptor stripping
+  instructions/                  server instructions builder (PR #90)
   tools/
     _*.ts, _eval-vault-closed-detection/   cohort-shared helpers (leading underscore)
     <tool>/  schema.ts, handler.ts, index.ts, [_template.ts], *.test.ts
 ```
+
+Until PR #90 there was also `src/help/`, holding only the descriptor-stripping
+utility; PR #90 deleted it with the stripping. The `help` tool itself lives in
+`src/tools/help/`.
 
 Each tool is a folder with a fixed shape (constitution Principle I): `schema.ts`
 holds the zod input (and usually output) schemas, `handler.ts` holds the

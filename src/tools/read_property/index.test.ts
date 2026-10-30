@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the read_property tool registration — descriptor shape, stripped schema, help mention + output-shape disclosure, docs presence + content completeness.
+// Original — no upstream. Tests for the read_property tool registration — descriptor shape, root schema description, output-shape disclosure, docs presence + content completeness.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,7 +10,6 @@ import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapt
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -24,27 +23,18 @@ describe("createReadPropertyTool — descriptor", () => {
     expect(tool.descriptor.description).toBe(READ_PROPERTY_DESCRIPTION);
   });
 
-  // (b) Story 5 — strips descriptions at every nested depth (BI-041: root description preserved per FR-003)
-  it("strips descriptions at every nested depth, preserving the root description (FR-003)", () => {
+  // (b) Story 5 — flat schema; the BI-041 root description stays
+  it("keeps a flat schema and the root description (FR-010)", () => {
     const tool = createReadPropertyTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
     expect(schema.oneOf).toBeUndefined();
-    // Count children only — root description is preserved by stripSchemaDescriptions
-    // per FR-003 (BI-041 introduces a root-level description carrying the
-    // malformed-frontmatter contract per FR-010).
-    const props = schema.properties as Record<string, unknown>;
-    let nestedDescriptionKeysFound = 0;
-    for (const child of Object.values(props)) nestedDescriptionKeysFound += countDescriptionKeys(child);
-    expect(nestedDescriptionKeysFound).toBe(0);
+    expect(schema.description).toContain("Malformed YAML frontmatter");
   });
 
-  // (c) Story 5 — descriptor description references help, the tool name, and output shape
-  it("description references help(), the tool name 'read_property', and surfaces the {value, type} output shape", () => {
+  // (c) Story 5 — descriptor description surfaces the output shape
+  it("description surfaces the {value, type} output shape", () => {
     const tool = createReadPropertyTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     const desc = tool.descriptor.description;
-    const lower = desc.toLowerCase();
-    expect(lower).toContain("help");
-    expect(lower).toContain("read_property");
     expect(desc).toMatch(/value.*type|type.*value/i);
     expect(desc.length).toBeGreaterThan(0);
   });

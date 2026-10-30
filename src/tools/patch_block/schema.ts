@@ -5,7 +5,12 @@ import {
   isStructurallySafePath,
   STRUCTURALLY_UNSAFE_PATH_MESSAGE,
 } from "../../path-safety/schema.js";
-import { applyTargetModeRefinement, targetModeBaseSchema } from "../../target-mode/target-mode.js";
+import {
+  applyTargetModeRefinement,
+  TARGET_MODE_FILE_DESCRIPTION,
+  TARGET_MODE_PATH_DESCRIPTION,
+  targetModeBaseSchema,
+} from "../../target-mode/target-mode.js";
 
 const safePathField = z
   .string()
@@ -79,10 +84,12 @@ const blockIdField = z.string().superRefine((value, ctx) => {
 
 export const patchBlockInputSchema = applyTargetModeRefinement(
   targetModeBaseSchema.extend({
-    file: safePathField.optional(),
-    path: safePathField.optional(),
-    block_id: blockIdField,
-    content: z.string(),
+    file: safePathField.optional().describe(TARGET_MODE_FILE_DESCRIPTION),
+    path: safePathField.optional().describe(TARGET_MODE_PATH_DESCRIPTION),
+    block_id: blockIdField.describe(
+      `Bare block identifier without the leading "^" (e.g. "intro-1"); letters, digits and hyphens, case-sensitive, up to ${BLOCK_ID_MAX} characters.`,
+    ),
+    content: z.string().describe("Markdown that replaces the block's body; empty clears it."),
   }),
 );
 

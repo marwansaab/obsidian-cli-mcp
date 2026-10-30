@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the move tool registration — descriptor shape, stripped schema, help mention + link-rewriting caveat, docs presence + non-stub + active-mode CLI_REPORTED_ERROR note + to-shape rules, thin-handler logger drift lock (FR-009 / R1).
+// Original — no upstream. Tests for the move tool registration — descriptor shape, link-rewriting caveat, docs presence + non-stub + active-mode CLI_REPORTED_ERROR note + to-shape rules, thin-handler logger drift lock (FR-009 / R1).
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,7 +10,6 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { makeStubSpawn as makeSuccessSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -28,8 +27,8 @@ describe("createMoveTool — descriptor", () => {
     expect(tool.descriptor.description).toBe(MOVE_DESCRIPTION);
   });
 
-  // Case 2 — Story 7 AC#1, AC#2: stripped schema strips descriptions at every nested depth
-  it("strips descriptions at every nested depth (Story 7 AC#1/AC#2)", () => {
+  // Case 2 — Story 7 AC#1, AC#2: flat published schema
+  it("emits a post-010 inputSchema with no oneOf (Story 7 AC#1/AC#2)", () => {
     const tool = createMoveTool({
       logger: silentLogger(),
       queue: createQueue(),
@@ -37,11 +36,10 @@ describe("createMoveTool — descriptor", () => {
     });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
     expect(schema.oneOf).toBeUndefined();
-    expect(countDescriptionKeys(schema)).toBe(0);
   });
 
-  // Case 3 — Story 7 AC#3 / FR-012: description references help, the tool's own name, AND link-rewriting caveat
-  it("description references help(), 'move', AND surfaces the link-rewriting caveat (Story 7 AC#3, FR-012)", () => {
+  // Case 3 — Story 7 AC#3 / FR-012: description names the tool AND link-rewriting caveat
+  it("description names 'move' AND surfaces the link-rewriting caveat (Story 7 AC#3, FR-012)", () => {
     const tool = createMoveTool({
       logger: silentLogger(),
       queue: createQueue(),
@@ -49,7 +47,6 @@ describe("createMoveTool — descriptor", () => {
     });
     const desc = tool.descriptor.description;
     const lower = desc.toLowerCase();
-    expect(lower).toContain("help");
     expect(lower).toContain("move");
     expect(desc).toMatch(/Automatically update internal links|link/i);
     expect(desc.length).toBeGreaterThan(0);

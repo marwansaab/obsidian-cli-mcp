@@ -14,6 +14,10 @@ export interface BaselineEntry {
   name: string;
   descriptionFingerprint: string;
   schemaFingerprint: string;
+  /** 068 PR 4: the published `title`. */
+  titleFingerprint: string;
+  /** 068 PR 4: the published `annotations` (all four hints). */
+  annotationsFingerprint: string;
 }
 
 export interface RegisterBaseline {
@@ -57,6 +61,8 @@ export async function fingerprintLiveRegistry(
       name: t.name,
       descriptionFingerprint: sha256(t.description ?? ""),
       schemaFingerprint: sha256(canonicalJSON(t.inputSchema)),
+      titleFingerprint: sha256(t.title ?? ""),
+      annotationsFingerprint: sha256(canonicalJSON(t.annotations ?? null)),
     }));
     entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
     return entries;

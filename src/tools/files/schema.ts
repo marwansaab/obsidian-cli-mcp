@@ -3,14 +3,25 @@ import { z } from "zod";
 
 import {
   applyTargetModeRefinementForFolderScoped,
-  targetModeBaseSchema,
+  folderScopedTargetModeBaseSchema,
 } from "../../target-mode/target-mode.js";
 
 export const filesInputSchema = applyTargetModeRefinementForFolderScoped(
-  targetModeBaseSchema.extend({
-    folder: z.string().min(1).optional(),
-    ext: z.string().min(1).optional(),
-    total: z.boolean().optional(),
+  folderScopedTargetModeBaseSchema.extend({
+    folder: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('Vault-relative folder to list, non-recursively (e.g. "Projects"). Default: the vault root.'),
+    ext: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('File extension filter without the dot (e.g. "md"). Default: all extensions.'),
+    total: z
+      .boolean()
+      .optional()
+      .describe("When true, return only the count with an empty paths list. Default false."),
   }),
 );
 

@@ -1,5 +1,5 @@
 // Original — no upstream. Tests for the context_search tool registration —
-// descriptor name + description, stripped JSON Schema (ADR-005), help-facility
+// descriptor name + description, help-facility
 // doc presence + content completeness (>=4 worked examples + error roster), and
 // the FR-018 baseline drift-detector lock (rolled forward by `npm run baseline:write`).
 import { existsSync, readFileSync } from "node:fs";
@@ -17,7 +17,6 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-import { countDescriptionKeys } from "../_schema-test-utils.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -29,18 +28,12 @@ describe("createContextSearchTool — descriptor (I1 smoke)", () => {
     expect(tool.descriptor.name).toBe("context_search");
   });
 
-  it("description is non-empty and contains the help-tool pointer", () => {
+  it("description is non-empty", () => {
     const tool = createContextSearchTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     expect(tool.descriptor.description).toBe(CONTEXT_SEARCH_DESCRIPTION);
     expect(CONTEXT_SEARCH_DESCRIPTION.length).toBeGreaterThan(0);
-    expect(CONTEXT_SEARCH_DESCRIPTION).toContain('help({ tool_name: "context_search" })');
   });
 
-  it("emits inputSchema with descriptions stripped at every nested depth", () => {
-    const tool = createContextSearchTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
-    const schema = tool.descriptor.inputSchema as Record<string, unknown>;
-    expect(countDescriptionKeys(schema)).toBe(0);
-  });
 });
 
 describe("docs/tools/context_search.md exists and is non-stub", () => {

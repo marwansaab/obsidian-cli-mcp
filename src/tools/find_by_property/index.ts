@@ -2,8 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeFindByProperty, type ExecuteDeps } from "./handler.js";
 import { findByPropertyInputSchema } from "./schema.js";
-
-import type { RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 
 export const FIND_BY_PROPERTY_TOOL_NAME = "find_by_property";
 
@@ -22,15 +21,15 @@ Inputs: \`{ vault?, property, value, folder?, arrayMatch?, caseSensitive? }\`.
 
 \`folder\` narrows to a vault-relative subtree.
 
-\`vault\` should be passed explicitly in multi-vault setups to avoid focused-vault basename ambiguity.
-
-Call \`help({ tool_name: "find_by_property" })\` for worked examples, full parameter docs, and the error roster with recovery hints.`;
+\`vault\` should be passed explicitly in multi-vault setups to avoid focused-vault basename ambiguity.`;
 
 export type RegisterDeps = ExecuteDeps;
 
 export function createFindByPropertyTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: FIND_BY_PROPERTY_TOOL_NAME,
+    title: "Find By Property",
+    annotations: READ_ONLY_HINTS,
     description: FIND_BY_PROPERTY_DESCRIPTION,
     schema: findByPropertyInputSchema,
     deps,
