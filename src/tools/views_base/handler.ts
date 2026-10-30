@@ -16,7 +16,7 @@ import {
   type ViewsBaseInput,
   type ViewsBaseOutput,
 } from "./schema.js";
-import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
+import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError, stringDetail } from "../../errors.js";
 import { decodeEvalEnvelope, resolveVaultRootOrRemap } from "../_active-file.js";
 import { composeEvalCode } from "../_shared.js";
@@ -25,7 +25,7 @@ import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
-export interface ExecuteDeps {
+export interface ExecuteDeps extends CallScope {
   logger: Logger;
   queue: Queue;
   /**
@@ -79,7 +79,7 @@ function parseViews(stdout: string): string[] {
 }
 
 function adapterDeps(deps: ExecuteDeps) {
-  return { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue };
+  return deps;
 }
 
 /**

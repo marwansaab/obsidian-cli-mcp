@@ -99,6 +99,50 @@ partway through reports which notes were already written, in
 comments. Its scope is the vault, a subfolder, or — since BI-066 (PR #73;
 ADR-032, Find And Replace File Scope via Sibling Locators) — a single note.
 
+Since PR #92 (068 FR-052, FR-054, research R11) the commit loop checks the
+call's `signal` before each note. A cancel stops it between notes: notes
+already written stay written, and because the SDK sends no response for a
+cancelled request, the handler logs `find_and_replace.commit_cancelled`
+`{vault, committed, skipped}` to stderr and rethrows the abort reason
+([architecture](../architecture.md#logging-and-shutdown)). After each written
+note it calls `reportProgress?.(written, total, relPath)`, which sends a
+progress notification only when the request carried a token. The two scope
+predicates, `isSingleNoteScope` and `effectiveSubfolder`, are shared by the
+confirmation gate and `resolveScope` since the PR #92 review (commit
+`ca25c67`), which had found the checks written twice.
+
+## Confirmation before irreversible changes
+
+Since PR #92 (068 US14, FR-047 to FR-050, research R12) two actions in this
+group ask the human first, through the per-call `Confirmation` that
+`registerTool` hands the handler
+([architecture](../architecture.md#per-call-scope-cancellation-progress-and-confirmation),
+ADR-043):
+
+| Tool | Trigger | Step 1: can the client ask? | Step 2: the question |
+| --- | --- | --- | --- |
+| `delete` | `permanent: true` | at handler entry | straight after step 1, before the spawn; names the vault and the note, or "the active note" |
+| `find_and_replace` | `commit: true` with no `file`, `path` or `active_note` (a `subfolder` commit still asks) | at handler entry, **before vault resolution**, which spawns Obsidian | after the commit re-scan, before the first write; names the pattern, occurrence and note counts, the vault and the subfolder |
+
+A client that declares no form elicitation gets `VALIDATION_ERROR` with
+`details.code: "CONFIRMATION_UNAVAILABLE"` and a message naming the safe
+route (delete to the trash; commit one note at a time); nothing is spawned or
+written. A human who does not confirm gives `CONFIRMATION_DECLINED` with
+`details.action`, and nothing is changed. A trash delete, a single-note commit,
+every preview, and a multi-note commit that finds nothing to write ask
+nothing.
+
+`find_and_replace` asks after the re-scan so the question can carry the note
+count. The SDK re-enters the handler with the answer, so a confirmed commit
+resolves the vault and scans twice; both runs are read-only before the
+question, and the drift check (`OCCURRENCE_COUNT_DRIFT`) still guards the
+writes against a vault that changed while the human was deciding.
+
+PR #92's T090 live run (test vault, both protocol eras, a v2 client over real
+stdio) saw decline change nothing, accept delete permanently and rewrite both
+subfolder notes, and a trash delete ask nothing. The same check from Claude
+Code was still open for the owner when the PR went to review.
+
 ## The CLI-wrapped tools
 
 `prepend` (PR #47) wraps the CLI, unlike its sibling `append_note`. The CLI's
@@ -115,7 +159,10 @@ with `bytes_written: 0`.
 `set_property` wraps `property:set`. It infers the property type from the JS
 value when `type` is omitted, except for `date` and `datetime`, which must be
 given explicitly. `delete`, `rename` and `move` are thin wrappers. `delete`
-sends a note to the OS trash unless `permanent: true`. `rename` and `move` take
+sends a note to the OS trash unless `permanent: true`, which since PR #92
+asks the human first ([above](#confirmation-before-irreversible-changes)). On
+the PR #92 test vault, which has no `.trash` folder, trash deletes landed in
+the OS Recycle Bin. `rename` and `move` take
 the vault's "Automatically update internal links" setting as it is: whether
 links are rewritten depends on vault configuration, not on this server.
 
@@ -136,9 +183,14 @@ from the rows in `src/tools/_shared.ts`
 
 | Row | Tools here | Why |
 | --- | --- | --- |
-| destructive | `write_note`, `delete`, `move`, `rename`, `find_and_replace` | they overwrite, remove or relocate content, so a client should confirm |
+| destructive | `write_note`, `delete`, `move`, `rename`, `find_and_replace` | they overwrite, remove or relocate content, so a client should confirm (the server itself asks only for the two irreversible cases [above](#confirmation-before-irreversible-changes)) |
 | additive write | `append_note`, `prepend`, `patch_heading`, `patch_block` | they change a note without destroying it, but a repeat adds again |
 | repeat-safe write | `set_property` | setting the same value twice leaves the same note |
+
+None of these tools has `readOnlyHint: true`, so since PR #92 none of them is
+offered when the owner sets `OBSIDIAN_MCP_READ_ONLY`, even if
+`OBSIDIAN_MCP_TOOLS` names it
+([owner access settings](../architecture.md#owner-access-settings)).
 
 `find_and_replace` is marked destructive even though its default call is a
 preview, because the tool as a whole can rewrite notes in bulk. The rule

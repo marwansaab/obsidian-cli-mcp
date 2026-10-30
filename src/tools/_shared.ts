@@ -1,4 +1,5 @@
-// Original — no upstream. Shared types and helpers for the tool aggregator pattern. Post-010: the wrap-branch envelope helper deletes (FR-005). 068 (C3): toMcpInputSchema and its draft-07 parity normaliser are gone; the published input schema is whatever the MCP SDK v2 emits from the zod schema (see toSdkInputSchema in _register.ts). BI-034 (spec branch 034-fix-unicode-lookups): adds B64_PAYLOAD_DECODE_EXPR and composeEvalCode for the seven-tool atob+base64 eval-composition cohort — `atob()` in V8 returns a Latin-1 binary string; the new decode expression re-interprets the byte sequence as UTF-8 so non-ASCII identifiers survive the base64 round-trip.
+// Original — no upstream. Shared types and helpers for the tool aggregator pattern. Post-010: the wrap-branch envelope helper deletes (FR-005). 068 (C3): toMcpInputSchema and its draft-07 parity normaliser are gone; the published input schema is whatever the MCP SDK v2 emits from the zod schema (see toSdkInputSchema in _register.ts). BI-034 (spec branch 034-fix-unicode-lookups): adds B64_PAYLOAD_DECODE_EXPR and composeEvalCode for the seven-tool atob+base64 eval-composition cohort — `atob()` in V8 returns a Latin-1 binary string; the new decode expression re-interprets the byte sequence as UTF-8 so non-ASCII identifiers survive the base64 round-trip. 068 PR 6 (R11, R12): ToolCall, the per-call context (signal and progress for the deps, confirmation for the handler), and BootDeps, a tool's deps without that per-call scope.
+import type { CallScope } from "../cli-adapter/cli-adapter.js";
 import type { McpServer } from "@modelcontextprotocol/server";
 
 /**
@@ -105,12 +106,45 @@ export type ToolCallResult =
   | { isError: true; content: Array<{ type: "text"; text: string }> };
 
 /**
+ * The two confirmation steps a tool handler receives as its third argument (068 R12), built by
+ * `registerTool` from each `tools/call` request. Both run before anything irreversible.
+ */
+export interface Confirmation {
+  /**
+   * Step 1: returns when the client can answer a form elicitation; otherwise throws
+   * CONFIRMATION_UNAVAILABLE with `unavailableMessage`, which names the safe route. No I/O.
+   */
+  requireConfirmable(unavailableMessage: string): void;
+  /**
+   * Step 2: returns once the human confirmed. Otherwise throws — CONFIRMATION_DECLINED for any
+   * other answer, or the internal request for an answer, which `registerTool` hands to the SDK.
+   * Call it only after `requireConfirmable`.
+   */
+  confirm(message: string): void;
+}
+
+/**
+ * Everything `registerTool` knows about one call (068 R11, R12): the request's signal and
+ * progress reporter, which it puts on the call's deps (so a handler that passes its deps on to
+ * `invokeCli` honours cancellation and progress without touching them), and the confirmation
+ * steps, which it hands to the handler.
+ */
+export type ToolCall = CallScope & Confirmation;
+
+/**
+ * A tool's boot-time deps (`create*Tool`'s argument): its `ExecuteDeps` without the per-call
+ * scope, which `registerTool` adds to the deps of each call.
+ */
+export type BootDeps<TDeps> = Omit<TDeps, keyof CallScope>;
+
+/**
  * The per-tool call handler — receives the raw `arguments` of a `tools/call` request (the
  * SDK passes them through unvalidated) and returns the response envelope. Per-tool zod
  * validation happens INSIDE this handler because each tool owns its own zod schema and
- * decides its own per-issue error formatting.
+ * decides its own per-issue error formatting. `call` defaults to a non-interactive context
+ * (no signal, no progress, cannot confirm) for direct calls outside an MCP request.
  */
-export type ToolCallHandler = (args: unknown) => Promise<ToolCallResult>;
+export type ToolCallHandler = (args: unknown, call?: ToolCall) => Promise<ToolCallResult>;
 
 /**
  * The aggregator pattern's per-tool unit. Each tool's `create*Tool` factory returns this

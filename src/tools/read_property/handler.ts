@@ -1,12 +1,12 @@
 // Original — no upstream. read_property handler: two-call invokeCli wrapper (Call A file-scoped value + Call B vault-scoped type metadata) per R3; type-label translation per R6; No-frontmatter short-circuit per R7; absent-key short-circuit; verbatim name passthrough per FR-018.
-import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
+import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 
 import type { PropertyTypeLabel, ReadPropertyInput, ReadPropertyOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
 
-export interface ExecuteDeps {
+export interface ExecuteDeps extends CallScope {
   logger: Logger;
   queue: Queue;
   spawnFn?: SpawnLike;
@@ -41,7 +41,6 @@ export async function executeReadProperty(
 ): Promise<ReadPropertyOutput> {
   const isSpecific = input.target_mode === "specific";
   const vault = isSpecific ? input.vault! : undefined;
-  const adapterDeps = { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue };
   const parametersA: Record<string, string> = isSpecific
     ? {
         ...(input.file !== undefined ? { file: input.file } : {}),
@@ -51,7 +50,7 @@ export async function executeReadProperty(
     : { format: "json" };
   const callA = await invokeCli(
     { command: "properties", vault, parameters: parametersA, flags: isSpecific ? [] : ["active"], target_mode: input.target_mode },
-    adapterDeps,
+    deps,
   );
   if (callA.stdout.trimStart().startsWith(NO_FRONTMATTER_PREFIX)) {
     return { value: null, type: "unknown" };
@@ -63,7 +62,7 @@ export async function executeReadProperty(
   const value = parsedA[input.name];
   const callB = await invokeCli(
     { command: "properties", vault, parameters: { format: "json" }, flags: [], target_mode: input.target_mode },
-    adapterDeps,
+    deps,
   );
   const parsedB = parseOrThrow<Array<{ name: string; type: string; count: number }>>(callB.stdout, "B");
   const entry = parsedB.find((p) => p.name === input.name);

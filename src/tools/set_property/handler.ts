@@ -1,12 +1,12 @@
 // Original — no upstream. set_property handler: per-mode invokeCli wrapper around the CLI's native property:set subcommand (R2 / F1). Specific+path → 1 spawn; specific+file → 2 spawns (file TSV resolve → property:set); active → 2 spawns (FIXED eval template → property:set with resolved vault+path). Type inference from JS value shape per FR-008 / R10; empty-array branch emits literal "[]" per R10 / F2 / FR-018; cross-type retype delegated to native CLI (FR-033 / F3); type-vs-value contradictions CLI-rejected per F4 / R6.
-import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
+import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 
 import type { PropertyWriteTypeLabel, WritePropertyInput, WritePropertyOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
 
-export interface ExecuteDeps {
+export interface ExecuteDeps extends CallScope {
   logger: Logger;
   queue: Queue;
   spawnFn?: SpawnLike;
@@ -78,13 +78,6 @@ export async function executeWriteProperty(
   input: WritePropertyInput,
   deps: ExecuteDeps,
 ): Promise<WritePropertyOutput> {
-  const adapterDeps = {
-    spawnFn: deps.spawnFn,
-    env: deps.env,
-    logger: deps.logger,
-    queue: deps.queue,
-  };
-
   const resolvedType = inferType(input.value, input.type);
   const serialisedValue = serialiseValue(input.value);
 
@@ -99,7 +92,7 @@ export async function executeWriteProperty(
         flags: [],
         target_mode: "active",
       },
-      adapterDeps,
+      deps,
     );
     let parsed: unknown;
     try {
@@ -144,7 +137,7 @@ export async function executeWriteProperty(
         flags: [],
         target_mode: "specific",
       },
-      adapterDeps,
+      deps,
     );
     writeVault = input.vault!;
     writePath = parseFileTSV(fileInfo.stdout).path;
@@ -163,7 +156,7 @@ export async function executeWriteProperty(
       flags: [],
       target_mode: "specific",
     },
-    adapterDeps,
+    deps,
   );
 
   return {

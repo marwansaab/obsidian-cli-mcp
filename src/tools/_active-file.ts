@@ -1,6 +1,6 @@
 // Original — no upstream. Shared active/specific locator resolution for the write + vault-scan tool cohorts (F1 of the thermo-nuclear code-quality review). Centralises the focused-file / focused-vault `obsidian eval` round-trip, the `"=> "` stdout strip, the cohort-uniform ERR_NO_ACTIVE_FILE message, the registry VALIDATION_ERROR -> CLI_REPORTED_ERROR/VAULT_NOT_FOUND remap, the `obsidian file` TSV path resolver, the canonical-path / PATH_ESCAPES_VAULT guard, and the reverse vault display-name lookup that were previously copy-pasted across write_note, append_note, prepend, patch_block, patch_heading, find_and_replace, and query_base. Every helper preserves the prior inlined behaviour byte-for-byte (template strings, error codes, messages, and `details` shapes); divergences between consumers (tool name in messages, the no-active-file label, the per-note attempted-path label) surface as explicit parameters rather than forked copies. It also hosts `decodeEvalEnvelope` — the eval-composed cohort's shared `parseEvalStdout` + `safeParse` envelope decoder (backlinks, links, open_file), with the per-tool malformed-eval code (CLI_REPORTED_ERROR vs INTERNAL_ERROR) as an explicit parameter.
 
-import { invokeCli, type SpawnLike } from "../cli-adapter/cli-adapter.js";
+import { invokeCli, type SpawnLike, type CallScope } from "../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../errors.js";
 import { checkCanonicalPath } from "../path-safety/canonical.js";
 
@@ -36,15 +36,11 @@ export interface FocusedFileResponse {
 }
 
 /** The subset of a handler's ExecuteDeps needed to drive an `obsidian eval` round-trip. */
-export interface EvalDeps {
+export interface EvalDeps extends CallScope {
   logger: Logger;
   queue: Queue;
   spawnFn?: SpawnLike;
   env?: NodeJS.ProcessEnv;
-}
-
-function adapterDeps(deps: EvalDeps) {
-  return { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue };
 }
 
 /**
@@ -61,7 +57,7 @@ export async function evalInVault(deps: EvalDeps, code: string, vault: string | 
       flags: [],
       target_mode: vault === undefined ? "active" : "specific",
     },
-    adapterDeps(deps),
+    deps,
   );
   return stdout;
 }
@@ -191,7 +187,7 @@ export async function resolveActiveFocusedFile(
 ): Promise<ActiveFileLocator> {
   const focused = await invokeCli(
     { command: "eval", parameters: { code: FOCUSED_FILE_TEMPLATE }, flags: [], target_mode: "active" },
-    adapterDeps(deps),
+    deps,
   );
   let parsed: unknown;
   try {
@@ -274,7 +270,7 @@ export async function resolveFileByTsv(
 ): Promise<string> {
   const fileInfo = await invokeCli(
     { command: "file", vault, parameters: { file }, flags: [], target_mode: "specific" },
-    adapterDeps(deps),
+    deps,
   );
   for (const line of fileInfo.stdout.split("\n")) {
     if (line.startsWith("path\t")) {

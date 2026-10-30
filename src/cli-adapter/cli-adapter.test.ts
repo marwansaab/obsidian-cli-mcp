@@ -548,3 +548,35 @@ describe("invokeCli — UpstreamError re-export sentinel", () => {
     expect(UpstreamError.name).toBe("UpstreamError");
   });
 });
+
+describe("invokeCli — cancellation (068 R11, T084)", () => {
+  it("cancelling the running call kills its child, and the next queued call then runs", async () => {
+    const stub = { stream: new Writable({ write: (_c, _e, cb) => cb() }) };
+    const logger = createLogger(stub);
+    const queue = createQueue();
+    const { spawnFn, recorded } = makeScriptedSpawn([{ hold: true }, { stdout: "second\n", exitCode: 0 }]);
+    const controller = new AbortController();
+    const resolveBinary = async () => ({
+      path: "obsidian",
+      attempts: [{ source: "PATH" as const, path: "obsidian", outcome: "pending" as const }],
+    });
+    const first = invokeCli(
+      { command: "read", parameters: {}, flags: [], target_mode: "specific", vault: "V" },
+      { spawnFn, env: {}, logger, queue, resolveBinary, signal: controller.signal },
+    ).then(
+      () => "resolved",
+      (e: unknown) => e,
+    );
+    const second = invokeCli(
+      { command: "files", parameters: {}, flags: [], target_mode: "specific", vault: "V" },
+      { spawnFn, env: {}, logger, queue, resolveBinary },
+    );
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+    expect(recorded).toHaveLength(1);
+    controller.abort("cancelled");
+    expect(await first).toBe("cancelled");
+    expect((await second).stdout).toBe("second\n");
+    expect(recorded.map((r) => r.argv[1])).toEqual(["read", "files"]);
+  });
+});

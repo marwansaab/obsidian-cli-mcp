@@ -1,4 +1,4 @@
-// Original — no upstream. Composition root (068 R10, ADR-039): createServer runs once per process, builds the logger, single-flight queue, vault registry, the tool list via the createTool factories and the server instructions (068 FR-025), and owns the lifecycle handlers; buildMcpServer is the cheap per-connection McpServer builder that serveStdio calls for each era (FR-001, FR-005, FR-017, FR-028, FR-029).
+// Original — no upstream. Composition root (068 R10, ADR-039): createServer runs once per process, builds the logger, single-flight queue, vault registry, the tool list via the createTool factories, the offered subset from the owner's access settings (068 FR-043–FR-046, parsed and applied by server-config.ts) and the server instructions from that subset (068 FR-025), and owns the lifecycle handlers; buildMcpServer is the cheap per-connection McpServer builder that serveStdio calls for each era (FR-001, FR-005, FR-017, FR-028, FR-029).
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -6,10 +6,10 @@ import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/server";
 
 import { invokeCli, killInFlightChildren as defaultKillInFlightChildren } from "./cli-adapter/cli-adapter.js";
-import { envFlagEnabled } from "./env-flags.js";
 import { buildInstructions } from "./instructions/instructions.js";
 import { createLogger, type Logger, type ShutdownReason } from "./logger.js";
 import { createQueue, type Queue } from "./queue.js";
+import { parseAccessConfig, selectOfferedTools } from "./server-config.js";
 import { assertToolDocsExist } from "./tools/_register.js";
 import { type RegisteredTool } from "./tools/_shared.js";
 import { createAppendNoteTool } from "./tools/append_note/index.js";
@@ -93,9 +93,9 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
   const logger = createLogger({ stream: ctx.loggerStream });
   const queue = createQueue();
   const exit = ctx.exit ?? ((code: number) => process.exit(code));
-  const env = ctx.env ?? process.env;
-  // 068 FR-012: the passthrough denylist opt-in, parsed once here and injected (no call-time env reads).
-  const allowEval = envFlagEnabled(env.OBSIDIAN_MCP_ALLOW_EVAL);
+  // 068 FR-012, FR-043–FR-046: the owner's access settings, parsed once here and injected (no
+  // call-time env reads).
+  const access = parseAccessConfig(ctx.env ?? process.env);
 
   const vaultRegistry = createVaultRegistry({
     invokeProbe: async () => {
@@ -121,7 +121,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     createHelpTool(),
     createLinksTool({ logger, queue }),
     createMoveTool({ logger, queue }),
-    createObsidianExecTool({ logger, queue, allowEval }),
+    createObsidianExecTool({ logger, queue, allowEval: access.allowEval }),
     createOpenFileTool({ logger, queue, vaultRegistry }),
     createOutlineTool({ logger, queue }),
     createPatchBlockTool({ logger, queue, vaultRegistry }),
@@ -150,9 +150,12 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
   // single error listing every missing file).
   assertToolDocsExist(tools, ctx.docsDir ?? DEFAULT_DOCS_DIR);
 
-  // 068 FR-025: built once from the tools actually registered, so every era and every
-  // connection receives the same text.
-  const instructions = buildInstructions(tools.map((tool) => tool.descriptor.name));
+  // 068 FR-043–FR-045: only the offered tools are registered; an unknown name stops the boot.
+  const offered = selectOfferedTools(tools, access);
+
+  // 068 FR-025, FR-026a: built once from the tools actually offered, so every era and every
+  // connection receives the same text, and it never names a tool that is not there.
+  const instructions = buildInstructions(offered.map((tool) => tool.descriptor.name));
 
   // An unknown tool name is the SDK's JSON-RPC -32602 (068 R2, FR-016); TOOL_NOT_FOUND is no
   // longer raised. `listChanged: false` is declared truthfully: the list never changes after boot.
@@ -161,7 +164,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
       { name: "obsidian-cli-mcp", version: PACKAGE_VERSION },
       { capabilities: { tools: { listChanged: false } }, instructions },
     );
-    for (const tool of tools) tool.register(server);
+    for (const tool of offered) tool.register(server);
     return server;
   }
 

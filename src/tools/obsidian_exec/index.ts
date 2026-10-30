@@ -2,14 +2,14 @@
 import { registerTool } from "../_register.js";
 import { executeObsidianExec, type ExecuteDeps } from "./handler.js";
 import { obsidianExecSchema } from "./schema.js";
-import { PASSTHROUGH_HINTS, type RegisteredTool } from "../_shared.js";
+import { PASSTHROUGH_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const OBSIDIAN_EXEC_TOOL_NAME = "obsidian_exec";
 
 export const OBSIDIAN_EXEC_DESCRIPTION =
   'Invoke any Obsidian Integrated CLI subcommand. Returns stdout, stderr, exitCode, and the exact argv invoked. Failures (non-zero exit, in-band Error: prefix, missing binary, timeout, output > 10 MiB) surface as structured errors with stable codes.';
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 export function createObsidianExecTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({

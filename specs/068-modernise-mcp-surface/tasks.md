@@ -354,7 +354,7 @@ protocol. **Independent tests**: quickstart Â§1 (gate) and Â§5.
 
 - [X] T071 Run the gates; `npm run probe:stdio` shows 35 tools for both eras. **T0-live**: open a second vault in Obsidian after the server starts and `read` from it by name with no restart; an unknown name gives the error without restart text (quickstart Â§7).
   **Outcome (2026-10-30)**: lint zero warnings, typecheck and build clean, 3044 tests pass (6 skipped), statements 96.85%. `probe:stdio` lists 35 tools for both eras (legacy negotiates `2025-11-25`, modern `2026-07-28`), with `instructions` at 1,888 characters, the `vaults` rule included. Live check on `TestVault-Obsidian-CLI-MCP` (`Sandbox/`, cleaned up): a v2 MCP client drove the built `dist/index.js` over real stdio in both eras. `vaults` returned 7 vaults with `structuredContent`, every `open` null and the text equal to the structured data; `read` by vault name returned the seeded note as text only; `files` on `Sandbox` returned `structuredContent` matching its text; `help` was text only; and an unknown vault name gave `CLI_REPORTED_ERROR` / `VAULT_NOT_FOUND` with no restart advice. Registering a new vault in Obsidian after start-up needs a GUI action, which this unattended run cannot do, so that step is still open for the owner before merge (unit evidence: registry.test.ts "cache miss re-probes once and resolves a vault added after start-up"). `Sandbox/` already held `pr3-check-2026-10-30.md` from an earlier run; it was not created or removed here.
-- [ ] T072 PR-5 wrap:
+- [X] T072 PR-5 wrap:
   - `/speckit-git-commit`;
   - open **PR-5**. Checklist: Iâ€“V **Y**; ADR-010 **Y** (`vaults` mirrors `obsidian vaults`); ADR-013/014/015 **N/A**; Tool Surface typed results **Y** (closes B5; list any R6 exclusions); Security Defaults **N/A**;
   - `/code-review` and fixes;
@@ -367,12 +367,13 @@ protocol. **Independent tests**: quickstart Â§1 (gate) and Â§5.
 
 **Branch**: `068-pr6-safety-cancel` from updated `main`. **Independent test**: quickstart Â§8.
 
-- [ ] T073 Create branch `068-pr6-safety-cancel`.
+- [X] T073 Create branch `068-pr6-safety-cancel`.
 
 ### User Story 13: read-only and restricted modes (P3)
 
-- [ ] T074 [US13] In src/server.ts, add `parseAccessConfig(env)` â†’ `{ readOnly, allow?, deny }` per [contracts/configuration.contract.md](contracts/configuration.contract.md) (it reuses `envFlagEnabled`; `allowEval` moves in here). Also add `selectOfferedTools(specs, config)` (allow â†’ deny â†’ read-only by `annotations.readOnlyHint`). Unknown names from both lists produce one aggregated error, thrown before serving, in the style of `assertToolDocsExist`. Instructions are built from the offered set.
-- [ ] T075 [P] [US13] Add tests in src/server.test.ts (or a co-located src/server-config.test.ts):
+- [X] T074 [US13] In src/server.ts, add `parseAccessConfig(env)` â†’ `{ readOnly, allow?, deny }` per [contracts/configuration.contract.md](contracts/configuration.contract.md) (it reuses `envFlagEnabled`; `allowEval` moves in here). Also add `selectOfferedTools(specs, config)` (allow â†’ deny â†’ read-only by `annotations.readOnlyHint`). Unknown names from both lists produce one aggregated error, thrown before serving, in the style of `assertToolDocsExist`. Instructions are built from the offered set.
+  **Outcome**: `parseAccessConfig` and `selectOfferedTools` are exported from src/server-config.ts (moved out of src/server.ts in the PR #92 review, beside the existing src/server-config.test.ts); `createServer` registers only the offered tools and builds the instructions from them, while `assertToolDocsExist` still checks every tool. The unknown-name error is a plain `Error` thrown before serving, which src/index.ts reports as one `bridge.fatal` stderr line and exit 1.
+- [X] T075 [P] [US13] Add tests in src/server.test.ts (or a co-located src/server-config.test.ts):
   - the truthy table for `OBSIDIAN_MCP_READ_ONLY`;
   - read-only offers exactly the readOnlyHint set (22 tools);
   - allow only; deny only; allow + deny overlap (deny wins);
@@ -380,31 +381,35 @@ protocol. **Independent tests**: quickstart Â§1 (gate) and Â§5.
   - unknown names in both lists â†’ one error naming all of them;
   - an empty offered set starts and lists 0;
   - read-only instructions name no write tool.
-- [ ] T076 [P] [US13] Document `OBSIDIAN_MCP_READ_ONLY`, `OBSIDIAN_MCP_TOOLS` and `OBSIDIAN_MCP_DISABLE` in README.md (composition order, start-up failure).
+  **Outcome**: in the new src/server-config.test.ts (header per the Notes rule).
+- [X] T076 [P] [US13] Document `OBSIDIAN_MCP_READ_ONLY`, `OBSIDIAN_MCP_TOOLS` and `OBSIDIAN_MCP_DISABLE` in README.md (composition order, start-up failure).
+  **Outcome**: README.md gains "Limit which tools are offered" and "Confirmation before irreversible changes" sections. docs/tools pages (delete, find_and_replace error rosters) are left for `/speckit-docs-as-code`.
 
 ### User Story 14: confirmation before irreversible actions (P3)
 
-- [ ] T077 [US14] Extend the registration callback in src/tools/_register.ts so a handler receives a per-call `call` context. It carries:
+- [X] T077 [US14] Extend the registration callback in src/tools/_register.ts so a handler receives a per-call `call` context. It carries:
   - `signal` and `reportProgress?` (US15/16);
   - `canConfirm(): boolean` (step 1 of R12, the capability check; no I/O);
   - `confirm(message)`, which returns `{ proceed: true } | { result: CallToolResult | InputRequiredResult }` (step 2, the prompt and the response).
 
   Handlers may return that result directly. This is the plumbing for T078â€“T080 and T085.
-- [ ] T078 [US14] Create src/tools/_confirm.ts (`// Original â€” no upstream.`) per R12:
+  **Outcome**: `ToolCall` (in src/tools/_shared.ts, beside `RegisteredTool`, so `_register.ts` and `_confirm.ts` share it without a cycle) is the handler's third argument. Deviation for owner review: `confirm(message)` returns `void` and throws instead of returning `{ proceed } | { result }`, so typed handlers keep their output types. A pending prompt is thrown as `ConfirmationRequested` carrying the `input_required` result, which the `register` callback returns to the SDK; a refusal is an `UpstreamError`. A direct `RegisteredTool.handler(args)` call gets `NON_INTERACTIVE_CALL` (no signal, no progress, cannot confirm), so a gated action refuses by default. Amended in the PR #92 review: the handler's third argument is now `Confirmation` (`requireConfirmable(message)`, which throws `CONFIRMATION_UNAVAILABLE`, and `confirm(message)`). The signal and progress reporter reach the handler only on its deps, typed `TDeps & CallScope`, and each tool's boot-time `RegisterDeps` is `BootDeps<ExecuteDeps>`, which leaves those two fields out. Handlers pass their deps whole to `invokeCli` rather than copying fields.
+- [X] T078 [US14] Create src/tools/_confirm.ts (`// Original â€” no upstream.`) per R12:
   - the capability check (modern: `ctx.mcpReq.envelope?.[CLIENT_CAPABILITIES_META_KEY]?.elicitation`; legacy: `server.server.getClientCapabilities()?.elicitation`) â†’ `CONFIRMATION_UNAVAILABLE` envelope;
   - no response yet â†’ `inputRequired({ inputRequests: { confirm: inputRequired.elicit({ message, requestedSchema: z.object({ confirm: z.boolean() }) }) } })`;
   - a response â†’ `inputResponse(...)`: accept + `confirm === true` proceeds; anything else â†’ `CONFIRMATION_DECLINED` with `details.action`.
 
   Tests in src/tools/_confirm.test.ts cover each branch for both eras.
-- [ ] T079 [US14] In src/tools/delete/handler.ts, when `permanent === true`:
-  - at handler entry, before any vault resolution or spawn: if `!call.canConfirm()`, return the `CONFIRMATION_UNAVAILABLE` envelope;
+  **Outcome**: `clientCanConfirm`, `confirmFromResponse`, `ConfirmationRequested`, `NON_INTERACTIVE_CALL` and (PR #92 review) `requestConfirmation`, which builds a request's `Confirmation`; `confirmationUnavailable` is now private to the module. src/tools/_confirm.test.ts covers each branch for both eras and a real SDK round trip on each era: the 2026 client fulfils `input_required` itself, the 2025 legacy shim sends `elicitation/create`, and a client without elicitation gets the project envelope rather than the SDK's error. For owner review: the 2025-era capability read uses `server.server.getClientCapabilities()` as R12 says, which SDK 2.4.0 marks deprecated, so it carries one `eslint-disable-next-line @typescript-eslint/no-deprecated` with a reason. The plan's PR-3 acceptance line says no SDK `no-deprecated` disable is left; the SDK offers no per-request alternative on the 2025 era.
+- [X] T079 [US14] In src/tools/delete/handler.ts, when `permanent === true`:
+  - at handler entry, before any vault resolution or spawn: if `!call.canConfirm()`, return the `CONFIRMATION_UNAVAILABLE` envelope (since the PR #92 review: `confirmation.requireConfirmable(message)`);
   - otherwise call `call.confirm(...)` before `invokeCli`. The message names the vault and note. Tests in src/tools/delete/handler.test.ts:
   - confirm â†’ argv includes `permanent`;
   - decline, cancel or `confirm:false` â†’ `CONFIRMATION_DECLINED` and spawn not called;
   - unavailable â†’ `CONFIRMATION_UNAVAILABLE` and spawn not called;
   - `permanent` absent â†’ no confirmation (FR-050).
-- [ ] T080 [US14] In src/tools/find_and_replace/handler.ts, for `commit: true` with none of `file`/`path`/`active_note` (a `subfolder` scope still confirms), use the two-step split (R12):
-  - **Step 1**: at handler entry, right after input validation and **before vault resolution**, which spawns Obsidian through the `FOCUSED_VAULT_TEMPLATE` eval (:187) or the registry probe (:216). If `!call.canConfirm()`, return `CONFIRMATION_UNAVAILABLE` at once.
+- [X] T080 [US14] In src/tools/find_and_replace/handler.ts, for `commit: true` with none of `file`/`path`/`active_note` (a `subfolder` scope still confirms), use the two-step split (R12):
+  - **Step 1**: at handler entry, right after input validation and **before vault resolution**, which spawns Obsidian through the `FOCUSED_VAULT_TEMPLATE` eval (:187) or the registry probe (:216). If `!call.canConfirm()`, return `CONFIRMATION_UNAVAILABLE` at once (since the PR #92 review: `confirmation.requireConfirmable(message)`).
   - **Step 2**: `call.confirm(...)` only after the commit re-scan and before the first `writeAtomic`. The message carries the scope and note count.
 
   Tests (FR-049a):
@@ -413,30 +418,38 @@ protocol. **Independent tests**: quickstart Â§1 (gate) and Â§5.
   - decline or cancel â†’ nothing written;
   - a single-note scope asks nothing;
   - a subfolder scope asks.
-- [ ] T081 [US14] Extend scripts/probe-stdio.ts `--no-elicitation` to call `delete permanent:true` and a vault-wide `find_and_replace commit:true` on `Sandbox/` fixtures, and print the envelopes (quickstart Â§8).
+  **Outcome**: a commit with nothing to write asks nothing (it changes nothing).
+- [X] T081 [US14] Extend scripts/probe-stdio.ts `--no-elicitation` to call `delete permanent:true` and a vault-wide `find_and_replace commit:true` on `Sandbox/` fixtures, and print the envelopes (quickstart Â§8).
+  **Outcome**: `--no-elicitation --vault <name> --note <path>` adds `confirmationProbes` to the report. The find_and_replace probe is scoped to `--subfolder` (default `Sandbox`) with a random pattern, so a broken gate could change nothing outside it.
 
 ### User Story 15: cancel a slow call (P3)
 
-- [ ] T082 [P] [US15] In src/queue.ts, `run(task, opts?: { signal?: AbortSignal })`:
+- [X] T082 [P] [US15] In src/queue.ts, `run(task, opts?: { signal?: AbortSignal })`:
   - aborted before start â†’ removed from the FIFO, rejected with the abort reason, task never invoked;
   - an already-aborted signal â†’ rejected immediately;
   - running â†’ unaffected by the queue (the task observes the signal).
 
   `depth()` and `shutdown()` stay correct. Tests in src/queue.test.ts: cancel-queued never runs and the next task runs; cancel after settle is ignored.
-- [ ] T083 [P] [US15] In `dispatchOnce` (src/cli-adapter/_dispatch.ts:308), attach a `signal` abort listener that calls the existing `killChild` (SIGTERM, then SIGKILL after `SIGKILL_GRACE_MS`) and removes itself on settle. Tests in src/cli-adapter/_dispatch.test.ts with a fake spawn: abort while running â†’ SIGTERM then SIGKILL after the grace period, and the promise settles.
-- [ ] T084 [US15] Thread the signal from `invokeCli` (src/cli-adapter/cli-adapter.ts) and `invokeBoundedCli` (src/cli-adapter/invoke-bounded-cli.ts) via `deps.signal` into `queue.run(â€¦, {signal})` and `dispatchCli`â†’`dispatchOnce`. The graph shows `invokeCli â†’ dispatchCli` directly, with no code path between `createQueue` and `dispatchOnce`, so both need it. Remove the dead clamp at invoke-bounded-cli.ts:53. Confirm src/tools/obsidian_exec/schema.test.ts rejects `timeoutMs: 120001`, adding the test if missing. Test in cli-adapter.test.ts: cancel-running kills the child and the next queued call runs.
-- [ ] T085 [US15] In the src/tools/_register.ts callback, build per-call deps `{ ...deps, signal: ctx.mcpReq.signal, reportProgress }`. Audit every handler that builds a narrowed deps object for `invokeCli` (`grep -rn "logger: deps.logger" src/tools`) and make `signal`/`reportProgress` flow through.
-- [ ] T086 [US15] In the `find_and_replace` commit loop, check `signal.aborted` before each note and stop between notes; the in-flight write completes. Add a typed `commitCancelled({vault, committed, skipped})` event to src/logger.ts (update the test doubles as in T005) and emit it on cancel. Test (FR-052a): cancel after the first of three writes â†’ note 1 changed, notes 2 and 3 unchanged, the event lists both groups.
+- [X] T083 [P] [US15] In `dispatchOnce` (src/cli-adapter/_dispatch.ts:308), attach a `signal` abort listener that calls the existing `killChild` (SIGTERM, then SIGKILL after `SIGKILL_GRACE_MS`) and removes itself on settle. Tests in src/cli-adapter/_dispatch.test.ts with a fake spawn: abort while running â†’ SIGTERM then SIGKILL after the grace period, and the promise settles.
+  **Outcome**: a cancelled call settles with the abort reason and logs nothing, and an already-aborted signal starts no process, which also ends the cold-start retry and the auto-launch poll.
+- [X] T084 [US15] Thread the signal from `invokeCli` (src/cli-adapter/cli-adapter.ts) and `invokeBoundedCli` (src/cli-adapter/invoke-bounded-cli.ts) via `deps.signal` into `queue.run(â€¦, {signal})` and `dispatchCli`â†’`dispatchOnce`. The graph shows `invokeCli â†’ dispatchCli` directly, with no code path between `createQueue` and `dispatchOnce`, so both need it. Remove the dead clamp at invoke-bounded-cli.ts:53. Confirm src/tools/obsidian_exec/schema.test.ts rejects `timeoutMs: 120001`, adding the test if missing. Test in cli-adapter.test.ts: cancel-running kills the child and the next queued call runs.
+  **Outcome**: the clamp test in invoke-bounded-cli.test.ts is replaced by a cancel test; obsidian_exec/schema.test.ts already rejects `timeoutMs: 120001`.
+- [X] T085 [US15] In the src/tools/_register.ts callback, build per-call deps `{ ...deps, signal: ctx.mcpReq.signal, reportProgress }`. Audit every handler that builds a narrowed deps object for `invokeCli` (`grep -rn "logger: deps.logger" src/tools`) and make `signal`/`reportProgress` flow through.
+  **Outcome**: `registerTool` passes `{ ...deps, signal, reportProgress }` per call. 31 files that narrow deps for `invokeCli` now pass both fields, and their deps types extend `CallScope`. The vault-registry probe built in `createServer` keeps its boot deps, because it is shared and cached across callers.
+- [X] T086 [US15] In the `find_and_replace` commit loop, check `signal.aborted` before each note and stop between notes; the in-flight write completes. Add a typed `commitCancelled({vault, committed, skipped})` event to src/logger.ts (update the test doubles as in T005) and emit it on cancel. Test (FR-052a): cancel after the first of three writes â†’ note 1 changed, notes 2 and 3 unchanged, the event lists both groups.
+  **Outcome**: the event line is `find_and_replace.commit_cancelled`. No `Logger` test double needed updating; the tests use `createLogger`.
 
 ### User Story 16: progress during long waits (P3)
 
-- [ ] T087 [P] [US16] In the auto-launch loop (`dispatchCli`, src/cli-adapter/_dispatch.ts:278-295), call `deps.reportProgress?.(pollIndex, 40, "waiting for Obsidian to start")` per poll. Tests: notifications carry increasing `progress`; none when `reportProgress` is undefined.
-- [ ] T088 [US16] In the `find_and_replace` commit, call `reportProgress?.(n, total, relPath)` after each note. In src/tools/_register.ts, `reportProgress` sends `notifications/progress` with the request's `progressToken` and is defined only when the token is present. Tests in src/server.protocol.test.ts: a call with `_meta.progressToken` receives progress with that token; a call without one receives none (FR-054).
+- [X] T087 [P] [US16] In the auto-launch loop (`dispatchCli`, src/cli-adapter/_dispatch.ts:278-295), call `deps.reportProgress?.(pollIndex, 40, "waiting for Obsidian to start")` per poll. Tests: notifications carry increasing `progress`; none when `reportProgress` is undefined.
+- [X] T088 [US16] In the `find_and_replace` commit, call `reportProgress?.(n, total, relPath)` after each note. In src/tools/_register.ts, `reportProgress` sends `notifications/progress` with the request's `progressToken` and is defined only when the token is present. Tests in src/server.protocol.test.ts: a call with `_meta.progressToken` receives progress with that token; a call without one receives none (FR-054).
+  **Outcome**: the protocol test registers a small tool that reports two steps, served in both eras.
 
 ### Release
 
-- [ ] T089 Set `version` in package.json (and package-lock.json) from 0.8.11 to `0.9.0`.
-- [ ] T090 Run the gates. Run `npm run probe:stdio` with each env configuration in quickstart Â§8's table, plus `--no-elicitation`. **T0-live**: Claude Code confirm/decline for `delete permanent:true` and a vault-wide commit on `Sandbox/` fixtures, following the destructive-probe protocol; also a trash delete with no prompt. Record the results in the PR body.
+- [X] T089 Set `version` in package.json (and package-lock.json) from 0.8.11 to `0.9.0`.
+- [X] T090 Run the gates. Run `npm run probe:stdio` with each env configuration in quickstart Â§8's table, plus `--no-elicitation`. **T0-live**: Claude Code confirm/decline for `delete permanent:true` and a vault-wide commit on `Sandbox/` fixtures, following the destructive-probe protocol; also a trash delete with no prompt. Record the results in the PR body.
+  **Outcome (2026-10-30)**: lint zero warnings, typecheck and build clean, 3127 tests pass (6 skipped), statements 97%. `probe:stdio`, both eras (legacy `2025-11-25`, modern `2026-07-28`): default 35 tools (instructions 1,888 chars); `OBSIDIAN_MCP_READ_ONLY=1` 22 (1,341); `OBSIDIAN_MCP_TOOLS=read,search` 2; plus `OBSIDIAN_MCP_DISABLE=search` 1. `read,nope` + `zap`: exit 1 with one `bridge.fatal` line naming `nope (OBSIDIAN_MCP_TOOLS)` and `zap (OBSIDIAN_MCP_DISABLE)`. Live on `TestVault-Obsidian-CLI-MCP` (`Sandbox/`, cleaned up): `--no-elicitation` returned `CONFIRMATION_UNAVAILABLE` for both calls in both eras, and the fixture was unchanged. This unattended run cannot attach Claude Code, so a v2 client that declares form elicitation drove the built `dist/index.js` over real stdio in both eras instead. Decline gave `CONFIRMATION_DECLINED` for both tools, and the files were still there for the accept that followed. Accept deleted the note permanently (not in the trash) and rewrote both subfolder notes; the prompts named the vault and note, or the subfolder and "2 note(s)". A trash delete asked nothing (`toTrash: true`). It went to the OS Recycle Bin, because the vault has no `.trash`; the run removed its two Recycle Bin entries. The Claude Code confirm/decline check is still open for the owner before merge.
 - [ ] T091 PR-6 wrap:
   - `/speckit-git-commit`;
   - open **PR-6**. Checklist: Iâ€“V **Y** (IV: cancellation + progress close A3); ADR-015 **Y** (new pairs `CONFIRMATION_DECLINED` with `details.action`, `CONFIRMATION_UNAVAILABLE`); ADR-010/013/014 **N/A**; Tool Surface **Y**; Security Defaults **Y** (closes read-only/filtering and confirmation); MCP standard **Y**;

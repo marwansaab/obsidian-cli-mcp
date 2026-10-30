@@ -2,7 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeSmartConnectionsSimilar, type ExecuteDeps } from "./handler.js";
 import { smartConnectionsSimilarInputSchema, smartConnectionsSimilarOutputSchema } from "./schema.js";
-import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const SMART_CONNECTIONS_SIMILAR_TOOL_NAME = "smart_connections_similar";
 
@@ -21,7 +21,7 @@ Vault states: VAULT_NOT_FOUND carries a details.reason sub-discriminator — "un
 
 Error-precedence chain (outer-to-inner, cheapest-first): VAULT_NOT_FOUND(unknown) → VAULT_NOT_FOUND(not-open) → SMART_CONNECTIONS_NOT_INSTALLED → NO_ACTIVE_FILE / FILE_NOT_FOUND → NOT_MARKDOWN → SMART_CONNECTIONS_NOT_READY → SOURCE_NOT_INDEXED → success.`;
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 export function createSmartConnectionsSimilarTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({

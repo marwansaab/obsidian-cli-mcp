@@ -2,7 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executePatternSearch, type ExecuteDeps } from "./handler.js";
 import { patternSearchInputSchema, patternSearchOutputSchema } from "./schema.js";
-import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const PATTERN_SEARCH_TOOL_NAME = "pattern_search";
 
@@ -33,7 +33,7 @@ Zero-match valid pattern returns \`{ count: 0, matches: [] }\` (never an error).
 
 Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (including invalid regex), \`CLI_REPORTED_ERROR\` (with sub-discriminators \`FOLDER_NOT_FOUND\` / \`VAULT_NOT_FOUND\` / json-parse / envelope-parse), \`CLI_NON_ZERO_EXIT\`, \`CLI_TIMEOUT\`, \`CLI_OUTPUT_TOO_LARGE\`, \`CLI_BINARY_NOT_FOUND\`.`;
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 export function createPatternSearchTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({

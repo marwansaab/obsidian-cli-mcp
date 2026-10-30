@@ -2,7 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executePatchHeading, type ExecuteDeps } from "./handler.js";
 import { patchHeadingInputSchema, patchHeadingOutputSchema } from "./schema.js";
-import { ADDITIVE_WRITE_HINTS, type RegisteredTool } from "../_shared.js";
+import { ADDITIVE_WRITE_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const PATCH_HEADING_TOOL_NAME = "patch_heading";
 
@@ -26,7 +26,7 @@ Concurrent calls against the same note publish a \`HEADING_RACE\` discriminator 
 
 Typed errors via \`UpstreamError.details.code\`: \`HEADING_NOT_FOUND\` (use [\`outline\`](./outline.md) to enumerate the file's actual headings, then retry with a valid path), \`HEADING_RACE\`, \`EXTERNAL_EDITOR_CONFLICT\` (file locked — ask user to save and close, retry), \`INVALID_HEADING_PATH\`, \`EMPTY_CONTENT\`. Plus the standard \`VALIDATION_ERROR\`, \`NOTE_NOT_FOUND\`, \`PATH_ESCAPES_VAULT\`, \`FS_WRITE_FAILED\`, \`VAULT_NOT_FOUND\`, \`ERR_NO_ACTIVE_FILE\`.`;
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 export function createPatchHeadingTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({

@@ -1,7 +1,8 @@
 # Architecture
 
 How the server is put together as of the baseline (2026-10-24, `main` at
-`b8b6fef`, package version 0.8.11). The rules this structure satisfies live in
+`b8b6fef`, package version 0.8.11), extended PR by PR since (PR #92 bumps the
+package to 0.9.0). The rules this structure satisfies live in
 [the constitution](../.specify/memory/constitution.md); this page describes how
 the code meets them, not what they say.
 
@@ -43,9 +44,10 @@ flowchart TB
     cs --> ft["createXTool(deps) × every tool"]
     ft --> rt[registerTool — src/tools/_register.ts]
     cs --> docs[assertToolDocsExist]
-    cs --> ins["buildInstructions(registered tool names)"]
+    cs --> sel["selectOfferedTools(tools, parseAccessConfig(env))"]
+    cs --> ins["buildInstructions(offered tool names)"]
     idx --> ss["serveStdio(() => app.buildMcpServer())"]
-    ss --> bm["buildMcpServer — new McpServer, tool.register × every tool"]
+    ss --> bm["buildMcpServer — new McpServer, tool.register × every offered tool"]
   end
   subgraph run[Runtime spine — per call]
     h[tool handler] --> ic[invokeCli / invokeBoundedCli]
@@ -86,7 +88,8 @@ Since PR #89 (068 R10) the composition root is split in two
 - **`buildMcpServer()` is cheap and may run many times.** It constructs a
   `new McpServer({ name: "obsidian-cli-mcp", version }, { capabilities: {
   tools: { listChanged: false } }, instructions })` and calls
-  `tool.register(server)` for every tool built above. `listChanged: false` is
+  `tool.register(server)` for every tool built above that the owner's access
+  settings offer (since PR #92, [below](#owner-access-settings)). `listChanged: false` is
   declared truthfully: the list never changes after boot. Because
   `instructions` is computed once in `createServer`, every era and every
   connection receives the same text
@@ -133,7 +136,10 @@ access flag at call time
 This is a touch on the boot-spine entry point, one of the kernel nodes;
 `createLogger`, `createQueue` and `UpstreamError` were not changed. `ctx.env`
 does not reach the CLI layer: `OBSIDIAN_BIN` and `OBSIDIAN_AUTO_LAUNCH` are
-still read from `process.env` at dispatch time.
+still read from `process.env` at dispatch time. Since PR #92 the parse lives in
+`parseAccessConfig` ([owner access settings](#owner-access-settings)), which
+reads `OBSIDIAN_MCP_ALLOW_EVAL` with the three tool-selection settings;
+`createServer` passes `access.allowEval` on as before.
 
 `envFlagEnabled` is default-off: on only for `1`, `true`, `yes` or `on`,
 trimmed and case-insensitive. It is the inverse of `autoLaunchEnabled` in
@@ -148,7 +154,46 @@ module.
 Before the server accepts a call, `assertToolDocsExist` checks that every
 registered tool has a `docs/tools/<name>.md`. It collects **every** missing
 file and throws once, rather than failing on the first. A tool without
-documentation stops the server from starting.
+documentation stops the server from starting. It checks every tool built, not
+only the offered ones, so a doc cannot go missing just because a tool is
+switched off.
+
+#### Owner access settings
+
+Since PR #92 (068 FR-043 to FR-046, US13) the vault owner chooses which tools
+the server offers. `parseAccessConfig(env)` in
+[src/server-config.ts](../src/server-config.ts) reads four settings once at
+boot into an `AccessConfig`: `OBSIDIAN_MCP_ALLOW_EVAL` (which moved here from
+`createServer`), `OBSIDIAN_MCP_READ_ONLY` (both through `envFlagEnabled`), and
+the comma-separated `OBSIDIAN_MCP_TOOLS` (allow) and `OBSIDIAN_MCP_DISABLE`
+(deny) lists, where blank entries are dropped and a blank list counts as
+unset. `selectOfferedTools(tools, config)` then filters the built tool list:
+
+```mermaid
+flowchart LR
+  all[every built tool] --> u{"any unknown name in either list?"}
+  u -- yes --> fail["throw at boot: one error naming every unknown entry and the valid names"]
+  u -- no --> a["allow list, if set"]
+  a --> d["minus deny list (deny wins)"]
+  d --> r["minus every tool whose readOnlyHint is false, if read-only"]
+  r --> off[offered tools — may be empty]
+```
+
+Only the offered tools are registered on each `McpServer`, and
+`buildInstructions` receives only their names, so the instructions never name
+a tool that is not there (FR-026a). Read-only selects by
+`annotations.readOnlyHint`, the reason `ToolDescriptor` kept `annotations` in
+PR #90's review. An empty offer is allowed: the server starts with no tools.
+The unknown-name refusal is a plain `Error` thrown from the boot spine, like
+`assertToolDocsExist`, because a misspelt name must stop the server rather than
+fail a call; `src/index.ts` writes it to stderr as one `bridge.fatal` line
+and exits 1.
+
+The code first landed inside `src/server.ts`; the PR #92 review moved it to
+`src/server-config.ts` (commit `ca25c67`) beside its existing test file, so
+`server.ts` keeps only the composition. Parsing the settings is a touch on
+`createServer`, one of the kernel nodes; its return shape did not change.
+How to set them is in the [README](../README.md#limit-which-tools-are-offered).
 
 Until PR #89 the server ran on `@modelcontextprotocol/sdk` 1.x and the SDK's
 low-level `Server`, with two hand-written request handlers: `ListTools`
@@ -241,8 +286,9 @@ changing one is a published-surface change.
 
 `ToolDescriptor` (the project's own view, used at boot and in tests) carries
 `annotations` but not `title`: the review dropped `title` because only a test
-read it, and kept `annotations` because the planned read-only tool filter
-(068 T074) selects tools by `annotations.readOnlyHint`.
+read it, and kept `annotations` because the read-only tool filter (068 T074,
+built in PR #92, [owner access settings](#owner-access-settings)) selects
+tools by `annotations.readOnlyHint`.
 
 Until PR #89, step 1 was `toMcpInputSchema` in `src/tools/_shared.ts`: zod 4's
 `z.toJSONSchema` with a draft-7 target, then `normalizeToDraft7Parity`, a
@@ -294,7 +340,15 @@ It spawns the built `dist/index.js` with a v2 client and prints the negotiated
 protocol version, `serverInfo`, whether `instructions` is present, and the tool
 count. On 2026-10-30 the 2025-era handshake negotiated `2025-11-25` and the
 2026-era handshake `2026-07-28` (research R10 T0). Since PR #90 the probe
-also reports `instructions` present in both eras.
+also reports `instructions` present in both eras. Since PR #92,
+`--no-elicitation` opens the connection without the elicitation capability,
+and adding `--vault <name> --note <path>` sends a permanent `delete` of that
+note and a `find_and_replace` commit under `--subfolder` (default `Sandbox`,
+with a random pattern) and prints both envelopes, which must be
+`CONFIRMATION_UNAVAILABLE` with nothing changed. Run with the owner access
+settings in its environment, it also shows the offered tool count; PR #92's
+run counted 35 by default, 22 read-only, and 2 and 1 for its allow and deny
+cases.
 
 ### Typed results: `outputSchema` and `structuredContent`
 
@@ -427,6 +481,68 @@ Building the instructions is a touch on `createServer`, one of the kernel
 nodes; its return shape did not change, and `createLogger`, `createQueue` and
 `UpstreamError` did not change.
 
+### Per-call scope: cancellation, progress and confirmation
+
+Since PR #92 (068 FR-047 to FR-054, research R11 and R12) `registerTool`'s
+registered callback turns the SDK's handler context into three things a tool
+can use, without the tool touching the SDK. The decision record, including the
+shapes review argued the PR out of, is
+[ADR-043](decisions/ADR-043-call-scope-on-deps-and-throwing-confirmation.md)
+(Cancellation and Progress Ride on Each Call's Deps, and Confirmation Is a
+Throwing Two-Step Handed to the Handler).
+
+- **Signal and progress go on the deps.** Each call gets fresh deps,
+  `{ ...bootDeps, signal: ctx.mcpReq.signal, reportProgress? }`.
+  `reportProgress` exists only when the request carried a progress token
+  (FR-054); it sends `notifications/progress` best-effort, so a notice that
+  cannot be sent does not fail the call. Both fields are `CallScope`
+  (`src/cli-adapter/_dispatch.ts`), which every tool's `ExecuteDeps` and both
+  facades' deps extend. Handlers pass their deps whole to `invokeCli`,
+  `detectIfClosed` and `evalInVault`, so every CLI call is cancellable with no
+  per-handler code. `create*Tool` takes `BootDeps<ExecuteDeps>`, the same type
+  without `CallScope`.
+- **Confirmation is the handler's third argument**, a `Confirmation`
+  ([src/tools/_confirm.ts](../src/tools/_confirm.ts)) with two steps.
+  `requireConfirmable(message)` checks, with no I/O, that the client declared
+  form elicitation — on the per-request envelope for a 2026-era request, in
+  the `initialize` capabilities for a 2025-era one — and otherwise throws
+  `CONFIRMATION_UNAVAILABLE`. `confirm(message)` asks: with no answer yet it
+  throws an internal `ConfirmationRequested`, which the callback returns to
+  the SDK as an `input_required` result; the SDK puts the question to the
+  human (natively on the 2026 era, as `elicitation/create` through its legacy
+  shim on the 2025 era) and calls the handler again with the answer. Accept
+  with the box ticked returns; anything else throws `CONFIRMATION_DECLINED`.
+- **A direct call** to `RegisteredTool.handler(args)` or an `execute*`
+  function, outside any MCP request, gets `NON_INTERACTIVE_CALL`: no signal,
+  no progress, and a `requireConfirmable` that always refuses.
+
+```mermaid
+sequenceDiagram
+  participant C as client / human
+  participant S as SDK
+  participant R as registerTool callback
+  participant H as handler (delete permanent)
+  C->>S: tools/call
+  S->>R: args, ctx
+  R->>H: input, deps + signal, Confirmation
+  H->>H: requireConfirmable — no elicitation → CONFIRMATION_UNAVAILABLE
+  H-->>R: confirm() throws ConfirmationRequested
+  R-->>S: input_required (one-boolean form)
+  S->>C: ask (2026 native / 2025 elicitation/create)
+  C->>S: accept, confirm: true
+  S->>R: args, ctx with inputResponses
+  R->>H: same input again
+  H->>H: confirm() returns
+  H->>H: invokeCli(…, deps) → queue → spawn
+```
+
+Only two actions are gated: `delete` with `permanent: true`, and a
+`find_and_replace` commit with no single-note scope
+([mutate](capabilities/mutate.md#confirmation-before-irreversible-changes)).
+Because the handler runs again from the top on re-entry, a gated handler does
+nothing irreversible before `confirm` returns. `registerTool` itself is not a
+kernel node; `createServer` passes it nothing new.
+
 ### Runtime spine
 
 Every CLI invocation goes through one of two facades in
@@ -437,7 +553,18 @@ ADR-007, Centralized CLI Bounds with Selective Override):
 | Facade | Used by | Timeout | Output cap |
 | --- | --- | --- | --- |
 | `invokeCli` | every typed tool | fixed 10 s | 10 MiB per stream |
-| `invokeBoundedCli` | `obsidian_exec` only | 30 s default, override clamped silently to 120 s | 10 MiB |
+| `invokeBoundedCli` | `obsidian_exec` only | 30 s default, override up to 120 s (the schema refuses more) | 10 MiB |
+
+Until PR #92 `invokeBoundedCli` also clamped the override silently to 120 s.
+That clamp was dead code — the `obsidian_exec` schema already refused
+`timeoutMs` above 120000 with `VALIDATION_ERROR` — and PR #92 removed it
+(research R11). Since its review the schema reads its bound and its published
+description from the facade's `OBSIDIAN_EXEC_MAX_TIMEOUT_MS` and
+`OBSIDIAN_EXEC_DEFAULT_TIMEOUT_MS` constants rather than repeating the
+numbers; the published bytes did not change.
+
+Both facades pass the call's `signal` to `queue.run` and to `dispatchCli`,
+and its `reportProgress` to `dispatchCli` (PR #92).
 
 `invokeCli` also strips `vault`/`file`/`path` from the parameters in active
 mode, as defence in depth behind the schema. And it reclassifies the CLI's
@@ -447,6 +574,14 @@ gets the same unknown-vault failure.
 `createQueue()` ([src/queue.ts](../src/queue.ts)) is a FIFO single-flight
 queue: at most one CLI child runs at a time, in arrival order. On shutdown it
 rejects everything still pending and reports how many were dropped.
+
+Since PR #92 (068 FR-051, FR-053) `run(task, { signal })` takes the request's
+signal. A task whose signal is already aborted is rejected at once; one
+aborted while still queued is taken out of the FIFO and rejected with the
+abort reason, and never starts. A running task is left alone — it observes the
+same signal through dispatch. There is still one queue: cancellation never
+starts a second one. The `{ signal }` option is an additive touch on
+`createQueue`, one of the kernel nodes.
 
 `dispatchCli` ([src/cli-adapter/_dispatch.ts](../src/cli-adapter/_dispatch.ts))
 owns argv assembly (`[binary, vault=<v>, command, key=value…, flags…, --copy]`),
@@ -489,7 +624,19 @@ sequenceDiagram
   re-attempts on a bounded poll. Re-attempting is safe because the CLI failed
   before connecting, so the command never ran. Setting `OBSIDIAN_AUTO_LAUNCH`
   to `0`/`false`/`no`/`off` disables the launch and returns the same code with
-  a message saying so.
+  a message saying so. Since PR #92 each poll sends
+  `reportProgress(n, 40, "waiting for Obsidian to start")` when the request
+  carried a progress token; 40 is `LAUNCH_MAX_POLLS`, the poll count the
+  30 s budget allows.
+
+**Cancellation** (PR #92, 068 FR-051). An aborted signal kills the running
+child through the same `killChild` path as a timeout (SIGTERM, then SIGKILL
+after the grace), and the attempt rejects with the signal's reason instead of
+being classified. `dispatchOnce` refuses to spawn once the signal is aborted,
+which also ends a pending cold-start retry and the auto-launch poll. The task
+therefore settles promptly and the queue moves to the next call. The SDK
+sends no response for a cancelled request, so the abort reason never reaches
+the client as an error envelope.
 
 There are exactly two places in the codebase that may spawn a process:
 `_dispatch.ts` (the CLI) and `app-launcher.ts` (the URI opener). Only the two
@@ -511,9 +658,10 @@ Each tier's outcome is recorded in `details.attempts` when it fails
 dispatch construct it and `registerTool` turns it into the wire shape. Every
 failure the server reports travels this way — no silent empty results, no bare
 `throw new Error` at a tool boundary (constitution Principle IV). The one
-deliberate exception is boot: `assertToolDocsExist` throws a plain `Error`,
-because a missing doc means the server must not start rather than a tool call
-failing.
+deliberate exception is boot: `assertToolDocsExist` and, since PR #92,
+`selectOfferedTools` throw a plain `Error`, because a missing doc or a
+misspelt tool name in the owner's settings means the server must not start
+rather than a tool call failing.
 
 Dispatch classifies a finished child in a fixed priority order:
 
@@ -556,7 +704,13 @@ than added as new codes:
   `"FILE_NOT_FOUND"`, `"NOT_MARKDOWN"`, `"FOLDER_NOT_FOUND"`,
   `"SMART_CONNECTIONS_NOT_INSTALLED"`, `"BASE_MALFORMED"`, `"VIEW_NOT_FOUND"`;
   or `VALIDATION_ERROR` with `details.code: "CONTENT_TOO_LARGE"` or, from
-  `obsidian_exec`'s code-execution gate (PR #88), `"COMMAND_BLOCKED"`.
+  `obsidian_exec`'s code-execution gate (PR #88), `"COMMAND_BLOCKED"`. Since
+  PR #92 the confirmation gate adds two more under `VALIDATION_ERROR`:
+  `"CONFIRMATION_UNAVAILABLE"` (the client cannot ask the human) and
+  `"CONFIRMATION_DECLINED"` (the human did not confirm; `details.action`
+  says what they did). Both are raised before anything irreversible, so
+  either means nothing changed
+  ([per-call scope](#per-call-scope-cancellation-progress-and-confirmation)).
 - `details.reason` separates the states of one multi-state condition (ADR-015,
   Sub-Discriminators via details.reason for Multi-State Error Codes) — for
   example `obsidian-not-running` on `CLI_NON_ZERO_EXIT`, and `not-open` for a
@@ -750,6 +904,13 @@ that path), or `unexpected-output` (anything else; `detail` is the first 200
 characters of the output). The new method on the `Logger` returned by
 `createLogger()`, one of the kernel nodes, is additive.
 
+`find_and_replace.commit_cancelled` (PR #92, `commitCancelled` on the
+`Logger`, also additive) is the other one. A cancelled multi-note commit stops
+between notes, and the SDK sends no response for a cancelled request, so the
+log is the only record of what was written: `{vault, committed, skipped}`,
+with `vault` `null` for the focused vault and both lists as vault-relative
+paths in commit order (spec clarification Q1: no rollback).
+
 `SIGINT`, `SIGTERM` (registered in `createServer`) and stdin `end`/`close`
 (wired in `index.ts`) all lead to `shutdown` (`src/server.ts:169`), which
 runs once. PR #89 renamed it from `triggerShutdown` and dropped the old
@@ -763,6 +924,7 @@ it cannot leave an orphaned child.
 ```
 src/
   index.ts, server.ts            boot spine and composition root
+  server-config.ts               owner access settings and the offered-tool filter (PR #92)
   errors.ts, logger.ts, queue.ts cross-cutting primitives
   env-flags.ts                   boot-time parser for default-off opt-in flags
   cli-adapter/                   the two facades, dispatch, the spawn-site guard test
@@ -781,7 +943,8 @@ utility; PR #90 deleted it with the stripping. The `help` tool itself lives in
 
 Each tool is a folder with a fixed shape (constitution Principle I): `schema.ts`
 holds the zod input (and usually output) schemas, `handler.ts` holds the
-`executeX(input, deps)` logic, `index.ts` holds the `createXTool` factory that
+`executeX(input, deps)` logic (`delete` and `find_and_replace` take a third
+`confirmation` argument since PR #92), `index.ts` holds the `createXTool` factory that
 calls `registerTool`, and eval tools add `_template.ts`. Tests sit beside the
 file they test. Imports go one way — tools depend on the shared modules and
 the adapter, never the other way round, and nothing imports `server.ts`.

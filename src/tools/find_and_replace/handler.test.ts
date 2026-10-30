@@ -5,7 +5,8 @@
 // vault not-found + not-open, focused-vault invokeEval discovery, concurrent commits
 // via Queue, US2 include_* opt-ins, US3 subfolder narrowing + unknown-subfolder +
 // symlink-escape, US4 bound enforcement + env-var fallback + WARN. Single-note scope
-// (066-file-scope) lives in scope.test.ts; shared fixtures in _handler-fixtures.ts.
+// (066-file-scope) lives in scope.test.ts, the 068 confirmation / cancel / progress paths in
+// confirm.test.ts; shared fixtures in _handler-fixtures.ts.
 import { resolve } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -20,13 +21,21 @@ import {
 } from "./_handler-fixtures.js";
 import {
   __resetMaxOccurrencesCacheForTests,
-  executeFindAndReplace,
+  executeFindAndReplace as executeWithCall,
+  type ExecuteDeps,
   type ExecuteFs,
   type FocusedVaultResponse,
 } from "./handler.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureLogger, makeQueuedSpawn } from "../_handler-test-fixtures.js";
+import { answeredCall, captureLogger, makeQueuedSpawn } from "../_handler-test-fixtures.js";
+
+import type { FindAndReplaceInput } from "./schema.js";
+
+// The commit mechanics below run as if the human confirmed every multi-note commit (068 R12);
+// the confirmation, cancel and progress paths are in confirm.test.ts.
+const executeFindAndReplace = (input: FindAndReplaceInput, deps: ExecuteDeps) =>
+  executeWithCall(input, deps, answeredCall("find_and_replace"));
 
 beforeEach(() => {
   __resetMaxOccurrencesCacheForTests();

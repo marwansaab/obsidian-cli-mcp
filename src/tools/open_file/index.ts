@@ -8,7 +8,7 @@
 import { executeOpenFile, type ExecuteDeps } from "./handler.js";
 import { openFileInputSchema, openFileOutputSchema } from "./schema.js";
 import { registerTool } from "../_register.js";
-import { REPEATABLE_WRITE_HINTS, type RegisteredTool } from "../_shared.js";
+import { REPEATABLE_WRITE_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const OPEN_FILE_TOOL_NAME = "open_file";
 
@@ -30,7 +30,7 @@ Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (missing \`vault\`
 
 Out of scope: does NOT open files outside the vault (external paths), create or delete a vault, close/split/move/rearrange tabs (only the \`new_tab\` opt-in), edit file content, or scroll to a heading/block within the file.`;
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 export function createOpenFileTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({

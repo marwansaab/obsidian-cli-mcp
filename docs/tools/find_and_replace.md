@@ -108,6 +108,8 @@ Notes path-ascending; occurrences `(line_number, offset)`-ascending.
 | `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND` | `not-open` | vault registered but not currently open | Retry after a brief delay — the CLI opens the vault as a side effect. |
 | `FS_WRITE_FAILED` | — | `read` | `fs.readFile` failed during scan | No partial flag; nothing written. Inspect `details.errno`. |
 | `FS_WRITE_FAILED` | — | `write` | `fs.writeFile` / `fs.rename` failed during commit | Carries `details.partial: true` + `details.failing_note_locator` + `details.changed_notes` + `details.total_occurrences_replaced`. Some files were modified before the failure — inspect `changed_notes` to see what landed. |
+| `VALIDATION_ERROR` | `CONFIRMATION_UNAVAILABLE` | — | multi-note commit (`commit: true` with no `file` / `path` / `active_note`; a `subfolder` commit counts) and the MCP client cannot show a confirmation prompt | Refused before vault resolution: nothing spawned, read or written. Commit one note at a time with `file` or `path`, or use a client that supports elicitation. |
+| `VALIDATION_ERROR` | `CONFIRMATION_DECLINED` | — | multi-note commit and the human did not confirm the prompt; `details.action` is `"decline"`, `"cancel"`, or `"accept"` with the box left unticked | Nothing written. Do not retry without the human's agreement. |
 
 ## Worked examples
 
@@ -136,7 +138,7 @@ Whole-`Decisions/`-subtree, literal, fences + comments skipped, focused vault, p
 }
 ```
 
-Retargets every bare-heading wikilink (`[[#Foo]]`) to a specific-note link (`[[NewHeading#Foo]]`).
+Retargets every bare-heading wikilink (`[[#Foo]]`) to a specific-note link (`[[NewHeading#Foo]]`). This is a multi-note commit, so the human is asked to confirm before the first write (as in Example 3).
 
 ### Example 3 — Symbol rename across the vault, including fenced code samples
 
@@ -213,6 +215,9 @@ Returns `VALIDATION_ERROR` + `details.code: "SCOPE_CONFLICT"` + `details.reason:
 - **Frontmatter is treated as PROSE** — `---`-delimited YAML at the top of a note is NOT a separately-skipped region. Inline code spans (`` `...` ``) and indented code blocks are also treated as prose.
 - **Eligible files**: `.md` extension (case-insensitive) AND every path segment NOT starting with `.` (skips `.obsidian/`, `.trash/`, etc.).
 - **Per-note atomic writes** via temp + rename. If a write fails mid-batch, the in-flight file is rolled back but previously-written files are NOT — the response carries `partial: true` and lists the changed notes.
+- **A multi-note commit asks the human first** (since 0.9.0). A commit with no `file`, `path` or `active_note` — whole vault or `subfolder` — sends a confirmation prompt through the MCP client (elicitation) after the commit's re-scan and before the first write, naming the pattern, the occurrence and note counts, the vault and the subfolder. A client that cannot show the prompt is refused at once with `CONFIRMATION_UNAVAILABLE`, before the vault is even resolved. A commit that finds nothing to write asks nothing. A single-note commit and every preview ask nothing.
+- **Cancelling a commit stops it between notes.** Notes already written stay written (there is no rollback); the rest are left unchanged. The cancelled request gets no response, so the partial outcome goes to the server's stderr log as `find_and_replace.commit_cancelled` with `vault`, `committed` and `skipped` paths.
+- **Progress**: when the request carries a progress token, a commit sends one progress notification per written note (`progress` = notes written, `total` = notes to write, `message` = the note's path).
 
 ## Operator note — bound env var
 

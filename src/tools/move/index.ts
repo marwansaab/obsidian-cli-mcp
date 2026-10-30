@@ -2,14 +2,14 @@
 import { registerTool } from "../_register.js";
 import { executeMove, type ExecuteDeps } from "./handler.js";
 import { moveInputSchema, moveOutputSchema } from "./schema.js";
-import { DESTRUCTIVE_HINTS, type RegisteredTool } from "../_shared.js";
+import { DESTRUCTIVE_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const MOVE_TOOL_NAME = "move";
 
 export const MOVE_DESCRIPTION =
   'Move a note within an Obsidian vault (optionally renaming it). Honours the vault\'s "Automatically update internal links" setting; link-rewriting is vault-config-dependent.';
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 export function createMoveTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({

@@ -1,5 +1,5 @@
 // Original — no upstream. obsidian_exec handler: thin transformer routing parsed input through invokeBoundedCli with the obsidian_exec response envelope, behind the 068 passthrough denylist gate (FR-010..FR-013, research R4) that refuses code-running and developer-tooling commands before any spawn unless the vault owner set OBSIDIAN_MCP_ALLOW_EVAL.
-import { invokeBoundedCli, type SpawnLike } from "../../cli-adapter/invoke-bounded-cli.js";
+import { invokeBoundedCli, type CallScope, type SpawnLike } from "../../cli-adapter/invoke-bounded-cli.js";
 import { UpstreamError } from "../../errors.js";
 
 import type { ObsidianExecInput } from "./schema.js";
@@ -13,7 +13,7 @@ export interface ObsidianExecOutput {
   argv: string[];
 }
 
-export interface ExecuteDeps {
+export interface ExecuteDeps extends CallScope {
   logger: Logger;
   queue: Queue;
   spawnFn?: SpawnLike;
@@ -70,6 +70,6 @@ export async function executeObsidianExec(input: ObsidianExecInput, deps: Execut
       copy: input.copy,
     },
     { timeoutMs: input.timeoutMs },
-    { spawnFn: deps.spawnFn, env: deps.env, logger: deps.logger, queue: deps.queue },
+    deps,
   );
 }

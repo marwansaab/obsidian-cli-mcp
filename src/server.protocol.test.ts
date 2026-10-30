@@ -4,10 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { ProtocolError, type Client } from "@modelcontextprotocol/client";
+import { McpServer } from "@modelcontextprotocol/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 import { buildInstructions } from "./instructions/instructions.js";
 import { connectInMemoryClient, connectModernClient, quietServer, textOf } from "./tools/_mcp-client-fixtures.js";
+import { registerTool } from "./tools/_register.js";
+import { READ_ONLY_HINTS } from "./tools/_shared.js";
 
 import type { CreatedServer } from "./server.js";
 
@@ -107,6 +111,56 @@ describe("MCP protocol — negotiated versions", () => {
     const client = await connectLegacy(quietServer());
     try {
       expect(client.getNegotiatedProtocolVersion()).toMatch(/^2025-/);
+    } finally {
+      await client.close();
+    }
+  });
+});
+
+describe.each([
+  { era: "2025", connect: (server: McpServer) => connectInMemoryClient(server, "progress-test-2025") },
+  { era: "2026", connect: (server: McpServer) => connectModernClient({ buildMcpServer: () => server }, "progress-test-2026") },
+])("MCP protocol — progress notifications, $era era (068 FR-054, T088)", ({ connect }) => {
+  // A tool that reports two steps through its call deps; the reporter exists only when the
+  // request carried a progress token.
+  function progressServer(): McpServer {
+    const server = new McpServer({ name: "progress-test", version: "0.0.0" }, { capabilities: { tools: { listChanged: false } } });
+    registerTool({
+      name: "stepper",
+      title: "Stepper",
+      description: "Reports two progress steps.",
+      annotations: READ_ONLY_HINTS,
+      schema: z.strictObject({}),
+      deps: {},
+      handler: async (_input, deps) => {
+        deps.reportProgress?.(1, 2, "first");
+        deps.reportProgress?.(2, 2, "second");
+        return { reported: deps.reportProgress !== undefined };
+      },
+    }).register(server);
+    return server;
+  }
+
+  it("a call with a progress token receives each step carrying that token", async () => {
+    const client = await connect(progressServer());
+    try {
+      const seen: Array<{ progress: number; total?: number; message?: string }> = [];
+      const result = await client.callTool({ name: "stepper", arguments: {} }, { onprogress: (p) => seen.push(p) });
+      expect(JSON.parse(textOf(result))).toEqual({ reported: true });
+      expect(seen).toEqual([
+        { progress: 1, total: 2, message: "first" },
+        { progress: 2, total: 2, message: "second" },
+      ]);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("a call without a progress token receives none and gets no reporter", async () => {
+    const client = await connect(progressServer());
+    try {
+      const result = await client.callTool({ name: "stepper", arguments: {} });
+      expect(JSON.parse(textOf(result))).toEqual({ reported: false });
     } finally {
       await client.close();
     }

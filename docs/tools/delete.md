@@ -98,6 +98,7 @@ The schema enforces "exactly one of `file` or `path`": providing both is rejecte
 - **File not found** surfaces as `CLI_REPORTED_ERROR` with the verbatim `Error: File "<path>" not found.` message. The path quoting in the message is the CLI's own — agents should not strip it.
 - **OS-reserved names on Windows** (`CON`, `PRN`, `AUX`, etc.): the CLI is the trust boundary. Whatever the CLI does — accept, reject, normalise — the wrapper forwards verbatim. There is no tool-layer reserved-name list.
 - **File locked by an external editor**: typically surfaces as `CLI_NON_ZERO_EXIT` on Windows (where the OS holds an exclusive lock). POSIX hosts generally allow the delete to proceed and the editor sees a stale buffer.
+- **`permanent: true` asks the human first** (since 0.9.0): the server sends a confirmation prompt through the MCP client (elicitation) naming the vault and the note, or "the active note" in active mode, and spawns nothing until the human confirms. A client that cannot show the prompt gets `CONFIRMATION_UNAVAILABLE`; a human who does not confirm gives `CONFIRMATION_DECLINED`. Either way nothing is changed. A trash delete (the default) asks nothing.
 - **Trash-volume-full on Windows**: on a full Windows recycle bin, the CLI's behaviour is unverified — it may surface a structured error, OR it may silently fall back to permanent delete. Callers who require audit-grade confidence in the to-trash signal SHOULD verify the file's presence in the OS trash out-of-band when handling notes on volumes with constrained recycle-bin capacity.
 
 ## Errors
@@ -109,6 +110,8 @@ The schema enforces "exactly one of `file` or `path`": providing both is rejecte
 | `CLI_REPORTED_ERROR` | The CLI exited 0 but reported a failure in-band — either stdout starts with `Error:` (file not found, etc.), OR the unknown-vault response (`Vault not found.`) was detected, OR the success-response was unparseable. | `details.message` (the first line of stdout, or the synthesised parse-failure message) names the specific failure. For "file not found": the file may already be gone — verify the path, retry with the right locator, or accept that the delete is already accomplished. |
 | `ERR_NO_ACTIVE_FILE` | `target_mode: "active"` was used but no note is focused in Obsidian. | Open a note in the editor, OR call again with `target_mode: "specific"` and an explicit `vault` + `file`/`path`. **For an irreversible operation, specific mode is the safer choice regardless of whether a note is focused.** |
 | `CLI_BINARY_NOT_FOUND` | The `obsidian` CLI binary is not on `PATH` and `OBSIDIAN_BIN` was unset/invalid. | Operator-side: install the Obsidian CLI, OR set `OBSIDIAN_BIN` to a valid path. |
+| `VALIDATION_ERROR` + `details.code: "CONFIRMATION_UNAVAILABLE"` | `permanent: true`, and the MCP client cannot show a confirmation prompt (it declares no form elicitation). Refused before anything is spawned; nothing is changed. | Delete to the trash instead (omit `permanent`), OR use a client that supports elicitation. |
+| `VALIDATION_ERROR` + `details.code: "CONFIRMATION_DECLINED"` | `permanent: true`, and the human did not confirm the prompt. `details.action` is what they did (`"decline"`, `"cancel"`, or `"accept"` with the box left unticked). Nothing is changed. | Do not retry without the human's agreement. A trash delete asks nothing. |
 
 ## Examples
 
@@ -156,7 +159,7 @@ Spawns `obsidian vault=MyVault delete file=QuickNote`. The user-facing `file` fi
 }
 ```
 
-Spawns `obsidian vault=MyVault delete path=Inbox/Old.md permanent`. Returns `{ "deleted": true, "path": "Inbox/Old.md", "toTrash": false }`.
+First asks the human, through the MCP client: `Permanently delete "Inbox/Old.md" from vault "MyVault"? It skips the trash and cannot be undone.` Once they confirm, spawns `obsidian vault=MyVault delete path=Inbox/Old.md permanent` and returns `{ "deleted": true, "path": "Inbox/Old.md", "toTrash": false }`. If they decline, or the client cannot ask, nothing is spawned (see [Errors](#errors)).
 
 > **This cannot be undone.** The file is removed from both the vault and the OS trash. There is no recovery path through Obsidian or the OS.
 

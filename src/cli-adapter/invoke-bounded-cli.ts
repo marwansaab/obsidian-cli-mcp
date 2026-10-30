@@ -1,5 +1,13 @@
-// Original — no upstream. invokeBoundedCli escape-hatch facade: queue-wrapped dispatch with default 30 s / 10 MiB and silent 120 s clamp on timeoutMs override (ADR-007, Q1 / FR-011).
-import { dispatchCli, type DispatchInput, type DispatchOutput, type LaunchFn, type ResolveBinaryFn, type SpawnLike } from "./_dispatch.js";
+// Original — no upstream. invokeBoundedCli escape-hatch facade: queue-wrapped dispatch with default 30 s / 10 MiB; the timeoutMs override is bounded at 120 s by the obsidian_exec schema (ADR-007, FR-011). 068 R11: the per-call signal and progress reporter pass to the queue and to dispatchCli.
+import {
+  dispatchCli,
+  type CallScope,
+  type DispatchInput,
+  type DispatchOutput,
+  type LaunchFn,
+  type ResolveBinaryFn,
+  type SpawnLike,
+} from "./_dispatch.js";
 
 import type { Logger } from "../logger.js";
 import type { Queue } from "../queue.js";
@@ -27,7 +35,7 @@ export interface InvokeBoundedCliOutput {
   argv: string[];
 }
 
-export interface InvokeBoundedCliDeps {
+export interface InvokeBoundedCliDeps extends CallScope {
   spawnFn?: SpawnLike;
   env?: NodeJS.ProcessEnv;
   logger: Logger;
@@ -38,19 +46,16 @@ export interface InvokeBoundedCliDeps {
   launchFn?: LaunchFn;
 }
 
-export type { LaunchFn, ResolveBinaryFn, SpawnLike };
+export type { CallScope, LaunchFn, ResolveBinaryFn, SpawnLike };
 
 export function invokeBoundedCli(
   input: InvokeBoundedCliInput,
   overrides: InvokeBoundedCliOverrides,
   deps: InvokeBoundedCliDeps,
 ): Promise<InvokeBoundedCliOutput> {
-  const requested = overrides.timeoutMs ?? OBSIDIAN_EXEC_DEFAULT_TIMEOUT_MS;
-  // Silent clamp at the ceiling per Clarifications 2026-05-07 Q1 / FR-011.
-  // No VALIDATION_ERROR, no warning, no log emission on the clamp itself —
-  // a downstream CLI_TIMEOUT log fires only if the call still hangs past the
-  // clamped value.
-  const timeoutMs = Math.min(requested, OBSIDIAN_EXEC_MAX_TIMEOUT_MS);
+  // The obsidian_exec schema refuses a timeoutMs above OBSIDIAN_EXEC_MAX_TIMEOUT_MS, so the
+  // override needs no clamp here (068 R11).
+  const timeoutMs = overrides.timeoutMs ?? OBSIDIAN_EXEC_DEFAULT_TIMEOUT_MS;
 
   const dispatchInput: DispatchInput = {
     command: input.command,
@@ -69,7 +74,9 @@ export function invokeBoundedCli(
       logger: deps.logger,
       resolveBinary: deps.resolveBinary,
       launchFn: deps.launchFn,
+      signal: deps.signal,
+      reportProgress: deps.reportProgress,
     });
     return out;
-  });
+  }, { signal: deps.signal });
 }

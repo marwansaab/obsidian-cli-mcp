@@ -1,11 +1,11 @@
 // Original — no upstream. files handler — single-spawn invokeCli wrapper around the CLI's native `files` subcommand (R2/R3); wrapper-imposed filter pipeline: sub-folder filter (FR-026 defence-in-depth) → dotfile filter (FR-028 defence-in-depth) → non-recursive filter (R6 load-bearing — CLI returns recursive subtree per F2) → UTF-8 byte-compare lexical sort (R8/FR-027 — Buffer.compare, not JS default UTF-16). On total:true (R7), paths discarded after counting (NOT delegated to CLI's recursive total flag).
-import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
+import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 
 import type { ListFilesInput, ListFilesOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
 
-export interface ExecuteDeps {
+export interface ExecuteDeps extends CallScope {
   logger: Logger;
   queue: Queue;
   spawnFn?: SpawnLike;
@@ -56,12 +56,7 @@ export async function executeListFiles(
       flags: [],
       target_mode: input.target_mode,
     },
-    {
-      spawnFn: deps.spawnFn,
-      env: deps.env,
-      logger: deps.logger,
-      queue: deps.queue,
-    },
+    deps,
   );
 
   const expected = expectedComponentCount(input.folder);

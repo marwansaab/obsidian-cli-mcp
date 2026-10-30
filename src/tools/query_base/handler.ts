@@ -10,7 +10,7 @@ import {
   type QueryBaseRow,
   type QueryBaseWire,
 } from "./schema.js";
-import { invokeCli, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
+import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError, stringDetail } from "../../errors.js";
 import {
   assertCanonicalPath,
@@ -42,7 +42,7 @@ export interface FocusedVaultResponse {
   base: string;
 }
 
-export interface ExecuteDeps {
+export interface ExecuteDeps extends CallScope {
   logger: Logger;
   queue: Queue;
   vaultRegistry: VaultRegistry;
@@ -61,12 +61,7 @@ async function defaultInvokeEval(deps: ExecuteDeps): Promise<FocusedVaultRespons
       flags: [],
       target_mode: "active",
     },
-    {
-      spawnFn: deps.spawnFn,
-      env: deps.env,
-      logger: deps.logger,
-      queue: deps.queue,
-    },
+    deps,
   );
   // Shared double-decode + shape-check; query_base collapses both failure stages
   // into its single focused-vault-resolve stage and discards the cause.
@@ -383,12 +378,7 @@ export async function executeQueryBase(
         flags: [],
         target_mode: "specific",
       },
-      {
-        spawnFn: deps.spawnFn,
-        env: deps.env,
-        logger: deps.logger,
-        queue: deps.queue,
-      },
+      deps,
     );
   } catch (err) {
     // BI-041 FR-003 / FR-004: the upstream CLI emits "Error: View not found: <name>"
@@ -435,12 +425,7 @@ export async function executeQueryBase(
   ) {
     const isRegistered = await detectIfClosed({
       vaultName: input.vault,
-      deps: {
-        logger: deps.logger,
-        queue: deps.queue,
-        spawnFn: deps.spawnFn,
-        env: deps.env,
-      },
+      deps,
     });
     if (isRegistered) {
       throw new UpstreamError({

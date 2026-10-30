@@ -10,7 +10,7 @@
 import { registerTool } from "../_register.js";
 import { executeSearch, type ExecuteDeps } from "./handler.js";
 import { searchInputSchema, searchOutputSchema } from "./schema.js";
-import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const SEARCH_TOOL_NAME = "search";
 
@@ -41,7 +41,7 @@ Zero-match returns the empty envelope (never an error). Unknown vault → \`CLI_
 
 Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\`, \`CLI_REPORTED_ERROR\`, \`CLI_NON_ZERO_EXIT\`, \`CLI_TIMEOUT\`, \`CLI_OUTPUT_TOO_LARGE\`, \`CLI_BINARY_NOT_FOUND\`.`;
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 export function createSearchTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({

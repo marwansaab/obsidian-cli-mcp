@@ -2,14 +2,14 @@
 import { registerTool } from "../_register.js";
 import { executeReadProperty, type ExecuteDeps } from "./handler.js";
 import { readPropertyInputSchema, readPropertyOutputSchema } from "./schema.js";
-import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const READ_PROPERTY_TOOL_NAME = "read_property";
 
 export const READ_PROPERTY_DESCRIPTION =
   'Read a single named frontmatter property from a vault note. Returns { value, type } with the property\'s native YAML type preserved (text / list / number / checkbox / date / datetime / unknown). In active mode it reads the focused note. Absent properties and frontmatter-less files return { value: null, type: "unknown" } without error.';
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 export function createReadPropertyTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({

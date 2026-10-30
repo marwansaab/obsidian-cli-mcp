@@ -2,7 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeViewsBase, type ExecuteDeps } from "./handler.js";
 import { viewsBaseInputSchema, viewsBaseOutputSchema } from "./schema.js";
-import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const VIEWS_BASE_TOOL_NAME = "views_base";
 
@@ -19,7 +19,7 @@ Read-only — the tool never mutates vault contents (naming a Base changes which
 
 Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (malformed input; \`INVALID_BASE_PATH\` sub-issues for an empty / too-long / path-traversal / non-\`.base\` \`base_path\`); \`CLI_REPORTED_ERROR\` with \`details.code\` — \`BASE_NOT_FOUND\` (\`details.reason: "named-missing"\` when a named Base does not exist, \`"not-open"\` when no Base is focused — distinct, never a silent open-Base substitution), \`BASE_MALFORMED\` (the named \`.base\` is unusable), \`VAULT_NOT_FOUND\` (\`details.reason: "unknown"\` for an unregistered \`vault\`).`;
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 export function createViewsBaseTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({

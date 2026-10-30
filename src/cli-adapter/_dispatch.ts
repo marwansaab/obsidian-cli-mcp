@@ -1,4 +1,4 @@
-// Original — no upstream. dispatchCli: the single spawn-and-collect primitive owning argv assembly, four-priority classification, always-on bounds, atomic in-flight registry, and failure-only stderr logging (ADR-007, FR-008..FR-018a). Wraps one `dispatchOnce` attempt with the ADR-029 single cold-start retry: a form-(a) cold-start signature (`CLI_REPORTED_ERROR` whose stdout matches COLD_START_PATTERN, the registry-not-ready `Error: Command "<cmd>" not found.`) on the first attempt triggers exactly one re-spawn whose outcome is authoritative; all other outcomes are single-shot. Form (b) `Stream closed` is NOT retried — a dropped transport pipe carries no evidence of lifecycle position, so retrying it could double-apply a mutation; the default-safe posture leaves it single-shot (form (a) only). Signature pinned by 2026-05-30 T0 probes against the production `Obsidian.com` shim.
+// Original — no upstream. dispatchCli: the single spawn-and-collect primitive owning argv assembly, four-priority classification, always-on bounds, atomic in-flight registry, and failure-only stderr logging (ADR-007, FR-008..FR-018a). Wraps one `dispatchOnce` attempt with the ADR-029 single cold-start retry: a form-(a) cold-start signature (`CLI_REPORTED_ERROR` whose stdout matches COLD_START_PATTERN, the registry-not-ready `Error: Command "<cmd>" not found.`) on the first attempt triggers exactly one re-spawn whose outcome is authoritative; all other outcomes are single-shot. Form (b) `Stream closed` is NOT retried — a dropped transport pipe carries no evidence of lifecycle position, so retrying it could double-apply a mutation; the default-safe posture leaves it single-shot (form (a) only). Signature pinned by 2026-05-30 T0 probes against the production `Obsidian.com` shim. 068 R11 (FR-051, FR-054): a request's AbortSignal kills the running child through the same SIGTERM-then-SIGKILL path as a timeout and stops further attempts; the auto-launch readiness poll reports progress per poll when the request carried a progress token.
 import { spawn as nodeSpawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import * as fsPromises from "node:fs/promises";
@@ -19,6 +19,8 @@ export const APP_NOT_RUNNING_PATTERN = /unable to find Obsidian/i;
 export const OBSIDIAN_LAUNCH_READINESS_TIMEOUT_MS = 30_000;
 /** Interval between bounded re-attempts while waiting for the launched app to become ready (research D3). */
 export const LAUNCH_POLL_INTERVAL_MS = 750;
+/** The poll count the readiness budget allows: the `total` of the auto-launch progress reports (068 data-model §10). */
+export const LAUNCH_MAX_POLLS = Math.ceil(OBSIDIAN_LAUNCH_READINESS_TIMEOUT_MS / LAUNCH_POLL_INTERVAL_MS);
 
 /** The launcher seam type — the real `launchObsidian`, substitutable in tests. */
 export type LaunchFn = typeof launchObsidian;
@@ -44,7 +46,21 @@ export interface DispatchOutput {
 
 export type ResolveBinaryFn = typeof resolveBinary;
 
-export interface DispatchDeps {
+/** Sends one MCP progress notification for the current request (068 R11, FR-054). */
+export type ReportProgress = (progress: number, total: number, message: string) => void;
+
+/**
+ * Per-call cancellation and progress (068 R11). `registerTool` puts both on the deps of every
+ * call; they reach this layer through `invokeCli` / `invokeBoundedCli`.
+ */
+export interface CallScope {
+  /** The request's cancellation signal: an abort kills the running child and stops any further attempt. */
+  signal?: AbortSignal;
+  /** Defined only when the request carried a progress token. */
+  reportProgress?: ReportProgress;
+}
+
+export interface DispatchDeps extends CallScope {
   spawnFn?: SpawnLike;
   env?: NodeJS.ProcessEnv;
   logger: Logger;
@@ -189,7 +205,8 @@ function sleep(ms: number): Promise<void> {
 
 type KillReason =
   | { kind: "timeout" }
-  | { kind: "cap"; stream: "stdout" | "stderr"; capturedBytes: number };
+  | { kind: "cap"; stream: "stdout" | "stderr"; capturedBytes: number }
+  | { kind: "cancelled" };
 
 export function assembleArgv(input: DispatchInput, binary: string): string[] {
   const vaultPrefix = input.vault !== undefined ? [`vault=${input.vault}`] : [];
@@ -278,6 +295,7 @@ export async function dispatchCli(input: DispatchInput, deps: DispatchDeps): Pro
     while (Date.now() < deadline) {
       if (shuttingDown) throw appDown; // don't spawn a fresh re-attempt during teardown.
       attempts += 1;
+      deps.reportProgress?.(attempts, LAUNCH_MAX_POLLS, "waiting for Obsidian to start");
       try {
         const out = await dispatchWithColdStartRetry(input, deps);
         deps.logger.dispatchRecovery({
@@ -325,6 +343,10 @@ async function dispatchOnce(
   const callId = randomUUID();
   onCallId?.(callId);
   const startedAt = Date.now();
+  // 068 R11: a cancelled request starts no process — this also ends the cold-start retry and the
+  // auto-launch poll, whose next attempt lands here.
+  const { signal } = deps;
+  signal?.throwIfAborted();
 
   return new Promise<DispatchOutput>((resolve, reject) => {
     let child: ChildProcess;
@@ -399,6 +421,19 @@ async function dispatchOnce(
     const timeoutTimer = setTimeout(() => killChild({ kind: "timeout" }), input.timeoutMs);
     timeoutTimer.unref?.();
 
+    // 068 R11: cancelling the request kills the child the same way a timeout does (SIGTERM,
+    // then SIGKILL after the grace period), so the task settles and the queue advances.
+    const onAbort = (): void => killChild({ kind: "cancelled" });
+    signal?.addEventListener("abort", onAbort, { once: true });
+
+    function settle(): void {
+      settled = true;
+      clearRegistryIfMine();
+      clearTimeout(timeoutTimer);
+      if (sigkillTimer) clearTimeout(sigkillTimer);
+      signal?.removeEventListener("abort", onAbort);
+    }
+
     child.stdout?.on("data", (chunk: Buffer) => {
       stdoutBytes += chunk.length;
       if (stdoutBytes > input.outputCapBytes && !killReason) {
@@ -420,10 +455,7 @@ async function dispatchOnce(
 
     child.on("error", (err: NodeJS.ErrnoException) => {
       if (settled) return;
-      settled = true;
-      clearRegistryIfMine();
-      clearTimeout(timeoutTimer);
-      if (sigkillTimer) clearTimeout(sigkillTimer);
+      settle();
       if (err.code === "ENOENT") {
         reject(
           new UpstreamError({
@@ -441,16 +473,19 @@ async function dispatchOnce(
       reject(err);
     });
 
-    function onTerminal(code: number | null, signal: NodeJS.Signals | null): void {
+    function onTerminal(code: number | null, exitSignal: NodeJS.Signals | null): void {
       if (settled) return;
-      settled = true;
-      clearRegistryIfMine();
-      clearTimeout(timeoutTimer);
-      if (sigkillTimer) clearTimeout(sigkillTimer);
+      settle();
       const stdout = Buffer.concat(stdoutChunks).toString("utf8");
       const stderr = Buffer.concat(stderrChunks).toString("utf8");
       const durationMs = Date.now() - startedAt;
       const pid = child.pid ?? -1;
+
+      // A cancelled request gets no response (068 R11), so the abort reason is all that settles here.
+      if (killReason?.kind === "cancelled") {
+        reject(signal?.reason);
+        return;
+      }
 
       // Bounds-fired classifications come first — they observed the kill before exit.
       if (killReason?.kind === "timeout") {
@@ -513,8 +548,8 @@ async function dispatchOnce(
         reject(
           new UpstreamError({
             code: "CLI_NON_ZERO_EXIT",
-            cause: { exitCode, signal },
-            details: { argv, command: input.command, stdout, stderr, exitCode, signal, ...appDown },
+            cause: { exitCode, signal: exitSignal },
+            details: { argv, command: input.command, stdout, stderr, exitCode, signal: exitSignal, ...appDown },
           }),
         );
         return;

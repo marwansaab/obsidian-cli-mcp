@@ -2,7 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeSmartConnectionsQuery, type ExecuteDeps } from "./handler.js";
 import { MAX_QUERY_LENGTH, smartConnectionsQueryInputSchema, smartConnectionsQueryOutputSchema } from "./schema.js";
-import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const SMART_CONNECTIONS_QUERY_TOOL_NAME = "smart_connections_query";
 
@@ -23,7 +23,7 @@ Closed-but-registered vaults: when \`vault\` is in \`obsidian vaults\` but not c
 
 Error-precedence (outer to inner): VAULT_NOT_FOUND(unknown) → VAULT_NOT_FOUND(not-open) → SMART_CONNECTIONS_NOT_INSTALLED → SMART_CONNECTIONS_NOT_READY(api-missing) → SMART_CONNECTIONS_NOT_READY(embed-failed) → success.`;
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 export function createSmartConnectionsQueryTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({

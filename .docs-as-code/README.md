@@ -32,7 +32,8 @@ extends it.
   dual-era serving on SDK v2 `McpServer` and the registration adapter; tool
   titles, behaviour hints, published parameter descriptions and the server
   instructions; typed results (`outputSchema` and `structuredContent`); the
-  queue, dispatch, cold-start retry and auto-launch; error classification and
+  owner's access settings; the per-call scope (cancellation, progress and
+  confirmation); the queue, dispatch, cold-start retry and auto-launch; error classification and
   sub-discriminators; `target_mode`; the direct-filesystem write path; the
   `eval` template pattern; logging, shutdown and module layout.
 - [tech-stack.md](tech-stack.md) — what the server is built from, why each
@@ -87,3 +88,8 @@ applies. Records written since:
   — typed results publish through a pass-through output adapter with an
   object root for unions of objects, and `registerTool`, not the SDK, checks
   each success so drift is the `INTERNAL_ERROR` envelope (PR #91).
+- [decisions/ADR-043-call-scope-on-deps-and-throwing-confirmation.md](decisions/ADR-043-call-scope-on-deps-and-throwing-confirmation.md)
+  — the request's signal and progress reporter ride on each call's deps,
+  passed whole to `invokeCli`, and confirmation is a two-step `Confirmation`
+  whose `confirm` throws the `input_required` prompt back through
+  `registerTool` (PR #92).

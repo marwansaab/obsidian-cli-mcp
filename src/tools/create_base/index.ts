@@ -2,7 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeCreateBase, type ExecuteDeps } from "./handler.js";
 import { createBaseInputSchema, createBaseOutputSchema, MAX_CONTENT_LENGTH } from "./schema.js";
-import { ADDITIVE_WRITE_HINTS, type RegisteredTool } from "../_shared.js";
+import { ADDITIVE_WRITE_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const CREATE_BASE_TOOL_NAME = "create_base";
 
@@ -17,7 +17,7 @@ Write operation — creates a new Markdown note in the vault.
 
 Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (\`INVALID_BASE_PATH\` with sub-reasons \`empty\`/\`too-long\`/\`wrong-extension\`/\`path-traversal\`; \`INVALID_NAME\` with sub-reasons \`empty\`/\`too-long\`; \`CONTENT_TOO_LARGE\`); \`CLI_REPORTED_ERROR\` (\`BASE_NOT_FOUND\` when the specified base file does not exist).`;
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 export function createCreateBaseTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({

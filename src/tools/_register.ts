@@ -1,19 +1,43 @@
-// Original — no upstream. registerTool factory and assertToolDocsExist aggregator: the only path from a zod schema to a tool registered on an MCP SDK v2 McpServer (ADR-006, ADR-039, FR-001..FR-006). 068 R2: the SDK receives the input schema through toSdkInputSchema, a pass-through Standard Schema adapter that publishes the zod schema's own JSON Schema emission and never rejects, so the tool's own zod parse, mapValidationError hook and {code, message, details} envelope stay in force; the callback returns (never throws) asToolError results. 068 PR 4: every spec carries a title and all four annotations, and parameter descriptions are published unstripped (ADR-040). 068 PR 5 (R6, FR-039): a spec may carry an outputSchema, published through the toSdkOutputSchema pass-through adapter (object root for unions of objects); the callback checks each success against it, reporting drift as INTERNAL_ERROR, and successes carry structuredContent plus the identical JSON text.
+// Original — no upstream. registerTool factory and assertToolDocsExist aggregator: the only path from a zod schema to a tool registered on an MCP SDK v2 McpServer (ADR-006, ADR-039, FR-001..FR-006). 068 R2: the SDK receives the input schema through toSdkInputSchema, a pass-through Standard Schema adapter that publishes the zod schema's own JSON Schema emission and never rejects, so the tool's own zod parse, mapValidationError hook and {code, message, details} envelope stay in force; the callback returns (never throws) asToolError results. 068 PR 4: every spec carries a title and all four annotations, and parameter descriptions are published unstripped (ADR-040). 068 PR 5 (R6, FR-039): a spec may carry an outputSchema, published through the toSdkOutputSchema pass-through adapter (object root for unions of objects); the callback checks each success against it, reporting drift as INTERNAL_ERROR, and successes carry structuredContent plus the identical JSON text. 068 PR 6 (R11, R12): every call gets a ToolCall context — the request's AbortSignal and, when a progress token was sent, a progress reporter, both also merged into the call's deps — plus the two confirmation steps from _confirm.ts; a pending confirmation goes back to the SDK as an input_required result.
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { ZodError, type z } from "zod";
 
 import { UpstreamError } from "../errors.js";
+import { ConfirmationRequested, NON_INTERACTIVE_CALL, requestConfirmation } from "./_confirm.js";
 import {
   asToolError,
+  type Confirmation,
   type RegisteredTool,
   type ToolAnnotations,
+  type ToolCall,
   type ToolCallResult,
   type ToolErrorPayload,
 } from "./_shared.js";
 
-import type { McpServer, StandardSchemaWithJSON } from "@modelcontextprotocol/server";
+import type { CallScope } from "../cli-adapter/cli-adapter.js";
+import type { McpServer, ServerContext, StandardSchemaWithJSON } from "@modelcontextprotocol/server";
+
+/** Build the call context of one `tools/call` request from the SDK's handler context. */
+function toolCallFromRequest(server: McpServer, ctx: ServerContext, toolName: string): ToolCall {
+  const progressToken = ctx.mcpReq._meta?.progressToken;
+  return {
+    signal: ctx.mcpReq.signal,
+    // 068 FR-054: defined only when the request carried a progress token.
+    reportProgress:
+      progressToken === undefined
+        ? undefined
+        : (progress, total, message) => {
+            // Best-effort: a progress notice that cannot be sent (the transport closed) must not
+            // fail the call it describes.
+            ctx.mcpReq
+              .notify({ method: "notifications/progress", params: { progressToken, progress, total, message } })
+              .catch(() => undefined);
+          },
+    ...requestConfirmation(server, ctx, toolName),
+  };
+}
 
 interface ToolSpecBase<TSchema extends z.ZodType, TDeps> {
   name: string;
@@ -36,7 +60,14 @@ interface ToolSpecBase<TSchema extends z.ZodType, TDeps> {
   mapValidationError?: (issues: z.core.$ZodIssue[], rawArgs: unknown) => ToolErrorPayload;
 }
 
-type Handler<TSchema extends z.ZodType, TDeps, TResult> = (input: z.infer<TSchema>, deps: TDeps) => Promise<TResult>;
+/** A call's deps: the tool's boot-time deps plus the request's scope (068 R11); none for a tool without deps. */
+type CallDeps<TDeps> = TDeps extends undefined ? undefined : TDeps & CallScope;
+
+type Handler<TSchema extends z.ZodType, TDeps, TResult> = (
+  input: z.infer<TSchema>,
+  deps: CallDeps<TDeps>,
+  confirmation: Confirmation,
+) => Promise<TResult>;
 
 /**
  * How a tool's success reaches the wire. There are three cases, and only these three
@@ -154,7 +185,7 @@ export function registerTool<TSchema extends z.ZodType, TDeps = undefined, TOutp
       },
     };
 
-  const handler = async (args: unknown): Promise<ToolCallResult> => {
+  const handler = async (args: unknown, call: ToolCall = NON_INTERACTIVE_CALL): Promise<ToolCallResult> => {
     let parsed: z.infer<TSchema>;
     try {
       parsed = spec.schema.parse(args) as z.infer<TSchema>;
@@ -163,9 +194,14 @@ export function registerTool<TSchema extends z.ZodType, TDeps = undefined, TOutp
       throw err;
     }
 
+    // 068 R11: per-call deps, so the request's signal and progress reporter reach invokeCli.
+    const deps = (
+      spec.deps === undefined ? undefined : { ...spec.deps, signal: call.signal, reportProgress: call.reportProgress }
+    ) as CallDeps<TDeps>;
+
     let result: unknown;
     try {
-      result = await spec.handler(parsed, spec.deps as TDeps);
+      result = await spec.handler(parsed, deps, call);
       // 068 R6: the published output contract is checked here, not by the SDK. Validation
       // only — the handler's own value is what goes on the wire.
       spec.outputSchema?.parse(result);
@@ -220,7 +256,15 @@ export function registerTool<TSchema extends z.ZodType, TDeps = undefined, TOutp
           inputSchema: sdkInputSchema,
           ...(sdkOutputSchema !== undefined && { outputSchema: sdkOutputSchema }),
         },
-        handler,
+        async (args, ctx) => {
+          try {
+            return await handler(args, toolCallFromRequest(server, ctx, spec.name));
+          } catch (err) {
+            // 068 R12: the confirmation prompt goes back to the SDK as an input_required result.
+            if (err instanceof ConfirmationRequested) return err.result;
+            throw err;
+          }
+        },
       );
     },
   };

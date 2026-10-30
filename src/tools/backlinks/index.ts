@@ -2,7 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeBacklinks, type ExecuteDeps } from "./handler.js";
 import { backlinksInputSchema, backlinksOutputSchema } from "./schema.js";
-import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const BACKLINKS_TOOL_NAME = "backlinks";
 
@@ -28,7 +28,7 @@ Non-Markdown target locators (\`.canvas\`, \`.pdf\`, attachments) surface as \`C
 
 Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\`, \`CLI_REPORTED_ERROR\` (with sub-discriminators \`VAULT_NOT_FOUND\` / \`FILE_NOT_FOUND\` / \`NOT_MARKDOWN\`), \`ERR_NO_ACTIVE_FILE\`, \`CLI_NON_ZERO_EXIT\`, \`CLI_BINARY_NOT_FOUND\`.`;
 
-export type RegisterDeps = ExecuteDeps;
+export type RegisterDeps = BootDeps<ExecuteDeps>;
 
 export function createBacklinksTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({

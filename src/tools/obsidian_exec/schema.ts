@@ -1,6 +1,7 @@
 // Original — no upstream. Canonical zod schema for obsidian_exec — single source of truth (Principle III, FR-002).
 import { z } from "zod";
 
+import { OBSIDIAN_EXEC_DEFAULT_TIMEOUT_MS, OBSIDIAN_EXEC_MAX_TIMEOUT_MS } from "../../cli-adapter/invoke-bounded-cli.js";
 import { focusedVaultField } from "../_vault-field.js";
 
 export const obsidianExecSchema = z
@@ -33,9 +34,11 @@ export const obsidianExecSchema = z
       .number()
       .int()
       .positive()
-      .max(120000)
+      .max(OBSIDIAN_EXEC_MAX_TIMEOUT_MS)
       .optional()
-      .describe("Call timeout in milliseconds, integer 1..120000. Default 30000."),
+      .describe(
+        `Call timeout in milliseconds, integer 1..${OBSIDIAN_EXEC_MAX_TIMEOUT_MS}. Default ${OBSIDIAN_EXEC_DEFAULT_TIMEOUT_MS}.`,
+      ),
   });
 
 export type ObsidianExecInput = z.infer<typeof obsidianExecSchema>;
