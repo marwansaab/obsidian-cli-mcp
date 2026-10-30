@@ -141,7 +141,14 @@ writes against a vault that changed while the human was deciding.
 PR #92's T090 live run (test vault, both protocol eras, a v2 client over real
 stdio) saw decline change nothing, accept delete permanently and rewrite both
 subfolder notes, and a trash delete ask nothing. The same check from Claude
-Code was still open for the owner when the PR went to review.
+Code was still open for the owner when the PR went to review. Its outcome,
+recorded in PR #93's post-implement follow-ups: Claude Code in print mode (the
+desktop app's Code tab, `claude -p`, unattended runs) declares form
+elicitation and then declines every request, so a permanent `delete` or a
+multi-note commit there always returns `CONFIRMATION_DECLINED`, never
+`CONFIRMATION_UNAVAILABLE`. The server cannot tell that client apart from a
+human who said no; the README documents the limitation, and whether to raise
+it upstream is the owner's call.
 
 ## The CLI-wrapped tools
 
