@@ -162,7 +162,7 @@ logged. **Independent test**: quickstart Â§2.
   Tests: in src/tools/obsidian_exec/index.test.ts, the deps reach the handler; in src/server.test.ts, `createServer({env: {OBSIDIAN_MCP_ALLOW_EVAL: "1"}})` enables it and an absent value leaves it off.
 - [X] T025 [P] [US3] Docs: add `OBSIDIAN_MCP_ALLOW_EVAL` to the README env-var section with a plain warning (it allows arbitrary code with the user's rights; palette commands remain an accepted residual path). In docs/tools/obsidian_exec.md add the blocked list, the `COMMAND_BLOCKED` error-roster row and the opt-in.
 - [X] T026 [US3] Run the full suite and confirm every typed tool's eval-based tests pass unchanged (`backlinks`, `links`, `open_file`, `read_heading`, `find_by_property`, `outline`, `_eval-vault-closed-detection`, â€¦). That proves the gate sits only in the passthrough (FR-013).
-- [ ] T027 PR-2 wrap:
+- [X] T027 PR-2 wrap:
   - gates as in T016, with the baseline unchanged;
   - `/speckit-git-commit`;
   - open **PR-2**. Checklist: Iâ€“V **Y**; ADR-015 **Y** (new pair `VALIDATION_ERROR/COMMAND_BLOCKED`); ADR-010/013/014 **N/A**; MCP standard **N/A (pending A2)**; Tool Surface **N/A (pending)**; Security Defaults **Y** (closes escape hatches); kernel-node touch named: `createServer` ctx gains `env` (T024);
