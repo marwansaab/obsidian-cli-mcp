@@ -1,4 +1,4 @@
-// Original — no upstream. patch_block handler per BI-043 / ADR-009 — specific-mode vault-registry resolve OR active-mode focused-file eval → Layer 2 canonical path check → fs.readFile (ENOENT → NOTE_NOT_FOUND per FR-018) → block-scan + first-match resolve (BLOCK_NOT_FOUND per FR-017) → block-on-heading short-circuit (BLOCK_ON_HEADING per FR-019a, both ATX and setext) → per-shape surgery → atomic tmp+rename with EBUSY/EPERM EXTERNAL_EDITOR_CONFLICT classification (FR-021) → best-effort metadataCache refresh eval in the written vault (logged on failure) → typed output envelope. No race detection — FR-026 publishes last-write-wins per R4 (deliberate divergence from sibling patch_heading).
+// Original — no upstream. patch_block handler per BI-043 / ADR-009 — specific-mode vault-registry resolve OR active-mode focused-file eval → Layer 2 canonical path check → fs.readFile (ENOENT → NOTE_NOT_FOUND per FR-018) → block-scan + first-match resolve (BLOCK_NOT_FOUND per FR-017) → block-on-heading short-circuit (BLOCK_ON_HEADING per FR-019a, both ATX and setext) → per-shape surgery → atomic tmp+rename with EBUSY/EPERM EXTERNAL_EDITOR_CONFLICT classification (FR-021) → best-effort metadataCache refresh eval in the written vault (logged on failure) → typed output envelope. No race detection — FR-026 publishes last-write-wins per R4 (deliberate divergence from sibling patch_heading). 075: bytes_written = edited minus original byte length (the size change).
 import { randomUUID } from "node:crypto";
 import * as nodeFs from "node:fs/promises";
 
@@ -182,7 +182,8 @@ export async function executePatchBlock(
   } catch (e) {
     throw mapWriteErr(e);
   }
-  const bytesWritten = Buffer.byteLength(editedContent, "utf8");
+  const bytesWritten =
+    Buffer.byteLength(editedContent, "utf8") - Buffer.byteLength(originalContent, "utf8");
 
   await invalidateMetadataCache(deps, { vault: input.vault, relPath });
 

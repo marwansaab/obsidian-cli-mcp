@@ -27,7 +27,7 @@ Single project: `src/`, with co-located `*.test.ts`. Docs are in `docs/tools/`.
 
 **Purpose**: confirm a green starting point.
 
-- [ ] T001 Run `npm run typecheck`, `npm run lint` and `npm test` on branch `075-unify-size-reporting` before any edit, and note any pre-existing failure, so later failures can be attributed (repository root).
+- [X] T001 Run `npm run typecheck`, `npm run lint` and `npm test` on branch `075-unify-size-reporting` before any edit, and note any pre-existing failure, so later failures can be attributed (repository root).
 
 ---
 
@@ -37,8 +37,8 @@ Single project: `src/`, with co-located `*.test.ts`. Docs are in `docs/tools/`.
 
 **⚠️ CRITICAL**: US5 needs this phase. US1 to US3 do not, but landing it first keeps each schema edit to a single pass.
 
-- [ ] T002 In `src/tools/_shared.ts`, export `BYTES_WRITTEN_DESCRIPTION` with the exact text from contract §4: "Change in the note's size in bytes caused by this write: its size after the write minus its size before, counting a note that did not exist as 0. Zero when the size did not change; negative when the note shrank." Give it a one-line doc comment ("shared by the output schemas of the five single-note text writers, spec 075 FR-008"), and append a `075:` clause to the file's header intent line. Add no runtime import.
-- [ ] T003 In `src/tools/_shared.test.ts`, assert that `BYTES_WRITTEN_DESCRIPTION` equals the contract §4 text exactly. Depends on T002.
+- [X] T002 In `src/tools/_shared.ts`, export `BYTES_WRITTEN_DESCRIPTION` with the exact text from contract §4: "Change in the note's size in bytes caused by this write: its size after the write minus its size before, counting a note that did not exist as 0. Zero when the size did not change; negative when the note shrank." Give it a one-line doc comment ("shared by the output schemas of the five single-note text writers, spec 075 FR-008"), and append a `075:` clause to the file's header intent line. Add no runtime import.
+- [X] T003 In `src/tools/_shared.test.ts`, assert that `BYTES_WRITTEN_DESCRIPTION` equals the contract §4 text exactly. Depends on T002.
 
 **Checkpoint**: `npm run typecheck` and `npm test` are green, with no behaviour change.
 
@@ -52,7 +52,7 @@ Single project: `src/`, with co-located `*.test.ts`. Docs are in `docs/tools/`.
 
 ### Tests for User Story 1 ⚠️ (write first and confirm they fail)
 
-- [ ] T004 [P] [US1] In `src/tools/patch_heading/handler.test.ts`, replace the "bytes_written equals Buffer.byteLength of written content" test (around line 532) with one that asserts `bytes_written === byteLength(written) − byteLength(original)`. Then add these cases:
+- [X] T004 [P] [US1] In `src/tools/patch_heading/handler.test.ts`, replace the "bytes_written equals Buffer.byteLength of written content" test (around line 532) with one that asserts `bytes_written === byteLength(written) − byteLength(original)`. Then add these cases:
   - `append` and `prepend` each yield the positive delta;
   - `replace` with same-size content yields 0;
   - `replace` with shorter content yields a negative delta;
@@ -60,16 +60,16 @@ Single project: `src/`, with co-located `*.test.ts`. Docs are in `docs/tools/`.
   - **multi-byte**: `replace` a body `x` with `é` yields `bytes_written === 1`, although the character count is unchanged. Assert both `1` and `!== "é".length - "x".length`, so a character-count regression fails.
 
   Each case follows the shape of a contract §3 patch_heading row. Compute the expected value from the fixture's actual content before and after the edit (`byteLength(written) − byteLength(original)`, data-model R1), not from the row's illustrative sizes, because `append` and `prepend` can add separator lines. Keep the existing `toBeGreaterThan(0)` assertions (lines 151, 606 and 823) only where the edit really grows the note; otherwise replace them with the exact delta.
-- [ ] T005 [P] [US1] In `src/tools/patch_block/handler.test.ts`, replace the "bytes_written equals Buffer.byteLength…" test (around line 512) with the delta assertion. Add cases for growth, same size (0), shrink (negative) and clear (`""`, negative) on a paragraph block, plus one grow case on a separately-placed block. Each case follows the shape of a contract §3 patch_block row, with the expected value computed from the fixture's actual content before and after the edit, as in T004. Add a **multi-byte** case: replacing a paragraph body `abc` with `日本` yields `bytes_written === 3`, while the character change is −1; assert the byte value and that it differs from the character delta. Review the `toBeGreaterThan(0)` assertions at lines 125 and 600 the same way as in T004.
-- [ ] T006 [P] [US1] In `src/tools/patch_heading/schema.test.ts` and `src/tools/patch_block/schema.test.ts`, change "rejects negative bytes_written" to "accepts negative bytes_written" (−1 and 0 both parse). Keep "rejects non-integer bytes_written".
+- [X] T005 [P] [US1] In `src/tools/patch_block/handler.test.ts`, replace the "bytes_written equals Buffer.byteLength…" test (around line 512) with the delta assertion. Add cases for growth, same size (0), shrink (negative) and clear (`""`, negative) on a paragraph block, plus one grow case on a separately-placed block. Each case follows the shape of a contract §3 patch_block row, with the expected value computed from the fixture's actual content before and after the edit, as in T004. Add a **multi-byte** case: replacing a paragraph body `abc` with `日本` yields `bytes_written === 3`, while the character change is −1; assert the byte value and that it differs from the character delta. Review the `toBeGreaterThan(0)` assertions at lines 125 and 600 the same way as in T004.
+- [X] T006 [P] [US1] In `src/tools/patch_heading/schema.test.ts` and `src/tools/patch_block/schema.test.ts`, change "rejects negative bytes_written" to "accepts negative bytes_written" (−1 and 0 both parse). Keep "rejects non-integer bytes_written".
 
 ### Implementation for User Story 1
 
-- [ ] T007 [P] [US1] In `src/tools/patch_heading/schema.ts`, change `bytes_written: z.number().int().min(0)` to `z.number().int()` (research D3), and append a `075:` clause to the header intent line ("bytes_written is the size change, may be zero or negative"; Principle V, spec 074 precedent). Depends on T006.
-- [ ] T008 [P] [US1] In `src/tools/patch_block/schema.ts`, make the same change, including the header clause. Depends on T006.
-- [ ] T009 [US1] In `src/tools/patch_heading/handler.ts` (line 232), set `bytesWritten = Buffer.byteLength(editedContent, "utf8") - Buffer.byteLength(originalContent, "utf8")`. `originalContent` is the content the edit was derived from, so the race path that tolerates other changes (R5) still describes this write. Append a `075:` clause to the header intent line ("bytes_written = edited minus original byte length"). Nothing else in the handler changes. Makes T004 pass. Depends on T004 and T007.
-- [ ] T010 [US1] In `src/tools/patch_block/handler.ts` (line 185), make the same change, including the header clause. Makes T005 pass. Depends on T005 and T008.
-- [ ] T011 [US1] Run `src/tools/patch_heading/index.test.ts` and `src/tools/patch_block/index.test.ts`. Their `payload.bytes_written > 0` assertions (lines 125 and 102) must still hold for their fixtures; if a fixture's edit does not grow the note, assert the exact delta instead. Depends on T009 and T010.
+- [X] T007 [P] [US1] In `src/tools/patch_heading/schema.ts`, change `bytes_written: z.number().int().min(0)` to `z.number().int()` (research D3), and append a `075:` clause to the header intent line ("bytes_written is the size change, may be zero or negative"; Principle V, spec 074 precedent). Depends on T006.
+- [X] T008 [P] [US1] In `src/tools/patch_block/schema.ts`, make the same change, including the header clause. Depends on T006.
+- [X] T009 [US1] In `src/tools/patch_heading/handler.ts` (line 232), set `bytesWritten = Buffer.byteLength(editedContent, "utf8") - Buffer.byteLength(originalContent, "utf8")`. `originalContent` is the content the edit was derived from, so the race path that tolerates other changes (R5) still describes this write. Append a `075:` clause to the header intent line ("bytes_written = edited minus original byte length"). Nothing else in the handler changes. Makes T004 pass. Depends on T004 and T007.
+- [X] T010 [US1] In `src/tools/patch_block/handler.ts` (line 185), make the same change, including the header clause. Makes T005 pass. Depends on T005 and T008.
+- [X] T011 [US1] Run `src/tools/patch_heading/index.test.ts` and `src/tools/patch_block/index.test.ts`. Their `payload.bytes_written > 0` assertions (lines 125 and 102) must still hold for their fixtures; if a fixture's edit does not grow the note, assert the exact delta instead. Depends on T009 and T010.
 
 **Checkpoint**: US1 tests green. The section and block editors report the change.
 
@@ -81,8 +81,8 @@ Single project: `src/`, with co-located `*.test.ts`. Docs are in `docs/tools/`.
 
 **Independent test**: the existing append_note and prepend handler tests pass with no edit to their handlers.
 
-- [ ] T012 [P] [US2] In `src/tools/append_note/handler.test.ts`, add (or confirm that one already exists) a test for each contract §3 append_note row: `"a\n"` + `"b\n"` → 2; `"a"` + `"b"` → 2, including the separator. Each asserts `bytes_written === byteLength(written) − byteLength(existing)`. Do not edit `append_note/handler.ts`.
-- [ ] T013 [P] [US2] In `src/tools/prepend/handler.test.ts`, confirm that a test asserts `bytes_written === postStatSize − preStatSize` (contract §3 prepend row, 100 → 158 → 58) and that the `post-stat-byte-delta-zero` guard test is unchanged. Add the delta test if it is missing. Do not edit `prepend/handler.ts`.
+- [X] T012 [P] [US2] In `src/tools/append_note/handler.test.ts`, add (or confirm that one already exists) a test for each contract §3 append_note row: `"a\n"` + `"b\n"` → 2; `"a"` + `"b"` → 2, including the separator. Each asserts `bytes_written === byteLength(written) − byteLength(existing)`. Do not edit `append_note/handler.ts`.
+- [X] T013 [P] [US2] In `src/tools/prepend/handler.test.ts`, confirm that a test asserts `bytes_written === postStatSize − preStatSize` (contract §3 prepend row, 100 → 158 → 58) and that the `post-stat-byte-delta-zero` guard test is unchanged. Add the delta test if it is missing. Do not edit `prepend/handler.ts`.
 
 **Checkpoint**: the adders are proven unchanged.
 
@@ -96,8 +96,8 @@ Single project: `src/`, with co-located `*.test.ts`. Docs are in `docs/tools/`.
 
 ### Tests for User Story 3 ⚠️ (write first and confirm they fail)
 
-- [ ] T014 [US3] In `src/tools/write_note/_handler-fixtures.ts`, add a default `stat` to `fakeFs` that throws ENOENT (reuse the local `enoent()`), and update the header comment. Then migrate the existing tests in `src/tools/write_note/handler.test.ts` that simulate an existing note through a `realpath` override (lines 44-46, 501, 538 and 962) to also, or instead, override `stat` to return `{ size: <old byte length> }`. The containment tests that override `realpath` for parent directories (line 567 onwards, and the real-fs test at line 636) keep their `realpath` overrides, and the real-fs test gains `stat: (p) => nodeFs.stat(p)`. This fixture migration is the test-fixture change SC-005 allows: assertions stay unchanged apart from `bytes_written`. The fixture is typed as `ExecuteFs`, so add T018's `stat` member to the `ExecuteFs` interface in `src/tools/write_note/handler.ts` in this same edit. The handler logic stays for T018.
-- [ ] T015 [US3] In `src/tools/write_note/handler.test.ts`, add the contract §3 write_note rows:
+- [X] T014 [US3] In `src/tools/write_note/_handler-fixtures.ts`, add a default `stat` to `fakeFs` that throws ENOENT (reuse the local `enoent()`), and update the header comment. Then migrate the existing tests in `src/tools/write_note/handler.test.ts` that simulate an existing note through a `realpath` override (lines 44-46, 501, 538 and 962) to also, or instead, override `stat` to return `{ size: <old byte length> }`. The containment tests that override `realpath` for parent directories (line 567 onwards, and the real-fs test at line 636) keep their `realpath` overrides, and the real-fs test gains `stat: (p) => nodeFs.stat(p)`. This fixture migration is the test-fixture change SC-005 allows: assertions stay unchanged apart from `bytes_written`. The fixture is typed as `ExecuteFs`, so add T018's `stat` member to the `ExecuteFs` interface in `src/tools/write_note/handler.ts` in this same edit. The handler logic stays for T018.
+- [X] T015 [US3] In `src/tools/write_note/handler.test.ts`, add the contract §3 write_note rows:
   - create `"hello"` with `overwrite: false` → 5;
   - create on an absent path with `overwrite: true` → 5;
   - create `""` → 0;
@@ -110,14 +110,14 @@ Single project: `src/`, with co-located `*.test.ts`. Docs are in `docs/tools/`.
   Then:
   - **Failure case**: `stat` rejects with an EACCES errno (`syscall: "stat"`) → `UpstreamError` `FS_WRITE_FAILED` with `details` `{ errno: "EACCES", syscall: "stat", path }` and `cause` set, while `fs.writes` and `fs.renames` stay empty (FR-006a).
   - **Update existing assertions**: change every `toEqual({ created, path })` to include `bytes_written`, and change test #30 ("exactly two keys", line 763) to expect `["bytes_written", "created", "path"]`.
-- [ ] T016 [US3] In `src/tools/write_note/schema.test.ts`:
+- [X] T016 [US3] In `src/tools/write_note/schema.test.ts`:
   - update test (20) so the output includes `bytes_written`;
   - add the cases: rejects a missing `bytes_written`, rejects a non-integer, accepts a negative value.
 
 ### Implementation for User Story 3
 
-- [ ] T017 [US3] In `src/tools/write_note/schema.ts`, add `bytes_written: z.number().int()` to `writeNoteOutputSchema` (still strict). Depends on T016.
-- [ ] T018 [US3] In `src/tools/write_note/handler.ts`:
+- [X] T017 [US3] In `src/tools/write_note/schema.ts`, add `bytes_written: z.number().int()` to `writeNoteOutputSchema` (still strict). Depends on T016.
+- [X] T018 [US3] In `src/tools/write_note/handler.ts`:
   - add `stat: (p: string) => Promise<{ size: number }>` to `ExecuteFs`;
   - add `stat` to `DEFAULT_FS`, mapping `nodeFs.stat` to `{ size }` the way prepend's `DEFAULT_FS` does;
   - in the `overwrite === true` branch, replace `await fs.realpath(absPath)` with `oldSize = (await fs.stat(absPath)).size`. ENOENT gives `existedBefore = false` and `oldSize = 0`; any other errno still throws `mapFsError(e)`;
@@ -126,7 +126,7 @@ Single project: `src/`, with co-located `*.test.ts`. Docs are in `docs/tools/`.
   - update the header intent line ("→ stat probe … → return { created, path, bytes_written }").
 
   Makes T014 to T016 pass. Depends on T014, T015 and T017.
-- [ ] T019 [US3] Run `src/tools/write_note/index.test.ts`, `src/tools/write_note/handler.file-type.test.ts`, `src/tools/_file-type-support.test.ts` and `src/tools/_surface.test.ts` (the write_note entry in `_typed-result-fixtures.ts` uses `writeNoteFakeFs()`, whose default `stat` gives ENOENT, so the case becomes a create). Update the `index.test.ts` envelope assertion (around line 95) to include `bytes_written`. Depends on T018.
+- [X] T019 [US3] Run `src/tools/write_note/index.test.ts`, `src/tools/write_note/handler.file-type.test.ts`, `src/tools/_file-type-support.test.ts` and `src/tools/_surface.test.ts` (the write_note entry in `_typed-result-fixtures.ts` uses `writeNoteFakeFs()`, whose default `stat` gives ENOENT, so the case becomes a create). Update the `index.test.ts` envelope assertion (around line 95) to include `bytes_written`. Depends on T018.
 
 **Checkpoint**: write_note reports the change, and the failure path writes nothing.
 
@@ -138,7 +138,7 @@ Single project: `src/`, with co-located `*.test.ts`. Docs are in `docs/tools/`.
 
 **Independent test**: the five tests below have the same shape and differ only in the tool call.
 
-- [ ] T020 [US4] Add one test per handler test file, named "bytes_written equals size after minus size before (075 uniform check)". Each measures `before` from the content (or `stat` size) the fake fs held before the call and `after` from what it holds afterwards (the written content, or the post-call `stat` for prepend), then asserts `result.bytes_written === after − before` with no per-tool adjustment:
+- [X] T020 [US4] Add one test per handler test file, named "bytes_written equals size after minus size before (075 uniform check)". Each measures `before` from the content (or `stat` size) the fake fs held before the call and `after` from what it holds afterwards (the written content, or the post-call `stat` for prepend), then asserts `result.bytes_written === after − before` with no per-tool adjustment:
   - `src/tools/append_note/handler.test.ts`;
   - `src/tools/prepend/handler.test.ts`;
   - `src/tools/patch_heading/handler.test.ts`;
@@ -159,7 +159,7 @@ Single project: `src/`, with co-located `*.test.ts`. Docs are in `docs/tools/`.
 
 **Independent test**: all five published output schemas carry the identical `bytes_written` description. Grepping `docs/tools/` for "red flag" and "post-edit file size" finds nothing.
 
-- [ ] T021 [US5] Attach `.describe(BYTES_WRITTEN_DESCRIPTION)` as the last call on `bytes_written`, keeping each bound (research D3), in these five files:
+- [X] T021 [US5] Attach `.describe(BYTES_WRITTEN_DESCRIPTION)` as the last call on `bytes_written`, keeping each bound (research D3), in these five files:
   - `src/tools/append_note/schema.ts` (`.int().min(1)`);
   - `src/tools/prepend/schema.ts` (`.int().min(1)`);
   - `src/tools/patch_heading/schema.ts` (`.int()`);
@@ -167,17 +167,17 @@ Single project: `src/`, with co-located `*.test.ts`. Docs are in `docs/tools/`.
   - `src/tools/write_note/schema.ts` (`.int()`).
 
   Import the constant from `../_shared.js`. Depends on T002, T007, T008 and T017.
-- [ ] T022 [US5] In each of the five tools' `index.test.ts`, assert that the published `outputSchema.properties.bytes_written.description` equals `BYTES_WRITTEN_DESCRIPTION`. Use the same accessor the file already uses for the published schema, or `toJSONSchema` on the output schema if none exists. Depends on T021.
-- [ ] T023 [P] [US5] In `docs/tools/patch_heading.md` (line 180) and `docs/tools/patch_block.md` (line 164), rewrite the `bytes_written` row. It uses the contract §4 sentence, removes the "near-zero … red flag" advice, and adds: "To verify a write, compare `bytes_written` with the size change you intended; 0 and negative values are normal for same-size and shrinking edits." Update the example envelopes (patch_heading line 170, patch_block line 217) to realistic delta values.
-- [ ] T024 [P] [US5] In `docs/tools/append_note.md` (lines 115 and 121) and `docs/tools/prepend.md` (lines 154 and 160), make the leading definition of `bytes_written` the contract §4 sentence, followed by each page's existing separator explanation, which stays true. Add the same verification sentence as T023.
-- [ ] T025 [P] [US5] In `docs/tools/write_note.md`, document `bytes_written` with the contract §4 sentence and the T023 verification sentence:
+- [X] T022 [US5] In each of the five tools' `index.test.ts`, assert that the published `outputSchema.properties.bytes_written.description` equals `BYTES_WRITTEN_DESCRIPTION`. Use the same accessor the file already uses for the published schema, or `toJSONSchema` on the output schema if none exists. Depends on T021.
+- [X] T023 [P] [US5] In `docs/tools/patch_heading.md` (line 180) and `docs/tools/patch_block.md` (line 164), rewrite the `bytes_written` row. It uses the contract §4 sentence, removes the "near-zero … red flag" advice, and adds: "To verify a write, compare `bytes_written` with the size change you intended; 0 and negative values are normal for same-size and shrinking edits." Update the example envelopes (patch_heading line 170, patch_block line 217) to realistic delta values.
+- [X] T024 [P] [US5] In `docs/tools/append_note.md` (lines 115 and 121) and `docs/tools/prepend.md` (lines 154 and 160), make the leading definition of `bytes_written` the contract §4 sentence, followed by each page's existing separator explanation, which stays true. Add the same verification sentence as T023.
+- [X] T025 [P] [US5] In `docs/tools/write_note.md`, document `bytes_written` with the contract §4 sentence and the T023 verification sentence:
   - change "Returns `{ created, path }`" (line 5) to `{ created, path, bytes_written }`;
   - add a row to the output table (around line 134);
   - change "exactly `{ created, path }`" (line 137) to the three keys;
   - update the example results (lines 129, 184, 201 and 216);
   - add a row to the error table for the pre-write `stat` failure: `FS_WRITE_FAILED`, `syscall: "stat"`, nothing written.
-- [ ] T026 [P] [US5] In `docs/tools/index.md`, add `bytes_written` to the write_note entry (line 41) and leave append_note's envelope (line 5) as it is.
-- [ ] T027 [US5] Run `npm run baseline:write`, then `git diff src/tools/_register-baseline.json`. Confirm that only `outputSchemaFingerprint` changed, and only for `append_note`, `patch_block`, `patch_heading`, `prepend` and `write_note` (contract §6, quickstart §2). Depends on T021.
+- [X] T026 [P] [US5] In `docs/tools/index.md`, add `bytes_written` to the write_note entry (line 41) and leave append_note's envelope (line 5) as it is.
+- [X] T027 [US5] Run `npm run baseline:write`, then `git diff src/tools/_register-baseline.json`. Confirm that only `outputSchemaFingerprint` changed, and only for `append_note`, `patch_block`, `patch_heading`, `prepend` and `write_note` (contract §6, quickstart §2). Depends on T021.
 
 **Checkpoint**: the published surface and the docs say one thing.
 
@@ -189,7 +189,7 @@ Single project: `src/`, with co-located `*.test.ts`. Docs are in `docs/tools/`.
 
 **Independent test**: under `[Unreleased]`, `CHANGELOG.md` names patch_heading and patch_block under **Changed** with a migration note, and write_note under **Added**.
 
-- [ ] T028 [P] [US6] In `CHANGELOG.md` `[Unreleased]`:
+- [X] T028 [P] [US6] In `CHANGELOG.md` `[Unreleased]`:
   - add the line `Spec 075-unify-size-reporting (BI-0116).` after the 074 line;
   - under **Changed**, add: "**`bytes_written` means the size change on every single-note text writer** (`append_note`, `prepend`, `patch_heading`, `patch_block`, `write_note`). `patch_heading` and `patch_block` now report the note's size after the edit minus its size before, instead of its total size; the value is 0 for a same-size edit and negative when the note shrinks. *Migration*: a check that compared `bytes_written` with the note's total size should compare it with the intended size change instead, or read the note to get its size. `append_note` and `prepend` are unchanged.";
   - add an **Added** section (if the file has none under `[Unreleased]`, place it before **Changed**, per Keep a Changelog order): "**`write_note` reports `bytes_written`**, with the same meaning, counting a new note's old size as 0. If the existing note's size cannot be read before an overwrite, the call fails with `FS_WRITE_FAILED` before anything is written. Its `details` shape is unchanged; `details.syscall` now reads `\"stat\"` where the old existence probe reported `\"realpath\"`."
@@ -202,15 +202,15 @@ Single project: `src/`, with co-located `*.test.ts`. Docs are in `docs/tools/`.
 
 ## Phase 9: Polish & Cross-Cutting Concerns
 
-- [ ] T029 Run `npm run typecheck`, `npm run lint`, `npm run format:check` and `npm test` (quickstart §1), and fix any failure in the files this feature touched. Depends on T001 to T028.
-- [ ] T030 Post-implement structural verification (CLAUDE.md; plan "Post-implement structural verification"): run `codegraph sync`, then `codegraph_explore "BYTES_WRITTEN_DESCRIPTION executeWriteNote executePatchHeading executePatchBlock writeNoteOutputSchema createServer"`. Confirm all four checks:
+- [X] T029 Run `npm run typecheck`, `npm run lint`, `npm run format:check` and `npm test` (quickstart §1), and fix any failure in the files this feature touched. Depends on T001 to T028.
+- [X] T030 Post-implement structural verification (CLAUDE.md; plan "Post-implement structural verification"): run `codegraph sync`, then `codegraph_explore "BYTES_WRITTEN_DESCRIPTION executeWriteNote executePatchHeading executePatchBlock writeNoteOutputSchema createServer"`. Confirm all four checks:
   - no new error code, and `src/errors.ts` unchanged;
   - `server.ts` unchanged, and no handler imports `createLogger` / `createQueue`;
   - the schema → `_shared.ts` imports run downward only, with no tool→tool import;
   - `BYTES_WRITTEN_DESCRIPTION` and write_note's `stat` path are reachable from `createServer`.
 
   Record the outcome in the PR description's Constitution Compliance section. Depends on T029.
-- [ ] T031 Live end-to-end check, quickstart §3 (optional, recommended). Read `.memory/test-execution-instructions.md` first. Then `npm run build` and run steps 1 to 6 against `TestVault-Obsidian-CLI-MCP` under `Sandbox/075-<run>/`, comparing each `bytes_written` with the measured `(Get-Item).Length` difference. Afterwards, remove the fixtures, confirm `Welcome.md` is untouched, and report the results verbatim. Depends on T029.
+- [X] T031 Live end-to-end check, quickstart §3 (optional, recommended). Read `.memory/test-execution-instructions.md` first. Then `npm run build` and run steps 1 to 6 against `TestVault-Obsidian-CLI-MCP` under `Sandbox/075-<run>/`, comparing each `bytes_written` with the measured `(Get-Item).Length` difference. Afterwards, remove the fixtures, confirm `Welcome.md` is untouched, and report the results verbatim. Depends on T029.
 
 ---
 
@@ -277,4 +277,14 @@ Then:    T002 → T003 → T021 → T022 → T027 → T020 → T029 → T030 →
 - **CodeGraph tasks rule**: the list crosses source modules (`_shared.ts`, five `schema.ts`, three `handler.ts`, `write_note/_handler-fixtures.ts` and `_typed-result-fixtures.ts` through its consumers). Every pair was queried at HEAD `a45d8b8`, and the structural dependencies are recorded above. No path exists that the task graph does not already reflect.
 - **Kernel nodes**: none touched (plan). `server.ts` must stay unchanged.
 - **Do not edit** `src/cli-adapter/**`, `src/errors.ts`, `src/vault-registry/**`, `src/server.ts`, `src/tools/_register.ts`, `src/tools/_note-io.ts`, `src/tools/_fs-errors.ts`, `append_note/handler.ts`, `prepend/handler.ts` or any `index.ts` description (plan, Constraints).
+- **Implementation notes (`/speckit-implement`, 2026-10-31)**:
+  - T001 baseline: typecheck, lint and tests green (159 files, 3478 tests). After the change: 160 files, 3515 tests.
+  - T007/T008 and T021: the patch schemas got their `.describe(BYTES_WRITTEN_DESCRIPTION)` in the same edit that dropped `min(0)`, as the Phase 2 note allows.
+  - T013: prepend already had the 100 → 158 → 58 delta test, and the `post-stat-byte-delta-zero` guard test (`handler.bi047.test.ts`) is unchanged, so only T020's uniform check was added there.
+  - T015 and write_note's T020 check: placed in a new sibling file, `src/tools/write_note/handler.bytes-written.test.ts`, instead of `handler.test.ts`. That keeps `handler.test.ts` under the project's 1000-line split convention (the `handler.file-type.test.ts` precedent). The migrated envelope assertions and test #30 stay in `handler.test.ts`.
+  - T004/T005: the patch_block paragraph-replace test (line 125) and its metadataCache test (line 600) shrink the note, so their `toBeGreaterThan(0)` became the exact delta (−5 and −3). `patch_block/index.test.ts` uses the same shrinking fixture, so its assertion became −5 (T011). The patch_heading `toBeGreaterThan(0)` assertions are all `append` edits that grow the note, so they stay.
+  - T022: the published `outputSchema` is read through `toSdkOutputSchema(...)["~standard"].jsonSchema.output({ target: "draft-2020-12" })`, the same path `registerTool` publishes; no index test had an accessor before.
+  - T029 `format:check`: on this Windows checkout it reports most of the repository, because the files are CRLF in the working tree and the config says `endOfLine: "lf"`. It is not clean at HEAD either. Measured with CRLF ignored, every file this change made dirty was formatted with Prettier; files already dirty at HEAD were not reformatted (surgical-change rule).
+  - T030: `codegraph sync` was run. `src/errors.ts`, `src/server.ts`, `src/cli-adapter/**`, `src/vault-registry/**`, `_register.ts`, `_note-io.ts`, `_fs-errors.ts`, the append_note and prepend handlers and every `index.ts` are unchanged. The five `schema.ts` files import `BYTES_WRITTEN_DESCRIPTION` from `../_shared.js` (downward; no tool→tool edge). `createServer → create*Tool → execute*` reaches every changed handler, and write_note's `stat` path sits in `executeWriteNote`. No new error code: the stat failure goes through `mapFsError` → `FS_WRITE_FAILED`.
+  - T031 live check (TestVault-Obsidian-CLI-MCP, `Sandbox/075-r223126/`, built server over stdio): 12/12 steps passed, each `bytes_written` equal to the measured `(after − before)` file size. The values were: write_note create 29, append_note 13, prepend 15, patch_heading append 5 / same-size replace 0 / clear −15, patch_block longer 9 / same size 0 / shorter −18, write_note overwrite −51 (`created: false`). The fixtures were removed and `Welcome.md` is unchanged (hash verified).
 - `.docs-as-code/` is updated later by `/speckit-docs-as-code <n>` after review, not in this task list (CLAUDE.md, PR lifecycle). That pass also records the D8 ADR and handles the gitignored architecture-note follow-up (plan, Follow-ups).

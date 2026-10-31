@@ -1,4 +1,4 @@
-// Original — no upstream. Co-located tests for the tool aggregator's shared utilities (asToolError, B64_PAYLOAD_DECODE_EXPR, composeEvalCode). Post-010: wrap-branch cases deleted alongside the helper itself (FR-005); the no-op path is now the only path. BI-034: adds tests for B64_PAYLOAD_DECODE_EXPR and composeEvalCode — the shared UTF-8-safe decoder snippet and Node-side base64 compose helper that fix the seven-tool atob+base64 silent-non-ASCII-lookup defect. 068 (C3): the BI-067 draft-07 parity-normaliser tests are deleted with toMcpInputSchema; the published-schema checks live in _register.test.ts. 072: closedVaultNote wording.
+// Original — no upstream. Co-located tests for the tool aggregator's shared utilities (asToolError, B64_PAYLOAD_DECODE_EXPR, composeEvalCode). Post-010: wrap-branch cases deleted alongside the helper itself (FR-005); the no-op path is now the only path. BI-034: adds tests for B64_PAYLOAD_DECODE_EXPR and composeEvalCode — the shared UTF-8-safe decoder snippet and Node-side base64 compose helper that fix the seven-tool atob+base64 silent-non-ASCII-lookup defect. 068 (C3): the BI-067 draft-07 parity-normaliser tests are deleted with toMcpInputSchema; the published-schema checks live in _register.test.ts. 072: closedVaultNote wording. 075: BYTES_WRITTEN_DESCRIPTION text.
 import { runInNewContext } from "node:vm";
 
 import { test, expect } from "vitest";
@@ -6,6 +6,7 @@ import { test, expect } from "vitest";
 import {
   asToolError,
   B64_PAYLOAD_DECODE_EXPR,
+  BYTES_WRITTEN_DESCRIPTION,
   closedVaultNote,
   composeEvalCode,
 } from "./_shared.js";
@@ -91,4 +92,11 @@ test("closedVaultNote states closed-vault recovery and vault unavailable for the
   expect(note).not.toContain("registered but not open");
   expect(note).not.toContain("Vault not found");
   expect(note).not.toContain("VAULT_NOT_FOUND");
+});
+
+// Spec 075 contract §4: the one published meaning of bytes_written, verbatim.
+test("BYTES_WRITTEN_DESCRIPTION is the contract §4 text", () => {
+  expect(BYTES_WRITTEN_DESCRIPTION).toBe(
+    "Change in the note's size in bytes caused by this write: its size after the write minus its size before, counting a note that did not exist as 0. Zero when the size did not change; negative when the note shrank.",
+  );
 });

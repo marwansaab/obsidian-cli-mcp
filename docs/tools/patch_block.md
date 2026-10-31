@@ -161,7 +161,7 @@ interface PatchBlockOutput {
 | `vault` | Vault display name (resolved from input or focused-vault basePath reverse-lookup). |
 | `block_id` | The supplied `block_id`, echoed verbatim (bare, no leading caret). |
 | `block_shape` | Which surgery mechanic was applied — `paragraph`, `list-item`, or `separately-placed`. The on-heading shapes never appear in the success envelope (they short-circuit to `BLOCK_ON_HEADING`). |
-| `bytes_written` | Total bytes written to disk (post-edit file size in UTF-8 bytes). Coarse confirmation signal — a near-zero value when the caller intended a substantial write is a red flag. |
+| `bytes_written` | Change in the note's size in bytes caused by this write: its size after the write minus its size before, counting a note that did not exist as 0. Zero when the size did not change; negative when the note shrank. To verify a write, compare `bytes_written` with the size change you intended; 0 and negative values are normal for same-size and shrinking edits. |
 
 ## Error states
 
@@ -214,7 +214,7 @@ Callers needing stronger guarantees should coordinate externally.
 }
 ```
 
-→ envelope `{ path, vault, block_id, block_shape: "paragraph", bytes_written }`.
+→ envelope `{ path, vault, block_id, block_shape: "paragraph", bytes_written: 6 }` when the new body is 6 bytes longer than the old one (a shorter body gives a negative value).
 
 ### Replace a list-item by block-id
 

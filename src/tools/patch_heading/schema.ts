@@ -1,4 +1,4 @@
-// Original — no upstream. patch_heading input/output schemas per BI-040 / ADR-009 — heading_path locator with `#` separator and 2-segment minimum (FR-002 / FR-004); five INVALID_HEADING_PATH sub-reasons via Zod refinement (FR-018); EMPTY_CONTENT superRefine asymmetric across modes per FR-018a (append/prepend reject empty, replace accepts); target_mode primitive via applyTargetModeRefinement.
+// Original — no upstream. patch_heading input/output schemas per BI-040 / ADR-009 — heading_path locator with `#` separator and 2-segment minimum (FR-002 / FR-004); five INVALID_HEADING_PATH sub-reasons via Zod refinement (FR-018); EMPTY_CONTENT superRefine asymmetric across modes per FR-018a (append/prepend reject empty, replace accepts); target_mode primitive via applyTargetModeRefinement. 075: bytes_written is the size change, may be zero or negative (no min(0)), described by the shared BYTES_WRITTEN_DESCRIPTION.
 import { z } from "zod";
 
 import {
@@ -11,6 +11,7 @@ import {
   TARGET_MODE_PATH_DESCRIPTION,
   targetModeBaseSchema,
 } from "../../target-mode/target-mode.js";
+import { BYTES_WRITTEN_DESCRIPTION } from "../_shared.js";
 
 const safePathField = z
   .string()
@@ -125,7 +126,7 @@ export const patchHeadingOutputSchema = z
     vault: z.string(),
     heading_path: z.string(),
     mode: z.enum(["append", "prepend", "replace"]),
-    bytes_written: z.number().int().min(0),
+    bytes_written: z.number().int().describe(BYTES_WRITTEN_DESCRIPTION),
   });
 
 export type PatchHeadingInput = z.infer<typeof patchHeadingInputSchema>;

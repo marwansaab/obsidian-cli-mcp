@@ -1,4 +1,4 @@
-// Original — no upstream. patch_heading handler per BI-040 / ADR-009 — specific-mode vault-registry resolve OR active-mode focused-file eval → Layer 2 canonical path check → fs.readFile → heading walk → race-check (re-walk + identity compare per FR-019) → mode-dispatched body edit → atomic tmp+rename (FR-020 substrate) → best-effort metadataCache refresh in the written vault (logged on failure) → typed output envelope. Five error states: HEADING_NOT_FOUND, HEADING_RACE, EXTERNAL_EDITOR_CONFLICT (FR-021 EBUSY/EPERM/EACCES classification), PATH_ESCAPES_VAULT, ERR_NO_ACTIVE_FILE; falls through to FS_WRITE_FAILED for generic fs errors.
+// Original — no upstream. patch_heading handler per BI-040 / ADR-009 — specific-mode vault-registry resolve OR active-mode focused-file eval → Layer 2 canonical path check → fs.readFile → heading walk → race-check (re-walk + identity compare per FR-019) → mode-dispatched body edit → atomic tmp+rename (FR-020 substrate) → best-effort metadataCache refresh in the written vault (logged on failure) → typed output envelope. Five error states: HEADING_NOT_FOUND, HEADING_RACE, EXTERNAL_EDITOR_CONFLICT (FR-021 EBUSY/EPERM/EACCES classification), PATH_ESCAPES_VAULT, ERR_NO_ACTIVE_FILE; falls through to FS_WRITE_FAILED for generic fs errors. 075: bytes_written = edited minus original byte length (the size change).
 import { randomUUID } from "node:crypto";
 import * as nodeFs from "node:fs/promises";
 
@@ -229,7 +229,8 @@ export async function executePatchHeading(
   } catch (e) {
     throw mapWriteErr(e);
   }
-  const bytesWritten = Buffer.byteLength(editedContent, "utf8");
+  const bytesWritten =
+    Buffer.byteLength(editedContent, "utf8") - Buffer.byteLength(originalContent, "utf8");
 
   await invalidateMetadataCache(deps, { vault: input.vault, relPath });
 

@@ -122,7 +122,8 @@ describe("US1 happy paths — three success block shapes", () => {
     expect(result.vault).toBe("TestVault");
     expect(result.block_id).toBe("foo");
     expect(result.block_shape).toBe("paragraph");
-    expect(result.bytes_written).toBeGreaterThan(0);
+    // "A simple paragraph." (19 bytes) → "Replaced text." (14 bytes): the note shrinks by 5.
+    expect(result.bytes_written).toBe(-5);
     expect(fs.writes[0]![1]).toBe("intro\n\nReplaced text. ^foo\n\nclosing\n");
   });
 
@@ -509,7 +510,7 @@ describe("US1 success envelope + IO invariants", () => {
     );
   });
 
-  test("bytes_written equals Buffer.byteLength of written content", async () => {
+  test("bytes_written equals byteLength(written) minus byteLength(original) (spec 075)", async () => {
     const fs = fakeFs({ content: "body ^foo\n" });
     const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
     const result = await executePatchBlock(
@@ -522,7 +523,80 @@ describe("US1 success envelope + IO invariants", () => {
       },
       deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
     );
-    expect(result.bytes_written).toBe(Buffer.byteLength(fs.writes[0]![1], "utf8"));
+    expect(result.bytes_written).toBe(
+      Buffer.byteLength(fs.writes[0]![1], "utf8") - Buffer.byteLength("body ^foo\n", "utf8"),
+    );
+    expect(result.bytes_written).toBe(-3);
+  });
+
+  // Spec 075 contract §3 patch_block rows: the size change, which may be 0 or negative.
+  // Expected values come from the fixture's actual bytes before and after the edit (R1).
+  async function blockDelta(
+    original: string,
+    blockId: string,
+    content: string,
+  ): Promise<{ bytesWritten: number; delta: number }> {
+    const fs = fakeFs({ content: original });
+    const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
+    const result = await executePatchBlock(
+      { target_mode: "specific", vault: "TestVault", path: "n.md", block_id: blockId, content },
+      deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+    );
+    return {
+      bytesWritten: result.bytes_written,
+      delta: Buffer.byteLength(fs.writes[0]![1], "utf8") - Buffer.byteLength(original, "utf8"),
+    };
+  }
+  const PARAGRAPH_NOTE = "intro\n\nhello ^foo\n\nclosing\n";
+
+  test("bytes_written equals size after minus size before (075 uniform check)", async () => {
+    const fs = fakeFs({ content: PARAGRAPH_NOTE });
+    const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
+    const result = await executePatchBlock(
+      { target_mode: "specific", vault: "TestVault", path: "n.md", block_id: "foo", content: "new body" },
+      deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+    );
+    const sizeBefore = Buffer.byteLength(PARAGRAPH_NOTE, "utf8");
+    const sizeAfter = Buffer.byteLength(fs.writes[0]![1], "utf8");
+    expect(result.bytes_written).toBe(sizeAfter - sizeBefore);
+  });
+
+  test("paragraph grow yields the positive size change", async () => {
+    const r = await blockDelta(PARAGRAPH_NOTE, "foo", "hello big");
+    expect(r.bytesWritten).toBe(r.delta);
+    expect(r.bytesWritten).toBe(4);
+  });
+
+  test("paragraph same-size replace yields 0", async () => {
+    const r = await blockDelta(PARAGRAPH_NOTE, "foo", "world");
+    expect(r.bytesWritten).toBe(r.delta);
+    expect(r.bytesWritten).toBe(0);
+  });
+
+  test("paragraph shrink yields a negative size change", async () => {
+    const r = await blockDelta(PARAGRAPH_NOTE, "foo", "hi");
+    expect(r.bytesWritten).toBe(r.delta);
+    expect(r.bytesWritten).toBe(-3);
+  });
+
+  test('paragraph clear ("") yields a negative size change', async () => {
+    const r = await blockDelta(PARAGRAPH_NOTE, "foo", "");
+    expect(r.bytesWritten).toBe(r.delta);
+    expect(r.bytesWritten).toBe(-5);
+  });
+
+  test("separately-placed grow yields the positive size change", async () => {
+    const note = "| a | b |\n| - | - |\n| 1 | 2 |\n^baz\ntrailing\n";
+    const r = await blockDelta(note, "baz", "| a | b |\n| - | - |\n| 1 | 2 |\n| 3 | 4 |");
+    expect(r.bytesWritten).toBe(r.delta);
+    expect(r.bytesWritten).toBe(10);
+  });
+
+  test("multi-byte: replace body abc with 日本 yields 3 (bytes, not characters)", async () => {
+    const r = await blockDelta("abc ^foo\n", "foo", "日本");
+    expect(r.bytesWritten).toBe(r.delta);
+    expect(r.bytesWritten).toBe(3);
+    expect(r.bytesWritten).not.toBe("日本".length - "abc".length);
   });
 
   test("no fs.writeFile call targets a path ending in .bak / .backup / .old (FR-025 no-backup)", async () => {
@@ -597,7 +671,8 @@ describe("US1 success envelope + IO invariants", () => {
       },
       deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
     );
-    expect(result.bytes_written).toBeGreaterThan(0);
+    // "body" → "x": the note shrinks by 3.
+    expect(result.bytes_written).toBe(-3);
     expect(recorded.length).toBe(1);
     expect(recorded[0]!.argv).toContain("vault=TestVault");
     const codeArg = recorded[0]!.argv.find((a) => a.startsWith("code="));

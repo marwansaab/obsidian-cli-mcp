@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the write_note tool registration per ADR-009 — descriptor name, the published description, docs-file presence, inputSchema.required under-promise pattern, and additionalProperties strict-naive client gate (FR-016).
+// Original — no upstream. Tests for the write_note tool registration per ADR-009 — descriptor name, the published description, docs-file presence, inputSchema.required under-promise pattern, and additionalProperties strict-naive client gate (FR-016). 075: the envelope carries bytes_written, and the published output schema describes it with BYTES_WRITTEN_DESCRIPTION.
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,9 +7,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { EVAL_OK, fakeFs, fakeRegistry, VAULT_ROOT } from "./_handler-fixtures.js";
 import { createWriteNoteTool, WRITE_NOTE_DESCRIPTION, WRITE_NOTE_TOOL_NAME } from "./index.js";
+import { writeNoteOutputSchema } from "./schema.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { toSdkOutputSchema } from "../_register.js";
+import { BYTES_WRITTEN_DESCRIPTION } from "../_shared.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -66,7 +69,7 @@ describe("createWriteNoteTool — descriptor (US5 / FR-022 / ADR-005)", () => {
 // (6) handler-closure execution — VALID input runs `handler: async (input, d) => executeWriteNote(...)`
 // (every other case here stops at the descriptor and never reaches the handler). A real fakeFs + a
 // resolvable fakeRegistry let the closure complete a fresh-file write and emit the JSON-wrapped
-// { created, path } envelope, proving the closure line executes.
+// { created, path, bytes_written } envelope, proving the closure line executes.
 describe("createWriteNoteTool — handler closure (valid input)", () => {
   beforeEach(() => __resetInFlightRegistryForTests());
   afterEach(() => __resetInFlightRegistryForTests());
@@ -94,6 +97,17 @@ describe("createWriteNoteTool — handler closure (valid input)", () => {
     expect(JSON.parse((result.content[0] as { text: string }).text)).toEqual({
       created: true,
       path: "Sandbox/note.md",
+      bytes_written: 5,
     });
+  });
+});
+
+describe("createWriteNoteTool — published output schema (spec 075)", () => {
+  it("describes bytes_written with BYTES_WRITTEN_DESCRIPTION", () => {
+    const published = toSdkOutputSchema(writeNoteOutputSchema)["~standard"].jsonSchema.output({
+      target: "draft-2020-12",
+    });
+    const properties = published["properties"] as Record<string, { description?: string }>;
+    expect(properties["bytes_written"]!.description).toBe(BYTES_WRITTEN_DESCRIPTION);
   });
 });

@@ -1,4 +1,4 @@
-// Original — no upstream. append_note tool registration tests per BI-044 / FR-027 / ADR-005 — descriptor name + description + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate.
+// Original — no upstream. append_note tool registration tests per BI-044 / FR-027 / ADR-005 — descriptor name + description + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate. 075: the published output schema describes bytes_written with BYTES_WRITTEN_DESCRIPTION.
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,9 +11,12 @@ import {
   APPEND_NOTE_TOOL_NAME,
   createAppendNoteTool,
 } from "./index.js";
+import { appendNoteOutputSchema } from "./schema.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger, type StubResponse } from "../_handler-test-fixtures.js";
+import { toSdkOutputSchema } from "../_register.js";
+import { BYTES_WRITTEN_DESCRIPTION } from "../_shared.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -29,6 +32,14 @@ function build(): ReturnType<typeof createAppendNoteTool> {
     vaultRegistry: stubRegistry,
   });
 }
+
+describe("createAppendNoteTool — published output schema (spec 075)", () => {
+  it("describes bytes_written with BYTES_WRITTEN_DESCRIPTION", () => {
+    const published = toSdkOutputSchema(appendNoteOutputSchema)["~standard"].jsonSchema.output({ target: "draft-2020-12" });
+    const properties = published["properties"] as Record<string, { description?: string }>;
+    expect(properties["bytes_written"]!.description).toBe(BYTES_WRITTEN_DESCRIPTION);
+  });
+});
 
 describe("createAppendNoteTool — descriptor (BI-044 / ADR-005)", () => {
   it("publishes name = 'append_note'", () => {

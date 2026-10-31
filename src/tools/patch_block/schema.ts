@@ -1,4 +1,4 @@
-// Original — no upstream. patch_block input/output schemas per BI-043 / ADR-009 — bare block_id locator with alphanumeric+hyphen alphabet (FR-004), four INVALID_BLOCK_ID sub-reasons (FR-019), 1000-UTF-16 cap (cohort parity with BI-033 / BI-038 / BI-039 / BI-040), single-mode replace with empty-content acceptance (FR-007), target-mode primitive via applyTargetModeRefinement.
+// Original — no upstream. patch_block input/output schemas per BI-043 / ADR-009 — bare block_id locator with alphanumeric+hyphen alphabet (FR-004), four INVALID_BLOCK_ID sub-reasons (FR-019), 1000-UTF-16 cap (cohort parity with BI-033 / BI-038 / BI-039 / BI-040), single-mode replace with empty-content acceptance (FR-007), target-mode primitive via applyTargetModeRefinement. 075: bytes_written is the size change, may be zero or negative (no min(0)), described by the shared BYTES_WRITTEN_DESCRIPTION.
 import { z } from "zod";
 
 import {
@@ -11,6 +11,7 @@ import {
   TARGET_MODE_PATH_DESCRIPTION,
   targetModeBaseSchema,
 } from "../../target-mode/target-mode.js";
+import { BYTES_WRITTEN_DESCRIPTION } from "../_shared.js";
 
 const safePathField = z
   .string()
@@ -99,7 +100,7 @@ export const patchBlockOutputSchema = z
     vault: z.string(),
     block_id: z.string(),
     block_shape: z.enum(["paragraph", "list-item", "separately-placed"]),
-    bytes_written: z.number().int().min(0),
+    bytes_written: z.number().int().describe(BYTES_WRITTEN_DESCRIPTION),
   });
 
 export type PatchBlockInput = z.infer<typeof patchBlockInputSchema>;

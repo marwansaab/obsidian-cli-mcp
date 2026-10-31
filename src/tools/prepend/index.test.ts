@@ -1,4 +1,4 @@
-// Original — no upstream. prepend tool registration tests per BI-045 / FR-027 / ADR-005 / ADR-010 — descriptor name (mirror-name convention, NOT prepend_note) + description + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate + content maxLength tied to MAX_CONTENT_LENGTH (BI-047 lowered the cap from 24576 to 3072 per empirical upstream-defect bisect).
+// Original — no upstream. prepend tool registration tests per BI-045 / FR-027 / ADR-005 / ADR-010 — descriptor name (mirror-name convention, NOT prepend_note) + description + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate + content maxLength tied to MAX_CONTENT_LENGTH (BI-047 lowered the cap from 24576 to 3072 per empirical upstream-defect bisect). 075: the published output schema describes bytes_written with BYTES_WRITTEN_DESCRIPTION.
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,9 +10,11 @@ import {
   PREPEND_DESCRIPTION,
   PREPEND_TOOL_NAME,
 } from "./index.js";
-import { MAX_CONTENT_LENGTH } from "./schema.js";
+import { MAX_CONTENT_LENGTH, prependOutputSchema } from "./schema.js";
 import { createQueue } from "../../queue.js";
 import { silentLogger } from "../_handler-test-fixtures.js";
+import { toSdkOutputSchema } from "../_register.js";
+import { BYTES_WRITTEN_DESCRIPTION } from "../_shared.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -28,6 +30,14 @@ function build(): ReturnType<typeof createPrependTool> {
     vaultRegistry: stubRegistry,
   });
 }
+
+describe("createPrependTool — published output schema (spec 075)", () => {
+  it("describes bytes_written with BYTES_WRITTEN_DESCRIPTION", () => {
+    const published = toSdkOutputSchema(prependOutputSchema)["~standard"].jsonSchema.output({ target: "draft-2020-12" });
+    const properties = published["properties"] as Record<string, { description?: string }>;
+    expect(properties["bytes_written"]!.description).toBe(BYTES_WRITTEN_DESCRIPTION);
+  });
+});
 
 describe("createPrependTool — descriptor (BI-045 / ADR-005 / ADR-010)", () => {
   it("publishes name = 'prepend' (mirror-name per ADR-010, NOT 'prepend_note')", () => {

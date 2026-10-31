@@ -529,7 +529,7 @@ describe("US1 success envelope + IO invariants", () => {
     );
   });
 
-  test("bytes_written equals Buffer.byteLength of written content", async () => {
+  test("bytes_written equals byteLength(written) minus byteLength(original) (spec 075)", async () => {
     const fs = fakeFs();
     const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
     const result = await executePatchHeading(
@@ -544,7 +544,80 @@ describe("US1 success envelope + IO invariants", () => {
       deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
     );
     const written = fs.writes[0]![1];
-    expect(result.bytes_written).toBe(Buffer.byteLength(written, "utf8"));
+    expect(result.bytes_written).toBe(
+      Buffer.byteLength(written, "utf8") - Buffer.byteLength(SAMPLE_NOTE, "utf8"),
+    );
+    expect(result.bytes_written).toBe(2);
+  });
+
+  // Spec 075 contract §3 patch_heading rows: the size change, which may be 0 or negative.
+  // Expected values come from the fixture's actual bytes before and after the edit (R1).
+  async function patchDelta(
+    original: string,
+    mode: "append" | "prepend" | "replace",
+    content: string,
+  ): Promise<{ bytesWritten: number; delta: number }> {
+    const fs = fakeFs({ content: original });
+    const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
+    const result = await executePatchHeading(
+      { target_mode: "specific", vault: "TestVault", path: "n.md", heading_path: "Top#A", mode, content },
+      deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+    );
+    const written = fs.writes[0]![1];
+    return {
+      bytesWritten: result.bytes_written,
+      delta: Buffer.byteLength(written, "utf8") - Buffer.byteLength(original, "utf8"),
+    };
+  }
+  const SMALL_NOTE = "# Top\n## A\nbody\n## B\n";
+
+  test("bytes_written equals size after minus size before (075 uniform check)", async () => {
+    const fs = fakeFs({ content: SMALL_NOTE });
+    const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
+    const result = await executePatchHeading(
+      { target_mode: "specific", vault: "TestVault", path: "n.md", heading_path: "Top#A", mode: "replace", content: "new body\n" },
+      deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+    );
+    const sizeBefore = Buffer.byteLength(SMALL_NOTE, "utf8");
+    const sizeAfter = Buffer.byteLength(fs.writes[0]![1], "utf8");
+    expect(result.bytes_written).toBe(sizeAfter - sizeBefore);
+  });
+
+  test("append yields the positive size change", async () => {
+    const r = await patchDelta(SMALL_NOTE, "append", "added\n");
+    expect(r.bytesWritten).toBe(r.delta);
+    expect(r.bytesWritten).toBe(6);
+  });
+
+  test("prepend yields the positive size change", async () => {
+    const r = await patchDelta(SMALL_NOTE, "prepend", "lead\n");
+    expect(r.bytesWritten).toBe(r.delta);
+    expect(r.bytesWritten).toBe(5);
+  });
+
+  test("replace with same-size content yields 0", async () => {
+    const r = await patchDelta(SMALL_NOTE, "replace", "xyzw\n");
+    expect(r.bytesWritten).toBe(r.delta);
+    expect(r.bytesWritten).toBe(0);
+  });
+
+  test("replace with shorter content yields a negative size change", async () => {
+    const r = await patchDelta(SMALL_NOTE, "replace", "ab\n");
+    expect(r.bytesWritten).toBe(r.delta);
+    expect(r.bytesWritten).toBe(-2);
+  });
+
+  test('replace with "" (clear the body) yields a negative size change', async () => {
+    const r = await patchDelta(SMALL_NOTE, "replace", "");
+    expect(r.bytesWritten).toBe(r.delta);
+    expect(r.bytesWritten).toBe(-5);
+  });
+
+  test("multi-byte: replace body x with é yields 1 (bytes, not characters)", async () => {
+    const r = await patchDelta("# Top\n## A\nx\n## B\n", "replace", "é\n");
+    expect(r.bytesWritten).toBe(r.delta);
+    expect(r.bytesWritten).toBe(1);
+    expect(r.bytesWritten).not.toBe("é".length - "x".length);
   });
 
   test("no fs.writeFile call targets a path ending in .bak / .backup / .old (FR-024 no-backup)", async () => {

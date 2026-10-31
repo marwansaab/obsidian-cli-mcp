@@ -13,6 +13,12 @@ Spec 073-align-parameter-names (BI-0109).
 
 Spec 074-return-exact-content (BI-0115).
 
+Spec 075-unify-size-reporting (BI-0116).
+
+### Added
+
+- **`write_note` reports `bytes_written`**, with the same meaning, counting a new note's old size as 0. If the existing note's size cannot be read before an overwrite, the call fails with `FS_WRITE_FAILED` before anything is written. Its `details` shape is unchanged; `details.syscall` now reads `"stat"` where the old existence probe reported `"realpath"`.
+
 ### Changed
 
 - **Closed vaults are documented as opened automatically.** `paths`, `tag`, `pattern_search`, `query_base`, `smart_connections_query` and `smart_connections_similar` now say that a registered vault that is not open is opened by the server's automatic retry and the call returns its normal result. Their descriptions and reference pages document the existing post-retry `CLI_REPORTED_ERROR`, whose `details.stdout` starts `Error: Command "…" not found.`, as their vault-unavailable failure: the vault could not be brought up, for example because its command-line integration is disabled. The failure itself is unchanged.
@@ -22,6 +28,7 @@ Spec 074-return-exact-content (BI-0115).
   - `create_base`: `path` → `base_path`, `view` → `view_name`.
 
   Validation errors name the new parameter; error codes, `details` keys and the CLI calls are unchanged. `create_base`'s `INVALID_BASE_PATH` issues now report `field: "base_path"`. The convention is recorded in ADR-NNN, "Shared parameter names within a tool family" (number allocated at the next vault sync).
+- **`bytes_written` means the size change on every single-note text writer** (`append_note`, `prepend`, `patch_heading`, `patch_block`, `write_note`). `patch_heading` and `patch_block` now report the note's size after the edit minus its size before, instead of its total size; the value is 0 for a same-size edit and negative when the note shrinks. *Migration*: a check that compared `bytes_written` with the note's total size should compare it with the intended size change instead, or read the note to get its size. `append_note` and `prepend` are unchanged.
 
 ### Deprecated
 

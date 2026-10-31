@@ -58,6 +58,18 @@ describe("US1 happy paths — specific + path locator", () => {
     });
   });
 
+  test("bytes_written equals size after minus size before (075 uniform check)", async () => {
+    const sizeBefore = 100;
+    const sizeAfter = 158;
+    const fs = fakeFs({ sizes: [sizeBefore, sizeAfter] });
+    const { spawnFn } = makeQueuedSpawn([PREPEND_OK]);
+    const result = await executePrepend(
+      { target_mode: "specific", vault: "TestVault", path: "n.md", content: "lead", inline: false },
+      deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+    );
+    expect(result.bytes_written).toBe(sizeAfter - sizeBefore);
+  });
+
   test("specific+path: pre/post stat brackets the prepend call (two stat calls)", async () => {
     const fs = fakeFs({ sizes: [10, 20] });
     const { spawnFn } = makeQueuedSpawn([PREPEND_OK]);

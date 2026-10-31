@@ -1,4 +1,4 @@
-// Original — no upstream. patch_block tool registration tests per BI-043 / FR-022 / ADR-005 — descriptor name + description + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate.
+// Original — no upstream. patch_block tool registration tests per BI-043 / FR-022 / ADR-005 — descriptor name + description + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate. 075: bytes_written is the size change, and the published output schema describes it with BYTES_WRITTEN_DESCRIPTION.
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,9 +11,12 @@ import {
   PATCH_BLOCK_DESCRIPTION,
   PATCH_BLOCK_TOOL_NAME,
 } from "./index.js";
+import { patchBlockOutputSchema } from "./schema.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { toSdkOutputSchema } from "../_register.js";
+import { BYTES_WRITTEN_DESCRIPTION } from "../_shared.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -99,7 +102,16 @@ describe("createPatchBlockTool — handler closure (registered boundary)", () =>
     expect(payload.vault).toBe("TestVault");
     expect(payload.block_id).toBe("foo");
     expect(payload.block_shape).toBe("paragraph");
-    expect(payload.bytes_written).toBeGreaterThan(0);
+    // Spec 075: the size change; "A simple paragraph." → "Replaced text." shrinks the note by 5.
+    expect(payload.bytes_written).toBe(-5);
+  });
+});
+
+describe("createPatchBlockTool — published output schema (spec 075)", () => {
+  it("describes bytes_written with BYTES_WRITTEN_DESCRIPTION", () => {
+    const published = toSdkOutputSchema(patchBlockOutputSchema)["~standard"].jsonSchema.output({ target: "draft-2020-12" });
+    const properties = published["properties"] as Record<string, { description?: string }>;
+    expect(properties["bytes_written"]!.description).toBe(BYTES_WRITTEN_DESCRIPTION);
   });
 });
 

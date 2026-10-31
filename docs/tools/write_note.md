@@ -2,7 +2,7 @@
 
 ## Overview
 
-Create a new note in an Obsidian vault, or replace an existing one when `overwrite: true`. Returns `{ created, path }`. Two target modes: **specific** (caller names the vault + a locator) and **active** (rewrites the currently-focused note).
+Create a new note in an Obsidian vault, or replace an existing one when `overwrite: true`. Returns `{ created, path, bytes_written }`. Two target modes: **specific** (caller names the vault + a locator) and **active** (rewrites the currently-focused note).
 
 Writes go directly to the vault filesystem via Node `fs`. The Obsidian CLI is consulted only for small control-plane operations (vault-name → path resolution, post-write `metadataCache` invalidation, optional editor open, focused-file resolution in active mode); user content never crosses the CLI argv pipe. **No wrapper-imposed content size cap.**
 
@@ -126,15 +126,16 @@ The `open` parameter is preserved but is now implemented via a post-write `openL
 ### Success envelope
 
 ```json
-{ "created": true, "path": "Inbox/Idea.md" }
+{ "created": true, "path": "Inbox/Idea.md", "bytes_written": 13 }
 ```
 
 | Field | Type | Description |
 |---|---|---|
 | `created` | boolean | `true` if the write created a fresh file; `false` if it replaced an existing file. |
 | `path` | string | The vault-relative path written (echoes the input `file` or `path` verbatim — no auto-rename rewriting). |
+| `bytes_written` | integer | Change in the note's size in bytes caused by this write: its size after the write minus its size before, counting a note that did not exist as 0. Zero when the size did not change; negative when the note shrank. A new note reports its full size in bytes (UTF-8, so `"é"` is 2). To verify a write, compare `bytes_written` with the size change you intended; 0 and negative values are normal for same-size and shrinking edits. |
 
-The schema is strict: `{ created, path }` exactly, no additional keys.
+The schema is strict: `{ created, path, bytes_written }` exactly, no additional keys.
 
 ### Errors
 
@@ -148,6 +149,7 @@ Every failure surfaces as an `UpstreamError` instance.
 | `FILE_EXISTS` | Specific mode, `overwrite: false`, target path already occupied. | Retry with `overwrite: true` if you want create-or-replace, or pick a different path. `details: { errno: "EEXIST", path, vault }`. |
 | `PATH_ESCAPES_VAULT` | Runtime canonical check: input is structurally safe but resolves outside vault root via a symlink. | Do NOT retry (security gate). `details.vault` and `details.attemptedPath` for diagnostic. Fix the path or the symlink target. |
 | `FS_WRITE_FAILED` | Generic fs failure: ENOSPC (disk full), EACCES / EPERM (permissions), EROFS (read-only filesystem), EIO, etc. | `details.errno` carries the OS errno; `details.syscall` and `details.path` for diagnostic. Agent may retry on transient errors; user action needed for permission/disk. |
+| `FS_WRITE_FAILED` (`details.syscall: "stat"`) | `overwrite: true` and the existing note's size cannot be read before the write (any error except "file not found"), so `bytes_written` cannot be measured. Raised before anything is written. | Nothing was written. `details: { errno, syscall: "stat", path }`. Fix the cause (usually permissions) and retry. |
 | `CLI_BINARY_NOT_FOUND` | First write triggers the lazy vault-registry probe; the `obsidian` binary is not on `PATH`. | Operator install / `PATH` fix, or set `OBSIDIAN_BIN`. |
 | `CLI_REPORTED_ERROR` | First write triggers the lazy vault-registry probe; CLI ran but Obsidian not running (probe couldn't connect to IPC). | Ask the user to open Obsidian and retry. The cache stays unset; the next call retries the probe. |
 | `CLI_TIMEOUT` | Vault-registry probe exceeded the 10s typed-tool bound. Rare in practice (probe is ~150 ms). | Operator-side: investigate Obsidian responsiveness. The post-write `metadataCache` refresh eval-timeout case does NOT surface this code — it is logged as `bridge.metadata_refresh_failed` (`reason: "cli-error"`) and the call still succeeds (the write itself succeeded). |
@@ -181,7 +183,7 @@ Writes bypass the upstream Obsidian CLI argv-IPC defect that crashes Obsidian fo
 }
 ```
 
-Returns `{ "created": true, "path": "Inbox/Idea.md" }`. If `Inbox/Idea.md` already exists → `FILE_EXISTS`.
+Returns `{ "created": true, "path": "Inbox/Idea.md", "bytes_written": 13 }`. If `Inbox/Idea.md` already exists → `FILE_EXISTS`.
 
 ### (ii) Specific mode — overwrite
 
@@ -198,7 +200,7 @@ Returns `{ "created": true, "path": "Inbox/Idea.md" }`. If `Inbox/Idea.md` alrea
 }
 ```
 
-Atomically replaces (or creates if absent) via temp + rename. Returns `{ "created": false, "path": "Inbox/Idea.md" }` if the file existed before; `{ "created": true, "path": "Inbox/Idea.md" }` if it did not.
+Atomically replaces (or creates if absent) via temp + rename. Returns `{ "created": false, "path": "Inbox/Idea.md", "bytes_written": 4 }` if the 13-byte note from example (i) existed before (17 bytes after, 13 before); `{ "created": true, "path": "Inbox/Idea.md", "bytes_written": 17 }` if it did not.
 
 ### (iii) Active mode — rewrite the focused note
 
@@ -213,7 +215,7 @@ Atomically replaces (or creates if absent) via temp + rename. Returns `{ "create
 }
 ```
 
-Returns `{ "created": false, "path": "<focused-file-vault-relative-path>" }`. If no note is focused → `ERR_NO_ACTIVE_FILE`.
+Returns `{ "created": false, "path": "<focused-file-vault-relative-path>", "bytes_written": -104 }` when the focused note was 120 bytes (16 bytes after, 120 before). If no note is focused → `ERR_NO_ACTIVE_FILE`.
 
 ### (iv) Migration: template-based creation (now via `obsidian_exec`)
 

@@ -182,6 +182,41 @@ describe("US1 happy paths — default-separator across the 4 file-tail shapes", 
   });
 });
 
+// Spec 075 contract §3 append_note rows (meaning unchanged): the size change, separator included.
+describe("bytes_written is the size change (spec 075, unchanged for append_note)", () => {
+  for (const [existing, content, expected] of [
+    ["a\n", "b\n", 2],
+    ["a", "b", 2],
+  ] as const) {
+    test(`${JSON.stringify(existing)} + ${JSON.stringify(content)} → ${expected}`, async () => {
+      const fs = fakeFs({ content: existing });
+      const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
+      const result = await executeAppendNote(
+        { target_mode: "specific", vault: "TestVault", path: "n.md", content, inline: false },
+        deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+      );
+      const written = fs.writes[0]![1];
+      expect(result.bytes_written).toBe(
+        Buffer.byteLength(written, "utf8") - Buffer.byteLength(existing, "utf8"),
+      );
+      expect(result.bytes_written).toBe(expected);
+    });
+  }
+
+  test("bytes_written equals size after minus size before (075 uniform check)", async () => {
+    const before = "# Note\n\nbody\n";
+    const fs = fakeFs({ content: before });
+    const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
+    const result = await executeAppendNote(
+      { target_mode: "specific", vault: "TestVault", path: "n.md", content: "more", inline: false },
+      deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+    );
+    const sizeBefore = Buffer.byteLength(before, "utf8");
+    const sizeAfter = Buffer.byteLength(fs.writes[0]![1], "utf8");
+    expect(result.bytes_written).toBe(sizeAfter - sizeBefore);
+  });
+});
+
 // ─────────────────────────────────────────────────────────────────────
 // US1 happy paths — file-locator pre-flight TSV resolver (FR-002 / FR-003)
 // ─────────────────────────────────────────────────────────────────────
