@@ -1,4 +1,4 @@
-﻿// Original — no upstream. prepend handler tests for spec 076 (empty-note insertion): contract
+// Original — no upstream. prepend handler tests for spec 076 (empty-note insertion): contract
 // §3 examples E1–E8 and E12, the §4 failure rows, the race and ambiguity cases, and the mirror
 // check against append_note (FR-005). Shared fixtures live in _handler-fixtures.ts.
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
@@ -194,7 +194,6 @@ describe("spec 076 §4 — failures", () => {
 
   test("writeAtomic rename fails → FS_WRITE_FAILED extra-trailing-newline, tmp unlinked", async () => {
     const eperm = errnoError("EPERM");
-    const unlinks: string[] = [];
     const { fs, promise } = runPrepend({
       before: "",
       after: "first\n",
@@ -203,9 +202,6 @@ describe("spec 076 §4 — failures", () => {
       over: {
         rename: async () => {
           throw eperm;
-        },
-        unlink: async (p: string) => {
-          unlinks.push(p);
         },
       },
     });
@@ -218,7 +214,7 @@ describe("spec 076 §4 — failures", () => {
       errno: "EPERM",
     });
     expect(err.cause).toBe(eperm);
-    expect(unlinks).toEqual([fs.writes[0]!.path]);
+    expect(fs.unlinks).toEqual([fs.writes[0]!.path]);
   });
 
   test("pre-read ENOENT → upstream NOTE_NOT_FOUND classification, no correction", async () => {

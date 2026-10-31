@@ -172,14 +172,13 @@ export async function executePrepend(
   try {
     before = await fs.readFile(absPath, "utf8");
   } catch (e) {
-    const errno = getErrno(e) ?? "UNKNOWN";
-    if (errno !== "ENOENT") {
-      throw new UpstreamError({
-        code: "FS_WRITE_FAILED",
-        cause: e,
-        details: { errno, syscall: "open", path: relPath },
-        message: `prepend: could not read "${relPath}" before the call (${errno}); nothing was changed. Retry once the file can be read.`,
-      });
+    if (getErrno(e) !== "ENOENT") {
+      throw readFailed(
+        e,
+        relPath,
+        (errno) =>
+          `prepend: could not read "${relPath}" before the call (${errno}); nothing was changed. Retry once the file can be read.`,
+      );
     }
   }
 
@@ -202,7 +201,7 @@ export async function executePrepend(
   }
 
   const postCallSize = (await fs.stat(absPath)).size;
-  let bytesWritten = postCallSize - preCallSize;
+  const bytesWritten = postCallSize - preCallSize;
 
   // BI-047 / FR-003 — post-stat byte-delta guard. Upstream returned exit 0
   // but the on-disk byte count is unchanged (or smaller): the write did not
@@ -224,55 +223,88 @@ export async function executePrepend(
     });
   }
 
-  // Spec 076 — in default mode Obsidian appends one LF after the content. On a note with no
-  // body that LF ends up as an extra trailing line break; take it back. The size pre-filter
-  // skips the read-back for inline calls and for any size change that cannot be content + LF.
-  if (before !== null && bytesWritten === Buffer.byteLength(input.content, "utf8") + 1) {
-    const extraNewlineError = (e: unknown): UpstreamError => {
-      const errno = getErrno(e);
-      return new UpstreamError({
-        code: "FS_WRITE_FAILED",
-        cause: e,
-        details: {
-          reason: "extra-trailing-newline",
-          path: relPath,
-          vault: vaultDisplayName,
-          ...(errno ? { errno } : {}),
-        },
-        message: `prepend: the content landed in "${relPath}", but the extra trailing line break Obsidian added could not be removed (${errno ?? (e instanceof Error ? e.message : String(e))}); the note ends with one extra line break. Retry once the file is free, or remove the final line break yourself.`,
-      });
-    };
-
-    let after: string;
-    try {
-      after = await fs.readFile(absPath, "utf8");
-    } catch (e) {
-      if (before === "") throw extraNewlineError(e);
-      // A non-empty note may have been properties-only; the content landed either way.
-      const errno = getErrno(e) ?? "UNKNOWN";
-      throw new UpstreamError({
-        code: "FS_WRITE_FAILED",
-        cause: e,
-        details: { errno, syscall: "open", path: relPath },
-        message: `prepend: the content landed in "${relPath}", but the note could not be read back (${errno}) to check whether Obsidian left an extra trailing line break. Do not send the content again; read the note to check its end.`,
-      });
-    }
-
-    if (landedAtEmptyBody(before, input.content, after)) {
-      try {
-        await writeAtomic(fs, absPath, before + input.content, randomUUID);
-      } catch (e) {
-        throw extraNewlineError(e);
-      }
-      await invalidateMetadataCache(deps, { vault: input.vault, relPath });
-      bytesWritten -= 1;
-    }
-  }
+  // Spec 076 — the size pre-filter skips the read-back for inline calls and for any size
+  // change that cannot be content + LF.
+  const removed =
+    before !== null && bytesWritten === Buffer.byteLength(input.content, "utf8") + 1
+      ? await removeAddedLineBreak(input, deps, fs, { absPath, relPath, vaultDisplayName, before })
+      : 0;
 
   return {
     path: relPath,
     vault: vaultDisplayName,
-    bytes_written: bytesWritten,
+    bytes_written: bytesWritten - removed,
     inline: input.inline,
   };
+}
+
+/**
+ * Spec 076 — in default mode Obsidian appends one LF after the content. On a note with no body
+ * (landedAtEmptyBody) that LF ends up as an extra trailing line break: rewrite the note without it
+ * and refresh the metadata cache. Returns the number of bytes removed.
+ */
+async function removeAddedLineBreak(
+  input: PrependInput,
+  deps: ExecuteDeps,
+  fs: ExecuteFs,
+  note: { absPath: string; relPath: string; vaultDisplayName: string | null; before: string },
+): Promise<0 | 1> {
+  const { absPath, relPath, vaultDisplayName, before } = note;
+  let after: string;
+  try {
+    after = await fs.readFile(absPath, "utf8");
+  } catch (e) {
+    if (before === "") throw extraNewlineFailed(e, relPath, vaultDisplayName);
+    // A non-empty note may have been properties-only; the content landed either way.
+    throw readFailed(
+      e,
+      relPath,
+      (errno) =>
+        `prepend: the content landed in "${relPath}", but the note could not be read back (${errno}) to check whether Obsidian left an extra trailing line break. Do not send the content again; read the note to check its end.`,
+    );
+  }
+
+  if (!landedAtEmptyBody(before, input.content, after)) return 0;
+  try {
+    await writeAtomic(fs, absPath, before + input.content, randomUUID);
+  } catch (e) {
+    throw extraNewlineFailed(e, relPath, vaultDisplayName);
+  }
+  await invalidateMetadataCache(deps, { vault: input.vault, relPath });
+  return 1;
+}
+
+/** Spec 076 — a failed read of the note: the cohort's `FS_WRITE_FAILED` shape, no `reason`. */
+function readFailed(
+  e: unknown,
+  relPath: string,
+  message: (errno: string) => string,
+): UpstreamError {
+  const errno = getErrno(e) ?? "UNKNOWN";
+  return new UpstreamError({
+    code: "FS_WRITE_FAILED",
+    cause: e,
+    details: { errno, syscall: "open", path: relPath },
+    message: message(errno),
+  });
+}
+
+/** Spec 076 — the content landed on a note with no body, but the added LF could not be removed. */
+function extraNewlineFailed(
+  e: unknown,
+  relPath: string,
+  vaultDisplayName: string | null,
+): UpstreamError {
+  const errno = getErrno(e);
+  return new UpstreamError({
+    code: "FS_WRITE_FAILED",
+    cause: e,
+    details: {
+      reason: "extra-trailing-newline",
+      path: relPath,
+      vault: vaultDisplayName,
+      ...(errno ? { errno } : {}),
+    },
+    message: `prepend: the content landed in "${relPath}", but the extra trailing line break Obsidian added could not be removed (${errno ?? (e instanceof Error ? e.message : String(e))}); the note ends with one extra line break. Retry once the file is free, or remove the final line break yourself.`,
+  });
 }
