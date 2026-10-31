@@ -22,7 +22,7 @@ Folder relocation is a separate operation: use [`move`](./move.md) (the typed wr
 The tool supports two target modes:
 
 - **specific** — name the vault explicitly and locate the source file by either a wikilink (`file`) or a vault-relative `path`. The deterministic path; the focused file in the editor cannot shift between parse and execution. With `file`, the wrapper first resolves the name with one extra `obsidian file file=<name>` call (so the extension rule below can see the source's type), then forwards the original `file=` to `rename`. A name that cannot be resolved surfaces the resolver's error before anything else.
-- **active** — rename the file currently focused in the Obsidian editor. The wrapper first resolves the focused file with one extra focused-file `eval` call, then renames that resolved path in specific mode (`vault=<focused vault>` + `path=<focused path>`), so a focus change between the two calls cannot redirect the rename. The remaining caveat is the agent's own: the focused file may not be the one the agent had in mind when it decided to call. Agents that need certainty about which file is renamed should use specific mode. No focused file surfaces `ERR_NO_ACTIVE_FILE` before anything else.
+- **active** — rename the file currently focused in the Obsidian editor. The wrapper first resolves the focused file with one extra focused-file `eval` call, then renames that resolved path with `path=<focused path>` and no `vault=`, so the CLI uses the same vault the lookup read and a focus change to another file between the two calls cannot redirect the rename. The remaining caveat is the agent's own: the focused file may not be the one the agent had in mind when it decided to call. Agents that need certainty about which file is renamed should use specific mode. No focused file surfaces `ERR_NO_ACTIVE_FILE` before anything else.
 
 ## Input Schema
 
@@ -215,7 +215,7 @@ Spawns `obsidian vault=MyVault rename path=Drafts/Note.md name=Doc.v1.draft.md`.
 }
 ```
 
-Resolves the focused file with a focused-file `eval` call, then spawns `obsidian vault=<focused vault> rename path=<focused path> name=Today.md` (the extension is the focused file's own — `Today.canvas` if a canvas is focused). Returns `{ "renamed": true, "fromPath": "<focused note path>", "toPath": "<focused folder>/Today.md" }`. If no file is focused, surfaces `ERR_NO_ACTIVE_FILE`.
+Resolves the focused file with a focused-file `eval` call, then spawns `obsidian rename path=<focused path> name=Today.md` (no `vault=`) (the extension is the focused file's own — `Today.canvas` if a canvas is focused). Returns `{ "renamed": true, "fromPath": "<focused note path>", "toPath": "<focused folder>/Today.md" }`. If no file is focused, surfaces `ERR_NO_ACTIVE_FILE`.
 
 ### (iv-b) Specific mode — rename a canvas, keeping its type
 

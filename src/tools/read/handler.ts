@@ -1,4 +1,4 @@
-// Original — no upstream. read handler: thin transformer routing parsed input through invokeCli (BI-028) — argv assembly, queue, bounds owned by the typed-tool facade. Spec 070: resolves the target first and rejects file types other than notes, canvases and bases (UNSUPPORTED_FILE_TYPE) before the read; `file` mode forwards the original `file=`, active mode the resolved `path=` in specific mode.
+// Original — no upstream. read handler: thin transformer routing parsed input through invokeCli (BI-028) — argv assembly, queue, bounds owned by the typed-tool facade. Spec 070: resolves the target first and rejects file types other than notes, canvases and bases (UNSUPPORTED_FILE_TYPE) before the read; `file` mode forwards the original `file=`, active mode the resolved `path=` with no `vault=` (the CLI's current vault, as the focused-file eval).
 import { invokeCli, type ResolveBinaryFn, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { assertSupportedFileType, type SupportDeclaration } from "../../file-type/file-type.js";
 import { resolveFileTarget } from "../_file-target.js";
@@ -6,12 +6,10 @@ import { resolveFileTarget } from "../_file-target.js";
 import type { ReadNoteInput } from "./schema.js";
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
-import type { VaultRegistry } from "../../vault-registry/registry.js";
 
 export interface ExecuteDeps extends CallScope {
   logger: Logger;
   queue: Queue;
-  vaultRegistry: VaultRegistry;
   spawnFn?: SpawnLike;
   env?: NodeJS.ProcessEnv;
   /** Test seam — passes through to invokeCli → dispatchCli. */

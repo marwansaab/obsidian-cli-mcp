@@ -70,7 +70,7 @@ Return the flat ordered list of every heading in a Markdown note as `{ count, he
 
 - **`path`** — the type check runs on the path as given, before any CLI call. A `path` naming a canvas, base, attachment or other file is rejected whether or not the file exists.
 - **`file`** — the wrapper first resolves the name with one extra `obsidian file file=<name>` call, checks the type of the resolved path, then forwards the original `file=` to `outline`. A name that cannot be resolved surfaces the resolver's error before any type check.
-- **active mode** — the wrapper first resolves the focused file with one extra focused-file `eval` call, checks its type, then outlines that resolved path in specific mode (`vault=<focused vault>` + `path=<focused path>`). A focus change between the two calls cannot redirect the outline to another file. No focused file surfaces `ERR_NO_ACTIVE_FILE` before any type check.
+- **active mode** — the wrapper first resolves the focused file with one extra focused-file `eval` call, checks its type, then outlines that resolved path with `path=<focused path>` and no `vault=`, so the CLI uses the same vault the lookup read. A focus change to another file between the two calls cannot redirect the outline. No focused file surfaces `ERR_NO_ACTIVE_FILE` before any type check.
 
 A rejected call makes no `outline` call and carries `details: { code: "UNSUPPORTED_FILE_TYPE", reason: "unsupported-type", path, extension, supported: ["note"] }`.
 
@@ -148,7 +148,7 @@ Spawns `obsidian vault=Demo outline format=json path=Projects/Roadmap.md`. Examp
 }
 ```
 
-Resolves the focused file with a focused-file `eval` call, checks that it is a note, then spawns `obsidian vault=<focused vault> outline format=json path=<focused path>`. Because the outline addresses the resolved path, a focus change after the lookup cannot redirect it. The response carries no `vault` echo.
+Resolves the focused file with a focused-file `eval` call, checks that it is a note, then spawns `obsidian outline format=json path=<focused path>` (no `vault=`: the CLI uses the vault the lookup read). Because the outline addresses the resolved path, a focus change to another file after the lookup cannot redirect it. The response carries no `vault` echo.
 
 ### Example 3 — Count-only, multi-heading file
 

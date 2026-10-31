@@ -1,4 +1,4 @@
-// Original — no upstream. move handler: thin transformer routing parsed input through invokeCli — resolves the source (spec 070 research D3), then resolveTo (trailing-`/` folder form keeps the basename; otherwise the type-preservation rule on the final segment of `to`: keep the source's extension, reject a change to another recognised type), forwarding the original `file=` / `path=` or, in active mode, the resolved `path=` in specific mode; parseMoveResponse three-shape contract.
+// Original — no upstream. move handler: thin transformer routing parsed input through invokeCli — resolves the source (spec 070 research D3), then resolveTo (trailing-`/` folder form keeps the basename; otherwise the type-preservation rule on the final segment of `to`: keep the source's extension, reject a change to another recognised type), forwarding the original `file=` / `path=` or, in active mode, the resolved `path=` with no `vault=` (the CLI's current vault, as the focused-file eval); parseMoveResponse three-shape contract.
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import { resolveDestinationName, type SupportDeclaration } from "../../file-type/file-type.js";
@@ -7,7 +7,6 @@ import { resolveFileTarget } from "../_file-target.js";
 import type { MoveInput, MoveOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
-import type { VaultRegistry } from "../../vault-registry/registry.js";
 
 /** move works on every file and keeps its type (spec 070 FR-003). */
 export const MOVE_SUPPORTED = "any" as const satisfies SupportDeclaration;
@@ -15,7 +14,6 @@ export const MOVE_SUPPORTED = "any" as const satisfies SupportDeclaration;
 export interface ExecuteDeps extends CallScope {
   logger: Logger;
   queue: Queue;
-  vaultRegistry: VaultRegistry;
   spawnFn?: SpawnLike;
   env?: NodeJS.ProcessEnv;
 }

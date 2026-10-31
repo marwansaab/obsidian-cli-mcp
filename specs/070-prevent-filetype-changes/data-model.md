@@ -28,7 +28,7 @@ Per tool (spec Key Entities: Supported-type declaration): a `readonly FileCatego
 
 ## ResolvedTarget
 
-What the check runs on (research D3): `{ relPath: string, vault?: string }` — the vault-relative path of the file the tool will act on, and (for the CLI-pass-through tools in `active` mode) the resolved vault display name used to forward `path=`. In `file` mode those tools forward the original `file=` locator after the check; only `active` mode forwards the resolved `path=`.
+What the check runs on (research D3): `{ relPath: string, vault: string | undefined, locator }` — the vault-relative path of the file the tool will act on, the `vault=` to forward (the input vault in specific mode; none in `active` mode, so the CLI uses the vault the focused-file eval read — research D3 amendment, T0 P6), and the locator to forward. In `file` mode those tools forward the original `file=` locator after the check; only `active` mode forwards the resolved `path=`.
 
 | Locator | How `relPath` is obtained | Extra CLI calls |
 |---------|---------------------------|-----------------|
@@ -37,7 +37,7 @@ What the check runs on (research D3): `{ relPath: string, vault?: string }` — 
 | `file` (write_note) | the canonicalised write path (short form appends `.md`); a recognised non-note trailing extension on the `file` string is rejected first | 0 |
 | `file` (read, rename, move, outline) | `resolveFileByTsv` (new call) | 1 |
 | `active` (write tools) | `resolveActiveFocusedFile` / `resolveActiveLocatorWithVault` — already performed today | 0 |
-| `active` (read, rename, move, outline) | `resolveActiveFocusedFile` (new call) + `resolveVaultDisplayName` | 1 |
+| `active` (read, rename, move, outline) | `resolveActiveFocusedFile` (new call); no vault registry lookup | 1 |
 
 Resolution failures (not found, no active file) surface their existing errors before any type check (research D9).
 

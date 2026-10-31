@@ -25,4 +25,4 @@
 
 ## Kernel-node touch (as planned)
 
-`createServer` body only: four registration lines gain the `vaultRegistry` argument. `createLogger`, `createQueue`: untouched. `UpstreamError`: one new importer (`src/file-type/file-type.ts`), used as a value; no new class, no new code.
+`createServer` body only: four registration lines gain the `vaultRegistry` argument. **Amended 2026-10-31:** the PR #97 review ruling (Q1 = B, research D3 amendment) removed that argument again, so `createServer` now matches `main` and no kernel node is touched. `createLogger`, `createQueue`: untouched. `UpstreamError`: one new importer (`src/file-type/file-type.ts`), used as a value; no new class, no new code.

@@ -12,13 +12,12 @@ import {
   makeQueuedSpawn,
   makeStubSpawn,
   silentLogger,
-  stubVaultRegistry,
 } from "../_handler-test-fixtures.js";
 
 import type { SpawnLike } from "../../cli-adapter/_dispatch.js";
 
 function deps(spawnFn: SpawnLike) {
-  return { logger: silentLogger(), queue: createQueue(), vaultRegistry: stubVaultRegistry(), spawnFn, env: {} };
+  return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
 }
 
 function pendingRejection<T>(p: Promise<T>): Promise<UpstreamError> {
@@ -58,7 +57,7 @@ test("US1 boundary empty stdout returns { content: '' } (Story 1 AC#2)", async (
   const { spawnFn } = makeQueuedSpawn([fileTsvResponse("Empty.md"), { stdout: "", exitCode: 0 }]);
   const result = await executeReadNote(
     { target_mode: "specific", vault: "MyVault", file: "Empty" },
-    { logger: silentLogger(), queue: createQueue(), vaultRegistry: stubVaultRegistry(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
   );
   expect(result).toEqual({ content: "" });
 });
@@ -70,7 +69,7 @@ test("US2 specific+path invokes adapter and returns content (Story 2 AC#1)", asy
   const { spawnFn, recorded } = makeStubSpawn({ stdout: stdoutText, exitCode: 0 });
   const result = await executeReadNote(
     { target_mode: "specific", vault: "MyVault", path: "Templates/Recipe.md" },
-    { logger: silentLogger(), queue: createQueue(), vaultRegistry: stubVaultRegistry(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
   );
   expect(result).toEqual({ content: stdoutText });
   expect(recorded[0]!.argv).toEqual(["vault=MyVault", "read", "path=Templates/Recipe.md"]);
@@ -78,7 +77,7 @@ test("US2 specific+path invokes adapter and returns content (Story 2 AC#1)", asy
 
 // --- US3: active mode (happy + ERR_NO_ACTIVE_FILE) ---
 
-test("US3 active resolves the focused file and reads it by path in specific mode (Story 3 AC#1, spec 070 FR-009)", async () => {
+test("US3 active resolves the focused file and reads it by path with no vault= (Story 3 AC#1, spec 070 FR-009)", async () => {
   const stdoutText = "<active body>";
   const { spawnFn, recorded } = makeQueuedSpawn([
     focusedFileResponse("Daily/Today.md"),
@@ -86,7 +85,7 @@ test("US3 active resolves the focused file and reads it by path in specific mode
   ]);
   const result = await executeReadNote({ target_mode: "active" }, deps(spawnFn));
   expect(result).toEqual({ content: stdoutText });
-  expect(recorded[1]!.argv).toEqual(["vault=MyVault", "read", "path=Daily/Today.md"]);
+  expect(recorded[1]!.argv).toEqual(["read", "path=Daily/Today.md"]);
 });
 
 test("US3 active propagates ERR_NO_ACTIVE_FILE from the adapter (Story 3 AC#3)", async () => {
@@ -94,7 +93,7 @@ test("US3 active propagates ERR_NO_ACTIVE_FILE from the adapter (Story 3 AC#3)",
   const err = (await captureRejection(
     executeReadNote(
       { target_mode: "active" },
-      { logger: silentLogger(), queue: createQueue(), vaultRegistry: stubVaultRegistry(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
     ),
   )) as UpstreamError;
   expect(err).toBeInstanceOf(UpstreamError);
@@ -109,7 +108,7 @@ test("US5 propagates CLI_NON_ZERO_EXIT (Story 5 AC#1)", async () => {
   const err = (await captureRejection(
     executeReadNote(
       { target_mode: "specific", vault: "MyVault", file: "Missing" },
-      { logger: silentLogger(), queue: createQueue(), vaultRegistry: stubVaultRegistry(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
     ),
   )) as UpstreamError;
   expect(err.code).toBe("CLI_NON_ZERO_EXIT");
@@ -121,7 +120,7 @@ test("US5 propagates CLI_REPORTED_ERROR for in-band Error: prefix (Story 5 AC#2)
   const err = (await captureRejection(
     executeReadNote(
       { target_mode: "specific", vault: "MyVault", file: "Missing" },
-      { logger: silentLogger(), queue: createQueue(), vaultRegistry: stubVaultRegistry(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
     ),
   )) as UpstreamError;
   expect(err.code).toBe("CLI_REPORTED_ERROR");
@@ -134,7 +133,7 @@ test("US5 propagates CLI_BINARY_NOT_FOUND when spawn raises ENOENT (Story 5 AC#3
   const err = (await captureRejection(
     executeReadNote(
       { target_mode: "specific", vault: "MyVault", file: "Recipe" },
-      { logger: silentLogger(), queue: createQueue(), vaultRegistry: stubVaultRegistry(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
     ),
   )) as UpstreamError;
   expect(err.code).toBe("CLI_BINARY_NOT_FOUND");
@@ -146,7 +145,7 @@ test("US5 re-throws non-UpstreamError verbatim (Story 5 AC#4)", async () => {
   const rejection = await captureRejection(
     executeReadNote(
       { target_mode: "specific", vault: "MyVault", file: "Recipe" },
-      { logger: silentLogger(), queue: createQueue(), vaultRegistry: stubVaultRegistry(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
     ),
   );
   expect(rejection).toBe(synthetic);
@@ -170,7 +169,7 @@ test("typed-tool TIMEOUT: synthetic 11 s hang → CLI_TIMEOUT within ~10.5 s (SC
     const rejected = pendingRejection(
       executeReadNote(
         { target_mode: "active" },
-        { logger: silentLogger(), queue: createQueue(), vaultRegistry: stubVaultRegistry(), spawnFn, env: {}, resolveBinary: stubResolveBinary },
+        { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, resolveBinary: stubResolveBinary },
       ),
     );
     await vi.advanceTimersByTimeAsync(0);
@@ -190,7 +189,7 @@ test("typed-tool CAP: synthetic > 10 MiB → CLI_OUTPUT_TOO_LARGE with partial �
   const err = (await captureRejection(
     executeReadNote(
       { target_mode: "active" },
-      { logger: silentLogger(), queue: createQueue(), vaultRegistry: stubVaultRegistry(), spawnFn, env: {}, resolveBinary: stubResolveBinary },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, resolveBinary: stubResolveBinary },
     ),
   )) as UpstreamError;
   expect(err.code).toBe("CLI_OUTPUT_TOO_LARGE");

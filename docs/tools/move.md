@@ -61,7 +61,7 @@ Same-folder `move` calls (where `to` resolves to a destination whose folder matc
 | `file` | (n/a) | FORBIDDEN | same |
 | `path` | (n/a) | FORBIDDEN | same |
 
-**Source resolution.** With `file`, the wrapper first resolves the name with one extra `obsidian file file=<name>` call (so the destination rule below can see the source's type), then forwards the original `file=` to `move`. In active mode, it first resolves the focused file with one extra focused-file `eval` call, then moves that resolved path in specific mode (`vault=<focused vault>` + `path=<focused path>`), so a focus change between the two calls cannot redirect the move. Resolution failures (a `file` name that does not resolve, `ERR_NO_ACTIVE_FILE`) surface before anything else. `path` calls need no extra call.
+**Source resolution.** With `file`, the wrapper first resolves the name with one extra `obsidian file file=<name>` call (so the destination rule below can see the source's type), then forwards the original `file=` to `move`. In active mode, it first resolves the focused file with one extra focused-file `eval` call, then moves that resolved path with `path=<focused path>` and no `vault=`, so the CLI uses the same vault the lookup read and a focus change to another file between the two calls cannot redirect the move. Resolution failures (a `file` name that does not resolve, `ERR_NO_ACTIVE_FILE`) surface before anything else. `path` calls need no extra call.
 
 **Active mode caveat:** the focused file may not be the one the agent had in mind when it decided to call. Agents that need certainty about which file is moved should use specific mode.
 

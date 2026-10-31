@@ -152,12 +152,8 @@ export function makeStubSpawn(
   return { spawnFn, recorded };
 }
 
-/**
- * A vault registry knowing one vault (`name` at `root`), with the reverse display-name lookup —
- * for the CLI-pass-through tools (read, rename, move, outline) whose active mode forwards the
- * focused vault's display name (spec 070).
- */
-export function stubVaultRegistry(name = "MyVault", root = "/vaults/MyVault"): VaultRegistry {
+/** A vault registry knowing one vault (`name` at `root`), with the reverse display-name lookup. */
+export function stubVaultRegistry(name: string, root: string): VaultRegistry {
   return {
     resolveVaultPath: async () => root,
     resolveVaultDisplayName: (base) => (base === root ? name : null),

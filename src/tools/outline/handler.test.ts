@@ -11,11 +11,10 @@ import {
   focusedFileResponse,
   makeQueuedSpawn,
   silentLogger,
-  stubVaultRegistry,
 } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
-  return { logger: silentLogger(), queue: createQueue(), vaultRegistry: stubVaultRegistry(), spawnFn, env: {} };
+  return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
 }
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -77,8 +76,8 @@ test("active mode multi-level fixture → full headings array", async () => {
     { stdout: upstream, exitCode: 0 },
   ]);
   const result = await executeOutline({ target_mode: "active" }, deps(spawnFn));
-  // Spec 070 (research D3): the focused file is resolved, then outlined by path in specific mode.
-  expect(recorded[1]!.argv).toEqual(["vault=MyVault", "outline", "format=json", "path=Daily/Today.md"]);
+  // Spec 070 (research D3): the focused file is resolved, then outlined by path with no vault=.
+  expect(recorded[1]!.argv).toEqual(["outline", "format=json", "path=Daily/Today.md"]);
   expect(result.count).toBe(2);
   expect(result.headings[0]!.text).toBe("Active Top");
 });
@@ -269,13 +268,13 @@ test("specific mode argv contains `vault=…`", async () => {
 });
 
 // (18) active mode, restated by spec 070 (research D3, FR-009): the outline spawn addresses the
-// resolved focused file by path in the focused vault, in specific mode.
-test("active mode argv carries the focused vault and resolved path (spec 070)", async () => {
+// resolved focused file by path with no vault=, so the CLI uses the vault the eval read.
+test("active mode argv carries the resolved path and no vault= (spec 070)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([focusedFileResponse("x.md"), { stdout: "[]\n", exitCode: 0 }]);
   await executeOutline({ target_mode: "active" }, deps(spawnFn));
   const argv = recorded[1]!.argv;
   expect(argv).toContain("outline");
-  expect(argv).toContain("vault=MyVault");
+  expect(argv.some((a) => a.startsWith("vault="))).toBe(false);
   expect(argv).toContain("path=x.md");
   expect(argv.some((a) => a.startsWith("file="))).toBe(false);
 });

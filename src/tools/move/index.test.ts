@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createMoveTool, MOVE_DESCRIPTION, MOVE_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { makeStubSpawn as makeSuccessSpawn, silentLogger, stubVaultRegistry } from "../_handler-test-fixtures.js";
+import { makeStubSpawn as makeSuccessSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -19,7 +19,7 @@ describe("createMoveTool — descriptor", () => {
   it("publishes name = 'move' and description verbatim (Story 7 AC#1)", () => {
     const tool = createMoveTool({
       logger: silentLogger(),
-      queue: createQueue(), vaultRegistry: stubVaultRegistry(),
+      queue: createQueue(),
       spawnFn: makeStubSpawn(),
     });
     expect(tool.descriptor.name).toBe(MOVE_TOOL_NAME);
@@ -31,7 +31,7 @@ describe("createMoveTool — descriptor", () => {
   it("emits a post-010 inputSchema with no oneOf (Story 7 AC#1/AC#2)", () => {
     const tool = createMoveTool({
       logger: silentLogger(),
-      queue: createQueue(), vaultRegistry: stubVaultRegistry(),
+      queue: createQueue(),
       spawnFn: makeStubSpawn(),
     });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
@@ -42,7 +42,7 @@ describe("createMoveTool — descriptor", () => {
   it("description names 'move' AND surfaces the link-rewriting caveat (Story 7 AC#3, FR-012)", () => {
     const tool = createMoveTool({
       logger: silentLogger(),
-      queue: createQueue(), vaultRegistry: stubVaultRegistry(),
+      queue: createQueue(),
       spawnFn: makeStubSpawn(),
     });
     const desc = tool.descriptor.description;
@@ -63,7 +63,7 @@ describe("createMoveTool — descriptor", () => {
     });
     const tool = createMoveTool({
       logger: silentLogger(),
-      queue: createQueue(), vaultRegistry: stubVaultRegistry(),
+      queue: createQueue(),
       spawnFn,
     });
     const result = await tool.handler({

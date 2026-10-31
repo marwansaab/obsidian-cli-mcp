@@ -6,15 +6,15 @@ The description sentence is generated from the declaration by `describeSupport` 
 
 | Tool | Declared support | Unsupported input → | Description must name | Code change |
 |------|------------------|---------------------|-----------------------|-------------|
-| `rename` | any file; keeps its extension | destination naming a different recognised type → `UNSUPPORTED_FILE_TYPE` / `type-change` | notes, canvases, bases, attachments and other files; extension kept; type change → `obsidian_exec` | yes: D5 rule replaces `appendMdIfMissing`; `file`/`active` resolve and check; `file` forwards the original `file=`, `active` forwards `path=`; deps gain `vaultRegistry` |
-| `move` | any file; keeps its extension | as `rename` | as `rename` | yes: D5 rule replaces source-`.md` guard; `file`/`active` resolve and check; `file` forwards the original `file=`, `active` forwards `path=`; deps gain `vaultRegistry` |
+| `rename` | any file; keeps its extension | destination naming a different recognised type → `UNSUPPORTED_FILE_TYPE` / `type-change` | notes, canvases, bases, attachments and other files; extension kept; type change → `obsidian_exec` | yes: D5 rule replaces `appendMdIfMissing`; `file`/`active` resolve and check; `file` forwards the original `file=`, `active` forwards `path=` with no `vault=` (deps unchanged; research D3 amendment) |
+| `move` | any file; keeps its extension | as `rename` | as `rename` | yes: D5 rule replaces source-`.md` guard; `file`/`active` resolve and check; `file` forwards the original `file=`, `active` forwards `path=` with no `vault=` (deps unchanged; research D3 amendment) |
 | `delete` | any file | — | notes, canvases, bases, attachments and other files | description + docs only |
 | `open_file` | any file Obsidian can display | existing CLI-reported `UNSUPPORTED_FILE_TYPE` (unchanged) | already names them; reworded to the shared sentence | description + docs only |
-| `read` | note, canvas, base | attachment or non-core → `UNSUPPORTED_FILE_TYPE` / `unsupported-type`, alternative `open_file` | notes, canvases, bases; not attachments | yes: type check; `file`/`active` resolve and check; `file` forwards the original `file=`, `active` forwards `path=`; deps gain `vaultRegistry` |
+| `read` | note, canvas, base | attachment or non-core → `UNSUPPORTED_FILE_TYPE` / `unsupported-type`, alternative `open_file` | notes, canvases, bases; not attachments | yes: type check; `file`/`active` resolve and check; `file` forwards the original `file=`, `active` forwards `path=` with no `vault=` (deps unchanged; research D3 amendment) |
 | `write_note` | note | non-note `path`, `file` with a recognised non-note extension, or a non-note active file → `unsupported-type` | notes only | yes: type check on the canonical write path / active `relPath` |
 | `append_note` | note | non-note resolved target → `unsupported-type` | notes only | yes: type check on resolved `relPath` |
 | `prepend` | note | as `append_note` | notes only | yes: as `append_note` |
-| `outline` | note | non-note → `unsupported-type` (replaces the undiscriminated upstream error) | notes only | yes: type check; `file`/`active` resolve and check; `file` forwards the original `file=`, `active` forwards `path=`; deps gain `vaultRegistry` |
+| `outline` | note | non-note → `unsupported-type` (replaces the undiscriminated upstream error) | notes only | yes: type check; `file`/`active` resolve and check; `file` forwards the original `file=`, `active` forwards `path=` with no `vault=` (deps unchanged; research D3 amendment) |
 | `find_and_replace` (single-file scope) | note | existing `VALIDATION_ERROR` / `INVALID_NOTE` / `not-eligible` (unchanged) | notes only | description + docs only |
 | `links` | note | existing `CLI_REPORTED_ERROR` / `NOT_MARKDOWN` (unchanged) | notes only | description + docs only |
 | `backlinks` | note (target) | as `links` | notes only | description + docs only |

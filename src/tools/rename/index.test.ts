@@ -12,7 +12,6 @@ import {
   focusedFileResponse,
   makeQueuedSpawn,
   silentLogger,
-  stubVaultRegistry,
 } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 
@@ -24,7 +23,7 @@ describe("createRenameTool — descriptor", () => {
   it("publishes name = 'rename' and description verbatim", () => {
     const tool = createRenameTool({
       logger: silentLogger(),
-      queue: createQueue(), vaultRegistry: stubVaultRegistry(),
+      queue: createQueue(),
       spawnFn: makeStubSpawn(),
     });
     expect(tool.descriptor.name).toBe(RENAME_TOOL_NAME);
@@ -36,7 +35,7 @@ describe("createRenameTool — descriptor", () => {
   it("emits a post-010 inputSchema with no oneOf (Story 8 AC#2)", () => {
     const tool = createRenameTool({
       logger: silentLogger(),
-      queue: createQueue(), vaultRegistry: stubVaultRegistry(),
+      queue: createQueue(),
       spawnFn: makeStubSpawn(),
     });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
@@ -47,7 +46,7 @@ describe("createRenameTool — descriptor", () => {
   it("description names 'rename' AND surfaces the link-rewriting caveat (Story 8 AC#3, FR-012)", () => {
     const tool = createRenameTool({
       logger: silentLogger(),
-      queue: createQueue(), vaultRegistry: stubVaultRegistry(),
+      queue: createQueue(),
       spawnFn: makeStubSpawn(),
     });
     const desc = tool.descriptor.description;
@@ -63,7 +62,7 @@ describe("createRenameTool — handler integration via registerTool", () => {
   it("malformed input (empty name) surfaces as VALIDATION_ERROR isError envelope", async () => {
     const tool = createRenameTool({
       logger: silentLogger(),
-      queue: createQueue(), vaultRegistry: stubVaultRegistry(),
+      queue: createQueue(),
       spawnFn: makeStubSpawn(),
     });
     const result = (await tool.handler({
@@ -94,7 +93,7 @@ describe("createRenameTool — handler integration via registerTool", () => {
     ]);
     const tool = createRenameTool({
       logger: silentLogger(),
-      queue: createQueue(), vaultRegistry: stubVaultRegistry(),
+      queue: createQueue(),
       spawnFn,
     });
     const result = (await tool.handler({ target_mode: "active", name: "Today" })) as {

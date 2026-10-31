@@ -44,6 +44,16 @@
 
 **Expected**: the set of built-in extensions matches the D1 table (the TestVault has no plugins, so the registry is the core set). Record any difference and update the table in the same change.
 
+## P6 — Does a vault-less `path=` command act in the vault the focused-file eval read? (D3 amendment)
+
+Added 2026-10-31 for the PR #97 review ruling (Q1 = B). Unlike P1–P5, these probes deliberately omit `vault=`.
+
+**Probes**: with no `vault=`, from a working directory outside every vault: `eval app.vault.getName()`, `read path=…/Src.md`, `outline path=…/Src.md format=json`, `read path=…/Missing.md`, `rename path=…/Plan.canvas name=Roadmap.canvas`, `move path=…/Roadmap.canvas to=…/Sub/Roadmap.canvas`. Then, from a working directory inside a different vault's folder: `eval app.vault.getName()` and `read path=…/Src.md`.
+
+**Expected**: every vault-less command resolves the same vault as the vault-less eval, so the action call acts on the file the eval reported.
+
+**Fallback** (owner ruling): keep the display name, but when the reverse lookup returns null, fail with a typed error naming the unresolved vault; never forward the absolute path as `vault=`.
+
 ---
 
 ## Evidence
@@ -122,6 +132,25 @@ eval code=JSON.stringify(Object.keys(app.viewRegistry.typeByExtension))
 ```
 
 The registry has two audio extensions the D1 table lacked: `oga` and `opus`. Fallback taken: both added to the attachment row in research.md D1 and data-model.md `FileCategory`, and to the table in `src/file-type/file-type.ts`. Every other entry matches.
+
+### P6 — vault-less `path=` commands: PASS (no fallback)
+
+Run 2026-10-31, same binary, fixtures under `Sandbox/probe-070-20261031172715/` (`Src.md`, `Plan.canvas`, `Sub/`). No `vault=` on any call below. Seven vaults were open; the focused one was `TestVault-Obsidian-CLI-MCP`.
+
+```text
+[cwd outside every vault]
+eval code=app.vault.getName()                     → => TestVault-Obsidian-CLI-MCP
+read path=…/Src.md                                → # Probe heading 20261031172715 … (the fixture's text)
+outline path=…/Src.md format=json                 → [{"level":1,"heading":"Probe heading 20261031172715","line":1}]
+read path=…/Missing.md                            → Error: File "…/Missing.md" not found.
+rename path=…/Plan.canvas name=Roadmap.canvas     → Renamed: …/Plan.canvas -> …/Roadmap.canvas
+move path=…/Roadmap.canvas to=…/Sub/Roadmap.canvas → Moved: …/Roadmap.canvas -> …/Sub/Roadmap.canvas
+[cwd inside the My-Setup-Vault folder]
+eval code=app.vault.getName()                     → => My-Setup-Vault
+read path=…/Src.md                                → Error: File "…/Src.md" not found.
+```
+
+A vault-less command uses the CLI's current vault: the vault whose folder contains the working directory, otherwise the focused vault. The eval and the action call follow the same rule, so the action always lands in the vault the eval read; the second block shows both moving together. The disk listing after the run held `Src.md` and `Sub/Roadmap.canvas`, as expected. One anomaly, recorded as observed: the first `rename` and `move` attempts replied `Error: File "…/Plan.canvas" not found.` During that window, `vault=TestVault-Obsidian-CLI-MCP file path=…/Plan.canvas` found the file, while vault-less `file path=…/Plan.canvas` did not, and a vault-less `eval` listing the probe folder's files returned `[]`. A minute later every vault-less call saw the fixtures again and the retried `rename` / `move` succeeded as shown. The likeliest explanation is that the CLI's current vault was briefly another open vault: that fits every observation, and in that window the vault-less eval and the vault-less action agreed with each other, which is the property D3 relies on. The action failed loudly rather than touching another file. A re-run on a fresh `Plan.canvas` (`Sandbox/probe-070b-…`, six paired vault-less / `vault=` `file` lookups at roughly four-second intervals) agreed every time, so the anomaly did not reproduce. It is the focused-vault-switch residual the D3 amendment accepts. Cleanup: both probe folders were removed; `Welcome.md` untouched; no `.trash/` entries (nothing trashed).
 
 ### Cleanup
 

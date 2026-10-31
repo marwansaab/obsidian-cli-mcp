@@ -61,7 +61,7 @@ The schema enforces "exactly one of `file` or `path`": providing both is rejecte
 
 - **`path`** — the type check runs on the path as given, before any CLI call. A `path` naming an attachment is rejected whether or not the file exists, so a missing `photo.png` reports `UNSUPPORTED_FILE_TYPE`, not a not-found error.
 - **`file`** — the wrapper first resolves the name with one extra `obsidian file file=<name>` call, checks the type of the resolved path, then forwards the original `file=` to `read`. A name that cannot be resolved surfaces the resolver's error before any type check. The CLI resolves an extensionless name only to a `.md` note, so to read a canvas or base by `file`, include its extension (`"Plan.canvas"`).
-- **active mode** — the wrapper first resolves the focused file with one extra focused-file `eval` call, checks its type, then reads that resolved path in specific mode (`vault=<focused vault> read path=<focused path>`). A focus change between the two calls cannot redirect the read to another file. No focused file surfaces `ERR_NO_ACTIVE_FILE` before any type check.
+- **active mode** — the wrapper first resolves the focused file with one extra focused-file `eval` call, checks its type, then reads that resolved path with no `vault=` (`read path=<focused path>`), so the CLI uses the same vault the lookup read. A focus change to another file between the two calls cannot redirect the read. No focused file surfaces `ERR_NO_ACTIVE_FILE` before any type check.
 
 The rejection for an attachment names [`open_file`](./open_file.md) as the alternative:
 
@@ -139,7 +139,7 @@ Returns the template's body in `content`.
 { "name": "read", "arguments": { "target_mode": "active" } }
 ```
 
-Resolves the focused file first, then spawns `obsidian vault=<focused vault> read path=<focused path>`. Returns the focused file's body, OR raises `ERR_NO_ACTIVE_FILE` if no file is focused, OR `UNSUPPORTED_FILE_TYPE` if the focused file is an attachment or another unsupported type.
+Resolves the focused file first, then spawns `obsidian read path=<focused path>` (no `vault=`: the CLI uses the vault the lookup read). Returns the focused file's body, OR raises `ERR_NO_ACTIVE_FILE` if no file is focused, OR `UNSUPPORTED_FILE_TYPE` if the focused file is an attachment or another unsupported type.
 
 ### Attachment rejected
 
