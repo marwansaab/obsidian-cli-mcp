@@ -104,8 +104,28 @@ callback: the refresh goes through `invokeCli` and so through the same
 single-flight queue, and nesting it would deadlock (T009, PR #87). A write failure
 partway through reports which notes were already written, in
 `FS_WRITE_FAILED` `details`. By default the scan skips fenced code and HTML
-comments. Its scope is the vault, a subfolder, or — since BI-066 (PR #73;
+comments. Its scope is the vault, a folder, or — since BI-066 (PR #73;
 ADR-032, Find And Replace File Scope via Sibling Locators) — a single note.
+
+Since PR #101 (spec 073) the folder scope is `folder` and case handling is
+`case_sensitive`, the names the search tools use. Until then they were
+`subfolder` and `case_insensitive`, the only case switch in the server with
+the opposite polarity. The default is still case-sensitive (`case_sensitive`
+defaults to `true`, as `case_insensitive` defaulted to `false`). Both old
+names are accepted until the next major release, with a
+`deprecated_parameters` notice on either result branch; `case_insensitive` is
+negated onto `case_sensitive`, and its notice carries a polarity `note`
+([architecture](../architecture.md#renamed-parameters-deprecated-aliases-folded-before-validation),
+[ADR-NNN](../decisions/ADR-NNN-shared-parameter-names-within-a-tool-family.md)).
+A `subfolder` scope is honoured exactly like `folder` and never widens to the
+whole vault. The `INVALID_SUBFOLDER` code, its reasons and its
+`details.subfolder` key are unchanged; the path-safety issue moved to
+`["folder"]` ("folder is not structurally safe"), and the `SCOPE_CONFLICT` and
+not-found messages say `folder`. The internal scope predicate followed:
+`effectiveSubfolder` is now `effectiveFolder`. One edge moved in review
+(commit `4a00a58`): a call that sends `subfolder` and `folder` together is
+rejected with the generic alias-conflict issue before the scope matrix runs,
+so `subfolder` + `folder` + `path` no longer reports `SCOPE_CONFLICT`.
 
 Since PR #92 (068 FR-052, FR-054, research R11) the commit loop checks the
 call's `signal` before each note. A cancel stops it between notes: notes
@@ -130,7 +150,7 @@ ADR-043):
 | Tool | Trigger | Step 1: can the client ask? | Step 2: the question |
 | --- | --- | --- | --- |
 | `delete` | `permanent: true` | at handler entry | straight after step 1, before the spawn; names the vault and the note, or "the active note" |
-| `find_and_replace` | `commit: true` with no `file`, `path` or `active_note` (a `subfolder` commit still asks) | at handler entry, **before vault resolution**, which spawns Obsidian | after the commit re-scan, before the first write; names the pattern, occurrence and note counts, the vault and the subfolder |
+| `find_and_replace` | `commit: true` with no `file`, `path` or `active_note` (a `folder` commit still asks) | at handler entry, **before vault resolution**, which spawns Obsidian | after the commit re-scan, before the first write; names the pattern, occurrence and note counts, the vault and the folder |
 
 A client that declares no form elicitation gets `VALIDATION_ERROR` with
 `details.code: "CONFIRMATION_UNAVAILABLE"` and a message naming the safe
