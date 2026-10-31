@@ -129,3 +129,51 @@ CodeGraph and a repository grep show that `src/tools/_eval-vault-closed-detectio
 ## T0 probe (implement time)
 
 See [contracts/t0-probe-plan.md](contracts/t0-probe-plan.md). G1 confirms F2 against the authorised test vault before any deletion. G2 confirms the vault-unavailable shape end to end if the environment allows a vault with the CLI integration off. Otherwise G2 is covered by the mocked handler tests and recorded as not run live.
+
+## Implement log
+
+- **T001 (2026-10-31, HEAD `7b92619`)**: `npm run typecheck`, `npm run lint` and `npm test` (with coverage thresholds) all green before any edit. No pre-existing failure.
+- **T030–T035 (test-first check)**: in each of the six handlers, the new empty-answer test failed before the handler edit, as intended. The old stage made a second (`vaults`) spawn, which overflowed the one-response queue. The Recovers and Unavailable tests passed both before and after the edit, because they describe behaviour the ADR-029 retry already provides.
+- **Deviation: `find_and_replace` short description.** The Story 3 grep (`docs/tools/*.md`, `src/tools/**/index.ts`) also hit `src/tools/find_and_replace/index.ts`, whose description listed `` `VAULT_NOT_FOUND`/`unknown`|`not-open` ``. The plan covered only that tool's reference page (FR-009). SC-004 says zero short descriptions may advertise the sub-state, and the handler emits only `unknown`, so the description now reads `` `VAULT_NOT_FOUND`/`unknown` ``. `find_and_replace/index.test.ts` gained an assertion for it. As a result, **seven** `descriptionFingerprint` values moved in the baseline, not the six in contract §5: the six tools plus `find_and_replace`. Nothing else in the baseline changed apart from `generatedFromBranch`. The stale header comment in `find_and_replace/handler.test.ts` (line 5, "vault not-found + not-open") names no existing test and was left alone (outside scope).
+- **T044 (quickstart gate)**: `npm run typecheck`, `npm run lint` and `npm test` (158 files passed, 1 skipped; 3389 tests passed, 6 skipped; coverage thresholds met) are green. The Story 3 grep hits only `views_base` (`index.ts` and `docs/tools/views_base.md`, its `BASE_NOT_FOUND` / `not-open`). The Story 4 grep (`detectIfClosed|_eval-vault-closed-detection|handler-stage-0` in `src`) finds nothing, and `src/tools/_eval-vault-closed-detection/` no longer exists.
+- **T045 (post-implement structural verification, after `codegraph sync`)**:
+  1. No new error class or code. `src/errors.ts` is unchanged, and each remaining failure in the six handlers is an existing `UpstreamError` shape.
+  2. No handler imports `createLogger` / `createQueue`. `src/server.ts`, `src/tools/_register.ts` and `src/cli-adapter/**` are unchanged.
+  3. The six handlers import only `cli-adapter`, `errors`, `_shared`, `logger` / `queue` types, plus `search/handler` (`pattern_search`), `_active-file` and the vault-registry type (`query_base`), and the file-type type (`query_base`, `smart_connections_similar`), as before. `detectIfClosed` and `parseVaultRegistry` are no longer in the index.
+  4. No production symbol was added, so nothing is orphaned. Each `execute*` handler is still called from its own `index.ts`.
+  5. Baseline: seven `descriptionFingerprint` values moved (see the deviation above). No `inputSchema`, `outputSchema`, title or annotation changed.
+
+## T0 evidence
+
+**Date**: 2026-10-31. **Host**: Windows 11, Obsidian 1.14.5. **Binary**: the `Obsidian.com` shim on `PATH` (the binary the server resolves). **Vault**: the authorised test vault. Two of the owner's vaults stayed open throughout, so the app stayed up. The test vault was open at the start; it was closed for each probe by running `setTimeout(() => window.close(), 300)` through `eval` against it, and confirmed closed by listing the Obsidian window titles. It was reopened at the end, so its open/closed state is restored. No note was written, moved or deleted.
+
+### G1 — PASS
+
+**Step 2** (raw shim, test vault closed): `obsidian vault=<test vault> eval code="1+1"`
+
+- exit code: `0`
+- stdout (72 bytes): `Error: Command "eval" not found. It may require a plugin to be enabled.` followed by a newline
+- stderr: empty (0 bytes)
+
+The answer is the ADR-029 cold-start signature, not empty stdout.
+
+**Step 3** (built server, `npm run build`, driven through a v2 `StdioClientTransport` client; the test vault was closed again before each call):
+
+| Tool | Arguments (vault-relative) | Result | `dispatch.retry` |
+|---|---|---|---|
+| `paths` | `folder: "Fixtures/BI-0048"` | normal: `{"count":4,"paths":["Fixtures/BI-0048/Items.base","Fixtures/BI-0048/alpha.md","Fixtures/BI-0048/beta.md","Fixtures/BI-0048/gamma.md"]}` | yes (`command: "eval"`) |
+| `tag` | `tag: "probe072"` | normal: `{"count":0,"paths":[]}` | yes (`eval`) |
+| `pattern_search` | `pattern: "alpha"`, `folder: "Fixtures/BI-0048"` | normal: `{"count":0,"matches":[]}` | yes (`eval`) |
+| `query_base` | `base_path: "Fixtures/BI-0048/Items.base"`, `view_name: "AllItems"` | normal: three rows (`alpha`, `beta`, `gamma`), `truncated: false` | no (see below) |
+| `smart_connections_query` | `query: "alpha"` | `CLI_REPORTED_ERROR` / `SMART_CONNECTIONS_NOT_INSTALLED` (`stage: "envelope-error"`, "plugin not loaded in vault: …") | yes (`eval`) |
+| `smart_connections_similar` | `path: "Fixtures/BI-0048/alpha.md"` | `CLI_REPORTED_ERROR` / `SMART_CONNECTIONS_NOT_INSTALLED` (`stage: "envelope-error"`) | yes (`eval`) |
+
+Each call returned in about 0.4 s of server time after the one retry. The test vault has no plugins by design, so `SMART_CONNECTIONS_NOT_INSTALLED` is the smart-connections tools' normal result for it. It comes from the plugin-lifecycle stage, which runs only after the vault has answered `eval`, so the vault was brought up. No call returned `not-open`, and no call reached a `vaults verbose` spawn.
+
+**`query_base` note**: a follow-up raw probe of `obsidian vault=<test vault> base:query path=Fixtures/BI-0048/Items.base view=AllItems format=json` against the closed vault returned the three rows as JSON on exit 0 with empty stderr, on the first attempt. On this Obsidian version `base:query` is served without the cold-start answer, so no retry is needed. That is still not the empty-stdout signal the retired stage waited for. The vault-unavailable path for `query_base` (a `Command "base:query" not found.` answer that persists past the retry) is covered by the mocked handler tests.
+
+An earlier pass of step 3 is discarded: its `query_base` call omitted `view_name` and failed input validation before any spawn, which left the vault closed, so the following `smart_connections_query` call ran against a vault the close step had already reopened. The rerun above closed the vault before every call.
+
+### G2 — not run live
+
+The environment offers no way to turn off the CLI integration for the test vault alone without touching the owner's vaults or the app settings. Covered by the handler tests (D6(b)), per the probe plan.

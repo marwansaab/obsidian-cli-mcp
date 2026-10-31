@@ -1,9 +1,13 @@
-// Original — no upstream. Tests for the smart_connections_query handler — single-call argv assembly (with stage-0 closed-vault detection adding a second `vaults verbose` spawn via the shared `_eval-vault-closed-detection` module), base64 payload round-trip (R6 anti-injection), LAST-`=> ` stdout extraction (R14 — plugin-side console.log preamble), three envelope codes with `details.reason` sub-discriminator unflattening per ADR-015, error-precedence chain (FR-017), R3 single-spawn invariant. 26 cases per data-model.md inventory.
+// Original — no upstream. Tests for the smart_connections_query handler — single-call argv assembly, closed-vault recovery and vault-unavailable through the shared ADR-029 cold-start retry (spec 072), base64 payload round-trip (R6 anti-injection), LAST-`=> ` stdout extraction (R14 — plugin-side console.log preamble), three envelope codes with `details.reason` sub-discriminator unflattening per ADR-015, error-precedence chain (FR-017), R3 single-spawn invariant. 26 cases per data-model.md inventory.
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { JS_TEMPLATE } from "./_template.js";
 import { executeSmartConnectionsQuery } from "./handler.js";
-import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
+import {
+  __resetInFlightRegistryForTests,
+  COLD_START_PATTERN,
+  type SpawnLike,
+} from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
 import { captureRejection, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
@@ -21,6 +25,8 @@ function decodePayload(argv: string[]): unknown {
 }
 
 const defaultLimit = 20;
+
+const COLD_START_STDOUT = 'Error: Command "eval" not found. It may require a plugin to be enabled.\n';
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -372,29 +378,64 @@ test("unknown vault: 'Vault not found.' stdout → CLI_REPORTED_ERROR (R5)", asy
   expect(err.message).toBe("Vault not found.");
 });
 
-// (17) Closed-but-registered vault — empty stdout + registered → not-open
-test("closed-but-registered vault: empty stdout + registered → CLI_REPORTED_ERROR(reason:'not-open')", async () => {
-  const vaultsListStdout =
-    "TestVault\tC:\\Vaults\\TestVault\nThe Setup\tD:\\Vaults\\The Setup\n";
-  const { spawnFn, getCount } = makeQueuedSpawn([
-    { stdout: "", exitCode: 0 }, // first call: empty stdout (closed-vault signature)
-    { stdout: vaultsListStdout, exitCode: 0 }, // second call: vaults verbose
+// (17) Closed vault — the shared ADR-029 cold-start retry brings it up (spec 072 US1)
+test("closed vault recovers via cold-start retry: normal result, two eval spawns, no vaults spawn", async () => {
+  const envelope = {
+    ok: true,
+    count: 1,
+    matches: [{ path: "Note.md", headingPath: [], score: 0.5 }],
+  };
+  const { spawnFn, recorded, getCount } = makeQueuedSpawn([
+    { stdout: COLD_START_STDOUT, exitCode: 0 },
+    { stdout: withPreamble(envelope), exitCode: 0 },
+  ]);
+  const result = await executeSmartConnectionsQuery(
+    { query: "x", vault: "Closed", limit: defaultLimit },
+    deps(spawnFn),
+  );
+  expect(result).toEqual({ count: 1, matches: envelope.matches });
+  expect(getCount()).toBe(2);
+  for (const r of recorded) {
+    expect(r.argv).toContain("vault=Closed");
+    expect(r.argv).toContain("eval");
+    expect(r.argv).not.toContain("vaults");
+  }
+});
+
+// (17b) Vault unavailable — cold-start persists past the single retry (spec 072 US2)
+test("vault unavailable: cold-start persists after retry → CLI_REPORTED_ERROR unchanged", async () => {
+  const { spawnFn, recorded, getCount } = makeQueuedSpawn([
+    { stdout: COLD_START_STDOUT, exitCode: 0 },
+    { stdout: COLD_START_STDOUT, exitCode: 0 },
   ]);
   const err = (await captureRejection(
     executeSmartConnectionsQuery(
-      { query: "x", vault: "The Setup", limit: defaultLimit },
+      { query: "x", vault: "Closed", limit: defaultLimit },
       deps(spawnFn),
     ),
   )) as UpstreamError;
   expect(err).toBeInstanceOf(UpstreamError);
   expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toMatchObject({
-    code: "VAULT_NOT_FOUND",
-    reason: "not-open",
-    stage: "handler-stage-0",
-    vault: "The Setup",
-  });
+  expect(COLD_START_PATTERN.test(String(err.details.stdout))).toBe(true);
+  expect(err.details.code).toBeUndefined();
+  expect(err.details.reason).toBeUndefined();
   expect(getCount()).toBe(2);
+  for (const r of recorded) expect(r.argv).not.toContain("vaults");
+});
+
+// (17c) Empty answer with a named vault — structured failure, single spawn (spec 072 US4 / FR-007)
+test("empty answer with vault set → CLI_REPORTED_ERROR(stage:'json-parse'), single spawn", async () => {
+  const { spawnFn, getCount } = makeQueuedSpawn([{ stdout: "", exitCode: 0 }]);
+  const err = (await captureRejection(
+    executeSmartConnectionsQuery(
+      { query: "x", vault: "Closed", limit: defaultLimit },
+      deps(spawnFn),
+    ),
+  )) as UpstreamError;
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details.stage).toBe("json-parse");
+  expect(getCount()).toBe(1);
 });
 
 // =====================================================================
@@ -458,35 +499,6 @@ test("adapter inheritance: CLI_NON_ZERO_EXIT from spawn exit non-zero propagates
 // =====================================================================
 // Precedence chain (21–24)
 // =====================================================================
-
-// (21) vault-unknown wins over vault-not-open
-test("precedence: VAULT_NOT_FOUND(unknown) wins over VAULT_NOT_FOUND(not-open)", async () => {
-  const { spawnFn } = makeQueuedSpawn([{ stdout: "Vault not found.\n", exitCode: 0 }]);
-  const err = (await captureRejection(
-    executeSmartConnectionsQuery(
-      { query: "x", vault: "NoSuchVault", limit: defaultLimit },
-      deps(spawnFn),
-    ),
-  )) as UpstreamError;
-  expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details.reason).not.toBe("not-open");
-});
-
-// (22) vault-not-open wins over not-installed
-test("precedence: VAULT_NOT_FOUND(not-open) wins over SMART_CONNECTIONS_NOT_INSTALLED", async () => {
-  const vaultsListStdout = "The Setup\tD:\\Vaults\\The Setup\n";
-  const { spawnFn } = makeQueuedSpawn([
-    { stdout: "", exitCode: 0 }, // first call: empty (stage-0 fires)
-    { stdout: vaultsListStdout, exitCode: 0 }, // second call: registered
-  ]);
-  const err = (await captureRejection(
-    executeSmartConnectionsQuery(
-      { query: "x", vault: "The Setup", limit: defaultLimit },
-      deps(spawnFn),
-    ),
-  )) as UpstreamError;
-  expect(err.details).toMatchObject({ code: "VAULT_NOT_FOUND", reason: "not-open" });
-});
 
 // (23) not-installed wins over api-missing
 test("precedence: SMART_CONNECTIONS_NOT_INSTALLED wins over api-missing", async () => {
@@ -645,8 +657,7 @@ test("R14 no-preamble fallback: '=> '-prefixed single line (no '\\n=> ' marker) 
 
 // No-marker fallback: bare JSON stdout with neither "\n=> " nor a "=> " prefix.
 // Exercises the final `else { payload = result.stdout }` branch (L87): the
-// whole stdout is the payload. Non-empty so stage-0 is skipped (no
-// "Vault not found." prefix path either).
+// whole stdout is the payload (no "Vault not found." prefix path).
 test("R14 no-marker fallback: bare JSON stdout (no '=> ' anywhere) → ok:true", async () => {
   const { spawnFn, getCount } = makeQueuedSpawn([
     { stdout: '{"ok":true,"count":0,"matches":[]}', exitCode: 0 },

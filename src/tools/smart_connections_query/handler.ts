@@ -1,4 +1,4 @@
-// Original — no upstream. smart_connections_query handler — single invokeCli wrapper around the eval subcommand with the frozen JS template + base64 JSON payload (R6 anti-injection); R2/R3 single-call architecture branched at envelope-emission on a.total; stage-0 closed-but-registered-vault detection (R5a) issues a SECOND invokeCli to the `vaults` subcommand via the shared `_eval-vault-closed-detection` module on the empty-stdout + exit-0 + specific-mode signature, distinguishing "vault registered but not currently open" (transparent-open side effect; CLI_REPORTED_ERROR with details.reason='not-open') from a genuinely anomalous empty-stdout response; stage-1 extraction uses LAST-`=> ` strategy (R14) because the plugin's lookup API emits plugin-side console.log output BEFORE the `=> ` eval-return marker; two-stage parse (JSON.parse → smartConnectionsQueryEvalResponseSchema.safeParse); envelope ok:false → UpstreamError mapping per R13 — three envelope codes flatten the (code, reason) pair for parse-time discrimination; handler unflattens into CLI_REPORTED_ERROR(details.code='SMART_CONNECTIONS_NOT_READY', details.reason='api-missing'|'embed-failed') per ADR-015.
+// Original — no upstream. smart_connections_query handler — single invokeCli wrapper around the eval subcommand with the frozen JS template + base64 JSON payload (R6 anti-injection); R2/R3 single-call architecture branched at envelope-emission on a.total; a closed vault is brought up by the shared ADR-029 cold-start retry inside invokeCli, and a vault that cannot be brought up propagates as that retry's CLI_REPORTED_ERROR unchanged (spec 072); stage-1 extraction uses LAST-`=> ` strategy (R14) because the plugin's lookup API emits plugin-side console.log output BEFORE the `=> ` eval-return marker; two-stage parse (JSON.parse → smartConnectionsQueryEvalResponseSchema.safeParse); envelope ok:false → UpstreamError mapping per R13 — three envelope codes flatten the (code, reason) pair for parse-time discrimination; handler unflattens into CLI_REPORTED_ERROR(details.code='SMART_CONNECTIONS_NOT_READY', details.reason='api-missing'|'embed-failed') per ADR-015.
 import { JS_TEMPLATE } from "./_template.js";
 import {
   smartConnectionsQueryEvalResponseSchema,
@@ -8,7 +8,6 @@ import {
 } from "./schema.js";
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import { detectIfClosed } from "../_eval-vault-closed-detection/index.js";
 import { composeEvalCode } from "../_shared.js";
 
 import type { Logger } from "../../logger.js";
@@ -41,34 +40,6 @@ export async function executeSmartConnectionsQuery(
     },
     deps,
   );
-
-  // === Stage 0 — closed-but-registered-vault detection (R5a) ===
-  // Empty stdout + exit 0 + a vault= argument is the signature of an eval call
-  // against a registered-but-closed vault (the CLI transparently opens the vault
-  // as a side effect — verified live 2026-05-15 against The Setup). Delegate to
-  // the shared `_eval-vault-closed-detection` module, which issues a second
-  // invokeCli to `vaults verbose` and parses the registry.
-  if (typeof input.vault === "string" && result.stdout.trim().length === 0) {
-    const vaultName = input.vault;
-    const isRegistered = await detectIfClosed({ vaultName, deps });
-    if (isRegistered) {
-      throw new UpstreamError({
-        code: "CLI_REPORTED_ERROR",
-        cause: null,
-        details: {
-          code: "VAULT_NOT_FOUND",
-          reason: "not-open",
-          stage: "handler-stage-0",
-          vault: vaultName,
-        },
-        message: `Vault "${vaultName}" is registered but not currently open in Obsidian; the CLI has begun opening it — retry after a brief delay.`,
-      });
-    }
-    // Vault is not registered AND not open AND no "Vault not found." string was
-    // emitted. Fall through to stage 1 — empty stdout will surface as a
-    // structured json-parse failure. Should be rare for this BI: lookup-based
-    // eval calls produce plugin-side console output on stdout in normal cases.
-  }
 
   // === Stage 1 — LAST-`=> ` extraction (R14) ===
   // The plugin's lookup API emits plugin-side console.log lines

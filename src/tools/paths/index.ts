@@ -7,7 +7,7 @@ import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.
 export const PATHS_TOOL_NAME = "paths";
 
 export const PATHS_DESCRIPTION =
-  'Flat path list under a vault folder (recursive). Returns { count, paths: string[] }; folder entries end with "/", file entries do not. Required target_mode ("specific"|"active"); active mode uses the focused vault. Optional folder (defaults to vault root), depth (positive integer; unbounded by default), ext (filter, e.g. "md"), total (true returns only the count).';
+  'Flat path list under a vault folder (recursive). Returns { count, paths: string[] }; folder entries end with "/", file entries do not. Required target_mode ("specific"|"active"); active mode uses the focused vault. Optional folder (defaults to vault root), depth (positive integer; unbounded by default), ext (filter, e.g. "md"), total (true returns only the count). Closed vault: a registered vault that is not open is opened automatically and the call returns its normal result (the first call takes longer). If it cannot be brought up — for example, its command-line integration is disabled — the call fails with `CLI_REPORTED_ERROR` whose `details.stdout` starts `Error: Command "eval" not found.` (vault unavailable): open the vault in Obsidian, then call again. This is a failure, never an empty result.';
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

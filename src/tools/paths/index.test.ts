@@ -74,6 +74,18 @@ describe("createPathsTool — descriptor", () => {
     // Trailing-slash promise — folder entries end with "/"
     expect(PATHS_DESCRIPTION).toContain('end with "/"');
   });
+
+  // (3b) spec 072 — closed vault: automatic recovery + vault unavailable; no retired not-open state
+  it("PATHS_DESCRIPTION documents the closed-vault outcomes and no not-open state", () => {
+    for (const s of ["Closed vault", "opened automatically", 'Command "', "vault unavailable", "never an empty result"]) {
+      expect(PATHS_DESCRIPTION).toContain(s);
+    }
+    expect(PATHS_DESCRIPTION).not.toContain("not-open");
+    expect(PATHS_DESCRIPTION).not.toContain("registered but not open");
+    const closedVaultSentence = /Closed vault[\s\S]*?never an empty result\./.exec(PATHS_DESCRIPTION)![0];
+    expect(closedVaultSentence).not.toContain("Vault not found");
+    expect(closedVaultSentence).not.toContain("VAULT_NOT_FOUND");
+  });
 });
 
 // (4) docs/tools/paths.md exists with non-stub content

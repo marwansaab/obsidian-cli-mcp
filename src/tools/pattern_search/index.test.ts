@@ -95,4 +95,18 @@ describe("createPatternSearchTool — descriptor", () => {
     expect(desc).toContain("case_sensitive");
     expect(desc).toContain("default");
   });
+
+  // (7) spec 072: closed vault opens automatically; vault unavailable is a failure; no retired not-open text
+  it("description states closed-vault recovery and vault unavailable, with no not-open sub-state", () => {
+    const desc = PATTERN_SEARCH_DESCRIPTION;
+    for (const phrase of ["Closed vault", "opened automatically", 'Command "', "vault unavailable", "never an empty result"]) {
+      expect(desc).toContain(phrase);
+    }
+    expect(desc).not.toContain("not-open");
+    expect(desc).not.toContain("registered but not open");
+    const start = desc.indexOf("Closed vault");
+    const sentence = desc.slice(start, desc.indexOf("never an empty result.", start) + "never an empty result.".length);
+    expect(sentence).not.toContain("Vault not found");
+    expect(sentence).not.toContain("VAULT_NOT_FOUND");
+  });
 });

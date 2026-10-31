@@ -24,7 +24,9 @@ Response: \`{ columns: string[], rows: Array<Record<string, unknown>>, truncated
 
 Read-only — the tool never mutates vault contents.
 
-Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (\`INVALID_BASE_PATH\` with sub-reasons \`empty\`/\`too-long\`/\`wrong-extension\`/\`path-traversal\`; \`INVALID_VIEW_NAME\` with sub-reasons \`empty\`/\`too-long\`); \`CLI_REPORTED_ERROR\` (\`BASE_NOT_FOUND\`; \`BASE_MALFORMED\` with sub-reasons \`empty\`/\`invalid-yaml\`/\`missing-required-key\`/\`unsupported-schema-version\`/\`unknown\`; \`VIEW_NOT_FOUND\`; \`VAULT_NOT_FOUND\` with sub-reasons \`unknown\`/\`not-open\`); \`PATH_ESCAPES_VAULT\`.`;
+Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (\`INVALID_BASE_PATH\` with sub-reasons \`empty\`/\`too-long\`/\`wrong-extension\`/\`path-traversal\`; \`INVALID_VIEW_NAME\` with sub-reasons \`empty\`/\`too-long\`); \`CLI_REPORTED_ERROR\` (\`BASE_NOT_FOUND\`; \`BASE_MALFORMED\` with sub-reasons \`empty\`/\`invalid-yaml\`/\`missing-required-key\`/\`unsupported-schema-version\`/\`unknown\`; \`VIEW_NOT_FOUND\`; \`VAULT_NOT_FOUND\` with sub-reason \`unknown\`); \`PATH_ESCAPES_VAULT\`.
+
+Closed vault: a registered vault that is not open is opened automatically and the call returns its normal result (the first call takes longer). If it cannot be brought up — for example, its command-line integration is disabled — the call fails with \`CLI_REPORTED_ERROR\` whose \`details.stdout\` starts \`Error: Command "base:query" not found.\` (vault unavailable): open the vault in Obsidian, then call again. This is a failure, never an empty result.`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

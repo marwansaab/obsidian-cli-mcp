@@ -10,8 +10,7 @@ a bare integer (count-only mode). Wraps the Obsidian Integrated CLI's
 `app.metadataCache.fileCache` × `app.metadataCache.metadataCache`
 directly. Fourteenth typed-tool wrap and the project's first
 **tag-index retrieval primitive**. Sixth member of the eval-driven
-typed-tool cohort and third consumer of the cross-cutting
-`_eval-vault-closed-detection` shared module.
+typed-tool cohort.
 
 This tool is **vault-only** — there is no `target_mode` discriminator,
 no `file` / `path` / `active` argument. Per-file frontmatter is
@@ -55,6 +54,13 @@ top-level keys are rejected (`additionalProperties: false`).
   routes correctly even when that vault is open but unfocused
   (BI-0134). **Residual limit**: genuine same-display-name collision,
   not fixed by focusing.
+
+  **Closed vault**: a registered vault that is not open is opened
+  automatically and the call returns its normal result; the first
+  call takes longer. If the vault cannot be brought up, the call fails
+  with the vault-unavailable error in the
+  [Error roster](#error-roster). That is a failure, never an empty
+  result.
 - **`total`** — when `true`, the response is a bare integer count
   with no `paths` array surfaced (token-economical pre-flight read).
   The count is invariant across both modes for the same vault state.
@@ -227,7 +233,7 @@ zero-new-codes streak).
 |------|------|----------|
 | `VALIDATION_ERROR` | Input failed the schema (empty / whitespace-only / empty-segment / length >200 / unknown top-level key / wrong type). | Agent retries with corrected input. `details.issues` carries per-issue `path` + `message` + zod code. |
 | `CLI_REPORTED_ERROR` (details.code:"VAULT_NOT_FOUND", details.reason:"unknown") | Unknown vault — the cli-adapter's 011-R5 inspection clause fires on `Vault not found.` stdout. | Verify the vault name; ensure the vault is registered in Obsidian. |
-| `CLI_REPORTED_ERROR` (details.code:"VAULT_NOT_FOUND", details.reason:"not-open", stage:"handler-stage-0") | Closed-but-registered vault — the shared `_eval-vault-closed-detection` module fires on the empty-stdout + exit-0 signature. The CLI transparently opens the vault as a side effect; retry after a brief delay. | Retry once the vault has opened. |
+| `CLI_REPORTED_ERROR` (`details.stdout` starts `Error: Command "eval" not found.`) | **Vault unavailable.** The named vault is registered but could not be brought up after the server's automatic retry, for example because its command-line integration is disabled. This is a failure, never an empty result. | Open the vault in Obsidian (or enable its CLI integration), then call again. Do not retry in a loop; the server has already retried once. |
 | `CLI_REPORTED_ERROR` (details.stage:"json-parse") | Eval stdout is non-JSON after the `=> ` strip — upstream contract divergence. | Investigate as a regression. |
 | `CLI_REPORTED_ERROR` (details.stage:"envelope-parse") | Eval JSON parses but doesn't match the envelope union — upstream contract divergence. | Investigate as a regression. |
 | `CLI_REPORTED_ERROR` (details.stage:"envelope-error", details.code:`<as-emitted>`) | Reserved for future eval-template envelope-level failures (e.g. cache-not-ready). | v1 template never emits `ok:false` — investigate as a regression. |

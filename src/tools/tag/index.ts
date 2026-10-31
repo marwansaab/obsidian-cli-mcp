@@ -23,11 +23,13 @@ Both body inline tags (\`#tag\`) and frontmatter tag arrays (\`tags: [...]\`) co
 
 Optional \`vault\` (string): routes to a named vault even when it is open but unfocused (B1 falsified — BI-0134 / ADR-031); omitted routes to the focused vault. Residual limit: genuine same-vault-name collision (focus does not fix it — give colliding vaults distinct vault names).
 
+Closed vault: a registered vault that is not open is opened automatically and the call returns its normal result (the first call takes longer). If it cannot be brought up — for example, its command-line integration is disabled — the call fails with \`CLI_REPORTED_ERROR\` whose \`details.stdout\` starts \`Error: Command "eval" not found.\` (vault unavailable): open the vault in Obsidian, then call again. This is a failure, never an empty result.
+
 Optional \`total: true\` returns the bare integer count (token-economical pre-flight); the count is invariant across both modes for the same vault state.
 
 Paths sort byte-ascending. Zero-match returns \`{ count: 0, paths: [] }\` (or \`0\` in count-only mode) — NEVER an error.
 
-Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\`; \`CLI_REPORTED_ERROR\` (\`VAULT_NOT_FOUND\` with sub-reasons \`unknown\` / \`not-open\`); \`CLI_TIMEOUT\`; \`CLI_OUTPUT_TOO_LARGE\`; \`CLI_BINARY_NOT_FOUND\`.`;
+Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\`; \`CLI_REPORTED_ERROR\` (\`VAULT_NOT_FOUND\` with sub-reason \`unknown\`); \`CLI_TIMEOUT\`; \`CLI_OUTPUT_TOO_LARGE\`; \`CLI_BINARY_NOT_FOUND\`.`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

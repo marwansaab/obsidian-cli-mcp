@@ -35,6 +35,8 @@ The schema is **flat** (no `target_mode` discriminator). Every field is rejected
 | `limit` | NO       | integer | 1..100, default 20                                                        |
 | `total` | NO       | boolean | strict boolean; `true` switches to count-only mode (`matches: []`)        |
 
+**Closed vault.** A named vault that is registered but not open is opened automatically, and the call returns its normal result; the first call takes longer while the vault comes up. If the vault cannot be brought up (for example, its command-line integration is disabled), the call fails with `CLI_REPORTED_ERROR` (vault unavailable, see *Failure modes*). That is a failure, never an empty result.
+
 ## Why the query cap is 2000
 
 The wrapper base64-encodes the query and embeds it in an `eval` JavaScript template before dispatching to the Obsidian CLI. The combined payload (template + encoded query) is sent as a single argv argument. An upstream defect in `Obsidian.com`'s argv-IPC channel hangs the host process around 4 KB of content on Windows. Queries above ~2000 chars push the rendered argv into the unsafe zone, triggering `CLI_TIMEOUT` at the 10 s wrapper timeout AND a 30–60 s recovery window during which subsequent calls also timeout.
@@ -114,22 +116,17 @@ Sort order: primary `score` descending, secondary `path` byte-asc, tertiary `hea
 }
 ```
 
-### Example D — closed-but-registered vault
+### Example D — closed vault, opened automatically
 
 ```json
-{ "query": "any query", "vault": "Other" }
+{ "query": "any query", "vault": "Other", "total": true }
 ```
 
-When `Other` is registered in `obsidian vaults` output but the vault window is closed:
+When `Other` is registered but its window is closed, the server brings the vault up and the call returns its normal result. Only the first call takes longer:
 
 ```json
-{
-  "isError": true,
-  "content": [{ "type": "text", "text": "{\"code\":\"CLI_REPORTED_ERROR\",\"details\":{\"code\":\"VAULT_NOT_FOUND\",\"reason\":\"not-open\",\"stage\":\"handler-stage-0\",\"vault\":\"Other\"},\"message\":\"Vault \\\"Other\\\" is registered but not currently open in Obsidian; the CLI has begun opening it — retry after a brief delay.\"}" }]
-}
+{ "count": 3, "matches": [] }
 ```
-
-The CLI transparently opens the vault as a side effect. Retry the call after a brief delay.
 
 ## Failure modes
 
@@ -137,7 +134,7 @@ The CLI transparently opens the vault as a side effect. Retry the call after a b
 |-----------------------|----------------------------------|-----------------------|--------------------------------------------------------|----------|
 | `VALIDATION_ERROR`    | —                                | —                     | Input shape violation (query empty / whitespace-only / over 2000 chars / wrong types) | Inspect `details.issues`; for over-cap queries, summarise the query client-side. |
 | `CLI_REPORTED_ERROR`  | `VAULT_NOT_FOUND`                | `unknown` (or absent) | Named vault not in host's registry | Verify the vault name; ensure the vault is registered in Obsidian. |
-| `CLI_REPORTED_ERROR`  | `VAULT_NOT_FOUND`                | `not-open`            | Named vault registered but currently closed | Retry after a brief delay — the CLI is opening the vault as a side effect. |
+| `CLI_REPORTED_ERROR` (`details.stdout` starts `Error: Command "eval" not found.`) | —                                | —                     | **Vault unavailable.** The named vault is registered but could not be brought up after the server's automatic retry, for example because its command-line integration is disabled. This is a failure, never an empty result. | Open the vault in Obsidian (or enable its CLI integration), then call again. Do not retry in a loop; the server has already retried once. |
 | `CLI_REPORTED_ERROR`  | `SMART_CONNECTIONS_NOT_INSTALLED`| —                     | Smart Connections plugin absent from target vault | Ask the user to install Smart Connections (by Brian Petro, ≥ v4.5.0). |
 | `CLI_REPORTED_ERROR`  | `SMART_CONNECTIONS_NOT_READY`    | `api-missing`         | `env.smart_sources.lookup` is not a function | Ask the user to update Smart Connections; the plugin's API surface drifted. |
 | `CLI_REPORTED_ERROR`  | `SMART_CONNECTIONS_NOT_READY`    | `embed-failed`        | Lookup returned `{error: <string>}` (embed model not configured, invalid API key, network failure) | Ask the user to check Smart Connections settings — embed model configuration / API key / network connectivity. |
@@ -150,8 +147,6 @@ The CLI transparently opens the vault as a side effect. Retry the call after a b
 
 ```
 VAULT_NOT_FOUND(unknown)
-  ↓
-VAULT_NOT_FOUND(not-open)
   ↓
 SMART_CONNECTIONS_NOT_INSTALLED
   ↓

@@ -35,6 +35,19 @@ describe("createTagTool — descriptor", () => {
     });
     expect(tool.descriptor.description).toBe(TAG_DESCRIPTION);
   });
+
+  // (3b) spec 072 — closed vault is opened automatically; vault unavailable is a failure; no not-open
+  it("describes closed-vault recovery and vault unavailable, with no not-open sub-state", () => {
+    for (const s of ["Closed vault", "opened automatically", 'Command "', "vault unavailable", "never an empty result"]) {
+      expect(TAG_DESCRIPTION).toContain(s);
+    }
+    expect(TAG_DESCRIPTION).not.toContain("not-open");
+    expect(TAG_DESCRIPTION).not.toContain("registered but not open");
+    const start = TAG_DESCRIPTION.indexOf("Closed vault");
+    const closedVault = TAG_DESCRIPTION.slice(start, TAG_DESCRIPTION.indexOf("never an empty result.", start));
+    expect(closedVault).not.toContain("Vault not found");
+    expect(closedVault).not.toContain("VAULT_NOT_FOUND");
+  });
 });
 
 // (3a) handler-closure execution — VALID input runs `handler: async (input, d) => executeTag(...)`

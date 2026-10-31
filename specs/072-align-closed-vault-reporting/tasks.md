@@ -41,7 +41,7 @@ Every handler test file already imports `makeQueuedSpawn`, `captureRejection` an
 
 **Purpose**: Record the starting state.
 
-- [ ] T001 Run `npm run typecheck`, `npm run lint` and `npm test` from the repository root and confirm all are green before any edit. Note any pre-existing failure in `specs/072-align-closed-vault-reporting/research.md` under a new "Implement log" heading, so later failures are attributable.
+- [X] T001 Run `npm run typecheck`, `npm run lint` and `npm test` from the repository root and confirm all are green before any edit. Note any pre-existing failure in `specs/072-align-closed-vault-reporting/research.md` under a new "Implement log" heading, so later failures are attributable.
 
 ---
 
@@ -51,7 +51,7 @@ Every handler test file already imports `makeQueuedSpawn`, `captureRejection` an
 
 **⚠️ CRITICAL**: No user-story task starts until T002 passes. If G1 fails, stop: do not delete anything, record the finding, and escalate (contracts/t0-probe-plan.md "Fail").
 
-- [ ] T002 Read `.memory/test-execution-instructions.md`, then run T0 gate G1 (and G2 only if the environment allows) exactly as written in `specs/072-align-closed-vault-reporting/contracts/t0-probe-plan.md`. Record:
+- [X] T002 Read `.memory/test-execution-instructions.md`, then run T0 gate G1 (and G2 only if the environment allows) exactly as written in `specs/072-align-closed-vault-reporting/contracts/t0-probe-plan.md`. Record:
   - stdout, stderr and exit code;
   - the six tool results;
   - whether `dispatch.retry` was seen;
@@ -71,12 +71,12 @@ Every handler test file already imports `makeQueuedSpawn`, `captureRejection` an
 
 These tests characterise behaviour that already holds through ADR-029, so they pass before and after US4. They lock it in before the dead stage is removed.
 
-- [ ] T003 [P] [US1] Add a "closed vault recovers via cold-start retry" test (shared recipe, Recovers) to `src/tools/paths/handler.test.ts`. Use `target_mode: "specific"`, `vault: "Closed"`, and the file's existing valid envelope helper.
-- [ ] T004 [P] [US1] Add the same Recovers test to `src/tools/tag/handler.test.ts`, using `defaultEnv([...])` for attempt 2.
-- [ ] T005 [P] [US1] Add the same Recovers test to `src/tools/pattern_search/handler.test.ts`, using the file's valid `ok: true` envelope.
-- [ ] T006 [P] [US1] Add the same Recovers test to `src/tools/query_base/handler.test.ts`. Use subcommand `base:query`, the file's registry and fs stubs, and a valid JSON row array for attempt 2.
-- [ ] T007 [P] [US1] Add the same Recovers test to `src/tools/smart_connections_query/handler.test.ts`, using the file's valid `ok: true` envelope (with the plugin preamble if the file's helper includes one).
-- [ ] T008 [P] [US1] Add the same Recovers test to `src/tools/smart_connections_similar/handler.test.ts`. Use `target_mode: "specific"`, a `path`, and the file's valid `ok: true` envelope.
+- [X] T003 [P] [US1] Add a "closed vault recovers via cold-start retry" test (shared recipe, Recovers) to `src/tools/paths/handler.test.ts`. Use `target_mode: "specific"`, `vault: "Closed"`, and the file's existing valid envelope helper.
+- [X] T004 [P] [US1] Add the same Recovers test to `src/tools/tag/handler.test.ts`, using `defaultEnv([...])` for attempt 2.
+- [X] T005 [P] [US1] Add the same Recovers test to `src/tools/pattern_search/handler.test.ts`, using the file's valid `ok: true` envelope.
+- [X] T006 [P] [US1] Add the same Recovers test to `src/tools/query_base/handler.test.ts`. Use subcommand `base:query`, the file's registry and fs stubs, and a valid JSON row array for attempt 2.
+- [X] T007 [P] [US1] Add the same Recovers test to `src/tools/smart_connections_query/handler.test.ts`, using the file's valid `ok: true` envelope (with the plugin preamble if the file's helper includes one).
+- [X] T008 [P] [US1] Add the same Recovers test to `src/tools/smart_connections_similar/handler.test.ts`. Use `target_mode: "specific"`, a `path`, and the file's valid `ok: true` envelope.
 
 **Checkpoint**: All six Recovers cases are green.
 
@@ -90,12 +90,12 @@ These tests characterise behaviour that already holds through ADR-029, so they p
 
 Same files as Phase 3, so each task runs after its Phase 3 sibling (T009 after T003, and so on). The six tasks are parallel with one another.
 
-- [ ] T009 [P] [US2] Add a "vault unavailable: cold-start persists after retry → CLI_REPORTED_ERROR unchanged" test (shared recipe, Unavailable) to `src/tools/paths/handler.test.ts`. Leave the existing "US1 Q-17 unknown vault" case untouched.
-- [ ] T010 [P] [US2] Add the same Unavailable test to `src/tools/tag/handler.test.ts`. Leave the "unknown vault: 'Vault not found.'" case untouched.
-- [ ] T011 [P] [US2] Add the same Unavailable test to `src/tools/pattern_search/handler.test.ts`. Leave "US1 (14) unknown vault" untouched.
-- [ ] T012 [P] [US2] Add the same Unavailable test to `src/tools/query_base/handler.test.ts`, using `base:query`. Also assert that `details.code` is neither `VIEW_NOT_FOUND` nor `BASE_MALFORMED`: the failure must pass through `classifyAndThrow` unchanged (research F4). Add a second variant whose stdout carries the `Did you mean: base:views, base:create?` suffix and expect the same result. Leave both unknown-vault cases untouched.
-- [ ] T013 [P] [US2] Add the same Unavailable test to `src/tools/smart_connections_query/handler.test.ts`. Leave "unknown vault: 'Vault not found.'" untouched.
-- [ ] T014 [P] [US2] Add the same Unavailable test to `src/tools/smart_connections_similar/handler.test.ts`. Leave "unknown vault: 'Vault not found.'" untouched.
+- [X] T009 [P] [US2] Add a "vault unavailable: cold-start persists after retry → CLI_REPORTED_ERROR unchanged" test (shared recipe, Unavailable) to `src/tools/paths/handler.test.ts`. Leave the existing "US1 Q-17 unknown vault" case untouched.
+- [X] T010 [P] [US2] Add the same Unavailable test to `src/tools/tag/handler.test.ts`. Leave the "unknown vault: 'Vault not found.'" case untouched.
+- [X] T011 [P] [US2] Add the same Unavailable test to `src/tools/pattern_search/handler.test.ts`. Leave "US1 (14) unknown vault" untouched.
+- [X] T012 [P] [US2] Add the same Unavailable test to `src/tools/query_base/handler.test.ts`, using `base:query`. Also assert that `details.code` is neither `VIEW_NOT_FOUND` nor `BASE_MALFORMED`: the failure must pass through `classifyAndThrow` unchanged (research F4). Add a second variant whose stdout carries the `Did you mean: base:views, base:create?` suffix and expect the same result. Leave both unknown-vault cases untouched.
+- [X] T013 [P] [US2] Add the same Unavailable test to `src/tools/smart_connections_query/handler.test.ts`. Leave "unknown vault: 'Vault not found.'" untouched.
+- [X] T014 [P] [US2] Add the same Unavailable test to `src/tools/smart_connections_similar/handler.test.ts`. Leave "unknown vault: 'Vault not found.'" untouched.
 
 **Checkpoint**: Vault unavailable is pinned in all six tools, and unknown vault is unchanged.
 
@@ -119,16 +119,16 @@ Each task asserts in `index.test.ts`:
 
 Unknown-vault text in the descriptions is left unchanged, except where `not-open` is removed from it. Correcting that wording is out of scope (spec Out of Scope; follow-up on BI-0076).
 
-- [ ] T015 [P] [US3] In `src/tools/paths/index.ts`, add the contract §2 closed-vault sentence (`<cmd>` = `eval`) to `PATHS_DESCRIPTION`. Add the matching assertions to `src/tools/paths/index.test.ts`.
-- [ ] T016 [P] [US3] In `src/tools/tag/index.ts`, change "(`VAULT_NOT_FOUND` with sub-reasons `unknown` / `not-open`)" to "(`VAULT_NOT_FOUND` with sub-reason `unknown`)", dropping only `not-open`, and add the §2 sentence (`eval`). Add the assertions to `src/tools/tag/index.test.ts`.
-- [ ] T017 [P] [US3] In `src/tools/pattern_search/index.ts`, drop `VAULT_NOT_FOUND` from the `CLI_REPORTED_ERROR` sub-discriminator list (in this tool it only stood for `not-open`) and add the §2 sentence (`eval`). Add no unknown-vault text. Add the assertions to `src/tools/pattern_search/index.test.ts`.
-- [ ] T018 [P] [US3] In `src/tools/query_base/index.ts`, change "`VAULT_NOT_FOUND` with sub-reasons `unknown`/`not-open`" to "`VAULT_NOT_FOUND` with sub-reason `unknown`" and add the §2 sentence (`base:query`). Add the assertions to `src/tools/query_base/index.test.ts`.
-- [ ] T019 [US3] In `src/tools/smart_connections_query/index.ts`, remove the "Closed-but-registered vaults: …" sentence and the `VAULT_NOT_FOUND(not-open) →` precedence step, and add the §2 sentence (`eval`). In `src/tools/smart_connections_query/index.test.ts`:
+- [X] T015 [P] [US3] In `src/tools/paths/index.ts`, add the contract §2 closed-vault sentence (`<cmd>` = `eval`) to `PATHS_DESCRIPTION`. Add the matching assertions to `src/tools/paths/index.test.ts`.
+- [X] T016 [P] [US3] In `src/tools/tag/index.ts`, change "(`VAULT_NOT_FOUND` with sub-reasons `unknown` / `not-open`)" to "(`VAULT_NOT_FOUND` with sub-reason `unknown`)", dropping only `not-open`, and add the §2 sentence (`eval`). Add the assertions to `src/tools/tag/index.test.ts`.
+- [X] T017 [P] [US3] In `src/tools/pattern_search/index.ts`, drop `VAULT_NOT_FOUND` from the `CLI_REPORTED_ERROR` sub-discriminator list (in this tool it only stood for `not-open`) and add the §2 sentence (`eval`). Add no unknown-vault text. Add the assertions to `src/tools/pattern_search/index.test.ts`.
+- [X] T018 [P] [US3] In `src/tools/query_base/index.ts`, change "`VAULT_NOT_FOUND` with sub-reasons `unknown`/`not-open`" to "`VAULT_NOT_FOUND` with sub-reason `unknown`" and add the §2 sentence (`base:query`). Add the assertions to `src/tools/query_base/index.test.ts`.
+- [X] T019 [US3] In `src/tools/smart_connections_query/index.ts`, remove the "Closed-but-registered vaults: …" sentence and the `VAULT_NOT_FOUND(not-open) →` precedence step, and add the §2 sentence (`eval`). In `src/tools/smart_connections_query/index.test.ts`:
   - replace `expect(desc).toContain("not-open")` with the new assertions;
   - in the docs-body code list (around line 100), replace `"not-open"` with `"vault unavailable"`.
 
   T019 depends on T025, because the docs-body assertion reads `docs/tools/smart_connections_query.md`.
-- [ ] T020 [US3] In `src/tools/smart_connections_similar/index.ts`, edit the "Vault states: …" sentence so it keeps its unknown-vault part unchanged (`VAULT_NOT_FOUND` carries `details.reason` `"unknown"` — vault not registered). Drop only the `"not-open"` alternative, the closing "In practice closing a vault … treat both as 'vault unavailable' …" clause and the retry advice. Add the §2 sentence (`eval`) as a separate sentence, and remove the `VAULT_NOT_FOUND(not-open) →` precedence step. In `src/tools/smart_connections_similar/index.test.ts`:
+- [X] T020 [US3] In `src/tools/smart_connections_similar/index.ts`, edit the "Vault states: …" sentence so it keeps its unknown-vault part unchanged (`VAULT_NOT_FOUND` carries `details.reason` `"unknown"` — vault not registered). Drop only the `"not-open"` alternative, the closing "In practice closing a vault … treat both as 'vault unavailable' …" clause and the retry advice. Add the §2 sentence (`eval`) as a separate sentence, and remove the `VAULT_NOT_FOUND(not-open) →` precedence step. In `src/tools/smart_connections_similar/index.test.ts`:
   - replace `expect(desc).toContain("not-open")` with the new assertions;
   - change the docs-body `expect(body).toMatch(/not-open|closed/i)` to `/vault unavailable/i`.
 
@@ -138,18 +138,18 @@ Unknown-vault text in the descriptions is left unchanged, except where `not-open
 
 Applies to T021–T026: leave the unknown-vault rows byte-for-byte unchanged, and do not reference them from the new row or note. The new row and note each stand on their own and say that a vault that cannot be brought up is a failure, not an empty result.
 
-- [ ] T021 [P] [US3] In `docs/tools/paths.md`, remove the `not-open` error row (line ~252), add the vault-unavailable row and a "Closed vault" note near the `vault` parameter, and keep the unknown-vault and empty-folder rows.
-- [ ] T022 [P] [US3] In `docs/tools/tag.md`, remove the `not-open` / `handler-stage-0` row (line ~230) and any stage-0 prose, add the vault-unavailable row and the "Closed vault" note, and keep the unknown-vault and zero-match descriptions.
-- [ ] T023 [P] [US3] In `docs/tools/pattern_search.md`, fix the `vault` parameter bullet (line ~51) to say a closed vault is opened automatically, replace the `not-open` error row (line ~223) with the vault-unavailable row, and keep the unknown-vault wording.
-- [ ] T024 [P] [US3] In `docs/tools/query_base.md`, change the `VAULT_NOT_FOUND` row (line ~73) to cover `unknown` only, and add the vault-unavailable row (`base:query`) and the "Closed vault" note.
-- [ ] T025 [P] [US3] In `docs/tools/smart_connections_query.md`, remove the `not-open` JSON example (line ~128), the `not-open` table row (line ~140) and the `VAULT_NOT_FOUND(not-open)` precedence line (line ~154). Add the vault-unavailable row and the "Closed vault" note, and keep at least four `### Example` headings, which `index.test.ts` asserts.
-- [ ] T026 [P] [US3] In `docs/tools/smart_connections_similar.md`, remove the `not-open` surface bullets (lines ~236–251), the precedence line (line ~265), the closed-vault paragraph and the "Important detection caveat" (lines ~286–288). Add the vault-unavailable row and the "Closed vault" note (automatic recovery; no retry-after-delay advice), and keep at least four `### Example` headings.
-- [ ] T027 [P] [US3] In `docs/tools/find_and_replace.md`, delete the `CLI_REPORTED_ERROR | VAULT_NOT_FOUND | not-open` row (line ~110). That is the page's only closed-vault mention (FR-009).
-- [ ] T028 [P] [US3] In `docs/tools/patch_block.md`, change the `VAULT_NOT_FOUND` row (line ~177) from `unknown` / `not-open` to `unknown`, and its trigger text to "Vault is not registered." (FR-009).
+- [X] T021 [P] [US3] In `docs/tools/paths.md`, remove the `not-open` error row (line ~252), add the vault-unavailable row and a "Closed vault" note near the `vault` parameter, and keep the unknown-vault and empty-folder rows.
+- [X] T022 [P] [US3] In `docs/tools/tag.md`, remove the `not-open` / `handler-stage-0` row (line ~230) and any stage-0 prose, add the vault-unavailable row and the "Closed vault" note, and keep the unknown-vault and zero-match descriptions.
+- [X] T023 [P] [US3] In `docs/tools/pattern_search.md`, fix the `vault` parameter bullet (line ~51) to say a closed vault is opened automatically, replace the `not-open` error row (line ~223) with the vault-unavailable row, and keep the unknown-vault wording.
+- [X] T024 [P] [US3] In `docs/tools/query_base.md`, change the `VAULT_NOT_FOUND` row (line ~73) to cover `unknown` only, and add the vault-unavailable row (`base:query`) and the "Closed vault" note.
+- [X] T025 [P] [US3] In `docs/tools/smart_connections_query.md`, remove the `not-open` JSON example (line ~128), the `not-open` table row (line ~140) and the `VAULT_NOT_FOUND(not-open)` precedence line (line ~154). Add the vault-unavailable row and the "Closed vault" note, and keep at least four `### Example` headings, which `index.test.ts` asserts.
+- [X] T026 [P] [US3] In `docs/tools/smart_connections_similar.md`, remove the `not-open` surface bullets (lines ~236–251), the precedence line (line ~265), the closed-vault paragraph and the "Important detection caveat" (lines ~286–288). Add the vault-unavailable row and the "Closed vault" note (automatic recovery; no retry-after-delay advice), and keep at least four `### Example` headings.
+- [X] T027 [P] [US3] In `docs/tools/find_and_replace.md`, delete the `CLI_REPORTED_ERROR | VAULT_NOT_FOUND | not-open` row (line ~110). That is the page's only closed-vault mention (FR-009).
+- [X] T028 [P] [US3] In `docs/tools/patch_block.md`, change the `VAULT_NOT_FOUND` row (line ~177) from `unknown` / `not-open` to `unknown`, and its trigger text to "Vault is not registered." (FR-009).
 
 ### Baseline
 
-- [ ] T029 [US3] Run `npm run baseline:write` from the repository root, then `git diff src/tools/_register-baseline.json`. Confirm that exactly six `descriptionFingerprint` values moved (`paths`, `tag`, `pattern_search`, `query_base`, `smart_connections_query`, `smart_connections_similar`) and nothing else. Also review `git diff src/tools/*/index.ts`: unknown-vault text changes only where `not-open` was removed (`tag`, `query_base`, `smart_connections_query`, `smart_connections_similar`), and nothing else in that text changes. Depends on T015–T020.
+- [X] T029 [US3] Run `npm run baseline:write` from the repository root, then `git diff src/tools/_register-baseline.json`. Confirm that exactly six `descriptionFingerprint` values moved (`paths`, `tag`, `pattern_search`, `query_base`, `smart_connections_query`, `smart_connections_similar`) and nothing else. Also review `git diff src/tools/*/index.ts`: unknown-vault text changes only where `not-open` was removed (`tag`, `query_base`, `smart_connections_query`, `smart_connections_similar`), and nothing else in that text changes. Depends on T015–T020.
 
 **Checkpoint**: The published surface states reachable failures only, and the baseline was moved deliberately.
 
@@ -165,17 +165,17 @@ Applies to T021–T026: leave the unknown-vault rows byte-for-byte unchanged, an
 
 Same files as Phases 3–4, so each runs after T009–T014 for its tool. The six tasks are parallel with one another.
 
-- [ ] T030 [P] [US4] In `src/tools/paths/handler.test.ts`, delete "US5 Q-18 closed-vault: empty stdout + registered → VAULT_NOT_FOUND(reason:'not-open')". Add the Empty-answer case (shared recipe, `target_mode: "specific"`). Update the file header's intent line to drop the closed-vault wording.
-- [ ] T031 [P] [US4] In `src/tools/tag/handler.test.ts`, delete "stage-0 closed-vault: empty stdout + registered → CLI_REPORTED_ERROR(reason:'not-open')". Rename "stage-0 non-empty stdout: shared detector skipped; stages 1+ run" to "named vault, non-empty stdout: single spawn", keeping its body. Add the Empty-answer case and update the header intent line (drop "stage-0 closed-vault detection via the shared `_eval-vault-closed-detection` module").
-- [ ] T032 [P] [US4] In `src/tools/pattern_search/handler.test.ts`, delete "US1 (13) closed-but-registered vault: … VAULT_NOT_FOUND(not-open)". Add the Empty-answer case and update the header intent line if it names the detection.
-- [ ] T033 [P] [US4] In `src/tools/query_base/handler.test.ts`, rename "US1: input.vault=undefined does NOT trigger closed-vault detection (single spawn only)" to "US1: no-vault path: single base:query spawn", keeping its body: it still pins the no-vault spawn count. Delete "US1: closed-but-registered vault (FR-009) → CLI_REPORTED_ERROR/VAULT_NOT_FOUND/not-open". Add the Empty-answer case (empty stdout and empty stderr → `details.stage: "json-parse"`, one spawn) and update the header intent line.
-- [ ] T034 [P] [US4] In `src/tools/smart_connections_query/handler.test.ts`, delete:
+- [X] T030 [P] [US4] In `src/tools/paths/handler.test.ts`, delete "US5 Q-18 closed-vault: empty stdout + registered → VAULT_NOT_FOUND(reason:'not-open')". Add the Empty-answer case (shared recipe, `target_mode: "specific"`). Update the file header's intent line to drop the closed-vault wording.
+- [X] T031 [P] [US4] In `src/tools/tag/handler.test.ts`, delete "stage-0 closed-vault: empty stdout + registered → CLI_REPORTED_ERROR(reason:'not-open')". Rename "stage-0 non-empty stdout: shared detector skipped; stages 1+ run" to "named vault, non-empty stdout: single spawn", keeping its body. Add the Empty-answer case and update the header intent line (drop "stage-0 closed-vault detection via the shared `_eval-vault-closed-detection` module").
+- [X] T032 [P] [US4] In `src/tools/pattern_search/handler.test.ts`, delete "US1 (13) closed-but-registered vault: … VAULT_NOT_FOUND(not-open)". Add the Empty-answer case and update the header intent line if it names the detection.
+- [X] T033 [P] [US4] In `src/tools/query_base/handler.test.ts`, rename "US1: input.vault=undefined does NOT trigger closed-vault detection (single spawn only)" to "US1: no-vault path: single base:query spawn", keeping its body: it still pins the no-vault spawn count. Delete "US1: closed-but-registered vault (FR-009) → CLI_REPORTED_ERROR/VAULT_NOT_FOUND/not-open". Add the Empty-answer case (empty stdout and empty stderr → `details.stage: "json-parse"`, one spawn) and update the header intent line.
+- [X] T034 [P] [US4] In `src/tools/smart_connections_query/handler.test.ts`, delete:
   - "closed-but-registered vault: empty stdout + registered → CLI_REPORTED_ERROR(reason:'not-open')";
   - "precedence: VAULT_NOT_FOUND(unknown) wins over VAULT_NOT_FOUND(not-open)";
   - "precedence: VAULT_NOT_FOUND(not-open) wins over SMART_CONNECTIONS_NOT_INSTALLED".
 
   Add the Empty-answer case and update the header intent line.
-- [ ] T035 [P] [US4] In `src/tools/smart_connections_similar/handler.test.ts`, delete:
+- [X] T035 [P] [US4] In `src/tools/smart_connections_similar/handler.test.ts`, delete:
   - "closed-but-registered vault: … (R5a / FR-017a / SC-011a)";
   - both `not-open` precedence cases;
   - "BI-027 ripple: stage-0 closed-vault detection produces byte-equal error after shared-module refactor";
@@ -187,16 +187,16 @@ Same files as Phases 3–4, so each runs after T009–T014 for its tool. The six
 
 Each task: remove the closed-vault block and the `import { detectIfClosed } …` line, renumber nothing (stage comments keep their numbers), and rewrite the `Original — no upstream.` intent line to drop the stage-0 / shared-module / `not-open` wording (Principle V). No other change.
 
-- [ ] T036 [P] [US4] `src/tools/paths/handler.ts`: remove "Stage 3 — closed-but-registered-vault detection" (lines ~43–65) and the `detectIfClosed` import. After T030.
-- [ ] T037 [P] [US4] `src/tools/tag/handler.ts`: remove "Stage 0 — closed-but-registered-vault detection" (lines ~46–69) and the import. After T031.
-- [ ] T038 [P] [US4] `src/tools/pattern_search/handler.ts`: remove "Stage 5 — closed-but-registered-vault detection" (lines ~65–82) and the import. After T032.
-- [ ] T039 [P] [US4] `src/tools/query_base/handler.ts`: remove "Stage 5 — closed-but-registered vault detection" (lines ~422–446), the now-unused `stderrTrimmed` / `stdoutTrimmed` / `upstreamMessage` locals and their comment (lines ~412–420), and the `detectIfClosed` import. Keep `classifyAndThrow` and Stage 6 unchanged. After T033.
-- [ ] T040 [P] [US4] `src/tools/smart_connections_query/handler.ts`: remove "Stage 0 — closed-but-registered-vault detection (R5a)" (lines ~45–71) and the import, and rewrite the header line's "stage-0 closed-but-registered-vault detection (R5a) …" clause. After T034.
-- [ ] T041 [P] [US4] `src/tools/smart_connections_similar/handler.ts`: remove "Stage 0 — closed-but-registered-vault detection (R5a / FR-017a / SC-011a)" (lines ~51–80) and the import. After T035.
+- [X] T036 [P] [US4] `src/tools/paths/handler.ts`: remove "Stage 3 — closed-but-registered-vault detection" (lines ~43–65) and the `detectIfClosed` import. After T030.
+- [X] T037 [P] [US4] `src/tools/tag/handler.ts`: remove "Stage 0 — closed-but-registered-vault detection" (lines ~46–69) and the import. After T031.
+- [X] T038 [P] [US4] `src/tools/pattern_search/handler.ts`: remove "Stage 5 — closed-but-registered-vault detection" (lines ~65–82) and the import. After T032.
+- [X] T039 [P] [US4] `src/tools/query_base/handler.ts`: remove "Stage 5 — closed-but-registered vault detection" (lines ~422–446), the now-unused `stderrTrimmed` / `stdoutTrimmed` / `upstreamMessage` locals and their comment (lines ~412–420), and the `detectIfClosed` import. Keep `classifyAndThrow` and Stage 6 unchanged. After T033.
+- [X] T040 [P] [US4] `src/tools/smart_connections_query/handler.ts`: remove "Stage 0 — closed-but-registered-vault detection (R5a)" (lines ~45–71) and the import, and rewrite the header line's "stage-0 closed-but-registered-vault detection (R5a) …" clause. After T034.
+- [X] T041 [P] [US4] `src/tools/smart_connections_similar/handler.ts`: remove "Stage 0 — closed-but-registered-vault detection (R5a / FR-017a / SC-011a)" (lines ~51–80) and the import. After T035.
 
 ### Module removal
 
-- [ ] T042 [US4] Delete the folder `src/tools/_eval-vault-closed-detection/` (`detector.ts`, `detector.test.ts`, `registry-parser.ts`, `registry-parser.test.ts`, `index.ts`). Then run `grep -rn "detectIfClosed\|_eval-vault-closed-detection\|parseVaultRegistry\|handler-stage-0" src` and expect no hits. Depends on T036–T041.
+- [X] T042 [US4] Delete the folder `src/tools/_eval-vault-closed-detection/` (`detector.ts`, `detector.test.ts`, `registry-parser.ts`, `registry-parser.test.ts`, `index.ts`). Then run `grep -rn "detectIfClosed\|_eval-vault-closed-detection\|parseVaultRegistry\|handler-stage-0" src` and expect no hits. Depends on T036–T041.
 
 **Checkpoint**: No per-tool closed-vault path remains, and the empty answer is still a structured failure.
 
@@ -204,13 +204,13 @@ Each task: remove the closed-vault block and the `import { detectIfClosed } …`
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T043 [P] In `CHANGELOG.md`, add `## [Unreleased]` above `## [0.9.0]` with:
+- [X] T043 [P] In `CHANGELOG.md`, add `## [Unreleased]` above `## [0.9.0]` with:
   - **Changed**: `paths`, `tag`, `pattern_search`, `query_base`, `smart_connections_query` and `smart_connections_similar` now document a closed vault as opened automatically. They document the existing post-retry `CLI_REPORTED_ERROR` (`Error: Command "…" not found.`) as their vault-unavailable failure.
   - **Removed**: the never-emitted `VAULT_NOT_FOUND` / `not-open` sub-state from those six tools and from the `find_and_replace` and `patch_block` pages, and the internal closed-vault detection module.
 
   Cite spec 072 and BI-0076 (FR-012).
-- [ ] T044 Run the full quickstart gate from the repository root: `npm run typecheck`, `npm run lint`, `npm test` (coverage thresholds included), then the Story 3 and Story 4 greps from `specs/072-align-closed-vault-reporting/quickstart.md`. All must be green. Within the Story 3 grep's scope (`docs/tools/*.md` and `src/tools/**/index.ts`), `not-open` may appear only in `views_base` files. Outside that scope it is expected in `open_file`'s retirement comments and tests, `CHANGELOG.md` (T043), `specs/`, and `.docs-as-code/`, which the docs-as-code pass updates after review. Depends on T001–T043.
-- [ ] T045 Post-implement structural verification (plan "CodeGraph structural check"):
+- [X] T044 Run the full quickstart gate from the repository root: `npm run typecheck`, `npm run lint`, `npm test` (coverage thresholds included), then the Story 3 and Story 4 greps from `specs/072-align-closed-vault-reporting/quickstart.md`. All must be green. Within the Story 3 grep's scope (`docs/tools/*.md` and `src/tools/**/index.ts`), `not-open` may appear only in `views_base` files. Outside that scope it is expected in `open_file`'s retirement comments and tests, `CHANGELOG.md` (T043), `specs/`, and `.docs-as-code/`, which the docs-as-code pass updates after review. Depends on T001–T043.
+- [X] T045 Post-implement structural verification (plan "CodeGraph structural check"):
   1. Run `codegraph sync`.
   2. Run `codegraph_explore` on `executePaths executeTag executePatternSearch executeQueryBase executeSmartConnectionsQuery executeSmartConnectionsSimilar UpstreamError`.
   3. Verify items 1–5: no new error code or class; no handler imports `createLogger` / `createQueue`; imports run one way and no `_eval-vault-closed-detection` symbol remains; no orphaned production symbol; only six fingerprints moved.

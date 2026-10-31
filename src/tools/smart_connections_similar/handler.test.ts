@@ -1,9 +1,9 @@
-// Original — no upstream. Tests for the smart_connections_similar handler — single-call argv assembly (with stage-0 closed-vault detection adding a second `vaults` spawn), base64 payload round-trip (R6 anti-injection lock), eval envelope parsing with => prefix, per-match shape transforms (source-level / nested-heading / frontmatter-sentinel / fallback {key, score}), non-finite-score filter (R10/Q2), source-path-keyed self-exclusion (R9/FR-010), three-level sort with secondary path-byte-asc + tertiary headingPath.join('#')-byte-asc tiebreak (R8/FR-008), cross-mode count invariant (FR-006a), limit cap, eight envelope error codes via R13 mapping table, FR-017b precedence-chain compound fixtures, json-parse / envelope-parse failures, cap-kill propagation.
+// Original — no upstream. Tests for the smart_connections_similar handler — single-call argv assembly, closed-vault recovery / vault-unavailable / empty-answer through the real cold-start retry (spec 072), base64 payload round-trip (R6 anti-injection lock), eval envelope parsing with => prefix, per-match shape transforms (source-level / nested-heading / frontmatter-sentinel / fallback {key, score}), non-finite-score filter (R10/Q2), source-path-keyed self-exclusion (R9/FR-010), three-level sort with secondary path-byte-asc + tertiary headingPath.join('#')-byte-asc tiebreak (R8/FR-008), cross-mode count invariant (FR-006a), limit cap, eight envelope error codes via R13 mapping table, FR-017b precedence-chain compound fixtures, json-parse / envelope-parse failures, cap-kill propagation.
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { JS_TEMPLATE } from "./_template.js";
 import { executeSmartConnectionsSimilar } from "./handler.js";
-import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
+import { __resetInFlightRegistryForTests, COLD_START_PATTERN, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
 import { captureRejection, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
@@ -23,6 +23,9 @@ function decodePayload(argv: string[]): unknown {
 // Input with limit:20 default applied (the handler is called with already-validated
 // input by registerTool in production, so test fixtures replicate that contract).
 const defaultLimit = 20;
+
+// The shim's answer for a registered vault that is not open yet (ADR-029 cold start).
+const COLD_START_STDOUT = 'Error: Command "eval" not found. It may require a plugin to be enabled.\n';
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -477,29 +480,66 @@ test("unknown vault: 'Vault not found.' stdout → CLI_REPORTED_ERROR (R5 / FR-0
   expect(err.message).toBe("Vault not found.");
 });
 
-// (21) closed-but-registered vault — empty stdout + exit 0 + vault registered
-test("closed-but-registered vault: empty stdout + registered vault → CLI_REPORTED_ERROR(reason:'not-open') (R5a / FR-017a / SC-011a)", async () => {
-  const vaultsListStdout =
-    "TestVault-Obsidian-CLI-MCP\tC:\\\\Vaults\\\\TestVault\nThe Setup\tD:\\\\Vaults\\\\The Setup\nWays of Working\tE:\\\\Vaults\\\\Ways of Working\n";
-  const { spawnFn, getCount } = makeQueuedSpawn([
-    { stdout: "", exitCode: 0 }, // first call: empty stdout from eval
-    { stdout: vaultsListStdout, exitCode: 0 }, // second call: vaults list confirming registration
+// (21) closed vault (spec 072 US1): the cold-start answer is retried once by the
+// dispatch layer (ADR-029) and the second attempt's envelope is the normal result.
+test("closed vault recovers via cold-start retry: normal result, two eval spawns, no `vaults` spawn (spec 072 US1)", async () => {
+  const envelope = {
+    ok: true,
+    count: 1,
+    matches: [{ path: "Other.md", headingPath: [], score: 0.6 }],
+  };
+  const { spawnFn, recorded, getCount } = makeQueuedSpawn([
+    { stdout: COLD_START_STDOUT, exitCode: 0 },
+    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+  ]);
+  const result = await executeSmartConnectionsSimilar(
+    { target_mode: "specific", vault: "Closed", path: "x.md", limit: defaultLimit },
+    deps(spawnFn),
+  );
+  expect(result).toEqual({ count: 1, matches: envelope.matches });
+  expect(getCount()).toBe(2);
+  for (const r of recorded) {
+    expect(r.argv).toContain("vault=Closed");
+    expect(r.argv).toContain("eval");
+    expect(r.argv).not.toContain("vaults");
+  }
+});
+
+// (21a) vault unavailable (spec 072 US2): the cold-start answer persists past the
+// single retry and reaches the caller as the dispatch layer's CLI_REPORTED_ERROR.
+test("vault unavailable: cold-start persists after retry → CLI_REPORTED_ERROR unchanged (spec 072 US2)", async () => {
+  const { spawnFn, recorded, getCount } = makeQueuedSpawn([
+    { stdout: COLD_START_STDOUT, exitCode: 0 },
+    { stdout: COLD_START_STDOUT, exitCode: 0 },
   ]);
   const err = (await captureRejection(
     executeSmartConnectionsSimilar(
-      { target_mode: "specific", vault: "The Setup", path: "x.md", limit: defaultLimit },
+      { target_mode: "specific", vault: "Closed", path: "x.md", limit: defaultLimit },
       deps(spawnFn),
     ),
   )) as UpstreamError;
   expect(err).toBeInstanceOf(UpstreamError);
   expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toMatchObject({
-    code: "VAULT_NOT_FOUND",
-    reason: "not-open",
-    stage: "handler-stage-0",
-    vault: "The Setup",
-  });
+  expect(COLD_START_PATTERN.test(String(err.details.stdout))).toBe(true);
+  expect(err.details.code).toBeUndefined();
+  expect(err.details.reason).toBeUndefined();
   expect(getCount()).toBe(2);
+  for (const r of recorded) expect(r.argv).not.toContain("vaults");
+});
+
+// (21b) empty answer with a named vault (spec 072 US4 / FR-007): a structured
+// json-parse failure from a single spawn — never an empty result, no `vaults` lookup.
+test("empty answer with a named vault: CLI_REPORTED_ERROR(stage:'json-parse'), single spawn (spec 072 US4)", async () => {
+  const { spawnFn, getCount } = makeQueuedSpawn([{ stdout: "", exitCode: 0 }]);
+  const err = (await captureRejection(
+    executeSmartConnectionsSimilar(
+      { target_mode: "specific", vault: "Closed", path: "x.md", limit: defaultLimit },
+      deps(spawnFn),
+    ),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details.stage).toBe("json-parse");
+  expect(getCount()).toBe(1);
 });
 
 // (22) unresolved path → envelope FILE_NOT_FOUND
@@ -690,47 +730,11 @@ test("envelope shape unexpected → CLI_REPORTED_ERROR(stage:'envelope-parse')",
 });
 
 // =====================================================================
-// FR-017b precedence-chain compound fixtures (cases 31–36)
+// FR-017b precedence-chain compound fixtures (cases 33–36)
 // Each verifies the earlier-priority discriminator wins when multiple
 // failure conditions could fire. The eval JS encodes the order at template
 // source level; the handler tests verify the surface envelope code.
 // =====================================================================
-
-// (31) VAULT_NOT_FOUND(unknown) wins over VAULT_NOT_FOUND(not-open): unknown
-// vault classifier fires upstream of the handler stage-0 detection branch
-test("precedence: VAULT_NOT_FOUND(unknown) wins over VAULT_NOT_FOUND(not-open)", async () => {
-  const { spawnFn } = makeQueuedSpawn([{ stdout: "Vault not found.\n", exitCode: 0 }]);
-  const err = (await captureRejection(
-    executeSmartConnectionsSimilar(
-      { target_mode: "specific", vault: "NoSuchVault", path: "x.md", limit: defaultLimit },
-      deps(spawnFn),
-    ),
-  )) as UpstreamError;
-  expect(err.code).toBe("CLI_REPORTED_ERROR");
-  // The cli-adapter's classifier does not attach details.reason='not-open'
-  expect(err.details.reason).not.toBe("not-open");
-});
-
-// (32) VAULT_NOT_FOUND(not-open) wins over SMART_CONNECTIONS_NOT_INSTALLED:
-// the stage-0 detection fires from empty stdout + registered vault, the eval
-// never runs to evaluate the plugin lifecycle check
-test("precedence: VAULT_NOT_FOUND(not-open) wins over SMART_CONNECTIONS_NOT_INSTALLED", async () => {
-  const vaultsListStdout = "The Setup\tD:\\\\Vaults\\\\The Setup\n";
-  const { spawnFn } = makeQueuedSpawn([
-    { stdout: "", exitCode: 0 },
-    { stdout: vaultsListStdout, exitCode: 0 },
-  ]);
-  const err = (await captureRejection(
-    executeSmartConnectionsSimilar(
-      { target_mode: "specific", vault: "The Setup", path: "x.md", limit: defaultLimit },
-      deps(spawnFn),
-    ),
-  )) as UpstreamError;
-  expect(err.details).toMatchObject({
-    code: "VAULT_NOT_FOUND",
-    reason: "not-open",
-  });
-});
 
 // (33) SMART_CONNECTIONS_NOT_INSTALLED wins over FILE_NOT_FOUND: in-eval the
 // plugin check happens before file resolution; envelope carries NOT_INSTALLED
@@ -884,7 +888,7 @@ test("R3 single-call invariant: one spawn per request; frozen template prefix/su
 });
 
 // =====================================================================
-// BI-027 ripple regression cases (39–41) — per FR-013a + FR-020a
+// BI-027 ripple regression cases (39–40) — per FR-013a + FR-020a
 // =====================================================================
 
 // (39) details.reason: "api-missing" emission on env.smart_sources undefined path
@@ -935,35 +939,6 @@ test("BI-027 ripple: details.reason:'api-missing' on find_connections method-mis
     code: "SMART_CONNECTIONS_NOT_READY",
     reason: "api-missing",
   });
-});
-
-// (41) Behaviour-preservation regression on refactored stage-0 closed-vault detection.
-// After swapping the inline isVaultRegistered helper for the shared
-// `_eval-vault-closed-detection` module, the closed-vault path must emit a byte-equal
-// error response (same code / details / message) as before the refactor.
-test("BI-027 ripple: stage-0 closed-vault detection produces byte-equal error after shared-module refactor", async () => {
-  const vaultsListStdout = "The Setup\tD:\\\\Vaults\\\\The Setup\n";
-  const { spawnFn, getCount } = makeQueuedSpawn([
-    { stdout: "", exitCode: 0 },
-    { stdout: vaultsListStdout, exitCode: 0 },
-  ]);
-  const err = (await captureRejection(
-    executeSmartConnectionsSimilar(
-      { target_mode: "specific", vault: "The Setup", path: "x.md", limit: defaultLimit },
-      deps(spawnFn),
-    ),
-  )) as UpstreamError;
-  expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toEqual({
-    code: "VAULT_NOT_FOUND",
-    reason: "not-open",
-    stage: "handler-stage-0",
-    vault: "The Setup",
-  });
-  expect(err.message).toBe(
-    'Vault "The Setup" is registered but not currently open in Obsidian; the CLI has begun opening it — retry after a brief delay.',
-  );
-  expect(getCount()).toBe(2);
 });
 
 // (BI-034) Non-ASCII path input round-trips through base64 (mocked invokeCli; no live plugin probe)

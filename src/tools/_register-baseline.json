@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedFromBranch": "071-omit-derived-labels",
+  "generatedFromBranch": "072-align-closed-vault-reporting",
   "generatedAt": "2026-10-31",
   "tools": [
     {
@@ -61,7 +61,7 @@
     },
     {
       "name": "find_and_replace",
-      "descriptionFingerprint": "70909d24ad02811bb3ad43696814ed13edca96f58d47a8dce1626399fd729228",
+      "descriptionFingerprint": "753860517864dbd8fedf5ed7bb6c8b7de57844bed56a2e509762b2d857459e29",
       "schemaFingerprint": "d04f3c6ff342505edeca8b1b84be0b4d749e1f8673545c9f88042c2801d90082",
       "titleFingerprint": "770f80fa77ad69c756e602919e3c79b3d60a641d8949b7280c34dc0604be786f",
       "annotationsFingerprint": "b15393126f12ebd7533afe7d31a1beb8938a1e37d0bb2a52c382aaba4373f265",
@@ -149,7 +149,7 @@
     },
     {
       "name": "paths",
-      "descriptionFingerprint": "5b981a31c66edc5f1c70f06db72ab08a731d0ef334dba588a3cf069d14464959",
+      "descriptionFingerprint": "8d872bb4e7678f6bbd881b2bb41aa3ae9813b08626fe62133d00e64edc409cc6",
       "schemaFingerprint": "a31fc20fe1a1ee668c052164a30d8a1a471810ad3184aa584d0d6e9369c9a510",
       "titleFingerprint": "9c7995b5bc817bc83ea1d10a4b8ec26176773b514c3d58c9ede0d5b40d1dcf13",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",
@@ -157,7 +157,7 @@
     },
     {
       "name": "pattern_search",
-      "descriptionFingerprint": "f9bb542bcd1d7af9cd60740ae3293e422c4d6885234f773eeda9dfe315dfa294",
+      "descriptionFingerprint": "ac61033b035727884f1020110dd57dbaa26194a320144a361b2698843f30c1a4",
       "schemaFingerprint": "c5c753ed57c8e52c2e810db911db2f4786617fb14b4b642342f6772558e377ef",
       "titleFingerprint": "505088564bc404047f2e11711fe44d772a83b6140ea0208e4d06d7f6680c645e",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",
@@ -181,7 +181,7 @@
     },
     {
       "name": "query_base",
-      "descriptionFingerprint": "291ecc7d693c8b1788cf3f161341dd15ec1c52b08bc7420cbccd0ccc6ed87129",
+      "descriptionFingerprint": "c847d64aaefcc6754042090090f8f83c30a1cb276d6c46906afc44e0aef8f5f5",
       "schemaFingerprint": "92c7283053e873e5d860b558c205e30192dff768706dda7c3492c1af5d83c8ee",
       "titleFingerprint": "4c46e0348e2e3a707da0bc8975e96e69ecfb55fea144227fb59d0fca1b8dea43",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",
@@ -237,7 +237,7 @@
     },
     {
       "name": "smart_connections_query",
-      "descriptionFingerprint": "7f099baff0c6272d4400bc6f11816601ac859825038bb83e1ba2437474f1358c",
+      "descriptionFingerprint": "c63f2151ae88d13e6ec3de1770a6f27e19a2f7188251e15b8de0fecfba99816a",
       "schemaFingerprint": "23f6c5454e7464e08b1bc62e1a965bff03676d6e14e3c20ce3cf5397216c3d99",
       "titleFingerprint": "48a6c2197bed455245cb51697d0bed3868a882848f57c02a440b642a37a741db",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",
@@ -245,7 +245,7 @@
     },
     {
       "name": "smart_connections_similar",
-      "descriptionFingerprint": "21ce253c8a3c1f95976f8dedd57402a226e900e9dc722ab8e17cca4a1fc1098e",
+      "descriptionFingerprint": "b6846c455057221588ae22d63577aabf617afc1d8525401dd5d021922379afd4",
       "schemaFingerprint": "4456cf3eb306a37317caeecc1c23e89784e1d47c9b94c3a6e85e646447f8a122",
       "titleFingerprint": "6c55797a3eace33aafe663b176bbeac2b082049945feeb3421476c0a44ff9acf",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",
@@ -253,7 +253,7 @@
     },
     {
       "name": "tag",
-      "descriptionFingerprint": "ce9e90e68585bdf3e59bcd8b2fee1788c27dff4617f792ec002e2b270d9d67af",
+      "descriptionFingerprint": "4dbb83cc3982ef939fd183bbcd8a4e912819da2ced4dc6680d1ff1b575e54f4e",
       "schemaFingerprint": "56ff9dd9a0695e99884fe0971055170f40a276a73704ead241889d4a023ff2c1",
       "titleFingerprint": "1503916a2ab2b0fd6768d3455fd8f2d9aa3b31333a8507dadcad983704a975d7",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",

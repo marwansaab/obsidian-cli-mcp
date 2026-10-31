@@ -1,4 +1,4 @@
-// Original — no upstream. pattern_search handler — single invokeCli wrapper around the eval subcommand with the frozen JS template + base64 JSON payload (R12 anti-injection); single-call architecture (R2); folder normalisation via stripBoundarySlashes (R5 sibling-consumption from ../search/handler.ts); closed-but-registered-vault detection via the shared _eval-vault-closed-detection module (sibling parity with paths); multi-stage parse (JSON.parse → envelope safeParse → discriminate on ok) with structured CLI_REPORTED_ERROR on json-parse / envelope-parse / FOLDER_NOT_FOUND; (path, line, offset) ascending sort (R2); zero new top-level error codes; zero new details.code values — Principle IV streak preserved.
+// Original — no upstream. pattern_search handler — single invokeCli wrapper around the eval subcommand with the frozen JS template + base64 JSON payload (R12 anti-injection); single-call architecture (R2); folder normalisation via stripBoundarySlashes (R5 sibling-consumption from ../search/handler.ts); a closed vault is brought up by the dispatch layer's cold-start retry (ADR-029), and an empty answer falls through to the json-parse failure; multi-stage parse (JSON.parse → envelope safeParse → discriminate on ok) with structured CLI_REPORTED_ERROR on json-parse / envelope-parse / FOLDER_NOT_FOUND; (path, line, offset) ascending sort (R2); zero new top-level error codes; zero new details.code values — Principle IV streak preserved.
 import { JS_TEMPLATE } from "./_template.js";
 import {
   patternSearchEvalEnvelopeSchema,
@@ -9,7 +9,6 @@ import {
 } from "./schema.js";
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import { detectIfClosed } from "../_eval-vault-closed-detection/index.js";
 import { composeEvalCode } from "../_shared.js";
 import { stripBoundarySlashes } from "../search/handler.js";
 
@@ -61,25 +60,6 @@ export async function executePatternSearch(
   // === Stage 4 — strip eval prefix ===
   let stdout = result.stdout.trimStart();
   if (stdout.startsWith("=> ")) stdout = stdout.slice(3);
-
-  // === Stage 5 — closed-but-registered-vault detection (sibling parity with paths) ===
-  if (typeof input.vault === "string" && result.stdout.trim().length === 0) {
-    const vaultName = input.vault;
-    const isRegistered = await detectIfClosed({ vaultName, deps });
-    if (isRegistered) {
-      throw new UpstreamError({
-        code: "CLI_REPORTED_ERROR",
-        cause: null,
-        details: {
-          code: "VAULT_NOT_FOUND",
-          reason: "not-open",
-          stage: "handler-stage-0",
-          vault: vaultName,
-        },
-        message: `pattern_search: vault "${vaultName}" is registered but not open`,
-      });
-    }
-  }
 
   // === Stage 6 — JSON.parse ===
   let parsedJson: unknown;

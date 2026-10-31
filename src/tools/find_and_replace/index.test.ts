@@ -39,6 +39,11 @@ describe("createFindAndReplaceTool — descriptor", () => {
     expect(FIND_AND_REPLACE_DESCRIPTION).not.toContain("There is NO single-file scoping option");
   });
 
+  it("description lists only the unknown-vault sub-reason, not the never-emitted not-open (spec 072 SC-004)", () => {
+    expect(FIND_AND_REPLACE_DESCRIPTION).toContain("`VAULT_NOT_FOUND`/`unknown`");
+    expect(FIND_AND_REPLACE_DESCRIPTION).not.toContain("not-open");
+  });
+
   it("inputSchema has additionalProperties:false and the expected property set + required keys", () => {
     const tool = createFindAndReplaceTool({
       logger: silentLogger(),

@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Spec 072-align-closed-vault-reporting (BI-0076).
+
+### Changed
+
+- **Closed vaults are documented as opened automatically.** `paths`, `tag`, `pattern_search`, `query_base`, `smart_connections_query` and `smart_connections_similar` now say that a registered vault that is not open is opened by the server's automatic retry and the call returns its normal result. Their descriptions and reference pages document the existing post-retry `CLI_REPORTED_ERROR`, whose `details.stdout` starts `Error: Command "…" not found.`, as their vault-unavailable failure: the vault could not be brought up, for example because its command-line integration is disabled. The failure itself is unchanged.
+
+### Removed
+
+- **The `VAULT_NOT_FOUND` / `not-open` sub-state** from those six tools and from the `find_and_replace` and `patch_block` reference pages. It was documented but never produced: through the CLI the server drives, a closed vault answers with the cold-start signature that the automatic retry already handles.
+- **The internal closed-vault detection module** (`_eval-vault-closed-detection`) and the six handler stages that used it. An empty answer from the CLI still fails with `CLI_REPORTED_ERROR` and `details.stage: "json-parse"`, now without the extra `vaults verbose` call.
+
 ## [0.9.0] - 2026-10-30
 
 **MINOR release (breaking before 1.0)**: the server moves to the current MCP standard. It runs on MCP SDK v2 and serves both protocol eras, publishes titles, behaviour hints, parameter descriptions, server instructions and typed results, and adds the `vaults` tool, owner access settings, confirmation, cancellation and progress. Code execution through `obsidian_exec` is now off by default. Spec 068-modernise-mcp-surface (BI-0165), delivered in PRs #87 to #92.

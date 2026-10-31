@@ -18,9 +18,11 @@ Sort order: primary score descending, secondary path byte-ascending, tertiary he
 
 Plugin dependency: requires the Smart Connections plugin (by Brian Petro; minimum probed v4.5.0) to be installed AND its indexing to have completed in the target vault; otherwise surfaces SMART_CONNECTIONS_NOT_INSTALLED / SMART_CONNECTIONS_NOT_READY / SOURCE_NOT_INDEXED via CLI_REPORTED_ERROR(stage:'envelope-error').
 
-Vault states: VAULT_NOT_FOUND carries a details.reason sub-discriminator — "unknown" (vault not registered) vs "not-open" (registered but not currently open in Obsidian — the CLI transparently opens the vault as a side effect; retry after a brief delay). In practice closing a vault unloads the Integrated CLI plugin too, so the "not-open" path may surface as CLI_REPORTED_ERROR with stderr Error: Command 'eval' not found.; treat both as "vault unavailable, retry after Obsidian opens it".
+Vault states: VAULT_NOT_FOUND carries a details.reason sub-discriminator — "unknown" (vault not registered).
 
-Error-precedence chain (outer-to-inner, cheapest-first): VAULT_NOT_FOUND(unknown) → VAULT_NOT_FOUND(not-open) → SMART_CONNECTIONS_NOT_INSTALLED → NO_ACTIVE_FILE / FILE_NOT_FOUND → NOT_MARKDOWN → SMART_CONNECTIONS_NOT_READY → SOURCE_NOT_INDEXED → success.`;
+Closed vault: a registered vault that is not open is opened automatically and the call returns its normal result (the first call takes longer). If it cannot be brought up — for example, its command-line integration is disabled — the call fails with CLI_REPORTED_ERROR whose details.stdout starts Error: Command "eval" not found. (vault unavailable): open the vault in Obsidian, then call again. This is a failure, never an empty result.
+
+Error-precedence chain (outer-to-inner, cheapest-first): VAULT_NOT_FOUND(unknown) → SMART_CONNECTIONS_NOT_INSTALLED → NO_ACTIVE_FILE / FILE_NOT_FOUND → NOT_MARKDOWN → SMART_CONNECTIONS_NOT_READY → SOURCE_NOT_INDEXED → success.`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

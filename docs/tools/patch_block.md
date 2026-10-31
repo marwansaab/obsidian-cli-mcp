@@ -174,7 +174,7 @@ Every failure routes through `UpstreamError`.
 | `CLI_REPORTED_ERROR` | `BLOCK_ON_HEADING` | — (carries `details.heading_shape: "atx" \| "setext"`) | The id resolved to a marker attached to a heading line. Route to [`patch_heading`](./patch_heading.md). |
 | `CLI_REPORTED_ERROR` | `NOTE_NOT_FOUND` | — | The target file does not exist. |
 | `CLI_REPORTED_ERROR` | `EXTERNAL_EDITOR_CONFLICT` | `file-locked` (reserved: `unsaved-changes`) | An external editor holds the file (Windows). Ask the user to save and close, retry. |
-| `VAULT_NOT_FOUND` | — | `unknown` / `not-open` | Vault is not registered, or is registered but not currently open. |
+| `VAULT_NOT_FOUND` | — | `unknown` | Vault is not registered. |
 | `ERR_NO_ACTIVE_FILE` | — | — | Active mode but no note is focused. |
 | `PATH_ESCAPES_VAULT` | — | — | Resolved path escapes the vault root (symlink traversal, `..` segments). Fix the path. |
 | `FS_WRITE_FAILED` | — | — (carries `details.errno`) | Generic fs failure (ENOSPC, EACCES, etc.). Inspect `details.errno`. |

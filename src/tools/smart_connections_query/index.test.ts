@@ -47,8 +47,21 @@ describe("createSmartConnectionsQueryTool — descriptor", () => {
     expect(desc).toContain("SMART_CONNECTIONS_NOT_READY");
     expect(desc).toContain("api-missing");
     expect(desc).toContain("embed-failed");
-    expect(desc).toContain("not-open");
     expect(desc.length).toBeGreaterThan(0);
+  });
+
+  // (3b) Closed vault: automatic recovery + vault unavailable, no retired not-open state (spec 072 FR-008)
+  it("description states closed-vault recovery and vault unavailable, with no not-open text", () => {
+    const desc = SMART_CONNECTIONS_QUERY_DESCRIPTION;
+    for (const s of ["Closed vault", "opened automatically", 'Command "', "vault unavailable", "never an empty result"]) {
+      expect(desc).toContain(s);
+    }
+    expect(desc).not.toContain("not-open");
+    expect(desc).not.toContain("registered but not open");
+    const start = desc.indexOf("Closed vault");
+    const sentence = desc.slice(start, desc.indexOf("never an empty result", start));
+    expect(sentence).not.toContain("Vault not found");
+    expect(sentence).not.toContain("VAULT_NOT_FOUND");
   });
 });
 
@@ -97,7 +110,7 @@ describe("docs/tools/smart_connections_query.md exists and is non-stub (FR-022)"
       "SMART_CONNECTIONS_NOT_READY",
       "api-missing",
       "embed-failed",
-      "not-open",
+      "vault unavailable",
     ]) {
       expect(body).toContain(code);
     }

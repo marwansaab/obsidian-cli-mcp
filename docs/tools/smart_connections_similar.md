@@ -73,6 +73,7 @@ Every field is rejected at the boundary as `VALIDATION_ERROR` if the constraints
 
 ### Per-field policy
 
+- **`vault`** — **Closed vault**: a registered vault that is not open in Obsidian is opened automatically, and the call returns its normal result (the first call takes longer while the server retries once). If the vault cannot be brought up, for example because its command-line integration is disabled, the call fails with `CLI_REPORTED_ERROR` whose `details.stdout` starts `Error: Command "eval" not found.` (vault unavailable; see the error roster). That is a failure, never an empty result.
 - **`file`** — wikilink-style file name (resolved inside the eval JS via `app.metadataCache.getFirstLinkpathDest`). The `.md` extension is accepted but not required.
 - **`path`** — exact vault-relative path. Path-traversal patterns (`../escape.md`, absolute paths) are looked up against `app.vault.getAbstractFileByPath` — Obsidian's index uses vault-relative keys without `..` resolution, so the lookup returns null and the wrapper surfaces `CLI_REPORTED_ERROR(FILE_NOT_FOUND)`. No filesystem mutation occurs outside the vault.
 - **`limit`** — caps the matches list length AND the count. Mirrors the plugin's `find_connections({limit})` parameter. The wrapper also applies a final `.slice(0, limit)` after sorting so that any plugin-internal cap below `limit` is honoured.
@@ -218,33 +219,13 @@ Use this for token-economical pre-flight reads (size estimation, fan-out check, 
 
 When the Smart Connections plugin is not enabled in `Demo`, the in-eval lifecycle check fires and returns an envelope `SMART_CONNECTIONS_NOT_INSTALLED`. The wrapper maps to `CLI_REPORTED_ERROR(stage:'envelope-error', code:'SMART_CONNECTIONS_NOT_INSTALLED')`.
 
-### Example 6 — Closed-but-registered vault retry pattern
-
-```json
-{
-  "name": "smart_connections_similar",
-  "arguments": {
-    "target_mode": "specific",
-    "vault": "The Setup",
-    "path": "Process/notes.md"
-  }
-}
-```
-
-If `The Setup` is registered with Obsidian but the vault window is not currently open, two response shapes are possible:
-
-- the documented `CLI_REPORTED_ERROR(details.code: 'VAULT_NOT_FOUND', details.reason: 'not-open')` from the wrapper's stage-0 detection branch, OR
-- `CLI_REPORTED_ERROR` with stderr `Error: Command "eval" not found.` because closing the vault unloaded the Integrated CLI plugin (which the Smart Connections eval call needs).
-
-Treat both surfaces as "vault unavailable" and retry the same call after a brief delay (typically 1–3 s) while Obsidian finishes opening the vault.
-
 ## Error roster
 
 | Code | When | Recovery |
 |------|------|----------|
 | `VALIDATION_ERROR` | Input failed the schema (missing `target_mode`, missing `vault` in specific mode, neither `file` nor `path` in specific mode, both `file` AND `path` in specific mode, `vault`/`file`/`path` in active mode, `limit` out of range / non-integer, `total` non-boolean, unknown top-level key, `vault` empty). | Retry with corrected input. `details.issues` carries per-issue `path` + `message` + zod code. |
 | `CLI_REPORTED_ERROR` (`details.code: "VAULT_NOT_FOUND"`, `details.reason: "unknown"` or absent) | Specific mode + `vault` not registered with Obsidian. Upstream emits `Vault not found.` and the cli-adapter reclassifies. | Supply a registered vault display name. |
-| `CLI_REPORTED_ERROR` (`details.code: "VAULT_NOT_FOUND"`, `details.reason: "not-open"`, `details.stage: "handler-stage-0"`) | Specific mode + `vault` IS registered but is NOT currently open in Obsidian. The CLI emitted empty stdout + exit 0 AND transparently OPENED the vault as a side effect; the wrapper's stage-0 detection branch fires. May also surface as `CLI_REPORTED_ERROR` with stderr `Error: Command "eval" not found.` when closing the vault also unloaded the Integrated CLI plugin. | Retry the same call after a brief delay (typically 1–3 s). |
+| `CLI_REPORTED_ERROR` (`details.stdout` starts `Error: Command "eval" not found.`) | **Vault unavailable.** The named vault is registered but could not be brought up after the server's automatic retry, for example because its command-line integration is disabled. This is a failure, not an empty result. | Open the vault in Obsidian (or enable its CLI integration), then call again. Do not retry in a loop; the server has already retried once. |
 | `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "SMART_CONNECTIONS_NOT_INSTALLED"`) | The Smart Connections plugin is not enabled in the target vault. | Ask the user to enable the plugin in Obsidian's community-plugins settings. |
 | `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "FILE_NOT_FOUND"`) | `path` does not match any file in the vault, OR `file` (basename) does not resolve via `getFirstLinkpathDest`. `details.detail` distinguishes (`path: <path>` vs `wikilink: <file>`). | Verify the path / basename; check for typos; confirm the vault contains the file. |
 | `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "NOT_MARKDOWN"`) | The resolved file's extension is not `.md` (e.g. `.canvas`, `.pdf`, attachments). | Use a different tool, or read the source bytes via [`read`](./read.md). |
@@ -262,7 +243,6 @@ Outer-to-inner, cheapest-first. Specific mode order:
 
 ```
 VAULT_NOT_FOUND(unknown)            ← cli-adapter response inspection
- → VAULT_NOT_FOUND(not-open)        ← handler stage-0 detection
  → SMART_CONNECTIONS_NOT_INSTALLED  ← in-eval Stage 1
  → FILE_NOT_FOUND                   ← in-eval Stage 2
  → NOT_MARKDOWN                     ← in-eval Stage 3
@@ -271,7 +251,7 @@ VAULT_NOT_FOUND(unknown)            ← cli-adapter response inspection
  → success
 ```
 
-Active mode skips the two vault steps (active mode forbids the `vault` argument). Each compound failure surfaces the FIRST condition in the chain that fails — agents see exactly one discriminator per failed call.
+Active mode skips the vault step (active mode forbids the `vault` argument). Each compound failure surfaces the FIRST condition in the chain that fails — agents see exactly one discriminator per failed call.
 
 ## Plugin-as-runtime-dependency
 
@@ -280,12 +260,6 @@ The plugin-lifecycle codes (`SMART_CONNECTIONS_NOT_INSTALLED` / `SMART_CONNECTIO
 ### Minimum probed Smart Connections plugin version
 
 Verified against Smart Connections plugin **v4.5.0** (by Brian Petro; manifest `id: smart-connections`, `minAppVersion: 1.1.0`). The wrapper documents this as a **soft-pin** — the wrapper does NOT enforce a version check at runtime. Users on older or newer plugin versions whose API surface diverges from this baseline surface deterministically as `SMART_CONNECTIONS_NOT_READY` via the in-eval lifecycle check at Stage 4 of the JS template. The probed major version `4.x` clarifies that the plugin's API path (`env.smart_sources.items[<key>].find_connections({limit})`) is the v4-era shape; earlier v2.x / v3.x plugin releases may have a different API path.
-
-### Closed-but-registered-vault retry pattern
-
-When a registered vault is not currently open in Obsidian, the CLI emits empty stdout + exit 0 for the FIRST `eval` invocation against that vault AND transparently OPENS the vault as a side effect; the SECOND `eval` invocation against the now-open vault works normally. The wrapper's handler stage-0 detection branch surfaces the first call as `CLI_REPORTED_ERROR(reason:'not-open')`.
-
-**Important detection caveat.** Closing a vault unloads the Integrated CLI plugin alongside the rest of the vault's plugins, so the documented `details.reason: 'not-open'` signature is not always reachable. In that case the actual error surface is `CLI_REPORTED_ERROR` with stderr `Error: Command "eval" not found.` Agents should treat **both** surfaces as "vault unavailable, retry after Obsidian opens it" and apply the same brief-delay retry pattern.
 
 ## Documented inherited limitations
 

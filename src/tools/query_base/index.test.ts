@@ -106,6 +106,20 @@ describe("createQueryBaseTool — descriptor", () => {
     expect(desc).toContain("VAULT_NOT_FOUND");
   });
 
+  it("072: description states closed-vault recovery and the vault-unavailable failure, with no not-open state", () => {
+    const desc = QUERY_BASE_DESCRIPTION;
+    for (const needle of ["Closed vault", "opened automatically", 'Command "', "vault unavailable", "never an empty result"]) {
+      expect(desc).toContain(needle);
+    }
+    expect(desc).not.toContain("not-open");
+    expect(desc).not.toContain("registered but not open");
+    // The closed-vault sentence stands on its own (FR-008, SC-007).
+    const start = desc.indexOf("Closed vault");
+    const sentence = desc.slice(start, desc.indexOf("never an empty result.", start));
+    expect(sentence).not.toContain("Vault not found");
+    expect(sentence).not.toContain("VAULT_NOT_FOUND");
+  });
+
   it("deps wired through: handler receives stubbed CLI envelope and produces typed response", async () => {
     const envelope = JSON.stringify([{ path: "x.md", status: "open" }]);
     const tool = createQueryBaseTool({

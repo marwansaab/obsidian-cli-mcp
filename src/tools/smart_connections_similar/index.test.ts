@@ -46,8 +46,20 @@ describe("createSmartConnectionsSimilarTool — descriptor", () => {
     expect(desc).toContain("SMART_CONNECTIONS_NOT_INSTALLED");
     expect(desc).toContain("SMART_CONNECTIONS_NOT_READY");
     expect(desc).toContain("SOURCE_NOT_INDEXED");
-    expect(desc).toContain("not-open");
     expect(desc.length).toBeGreaterThan(0);
+  });
+
+  // (c1) spec 072 FR-008 / SC-007: closed vault recovers; vault unavailable is a failure; no not-open
+  it("description states closed-vault recovery and vault unavailable, and no not-open state", () => {
+    const desc = SMART_CONNECTIONS_SIMILAR_DESCRIPTION;
+    for (const s of ["Closed vault", "opened automatically", 'Command "', "vault unavailable", "never an empty result"]) {
+      expect(desc).toContain(s);
+    }
+    expect(desc).not.toContain("not-open");
+    expect(desc).not.toContain("registered but not open");
+    const closedVaultSentence = desc.slice(desc.indexOf("Closed vault")).split("\n\n")[0]!;
+    expect(closedVaultSentence).not.toContain("Vault not found");
+    expect(closedVaultSentence).not.toContain("VAULT_NOT_FOUND");
   });
 });
 
@@ -109,7 +121,7 @@ describe("docs/tools/smart_connections_similar.md exists and is non-stub (FR-022
     expect(exampleHeadings).toBeGreaterThanOrEqual(4);
     expect(body).toMatch(/headingPath/);
     expect(body).toMatch(/plugin-lifecycle|Smart Connections plugin/i);
-    expect(body).toMatch(/not-open|closed/i);
+    expect(body).toMatch(/vault unavailable/i);
     expect(body).toMatch(/minimum probed|minimum plugin version|v4\.|Smart Connections/i);
   });
 });

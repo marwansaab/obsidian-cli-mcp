@@ -1,4 +1,4 @@
-// Original — no upstream. query_base handler tests — US1 envelope/ordering/truncation/collision/empty/vault cohort plus US2 BASE_NOT_FOUND / BASE_MALFORMED (five reasons) / VIEW_NOT_FOUND / PATH_ESCAPES_VAULT classification cohort. Mock-only per project test-scope memory; T0 live captures live elsewhere.
+// Original — no upstream. query_base handler tests — US1 envelope/ordering/truncation/collision/empty/vault cohort (spec 072: closed vault recovers through the shared cold-start retry, vault unavailable passes through unchanged, empty answer is a json-parse failure) plus US2 BASE_NOT_FOUND / BASE_MALFORMED (five reasons) / VIEW_NOT_FOUND / PATH_ESCAPES_VAULT classification cohort. Mock-only per project test-scope memory; T0 live captures live elsewhere.
 import { resolve as resolvePath } from "node:path";
 
 import { afterEach, beforeEach, expect, test } from "vitest";
@@ -13,6 +13,7 @@ const TEST_VAULT_ROOT = resolvePath("/vault");
 import { executeQueryBase, type ExecuteDeps } from "./handler.js";
 import {
   __resetInFlightRegistryForTests,
+  COLD_START_PATTERN,
   type SpawnLike,
 } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
@@ -273,7 +274,7 @@ test("US1: view's primary sort (created desc + path-asc tiebreaker) preserved ve
 // US1 — Vault selection (FR-009)
 // =====================================================================
 
-test("US1: input.vault=undefined does NOT trigger closed-vault detection (single spawn only)", async () => {
+test("US1: no-vault path: single base:query spawn", async () => {
   const rows = [{ path: "x.md" }];
   const { spawnFn, getCount } = makeQueuedSpawn([
     { stdout: JSON.stringify(rows), exitCode: 0 },
@@ -290,25 +291,61 @@ test("US1: input.vault=undefined does NOT trigger closed-vault detection (single
   expect(getCount()).toBe(1);
 });
 
-test("US1: closed-but-registered vault (FR-009) → CLI_REPORTED_ERROR/VAULT_NOT_FOUND/not-open", async () => {
-  const registry = "Demo\tC:\\Vault\nThe Setup\tD:\\Vaults\\The Setup\n";
-  const { spawnFn } = makeQueuedSpawn([
-    { stdout: "", exitCode: 0 }, // base:query returns empty stdout
-    { stdout: registry, exitCode: 0 }, // detectIfClosed → vaults verbose
+// Spec 072: a closed registered vault is brought up by the shared ADR-029 cold-start retry in
+// dispatch; the handler has no closed-vault stage of its own. These cases run the real retry
+// through the mock spawn and pin that no `vaults` spawn is ever issued.
+const COLD_START_STDOUT = 'Error: Command "base:query" not found. It may require a plugin to be enabled.\n';
+
+test("072 US1: closed vault recovers via cold-start retry → normal result, two base:query spawns", async () => {
+  const rows = [{ path: "x.md", status: "open" }];
+  const { spawnFn, recorded, getCount } = makeQueuedSpawn([
+    { stdout: COLD_START_STDOUT, exitCode: 0 },
+    { stdout: JSON.stringify(rows), exitCode: 0 },
   ]);
+  const r = await executeQueryBase({ ...HAPPY_INPUT, vault: "Closed" }, deps({ spawnFn }));
+  expect(r.rows).toEqual(rows);
+  expect(getCount()).toBe(2);
+  for (const rec of recorded) {
+    expect(rec.argv).toContain("vault=Closed");
+    expect(rec.argv).toContain("base:query");
+    expect(rec.argv).not.toContain("vaults");
+  }
+});
+
+for (const [label, stdout] of [
+  ["plain", COLD_START_STDOUT],
+  ["with `Did you mean` suffix", 'Error: Command "base:query" not found. Did you mean: base:views, base:create?\n'],
+] as const) {
+  test(`072 US2: vault unavailable (${label}): cold-start persists after retry → CLI_REPORTED_ERROR unchanged`, async () => {
+    const { spawnFn, recorded, getCount } = makeQueuedSpawn([
+      { stdout, exitCode: 0 },
+      { stdout, exitCode: 0 },
+    ]);
+    const err = (await captureRejection(
+      executeQueryBase({ ...HAPPY_INPUT, vault: "Closed" }, deps({ spawnFn })),
+    )) as UpstreamError;
+    expect(err).toBeInstanceOf(UpstreamError);
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(COLD_START_PATTERN.test(String(err.details.stdout))).toBe(true);
+    // classifyAndThrow must pass the failure through unchanged (research F4).
+    expect(err.details.code).toBeUndefined();
+    expect(err.details.code).not.toBe("VIEW_NOT_FOUND");
+    expect(err.details.code).not.toBe("BASE_MALFORMED");
+    expect(err.details.reason).toBeUndefined();
+    expect(getCount()).toBe(2);
+    for (const rec of recorded) expect(rec.argv).not.toContain("vaults");
+  });
+}
+
+test("072 US4: empty answer with a named vault → CLI_REPORTED_ERROR/stage=json-parse, single spawn", async () => {
+  const { spawnFn, getCount } = makeQueuedSpawn([{ stdout: "", exitCode: 0 }]);
   const err = (await captureRejection(
-    executeQueryBase(
-      { ...HAPPY_INPUT, vault: "The Setup" },
-      deps({ spawnFn }),
-    ),
+    executeQueryBase({ ...HAPPY_INPUT, vault: "Closed" }, deps({ spawnFn })),
   )) as UpstreamError;
   expect(err).toBeInstanceOf(UpstreamError);
   expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toMatchObject({
-    code: "VAULT_NOT_FOUND",
-    reason: "not-open",
-    vault: "The Setup",
-  });
+  expect(err.details.stage).toBe("json-parse");
+  expect(getCount()).toBe(1);
 });
 
 test("US1: unknown vault via cli-adapter `Vault not found.` reclassifier → CLI_REPORTED_ERROR verbatim", async () => {

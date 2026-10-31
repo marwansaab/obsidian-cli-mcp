@@ -19,9 +19,9 @@ Per-match fields: \`path\` is the source file's vault-relative path with \`.md\`
 
 Runtime dependency: the Smart Connections plugin (by Brian Petro; ≥ v4.5.0) must be installed in the target vault AND have completed initial indexing AND have an embed model configured. Missing / not-ready states surface as typed CLI_REPORTED_ERROR codes (\`SMART_CONNECTIONS_NOT_INSTALLED\` or \`SMART_CONNECTIONS_NOT_READY\` with \`details.reason: "api-missing"\` or \`"embed-failed"\`).
 
-Closed-but-registered vaults: when \`vault\` is in \`obsidian vaults\` but not currently open, the CLI transparently begins opening it as a side effect — error returned with \`details.code: VAULT_NOT_FOUND\`, \`details.reason: "not-open"\`. Retry after a brief delay.
+Closed vault: a registered vault that is not open is opened automatically and the call returns its normal result (the first call takes longer). If it cannot be brought up — for example, its command-line integration is disabled — the call fails with \`CLI_REPORTED_ERROR\` whose \`details.stdout\` starts \`Error: Command "eval" not found.\` (vault unavailable): open the vault in Obsidian, then call again. This is a failure, never an empty result.
 
-Error-precedence (outer to inner): VAULT_NOT_FOUND(unknown) → VAULT_NOT_FOUND(not-open) → SMART_CONNECTIONS_NOT_INSTALLED → SMART_CONNECTIONS_NOT_READY(api-missing) → SMART_CONNECTIONS_NOT_READY(embed-failed) → success.`;
+Error-precedence (outer to inner): VAULT_NOT_FOUND(unknown) → SMART_CONNECTIONS_NOT_INSTALLED → SMART_CONNECTIONS_NOT_READY(api-missing) → SMART_CONNECTIONS_NOT_READY(embed-failed) → success.`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 
