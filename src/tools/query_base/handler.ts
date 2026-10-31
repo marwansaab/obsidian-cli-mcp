@@ -1,4 +1,4 @@
-// Original — no upstream. query_base handler — wraps the native `obsidian base:query` subcommand (R1) returning a structured `{columns, rows, truncated, total_rows?}` envelope; staged pipeline: vault root resolve → Layer-2 canonical-path check → fs.stat pre-flight (BASE_NOT_FOUND / BASE_MALFORMED/empty) → invokeCli → stderr/stdout error classification (R4) → JSON.parse → wire envelope safeParse → closed-but-registered vault detection (cohort reuse, conditional pending T0 probe) → row post-process (reserved `path` injection + collision rename to `path_view` + columns vector synthesis) → 1000-row cap with `truncated` / `total_rows` signal (FR-013) → output schema parse. Zero new top-level error codes; new states surface via `details.code` sub-discrimination per ADR-015 (Principle IV streak: sixteenth tool).
+// Original — no upstream. query_base handler — wraps the native `obsidian base:query` subcommand (R1) returning a structured `{columns, rows, truncated, total_rows?}` envelope; staged pipeline: vault root resolve → Layer-2 canonical-path check → fs.stat pre-flight (BASE_NOT_FOUND / BASE_MALFORMED/empty) → invokeCli → stderr/stdout error classification (R4) → JSON.parse → wire envelope safeParse → row post-process (reserved `path` injection + collision rename to `path_view` + columns vector synthesis) → 1000-row cap with `truncated` / `total_rows` signal (FR-013) → output schema parse. Zero new top-level error codes; new states surface via `details.code` sub-discrimination per ADR-015 (Principle IV streak: sixteenth tool).
 import * as nodeFs from "node:fs/promises";
 
 import {
@@ -18,7 +18,6 @@ import {
   parseFocusedVault,
   remapVaultNotFound,
 } from "../_active-file.js";
-import { detectIfClosed } from "../_eval-vault-closed-detection/index.js";
 
 import type { SupportDeclaration } from "../../file-type/file-type.js";
 import type { Logger } from "../../logger.js";
@@ -409,43 +408,7 @@ export async function executeQueryBase(
   // `cause` is null here (no originating dispatch error on the success path).
   classifyAndThrow(cliResult.stdout, cliResult.stderr, input, null);
 
-  // upstreamMessage retained for the Stage 5 closed-vault guard below — its
-  // emptiness is part of the closed-but-registered signal. Recomputed from the
-  // same two channels classifyAndThrow inspected.
-  const stderrTrimmed = cliResult.stderr.trim();
-  const stdoutTrimmed = cliResult.stdout.trim();
-  const upstreamMessage =
-    stderrTrimmed.length > 0 && stdoutTrimmed.length > 0
-      ? `${stderrTrimmed}\n${stdoutTrimmed}`
-      : (stderrTrimmed.length > 0 ? stderrTrimmed : stdoutTrimmed);
-
-  // === Stage 5 — closed-but-registered vault detection (cohort reuse, conditional) ===
-  // T012 in tasks.md: dead-code candidate pending T0 probe (R10 #2). If upstream
-  // surfaces closed-vault cleanly via exit code or stderr, this branch never fires.
-  if (
-    typeof input.vault === "string" &&
-    cliResult.stdout.trim().length === 0 &&
-    upstreamMessage.length === 0
-  ) {
-    const isRegistered = await detectIfClosed({
-      vaultName: input.vault,
-      deps,
-    });
-    if (isRegistered) {
-      throw new UpstreamError({
-        code: "CLI_REPORTED_ERROR",
-        cause: null,
-        details: {
-          code: "VAULT_NOT_FOUND",
-          reason: "not-open",
-          vault: input.vault,
-        },
-        message: `query_base: vault "${input.vault}" is registered but not open`,
-      });
-    }
-  }
-
-  // === Stage 6 — JSON.parse + wire envelope safeParse ===
+  // === Stage 5 — JSON.parse + wire envelope safeParse ===
   let parsedJson: unknown;
   try {
     parsedJson = JSON.parse(cliResult.stdout);
@@ -493,7 +456,7 @@ export async function executeQueryBase(
   }
   const upstreamRows: QueryBaseWire = wireValidated.data;
 
-  // === Stage 7 — row post-process: path reservation + columns vector ===
+  // === Stage 6 — row post-process: path reservation + columns vector ===
   // Determinism (FR-003 / SC-003): the wrapper preserves upstream's emission order
   // verbatim. Per data-model.md the view's declared sort is trusted from upstream;
   // path-asc tiebreak is satisfied de facto when upstream emits in path order for
@@ -512,7 +475,7 @@ export async function executeQueryBase(
   // so, we lift the column names from there.
   const { rows: rowsOut, columns } = postProcessRows(capped, null);
 
-  // === Stage 8 — output schema parse (defence-in-depth) ===
+  // === Stage 7 — output schema parse (defence-in-depth) ===
   return queryBaseOutputSchema.parse({
     columns,
     rows: rowsOut,

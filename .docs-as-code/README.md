@@ -99,3 +99,8 @@ applies. Records written since:
   will act on before changing anything; `rename` and `move` keep a file's
   type; active calls forward the resolved `path=` with no `vault=`, the
   path review argued the PR into (PR #97).
+- [decisions/ADR-045-closed-vaults-recovered-only-by-the-dispatch-retry.md](decisions/ADR-045-closed-vaults-recovered-only-by-the-dispatch-retry.md)
+  — the ADR-029 cold-start retry is the only closed-vault handling; the six
+  per-tool `not-open` stages are deleted, and the post-retry error is
+  documented as "vault unavailable" rather than given a new sub-reason
+  (PR #100).

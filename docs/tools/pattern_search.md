@@ -48,7 +48,7 @@ This tool is **vault-scoped** — there is no `target_mode` discriminator, no `f
 - **`folder`** — vault-relative folder prefix; leading/trailing `/` are stripped. `folder: "/"` alone normalises to empty and is treated as no folder restriction (whole-vault scan). Recursive subtree-prefix match — `folder: "Projects"` matches every `.md` note whose path begins with `Projects/`. Case-sensitive byte-equal.
 - **`limit`** — caps the returned `matches` array. The implicit cap is 1000.
 - **`case_sensitive`** — when `false`, the engine runs with the `gi` flags; otherwise `g` only. The `g` flag is mandatory (for `matchAll`) and not caller-controllable.
-- **`vault`** — the vault display name. Unknown vault → `CLI_REPORTED_ERROR` with `details.message: "Vault not found."`. Closed-but-registered vault → `CLI_REPORTED_ERROR` with `details.code: "VAULT_NOT_FOUND"`, `details.reason: "not-open"` — retry after the vault has opened.
+- **`vault`** — the vault display name. Unknown vault → `CLI_REPORTED_ERROR` with `details.message: "Vault not found."`. **Closed vault**: a registered vault that is not open is opened automatically, and the call returns its normal result (the first call takes longer). A vault that cannot be brought up is a failure (vault unavailable, see the error roster), never an empty result.
 
 ## Output shape
 
@@ -220,7 +220,7 @@ Response (against a folder with > 5 matches):
 | `VALIDATION_ERROR` | Input failed the schema: missing / empty / whitespace-only / oversize `pattern`; **invalid regex syntax** (`details.issues[0].path === ["pattern"]`, `code: "custom"`); `limit` out of `1..10000` or non-integer; `case_sensitive` not a boolean; unknown top-level key; empty `vault` / `folder`. | Retry with corrected input. `details.issues` carries per-issue zod context. |
 | `CLI_REPORTED_ERROR` (`details.code: "FOLDER_NOT_FOUND"`) | Folder doesn't exist. `details.folder` echoes the unknown name. | Supply a valid folder, or use the no-`folder` form to scan the whole vault. |
 | `CLI_REPORTED_ERROR` (`details.message: "Vault not found."`) | Unknown vault. | Verify the vault name. |
-| `CLI_REPORTED_ERROR` (`details.code: "VAULT_NOT_FOUND"`, `details.reason: "not-open"`) | Closed-but-registered vault — the CLI is opening it. | Retry after a brief delay. |
+| `CLI_REPORTED_ERROR` (`details.stdout` starts `Error: Command "eval" not found.`) | **Vault unavailable.** The named vault is registered but could not be brought up after the server's automatic retry, for example because its command-line integration is disabled. This is a failure, not an empty result. | Open the vault in Obsidian (or enable its CLI integration), then call again. Do not retry in a loop; the server has already retried once. |
 | `CLI_REPORTED_ERROR` (`details.stage: "json-parse"` or `"envelope-parse"`) | Upstream output unexpected. | Investigate as a regression. |
 | `CLI_NON_ZERO_EXIT` | Output-cap kill on extreme result sets. | Reduce scope with `folder`, `limit`, or a narrower pattern. |
 | `CLI_BINARY_NOT_FOUND` | The `obsidian` CLI binary is not on `PATH` and `OBSIDIAN_BIN` was unset/invalid. | Operator-side: install the Obsidian CLI, OR set `OBSIDIAN_BIN`. |

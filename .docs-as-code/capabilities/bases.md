@@ -8,7 +8,7 @@ run a view, and create an item in one. Per-tool contracts are the
 | --- | --- | --- |
 | `bases` | native CLI `bases` | [docs/tools/bases.md](../../docs/tools/bases.md) |
 | `views_base` | native CLI `base:views`, with an `eval` to focus a named Base | [docs/tools/views_base.md](../../docs/tools/views_base.md) |
-| `query_base` | native CLI `base:query`, with `fs.stat` pre-flight and closed-vault detection | [docs/tools/query_base.md](../../docs/tools/query_base.md) |
+| `query_base` | native CLI `base:query`, with `fs.stat` pre-flight | [docs/tools/query_base.md](../../docs/tools/query_base.md) |
 | `create_base` | native CLI `base:create` | [docs/tools/create_base.md](../../docs/tools/create_base.md) |
 
 ## How it is built
@@ -72,6 +72,20 @@ Errors are `CLI_REPORTED_ERROR` with `details.code` — `BASE_NOT_FOUND`,
 view names. `create_base` content over 3072 UTF-16 code units fails fast with
 `CONTENT_TOO_LARGE`, before the CLI is called, for the same argv reason as
 `prepend` ([mutate](mutate.md#the-cli-wrapped-tools)).
+
+`query_base` on a closed registered vault returns its normal result. In the
+T0 check for PR #100, `base:query` answered a closed vault on its first
+attempt; where it answers `Error: Command "base:query" not found.` instead,
+the dispatch layer's cold-start retry brings the vault up
+([architecture](../architecture.md#runtime-spine)). If that fails too, the
+retry's `CLI_REPORTED_ERROR` is the tool's documented "vault unavailable"
+failure. `query_base` catches `CLI_REPORTED_ERROR` to run its own classifier
+in step 3, and none of its patterns matches that text, so the error passes
+through unchanged; a handler test pins this, with and without the CLI's
+`Did you mean: base:views, base:create?` suffix. Until PR #100 the pipeline
+had a further stage between steps 3 and 4 that turned an empty answer into
+`VAULT_NOT_FOUND` / `not-open`; it could not fire and was deleted
+([ADR-045](../decisions/ADR-045-closed-vaults-recovered-only-by-the-dispatch-retry.md)).
 
 ## Known limits
 

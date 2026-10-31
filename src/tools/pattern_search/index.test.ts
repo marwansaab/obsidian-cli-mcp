@@ -10,6 +10,7 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
+import { closedVaultNote } from "../_shared.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -94,5 +95,10 @@ describe("createPatternSearchTool — descriptor", () => {
     const desc = tool.descriptor.description.toLowerCase();
     expect(desc).toContain("case_sensitive");
     expect(desc).toContain("default");
+  });
+
+  // spec 072 FR-008: the shared closed-vault note, naming this tool's subcommand (wording pinned in _shared.test.ts)
+  it("description carries the closed-vault note for `eval`", () => {
+    expect(PATTERN_SEARCH_DESCRIPTION).toContain(closedVaultNote("eval"));
   });
 });

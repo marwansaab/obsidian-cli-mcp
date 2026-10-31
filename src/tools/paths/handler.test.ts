@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the paths handler — covers US1..US9 handler-test inventory: single-spawn invariant, argv contract (subcommand=eval, base64 payload, vault flow-through, active-mode strip), happy paths (whole-vault, sub-folder, depth, ext, active, count-only, ext+depth composition), trailing-slash invariant on folder entries, cross-mode count invariant, stage-3 closed-vault detection via the shared `_eval-vault-closed-detection` module, stage-5/6 parse failures with discriminative `details.stage`, stage-7 envelope-error branch (FOLDER_NOT_FOUND / NOT_A_FOLDER), inherited unknown-vault via cli-adapter, inherited NO_ACTIVE_FILE + CLI_NON_ZERO_EXIT, payload-injection structural lock (anti-injection round-trips), and frozen-template byte-stability.
+// Original — no upstream. Tests for the paths handler — covers US1..US9 handler-test inventory: single-spawn invariant, argv contract (subcommand=eval, base64 payload, vault flow-through, active-mode strip), happy paths (whole-vault, sub-folder, depth, ext, active, count-only, ext+depth composition), trailing-slash invariant on folder entries, cross-mode count invariant, closed vault through the shared cold-start retry (recovers / vault unavailable) and the empty-answer json-parse failure, stage-4/5 parse failures with discriminative `details.stage`, stage-7 envelope-error branch (FOLDER_NOT_FOUND / NOT_A_FOLDER), inherited unknown-vault via cli-adapter, inherited NO_ACTIVE_FILE + CLI_NON_ZERO_EXIT, payload-injection structural lock (anti-injection round-trips), and frozen-template byte-stability.
 import { createHash } from "node:crypto";
 
 import { afterEach, beforeEach, expect, test } from "vitest";
@@ -6,10 +6,14 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 import { JS_TEMPLATE } from "./_template.js";
 import { executePaths } from "./handler.js";
 import { pathsInputSchema } from "./schema.js";
-import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
+import {
+  __resetInFlightRegistryForTests,
+  COLD_START_PATTERN,
+  type SpawnLike,
+} from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
@@ -379,27 +383,51 @@ test("US5 Q-19 active-mode no focus: 'Error: no active file' → ERR_NO_ACTIVE_F
   expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
 });
 
-// (T034) Q-18 closed-vault detection (specific mode + empty stdout + registered)
-test("US5 Q-18 closed-vault: empty stdout + registered → VAULT_NOT_FOUND(reason:'not-open')", async () => {
-  const vaultsListStdout = "TestVault\tC:\\Vaults\\TestVault\nThe Setup\tD:\\Vaults\\The Setup\n";
-  const { spawnFn, getCount } = makeQueuedSpawn([
-    { stdout: "", exitCode: 0 }, // first call: empty stdout (closed-vault signature)
-    { stdout: vaultsListStdout, exitCode: 0 }, // second call: vaults verbose
+// =====================================================================
+// Closed vault (spec 072) — the shared ADR-029 cold-start retry, no per-tool check
+// =====================================================================
+
+test("closed vault recovers via cold-start retry: normal result, two eval spawns, no vaults spawn", async () => {
+  const paths = ["a.md"];
+  const { spawnFn, recorded, getCount } = makeQueuedSpawn([
+    coldStartResponse("eval"),
+    { stdout: okEnv(1, paths), exitCode: 0 },
+  ]);
+  const result = await executePaths({ target_mode: "specific", vault: "Closed" }, deps(spawnFn));
+  expect(result).toEqual({ count: 1, paths });
+  expect(getCount()).toBe(2);
+  for (const r of recorded) {
+    expect(r.argv).toContain("vault=Closed");
+    expect(r.argv).toContain("eval");
+    expect(r.argv).not.toContain("vaults");
+  }
+});
+
+test("vault unavailable: cold-start persists after retry → CLI_REPORTED_ERROR unchanged", async () => {
+  const { spawnFn, recorded, getCount } = makeQueuedSpawn([
+    coldStartResponse("eval"),
+    coldStartResponse("eval"),
   ]);
   const err = (await captureRejection(
-    executePaths(
-      { target_mode: "specific", vault: "The Setup" },
-      deps(spawnFn),
-    ),
+    executePaths({ target_mode: "specific", vault: "Closed" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(COLD_START_PATTERN.test(String(err.details.stdout))).toBe(true);
+  expect(err.details.code).toBeUndefined();
+  expect(err.details.reason).toBeUndefined();
+  expect(getCount()).toBe(2);
+  for (const r of recorded) expect(r.argv).not.toContain("vaults");
+});
+
+test("empty answer with a named vault → CLI_REPORTED_ERROR(stage:'json-parse'), single spawn", async () => {
+  const { spawnFn, getCount } = makeQueuedSpawn([{ stdout: "", exitCode: 0 }]);
+  const err = (await captureRejection(
+    executePaths({ target_mode: "specific", vault: "Closed" }, deps(spawnFn)),
   )) as UpstreamError;
   expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toMatchObject({
-    code: "VAULT_NOT_FOUND",
-    reason: "not-open",
-    stage: "handler-stage-0",
-    vault: "The Setup",
-  });
-  expect(getCount()).toBe(2);
+  expect(err.details.stage).toBe("json-parse");
+  expect(getCount()).toBe(1);
 });
 
 // =====================================================================
@@ -505,11 +533,11 @@ test("US9 Q-22 adapter cap-kill: CLI_NON_ZERO_EXIT propagates unchanged", async 
 });
 
 // =====================================================================
-// Stage-5/6 parse failures
+// Stage-4/5 parse failures
 // =====================================================================
 
-// stage-5 json-parse failure
-test("stage-5 json-parse: malformed JSON → CLI_REPORTED_ERROR(stage:'json-parse')", async () => {
+// stage-4 json-parse failure
+test("stage-4 json-parse: malformed JSON → CLI_REPORTED_ERROR(stage:'json-parse')", async () => {
   const { spawnFn } = makeQueuedSpawn([{ stdout: "=> not-json{\n", exitCode: 0 }]);
   const err = (await captureRejection(
     executePaths({ target_mode: "specific", vault: "Demo" }, deps(spawnFn)),
@@ -518,8 +546,8 @@ test("stage-5 json-parse: malformed JSON → CLI_REPORTED_ERROR(stage:'json-pars
   expect(err.details.stage).toBe("json-parse");
 });
 
-// stage-6 envelope-parse failure (wrong shape)
-test("stage-6 envelope-parse: wrong shape → CLI_REPORTED_ERROR(stage:'envelope-parse')", async () => {
+// stage-5 envelope-parse failure (wrong shape)
+test("stage-5 envelope-parse: wrong shape → CLI_REPORTED_ERROR(stage:'envelope-parse')", async () => {
   const { spawnFn } = makeQueuedSpawn([
     { stdout: '=> {"ok":true,"bogus":1}\n', exitCode: 0 },
   ]);
@@ -531,7 +559,7 @@ test("stage-6 envelope-parse: wrong shape → CLI_REPORTED_ERROR(stage:'envelope
 });
 
 // stage-1: missing `=> ` prefix still parses
-test("stage-4: missing '=> ' prefix → raw JSON tolerated", async () => {
+test("stage-3: missing '=> ' prefix → raw JSON tolerated", async () => {
   const raw = JSON.stringify({ ok: true, count: 1, paths: ["x.md"] });
   const { spawnFn } = makeQueuedSpawn([{ stdout: raw + "\n", exitCode: 0 }]);
   const result = await executePaths(

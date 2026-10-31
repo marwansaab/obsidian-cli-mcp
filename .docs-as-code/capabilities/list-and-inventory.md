@@ -76,6 +76,14 @@ shown now that the tool exists.
 
 `paths` reports a missing folder or a folder path that names a file as
 `CLI_REPORTED_ERROR` with `details.code` `FOLDER_NOT_FOUND` or `NOT_A_FOLDER`.
+A closed registered vault is opened by the dispatch layer's cold-start retry
+and `paths` returns its normal result; a vault that cannot be brought up is
+the retry's `CLI_REPORTED_ERROR` ("vault unavailable", `details.stdout`
+starting `Error: Command "eval" not found.`), never an empty list. PR #100
+removed a per-tool check that waited for an empty answer the server's CLI
+never sends, and the `VAULT_NOT_FOUND` / `not-open` failure it was documented
+to raise
+([ADR-045](../decisions/ADR-045-closed-vaults-recovered-only-by-the-dispatch-retry.md)).
 `outline` used to pass on the CLI's rejection of a non-Markdown file as an
 undiscriminated `CLI_REPORTED_ERROR`. Since PR #97 it resolves the file first
 and rejects anything but a note as `VALIDATION_ERROR` with

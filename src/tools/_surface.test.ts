@@ -150,6 +150,15 @@ describe("published tool surface (068 US6, US8)", () => {
       const offenders = tools.filter((t) => pattern.test(t.description ?? "")).map((t) => t.name);
       expect(offenders).toEqual([]);
     });
+
+    // Spec 072 SC-004: `not-open` is never emitted for a closed vault, so no description may
+    // advertise it. `views_base` keeps its own `BASE_NOT_FOUND` / `not-open` (FR-010).
+    it("only views_base mentions a not-open state", () => {
+      const offenders = tools
+        .filter((t) => /not-open|registered but not open/.test(t.description ?? ""))
+        .map((t) => t.name);
+      expect(offenders).toEqual(["views_base"]);
+    });
   });
 });
 

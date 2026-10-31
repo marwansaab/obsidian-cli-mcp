@@ -3,10 +3,10 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { JS_TEMPLATE } from "./_template.js";
 import { executePatternSearch } from "./handler.js";
-import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
+import { __resetInFlightRegistryForTests, COLD_START_PATTERN, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
@@ -210,25 +210,50 @@ test("US1 (12) explicit limit:5000 — underlying set fits → truncated ABSENT"
 // US1 error paths
 // =====================================================================
 
-// (13) closed-but-registered vault → CLI_REPORTED_ERROR(VAULT_NOT_FOUND, reason:not-open)
-test("US1 (13) closed-but-registered vault: empty stdout + vault in registry → VAULT_NOT_FOUND(not-open)", async () => {
-  const registry = "TestVault\tC:\\Vaults\\TestVault\nThe Setup\tD:\\Vaults\\The Setup\n";
-  const { spawnFn, getCount } = makeQueuedSpawn([
-    { stdout: "", exitCode: 0 },
-    { stdout: registry, exitCode: 0 },
+// (13a) closed vault: the ADR-029 cold-start retry brings it up → normal result (spec 072 US1)
+test("closed vault recovers via cold-start retry: normal result, two eval spawns, no vaults spawn", async () => {
+  const matches = [{ path: "a.md", line: 1, offset: 0, match: "x", text: "x" }];
+  const { spawnFn, recorded, getCount } = makeQueuedSpawn([
+    coldStartResponse("eval"),
+    { stdout: okEnv({ count: 1, matches }), exitCode: 0 },
+  ]);
+  const r = await executePatternSearch({ pattern: "x", vault: "Closed" }, deps(spawnFn));
+  expect(r).toEqual({ count: 1, matches });
+  expect(getCount()).toBe(2);
+  for (const rec of recorded) {
+    expect(rec.argv).toContain("vault=Closed");
+    expect(rec.argv).toContain("eval");
+    expect(rec.argv).not.toContain("vaults");
+  }
+});
+
+// (13b) vault unavailable: cold-start persists past the single retry → CLI_REPORTED_ERROR unchanged (spec 072 US2)
+test("vault unavailable: cold-start persists after retry → CLI_REPORTED_ERROR unchanged", async () => {
+  const { spawnFn, recorded, getCount } = makeQueuedSpawn([
+    coldStartResponse("eval"),
+    coldStartResponse("eval"),
   ]);
   const err = (await captureRejection(
-    executePatternSearch({ pattern: "x", vault: "The Setup" }, deps(spawnFn)),
+    executePatternSearch({ pattern: "x", vault: "Closed" }, deps(spawnFn)),
   )) as UpstreamError;
   expect(err).toBeInstanceOf(UpstreamError);
   expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toMatchObject({
-    code: "VAULT_NOT_FOUND",
-    reason: "not-open",
-    stage: "handler-stage-0",
-    vault: "The Setup",
-  });
+  expect(COLD_START_PATTERN.test(String(err.details.stdout))).toBe(true);
+  expect(err.details.code).toBeUndefined();
+  expect(err.details.reason).toBeUndefined();
   expect(getCount()).toBe(2);
+  for (const rec of recorded) expect(rec.argv).not.toContain("vaults");
+});
+
+// (13c) empty answer with a vault named → structured json-parse failure, single spawn (spec 072 US4 / FR-007)
+test("empty answer with a vault named → CLI_REPORTED_ERROR(stage:json-parse), single spawn", async () => {
+  const { spawnFn, getCount } = makeQueuedSpawn([{ stdout: "", exitCode: 0 }]);
+  const err = (await captureRejection(
+    executePatternSearch({ pattern: "x", vault: "Closed" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toMatchObject({ stage: "json-parse" });
+  expect(getCount()).toBe(1);
 });
 
 // (14) unknown vault — cli-adapter classifier → CLI_REPORTED_ERROR with "Vault not found."

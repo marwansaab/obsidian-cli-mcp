@@ -3,7 +3,7 @@ import { registerTool } from "../_register.js";
 import { type ExecuteDeps, executeQueryBase, QUERY_BASE_SUPPORTED } from "./handler.js";
 import { queryBaseInputSchema, queryBaseOutputSchema } from "./schema.js";
 import { describeSupport } from "../../file-type/file-type.js";
-import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
+import { closedVaultNote, READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const QUERY_BASE_TOOL_NAME = "query_base";
 
@@ -24,7 +24,9 @@ Response: \`{ columns: string[], rows: Array<Record<string, unknown>>, truncated
 
 Read-only — the tool never mutates vault contents.
 
-Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (\`INVALID_BASE_PATH\` with sub-reasons \`empty\`/\`too-long\`/\`wrong-extension\`/\`path-traversal\`; \`INVALID_VIEW_NAME\` with sub-reasons \`empty\`/\`too-long\`); \`CLI_REPORTED_ERROR\` (\`BASE_NOT_FOUND\`; \`BASE_MALFORMED\` with sub-reasons \`empty\`/\`invalid-yaml\`/\`missing-required-key\`/\`unsupported-schema-version\`/\`unknown\`; \`VIEW_NOT_FOUND\`; \`VAULT_NOT_FOUND\` with sub-reasons \`unknown\`/\`not-open\`); \`PATH_ESCAPES_VAULT\`.`;
+Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (\`INVALID_BASE_PATH\` with sub-reasons \`empty\`/\`too-long\`/\`wrong-extension\`/\`path-traversal\`; \`INVALID_VIEW_NAME\` with sub-reasons \`empty\`/\`too-long\`); \`CLI_REPORTED_ERROR\` (\`BASE_NOT_FOUND\`; \`BASE_MALFORMED\` with sub-reasons \`empty\`/\`invalid-yaml\`/\`missing-required-key\`/\`unsupported-schema-version\`/\`unknown\`; \`VIEW_NOT_FOUND\`; \`VAULT_NOT_FOUND\` with sub-reason \`unknown\`); \`PATH_ESCAPES_VAULT\`.
+
+${closedVaultNote("base:query")}`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

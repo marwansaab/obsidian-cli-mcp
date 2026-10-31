@@ -3,7 +3,7 @@ import { registerTool } from "../_register.js";
 import { type ExecuteDeps, executeSmartConnectionsSimilar, SMART_CONNECTIONS_SIMILAR_SUPPORTED } from "./handler.js";
 import { smartConnectionsSimilarInputSchema, smartConnectionsSimilarOutputSchema } from "./schema.js";
 import { describeSupport } from "../../file-type/file-type.js";
-import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
+import { closedVaultNote, READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const SMART_CONNECTIONS_SIMILAR_TOOL_NAME = "smart_connections_similar";
 
@@ -18,9 +18,11 @@ Sort order: primary score descending, secondary path byte-ascending, tertiary he
 
 Plugin dependency: requires the Smart Connections plugin (by Brian Petro; minimum probed v4.5.0) to be installed AND its indexing to have completed in the target vault; otherwise surfaces SMART_CONNECTIONS_NOT_INSTALLED / SMART_CONNECTIONS_NOT_READY / SOURCE_NOT_INDEXED via CLI_REPORTED_ERROR(stage:'envelope-error').
 
-Vault states: VAULT_NOT_FOUND carries a details.reason sub-discriminator — "unknown" (vault not registered) vs "not-open" (registered but not currently open in Obsidian — the CLI transparently opens the vault as a side effect; retry after a brief delay). In practice closing a vault unloads the Integrated CLI plugin too, so the "not-open" path may surface as CLI_REPORTED_ERROR with stderr Error: Command 'eval' not found.; treat both as "vault unavailable, retry after Obsidian opens it".
+Vault states: VAULT_NOT_FOUND carries a details.reason sub-discriminator — "unknown" (vault not registered).
 
-Error-precedence chain (outer-to-inner, cheapest-first): VAULT_NOT_FOUND(unknown) → VAULT_NOT_FOUND(not-open) → SMART_CONNECTIONS_NOT_INSTALLED → NO_ACTIVE_FILE / FILE_NOT_FOUND → NOT_MARKDOWN → SMART_CONNECTIONS_NOT_READY → SOURCE_NOT_INDEXED → success.`;
+${closedVaultNote("eval")}
+
+Error-precedence chain (outer-to-inner, cheapest-first): VAULT_NOT_FOUND(unknown) → SMART_CONNECTIONS_NOT_INSTALLED → NO_ACTIVE_FILE / FILE_NOT_FOUND → NOT_MARKDOWN → SMART_CONNECTIONS_NOT_READY → SOURCE_NOT_INDEXED → success.`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

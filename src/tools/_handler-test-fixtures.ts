@@ -170,6 +170,11 @@ export function focusedFileResponse(relPath: string | null, base = "/vaults/MyVa
   return { stdout: `=> ${JSON.stringify({ path: relPath, base })}\n`, exitCode: 0 };
 }
 
+/** The shim's answer for a registered vault that is not open yet (ADR-029 cold start), for subcommand `command`. */
+export function coldStartResponse(command: string): StubResponse {
+  return { stdout: `Error: Command "${command}" not found. It may require a plugin to be enabled.\n`, exitCode: 0 };
+}
+
 /** A Logger whose output is discarded — for handler tests that never assert logs. */
 export function silentLogger(): Logger {
   return createLogger({ stream: new Writable({ write(_c, _e, cb) { cb(); } }) });

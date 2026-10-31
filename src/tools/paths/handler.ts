@@ -1,9 +1,8 @@
-// Original — no upstream. paths handler — single invokeCli wrapper around the eval subcommand with the frozen JS template + base64 JSON payload (anti-injection); single-call architecture branched at envelope-emission on `payload.total` (in-template); stage-0 closed-but-registered-vault detection via the shared `_eval-vault-closed-detection` module; stage-1 extraction uses the trimStart+startsWith pattern; stages 2-5 multi-stage parse (JSON.parse → envelope safeParse → discriminate on ok → output validation) with structured CLI_REPORTED_ERROR propagation; surfaces two details.code values (FOLDER_NOT_FOUND, NOT_A_FOLDER) under existing CLI_REPORTED_ERROR top-level code per the established sub-discriminator pattern.
+// Original — no upstream. paths handler — single invokeCli wrapper around the eval subcommand with the frozen JS template + base64 JSON payload (anti-injection); single-call architecture branched at envelope-emission on `payload.total` (in-template); a closed vault is brought up by the shared cold-start retry in the dispatch layer, with no per-tool check; stage-1 extraction uses the trimStart+startsWith pattern; stages 2-5 multi-stage parse (JSON.parse → envelope safeParse → discriminate on ok → output validation) with structured CLI_REPORTED_ERROR propagation; surfaces two details.code values (FOLDER_NOT_FOUND, NOT_A_FOLDER) under existing CLI_REPORTED_ERROR top-level code per the established sub-discriminator pattern.
 import { JS_TEMPLATE } from "./_template.js";
 import { pathsEvalEnvelopeSchema, pathsOutputSchema, type PathsInput, type PathsOutput } from "./schema.js";
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import { detectIfClosed } from "../_eval-vault-closed-detection/index.js";
 import { composeEvalCode } from "../_shared.js";
 
 import type { Logger } from "../../logger.js";
@@ -40,35 +39,11 @@ export async function executePaths(
     deps,
   );
 
-  // === Stage 3 — closed-but-registered-vault detection (shared module) ===
-  // Empty stdout + exit 0 + a vault= argument is the signature of an eval call
-  // against a registered-but-closed vault; the CLI transparently opens the
-  // vault as a side effect. Delegate to the shared
-  // `_eval-vault-closed-detection` module, which issues a second invokeCli to
-  // `vaults verbose` and parses the registry.
-  if (input.target_mode === "specific" && typeof input.vault === "string" && result.stdout.trim().length === 0) {
-    const vaultName = input.vault;
-    const isRegistered = await detectIfClosed({ vaultName, deps });
-    if (isRegistered) {
-      throw new UpstreamError({
-        code: "CLI_REPORTED_ERROR",
-        cause: null,
-        details: {
-          code: "VAULT_NOT_FOUND",
-          reason: "not-open",
-          stage: "handler-stage-0",
-          vault: vaultName,
-        },
-        message: `Vault "${vaultName}" is registered but not currently open in Obsidian; the CLI has begun opening it — retry after a brief delay.`,
-      });
-    }
-  }
-
-  // === Stage 4 — extract JSON via "=> " prefix ===
+  // === Stage 3 — extract JSON via "=> " prefix ===
   const trimmed = result.stdout.trimStart();
   const jsonText = trimmed.startsWith("=> ") ? trimmed.slice(3) : trimmed;
 
-  // === Stage 5 — JSON.parse ===
+  // === Stage 4 — JSON.parse ===
   let parsedJson: unknown;
   try {
     parsedJson = JSON.parse(jsonText);
@@ -81,7 +56,7 @@ export async function executePaths(
     });
   }
 
-  // === Stage 6 — envelope safeParse ===
+  // === Stage 5 — envelope safeParse ===
   const validated = pathsEvalEnvelopeSchema.safeParse(parsedJson);
   if (!validated.success) {
     throw new UpstreamError({
@@ -93,7 +68,7 @@ export async function executePaths(
   }
   const envelope = validated.data;
 
-  // === Stage 7 — discriminate on ok ===
+  // === Stage 6 — discriminate on ok ===
   if (envelope.ok === false) {
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
@@ -107,6 +82,6 @@ export async function executePaths(
     });
   }
 
-  // === Stage 8 — output schema validation at the return boundary ===
+  // === Stage 7 — output schema validation at the return boundary ===
   return pathsOutputSchema.parse({ count: envelope.count, paths: envelope.paths });
 }

@@ -2,7 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executePatternSearch, type ExecuteDeps } from "./handler.js";
 import { patternSearchInputSchema, patternSearchOutputSchema } from "./schema.js";
-import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
+import { closedVaultNote, READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const PATTERN_SEARCH_TOOL_NAME = "pattern_search";
 
@@ -25,13 +25,15 @@ Optional \`case_sensitive\` (boolean, **default true**).
 
 Optional \`vault\` (string): routes to a named vault; omitted routes to the focused vault.
 
+${closedVaultNote("eval")}
+
 \`match\` is the substring matched by the regex — NEVER capped, emitted verbatim. \`text\` is the full line capped at 500 UTF-16 code units + \`…\` ellipsis marker. \`offset\` is the 0-based start of the match within the line. Sort: \`(path, line, offset)\` ascending. Per-occurrence emission — three matches on the same line produce three entries differing only in \`offset\`. Zero-length matches (\`^\`, \`$\`, \`a*\`, \`\\b\`, lookarounds) are SKIPPED — they never emit entries.
 
 **Read-only** — find-and-replace is out of scope; use [\`find_and_replace\`](./find_and_replace.md) for that. Plain-text scanning — matches inside fenced code blocks, frontmatter, or HTML comments ARE returned same as any other position; markdown-aware exclusion is out of scope. Line-scoped — a regex containing \`\\n\` cannot match across line boundaries.
 
 Zero-match valid pattern returns \`{ count: 0, matches: [] }\` (never an error). With \`folder\` supplied, a missing folder surfaces as \`CLI_REPORTED_ERROR\` with \`details.code: "FOLDER_NOT_FOUND"\` (distinguishes wrong-folder from no-matches).
 
-Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (including invalid regex), \`CLI_REPORTED_ERROR\` (with sub-discriminators \`FOLDER_NOT_FOUND\` / \`VAULT_NOT_FOUND\` / json-parse / envelope-parse), \`CLI_NON_ZERO_EXIT\`, \`CLI_TIMEOUT\`, \`CLI_OUTPUT_TOO_LARGE\`, \`CLI_BINARY_NOT_FOUND\`.`;
+Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (including invalid regex), \`CLI_REPORTED_ERROR\` (with sub-discriminators \`FOLDER_NOT_FOUND\` / json-parse / envelope-parse), \`CLI_NON_ZERO_EXIT\`, \`CLI_TIMEOUT\`, \`CLI_OUTPUT_TOO_LARGE\`, \`CLI_BINARY_NOT_FOUND\`.`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

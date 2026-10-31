@@ -1,4 +1,4 @@
-// Original — no upstream. smart_connections_similar handler — single invokeCli wrapper around the eval subcommand with the frozen JS template + base64 JSON payload (R6 anti-injection); R2/R3 single-call architecture branched at envelope-emission on a.total; stage-0 closed-but-registered-vault detection (R5a / FR-017a) issues a SECOND invokeCli to the `vaults` subcommand on the empty-stdout + exit-0 + specific-mode signature, distinguishing "vault registered but not currently open" (transparent-open side effect; CLI_REPORTED_ERROR with details.reason='not-open') from a genuinely anomalous empty-stdout response; two-stage parse step (JSON.parse → smartConnectionsSimilarEvalResponseSchema.safeParse) with structured CLI_REPORTED_ERROR on json-parse / envelope-parse failure; envelope ok:false → UpstreamError mapping per R13 (NO_ACTIVE_FILE → ERR_NO_ACTIVE_FILE for BI-015 / BI-025 parity per T0.1 lock; FILE_NOT_FOUND / NOT_MARKDOWN / SMART_CONNECTIONS_NOT_INSTALLED / SMART_CONNECTIONS_NOT_READY / SOURCE_NOT_INDEXED → CLI_REPORTED_ERROR with details.stage='envelope-error').
+// Original — no upstream. smart_connections_similar handler — single invokeCli wrapper around the eval subcommand with the frozen JS template + base64 JSON payload (R6 anti-injection); R2/R3 single-call architecture branched at envelope-emission on a.total; a closed vault is brought up by the dispatch layer's cold-start retry (ADR-029), and an empty answer fails at json-parse; two-stage parse step (JSON.parse → smartConnectionsSimilarEvalResponseSchema.safeParse) with structured CLI_REPORTED_ERROR on json-parse / envelope-parse failure; envelope ok:false → UpstreamError mapping per R13 (NO_ACTIVE_FILE → ERR_NO_ACTIVE_FILE for BI-015 / BI-025 parity per T0.1 lock; FILE_NOT_FOUND / NOT_MARKDOWN / SMART_CONNECTIONS_NOT_INSTALLED / SMART_CONNECTIONS_NOT_READY / SOURCE_NOT_INDEXED → CLI_REPORTED_ERROR with details.stage='envelope-error').
 import { JS_TEMPLATE } from "./_template.js";
 import {
   smartConnectionsSimilarEvalResponseSchema,
@@ -8,7 +8,6 @@ import {
 } from "./schema.js";
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import { detectIfClosed } from "../_eval-vault-closed-detection/index.js";
 import { composeEvalCode } from "../_shared.js";
 
 import type { SupportDeclaration } from "../../file-type/file-type.js";
@@ -47,37 +46,6 @@ export async function executeSmartConnectionsSimilar(
     },
     deps,
   );
-
-  // === Stage 0 — closed-but-registered-vault detection (R5a / FR-017a / SC-011a) ===
-  // Per F7 / F8 (live probe 2026-05-15): the CLI emits empty stdout + exit 0 for the FIRST
-  // eval call against a closed registered vault AND transparently OPENS the vault as a
-  // side effect. Delegated to the shared `_eval-vault-closed-detection` module (extracted
-  // at BI-027 per FR-020 / Q8(c) hybrid extraction); the module issues a SECOND invokeCli
-  // to the `vaults` subcommand and parses the registry.
-  if (
-    input.target_mode === "specific" &&
-    typeof input.vault === "string" &&
-    result.stdout.trim().length === 0
-  ) {
-    const vaultName = input.vault;
-    const isRegistered = await detectIfClosed({ vaultName, deps });
-    if (isRegistered) {
-      throw new UpstreamError({
-        code: "CLI_REPORTED_ERROR",
-        cause: null,
-        details: {
-          code: "VAULT_NOT_FOUND",
-          reason: "not-open",
-          stage: "handler-stage-0",
-          vault: vaultName,
-        },
-        message: `Vault "${vaultName}" is registered but not currently open in Obsidian; the CLI has begun opening it — retry after a brief delay.`,
-      });
-    }
-    // Vault is not registered AND not open AND no "Vault not found." string was emitted.
-    // Fall through to stage 1 (json-parse) — empty stdout will surface as a structured
-    // json-parse failure. This is the truly-anomalous case and should be rare.
-  }
 
   // === Stage 1 — strip the `=> ` prefix that eval prepends to its return value ===
   let stdout = result.stdout.trimStart();

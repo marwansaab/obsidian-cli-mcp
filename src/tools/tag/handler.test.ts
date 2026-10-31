@@ -1,12 +1,16 @@
-// Original — no upstream. Tests for the tag handler — 32 cases per data-model.md handler-test inventory. Covers single-spawn invariant (R3 / R12), argv contract (subcommand=eval, base64 payload assembly, vault flow-through), default-mode + count-only envelope happy paths (US1 / US4), zero-match natural empty-result handling (FR-012), hierarchical subsumption (US2) + leaf precision + segment-boundary precision (US3 / Q-13 — `foobar` MUST NOT match `foo`), stage-0 closed-vault detection via the shared `_eval-vault-closed-detection` module (third consumer), stage-1/2/3 parse failures with discriminative `details.stage`, stage-4 envelope-error branch (reserved; v1 template never emits ok:false), inherited unknown-vault via cli-adapter 011-R5, payload-injection structural lock (3 adversarial round-trips), and sort+dedup invariants (handler does NOT re-sort — JS template owns ordering).
+// Original — no upstream. Tests for the tag handler — 32 cases per data-model.md handler-test inventory. Covers single-spawn invariant (R3 / R12), argv contract (subcommand=eval, base64 payload assembly, vault flow-through), default-mode + count-only envelope happy paths (US1 / US4), zero-match natural empty-result handling (FR-012), hierarchical subsumption (US2) + leaf precision + segment-boundary precision (US3 / Q-13 — `foobar` MUST NOT match `foo`), closed-vault recovery and vault-unavailable through the shared ADR-029 cold-start retry plus the empty-answer json-parse failure (spec 072), stage-1/2/3 parse failures with discriminative `details.stage`, stage-4 envelope-error branch (reserved; v1 template never emits ok:false), inherited unknown-vault via cli-adapter 011-R5, payload-injection structural lock (3 adversarial round-trips), and sort+dedup invariants (handler does NOT re-sort — JS template owns ordering).
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { JS_TEMPLATE } from "./_template.js";
 import { executeTag } from "./handler.js";
-import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
+import {
+  __resetInFlightRegistryForTests,
+  COLD_START_PATTERN,
+  type SpawnLike,
+} from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
@@ -181,32 +185,56 @@ test("US4 Q-21 cross-mode count invariant: count-only result === default-mode pa
 });
 
 // =====================================================================
-// Stage-0 closed-vault detection (shared module — third consumer)
+// Closed vault — recovery through the shared ADR-029 cold-start retry (spec 072)
 // =====================================================================
 
-// (16) Closed-but-registered vault: empty stdout + registered → not-open
-test("stage-0 closed-vault: empty stdout + registered → CLI_REPORTED_ERROR(reason:'not-open')", async () => {
-  const vaultsListStdout = "TestVault\tC:\\Vaults\\TestVault\nThe Setup\tD:\\Vaults\\The Setup\n";
-  const { spawnFn, getCount } = makeQueuedSpawn([
-    { stdout: "", exitCode: 0 }, // first call: empty stdout (closed-vault signature)
-    { stdout: vaultsListStdout, exitCode: 0 }, // second call: vaults verbose
+// (16) A closed registered vault answers the cold-start signature once; the retry recovers.
+test("closed vault recovers via cold-start retry: normal result, two eval spawns, no vaults spawn", async () => {
+  const { spawnFn, recorded, getCount } = makeQueuedSpawn([
+    coldStartResponse("eval"),
+    { stdout: defaultEnv(["a.md"]), exitCode: 0 },
+  ]);
+  const result = await executeTag({ tag: "foo", vault: "Closed" }, deps(spawnFn));
+  expect(result).toEqual({ count: 1, paths: ["a.md"] });
+  expect(getCount()).toBe(2);
+  for (const r of recorded) {
+    expect(r.argv).toContain("vault=Closed");
+    expect(r.argv).toContain("eval");
+    expect(r.argv).not.toContain("vaults");
+  }
+});
+
+// (17) Vault unavailable: the cold-start signature persists past the retry.
+test("vault unavailable: cold-start persists after retry → CLI_REPORTED_ERROR unchanged", async () => {
+  const { spawnFn, recorded, getCount } = makeQueuedSpawn([
+    coldStartResponse("eval"),
+    coldStartResponse("eval"),
   ]);
   const err = (await captureRejection(
-    executeTag({ tag: "foo", vault: "The Setup" }, deps(spawnFn)),
+    executeTag({ tag: "foo", vault: "Closed" }, deps(spawnFn)),
   )) as UpstreamError;
   expect(err).toBeInstanceOf(UpstreamError);
   expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toMatchObject({
-    code: "VAULT_NOT_FOUND",
-    reason: "not-open",
-    stage: "handler-stage-0",
-    vault: "The Setup",
-  });
+  expect(COLD_START_PATTERN.test(String(err.details.stdout))).toBe(true);
+  expect(err.details.code).toBeUndefined();
+  expect(err.details.reason).toBeUndefined();
   expect(getCount()).toBe(2);
+  expect(recorded.some((r) => r.argv.includes("vaults"))).toBe(false);
 });
 
-// (17) Non-empty stdout → shared detector NOT consulted; proceeds to stage 1
-test("stage-0 non-empty stdout: shared detector skipped; stages 1+ run", async () => {
+// (17a) Empty answer with a named vault is a structured failure, with no follow-up spawn.
+test("empty answer with a named vault → CLI_REPORTED_ERROR(stage:'json-parse'), single spawn", async () => {
+  const { spawnFn, getCount } = makeQueuedSpawn([{ stdout: "", exitCode: 0 }]);
+  const err = (await captureRejection(
+    executeTag({ tag: "foo", vault: "Closed" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details.stage).toBe("json-parse");
+  expect(getCount()).toBe(1);
+});
+
+// (17b) Named vault with a normal answer: one spawn only.
+test("named vault, non-empty stdout: single spawn", async () => {
   const { spawnFn, getCount } = makeQueuedSpawn([{ stdout: defaultEnv(["a.md"]), exitCode: 0 }]);
   const result = await executeTag({ tag: "foo", vault: "Demo" }, deps(spawnFn));
   expect(result).toEqual({ count: 1, paths: ["a.md"] });

@@ -21,6 +21,8 @@ Run a named view from an Obsidian Bases (`.base`) file and return its matched ro
 | `view_name`  | string | yes      | Name of the view inside the `.base` file. Exact case-sensitive match — no trim, no fold, no fuzzy. Length cap 1000 UTF-16 code units. |
 | `vault`      | string | no       | Optional vault display name. When absent, routes to the focused vault. |
 
+**Closed vault.** A registered vault that is not open is opened automatically, and the call returns its normal result (the first call takes longer). A vault that cannot be brought up is a failure, not an empty result: see **Vault unavailable** in the [error roster](#error-roster).
+
 ## Output
 
 ```json
@@ -70,7 +72,8 @@ Example row: `{ "path": "Sandbox/intval.md", "file path": "Sandbox/intval.md", "
 | `CLI_REPORTED_ERROR`    | `BASE_NOT_FOUND`      | `.base` file missing at the supplied path | Verify the path; use `bases` to enumerate `.base` files in the vault. |
 | `CLI_REPORTED_ERROR`    | `BASE_MALFORMED`      | File present but unusable (`details.reason` narrows: `empty`, `invalid-yaml`, `missing-required-key`, `unsupported-schema-version`, `unknown`) | Inspect `details.reason`; ask the user to fix the `.base` file in Obsidian. |
 | `CLI_REPORTED_ERROR`    | `VIEW_NOT_FOUND`      | File fine, view missing or case-mismatched | Use `views_base` to enumerate the actual view names; retry with the exact name. |
-| `CLI_REPORTED_ERROR`    | `VAULT_NOT_FOUND`     | Unknown vault (`details.reason: "unknown"`) or closed-but-registered (`"not-open"`) | Verify the vault name; for `"not-open"`, retry after a brief delay (the CLI is opening the vault). |
+| `CLI_REPORTED_ERROR`    | `VAULT_NOT_FOUND`     | Unknown vault (`details.reason: "unknown"`) | Verify the vault name. |
+| `CLI_REPORTED_ERROR`    | —                     | **Vault unavailable.** `details.stdout` starts `Error: Command "base:query" not found.`: the named vault is registered but could not be brought up after the server's automatic retry, for example because its command-line integration is disabled. This is a failure, not an empty result. | Open the vault in Obsidian (or enable its CLI integration), then call again. Do not retry in a loop; the server has already retried once. |
 | `PATH_ESCAPES_VAULT`    | —                     | `base_path` resolves outside the vault root | Caller's bug — fix the path. |
 | `UPSTREAM_TIMEOUT`      | —                     | Subprocess exceeded 10 s wall-clock | Narrow the view's filter, or investigate the `.base` complexity. |
 | `OUTPUT_CAP_EXCEEDED`   | —                     | Upstream stdout exceeded 10 MiB | The view returns too much data; narrow the filter or paginate via a view declaration that limits row count. |

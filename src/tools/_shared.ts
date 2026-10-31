@@ -1,4 +1,4 @@
-// Original — no upstream. Shared types and helpers for the tool aggregator pattern. Post-010: the wrap-branch envelope helper deletes (FR-005). 068 (C3): toMcpInputSchema and its draft-07 parity normaliser are gone; the published input schema is whatever the MCP SDK v2 emits from the zod schema (see toSdkInputSchema in _register.ts). BI-034 (spec branch 034-fix-unicode-lookups): adds B64_PAYLOAD_DECODE_EXPR and composeEvalCode for the seven-tool atob+base64 eval-composition cohort — `atob()` in V8 returns a Latin-1 binary string; the new decode expression re-interprets the byte sequence as UTF-8 so non-ASCII identifiers survive the base64 round-trip. 068 PR 6 (R11, R12): ToolCall, the per-call context (signal and progress for the deps, confirmation for the handler), and BootDeps, a tool's deps without that per-call scope.
+// Original — no upstream. Shared types and helpers for the tool aggregator pattern. Post-010: the wrap-branch envelope helper deletes (FR-005). 068 (C3): toMcpInputSchema and its draft-07 parity normaliser are gone; the published input schema is whatever the MCP SDK v2 emits from the zod schema (see toSdkInputSchema in _register.ts). BI-034 (spec branch 034-fix-unicode-lookups): adds B64_PAYLOAD_DECODE_EXPR and composeEvalCode for the seven-tool atob+base64 eval-composition cohort — `atob()` in V8 returns a Latin-1 binary string; the new decode expression re-interprets the byte sequence as UTF-8 so non-ASCII identifiers survive the base64 round-trip. 068 PR 6 (R11, R12): ToolCall, the per-call context (signal and progress for the deps, confirmation for the handler), and BootDeps, a tool's deps without that per-call scope. 072: closedVaultNote, the closed-vault paragraph six read-tool descriptions share.
 import type { CallScope } from "../cli-adapter/cli-adapter.js";
 import type { McpServer } from "@modelcontextprotocol/server";
 
@@ -30,6 +30,16 @@ export function composeEvalCode(template: string, payload: unknown): string {
   const payloadJson = JSON.stringify(payload);
   const payloadB64 = Buffer.from(payloadJson, "utf-8").toString("base64");
   return template.replace("__PAYLOAD_B64__", payloadB64);
+}
+
+/**
+ * The closed-vault paragraph shared by the tool descriptions of the six read tools whose
+ * closed vault is brought up by the dispatch layer's ADR-029 cold-start retry (spec 072
+ * FR-008). `command` is the CLI subcommand the tool runs, as it appears in the shim's
+ * `Error: Command "<command>" not found.` answer.
+ */
+export function closedVaultNote(command: string): string {
+  return `Closed vault: a registered vault that is not open is opened automatically and the call returns its normal result (the first call takes longer). If it cannot be brought up — for example, its command-line integration is disabled — the call fails with \`CLI_REPORTED_ERROR\` whose \`details.stdout\` starts \`Error: Command "${command}" not found.\` (vault unavailable): open the vault in Obsidian, then call again. This is a failure, never an empty result.`;
 }
 
 /**

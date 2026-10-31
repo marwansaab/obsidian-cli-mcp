@@ -1,4 +1,4 @@
-// Original — no upstream. tag handler — single invokeCli wrapper around the eval subcommand with the frozen JS template + base64 JSON payload (R6 / FR-020 anti-injection); R2/R3 single-call architecture branched at envelope-emission on `wantTotal`; stage-0 closed-but-registered-vault detection via the shared `_eval-vault-closed-detection` module (BI-028 is the third consumer after BI-026 origin / BI-027 lift); stage-1 extraction uses the BI-026 trimStart+startsWith pattern (the template is quiet — no plugin-side console preamble); stages 2-5 multi-stage parse (JSON.parse → envelope safeParse → discriminate on ok → per-mode output validation) with structured CLI_REPORTED_ERROR propagation; ZERO new top-level error codes + ZERO new details.code values (preserves fourteen-tool zero-new-codes streak).
+// Original — no upstream. tag handler — single invokeCli wrapper around the eval subcommand with the frozen JS template + base64 JSON payload (R6 / FR-020 anti-injection); R2/R3 single-call architecture branched at envelope-emission on `wantTotal`; a closed vault is brought up by the shared ADR-029 cold-start retry in the dispatch layer, so the handler has no closed-vault stage of its own (spec 072); stage-1 extraction uses the BI-026 trimStart+startsWith pattern (the template is quiet — no plugin-side console preamble); stages 2-5 multi-stage parse (JSON.parse → envelope safeParse → discriminate on ok → per-mode output validation) with structured CLI_REPORTED_ERROR propagation; ZERO new top-level error codes + ZERO new details.code values (preserves fourteen-tool zero-new-codes streak).
 import { JS_TEMPLATE } from "./_template.js";
 import {
   tagCountOnlyOutputSchema,
@@ -10,7 +10,6 @@ import {
 } from "./schema.js";
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import { detectIfClosed } from "../_eval-vault-closed-detection/index.js";
 import { composeEvalCode } from "../_shared.js";
 
 import type { Logger } from "../../logger.js";
@@ -42,31 +41,6 @@ export async function executeTag(
     },
     deps,
   );
-
-  // === Stage 0 — closed-but-registered-vault detection (shared module) ===
-  // Empty stdout + exit 0 + a vault= argument is the signature of an eval call
-  // against a registered-but-closed vault; the CLI transparently opens the
-  // vault as a side effect. Delegate to the shared
-  // `_eval-vault-closed-detection` module, which issues a second invokeCli to
-  // `vaults verbose` and parses the registry. Third consumer after BI-026
-  // (origin) / BI-027 (lift to shared module).
-  if (typeof input.vault === "string" && result.stdout.trim().length === 0) {
-    const vaultName = input.vault;
-    const isRegistered = await detectIfClosed({ vaultName, deps });
-    if (isRegistered) {
-      throw new UpstreamError({
-        code: "CLI_REPORTED_ERROR",
-        cause: null,
-        details: {
-          code: "VAULT_NOT_FOUND",
-          reason: "not-open",
-          stage: "handler-stage-0",
-          vault: vaultName,
-        },
-        message: `Vault "${vaultName}" is registered but not currently open in Obsidian; the CLI has begun opening it — retry after a brief delay.`,
-      });
-    }
-  }
 
   // === Stage 1 — extract JSON via "=> " prefix (BI-026 pattern, no LAST-`=> ` rescan) ===
   const trimmed = result.stdout.trimStart();

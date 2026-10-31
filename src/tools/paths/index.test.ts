@@ -10,6 +10,7 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
+import { closedVaultNote } from "../_shared.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -73,6 +74,11 @@ describe("createPathsTool — descriptor", () => {
     expect(tool.descriptor.description).toBe(PATHS_DESCRIPTION);
     // Trailing-slash promise — folder entries end with "/"
     expect(PATHS_DESCRIPTION).toContain('end with "/"');
+  });
+
+  // spec 072 FR-008: the shared closed-vault note, naming this tool's subcommand (wording pinned in _shared.test.ts)
+  it("description carries the closed-vault note for `eval`", () => {
+    expect(PATHS_DESCRIPTION).toContain(closedVaultNote("eval"));
   });
 });
 

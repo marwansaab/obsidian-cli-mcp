@@ -14,6 +14,7 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
+import { closedVaultNote } from "../_shared.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -46,8 +47,12 @@ describe("createSmartConnectionsSimilarTool — descriptor", () => {
     expect(desc).toContain("SMART_CONNECTIONS_NOT_INSTALLED");
     expect(desc).toContain("SMART_CONNECTIONS_NOT_READY");
     expect(desc).toContain("SOURCE_NOT_INDEXED");
-    expect(desc).toContain("not-open");
     expect(desc.length).toBeGreaterThan(0);
+  });
+
+  // spec 072 FR-008: the shared closed-vault note, naming this tool's subcommand (wording pinned in _shared.test.ts)
+  it("description carries the closed-vault note for `eval`", () => {
+    expect(SMART_CONNECTIONS_SIMILAR_DESCRIPTION).toContain(closedVaultNote("eval"));
   });
 });
 
@@ -109,7 +114,7 @@ describe("docs/tools/smart_connections_similar.md exists and is non-stub (FR-022
     expect(exampleHeadings).toBeGreaterThanOrEqual(4);
     expect(body).toMatch(/headingPath/);
     expect(body).toMatch(/plugin-lifecycle|Smart Connections plugin/i);
-    expect(body).toMatch(/not-open|closed/i);
+    expect(body).toMatch(/vault unavailable/i);
     expect(body).toMatch(/minimum probed|minimum plugin version|v4\.|Smart Connections/i);
   });
 });

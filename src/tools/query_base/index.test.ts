@@ -15,6 +15,7 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
+import { closedVaultNote } from "../_shared.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -104,6 +105,11 @@ describe("createQueryBaseTool — descriptor", () => {
     expect(desc).toContain("BASE_MALFORMED");
     expect(desc).toContain("VIEW_NOT_FOUND");
     expect(desc).toContain("VAULT_NOT_FOUND");
+  });
+
+  // spec 072 FR-008: the shared closed-vault note, naming this tool's subcommand (wording pinned in _shared.test.ts)
+  it("description carries the closed-vault note for `base:query`", () => {
+    expect(QUERY_BASE_DESCRIPTION).toContain(closedVaultNote("base:query"));
   });
 
   it("deps wired through: handler receives stubbed CLI envelope and produces typed response", async () => {

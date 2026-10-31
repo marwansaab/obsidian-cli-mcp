@@ -2,7 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeTag, type ExecuteDeps } from "./handler.js";
 import { tagInputSchema } from "./schema.js";
-import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
+import { closedVaultNote, READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const TAG_TOOL_NAME = "tag";
 
@@ -23,11 +23,13 @@ Both body inline tags (\`#tag\`) and frontmatter tag arrays (\`tags: [...]\`) co
 
 Optional \`vault\` (string): routes to a named vault even when it is open but unfocused (B1 falsified — BI-0134 / ADR-031); omitted routes to the focused vault. Residual limit: genuine same-vault-name collision (focus does not fix it — give colliding vaults distinct vault names).
 
+${closedVaultNote("eval")}
+
 Optional \`total: true\` returns the bare integer count (token-economical pre-flight); the count is invariant across both modes for the same vault state.
 
 Paths sort byte-ascending. Zero-match returns \`{ count: 0, paths: [] }\` (or \`0\` in count-only mode) — NEVER an error.
 
-Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\`; \`CLI_REPORTED_ERROR\` (\`VAULT_NOT_FOUND\` with sub-reasons \`unknown\` / \`not-open\`); \`CLI_TIMEOUT\`; \`CLI_OUTPUT_TOO_LARGE\`; \`CLI_BINARY_NOT_FOUND\`.`;
+Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\`; \`CLI_REPORTED_ERROR\` (\`VAULT_NOT_FOUND\` with sub-reason \`unknown\`); \`CLI_TIMEOUT\`; \`CLI_OUTPUT_TOO_LARGE\`; \`CLI_BINARY_NOT_FOUND\`.`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 
