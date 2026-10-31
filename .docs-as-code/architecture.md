@@ -499,9 +499,9 @@ Throwing Two-Step Handed to the Handler).
   (FR-054); it sends `notifications/progress` best-effort, so a notice that
   cannot be sent does not fail the call. Both fields are `CallScope`
   (`src/cli-adapter/_dispatch.ts`), which every tool's `ExecuteDeps` and both
-  facades' deps extend. Handlers pass their deps whole to `invokeCli`,
-  `detectIfClosed` and `evalInVault`, so every CLI call is cancellable with no
-  per-handler code. `create*Tool` takes `BootDeps<ExecuteDeps>`, the same type
+  facades' deps extend. Handlers pass their deps whole to `invokeCli` and
+  `evalInVault`, so every CLI call is cancellable with no per-handler code.
+  (`detectIfClosed` took them the same way until PR #100 deleted it.) `create*Tool` takes `BootDeps<ExecuteDeps>`, the same type
   without `CallScope`.
 - **Confirmation is the handler's third argument**, a `Confirmation`
   ([src/tools/_confirm.ts](../src/tools/_confirm.ts)) with two steps.
@@ -618,6 +618,15 @@ sequenceDiagram
   exactly one re-spawn whose result is final. `Stream closed` is deliberately
   **not** retried: a dropped pipe gives no evidence of whether a write had
   already landed, so retrying it could apply a mutation twice.
+  Since PR #100 this retry is the server's only closed-vault handling
+  ([ADR-045](decisions/ADR-045-closed-vaults-recovered-only-by-the-dispatch-retry.md),
+  Closed Vaults Are Recovered Only by the Dispatch Retry). When the second
+  attempt answers the same way — the vault cannot be brought up, for example
+  because its command-line integration is disabled — its `CLI_REPORTED_ERROR`
+  reaches the caller unchanged, with the text in `details.stdout` and no
+  `details.code` or `details.reason`. Six read tools document that error as
+  "vault unavailable"
+  ([the `eval` pattern](#reaching-obsidian-internals-the-eval-template-pattern)).
 - **Application auto-launch** (ADR-030; PR #65). A non-zero exit whose stderr
   matches `unable to find Obsidian` is tagged `details.reason:
   "obsidian-not-running"`. Dispatch then opens the application once through
@@ -720,9 +729,13 @@ than added as new codes:
   ([file types](#file-types-check-the-file-that-will-be-acted-on)).
 - `details.reason` separates the states of one multi-state condition (ADR-015,
   Sub-Discriminators via details.reason for Multi-State Error Codes) — for
-  example `obsidian-not-running` on `CLI_NON_ZERO_EXIT`, `not-open` for a
-  vault that is registered but closed, and `unsupported-type` or
-  `type-change` on `UNSUPPORTED_FILE_TYPE` (PR #97).
+  example `obsidian-not-running` on `CLI_NON_ZERO_EXIT`, `named-missing` and
+  `not-open` on `views_base`'s `BASE_NOT_FOUND` (a named Base that does not
+  exist, against no Base focused), and `unsupported-type` or `type-change` on
+  `UNSUPPORTED_FILE_TYPE` (PR #97). This page used to give `VAULT_NOT_FOUND` /
+  `not-open`, "a vault that is registered but closed", as the example. That
+  state was never produced through the CLI the server drives, and PR #100
+  withdrew it ([ADR-045](decisions/ADR-045-closed-vaults-recovered-only-by-the-dispatch-retry.md)).
 
 The per-tool error roster — which codes and sub-codes a given tool can return
 — is in that tool's `docs/tools/<name>.md`.
@@ -935,11 +948,29 @@ them:
   `=> ` prefix the CLI adds, `JSON.parse`, zod `safeParse` against the
   envelope schema, branch on `ok` — and maps `ok: false` codes onto
   `CLI_REPORTED_ERROR` with `details.code`.
-- A registered-but-closed vault answers `eval` with **empty stdout on exit 0**.
-  [src/tools/_eval-vault-closed-detection/](../src/tools/_eval-vault-closed-detection/)
-  recognises that signature, confirms against `vaults verbose` that the vault
-  exists, and reports `details.reason: "not-open"` rather than an empty
-  result.
+- **A closed vault is the dispatch layer's job, not the template's.** A
+  registered vault that is not open answers `eval` with
+  `Error: Command "eval" not found.` on exit 0, and the ADR-029
+  [cold-start retry](#runtime-spine) brings it up. If it cannot, that error
+  is the tool's "vault unavailable" failure. An empty answer is not a
+  closed-vault signal: it fails the handler's `JSON.parse` stage as
+  `CLI_REPORTED_ERROR` with `details.stage: "json-parse"`, while a real empty
+  result is a success envelope with `count: 0`. The six tools that document
+  this — `paths`, `tag`, `pattern_search`, `smart_connections_query`,
+  `smart_connections_similar`, and `query_base` (which runs `base:query`,
+  not `eval`) — share one description sentence, `closedVaultNote(command)` in
+  [src/tools/_shared.ts](../src/tools/_shared.ts), and a `_surface.test.ts`
+  case allows only `views_base` to mention a `not-open` state (PR #100).
+
+  This page used to say the opposite: that a closed vault answers with
+  **empty stdout on exit 0**, which `src/tools/_eval-vault-closed-detection/`
+  recognised, confirmed against `vaults verbose`, and reported as
+  `details.reason: "not-open"`. The empty-stdout answer came from driving
+  Obsidian's GUI executable, whose detached stdio drops output; the server
+  drives the `Obsidian.com` shim. The stage could never fire, and PR #100
+  deleted it and the module after a live check showed all six tools
+  recovering a closed vault through the retry
+  ([ADR-045](decisions/ADR-045-closed-vaults-recovered-only-by-the-dispatch-retry.md)).
 - [src/tools/_active-file.ts](../src/tools/_active-file.ts) holds the shared
   focused-file and focused-vault templates and the remapping helpers they
   need. They were extracted in the code-quality pass (PR #58) and the
@@ -1037,7 +1068,7 @@ src/
   vault-registry/                vault name → absolute root, and the vault list (PR #91)
   instructions/                  server instructions builder (PR #90)
   tools/
-    _*.ts, _eval-vault-closed-detection/   cohort-shared helpers (leading underscore)
+    _*.ts                        cohort-shared helpers (leading underscore)
     <tool>/  schema.ts, handler.ts, index.ts, [_template.ts], *.test.ts
 ```
 
@@ -1067,8 +1098,10 @@ header follows the shebang line.
 - **No parallel CLI calls.** The queue makes them single-flight. Throughput
   is traded for not driving one Obsidian instance from several children at
   once.
-- **No silent empty results.** A closed vault, a missing plugin and an
-  unindexed index each have a distinct, reported state.
+- **No silent empty results.** A vault that cannot be brought up, a missing
+  plugin and an unindexed index each have a distinct, reported state. A
+  closed vault that can be brought up is not a state at all: the call
+  returns its normal result (PR #100).
 - **No generic "do anything" typed tool.** `obsidian_exec` is the single
   escape hatch, with its own looser bounds, so that the typed tools keep
   narrow contracts. Since PR #88 it is not "do anything" either: commands that

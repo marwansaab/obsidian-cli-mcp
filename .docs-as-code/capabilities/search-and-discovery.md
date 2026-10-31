@@ -122,11 +122,22 @@ unnoticed.
 ## Failure
 
 Shared across the group: an unknown vault (`CLI_REPORTED_ERROR`,
-`details.code: "VAULT_NOT_FOUND"`); for `tag` and `pattern_search`, a
-registered-but-closed vault reported as `details.reason: "not-open"` rather
-than an empty result; an invalid regex in
+`details.code: "VAULT_NOT_FOUND"`); an invalid regex in
 `pattern_search` (`VALIDATION_ERROR`); a missing `folder` (`CLI_REPORTED_ERROR`,
 `details.code: "FOLDER_NOT_FOUND"`) for the tools that probe for it.
+
+A closed registered vault is not a failure. The dispatch layer's cold-start
+retry opens it and the call returns its normal result
+([architecture](../architecture.md#runtime-spine)). `tag` and
+`pattern_search` document what happens when it cannot be brought up: the
+retry's `CLI_REPORTED_ERROR` whose `details.stdout` starts
+`Error: Command "eval" not found.` ("vault unavailable"), never an empty
+result. Until PR #100 both tools instead documented a
+`VAULT_NOT_FOUND` / `details.reason: "not-open"` failure from a per-tool
+check that waited for empty stdout. That answer only came from Obsidian's GUI
+executable, never from the shim the server drives, so the state was never
+produced; PR #100 deleted the check
+([ADR-045](../decisions/ADR-045-closed-vaults-recovered-only-by-the-dispatch-retry.md)).
 
 ## Known limits and inconsistencies
 
