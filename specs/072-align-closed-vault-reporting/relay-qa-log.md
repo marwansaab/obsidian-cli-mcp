@@ -220,3 +220,66 @@ Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0
 > The I1 edits must carry out option (b): leave the unknown-vault rows in the five eval tools' docs unchanged, word the vault-unavailable row on its own with no cross-reference, and record the wording mismatch as a follow-up item outside this spec. If any of I1-1 to I1-10 rewrites unknown-vault wording to `Vault not found.` (option a), turn it into a follow-up note.
 >
 > Rationale: BI-0076's Out of scope keeps the unknown-vault contract unchanged and the BI scoped to retiring `not-open`. Changes to the automatic recovery behaviour are also out of scope.
+
+## 6. review / fix (2026-10-31T09:02:35.673Z)
+
+**Question (verbatim):**
+
+> The review flagged that smart_connections_similar's description still has the sentence "Vault states: VAULT_NOT_FOUND carries a details.reason sub-discriminator — "unknown" (vault not registered)." (src/tools/smart_connections_similar/index.ts:21). Now that not-open is gone, it describes a sub-discriminator that has only one value. Rewriting it would change the published unknown-vault wording, and contracts/closed-vault-contract.md §2 says this sentence's "unknown-vault part" must stay unchanged (spec Out of Scope; the unknown-vault wording mismatch is a recorded follow-up on BI-0076). How should I handle it?
+>
+> | Option | What happens |
+> |---|---|
+> | A (recommended) | Leave the sentence as it is in PR #100, as the contract requires, and add it to the BI-0076 unknown-vault wording follow-up so it is fixed with the other unknown-vault text. |
+> | B | Rewrite it now (for example "Unknown vault: VAULT_NOT_FOUND with details.reason \"unknown\" (vault not registered)." or fold it into the error-precedence line), amend contract §2 to allow it, and regenerate the baseline (only smart_connections_similar's fingerprint moves). |
+>
+> Recommended: A. The contract deliberately keeps unknown-vault wording out of spec 072's scope, the sentence is accurate if a little awkward, and BI-0076 already tracks an unknown-vault wording follow-up, so it belongs there.
+
+**Advisor** (escalate: none):
+
+> A
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0076 - Revise Or Retire Closed Vault Not Open Detection Signature.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0076 - Revise Or Retire Closed Vault Not Open Detection Signature.md`: Extended the unknown-vault wording follow-up bullet in Out of scope to cover the smart_connections_similar description sentence (a one-value sub-discriminator once not-open is retired), which spec 072 / PR #100 leaves unchanged. Also removed the stray blank line before that bullet.
+
+**Sent to the step:**
+
+> A
+
+## 7. record / record-in-vault (2026-10-31T09:06:57.522Z)
+
+**Question (verbatim):**
+
+> The work for job BI-0076 is now a reviewed, documented pull request. Record that on the job's note, following the vault's conventions for backlog items:
+> - the spec branch: 072-align-closed-vault-reporting
+> - the feature folder in the code repository: specs/072-align-closed-vault-reporting
+> - the pull request: https://github.com/marwansaab/obsidian-cli-mcp/pull/100 (number 100)
+> - the status that means "in review" in this vault (if the vault has no such status, escalate `decision` with up to 3 choices)
+> - a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0076-2026-10-31 produced it.
+>
+> Dry run: no. In a dry run, change nothing: list each edit you would make in `vault_edits`, starting its change with "Would". Otherwise list each edit you made.
+
+**Advisor** (escalate: none):
+
+> BI-0076's note now records the reviewed, documented pull request, following the same pattern as BI-0072 (in-review):
+> - Frontmatter `status`: planned → `in-review`. That is the vault's in-review value; the backlog-item vocabulary in Vault Frontmatter Convention includes it.
+> - Frontmatter `spec_branch`: `072-align-closed-vault-reporting`. `updated` was already 2026-10-31.
+> - Status section: a new "In review — 2026-10-31" paragraph at the top. It links PR #100 (https://github.com/marwansaab/obsidian-cli-mcp/pull/100) and names the spec branch and the feature folder `specs/072-align-closed-vault-reporting`. It also gives a one-line summary of the outcome (resolution (b) Retire, no new code or sub-reason, unknown-vault wording kept as a follow-up) and notes that it is awaiting owner merge.
+> - Audit trail: three dated HTML comments added at the bottom. One records the clarify answer for Q1, one the analyze-stage answers (I1 option (b), approval of the I1/I2/C1 edits, the smart_connections_similar sentence going to the follow-up), and one says Relay run obsidian-cli-mcp-bi-0076-2026-10-31 produced PR #100 on spec branch 072-align-closed-vault-reporting, feature folder specs/072-align-closed-vault-reporting.
+
+Sources: `000-Meta/Vault Frontmatter Convention.md`, `000-Meta/Templates/Backlog Item Template.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0072 - Refine Links DisplayText Emission For Fragment Bearing Wikilinks.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0076 - Revise Or Retire Closed Vault Not Open Detection Signature.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0076 - Revise Or Retire Closed Vault Not Open Detection Signature.md`: Frontmatter status planned → in-review.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0076 - Revise Or Retire Closed Vault Not Open Detection Signature.md`: Frontmatter spec_branch set to 072-align-closed-vault-reporting.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0076 - Revise Or Retire Closed Vault Not Open Detection Signature.md`: Added an 'In review — 2026-10-31' paragraph at the top of the Status section, with PR #100, the spec branch, the feature folder specs/072-align-closed-vault-reporting and an outcome summary.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0076 - Revise Or Retire Closed Vault Not Open Detection Signature.md`: Added three dated HTML audit comments: the clarify Q1 answer, the analyze-stage answers, and one saying Relay run obsidian-cli-mcp-bi-0076-2026-10-31 produced PR #100 (status planned → in-review).
+
+**Sent to the step:**
+
+> BI-0076's note now records the reviewed, documented pull request, following the same pattern as BI-0072 (in-review):
+> - Frontmatter `status`: planned → `in-review`. That is the vault's in-review value; the backlog-item vocabulary in Vault Frontmatter Convention includes it.
+> - Frontmatter `spec_branch`: `072-align-closed-vault-reporting`. `updated` was already 2026-10-31.
+> - Status section: a new "In review — 2026-10-31" paragraph at the top. It links PR #100 (https://github.com/marwansaab/obsidian-cli-mcp/pull/100) and names the spec branch and the feature folder `specs/072-align-closed-vault-reporting`. It also gives a one-line summary of the outcome (resolution (b) Retire, no new code or sub-reason, unknown-vault wording kept as a follow-up) and notes that it is awaiting owner merge.
+> - Audit trail: three dated HTML comments added at the bottom. One records the clarify answer for Q1, one the analyze-stage answers (I1 option (b), approval of the I1/I2/C1 edits, the smart_connections_similar sentence going to the follow-up), and one says Relay run obsidian-cli-mcp-bi-0076-2026-10-31 produced PR #100 on spec branch 072-align-closed-vault-reporting, feature folder specs/072-align-closed-vault-reporting.

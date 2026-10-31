@@ -4,14 +4,14 @@
 |---|---|
 | Run | `obsidian-cli-mcp-bi-0076-2026-10-31` |
 | Project | obsidian-cli-mcp (pack speckit) |
-| Status | running |
+| Status | done |
 | Started | 2026-10-31T08:22:21.132Z |
-| Finished | not yet |
-| Elapsed | 29 min 1 s |
-| Questions | 3 (0 needed the owner) |
-| Requests to the advisor | 2 (0 needed the owner) |
+| Finished | 2026-10-31T09:07:41.054Z |
+| Elapsed | 45 min 20 s |
+| Questions | 4 (0 needed the owner) |
+| Requests to the advisor | 3 (0 needed the owner) |
 | Escalations | 0 |
-| Edits by the advisor | 1 |
+| Edits by the advisor | 6 |
 
 ## Inputs
 
@@ -90,6 +90,7 @@ Skipped.
 ### implementation (`fa1177a9-ff88-40c2-afa8-b0057d28e752`)
 
 - Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\specs\072-align-closed-vault-reporting\tasks.md exists.
+- Condition `gh-pr-open` (done_when): met. Pull request #100 is open.
 
 - **implement**: done, 25 turns.
 
@@ -103,20 +104,68 @@ Skipped.
 >
 > Final gate is green: typecheck, lint, and npm test (3389 passed, 6 skipped, coverage thresholds met). The Story 4 grep finds nothing in src. The Story 3 grep finds only views_base. `errors.ts`, `server.ts`, `_register.ts` and `cli-adapter/**` are unchanged.
 
-- **open-pr**: in progress.
+- **open-pr**: done, 19 turns.
 
-### review
+> All work for spec 072 is committed on 072-align-closed-vault-reporting, pushed to origin, and open as PR #100 into main. It is not a draft and has not been merged.
+>
+> Before committing I ran the full checks: lint, type check and build all pass, and npm test passed 3389 tests with 6 skipped, coverage thresholds met.
+>
+> There are two new commits on top of the existing spec commit 7b92619. Both follow CONTRIBUTING.md (subject line of 72 characters or fewer, explanatory body, Co-Authored-By trailer):
+> - e637b24 `refactor(072): retire closed-vault stage, document vault unavailable` holds the code, tests, docs pages, CHANGELOG, register baseline, research.md and tasks.md. Its body lists the T0 evidence, each change area, the find_and_replace deviation and the check results.
+> - 87dda94 `chore(072): point agent context at spec 072, update the Relay digest` holds the CLAUDE.md plan pointer, .specify/feature.json and relay-digest.md, the same way spec 071 committed them.
+>
+> I recommitted twice before pushing. The first subjects were over 72 characters, and a byte-order mark from PowerShell got into the message files; both are fixed.
+>
+> The repository has no pull request template, so the description follows the layout of the previous PR (#98): Summary, a Deviation section (the find_and_replace description fix, which moved 7 baseline fingerprints instead of 6), Evidence (T0 G1 passed, G2 not run live), Test results, and the Constitution Compliance table with every gate marked Y or N/A and a note that no kernel node was touched. It ends by saying that /code-review and /speckit-docs-as-code still have to run before merge, including updates to the .docs-as-code pages.
 
-- **code-review**: not run.
-- **fix**: not run.
 
-### docs
+### review (`47d628ca-e303-4dbd-b1f9-eb5f634d8020`)
 
-- **document**: not run.
+- Condition `gh-pr-open` (start_when): met. Pull request #100 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #100 is open.
 
-### record
+- **code-review**: done, 16 turns.
 
-- **record-in-vault**: not run.
+> Thermo-nuclear review of PR #100 (072-align-closed-vault-reporting vs main). Verdict: the core change is the right code-judo move. It deletes six closed-vault branches, the `_eval-vault-closed-detection` module (including its parser, which duplicated vault-registry/registry.ts) and an extra `vaults verbose` spawn, and leaves the dispatch-layer ADR-029 retry as the single owner of closed-vault state. No kernel-node touch, no new error codes, no file crosses 1k lines (smart_connections_similar/handler.test.ts shrinks 994→969). ADR-015 handling in plan.md is sound (value withdrawn, pattern kept, following the open_file precedent). Requested changes, all behavior-preserving: (1) The same 'Closed vault: …' paragraph is pasted into six tool descriptions and differs only by command name; extract a shared `closedVaultNote(command)` following the `LOCATOR_RULE`/`TARGET_MODE_*_DESCRIPTION` precedent in src/target-mode/target-mode.ts. The smart_connections_similar copy is the odd one out without backticks, so adopting the helper moves that one fingerprint deliberately. The six bespoke index tests, which use two different slicing idioms, then collapse to one toContain each. (2) Replace the per-tool `not.toContain("not-open")` checks with one central `_surface.test.ts` check over the real tools/list, with views_base allow-listed. The plan missed find_and_replace's description and only a grep caught it, which is exactly the gap a central guard closes. (3) Six identical `COLD_START_STDOUT` constants and the same three-case recover/unavailable/empty-answer battery are copied across the handler tests. Add a `coldStartResponse(command)` builder to `_handler-test-fixtures.ts` next to `fileTsvResponse`/`focusedFileResponse`, and optionally a case generator like `_target-mode-test-cases.ts`. Test refactors need owner approval per refactor-decisions item 5. Nits: query_base/handler.test.ts:332-333 holds dead assertions (`not.toBe("VIEW_NOT_FOUND")`/`"BASE_MALFORMED"` straight after `toBeUndefined()`). Stage-comment numbering now has gaps in paths (no 3), pattern_search (no 5) and query_base (no 5); renumbering is safe because `details.stage` uses names. smart_connections_similar/index.ts:21 describes a single-valued 'sub-discriminator', so fold it into the precedence line. Also updated .memory/refactor-decisions.md item 1: the 'closed-vault not-open stage must stay' guidance was stale, and the entry now records this PR as the counter-example where reachability was falsified. No code was changed; the review was not posted to GitHub.
+
+- **fix**: done, 67 turns, 1 questions.
+
+> I applied option A. smart_connections_similar's "Vault states" sentence stays as it is, because contract §2 requires its unknown-vault part to stay unchanged. I recorded it as a third bullet under the unknown-vault wording follow-up in plan.md "Follow-ups (out of scope)" (I1, BI-0076). That went in as commit dcb4795, pushed to 072-align-closed-vault-reporting, so it is on PR #100.
+>
+> I could not add the item to the BI-0076 note in My-Setup-Vault: the obsidian-cli-mcp search permission was not granted, so nothing in the vault was changed. The owner should add the line there by hand, or grant vault access.
+>
+> Earlier commit 373aab8, also on the PR, fixed the other review findings:
+> - the shared closedVaultNote helper and simpler per-tool description tests;
+> - a central not-open check in _surface.test.ts;
+> - a shared coldStartResponse test fixture;
+> - removal of the dead query_base assertions;
+> - renumbered stage comments.
+>
+> Lint and typecheck were clean and 3391/3391 tests passed after that commit. The follow-up commit only changes plan.md, so I did not re-run them.
+>
+> Left on purpose: each tool keeps its own three closed-vault handler tests, since inputs and expected results differ per tool. relay-digest.md is also left uncommitted; that change is Relay's own.
+
+
+### docs (`c9840ab1-403c-4b84-a46a-5b1aac862eb3`)
+
+- Condition `gh-pr-open` (start_when): met. Pull request #100 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #100 is open.
+
+- **document**: done, 45 turns.
+
+> Ran /speckit-docs-as-code 100 in PR mode. PR #100 is open, from 072-align-closed-vault-reporting into main. Commit bd25725 is pushed to the PR branch. It adds ADR-045, which records that the dispatch retry is now the only closed-vault handling and that 'vault unavailable' is documented rather than given its own error code. It also updates architecture.md, four capability pages (search-and-discovery, plugin-backed, bases, list-and-inventory) and the README index, and the PR body now has a ## Documentation section. docs/tools needed no edits and CHANGELOG already has an entry. The maintainer still needs to add ADR-045 to .decisions/Decision Log.md, and ADR-014/ADR-015 there still cite not-open as an example. The two Relay files (relay-digest.md, relay-qa-log.md) were uncommitted at the start and were left out of the commit.
+
+
+### record (`25521684-b120-4df7-8b00-807a6ac67b32`)
+
+- **record-in-vault**: done.
+
+> BI-0076's note now records the reviewed, documented pull request, following the same pattern as BI-0072 (in-review):
+> - Frontmatter `status`: planned → `in-review`. That is the vault's in-review value; the backlog-item vocabulary in Vault Frontmatter Convention includes it.
+> - Frontmatter `spec_branch`: `072-align-closed-vault-reporting`. `updated` was already 2026-10-31.
+> - Status section: a new "In review — 2026-10-31" paragraph at the top. It links PR #100 (https://github.com/marwansaab/obsidian-cli-mcp/pull/100) and names the spec branch and the feature folder `specs/072-align-closed-vault-reporting`. It also gives a one-line summary of the outcome (resolution (b) Retire, no new code or sub-reason, unknown-vault wording kept as a follow-up) and notes that it is awaiting owner merge.
+> - Audit trail: three dated HTML comments added at the bottom. One records the clarify answer for Q1, one the analyze-stage answers (I1 option (b), approval of the I1/I2/C1 edits, the smart_connections_similar sentence going to the follow-up), and one says Relay run obsidian-cli-mcp-bi-0076-2026-10-31 produced PR #100 on spec branch 072-align-closed-vault-reporting, feature folder specs/072-align-closed-vault-reporting.
+
 
 ## Escalations
 
@@ -128,6 +177,11 @@ None.
 | File | Change | Triggered by |
 |---|---|---|
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0076 - Revise Or Retire Closed Vault Not Open Detection Signature.md` | Added a bullet to the Out of scope section recording /speckit-analyze finding I1 (the eval tools' docs describe the unknown-vault failure in wording that doesn't match the runtime `Vault not found.`) as left out of this BI and a candidate follow-up BI. | pre-implementation / analyze: Would you like me to suggest concrete remediation edits for the top 3 issues (I1, I2, C1)? For I1 th |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0076 - Revise Or Retire Closed Vault Not Open Detection Signature.md` | Extended the unknown-vault wording follow-up bullet in Out of scope to cover the smart_connections_similar description sentence (a one-value sub-discriminator once not-open is retired), which spec 072 / PR #100 leaves unchanged. Also removed the stray blank line before that bullet. | review / fix: The review flagged that smart_connections_similar's description still has the sentence "Vault states |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0076 - Revise Or Retire Closed Vault Not Open Detection Signature.md` | Frontmatter status planned → in-review. | record / record-in-vault: The work for job BI-0076 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0076 - Revise Or Retire Closed Vault Not Open Detection Signature.md` | Frontmatter spec_branch set to 072-align-closed-vault-reporting. | record / record-in-vault: The work for job BI-0076 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0076 - Revise Or Retire Closed Vault Not Open Detection Signature.md` | Added an 'In review — 2026-10-31' paragraph at the top of the Status section, with PR #100, the spec branch, the feature folder specs/072-align-closed-vault-reporting and an outcome summary. | record / record-in-vault: The work for job BI-0076 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0076 - Revise Or Retire Closed Vault Not Open Detection Signature.md` | Added three dated HTML audit comments: the clarify Q1 answer, the analyze-stage answers, and one saying Relay run obsidian-cli-mcp-bi-0076-2026-10-31 produced PR #100 (status planned → in-review). | record / record-in-vault: The work for job BI-0076 is now a reviewed, documented pull request. Record that on the job's note,  |
 
 ## Files
 
