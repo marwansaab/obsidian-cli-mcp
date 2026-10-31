@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-10-31T06:59:43.017Z |
 | Finished | not yet |
-| Elapsed | 16 min 41 s |
+| Elapsed | 33 min 15 s |
 | Questions | 5 (1 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 1 |
@@ -53,6 +53,7 @@
 ### pre-implementation (`5bfb6c54-4181-48a6-aa31-7692022b3d7f`)
 
 - Condition `shell-exit-0` (run_when): met. "node -e "process.exit('' === '' ? 0 : 1)"" exited 0.
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\specs\071-omit-derived-labels\tasks.md exists.
 
 - **specify**: done, 12 turns.
 
@@ -74,16 +75,45 @@
 
 > All five fixes from the analysis are now in the spec documents. I1, option (b): contracts/display-label.md now splits the rule. Wiki links and embeds get a label only for a non-empty alias written after '|'. Markdown links and images report their bracketed or alt text as written, empty included. The new description sentence and the help-page row match, and the help page's worked rows add row 26 ([](x) → ""). I added a note in data-model.md, a plan D1/D2 note, and a spec edge-case line on Markdown links; T010 is unchanged. I2: added task T002 after T001. If the trimming probe shows Obsidian trims spaces around aliases, it amends FR-002, FR-006 and the US3 independent test to 'as written, with surrounding whitespace trimmed, as the editor parses it' and records a Clarifications bullet; otherwise it leaves the wording and notes that in research F5. Later tasks were renumbered (now T001–T020) and the dependency notes updated. A1: the T014 docs check now looks for exact strings (the CAVEAT, the regex workaround, the old embed-omit sentence). F1: the plan says once that 'frontmatter (property) links' are what the spec calls 'property links'. U1: the description sentence now covers image alt text. No code changed and nothing is committed. Next step: /speckit-implement.
 
-- **resolve-analysis**: in progress.
+- **resolve-analysis**: done, 5 turns.
+
+> All analysis findings are resolved, and nothing is left open: 0 critical, 0 high, 0 low. The previous turn had already applied every fix according to the owner's rulings, so no new questions were needed. I1 (option b): the non-empty-alias condition covers wiki links and embeds only; Markdown link text and image alt text are reported as written, empty included. I2: a new task, T002, runs after the trimming probe and amends FR-002, FR-006 and the US3 test wording only if Obsidian is found to trim aliases. A1: T014 checks for exact strings. F1: the terminology note is in the plan. U1: the description sentence now names image alt text. I committed specs/071-omit-derived-labels as 794c2d3 'docs(071): specify, plan and remediate the derived-label fix for links' on 071-omit-derived-labels, with the body format CONTRIBUTING.md asks for. It is not pushed. One deviation from precedent: the commit also picked up relay-digest.md and relay-qa-log.md, which Relay wrote into the feature folder mid-run. The 070 spec commit (9c5a4c8) left those out for a later records commit, and my commit message does not mention them. I did not rewrite the commit; amend it if they should come out. CLAUDE.md (plan pointer) and .specify/feature.json are still uncommitted, left for the separate agent-context commit as in 9c5a4c8. Next step: /speckit-implement.
+
 
 ### continue
 
-- **prepare**: not run.
+Skipped.
 
-### implementation
+- Condition `shell-exit-0` (run_when): not met. "node -e "process.exit('' === '' ? 1 : 0)"" exited 1.
 
-- **implement**: not run.
-- **open-pr**: not run.
+- **prepare**: skipped.
+
+### implementation (`6db05366-710b-4f40-a724-67e07010f451`)
+
+- Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\specs\071-omit-derived-labels\tasks.md exists.
+
+- **implement**: done, 88 turns.
+
+> Spec 071 is implemented. All 20 tasks in tasks.md are done, and the full suite passes: 3395 tests, plus typecheck and lint. Nothing has been committed yet. The optional /speckit-git-commit hook was skipped under the Relay rules.
+>
+> Code change: in src/tools/links/_template.ts, the shared `wrap` function now emits displayText for a wiki-form entry (`original` starts with `[[` or `![[`, frontmatter links included) only when `original` contains `|`, the label is not empty, and the label differs from the link. Markdown links and images keep the old omit-when-equal rule. The header intent line was updated to match.
+>
+> Tests: the new src/tools/links/_template.test.ts runs the real template in node:vm against the live cache shapes. It covers all 27 data-model rows plus an aliased frontmatter link, and the FR-005 order/line/kind/count invariants in default and total modes. The 13 derived-label and empty-label cases failed on the old template before the fix.
+>
+> Help text: the LINKS_DESCRIPTION sentence was replaced with the contract text. In docs/tools/links.md, the displayText row was rewritten without the CAVEAT, the regex workaround or the "embeds omit the field" claim, and a "Display label rule" section with worked rows was added. index.test.ts asserts all of this. The regenerated baseline moves only links.descriptionFingerprint, plus the generatedFromBranch stamp the writer sets on every run.
+>
+> Live probes (T0 gates):
+> - G1: Obsidian trims spaces around an alias (`"  Padded  "` comes back as `"Padded"`). Recorded as research F5. Per T002, the spec's FR-002, FR-006 and US3 Independent Test now say "as written, with surrounding whitespace trimmed, as the editor parses it", and a Clarifications bullet was added.
+> - G3: an aliased frontmatter list item keeps `|` in `original` and reports `"Fm Alias"`. Recorded as research F6; the fallback was not needed.
+> - G2: the built tool returned 29 entries before and after the change. Target, line, kind, order and count are identical in both modes. Every displayText matches the data model: the derived labels and empty labels are gone, and all author aliases and Markdown labels are kept. Saved as contracts/g2-before.json and g2-after.json.
+> - The fixtures were removed and Welcome.md is untouched.
+>
+> Graph refresh:
+> - `graphify update .` and `/graphify --update` both ran. The semantic refresh re-extracted 33 docs (about 373K subagent tokens), including the backlog spec 070 had skipped.
+> - The shrink guard refused the first export because 214 nodes were missing. All of them came from re-extracted files, so the export was forced, following the spec 068 precedent.
+> - All five structural checks pass and are recorded in specs/071-omit-derived-labels/post-implement.md.
+
+- **open-pr**: in progress.
 
 ### review
 
