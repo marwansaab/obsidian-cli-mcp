@@ -4,7 +4,7 @@
 
 Read the body of a single named heading from a vault note. Returns `{ content: string }` — the body bytes between the matched heading and the next heading marker of any depth (or EOF). Saves the agent from a full-file `read` plus client-side Markdown parse (typically 5–50k tokens for long documents) — `read_heading` returns just the section's body (typically 100–500 tokens).
 
-**Where the body starts:** the body begins right after the heading line. The heading line's own line ending is removed; everything after it, including blank lines, is returned exactly as written in the note. A body starts with a line break only when the note has a blank line directly under the heading (`\n` in a note with LF line endings, `\r\n` in a note with CRLF line endings). A body whose text sits directly under the heading starts with that text. Use the body as returned; removing a leading character can delete real content or leave a stray `\r`.
+**Where the body starts:** right after the heading line, with that line's own line ending removed. Everything after it, including blank lines, is returned exactly as written, so use the body as returned: removing a leading character can delete real content or leave a stray `\r`. [Start of body](#start-of-body) shows the body for each layout.
 
 ## When to use this tool
 
@@ -56,9 +56,9 @@ The following heading shapes are **out-of-reach** for `read_heading`:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `content` | string | The body of the matched heading: everything after the heading line's own line ending, up to the next heading of any depth or the end of the note. It starts with a line break only when the note has a blank line directly under the heading. Line endings (CRLF or LF), blank lines, fenced code blocks, table pipes, list indentation, and inline markdown are preserved byte-for-byte. |
+| `content` | string | The body of the matched heading, up to the next heading of any depth or the end of the note; see [Start of body](#start-of-body) for where it begins. Line endings (CRLF or LF), blank lines, fenced code blocks, table pipes, list indentation, and inline markdown are preserved byte-for-byte. |
 
-A heading whose body is empty (the next heading marker is on the very next line, or the heading is the note's last line) returns `{ "content": "" }` — NOT an error. This is the structural empty-body case. A heading followed only by a blank line before the next heading is not empty: its body is that blank line's line ending (`"\n"`, or `"\r\n"` in a CRLF note).
+A heading with an empty body returns `{ "content": "" }` — NOT an error. This is the structural empty-body case. A heading followed only by a blank line is not empty; [Start of body](#start-of-body) lists both cases.
 
 ## Behavioural notes
 
@@ -80,19 +80,21 @@ When two or more headings in the same file share the textually-identical full pa
 
 ### Start of body
 
-The heading line's own line ending is never part of the body. What follows depends on the note:
+The heading line's own line ending, in either style, is never part of the body. A body starts with a line break only when the note has a blank line directly under the heading; text directly under the heading starts the body. By layout:
 
 | Lines under `## Section` | Returned `content` |
 |---|---|
 | `Body text.` directly under the heading | `"Body text.\n"` |
 | a blank line, then `Body text.` (LF note) | `"\nBody text.\n"` |
 | a blank line, then `Body text.` (CRLF note) | `"\r\nBody text.\r\n"` |
-| only a blank line, then the next heading | `"\n"` |
+| only a blank line, then the next heading (LF note) | `"\n"` |
+| only a blank line, then the next heading (CRLF note) | `"\r\n"` |
 | the next heading directly under | `""` |
+| nothing: the heading is the note's last line | `""` |
 
 ### CRLF / LF line endings
 
-Returned `content` carries the file's on-disk line endings byte-faithfully, including a leading blank line: a CRLF-encoded file yields `\r\n` byte pairs (so a body under a blank line starts with `\r\n`); an LF-encoded file yields `\n`. The wrapper does NOT normalise. Only the heading line's own line ending, in either style, is removed.
+Returned `content` carries the file's on-disk line endings byte-faithfully. A CRLF-encoded file yields `\r\n` byte pairs; an LF-encoded file yields `\n`. The wrapper does NOT normalise.
 
 ### Body byte-level preservation
 

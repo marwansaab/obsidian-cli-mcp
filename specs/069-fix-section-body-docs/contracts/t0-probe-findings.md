@@ -60,6 +60,10 @@ After edits E1–E7 to `docs/tools/read_heading.md`:
 - **Served help**: `help` with `tool_name: "read_heading"` on the built server returns text containing the "**Where the body starts:**" paragraph and the "### Start of body" note, and no "Leading-newline" text.
 - **Gates**: `npm run lint`, `npm run typecheck`, `npm run build` and `npm test` pass (154 test files passed, 1 skipped; 3128 tests passed, 6 skipped). No test or `vitest.config.ts` change.
 
+### After the PR #96 review amendment
+
+The page was cut back to one full statement of the rule (contract "Amendment: one canonical statement"). Page check 1 still prints nothing. Page check 2: the page shows twelve `content` values, and only the four Start of body rows for a blank line under the heading begin with `\n` or `\r\n`. Page check 3: Output block = P6 (Naming); empty-body paragraph `""` = P4 and P8; Start of body rows = P3, P1, P2, P5 (F1), P5 (F2), P4, P8; Examples 1–3 = P6, P6, P7. No new body claim was added without a backing read above, so no new probe was needed.
+
 ## Graphify structural check (docs-only carve-out)
 
 `graphify update .` (AST-only) ran after the final diff. Checks 1–3 (no new error codes outside `src/errors.ts`, no handler importing the boot-time DI factories, new symbols in expected communities) are trivially satisfied because no `src/**` file changed; the kernel nodes `createLogger()`, `createQueue()`, `createServer()` and `UpstreamError` are untouched, as the plan claimed. Check 4: the three `contracts/` artifacts (`doc-correction-contract.md`, `t0-probe-plan.md`, this file) are present in the graph, each with several section nodes and edges, and they share a BI-specific community. None is orphaned.

@@ -84,6 +84,20 @@ Facts kept: FR-004.
 
 Markdown code spans are kept as on the current page. Facts kept: FR-007; bodies are checked by P6 and P7.
 
+## Amendment: one canonical statement (PR #96 review)
+
+The edits above stated the start-of-body rule in five places on one page (E1, E3, E4, E5, E6). The old defect was one false claim kept in two places, and `help` serves the page whole, so the review asked for one full statement with pointers. The page as merged differs from the replacement text above as follows; every FR stays met, only where the facts sit has moved.
+
+| Edit | As merged | Facts now carried by |
+|---|---|---|
+| E1 | One short paragraph: body starts right after the heading line with that line's ending removed; everything after it returned as written; use it as returned (removing a leading character can delete content or leave a stray `\r`); pointer to Start of body. | FR-001, FR-002, FR-006 here; FR-003, FR-004 in E5 |
+| E3 | Body runs to the next heading of any depth or the end of the note; pointer to Start of body; preservation sentence unchanged. | FR-003 in E5 |
+| E4 | Empty body returns `""`, NOT an error; a heading followed only by a blank line is not empty; pointer to Start of body. | FR-005 here and in E5 |
+| E5 | Intro states FR-003 in full (line break only under a blank line; text directly under starts the body) and that the heading line's ending is removed in either style. The table gains the CRLF "only a blank line" row (`"\r\n"`, P5 on F2) and the "heading is the note's last line" row (`""`, P8). | FR-001, FR-003, FR-004, FR-005 |
+| E6 | Reverted to the original paragraph; the leading-blank-line CRLF case lives in E5's table. | FR-004 in E5 |
+
+Page checks 1, 3 and 4 below are unchanged. Page check 2 now reads: no shown `content` value begins with `\n` or `\r\n` except the four Start of body rows that describe a blank line under the heading.
+
 ## Untouched
 
 Everything else on the page, every other file under `docs/tools/`, `src/**`, and all `*.test.ts` files (FR-008, FR-011).
