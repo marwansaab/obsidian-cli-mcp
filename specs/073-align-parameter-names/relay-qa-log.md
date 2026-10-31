@@ -270,3 +270,41 @@ Sources: `200-Decisions/ADR-010 - Typed Tool Names Mirror Upstream CLI Subcomman
 > U1: the ADR's canonical authoring location is the vault (`200-Decisions/`). The repo's `.docs-as-code/decisions/` holds a verbatim tracked mirror, kept byte-equal after each sync. Write the repo mirror in this feature and use a placeholder for the ADR number (it is not allocated yet; the vault and repo numbering have drifted). Add a note that the vault copy is pending sync. The ADR carries no constitution row.
 >
 > Per ADR-010 Implementation (vault source plus repo mirror kept in lockstep) and the owner's Q2 ruling recorded on BI-0109.
+
+## 7. record / record-in-vault (2026-10-31T10:11:00.492Z)
+
+**Question (verbatim):**
+
+> The work for job BI-0109 is now a reviewed, documented pull request. Record that on the job's note, following the vault's conventions for backlog items:
+> - the spec branch: 073-align-parameter-names
+> - the feature folder in the code repository: specs/073-align-parameter-names
+> - the pull request: https://github.com/marwansaab/obsidian-cli-mcp/pull/101 (number 101)
+> - the status that means "in review" in this vault (if the vault has no such status, escalate `decision` with up to 3 choices)
+> - a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0109-2026-10-31 produced it.
+>
+> Dry run: no. In a dry run, change nothing: list each edit you would make in `vault_edits`, starting its change with "Would". Otherwise list each edit you made.
+
+**Advisor** (escalate: none):
+
+> Recorded on `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0109 - Standardise Cohort Tool Parameter Names.md`, following the BI-0039, BI-0060, BI-0072 and BI-0076 precedent:
+> - Frontmatter `status`: planned → `in-review`. This is the vault's in-review value for `backlog-item` (Vault Frontmatter Convention).
+> - Frontmatter `spec_branch`: `073-align-parameter-names` (new field).
+> - A dated HTML comment at the end of the note: Relay run obsidian-cli-mcp-bi-0109-2026-10-31 produced https://github.com/marwansaab/obsidian-cli-mcp/pull/101 (#101), spec branch `073-align-parameter-names`, feature folder `specs/073-align-parameter-names`. It is reviewed and documented and awaits owner merge.
+>
+> Not done: the precedent BIs also start their body `## Status` section with an "**In review — date.**" paragraph. That edit failed because `find_and_replace` was denied permission. The paragraph is not written and the body still opens with "*Planned.*". The frontmatter and the comment hold the full record. I did not use the `patch_heading` fallback because the note now has mixed line endings, and `patch_heading` writes to the wrong lines on such notes (Tool Notes, BI-0168).
+
+Sources: `000-Meta/Vault Frontmatter Convention.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0076 - Revise Or Retire Closed Vault Not Open Detection Signature.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0039 - Disambiguate Read Heading Leading Line Terminator.md`, `000-Meta/MCP Tool Notes/Obsidian CLI MCP - Tool Notes.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0109 - Standardise Cohort Tool Parameter Names.md`: Frontmatter status planned → in-review.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0109 - Standardise Cohort Tool Parameter Names.md`: Frontmatter spec_branch set to 073-align-parameter-names.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0109 - Standardise Cohort Tool Parameter Names.md`: Appended a 2026-10-31 HTML comment: Relay run obsidian-cli-mcp-bi-0109-2026-10-31 produced PR #101, branch 073-align-parameter-names, folder specs/073-align-parameter-names, awaiting owner merge.
+
+**Sent to the step:**
+
+> Recorded on `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0109 - Standardise Cohort Tool Parameter Names.md`, following the BI-0039, BI-0060, BI-0072 and BI-0076 precedent:
+> - Frontmatter `status`: planned → `in-review`. This is the vault's in-review value for `backlog-item` (Vault Frontmatter Convention).
+> - Frontmatter `spec_branch`: `073-align-parameter-names` (new field).
+> - A dated HTML comment at the end of the note: Relay run obsidian-cli-mcp-bi-0109-2026-10-31 produced https://github.com/marwansaab/obsidian-cli-mcp/pull/101 (#101), spec branch `073-align-parameter-names`, feature folder `specs/073-align-parameter-names`. It is reviewed and documented and awaits owner merge.
+>
+> Not done: the precedent BIs also start their body `## Status` section with an "**In review — date.**" paragraph. That edit failed because `find_and_replace` was denied permission. The paragraph is not written and the body still opens with "*Planned.*". The frontmatter and the comment hold the full record. I did not use the `patch_heading` fallback because the note now has mixed line endings, and `patch_heading` writes to the wrong lines on such notes (Tool Notes, BI-0168).
