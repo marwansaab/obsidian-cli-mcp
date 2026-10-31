@@ -50,8 +50,8 @@ extends it.
     `open_file`, `get_active_file`.
   - [capabilities/mutate.md](capabilities/mutate.md) — the direct-filesystem
     write cohort, what `bytes_written` reports (PR #103),
-    `find_and_replace`, `prepend`, `set_property`, `delete`, `rename`,
-    `move`.
+    `find_and_replace`, `prepend` and its empty-body correction (PR #104),
+    `set_property`, `delete`, `rename`, `move`.
   - [capabilities/list-and-inventory.md](capabilities/list-and-inventory.md) —
     `files`, `paths`, `outline`, `properties`, `vaults`.
   - [capabilities/bases.md](capabilities/bases.md) — `bases`, `views_base`,
@@ -123,3 +123,7 @@ applies. Records written since:
   — `bytes_written` means the size change (after minus before, a new note
   counting as 0) on the five single-note text writers; `write_note` gains it
   and fails before writing if it cannot measure the old note (PR #103).
+- [decisions/ADR-049-prepend-keeps-obsidians-write-and-removes-the-added-line-break.md](decisions/ADR-049-prepend-keeps-obsidians-write-and-removes-the-added-line-break.md)
+  — `prepend` keeps Obsidian's write and, in default mode, removes the LF it
+  adds to an empty or properties-only note through `writeAtomic`, rather than
+  moving to the direct-write path with its own frontmatter parser (PR #104).
