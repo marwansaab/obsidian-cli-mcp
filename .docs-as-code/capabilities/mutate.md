@@ -41,7 +41,15 @@ flowchart LR
 - **Locator.** In specific mode the vault root comes from the vault registry.
   A wikilink-form `file` is resolved through `obsidian file` first. In active
   mode a focused-file `eval` supplies the path. The helpers are shared in
-  `src/tools/_active-file.ts`.
+  `src/tools/_active-file.ts`; since PR #97 `append_note` and `prepend` reach
+  them through `resolveFsTarget` in `src/tools/_file-target.ts`, which
+  replaced the identical private `resolveLocator` each had.
+- **Type check** (PR #97). `write_note` and `append_note` reject a resolved
+  path that is not a Markdown note with `UNSUPPORTED_FILE_TYPE` before the
+  guard, so nothing is read or written
+  ([file types](#file-types)). `patch_heading` and `patch_block` were out of
+  spec 070's scope (FR-013) and do not run it; `find_and_replace` keeps its
+  own `INVALID_NOTE` rejection.
 - **Guard.** Both path-safety layers run before anything touches the disk; a
   miss is `PATH_ESCAPES_VAULT`.
 - **Edit.** The change itself is a pure function over the file text — for
@@ -165,13 +173,57 @@ with `bytes_written: 0`.
 
 `set_property` wraps `property:set`. It infers the property type from the JS
 value when `type` is omitted, except for `date` and `datetime`, which must be
-given explicitly. `delete`, `rename` and `move` are thin wrappers. `delete`
-sends a note to the OS trash unless `permanent: true`, which since PR #92
+given explicitly. `delete` is a thin wrapper. It sends a file to the OS trash
+unless `permanent: true`, which since PR #92
 asks the human first ([above](#confirmation-before-irreversible-changes)). On
 the PR #92 test vault, which has no `.trash` folder, trash deletes landed in
 the OS Recycle Bin. `rename` and `move` take
 the vault's "Automatically update internal links" setting as it is: whether
 links are rewritten depends on vault configuration, not on this server.
+
+`rename` and `move` stopped being thin wrappers in PR #97. Each first resolves
+the source file, then applies the destination rule below, then forwards the
+original `file=`, the `path`, or (active mode) the resolved `path=` with no
+`vault=`. `move` still expands a folder-form `to` (trailing `/`) itself only
+for a `path` locator; for `file` and active calls it forwards the folder form
+as given and the CLI keeps the basename, which keeps Markdown `file`-mode
+arguments byte-stable (spec 070 `contracts/tool-support.md` invariant 4,
+upheld by review ruling Q2).
+
+## File types
+
+Since PR #97 (BI-0060, spec 070) every tool here that takes a file locator
+states in its description which file types it handles, built from the
+`X_SUPPORTED` declaration in its handler
+([architecture](../architecture.md#file-types-check-the-file-that-will-be-acted-on);
+ADR-044, File-Path Tools Check the Resolved File and Keep Its Type).
+
+| Tool | Handles | How a wrong type fails |
+| --- | --- | --- |
+| `write_note`, `append_note`, `prepend` | notes only | `UNSUPPORTED_FILE_TYPE` (`unsupported-type`) before any write |
+| `find_and_replace` | notes only | its existing `INVALID_NOTE` / not-eligible handling, unchanged |
+| `rename`, `move` | any file; the type is kept | `UNSUPPORTED_FILE_TYPE` (`type-change`) for a destination of another type |
+| `delete` | any file | — |
+
+The destination rule for `rename` and `move` replaced two older ones. `rename`
+appended `.md` to any name without it (`appendMdIfMissing`, spec 021 Q1), so
+renaming a canvas made it a Markdown note. `move` appended `.md` only to a
+`.md` source given as a `path` (spec 030 Q1+Q2), forwarding everything else as
+given. Now a destination with no extension gets the source's — the T0 probe
+P1 showed this is required for `move` and not just tidy, because the CLI reads
+an extensionless `to` as a folder — and one with a different recognised
+extension is refused with `alternative: "obsidian_exec"`. Markdown outcomes
+did not change, including `Renamed.MD` → `Renamed.MD.md` (FR-012).
+
+`write_note` has no resolver to ask, so it checks the path it computes. Its
+short form used to add `.md` to any slash-free name not ending in `.md`, which
+made `file: "Plan.canvas"` into `Plan.canvas.md`. Since PR #97 a name ending
+in a canvas, base or attachment extension is not a short form; it passes
+through as given and the type check rejects it. A deliberate side effect,
+found at implement time and listed in spec 070's `tasks.md` Notes:
+`file: "Folder/Note"`, which used to write an extensionless file, is now
+rejected. In active mode the check runs on the focused file, so
+`write_note` with `overwrite: true` no longer replaces a focused canvas.
 
 ## Targeting rules specific to writes
 
@@ -218,8 +270,19 @@ from their schema would have reached the client as SDK free text rather than
 
 ## Known limits
 
-- `rename` only handles `.md` notes. Other file types go through
-  `obsidian_exec`.
+- Until PR #97 this page said "`rename` only handles `.md` notes. Other file
+  types go through `obsidian_exec`." That was the spec 021 intent, but the
+  code never enforced it: `rename` accepted a canvas and turned it into a
+  Markdown note. Since PR #97 `rename` and `move` handle every file and keep
+  its type; only a deliberate **type change** goes through `obsidian_exec`.
+- `file` and active calls of `rename` and `move` cost one extra CLI
+  round-trip to resolve the source; `path` calls do not. An active call can
+  still act in another vault if the focused **vault** switches between that
+  lookup and the action (ADR-044); the owner accepted the same residual for
+  the metadata refresh below.
+- `patch_heading` and `patch_block` were outside spec 070 (FR-013): they do
+  not run the type check and their descriptions carry no supported-types
+  sentence.
 - `write_note` dropped its `template` parameter in the ADR-009 rewrite;
   template-based creation goes through `obsidian_exec`.
 - Writes made by the direct path are visible to Obsidian through the

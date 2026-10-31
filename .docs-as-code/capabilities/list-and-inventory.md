@@ -32,6 +32,12 @@ count is computed after filtering instead of using the CLI's recursive total.
 takes `target_mode`, because it reads one note. `properties` is vault-scoped:
 an optional `vault`, with the focused vault as the default.
 
+Since PR #97 `outline` is no longer a single CLI call for every locator. A
+`file` name is resolved through `obsidian file` and active mode through the
+focused-file `eval`, so the type can be checked before the `outline` call;
+`path` calls stay single-spawn. A `file` call then forwards the original
+`file=`, an active call the resolved `path=` with no `vault=`.
+
 ### `vaults`
 
 `vaults` (PR #91, 068 US11, FR-036) wraps `obsidian vaults verbose` 1:1 and is
@@ -70,8 +76,11 @@ shown now that the tool exists.
 
 `paths` reports a missing folder or a folder path that names a file as
 `CLI_REPORTED_ERROR` with `details.code` `FOLDER_NOT_FOUND` or `NOT_A_FOLDER`.
-`outline` passes on the CLI's rejection of non-Markdown files as
-`CLI_REPORTED_ERROR`.
+`outline` used to pass on the CLI's rejection of a non-Markdown file as an
+undiscriminated `CLI_REPORTED_ERROR`. Since PR #97 it resolves the file first
+and rejects anything but a note as `VALIDATION_ERROR` with
+`details.code: "UNSUPPORTED_FILE_TYPE"` before the `outline` call
+([file types](../architecture.md#file-types-check-the-file-that-will-be-acted-on)).
 
 `vaults` never returns an empty list for a failed probe: whatever dispatch
 raised (`CLI_BINARY_NOT_FOUND`, `CLI_TIMEOUT`, `CLI_NON_ZERO_EXIT` with

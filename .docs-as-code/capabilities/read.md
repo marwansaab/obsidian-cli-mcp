@@ -7,7 +7,7 @@ how the group is built.
 
 | Tool | Pipeline | Contract |
 | --- | --- | --- |
-| `read` | native CLI `read` | [docs/tools/read.md](../../docs/tools/read.md) |
+| `read` | native CLI `read`, after a type check on the resolved file | [docs/tools/read.md](../../docs/tools/read.md) |
 | `read_heading` | `eval` template over `metadataCache` headings | [docs/tools/read_heading.md](../../docs/tools/read_heading.md) |
 | `read_property` | native CLI `properties` | [docs/tools/read_property.md](../../docs/tools/read_property.md) |
 
@@ -17,12 +17,24 @@ All three take `target_mode` ([architecture](../architecture.md#targeting-target
 `specific` with `vault` and exactly one of `file` or `path`, or `active` for
 the focused note.
 
-`read` is the thinnest tool in the server. It routes through `invokeCli`
-and returns the CLI's stdout verbatim as `{ content }`. Because it shares the
-typed-tool bounds, a note whose text exceeds 10 MiB fails as
-`CLI_OUTPUT_TOO_LARGE` rather than returning a partial body. It was the first
-typed tool (BI-006, PR #7, as `read_note`) and took its current name in the
-BI-022 rename (PR #24).
+`read` routes through `invokeCli` and returns the CLI's stdout verbatim as
+`{ content }`. Because it shares the typed-tool bounds, a note whose text
+exceeds 10 MiB fails as `CLI_OUTPUT_TOO_LARGE` rather than returning a
+partial body. It was the first typed tool (BI-006, PR #7, as `read_note`) and
+took its current name in the BI-022 rename (PR #24).
+
+Until PR #97 it was also the thinnest tool in the server: one CLI call,
+whatever the file. It returned decoded binary for an image or a PDF. Since
+PR #97 (spec 070 Clarifications Q3) it reads notes, canvases and bases — the
+text formats — and rejects attachments and unknown types with
+`UNSUPPORTED_FILE_TYPE`, naming `open_file` as the alternative for an
+attachment. To know the type it first resolves the file
+([file types](../architecture.md#file-types-check-the-file-that-will-be-acted-on)):
+a `path` is classified as given, a `file` name costs one `obsidian file`
+resolver call, and active mode one focused-file `eval`. A `file` call then
+forwards the original `file=`; an active call forwards the resolved `path=`
+with no `vault=`, so a focus change between the two calls cannot make it read
+a different file. `read_heading` and `read_property` are unchanged by PR #97.
 
 `read_heading` (PR #17) exists so a client does not pull a whole long note to
 read one section. It does not parse Markdown itself. Its frozen template reads
@@ -62,7 +74,10 @@ its `{ content }` text block is kept byte-identical (068 FR-041).
 The usual dispatch codes apply. Beyond them: `ERR_NO_ACTIVE_FILE` when active
 mode has nothing focused; `CLI_REPORTED_ERROR` (with `details.code` where the
 tool can name the condition) for a missing note, an unknown vault, or a
-section path that matches no heading.
+section path that matches no heading. `read` adds `VALIDATION_ERROR` with
+`details.code: "UNSUPPORTED_FILE_TYPE"`, `reason: "unsupported-type"` for a
+file that is not a note, canvas or base (PR #97); resolution failures for a
+`file` name or the focused file surface first, unchanged.
 
 An absent property, or a note with no frontmatter, is **not** a failure for
 `read_property`: it returns `{ value: null, type: "unknown" }`. That is a

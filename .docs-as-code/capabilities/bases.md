@@ -57,6 +57,13 @@ own, so the stated limit cannot drift from the enforced one. `query_base`'s opti
 Since PR #91 all four publish an `outputSchema` and return their result as
 `structuredContent` beside the identical text
 ([typed results](../architecture.md#typed-results-outputschema-and-structuredcontent)).
+Since PR #97 the descriptions of `views_base`, `query_base` and `create_base`
+carry "Supported file types: bases.", built from each handler's
+declaration
+([file types](../architecture.md#file-types-check-the-file-that-will-be-acted-on)).
+Their behaviour did not change: another file type is still refused with the
+existing `INVALID_BASE_PATH`, which spec 070 FR-007a kept rather than rename a
+discriminator clients rely on.
 
 ## Failure
 

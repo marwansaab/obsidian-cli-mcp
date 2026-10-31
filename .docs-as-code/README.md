@@ -34,7 +34,8 @@ extends it.
   instructions; typed results (`outputSchema` and `structuredContent`); the
   owner's access settings; the per-call scope (cancellation, progress and
   confirmation); the queue, dispatch, cold-start retry and auto-launch; error classification and
-  sub-discriminators; `target_mode`; the direct-filesystem write path; the
+  sub-discriminators; `target_mode`; file types and the resolved target
+  (PR #97); the direct-filesystem write path; the
   `eval` template pattern; logging, shutdown and module layout.
 - [tech-stack.md](tech-stack.md) — what the server is built from, why each
   piece is here, and what it forces or rules out, including the current
@@ -93,3 +94,8 @@ applies. Records written since:
   passed whole to `invokeCli`, and confirmation is a two-step `Confirmation`
   whose `confirm` throws the `input_required` prompt back through
   `registerTool` (PR #92).
+- [decisions/ADR-044-file-path-tools-check-the-resolved-file-and-keep-its-type.md](decisions/ADR-044-file-path-tools-check-the-resolved-file-and-keep-its-type.md)
+  — file-path tools declare the types they handle and check the file they
+  will act on before changing anything; `rename` and `move` keep a file's
+  type; active calls forward the resolved `path=` with no `vault=`, the
+  path review argued the PR into (PR #97).

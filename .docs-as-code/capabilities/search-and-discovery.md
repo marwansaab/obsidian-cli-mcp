@@ -77,6 +77,14 @@ change. `tag` publishes none, because `total: true` returns a bare integer
 rather than an object; its text is unchanged. PR #91 put that exclusion to
 the owner for review.
 
+**File types** (PR #97;
+[architecture](../architecture.md#file-types-check-the-file-that-will-be-acted-on)).
+`links` and `backlinks` now say "Supported file types: notes." and
+`open_file` says it works on any file type; each sentence is built from a
+declaration in the tool's handler. None of the three changed behaviour:
+`links` and `backlinks` keep their existing `NOT_MARKDOWN` rejection
+(spec 070 FR-007a).
+
 ## Failure
 
 Shared across the group: an unknown vault (`CLI_REPORTED_ERROR`,
