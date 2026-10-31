@@ -285,3 +285,44 @@ Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0
 > - I1: Use "the five single-note text writers" (append_note, prepend, patch_heading, patch_block, write_note) everywhere. Per the ADR-009 amendment of 2026-05-26 and BI-0120, prepend runs through the CLI, not fs-direct. The BI's Out of scope section now names the cohort this way (Q1 clarification).
 > - I2: Reword SC-005 so that the test fixtures for the changed tools may be updated. Constitution Principle II requires the tests to change in the same change set as the surface.
 > - U1: Add a multi-byte row. `bytes_written` counts UTF-8 bytes, not characters, so assert a byte delta that differs from the character count.
+
+## 7. record / record-in-vault (2026-10-31T11:49:07.808Z)
+
+**Question (verbatim):**
+
+> The work for job BI-0116 is now a reviewed, documented pull request. Record that on the job's note, following the vault's conventions for backlog items:
+> - the spec branch: 075-unify-size-reporting
+> - the feature folder in the code repository: specs/075-unify-size-reporting
+> - the pull request: https://github.com/marwansaab/obsidian-cli-mcp/pull/103 (number 103)
+> - the status that means "in review" in this vault (if the vault has no such status, escalate `decision` with up to 3 choices)
+> - a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0116-2026-10-31 produced it.
+>
+> Dry run: no. In a dry run, change nothing: list each edit you would make in `vault_edits`, starting its change with "Would". Otherwise list each edit you made.
+
+**Advisor** (escalate: none):
+
+> BI-0116 is now recorded as in review, following the vault's backlog-item conventions and the BI-0115 precedent.
+>
+> - Frontmatter: `status` changed from `planned` to `in-review`. That status is in the BI vocabulary of the Vault Frontmatter Convention status overrides. `spec_branch` is set to `075-unify-size-reporting`, and `updated` stays 2026-10-31.
+> - The `## Status` section now opens with a dated "In review — 2026-10-31" paragraph. It links PR https://github.com/marwansaab/obsidian-cli-mcp/pull/103 (#103) and names the spec branch `075-unify-size-reporting` and the feature folder `specs/075-unify-size-reporting`. The earlier narrative is kept below it.
+> - An audit-trail HTML comment was added at the bottom of the file: "2026-10-31: Relay run obsidian-cli-mcp-bi-0116-2026-10-31 produced … pull/103 (#103) …".
+>
+> A read-back confirmed all three changes. `npm_version_shipped` and `resolved` are left unset until the PR merges and ships.
+
+Sources: `000-Meta/Vault Frontmatter Convention.md`, `000-Meta/Templates/Backlog Item Template.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0115 - Fix Read Trailing Newline Normalisation.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0116 - Align Bytes Written On Byte Delta Across Fs Direct Write Cohort.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0116 - Align Bytes Written On Byte Delta Across Fs Direct Write Cohort.md`: Frontmatter status: planned → in-review (set_property).
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0116 - Align Bytes Written On Byte Delta Across Fs Direct Write Cohort.md`: Frontmatter spec_branch set to 075-unify-size-reporting (set_property).
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0116 - Align Bytes Written On Byte Delta Across Fs Direct Write Cohort.md`: Added an 'In review — 2026-10-31' paragraph at the top of ## Status linking PR #103, spec branch and feature folder specs/075-unify-size-reporting (patch_heading prepend).
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0116 - Align Bytes Written On Byte Delta Across Fs Direct Write Cohort.md`: Appended a dated audit-trail HTML comment saying Relay run obsidian-cli-mcp-bi-0116-2026-10-31 produced PR #103 (append_note).
+
+**Sent to the step:**
+
+> BI-0116 is now recorded as in review, following the vault's backlog-item conventions and the BI-0115 precedent.
+>
+> - Frontmatter: `status` changed from `planned` to `in-review`. That status is in the BI vocabulary of the Vault Frontmatter Convention status overrides. `spec_branch` is set to `075-unify-size-reporting`, and `updated` stays 2026-10-31.
+> - The `## Status` section now opens with a dated "In review — 2026-10-31" paragraph. It links PR https://github.com/marwansaab/obsidian-cli-mcp/pull/103 (#103) and names the spec branch `075-unify-size-reporting` and the feature folder `specs/075-unify-size-reporting`. The earlier narrative is kept below it.
+> - An audit-trail HTML comment was added at the bottom of the file: "2026-10-31: Relay run obsidian-cli-mcp-bi-0116-2026-10-31 produced … pull/103 (#103) …".
+>
+> A read-back confirmed all three changes. `npm_version_shipped` and `resolved` are left unset until the PR merges and ships.

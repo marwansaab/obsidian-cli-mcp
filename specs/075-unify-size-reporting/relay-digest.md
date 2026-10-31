@@ -4,14 +4,14 @@
 |---|---|
 | Run | `obsidian-cli-mcp-bi-0116-2026-10-31` |
 | Project | obsidian-cli-mcp (pack speckit) |
-| Status | running |
+| Status | done |
 | Started | 2026-10-31T11:00:47.303Z |
-| Finished | not yet |
-| Elapsed | 31 min 31 s |
+| Finished | 2026-10-31T11:49:47.457Z |
+| Elapsed | 49 min 0 s |
 | Questions | 4 (0 needed the owner) |
-| Requests to the advisor | 2 (0 needed the owner) |
+| Requests to the advisor | 3 (0 needed the owner) |
 | Escalations | 0 |
-| Edits by the advisor | 1 |
+| Edits by the advisor | 5 |
 
 ## Inputs
 
@@ -164,25 +164,53 @@ Skipped.
 ### implementation (`298de854-4131-461e-9c51-a46dd7c60aa5`)
 
 - Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\specs\075-unify-size-reporting\tasks.md exists.
+- Condition `gh-pr-open` (done_when): met. Pull request #103 is open.
 
 - **implement**: done, 192 turns.
 
 > Implemented all 31 tasks of 075-unify-size-reporting; bytes_written now means the size after the write minus the size before on all five note writers. patch_heading and patch_block report the change (0 or negative allowed; min(0) removed). write_note returns bytes_written: it reads the note's old size before an overwrite and fails with FS_WRITE_FAILED (syscall "stat") before writing if that read fails. append_note and prepend are unchanged apart from sharing BYTES_WRITTEN_DESCRIPTION, used by all five output schemas. Baseline regenerated: only these five outputSchemaFingerprints moved. The five tool pages, docs/tools/index.md and CHANGELOG.md (Changed with migration note, Added) are updated. Typecheck and lint are clean; 3515 tests pass (up from 3478). Live check on TestVault-Obsidian-CLI-MCP passed 12/12, every value matching the measured size change; fixtures removed and Welcome.md unchanged. Deviations recorded in tasks.md Notes: new write_note size tests are in handler.bytes-written.test.ts (1000-line split convention); three patch_block assertions on shrinking fixtures now check the exact change (−5, −3, −5); format:check also fails at HEAD on this CRLF checkout, so only files this change made dirty were reformatted. The optional after_implement commit hook was skipped, so nothing is committed.
 
-- **open-pr**: in progress.
+- **open-pr**: done, 18 turns.
 
-### review
+> Committed the 075-unify-size-reporting work, pushed the branch to origin and opened PR #103 into main (not a draft, not merged). Before committing, typecheck, lint and build passed and all 3515 tests passed (6 skipped). npm run format:check fails across most of the repository on this Windows checkout because of line endings, and fails the same way on the unchanged code. There are two commits following CONTRIBUTING.md: 15b7cda (feat: code, tests, baseline, docs, changelog, tasks.md) and 2a1da0c (chore: spec-kit and CLAUDE.md pointers plus the Relay digest). The repository has no pull request template, so the description follows the layout of the previous PR (#102), including the Constitution Compliance table (every gate Y or N/A, no N, no kernel node touched).
 
-- **code-review**: not run.
-- **fix**: not run.
 
-### docs
+### review (`689f0638-200f-4378-9a08-96c6745bcf2f`)
 
-- **document**: not run.
+- Condition `gh-pr-open` (start_when): met. Pull request #103 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #103 is open.
 
-### record
+- **code-review**: done, 17 turns.
 
-- **record-in-vault**: not run.
+> Thermo-nuclear code-quality review of PR #103 finished, verdict: changes requested (small). The production diff is lean and in the right layer. Findings: (1) write_note's created/existedBefore/oldSize should collapse into one `sizeBefore: number | null`; (2) the five per-tool index tests checking the bytes_written description, plus the _shared.test.ts check that compares the constant with its own literal, are redundant and should become one loop in _surface.test.ts (cf. refactor-decisions item 10); (3) the patch_* handler tests grow files already over 1k lines with copy-paste, a circular delta check and redundant assertions, and should become test.each tables split into handler.bytes-written.test.ts like write_note's; (4) the five '075 uniform check' tests repeat rows of neighbouring tables; (5) low: an optional shared sizeChange helper, a stale realpath comment in the write_note fixtures, unneeded vi.fn stubs. Appended entry 36 to .memory/refactor-decisions.md. No code changes made and tests not run.
+
+- **fix**: done, 68 turns.
+
+> Fixed the PR #103 review findings in commit 4a203e0, pushed to 075-unify-size-reporting. Behaviour is unchanged and no baseline fingerprint moved. (1) write_note: created/existedBefore/oldSize became one `sizeBefore: number | null`. (2) New `sizeChange(before, after)` in _note-io.ts (with a test) now computes the byte change for append_note, patch_block and patch_heading. This lifts the plan's 'do not edit _note-io.ts / append_note' constraint; the change is recorded in tasks.md. (3) The five per-tool index.test.ts checks of the bytes_written description became one it.each in _surface.test.ts over the real tools/list. The _shared.test.ts check comparing the constant with its own literal was dropped, since baseline fingerprints already catch wording changes. (4) The patch_block and patch_heading size-change tests moved to new handler.bytes-written.test.ts files as test.each tables with literal expected values; the circular and redundant assertions are gone. Their fixtures moved to vitest-free _handler-fixtures.ts files, so both handler.test.ts files are now under 1000 lines (909 and 932). The append_note table's circular assertion was removed too. (5) write_note stat stubs are now plain async functions, and the stale realpath comment is fixed. Left on purpose: the five '075 uniform check' tests stay (the review had suggested deleting them) because spec SC-002 requires that check on every writer. Gates: lint, typecheck and build clean; 3518/3518 tests pass (6 skipped); 97% statement coverage. The relay-digest.md change that was already in the working tree was not committed.
+
+
+### docs (`06b31a2f-4b8e-40f5-aac6-03ec3ac9500a`)
+
+- Condition `gh-pr-open` (start_when): met. Pull request #103 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #103 is open.
+
+- **document**: done, 36 turns.
+
+> Docs-as-code pass for PR #103 (OPEN, 075-unify-size-reporting -> main). Commit 0736e51 is pushed to the PR branch. It adds a "What bytes_written reports" section to .docs-as-code/capabilities/mutate.md and a new known limit there. architecture.md now covers BYTES_WRITTEN_DESCRIPTION and sizeChange. New .docs-as-code/decisions/ADR-048-bytes-written-is-the-size-change.md, indexed in README.md. A Documentation section is added to the PR body. docs/tools pages already matched the code, so they were not edited and npm test was not needed. Follow-ups: (1) the PR body is out of date: it says _note-io.ts is unchanged and that description checks live in each index.test.ts, but review commit 4a203e0 changed both; the pages follow the diff. (2) Research D8 left the ADR number to the vault sync; I used ADR-048 (1 + the highest used anywhere), so .decisions/Decision Log.md and the .architecture upstream-limitations note need updating at the vault sync. (3) specs/075-unify-size-reporting/relay-digest.md was already modified before this run and is still uncommitted; it was not included.
+
+
+### record (`cf495d53-37d6-4a76-8d85-5f0b1b90d92a`)
+
+- **record-in-vault**: done.
+
+> BI-0116 is now recorded as in review, following the vault's backlog-item conventions and the BI-0115 precedent.
+>
+> - Frontmatter: `status` changed from `planned` to `in-review`. That status is in the BI vocabulary of the Vault Frontmatter Convention status overrides. `spec_branch` is set to `075-unify-size-reporting`, and `updated` stays 2026-10-31.
+> - The `## Status` section now opens with a dated "In review — 2026-10-31" paragraph. It links PR https://github.com/marwansaab/obsidian-cli-mcp/pull/103 (#103) and names the spec branch `075-unify-size-reporting` and the feature folder `specs/075-unify-size-reporting`. The earlier narrative is kept below it.
+> - An audit-trail HTML comment was added at the bottom of the file: "2026-10-31: Relay run obsidian-cli-mcp-bi-0116-2026-10-31 produced … pull/103 (#103) …".
+>
+> A read-back confirmed all three changes. `npm_version_shipped` and `resolved` are left unset until the PR merges and ships.
+
 
 ## Escalations
 
@@ -194,6 +222,10 @@ None.
 | File | Change | Triggered by |
 |---|---|---|
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0116 - Align Bytes Written On Byte Delta Across Fs Direct Write Cohort.md` | Out of scope: added a bullet saying set_property, find_and_replace and create_base keep their current outputs and that the cohort is the five single-note text writers (Relay Q1 clarification). Edited with patch_heading replace: the first find_and_replace attempt was blocked by a permission prompt, then read_heading confirmed the change. | pre-implementation / clarify: Question 1: Which writing capabilities carry the size figure? |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0116 - Align Bytes Written On Byte Delta Across Fs Direct Write Cohort.md` | Frontmatter status: planned → in-review (set_property). | record / record-in-vault: The work for job BI-0116 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0116 - Align Bytes Written On Byte Delta Across Fs Direct Write Cohort.md` | Frontmatter spec_branch set to 075-unify-size-reporting (set_property). | record / record-in-vault: The work for job BI-0116 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0116 - Align Bytes Written On Byte Delta Across Fs Direct Write Cohort.md` | Added an 'In review — 2026-10-31' paragraph at the top of ## Status linking PR #103, spec branch and feature folder specs/075-unify-size-reporting (patch_heading prepend). | record / record-in-vault: The work for job BI-0116 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0116 - Align Bytes Written On Byte Delta Across Fs Direct Write Cohort.md` | Appended a dated audit-trail HTML comment saying Relay run obsidian-cli-mcp-bi-0116-2026-10-31 produced PR #103 (append_note). | record / record-in-vault: The work for job BI-0116 is now a reviewed, documented pull request. Record that on the job's note,  |
 
 ## Files
 
