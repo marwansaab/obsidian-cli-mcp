@@ -35,7 +35,8 @@ extends it.
   owner's access settings; the per-call scope (cancellation, progress and
   confirmation); the queue, dispatch, cold-start retry and auto-launch; error classification and
   sub-discriminators; `target_mode`; file types and the resolved target
-  (PR #97); the direct-filesystem write path; the
+  (PR #97); renamed parameters and their deprecated aliases (PR #101); the
+  direct-filesystem write path; the
   `eval` template pattern; logging, shutdown and module layout.
 - [tech-stack.md](tech-stack.md) — what the server is built from, why each
   piece is here, and what it forces or rules out, including the current
@@ -104,3 +105,10 @@ applies. Records written since:
   per-tool `not-open` stages are deleted, and the post-retry error is
   documented as "vault unavailable" rather than given a new sub-reason
   (PR #100).
+- [decisions/ADR-NNN-shared-parameter-names-within-a-tool-family.md](decisions/ADR-NNN-shared-parameter-names-within-a-tool-family.md)
+  — within a tool family one concept carries one snake-case parameter name;
+  seven parameters on three tools are renamed, with the old names accepted
+  until the next major release (PR #101). Its number is not allocated yet: by
+  the owner's ruling on spec 073 (clarify Q2) the canonical copy is written in
+  the vault and this mirror is renamed at the next vault sync, as listed in
+  `specs/073-align-parameter-names/research.md` ("Pending vault sync").

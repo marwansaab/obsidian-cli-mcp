@@ -139,7 +139,13 @@ export const TYPED_RESULT_FIXTURES: readonly TypedResultFixture[] = [
   {
     name: "create_base",
     build: () => createCreateBaseTool(cli(out("Created: New item.md\n"))),
-    args: { path: "Tasks.base", name: "New item" },
+    args: { base_path: "Tasks.base", name: "New item" },
+  },
+  {
+    name: "create_base",
+    build: () => createCreateBaseTool(cli(out("Created: New item.md\n"))),
+    // Spec 073: deprecated names — the result carries deprecated_parameters.
+    args: { path: "Tasks.base", name: "New item", view: "All" },
   },
   {
     name: "delete",
@@ -164,8 +170,20 @@ export const TYPED_RESULT_FIXTURES: readonly TypedResultFixture[] = [
     args: { vault: "V", path: "Notes/a.md", pattern: "alpha", replacement: "gamma", commit: true },
   },
   {
+    name: "find_and_replace",
+    build: findReplaceTool,
+    // Spec 073: deprecated names — the result carries deprecated_parameters.
+    args: { vault: "V", pattern: "alpha", replacement: "gamma", case_insensitive: true, subfolder: "Notes" },
+  },
+  {
     name: "find_by_property",
     build: () => createFindByPropertyTool(cli(out('=> {"count":1,"paths":["x.md"]}\n'))),
+    args: { vault: "Demo", name: "id", value: "BI-030" },
+  },
+  {
+    name: "find_by_property",
+    build: () => createFindByPropertyTool(cli(out('=> {"count":1,"paths":["x.md"]}\n'))),
+    // Spec 073: deprecated names — the result carries deprecated_parameters.
     args: { vault: "Demo", property: "id", value: "BI-030" },
   },
   {

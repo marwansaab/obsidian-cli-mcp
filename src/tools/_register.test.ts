@@ -578,8 +578,8 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
   },
   find_by_property: {
     type: "object",
-    properties_equals_set: ["vault", "property", "value", "folder", "arrayMatch", "caseSensitive"],
-    required_equals: ["property", "value"],
+    properties_equals_set: ["vault", "name", "property", "value", "folder", "array_match", "arrayMatch", "case_sensitive", "caseSensitive"],
+    required_equals: ["value"],
     additionalProperties: false,
   },
   get_active_file: {
@@ -605,8 +605,10 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
     properties_equals_set: [
       "active_note",
       "case_insensitive",
+      "case_sensitive",
       "commit",
       "file",
+      "folder",
       "include_code_blocks",
       "include_html_comments",
       "mode",
@@ -726,8 +728,8 @@ const invariants: Readonly<Record<string, ToolInvariant>> = {
   },
   create_base: {
     type: "object",
-    properties_equals_set: ["path", "name", "content", "view", "vault"],
-    required_equals: ["path", "name"],
+    properties_equals_set: ["base_path", "path", "name", "content", "view_name", "view", "vault"],
+    required_equals: ["name"],
     additionalProperties: false,
   },
   query_base: {

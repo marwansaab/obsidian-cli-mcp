@@ -1,6 +1,6 @@
 // Original — no upstream. Tests for the shared Bases-family `.base` path refinement.
 // Pins the byte-exact INVALID_BASE_PATH issue contract (messages + params) for BOTH field
-// labels — `path` (create_base) and `base_path` (query_base / views_base) — so the per-tool
+// labels — `path` (the pre-spec-073 create_base label) and `base_path` (create_base / query_base / views_base) — so the per-tool
 // schemas that delegate to it stay byte-identical to their prior hand-rolled copies.
 import { expect, test } from "vitest";
 import { z } from "zod";

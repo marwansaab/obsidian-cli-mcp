@@ -4,6 +4,7 @@ import { type z } from "zod";
 import { type ExecuteDeps, executeFindAndReplace, FIND_AND_REPLACE_SUPPORTED } from "./handler.js";
 import { findAndReplaceInputSchema, findAndReplaceOutputSchema } from "./schema.js";
 import { describeSupport } from "../../file-type/file-type.js";
+import { withDeprecatedParameters } from "../_deprecated-params.js";
 import { registerTool } from "../_register.js";
 import { DESTRUCTIVE_HINTS, type BootDeps, type RegisteredTool, type ToolErrorPayload } from "../_shared.js";
 
@@ -12,35 +13,37 @@ export const FIND_AND_REPLACE_TOOL_NAME = "find_and_replace";
 export const FIND_AND_REPLACE_DESCRIPTION =
   `Find-and-replace with **preview-then-commit** semantics. Scan a vault, a sub-folder, or a single note for a literal-or-regex pattern; default returns a preview, \`commit: true\` rewrites the matches on disk. ${describeSupport(FIND_AND_REPLACE_SUPPORTED)}
 
-**SCOPE — default is vault-wide; narrow it deliberately.** With no scope field this tool replaces matches across EVERY eligible \`.md\` file in the vault (or the named \`subfolder\`, recursively). To confine a change to ONE note, use a single-note scope (below) so the SCOPE — not a globally-unique pattern — bounds the blast radius. Agents have corrupted unintended files by committing wide-pattern replacements.
+**SCOPE — default is vault-wide; narrow it deliberately.** With no scope field this tool replaces matches across EVERY eligible \`.md\` file in the vault (or the named \`folder\`, recursively). To confine a change to ONE note, use a single-note scope (below) so the SCOPE — not a globally-unique pattern — bounds the blast radius. Agents have corrupted unintended files by committing wide-pattern replacements.
 
 Required \`pattern\` (1..1000 UTF-16 code units). Required \`replacement\` (0..1000 chars; empty = deletion).
 
 Optional \`mode: "literal" | "regex"\` (default \`"literal"\`). Regex mode uses ECMAScript (Node RegExp, V8) with \`$1\`/\`$&\`/\`$$\` interpolation in \`replacement\`. Literal mode inserts \`replacement\` verbatim — no metacharacter interpretation.
 
-Optional \`case_insensitive\` (boolean, default false). Optional \`include_code_blocks\` (default false — fenced code blocks are SKIPPED). Optional \`include_html_comments\` (default false — \`<!-- ... -->\` is SKIPPED). Optional \`commit\` (boolean, default false — preview-only). Optional \`vault\` (string; absent routes to focused vault).
+Optional \`case_sensitive\` (boolean, default true). Optional \`include_code_blocks\` (default false — fenced code blocks are SKIPPED). Optional \`include_html_comments\` (default false — \`<!-- ... -->\` is SKIPPED). Optional \`commit\` (boolean, default false — preview-only). Optional \`vault\` (string; absent routes to focused vault).
 
 **Scope (choose at most one):**
-- \`subfolder\` (vault-relative path) — confine to every eligible note under that folder, recursively. Path-traversal rejected with \`INVALID_SUBFOLDER\`/\`path-traversal\`; missing folder rejected with \`INVALID_SUBFOLDER\`/\`not-found\`.
+- \`folder\` (vault-relative path) — confine to every eligible note under that folder, recursively. Path-traversal rejected with \`INVALID_SUBFOLDER\`/\`path-traversal\`; missing folder rejected with \`INVALID_SUBFOLDER\`/\`not-found\`.
 - \`path\` (vault-relative path to one note, e.g. \`Projects/Alpha.md\`) — confine to exactly that note.
 - \`file\` (bare note name, e.g. \`Alpha\`) — confine to exactly that note, resolved by Obsidian's shortest-unique-name (like a wikilink). Supply the bare name, NOT the \`[[…]]\` bracket form (rejected with a wikilink-bracket \`VALIDATION_ERROR\`).
 - \`active_note: true\` — confine to the note currently open in the editor; supply no path. No note open → \`ERR_NO_ACTIVE_FILE\`.
 
-A single-note scope (\`path\`/\`file\`/\`active_note\`) touches at most one note; a preview affects ≤ 1 note (early confirmation), and a zero-match named scope returns an empty success (not an error). Scopes are mutually exclusive — \`file\`+\`path\`, any single-note + \`subfolder\`, and \`active_note\` + (\`file\`/\`path\`/\`subfolder\`/\`vault\`) are rejected with \`VALIDATION_ERROR\` + \`details.code: "SCOPE_CONFLICT"\` before any note is read. \`vault\` is permitted with a named \`file\`/\`path\` (it selects the note's vault). A named target that does not exist → \`INVALID_NOTE\`/\`not-found\`; one that resolves to a non-\`.md\` or dotfolder note → \`INVALID_NOTE\`/\`not-eligible\`. Omit all scope fields for the byte-stable vault-wide default.
+A single-note scope (\`path\`/\`file\`/\`active_note\`) touches at most one note; a preview affects ≤ 1 note (early confirmation), and a zero-match named scope returns an empty success (not an error). Scopes are mutually exclusive — \`file\`+\`path\`, any single-note + \`folder\`, and \`active_note\` + (\`file\`/\`path\`/\`folder\`/\`vault\`) are rejected with \`VALIDATION_ERROR\` + \`details.code: "SCOPE_CONFLICT"\` before any note is read. \`vault\` is permitted with a named \`file\`/\`path\` (it selects the note's vault). A named target that does not exist → \`INVALID_NOTE\`/\`not-found\`; one that resolves to a non-\`.md\` or dotfolder note → \`INVALID_NOTE\`/\`not-eligible\`. Omit all scope fields for the byte-stable vault-wide default.
 
 Response is a discriminated union on \`mode\`:
 - **Preview**: \`{ mode: "preview", affected_notes: [{ path, occurrence_count, occurrences: [{ line_number, full_line, matched_substring, replacement_substring }] }], total_occurrences }\`. Notes path-ascending, occurrences (line, offset)-ascending.
 - **Commit**: \`{ mode: "commit", changed_notes, total_occurrences_replaced, partial }\` plus \`failing_note_locator\` when \`partial: true\`. Per-note atomic writes (temp + rename).
 
 **Guards**:
-- **Occurrence cap**: > \`OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES\` (default 500) → \`VALIDATION_ERROR\` with \`details.code: "OCCURRENCE_COUNT_EXCEEDED"\`. Recovery: narrow the scope with \`subfolder\` or a tighter pattern.
+- **Occurrence cap**: > \`OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES\` (default 500) → \`VALIDATION_ERROR\` with \`details.code: "OCCURRENCE_COUNT_EXCEEDED"\`. Recovery: narrow the scope with \`folder\` or a tighter pattern.
 - **Drift detection**: commit re-scans before writing; if the count differs from the preview → \`VALIDATION_ERROR\` with \`details.code: "OCCURRENCE_COUNT_DRIFT"\`. Recovery: re-run preview to pick up the new vault state (the wrapper refuses to commit a stale preview).
 
 Eligible files: \`.md\` extension (case-insensitive) AND every path segment NOT starting with \`.\` (skips \`.obsidian/\`, \`.trash/\`, etc.).
 
 Line-scoped only — \`\\n\` in \`pattern\` does NOT match cross-line; line endings preserved byte-for-byte. Zero-width regex matches (\`a*\`, \`^\`, \`$\`, \`\\b\`, lookarounds) are skipped. Frontmatter / indented code blocks / inline code spans are treated as PROSE.
 
-Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` with sub-discriminators (\`INVALID_PATTERN\`/\`empty\`|\`too-long\`|\`regex-syntax\`; \`INVALID_REPLACEMENT\`; \`INVALID_SUBFOLDER\`/\`path-traversal\`|\`not-found\`; \`OCCURRENCE_COUNT_EXCEEDED\`; \`OCCURRENCE_COUNT_DRIFT\`); \`CLI_REPORTED_ERROR\` (\`VAULT_NOT_FOUND\`/\`unknown\`); \`PATH_ESCAPES_VAULT\` (canonical escape, security event logged); \`FS_WRITE_FAILED\` (\`details.reason: "read"\` no-op, OR \`"write"\` with \`partial: true\` + \`failing_note_locator\` + \`changed_notes\`).`;
+Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` with sub-discriminators (\`INVALID_PATTERN\`/\`empty\`|\`too-long\`|\`regex-syntax\`; \`INVALID_REPLACEMENT\`; \`INVALID_SUBFOLDER\`/\`path-traversal\`|\`not-found\`; \`OCCURRENCE_COUNT_EXCEEDED\`; \`OCCURRENCE_COUNT_DRIFT\`); \`CLI_REPORTED_ERROR\` (\`VAULT_NOT_FOUND\`/\`unknown\`); \`PATH_ESCAPES_VAULT\` (canonical escape, security event logged); \`FS_WRITE_FAILED\` (\`details.reason: "read"\` no-op, OR \`"write"\` with \`partial: true\` + \`failing_note_locator\` + \`changed_notes\`).
+
+Deprecated names (accepted until the next major release; a call that uses one gets \`deprecated_parameters\` in its result): \`case_insensitive\` → \`case_sensitive\` (opposite value), \`subfolder\` → \`folder\`.`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 
@@ -129,11 +132,11 @@ function mapZodIssuesToToolError(issues: z.core.$ZodIssue[]): ToolErrorPayload {
         },
       };
     }
-    if (path0 === "subfolder") {
+    if (path0 === "folder") {
       if (issue.code === "custom" && params?.subReason === "path-traversal") {
         return {
           code: "VALIDATION_ERROR",
-          message: "subfolder is not structurally safe",
+          message: "folder is not structurally safe",
           details: {
             code: "INVALID_SUBFOLDER",
             reason: "path-traversal",
@@ -159,7 +162,8 @@ export function createFindAndReplaceTool(deps: RegisterDeps): RegisteredTool {
     schema: findAndReplaceInputSchema,
     outputSchema: findAndReplaceOutputSchema,
     deps,
-    handler: executeFindAndReplace,
+    handler: async (input, d, call) =>
+      withDeprecatedParameters(await executeFindAndReplace(input, d, call), input.deprecated_parameters),
     mapValidationError: mapZodIssuesToToolError,
   });
 }

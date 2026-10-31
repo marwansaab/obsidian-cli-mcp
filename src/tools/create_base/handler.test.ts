@@ -76,7 +76,7 @@ test("happy: parsed filename + constructed path", async () => {
   const { deps } = makeDeps([{ stdout: "Created: New item.md\n" }]);
 
   const result = await executeCreateBase(
-    { path: "220-Planning/Backlog (Base).base", name: "New item" },
+    { base_path: "220-Planning/Backlog (Base).base", name: "New item" },
     deps,
   );
 
@@ -88,7 +88,7 @@ test("happy: root-level base file path construction", async () => {
   const { deps } = makeDeps([{ stdout: "Created: Test.md\n" }]);
 
   const result = await executeCreateBase(
-    { path: "Tasks.base", name: "Test" },
+    { base_path: "Tasks.base", name: "Test" },
     deps,
   );
 
@@ -100,7 +100,7 @@ test("name collision auto-increment (R-005)", async () => {
   const { deps } = makeDeps([{ stdout: "Created: New item 1.md\n" }]);
 
   const result = await executeCreateBase(
-    { path: "220-Planning/Backlog (Base).base", name: "New item" },
+    { base_path: "220-Planning/Backlog (Base).base", name: "New item" },
     deps,
   );
 
@@ -112,7 +112,7 @@ test("content parameter passthrough", async () => {
   const { deps, recorded } = makeDeps([{ stdout: "Created: Test.md\n" }]);
 
   await executeCreateBase(
-    { path: "Tasks.base", name: "Test", content: "Body text" },
+    { base_path: "Tasks.base", name: "Test", content: "Body text" },
     deps,
   );
 
@@ -120,11 +120,11 @@ test("content parameter passthrough", async () => {
   expect(argv.some((a) => a.includes("content="))).toBe(true);
 });
 
-test("view parameter passthrough", async () => {
+test("view_name parameter passthrough (CLI parameter stays view=)", async () => {
   const { deps, recorded } = makeDeps([{ stdout: "Created: Test.md\n" }]);
 
   await executeCreateBase(
-    { path: "Tasks.base", name: "Test", view: "All" },
+    { base_path: "Tasks.base", name: "Test", view_name: "All" },
     deps,
   );
 
@@ -140,7 +140,7 @@ test("BASE_NOT_FOUND error classification (dispatch-layer catch)", async () => {
 
   try {
     await executeCreateBase(
-      { path: "nonexistent.base", name: "x" },
+      { base_path: "nonexistent.base", name: "x" },
       deps,
     );
     throw new Error("expected rejection");
@@ -160,7 +160,7 @@ test("BASE_NOT_FOUND on success envelope (post-success path, cause null)", async
 
   try {
     await executeCreateBase(
-      { path: "x.base", name: "x" },
+      { base_path: "x.base", name: "x" },
       deps,
     );
     throw new Error("expected rejection");
@@ -178,7 +178,7 @@ test("upstream CLI failure surfaces as UpstreamError", async () => {
   const { deps } = makeDeps([{ stdout: "", exitCode: 1, stderr: "Error: something failed" }]);
 
   await expect(
-    executeCreateBase({ path: "Tasks.base", name: "x" }, deps),
+    executeCreateBase({ base_path: "Tasks.base", name: "x" }, deps),
   ).rejects.toThrow(UpstreamError);
 });
 
@@ -186,7 +186,7 @@ test("vault parameter accepted but silently ignored (R-004)", async () => {
   const { deps } = makeDeps([{ stdout: "Created: Test.md\n" }]);
 
   const result = await executeCreateBase(
-    { path: "Tasks.base", name: "Test", vault: "MyVault" },
+    { base_path: "Tasks.base", name: "Test", vault: "MyVault" },
     deps,
   );
 
@@ -197,7 +197,7 @@ test("unparseable response throws UpstreamError", async () => {
   const { deps } = makeDeps([{ stdout: "Unexpected output\n" }]);
 
   try {
-    await executeCreateBase({ path: "Tasks.base", name: "x" }, deps);
+    await executeCreateBase({ base_path: "Tasks.base", name: "x" }, deps);
     throw new Error("expected rejection");
   } catch (err) {
     expect(err).toBeInstanceOf(UpstreamError);
@@ -205,4 +205,22 @@ test("unparseable response throws UpstreamError", async () => {
     expect(ue.code).toBe("CLI_REPORTED_ERROR");
     expect(ue.details.stage).toBe("response-parse");
   }
+});
+
+test("spec 073 F9: base_path / view_name reach the CLI as the unchanged path= / view= parameters", async () => {
+  const { deps, recorded } = makeDeps([{ stdout: "Created: Test.md\n" }]);
+
+  await executeCreateBase({ base_path: "Projects/Tasks.base", name: "Test", view_name: "All" }, deps);
+
+  const argv = recorded[0]!.argv;
+  expect(argv).toContain("path=Projects/Tasks.base");
+  expect(argv).toContain("view=All");
+  expect(argv.some((a) => a.startsWith("base_path=") || a.startsWith("view_name="))).toBe(false);
+});
+
+test("spec 073 contract §4: BASE_NOT_FOUND details keep the path key", async () => {
+  const { deps } = makeDeps([{ stdout: "Base file not found: x.base\n", exitCode: 0 }]);
+
+  const err = (await executeCreateBase({ base_path: "x.base", name: "x" }, deps).catch((e: unknown) => e)) as UpstreamError;
+  expect(err.details).toEqual({ code: "BASE_NOT_FOUND", path: "x.base" });
 });

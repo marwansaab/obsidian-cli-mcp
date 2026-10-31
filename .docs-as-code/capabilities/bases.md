@@ -49,9 +49,10 @@ as a fake Base entry. An empty vault now returns `count: 0`.
 Published surface (PR #90; [architecture](../architecture.md#registration--the-one-path-from-a-schema-to-a-published-tool)):
 `bases`, `views_base` and `query_base` carry the read-only hint row;
 `create_base` is an additive write (not read-only, not destructive, not
-idempotent). `create_base`'s `path` and `query_base`'s `base_path` publish
-the same description, `BASE_PATH_DESCRIPTION` in `src/tools/_base-path.ts`,
-built from `BASE_PATH_MAX`; `views_base` interpolates `BASE_PATH_MAX` into its
+idempotent). `query_base`'s `base_path` publishes
+`BASE_PATH_DESCRIPTION` from `src/tools/_base-path.ts`, built from
+`BASE_PATH_MAX`, and `create_base`'s `base_path` opens with it and adds
+"Required (or the deprecated path)."; `views_base` interpolates `BASE_PATH_MAX` into its
 own, so the stated limit cannot drift from the enforced one. `query_base`'s optional
 `vault` is the shared `focusedVaultField` (`src/tools/_vault-field.ts`).
 Since PR #91 all four publish an `outputSchema` and return their result as
@@ -64,6 +65,24 @@ declaration
 Their behaviour did not change: another file type is still refused with the
 existing `INVALID_BASE_PATH`, which spec 070 FR-007a kept rather than rename a
 discriminator clients rely on.
+
+**One name for the `.base` file and the view** (PR #101, spec 073). Until
+PR #101 `create_base` named the `.base` file `path`, the word every
+note-targeting tool uses for a note, and the view `view`, while `views_base`
+and `query_base` say `base_path` and `view_name`. It now takes `base_path` and
+`view_name`, with the description its siblings use for each. `path` and `view`
+are accepted until the next major release, with a `deprecated_parameters`
+notice in the result
+([architecture](../architecture.md#renamed-parameters-deprecated-aliases-folded-before-validation),
+[ADR-NNN](../decisions/ADR-NNN-shared-parameter-names-within-a-tool-family.md)).
+All three path-taking tools now validate the field `base_path`, so
+`create_base`'s `INVALID_BASE_PATH` issues report `field: "base_path"` where
+they used to say `"path"`; that is the PR's one machine-readable change. The
+`BASE_NOT_FOUND` details keep their `path` key, and the CLI still receives
+`path=` and `view=`. During the transition `base_path` is enforced at parse
+time and absent from the published `required` list. A call missing both
+`name` and `base_path` now reports only `name is required`, where it used to
+report both.
 
 ## Failure
 
@@ -94,7 +113,7 @@ These are inherited from the CLI and documented in each tool's description:
 - `bases` and `create_base` accept `vault` but the CLI ignores it; they always
   act on the active vault. `views_base` without `base_path` ignores `vault`
   the same way.
-- `create_base` does not validate `view`: the CLI accepts a view name that
+- `create_base` does not validate `view_name`: the CLI accepts a view name that
   does not exist. On a name collision the CLI auto-increments the new note's
   name, and the response reports the actual name.
 - `views_base` with `base_path` changes Obsidian's focus as a side effect.
@@ -102,4 +121,5 @@ These are inherited from the CLI and documented in each tool's description:
   it is accepted but ignored by the CLI. `create_base`'s `content` ("Default:
   none") and `view` ("omit for the default") descriptions are hedged, because
   the CLI's behaviour when they are omitted was not confirmed; the PR body
-  leaves them for the owner to check.
+  leaves them for the owner to check. PR #101 renamed `view` to `view_name`
+  and kept the hedge ("omit for the default").

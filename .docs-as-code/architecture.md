@@ -334,6 +334,14 @@ Tools with identical result shapes share one output fingerprint, and the four
 untyped tools share the `null` one. Its review commits (`25a2e83`, `4e35987`)
 passed the gate against that baseline without regenerating it.
 
+PR #101 regenerated the baseline on purpose for its parameter renames
+([deprecated aliases](#renamed-parameters-deprecated-aliases-folded-before-validation)):
+only `find_by_property`, `find_and_replace` and `create_base` moved, each in
+its description, schema and output fingerprints, and no title or annotations
+fingerprint moved. Its review commit `4a00a58` rebuilt all three input schemas
+as a transform-and-pipe and passed the gate against that baseline without
+regenerating it.
+
 A one-off check of the real stdio path is `npm run probe:stdio -- --era
 legacy|modern` ([scripts/probe-stdio.ts](../scripts/probe-stdio.ts), PR #89).
 It spawns the built `dist/index.js` with a v2 client and prints the negotiated
@@ -345,7 +353,10 @@ also reports `instructions` present in both eras. Since PR #92,
 and adding `--vault <name> --note <path>` sends a permanent `delete` of that
 note and a `find_and_replace` commit under `--subfolder` (default `Sandbox`,
 with a random pattern) and prints both envelopes, which must be
-`CONFIRMATION_UNAVAILABLE` with nothing changed. Run with the owner access
+`CONFIRMATION_UNAVAILABLE` with nothing changed. The script still sends the
+scope as `subfolder`, which since PR #101 is a deprecated name for `folder`:
+it is still accepted, and because the notice rides only on a success result,
+the `CONFIRMATION_UNAVAILABLE` envelope is unchanged. Run with the owner access
 settings in its environment, it also shows the offered tool count; PR #92's
 run counted 35 by default, 22 read-only, and 2 and 1 for its allow and deny
 cases.
@@ -446,6 +457,81 @@ through a real client to see the `INTERNAL_ERROR` envelope.
 Known rough edge: the handlers' own trailing output `.parse()` calls are now
 redundant with `registerTool`'s check. Removing them was left out of PR #91 by
 owner ruling.
+
+Since PR #101 the round trip also carries one old-name fixture each for
+`find_by_property`, `find_and_replace` and `create_base`, so the
+`deprecated_parameters` field described next is checked against the published
+`outputSchema` through a real client too.
+
+### Renamed parameters: deprecated aliases folded before validation
+
+Since PR #101 (spec 073, BI-0109) a parameter can be renamed without breaking
+callers that use the old name. The convention it serves — one concept, one
+parameter name within a tool family — is recorded in
+[ADR-NNN](decisions/ADR-NNN-shared-parameter-names-within-a-tool-family.md)
+(Shared Parameter Names Within a Tool Family), whose number is allocated at the
+next vault sync. Seven parameters on `find_by_property`, `find_and_replace` and
+`create_base` were renamed this way; the capability pages name them.
+
+The mechanics live in one leaf module,
+[src/tools/_deprecated-params.ts](../src/tools/_deprecated-params.ts), which
+imports only zod and is imported only by the three tools' `schema.ts` and
+`index.ts`. Each tool keeps a `*_RENAMES` table (`{ old, replacement,
+inverted? }`, `as const` and typed against the published keys, so a misspelt
+key fails `typecheck`), and its input schema is built in two halves:
+
+```mermaid
+flowchart LR
+  pub["published object: new keys + old keys (deprecatedAlias: deprecated: true, 'Deprecated: use …')"] --> fold["transform: foldDeprecatedAliases(RENAMES)"]
+  fold -- "old + new sent together" --> iss["issue at [old] — the pipe stops; VALIDATION_ERROR"]
+  fold -- "old only" --> mv["value moves to the new key (negated when inverted); notice recorded"]
+  mv --> pipe["pipe: new-name schema — required and defaults restored, the tool's superRefine on new names only"]
+  pipe --> h["handler sees new names only"]
+  h --> w["index.ts: withDeprecatedParameters(result, input.deprecated_parameters)"]
+```
+
+- **The published side** declares both names. The old keys stay published
+  with `deprecated: true`, so a client that drops undeclared keys still passes
+  them through (spec 073 FR-013). zod emits a pipe's input JSON Schema from its
+  published side, so this is what clients see.
+- **The fold** (`foldDeprecatedAliases`) rejects an old name sent with its
+  replacement, even when the values agree, before anything is read, written or
+  spawned (FR-012). Otherwise it moves the value across and records
+  `{ parameter, replacement, note? }`; `note` is set only for an `inverted`
+  rename (`find_and_replace`'s `case_insensitive`).
+- **The new-name schema** is the published object with the old keys omitted,
+  `required` and today's defaults restored, and the tool's existing
+  refinements, which now name only the new parameter. Every validation issue
+  on the resolved value therefore reports the new name.
+- **The notice** reaches the result through `withDeprecatedParameters` in each
+  tool's `index.ts`, and `deprecatedParametersField` is declared on each output
+  schema (both `find_and_replace` branches), so it is identical in the text
+  and in `structuredContent` and absent when a call used only new names.
+
+Two published-surface costs of the transition, both deliberate: a renamed
+concept that was required (`find_by_property.name`, `create_base.base_path`)
+is enforced at parse time and left out of the published `required` list,
+because either name may carry it; and a renamed boolean with a default
+(`find_by_property.array_match` and `case_sensitive`,
+`find_and_replace.case_sensitive`) publishes no JSON Schema `default`, because
+a published default would be indistinguishable from a caller sending both
+names. The defaults are applied in the new-name schema and stated in each
+description. Error codes, `details` keys and CLI arguments did not move;
+`create_base`'s `INVALID_BASE_PATH` issues now report `field: "base_path"`,
+the one machine-readable change.
+
+The fold-first shape is what review argued the PR into (commit `4a00a58`). As
+first opened, PR #101 validated the raw two-name input and folded afterwards,
+which put alias awareness into every refinement: each schema resolved
+old-or-new twice, rewrote `requiredString`'s message by hand and rebuilt its
+output field by field, all of which the removal follow-up would have had to
+undo. The trade-off review accepted: an old-plus-new conflict now stops the
+pipe and is reported alone, so `subfolder` + `folder` + `path` returns the
+generic conflict issue instead of `SCOPE_CONFLICT`. The per-rename O2 and O4
+test cases come from `deprecatedAliasCases` in
+`src/tools/_deprecated-params-test-cases.ts`, which is excluded from the build
+like `_target-mode-test-cases.ts`. Removing the old names (FR-014) is a
+follow-up for the next major release.
 
 ### Server instructions
 

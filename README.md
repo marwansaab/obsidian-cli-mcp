@@ -177,7 +177,7 @@ If either list names a tool that does not exist, the server does not start. It w
 Two calls ask you to confirm first:
 
 - `delete` with `permanent: true`;
-- a `find_and_replace` commit with none of `file`, `path` or `active_note`. A commit limited to a `subfolder` still asks.
+- a `find_and_replace` commit with none of `file`, `path` or `active_note`. A commit limited to a `folder` still asks.
 
 Your client shows a form with the question and one box to tick. The question names the vault and the note, or the folder, the number of replacements and the number of notes. The answer comes from you through the client, never from the model.
 

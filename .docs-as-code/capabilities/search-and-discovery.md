@@ -146,9 +146,20 @@ produced; PR #100 deleted the check
 - Case sensitivity defaults **differ**: `pattern_search` is case-sensitive by
   default, while `context_search` is not. This is documented, deliberate
   (BI-037 FR-007), and a trap when porting a query between them.
-- `find_by_property` takes the property name as `property:`; its siblings
-  `read_property` and `set_property` use `name:`. Documented, not yet
-  reconciled.
+- Until PR #101 `find_by_property` took the property name as `property:`
+  while its siblings `read_property` and `set_property` use `name:`, and its
+  description warned about the mismatch. PR #101 (spec 073) renamed it to
+  `name`, and `arrayMatch` / `caseSensitive` to `array_match` /
+  `case_sensitive`, to match the search tools' snake case. The old names are
+  accepted until the next major release, with a `deprecated_parameters`
+  notice in the result
+  ([architecture](../architecture.md#renamed-parameters-deprecated-aliases-folded-before-validation),
+  [ADR-NNN](../decisions/ADR-NNN-shared-parameter-names-within-a-tool-family.md)).
+  During that transition `name` is enforced at parse time but absent from the
+  published `required` list, and `array_match` and `case_sensitive` publish no
+  JSON Schema `default` (their defaults, both `true`, are applied at parse time
+  and stated in the descriptions). The eval payload the template receives kept
+  its keys, so the CLI call is byte-identical.
 - `tag` folds case with ASCII lower-casing only, so non-ASCII tags match
   case-sensitively.
 - `backlinks`'s description still keeps a "Targeting:" paragraph that

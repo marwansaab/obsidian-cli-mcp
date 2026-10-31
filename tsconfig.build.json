@@ -10,6 +10,7 @@
     "src/**/_registration-stub.ts",
     "src/**/_schema-test-utils.ts",
     "src/**/_target-mode-test-cases.ts",
+    "src/**/_deprecated-params-test-cases.ts",
     "src/tools/_register-baseline.ts"
   ]
 }

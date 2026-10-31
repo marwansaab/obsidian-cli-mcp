@@ -37,7 +37,7 @@ describe("068 R12 — multi-note commit confirmation (T080)", () => {
     replacement: "REP",
     mode: "literal",
     vault: "V",
-    case_insensitive: false,
+    case_sensitive: true,
     include_code_blocks: false,
     include_html_comments: false,
     commit: true,
@@ -102,12 +102,12 @@ describe("068 R12 — multi-note commit confirmation (T080)", () => {
 
   it("a subfolder scope still asks, and the question names the subfolder", async () => {
     const { fs } = inMemoryFs(threeNotes(), VAULT_ROOT);
-    const unavailable = await executeWithCall(commit({ subfolder: "Sub" }), baseDeps({ fs })).catch((e: unknown) => e);
+    const unavailable = await executeWithCall(commit({ folder: "Sub" }), baseDeps({ fs })).catch((e: unknown) => e);
     expect((unavailable as UpstreamError).details).toEqual({ code: "CONFIRMATION_UNAVAILABLE" });
 
     const asked: string[] = [];
     const confirmed = answeredCall("find_and_replace");
-    await executeWithCall(commit({ subfolder: "Sub" }), baseDeps({ fs }), {
+    await executeWithCall(commit({ folder: "Sub" }), baseDeps({ fs }), {
       ...confirmed,
       confirm: (message) => {
         asked.push(message);
@@ -144,7 +144,7 @@ describe("068 R11 — cancel between notes (T086, FR-052a)", () => {
       },
     };
     const err = await executeFindAndReplace(
-      { pattern: "pat", replacement: "REP", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true, active_note: false },
+      { pattern: "pat", replacement: "REP", mode: "literal", vault: "V", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: true, active_note: false },
       deps,
     ).catch((e: unknown) => e);
     expect(err).toBe(reason);
@@ -167,7 +167,7 @@ describe("068 FR-054 — commit progress (T088)", () => {
     const { fs } = inMemoryFs(files, VAULT_ROOT);
     const reports: Array<[number, number, string]> = [];
     await executeFindAndReplace(
-      { pattern: "pat", replacement: "REP", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true, active_note: false },
+      { pattern: "pat", replacement: "REP", mode: "literal", vault: "V", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: true, active_note: false },
       { ...baseDeps({ fs }), reportProgress: (p, t, m) => reports.push([p, t, m]) },
     );
     expect(reports).toEqual([

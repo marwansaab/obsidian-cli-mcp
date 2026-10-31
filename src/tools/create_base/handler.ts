@@ -13,7 +13,7 @@ import type { SupportDeclaration } from "../../file-type/file-type.js";
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
 
-/** create_base adds an item to a base (`path`); others keep their INVALID_BASE_PATH rejection (spec 070 FR-007a). */
+/** create_base adds an item to a base (`base_path`); others keep their INVALID_BASE_PATH rejection (spec 070 FR-007a). */
 export const CREATE_BASE_SUPPORTED = ["base"] as const satisfies SupportDeclaration;
 
 export interface ExecuteDeps extends CallScope {
@@ -31,11 +31,11 @@ export async function executeCreateBase(
   deps: ExecuteDeps,
 ): Promise<CreateBaseOutput> {
   const parameters: Record<string, string> = {
-    path: input.path,
+    path: input.base_path,
     name: input.name,
   };
   if (input.content !== undefined) parameters.content = input.content;
-  if (input.view !== undefined) parameters.view = input.view;
+  if (input.view_name !== undefined) parameters.view = input.view_name;
 
   let cliResult: { stdout: string; stderr: string };
   try {
@@ -57,8 +57,8 @@ export async function executeCreateBase(
         throw new UpstreamError({
           code: "CLI_REPORTED_ERROR",
           cause: err,
-          details: { code: "BASE_NOT_FOUND", path: input.path },
-          message: `create_base: base file not found: ${input.path}`,
+          details: { code: "BASE_NOT_FOUND", path: input.base_path },
+          message: `create_base: base file not found: ${input.base_path}`,
         });
       }
     }
@@ -70,8 +70,8 @@ export async function executeCreateBase(
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
       cause: null,
-      details: { code: "BASE_NOT_FOUND", path: input.path },
-      message: `create_base: base file not found: ${input.path}`,
+      details: { code: "BASE_NOT_FOUND", path: input.base_path },
+      message: `create_base: base file not found: ${input.base_path}`,
     });
   }
 
@@ -89,8 +89,8 @@ export async function executeCreateBase(
   }
 
   const createdFilename = match[1]!.trim();
-  const baseDir = posix.dirname(input.path.replace(/\\/g, "/"));
-  const baseName = posix.basename(input.path.replace(/\\/g, "/"), ".base");
+  const baseDir = posix.dirname(input.base_path.replace(/\\/g, "/"));
+  const baseName = posix.basename(input.base_path.replace(/\\/g, "/"), ".base");
   const itemDir = baseDir === "." ? baseName : `${baseDir}/${baseName}`;
   const itemPath = `${itemDir}/${createdFilename}`;
 

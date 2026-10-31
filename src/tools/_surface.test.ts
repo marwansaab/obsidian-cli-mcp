@@ -2,6 +2,7 @@
 import { AjvJsonSchemaValidator } from "@modelcontextprotocol/client/validators/ajv";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { BASE_PATH_DESCRIPTION } from "./_base-path.js";
 import { connectInMemoryClient, connectModernClient, quietServer, serveOne } from "./_mcp-client-fixtures.js";
 import { undescribedProperties } from "./_schema-test-utils.js";
 import { TYPED_RESULT_FIXTURES } from "./_typed-result-fixtures.js";
@@ -158,6 +159,51 @@ describe("published tool surface (068 US6, US8)", () => {
         .filter((t) => /not-open|registered but not open/.test(t.description ?? ""))
         .map((t) => t.name);
       expect(offenders).toEqual(["views_base"]);
+    });
+  });
+
+  describe("family parameter names (spec 073 SC-001, FR-008)", () => {
+    const publishedProps = (name: string) =>
+      toolNamed(name).inputSchema["properties"] as Record<string, { description?: string }>;
+    const desc = (name: string, key: string) => publishedProps(name)[key]?.description ?? "";
+
+    it("each shared concept carries the same parameter name across its family", () => {
+      const families: Array<[string[], string[]]> = [
+        [["read_property", "set_property", "find_by_property"], ["name"]],
+        [["search", "context_search", "pattern_search", "find_by_property", "find_and_replace"], ["case_sensitive", "folder"]],
+        [["views_base", "query_base", "create_base"], ["base_path"]],
+        [["query_base", "create_base"], ["view_name"]],
+      ];
+      for (const [names, keys] of families) {
+        for (const name of names) {
+          for (const key of keys) {
+            expect(Object.keys(publishedProps(name)), `${name} lists ${key}`).toContain(key);
+          }
+        }
+      }
+    });
+
+    it("each renamed key opens with its siblings' wording of the concept", () => {
+      expect(desc("find_by_property", "name").startsWith('Frontmatter property name to match, matched exactly (e.g. "status").')).toBe(true);
+      expect(desc("read_property", "name")).toContain('matched exactly (e.g. "status").');
+
+      for (const name of ["find_by_property", "find_and_replace"]) {
+        expect(desc(name, "case_sensitive").startsWith("Match case exactly when true.")).toBe(true);
+      }
+      // The siblings' shared opening (pattern_search continues with ";", the others with ".").
+      for (const name of ["search", "context_search", "pattern_search"]) {
+        expect(desc(name, "case_sensitive").startsWith("Match case exactly when true")).toBe(true);
+      }
+
+      expect(desc("find_and_replace", "folder").startsWith(desc("context_search", "folder"))).toBe(true);
+      expect(desc("context_search", "folder")).toBe(desc("pattern_search", "folder"));
+
+      expect(desc("query_base", "base_path")).toBe(BASE_PATH_DESCRIPTION);
+      expect(desc("create_base", "base_path").startsWith(BASE_PATH_DESCRIPTION)).toBe(true);
+
+      for (const name of ["create_base", "query_base"]) {
+        expect(desc(name, "view_name").startsWith("Exact, case-sensitive name of the view to")).toBe(true);
+      }
     });
   });
 });

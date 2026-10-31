@@ -1,4 +1,4 @@
-// Original — no upstream. find_by_property handler: single invokeCli wrapper around the eval subcommand with a frozen JS template + base64 payload (R6 anti-injection); two-stage response parse (=> prefix strip + JSON.parse + output schema validate); R4 target_mode mapping (vault undefined → active, vault set → specific); count/paths invariant defensive check. BI-034 (spec branch 034-fix-unicode-lookups): JS_TEMPLATE extracted to sibling `_template.ts` so the cohort layout matches `read_heading/_template.ts` etc.; payload compose uses the shared `composeEvalCode` helper.
+// Original — no upstream. find_by_property handler: single invokeCli wrapper around the eval subcommand with a frozen JS template + base64 payload (R6 anti-injection); two-stage response parse (=> prefix strip + JSON.parse + output schema validate); R4 target_mode mapping (vault undefined → active, vault set → specific); count/paths invariant defensive check. BI-034 (spec branch 034-fix-unicode-lookups): JS_TEMPLATE extracted to sibling `_template.ts` so the cohort layout matches `read_heading/_template.ts` etc.; payload compose uses the shared `composeEvalCode` helper. Spec 073: reads the aligned names; payload keys unchanged.
 import { JS_TEMPLATE } from "./_template.js";
 import { findByPropertyOutputSchema, type FindByPropertyInput, type FindByPropertyOutput } from "./schema.js";
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
@@ -20,11 +20,11 @@ export async function executeFindByProperty(
   deps: ExecuteDeps,
 ): Promise<FindByPropertyOutput> {
   const code = composeEvalCode(JS_TEMPLATE, {
-    property: input.property,
+    property: input.name,
     value: input.value,
     folder: input.folder ?? "",
-    arrayMatch: input.arrayMatch,
-    caseSensitive: input.caseSensitive,
+    arrayMatch: input.array_match,
+    caseSensitive: input.case_sensitive,
   });
 
   const target_mode = input.vault === undefined ? "active" : "specific";
