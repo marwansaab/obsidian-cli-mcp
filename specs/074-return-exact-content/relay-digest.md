@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-10-31T10:16:18.513Z |
 | Finished | not yet |
-| Elapsed | 14 min 38 s |
+| Elapsed | 24 min 8 s |
 | Questions | 1 (0 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 0 |
@@ -57,6 +57,7 @@
 ### pre-implementation (`bab3b350-e695-459f-ac97-a9df894e49e0`)
 
 - Condition `shell-exit-0` (run_when): met. "node -e "process.exit('' === '' ? 0 : 1)"" exited 0.
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\specs\074-return-exact-content\tasks.md exists.
 
 - **specify**: done, 14 turns.
 
@@ -117,16 +118,42 @@
 > 5. The low findings A1, I1 and C3 were left alone.
 > 6. Other read-side tools are already out of scope.
 
-- **resolve-analysis**: in progress.
+- **resolve-analysis**: done, 9 turns.
+
+> Every finding from the analysis is now dealt with, and none needed a product, scope or design decision because the spec, plan, constitution and earlier clarifications already settled them. No CRITICAL or HIGH findings existed. I committed the feature folder on 074-return-exact-content as 8aaef1d, "docs(074): specify, clarify, plan and task return-exact-content", with a CONTRIBUTING-style body and Co-Authored-By trailer; it is not pushed.
+>
+> What changed:
+> - C1 (medium): spec FR-008 and SC-005 now allow exactly one new failure, when the note vanishes or becomes unreadable after the CLI has returned its text. That case is reported as an explicit error, never as unconfirmed text. Research D4/D5, contract §3 and task T007 point to it.
+> - C2 (medium): research D7 explains why the byte-level unit tests cover any writing tool. Quickstart §3 and task T023 now run a live round trip with each writing tool: write_note, append_note, prepend, patch_heading, patch_block, set_property and a single-note find_and_replace commit.
+> - U1 (low): the spec's edge cases now cover a note deleted or locked mid-read, and a race with another writer (accepted; the latest write wins).
+> - A1 (low): the byte-order-mark edge case now says today's read drops the mark and the read must return it.
+> - I1 (low): plan Constitution Check row III is now N/A, since the input is unchanged.
+> - I2 (low): task T017's docs row now explains that read reuses the existing FS_WRITE_FAILED code with reason "read".
+>
+> Left open:
+> - C3 (low): checking the .docs-as-code/ pages is deferred to the /speckit-docs-as-code pass, as CLAUDE.md's PR order requires. The tasks Notes name the grep that pass must run.
+> - CLAUDE.md (the plan pointer) and .specify/feature.json are still uncommitted, because they sit outside the feature folder. They are left for the implement commit, as in spec 073.
+> - The commit also picked up the Relay run records (relay-digest.md, relay-qa-log.md) that were already in the folder, and its body does not mention them. Later updates to them need their own commit.
+> - Already outside BI-0115 scope: other read-side tools; read output that starts with "Error:" or "Vault not found.", which the layer below reports as an error and only a cli-adapter change could fix; read publishing no outputSchema.
+
 
 ### continue
 
-- **prepare**: not run.
+Skipped.
 
-### implementation
+- Condition `shell-exit-0` (run_when): not met. "node -e "process.exit('' === '' ? 1 : 0)"" exited 1.
 
-- **implement**: not run.
-- **open-pr**: not run.
+- **prepare**: skipped.
+
+### implementation (`0cd27b48-5fdc-4fbd-984c-931bd5b81c56`)
+
+- Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\specs\074-return-exact-content\tasks.md exists.
+
+- **implement**: done, 92 turns.
+
+> All 23 tasks are done and marked [X]. read now returns a file's exact text: the CLI call is unchanged, and the handler then reads the file's bytes from disk to drop the line feed the CLI adds and put back the leading byte-order mark it removes. The vault folder comes from the focused-file lookup in active mode (new optional FileTarget.vaultRoot) and from the vault registry in specific mode, looked up after the CLI read. A failed disk read returns FS_WRITE_FAILED with reason "read". server.ts changed by one argument. Description, docs/tools/read.md, docs/tools/index.md, CHANGELOG and the baseline are updated; only read's description fingerprint moved. typecheck, lint and npm test pass (3476 passed). npm run format:check fails, but it flags 1119 files including untouched ones and the base versions of the edited files, so it was left alone. CodeGraph check: no new error code, errors.ts unchanged, imports run downward, new code reachable from createServer. Live check: all 16 fixtures plus one file-mode and one active-mode read are exact. In the first round-trip run, 2 of 9 steps failed before the new code ran (CLI "File not found" right after write_note created the note, then append_note EPERM), most likely because Obsidian had not finished picking up the new file; with a 2-second pause after creation, all 9 writer steps match the disk. The vault is cleaned up and Welcome.md is untouched. The optional before/after git-commit hooks were skipped, so nothing is committed. The structural-check results still need to go into the PR's Constitution Compliance section.
+
+- **open-pr**: in progress.
 
 ### review
 
