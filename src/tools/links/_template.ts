@@ -17,14 +17,14 @@ if(!f)return JSON.stringify({ok:false,code:'FILE_NOT_FOUND',detail:'wikilink: '+
 if(f.extension!=='md')return JSON.stringify({ok:false,code:'NOT_MARKDOWN',detail:'path: '+f.path+' extension: '+f.extension});
 const c=app.metadataCache.getFileCache(f)||{};
 const wrap=function(e,kindOf,lineOf){
-const o={target:e.link,line:lineOf(e),_col:(e.position&&e.position.start.col)||0,kind:kindOf(e)};
-const r=e.original||'';const w=r.startsWith('[[')||r.startsWith('![[');
-if(e.displayText!==e.link&&(!w||(r.includes('|')&&e.displayText!=='')))o.displayText=e.displayText;
+const r=e.original;const wiki=r.startsWith('[[')||r.startsWith('![[');
+const o={target:e.link,line:lineOf(e),_col:(e.position&&e.position.start.col)||0,kind:kindOf(wiki)};
+if(e.displayText!==e.link&&(!wiki||(r.includes('|')&&e.displayText!=='')))o.displayText=e.displayText;
 return o;
 };
 const entries=[]
 .concat((c.frontmatterLinks||[]).map(e=>wrap(e,()=>'wikilink',()=>1)))
-.concat((c.links||[]).map(e=>wrap(e,x=>x.original.startsWith('[[')?'wikilink':'markdown',x=>x.position.start.line+1)))
+.concat((c.links||[]).map(e=>wrap(e,w=>w?'wikilink':'markdown',x=>x.position.start.line+1)))
 .concat((c.embeds||[]).map(e=>wrap(e,()=>'embed',x=>x.position.start.line+1)));
 entries.sort((x,y)=>x.line-y.line||x._col-y._col);
 const out=entries.map(({_col,...rest})=>rest);

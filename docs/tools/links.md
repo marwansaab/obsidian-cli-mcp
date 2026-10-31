@@ -117,7 +117,7 @@ One rule decides whether an entry carries `displayText`, and it is decided from 
 | `[[Tgt]]` | absent |
 | `[](Tgt.md#Head)` | `""` |
 
-To find every author-written alias in a note, check `"displayText" in entry` on the wikilink and embed entries.
+To find every author-written alias in a note, check `"displayText" in entry`. On `kind: "wikilink"` entries the check is exact. A `kind: "embed"` entry can come from a wiki embed or from a Markdown image, and the response does not say which, so on an embed the field may hold a Markdown image's alt text instead of an alias.
 
 ### Per-occurrence semantic
 

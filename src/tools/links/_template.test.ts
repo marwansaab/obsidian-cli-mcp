@@ -27,22 +27,6 @@ interface Envelope {
 
 const SRC = "Sandbox/Src.md";
 
-// Body entry: `line` is the cache's 0-based line, as Obsidian reports it.
-function cacheEntry(
-  original: string,
-  link: string,
-  displayText: string,
-  line: number,
-  col: number,
-): CacheEntry {
-  return { link, original, displayText, position: { start: { line, col } } };
-}
-
-// Frontmatter entry: no position.
-function fmEntry(original: string, link: string, displayText: string): CacheEntry {
-  return { link, original, displayText };
-}
-
 function runTemplate(cache: FileCache, total = false): Envelope {
   const code = composeEvalCode(JS_TEMPLATE, { active: false, path: SRC, file: null, total });
   const app = {
@@ -54,7 +38,8 @@ function runTemplate(cache: FileCache, total = false): Envelope {
   ) as Envelope;
 }
 
-type Source = "fm" | "links" | "embeds";
+// "fm" is a frontmatter link; the others are body entries of that kind.
+type Source = "fm" | "wikilink" | "markdown" | "embed";
 
 interface Row {
   id: string;
@@ -62,272 +47,109 @@ interface Row {
   original: string;
   link: string;
   cacheDisplayText: string;
-  // The displayText the tool must emit; undefined means the key is absent.
-  expected: string | undefined;
+  // Whether the tool reports cacheDisplayText as displayText; when false the key is absent.
+  emitted: boolean;
+}
+
+function row(
+  id: string,
+  source: Source,
+  original: string,
+  link: string,
+  cacheDisplayText: string,
+  emitted: boolean,
+): Row {
+  return { id, source, original, link, cacheDisplayText, emitted };
 }
 
 // Cache values copied verbatim from spec 071 contracts/t0-cache-shapes.json and research F6.
-const ROWS: Row[] = [
-  {
-    id: "1",
-    source: "links",
-    original: "[[Tgt#Head]]",
-    link: "Tgt#Head",
-    cacheDisplayText: "Tgt > Head",
-    expected: undefined,
-  },
-  {
-    id: "2",
-    source: "links",
-    original: "[[Tgt#^blk]]",
-    link: "Tgt#^blk",
-    cacheDisplayText: "Tgt > ^blk",
-    expected: undefined,
-  },
-  {
-    id: "3",
-    source: "links",
-    original: "[[Tgt#H1#H2]]",
-    link: "Tgt#H1#H2",
-    cacheDisplayText: "Tgt > H1 > H2",
-    expected: undefined,
-  },
-  {
-    id: "4",
-    source: "links",
-    original: "[[#Local]]",
-    link: "#Local",
-    cacheDisplayText: "Local",
-    expected: undefined,
-  },
-  {
-    id: "5",
-    source: "links",
-    original: "[[#^lb]]",
-    link: "#^lb",
-    cacheDisplayText: "^lb",
-    expected: undefined,
-  },
-  {
-    id: "6",
-    source: "fm",
-    original: "[[Tgt#Head]]",
-    link: "Tgt#Head",
-    cacheDisplayText: "Tgt > Head",
-    expected: undefined,
-  },
-  {
-    id: "7",
-    source: "embeds",
-    original: "![[Tgt#Head]]",
-    link: "Tgt#Head",
-    cacheDisplayText: "Tgt > Head",
-    expected: undefined,
-  },
-  {
-    id: "8",
-    source: "embeds",
-    original: "![[Tgt#^blk]]",
-    link: "Tgt#^blk",
-    cacheDisplayText: "Tgt > ^blk",
-    expected: undefined,
-  },
-  {
-    id: "9",
-    source: "embeds",
-    original: "![[paper.pdf#page=3]]",
-    link: "paper.pdf#page=3",
-    cacheDisplayText: "paper.pdf > page=3",
-    expected: undefined,
-  },
-  {
-    id: "10",
-    source: "links",
-    original: "[[Tgt#Head|Custom Display]]",
-    link: "Tgt#Head",
-    cacheDisplayText: "Custom Display",
-    expected: "Custom Display",
-  },
-  {
-    id: "11",
-    source: "links",
-    original: "[[Tgt#^blk|Other Label]]",
-    link: "Tgt#^blk",
-    cacheDisplayText: "Other Label",
-    expected: "Other Label",
-  },
-  {
-    id: "12",
-    source: "links",
-    original: "[[Tgt|Alias]]",
-    link: "Tgt",
-    cacheDisplayText: "Alias",
-    expected: "Alias",
-  },
-  {
-    id: "13",
-    source: "embeds",
-    original: "![[Tgt#Head|Emb Alias]]",
-    link: "Tgt#Head",
-    cacheDisplayText: "Emb Alias",
-    expected: "Emb Alias",
-  },
-  {
-    id: "14",
-    source: "links",
-    original: "[[Tgt#Head|Tgt > Head]]",
-    link: "Tgt#Head",
-    cacheDisplayText: "Tgt > Head",
-    expected: "Tgt > Head",
-  },
-  {
-    id: "15",
-    source: "links",
-    original: "[[Tgt#Head\\|Tbl Alias]]",
-    link: "Tgt#Head",
-    cacheDisplayText: "Tbl Alias",
-    expected: "Tbl Alias",
-  },
-  {
-    id: "16",
-    source: "embeds",
-    original: "![[img.png|300]]",
-    link: "img.png",
-    cacheDisplayText: "300",
-    expected: "300",
-  },
-  {
-    id: "17",
-    source: "embeds",
-    original: "![[img.png|300x200]]",
-    link: "img.png",
-    cacheDisplayText: "300x200",
-    expected: "300x200",
-  },
-  {
-    id: "18",
-    source: "links",
-    original: "[[Tgt#Head|]]",
-    link: "Tgt#Head",
-    cacheDisplayText: "",
-    expected: undefined,
-  },
-  {
-    id: "19",
-    source: "links",
-    original: "[[Tgt#Head| ]]",
-    link: "Tgt#Head",
-    cacheDisplayText: "",
-    expected: undefined,
-  },
-  {
-    id: "20",
-    source: "links",
-    original: "[[Tgt|]]",
-    link: "Tgt",
-    cacheDisplayText: "",
-    expected: undefined,
-  },
-  {
-    id: "21",
-    source: "links",
-    original: "[[Tgt#Head|Tgt#Head]]",
-    link: "Tgt#Head",
-    cacheDisplayText: "Tgt#Head",
-    expected: undefined,
-  },
-  {
-    id: "22",
-    source: "links",
-    original: "[[Tgt|Tgt]]",
-    link: "Tgt",
-    cacheDisplayText: "Tgt",
-    expected: undefined,
-  },
-  {
-    id: "23",
-    source: "links",
-    original: "[[Tgt]]",
-    link: "Tgt",
-    cacheDisplayText: "Tgt",
-    expected: undefined,
-  },
-  {
-    id: "24",
-    source: "embeds",
-    original: "![[img.png]]",
-    link: "img.png",
-    cacheDisplayText: "img.png",
-    expected: undefined,
-  },
-  {
-    id: "25",
-    source: "links",
-    original: "[Text](Tgt.md#Head)",
-    link: "Tgt.md#Head",
-    cacheDisplayText: "Text",
-    expected: "Text",
-  },
-  {
-    id: "26",
-    source: "links",
-    original: "[](Tgt.md#Head)",
-    link: "Tgt.md#Head",
-    cacheDisplayText: "",
-    expected: "",
-  },
-  {
-    id: "27",
-    source: "embeds",
-    original: "![alt](img.png)",
-    link: "img.png",
-    cacheDisplayText: "alt",
-    expected: "alt",
-  },
-  {
-    id: "fm-alias",
-    source: "fm",
-    original: "[[Tgt#Head|Fm Alias]]",
-    link: "Tgt#Head",
-    cacheDisplayText: "Fm Alias",
-    expected: "Fm Alias",
-  },
+const US1_ROWS = [
+  row("1", "wikilink", "[[Tgt#Head]]", "Tgt#Head", "Tgt > Head", false),
+  row("2", "wikilink", "[[Tgt#^blk]]", "Tgt#^blk", "Tgt > ^blk", false),
+  row("3", "wikilink", "[[Tgt#H1#H2]]", "Tgt#H1#H2", "Tgt > H1 > H2", false),
+  row("4", "wikilink", "[[#Local]]", "#Local", "Local", false),
+  row("5", "wikilink", "[[#^lb]]", "#^lb", "^lb", false),
+  row("6", "fm", "[[Tgt#Head]]", "Tgt#Head", "Tgt > Head", false),
+  row("18", "wikilink", "[[Tgt#Head|]]", "Tgt#Head", "", false),
+  row("19", "wikilink", "[[Tgt#Head| ]]", "Tgt#Head", "", false),
+  row("20", "wikilink", "[[Tgt|]]", "Tgt", "", false),
 ];
 
-function kindOf(row: Row): string {
-  if (row.source === "embeds") return "embed";
-  if (row.source === "fm") return "wikilink";
-  return row.original.startsWith("[[") ? "wikilink" : "markdown";
+const US2_ROWS = [
+  row("7", "embed", "![[Tgt#Head]]", "Tgt#Head", "Tgt > Head", false),
+  row("8", "embed", "![[Tgt#^blk]]", "Tgt#^blk", "Tgt > ^blk", false),
+  row("9", "embed", "![[paper.pdf#page=3]]", "paper.pdf#page=3", "paper.pdf > page=3", false),
+];
+
+const US3_ROWS = [
+  row("10", "wikilink", "[[Tgt#Head|Custom Display]]", "Tgt#Head", "Custom Display", true),
+  row("11", "wikilink", "[[Tgt#^blk|Other Label]]", "Tgt#^blk", "Other Label", true),
+  row("12", "wikilink", "[[Tgt|Alias]]", "Tgt", "Alias", true),
+  row("13", "embed", "![[Tgt#Head|Emb Alias]]", "Tgt#Head", "Emb Alias", true),
+  // FR-003: an author alias shaped like a derived label is kept.
+  row("14", "wikilink", "[[Tgt#Head|Tgt > Head]]", "Tgt#Head", "Tgt > Head", true),
+  // Table-escaped separator.
+  row("15", "wikilink", "[[Tgt#Head\\|Tbl Alias]]", "Tgt#Head", "Tbl Alias", true),
+  row("16", "embed", "![[img.png|300]]", "img.png", "300", true),
+  row("17", "embed", "![[img.png|300x200]]", "img.png", "300x200", true),
+  row("25", "markdown", "[Text](Tgt.md#Head)", "Tgt.md#Head", "Text", true),
+  // Markdown link text is reported as written, empty included (analysis I1).
+  row("26", "markdown", "[](Tgt.md#Head)", "Tgt.md#Head", "", true),
+  row("27", "embed", "![alt](img.png)", "img.png", "alt", true),
+  row("fm-alias", "fm", "[[Tgt#Head|Fm Alias]]", "Tgt#Head", "Fm Alias", true),
+];
+
+const US4_ROWS = [
+  row("21", "wikilink", "[[Tgt#Head|Tgt#Head]]", "Tgt#Head", "Tgt#Head", false),
+  row("22", "wikilink", "[[Tgt|Tgt]]", "Tgt", "Tgt", false),
+  row("23", "wikilink", "[[Tgt]]", "Tgt", "Tgt", false),
+  row("24", "embed", "![[img.png]]", "img.png", "img.png", false),
+];
+
+const ROWS = [...US1_ROWS, ...US2_ROWS, ...US3_ROWS, ...US4_ROWS];
+
+const CACHE_KEY = {
+  fm: "frontmatterLinks",
+  wikilink: "links",
+  markdown: "links",
+  embed: "embeds",
+} as const;
+
+// Builds a cache holding the rows; `position` gives each body row's 0-based line and column.
+function cacheOf(rows: Row[], position: (row: Row) => [line: number, col: number]): FileCache {
+  const cache: Required<FileCache> = { frontmatterLinks: [], links: [], embeds: [] };
+  for (const r of rows) {
+    const entry: CacheEntry = {
+      link: r.link,
+      original: r.original,
+      displayText: r.cacheDisplayText,
+    };
+    if (r.source !== "fm") {
+      const [line, col] = position(r);
+      entry.position = { start: { line, col } };
+    }
+    cache[CACHE_KEY[r.source]].push(entry);
+  }
+  return cache;
 }
 
-function rowById(id: string): Row {
-  const row = ROWS.find((r) => r.id === id);
-  if (row === undefined) throw new Error(`no row ${id}`);
-  return row;
+function kindOf(r: Row): string {
+  return r.source === "fm" ? "wikilink" : r.source;
 }
 
-// Renders one row alone: body entries sit on 0-based line 4 (reported line 5).
-function runRow(row: Row): Envelope {
-  const entry =
-    row.source === "fm"
-      ? fmEntry(row.original, row.link, row.cacheDisplayText)
-      : cacheEntry(row.original, row.link, row.cacheDisplayText, 4, 0);
-  return runTemplate({ [row.source === "fm" ? "frontmatterLinks" : row.source]: [entry] });
-}
-
-function expectRow(id: string): void {
-  const row = rowById(id);
-  const result = runRow(row);
+// Renders one row alone: a body entry sits on 0-based line 4 (reported line 5).
+function expectRow(r: Row): void {
+  const result = runTemplate(cacheOf([r], () => [4, 0]));
   expect(result.ok).toBe(true);
   expect(result.count).toBe(1);
   const entry = result.links[0]!;
-  expect(entry.target).toBe(row.link);
-  expect(entry.line).toBe(row.source === "fm" ? 1 : 5);
-  expect(entry.kind).toBe(kindOf(row));
-  if (row.expected === undefined) {
-    expect(Object.hasOwn(entry, "displayText")).toBe(false);
+  expect(entry.target).toBe(r.link);
+  expect(entry.line).toBe(r.source === "fm" ? 1 : 5);
+  expect(entry.kind).toBe(kindOf(r));
+  if (r.emitted) {
+    expect(entry.displayText).toBe(r.cacheDisplayText);
   } else {
-    expect(entry.displayText).toBe(row.expected);
+    expect(Object.hasOwn(entry, "displayText")).toBe(false);
   }
 }
 
@@ -338,67 +160,28 @@ describe("links JS_TEMPLATE — harness", () => {
 });
 
 describe("US1 — unaliased fragment links, frontmatter links and empty or blank aliases carry no displayText", () => {
-  it.each([
-    ["1", "[[Tgt#Head]]"],
-    ["2", "[[Tgt#^blk]]"],
-    ["3", "[[Tgt#H1#H2]] (nested heading)"],
-    ["4", "[[#Local]] (same note)"],
-    ["5", "[[#^lb]] (same-note block)"],
-    ["6", 'frontmatter "[[Tgt#Head]]"'],
-    ["18", "[[Tgt#Head|]] (empty alias)"],
-    ["19", '[[Tgt#Head| ]] (blank alias, cache "")'],
-    ["20", "[[Tgt|]] (empty alias, plain link)"],
-  ])("row %s: %s", (id) => expectRow(id));
+  it.each(US1_ROWS)("row $id: $source $original", expectRow);
 });
 
 describe("US2 — unaliased fragment embeds carry no displayText", () => {
-  it.each([
-    ["7", "![[Tgt#Head]]"],
-    ["8", "![[Tgt#^blk]]"],
-    ["9", "![[paper.pdf#page=3]] (non-heading fragment)"],
-  ])("row %s: %s", (id) => expectRow(id));
+  it.each(US2_ROWS)("row $id: $source $original", expectRow);
 });
 
 describe("US3 — author-written aliases are kept; Markdown labels unchanged", () => {
-  it.each([
-    ["10", "[[Tgt#Head|Custom Display]]"],
-    ["11", "[[Tgt#^blk|Other Label]]"],
-    ["12", "[[Tgt|Alias]]"],
-    ["13", "![[Tgt#Head|Emb Alias]] (embed)"],
-    ["14", "[[Tgt#Head|Tgt > Head]] (alias that looks derived, FR-003)"],
-    ["15", "[[Tgt#Head\\|Tbl Alias]] (table-escaped separator)"],
-    ["16", "![[img.png|300]] (size text)"],
-    ["17", "![[img.png|300x200]] (size text)"],
-    ["25", "[Text](Tgt.md#Head) (Markdown link)"],
-    ["26", "[](Tgt.md#Head) (Markdown link, empty text kept)"],
-    ["27", "![alt](img.png) (Markdown image)"],
-    ["fm-alias", 'frontmatter list item "[[Tgt#Head|Fm Alias]]" (research F6)'],
-  ])("row %s: %s", (id) => expectRow(id));
+  it.each(US3_ROWS)("row $id: $source $original", expectRow);
 });
 
 describe("US4 — plain links and aliases equal to the target stay unlabelled", () => {
-  it.each([
-    ["21", "[[Tgt#Head|Tgt#Head]] (alias equal to target)"],
-    ["22", "[[Tgt|Tgt]]"],
-    ["23", "[[Tgt]]"],
-    ["24", "![[img.png]]"],
-  ])("row %s: %s", (id) => expectRow(id));
+  it.each(US4_ROWS)("row $id: $source $original", expectRow);
 });
 
 describe("FR-005 — target, line, kind, order and count are unchanged", () => {
-  // Every row in one cache. Body row N sits on 0-based line N (reported N + 1), except row 10,
-  // which shares row 1's line at a lower column so the column tiebreak decides their order.
-  function mixedCache(): FileCache {
-    const cache: Required<FileCache> = { frontmatterLinks: [], links: [], embeds: [] };
-    for (const row of ROWS) {
-      if (row.source === "fm") {
-        cache.frontmatterLinks.push(fmEntry(row.original, row.link, row.cacheDisplayText));
-        continue;
-      }
-      const [line, col] = row.id === "10" ? [1, 0] : row.id === "1" ? [1, 20] : [Number(row.id), 0];
-      cache[row.source].push(cacheEntry(row.original, row.link, row.cacheDisplayText, line, col));
-    }
-    return cache;
+  // Body row N sits on 0-based line N, except row 10, which shares row 1's line at a lower column
+  // so the column tiebreak decides their order.
+  function positionOf(r: Row): [line: number, col: number] {
+    if (r.id === "1") return [1, 20];
+    if (r.id === "10") return [1, 0];
+    return [Number(r.id), 0];
   }
 
   const ORDER = [
@@ -431,22 +214,29 @@ describe("FR-005 — target, line, kind, order and count are unchanged", () => {
     "26",
     "27",
   ];
+  const ordered = ORDER.map((id) => ROWS.find((r) => r.id === id)!);
 
   it("default mode emits every entry in source order with unchanged target/line/kind and count", () => {
-    const result = runTemplate(mixedCache());
-    const expected = ORDER.map((id) => {
-      const row = rowById(id);
-      const line = row.source === "fm" ? 1 : id === "10" || id === "1" ? 2 : Number(id) + 1;
-      return { target: row.link, line, kind: kindOf(row) };
-    });
+    const result = runTemplate(cacheOf(ROWS, positionOf));
+    const expected = ordered.map((r) => ({
+      target: r.link,
+      line: r.source === "fm" ? 1 : positionOf(r)[0] + 1,
+      kind: kindOf(r),
+    }));
     expect(result.ok).toBe(true);
     expect(result.links.map(({ displayText: _d, ...rest }) => rest)).toEqual(expected);
     expect(result.count).toBe(ROWS.length);
     expect(result.links.length).toBe(ROWS.length);
-    expect(result.links.map((e) => e.displayText)).toEqual(ORDER.map((id) => rowById(id).expected));
+    expect(result.links.map((e) => e.displayText)).toEqual(
+      ordered.map((r) => (r.emitted ? r.cacheDisplayText : undefined)),
+    );
   });
 
   it("total: true returns the same count with an empty links array", () => {
-    expect(runTemplate(mixedCache(), true)).toEqual({ ok: true, count: ROWS.length, links: [] });
+    expect(runTemplate(cacheOf(ROWS, positionOf), true)).toEqual({
+      ok: true,
+      count: ROWS.length,
+      links: [],
+    });
   });
 });
