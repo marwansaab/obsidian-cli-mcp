@@ -167,7 +167,7 @@ The returned `path` is the vault-relative path of the focused file (or `null` wh
   "vault": "Knowledge",
   "heading_path": "Daily#Tasks#TODO",
   "mode": "append",
-  "bytes_written": 412
+  "bytes_written": 23
 }
 ```
 
@@ -177,7 +177,7 @@ The returned `path` is the vault-relative path of the focused file (or `null` wh
 | `vault` | Vault display name. For specific mode, echoes the input's `vault`. For active mode, the display name resolved via the registry's reverse lookup (`basePath → name`), falling back to the basePath literal if the basePath is not a registered vault. |
 | `heading_path` | The supplied path, echoed verbatim. |
 | `mode` | The placement mode that was applied. |
-| `bytes_written` | UTF-8 byte count of the final on-disk content. A near-zero value when the caller intended a substantial write is a red flag worth auditing. |
+| `bytes_written` | Change in the note's size in bytes caused by this write: its size after the write minus its size before, counting a note that did not exist as 0. Zero when the size did not change; negative when the note shrank. To verify a write, compare `bytes_written` with the size change you intended; 0 and negative values are normal for same-size and shrinking edits. |
 
 ## Error states
 

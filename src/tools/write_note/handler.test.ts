@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the write_note handler per ADR-009 / US1 — direct-fs-write specific-mode happy path: vault-registry resolution, canonical-path safety, atomic temp+rename, content fidelity, argv anti-leak, lazy registry probe semantics. T002 decisions header: (d) DEL added to path-safety; (e) best-effort fs.unlink on rename failure; (f) FILE_EXISTS race-freeness covered by `wx` flag semantics — deterministic concurrency test omitted; (g) mid-write SIGTERM atomicity deferred to manual M-4 in quickstart.md.
+// Original — no upstream. Tests for the write_note handler per ADR-009 / US1 — direct-fs-write specific-mode happy path: vault-registry resolution, canonical-path safety, atomic temp+rename, content fidelity, argv anti-leak, lazy registry probe semantics. T002 decisions header: (d) DEL added to path-safety; (e) best-effort fs.unlink on rename failure; (f) FILE_EXISTS race-freeness covered by `wx` flag semantics — deterministic concurrency test omitted; (g) mid-write SIGTERM atomicity deferred to manual M-4 in quickstart.md. 075: an existing note is simulated through the `stat` probe (its old size) and every envelope carries bytes_written; the size-change cases live in handler.bytes-written.test.ts.
 import * as nodeFs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -31,7 +31,7 @@ test("specific happy path (fresh file, overwrite=true) → { created: true, path
     },
     deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
   );
-  expect(result).toEqual({ created: true, path: "Sandbox/note.md" });
+  expect(result).toEqual({ created: true, path: "Sandbox/note.md", bytes_written: 5 });
   expect(fs.writes.length).toBe(1);
   expect(fs.renames.length).toBe(1);
   // tmp path was renamed to absPath
@@ -41,12 +41,9 @@ test("specific happy path (fresh file, overwrite=true) → { created: true, path
 
 // (#2) Specific mode overwrite=true happy path: existing file replaced, returns { created: false }
 test("specific overwrite=true on existing file → { created: false, path }", async () => {
-  // realpath returns absPath itself (file exists)
+  // stat answers for absPath (file exists, 3 bytes)
   const fs = fakeFs({
-    realpath: vi.fn(async (p: string) => {
-      if (p === VAULT_ROOT) return VAULT_ROOT;
-      return p; // any other path: exists
-    }),
+    stat: async () => ({ size: 3 }),
   });
   const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
   const result = await executeWriteNote(
@@ -61,6 +58,8 @@ test("specific overwrite=true on existing file → { created: false, path }", as
   );
   expect(result.created).toBe(false);
   expect(result.path).toBe("Sandbox/exists.md");
+  // "replaced" (8 bytes) over a 3-byte note
+  expect(result.bytes_written).toBe(5);
 });
 
 // (#5) Auto-mkdir of nested parent dirs on fresh path
@@ -212,7 +211,7 @@ test("metadataCache invalidation eval failure → response is still success (bes
     },
     deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
   );
-  expect(result).toEqual({ created: true, path: "Sandbox/n.md" });
+  expect(result).toEqual({ created: true, path: "Sandbox/n.md", bytes_written: 1 });
 });
 
 // (#21) Content with double quotes survives byte-for-byte
@@ -467,7 +466,7 @@ test("open=true + open eval fails → response is still success (#17, best-effor
     },
     deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
   );
-  expect(result).toEqual({ created: true, path: "Sandbox/n.md" });
+  expect(result).toEqual({ created: true, path: "Sandbox/n.md", bytes_written: 1 });
 });
 
 // (#18) open=false (default) → no openLinkText eval emitted
@@ -498,11 +497,8 @@ test("open=false (default) → only invalidate eval, no openLinkText (#18)", asy
 // (#13) Active mode with focused file → write at resolved path, returns { created: false, path }
 test("active mode with focused file → resolved path written, returns { created:false, path }", async () => {
   const fs = fakeFs({
-    realpath: vi.fn(async (p: string) => {
-      if (p === VAULT_ROOT) return VAULT_ROOT;
-      // Pretend the focused file already exists for the existedBefore probe
-      return p;
-    }),
+    // Pretend the focused file already exists (4 bytes) for the existedBefore probe
+    stat: async () => ({ size: 4 }),
   });
   const focusedResp: StubResponse = {
     stdout: `=> {"path":"Daily/today.md","base":${JSON.stringify(VAULT_ROOT)}}\n`,
@@ -513,7 +509,8 @@ test("active mode with focused file → resolved path written, returns { created
     { target_mode: "active", content: "rewritten", overwrite: true },
     deps({ spawnFn, vaultRegistry: fakeRegistry({}), fs }),
   );
-  expect(result).toEqual({ created: false, path: "Daily/today.md" });
+  // "rewritten" (9 bytes) over a 4-byte note
+  expect(result).toEqual({ created: false, path: "Daily/today.md", bytes_written: 5 });
 });
 
 // (#14) Active mode with no focused file → ERR_NO_ACTIVE_FILE
@@ -535,10 +532,7 @@ test("active mode with no focused file (eval returns path: null) → ERR_NO_ACTI
 // (#15) Active-mode focused-file eval is small (~120 bytes argv) — stays under the SC-007 cap
 test("active-mode focused-file eval argv stays under 250-byte cap (SC-007 / F1)", async () => {
   const fs = fakeFs({
-    realpath: vi.fn(async (p: string) => {
-      if (p === VAULT_ROOT) return VAULT_ROOT;
-      return p;
-    }),
+    stat: async () => ({ size: 1 }),
   });
   const focusedResp: StubResponse = {
     stdout: `=> {"path":"x.md","base":${JSON.stringify(VAULT_ROOT)}}\n`,
@@ -634,6 +628,7 @@ test("real fs: missing folder under an outward link → PATH_ESCAPES_VAULT, no m
       writeFile: (p: string, c: string, opts?: { flag?: "wx" }) => nodeFs.writeFile(p, c, opts),
       rename: (from: string, to: string) => nodeFs.rename(from, to),
       realpath: (p: string) => nodeFs.realpath(p),
+      stat: (p: string) => nodeFs.stat(p),
       unlink: (p: string) => nodeFs.unlink(p),
     };
     const events: Array<Record<string, unknown>> = [];
@@ -759,8 +754,8 @@ test("specific overwrite=false against fresh path → file created (#4)", async 
   expect(fs.writes.length).toBe(1);
 });
 
-// (#30) Output envelope shape EXACTLY { created, path }
-test("output envelope has exactly two keys: created + path", async () => {
+// (#30) Output envelope shape EXACTLY { created, path, bytes_written } (spec 075)
+test("output envelope has exactly three keys: bytes_written + created + path", async () => {
   const fs = fakeFs();
   const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
   const result = await executeWriteNote(
@@ -773,7 +768,7 @@ test("output envelope has exactly two keys: created + path", async () => {
     },
     deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
   );
-  expect(Object.keys(result).sort()).toEqual(["created", "path"]);
+  expect(Object.keys(result).sort()).toEqual(["bytes_written", "created", "path"]);
 });
 
 // 020-fix-write-gaps US1 — Short-form-name resolution (FR-001 / FR-001a)
@@ -795,7 +790,7 @@ test("020/US1 canonical short-form file → <file>.md at vault root", async () =
     },
     deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
   );
-  expect(result).toEqual({ created: true, path: "Acceptance Probe.md" });
+  expect(result).toEqual({ created: true, path: "Acceptance Probe.md", bytes_written: 4 });
   expect(fs.writes.length).toBe(1);
   const writtenPath = fs.writes[0]![0];
   expect(
@@ -959,10 +954,7 @@ test("020/US2 mapFsError EEXIST keeps single-field details (preserved asymmetry)
 // response. FR-010 / Story 2 AC#4 / SC-006.
 test("020/US2 overwrite=true on existing → success envelope carries no errno", async () => {
   const fs = fakeFs({
-    realpath: vi.fn(async (p: string) => {
-      if (p === VAULT_ROOT) return VAULT_ROOT;
-      return p; // target exists
-    }),
+    stat: async () => ({ size: 10 }), // target exists
   });
   const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
   const result = await executeWriteNote(
@@ -975,6 +967,7 @@ test("020/US2 overwrite=true on existing → success envelope carries no errno",
     },
     deps({ spawnFn, vaultRegistry: fakeRegistry({ V: VAULT_ROOT }), fs }),
   );
-  expect(result).toEqual({ created: false, path: "Existing.md" });
+  // "new" (3 bytes) over a 10-byte note
+  expect(result).toEqual({ created: false, path: "Existing.md", bytes_written: -7 });
   expect((result as unknown as { details?: unknown }).details).toBeUndefined();
 });

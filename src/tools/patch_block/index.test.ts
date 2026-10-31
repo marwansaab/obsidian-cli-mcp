@@ -1,4 +1,4 @@
-// Original — no upstream. patch_block tool registration tests per BI-043 / FR-022 / ADR-005 — descriptor name + description + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate.
+// Original — no upstream. patch_block tool registration tests per BI-043 / FR-022 / ADR-005 — descriptor name + description + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate. 075: bytes_written is the size change.
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -99,7 +99,8 @@ describe("createPatchBlockTool — handler closure (registered boundary)", () =>
     expect(payload.vault).toBe("TestVault");
     expect(payload.block_id).toBe("foo");
     expect(payload.block_shape).toBe("paragraph");
-    expect(payload.bytes_written).toBeGreaterThan(0);
+    // Spec 075: the size change; "A simple paragraph." → "Replaced text." shrinks the note by 5.
+    expect(payload.bytes_written).toBe(-5);
   });
 });
 

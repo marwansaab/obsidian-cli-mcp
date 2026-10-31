@@ -112,13 +112,13 @@ Active mode (`target_mode: "active"`) supplies neither `file` nor `path`; the wr
 interface AppendNoteOutput {
   path: string;            // Canonical vault-relative path of the written note
   vault: string;           // Vault display name (specific mode echo, or resolved reverse-lookup in active mode)
-  bytes_written: number;   // Delta: post-edit file size minus pre-edit file size
+  bytes_written: number;   // Size change: size after the write minus size before
   inline: boolean;         // Echo of the inline mode applied
 }
 ```
 
 - `path` is ALWAYS canonical: a caller who supplied `file: "tasks"` receives `path: "tasks.md"` (whatever the resolver yields).
-- `bytes_written` is the wrapper-observed byte-count delta. Exactly equals `content.length` when the file's existing trailing newline IS the separator, or when `inline: true` suppresses the separator. Equals `content.length + separator_bytes` (1 byte for LF, 2 for CRLF) when a separator is inserted.
+- `bytes_written` is the change in the note's size in bytes caused by this write: its size after the write minus its size before, counting a note that did not exist as 0. Zero when the size did not change; negative when the note shrank. For `append_note` it is always at least 1. It exactly equals `content.length` when the file's existing trailing newline IS the separator, or when `inline: true` suppresses the separator. Equals `content.length + separator_bytes` (1 byte for LF, 2 for CRLF) when a separator is inserted. To verify a write, compare `bytes_written` with the size change you intended; 0 and negative values are normal for same-size and shrinking edits by the other writers (`patch_heading`, `patch_block`, `write_note`).
 - `inline` is `false` for default calls (input `inline: false` or omitted), `true` for input `inline: true`.
 
 ## Error states

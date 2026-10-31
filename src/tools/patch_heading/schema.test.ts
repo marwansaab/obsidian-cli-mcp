@@ -249,15 +249,17 @@ describe("patchHeadingOutputSchema", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("rejects negative bytes_written", () => {
-    const parsed = patchHeadingOutputSchema.safeParse({
-      path: "n.md",
-      vault: "v",
-      heading_path: "A#B",
-      mode: "append",
-      bytes_written: -1,
-    });
-    expect(parsed.success).toBe(false);
+  it("accepts negative and zero bytes_written (spec 075: the size change)", () => {
+    for (const bytes_written of [-1, 0]) {
+      const parsed = patchHeadingOutputSchema.safeParse({
+        path: "n.md",
+        vault: "v",
+        heading_path: "A#B",
+        mode: "replace",
+        bytes_written,
+      });
+      expect(parsed.success).toBe(true);
+    }
   });
 
   it("rejects non-integer bytes_written", () => {

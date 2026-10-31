@@ -3,6 +3,8 @@
 // so handler.test.ts stays under 1000 lines. Vitest-free (plain async stubs — no
 // test asserts on these mocks; writes/renames/mkdirs/unlinks are tracked via arrays,
 // and the lazy-registry-probe tests build their own vi.fn spawn probe locally).
+// 075: the default `stat` throws ENOENT (the note does not exist, so an overwrite is a
+// create); a test simulating an existing note overrides `stat` with its old size.
 import { resolve } from "node:path";
 
 import { UpstreamError } from "../../errors.js";
@@ -52,8 +54,12 @@ export function fakeFs(over: Partial<ExecuteFs> = {}): FakeWriteFs {
     realpath: async (p: string) => {
       // default: vault root identity; non-existent files throw ENOENT
       if (p === VAULT_ROOT || p === FOO_ROOT || p === BAR_ROOT) return p;
-      // parent dirs are presumed-existing for the mkdir target check; throw for the
-      // pre-write existence probe on the absPath itself
+      // anything else (the absPath itself, where the canonical-path check starts its
+      // nearest-existing-ancestor walk, and its parents) is absent; the pre-write
+      // existence probe is `stat` below
+      throw enoent();
+    },
+    stat: async () => {
       throw enoent();
     },
     unlink: async (p: string) => {

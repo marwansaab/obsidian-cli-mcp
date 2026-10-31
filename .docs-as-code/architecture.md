@@ -463,6 +463,19 @@ Since PR #101 the round trip also carries one old-name fixture each for
 `deprecated_parameters` field described next is checked against the published
 `outputSchema` through a real client too.
 
+Since PR #103 (spec 075 FR-008) one output field shares its description
+across tools the way `TARGET_MODE_FILE_DESCRIPTION` does for an input field:
+`bytes_written` on `write_note`, `append_note`, `prepend`, `patch_heading` and
+`patch_block` carries `BYTES_WRITTEN_DESCRIPTION` from
+`src/tools/_shared.ts`, and one `_surface.test.ts` case per tool checks it on
+the published `outputSchema` from the real `tools/list`. It is a string
+constant, not a shared zod field, because each schema chains its own bound
+(`min(1)` on the two adders, none on the others) and the description is
+attached last (research D4). Regenerating the baseline moved only those five
+`outputSchemaFingerprint`s. What the field means is in
+[capabilities/mutate.md](capabilities/mutate.md#what-bytes_written-reports)
+and [ADR-048](decisions/ADR-048-bytes-written-is-the-size-change.md).
+
 ### Renamed parameters: deprecated aliases folded before validation
 
 Since PR #101 (spec 073, BI-0109) a parameter can be renamed without breaking
@@ -1015,7 +1028,10 @@ The direct path needs three things the CLI used to provide:
    vault the caller named (none in active mode). It never fails the write,
    and every failure is logged rather than swallowed (PR #87; the details,
    and why the refresh never actually ran before that PR, are in
-   [capabilities/mutate.md](capabilities/mutate.md)).
+   [capabilities/mutate.md](capabilities/mutate.md)). Since PR #103 the same
+   module exports `sizeChange(before, after)`, the UTF-8 byte difference the
+   text-holding writers report as `bytes_written`
+   ([ADR-048](decisions/ADR-048-bytes-written-is-the-size-change.md)).
 
 `prepend` is the deliberate exception in the write cohort. It wraps the CLI's
 own `prepend` subcommand, because the CLI's frontmatter detection is the

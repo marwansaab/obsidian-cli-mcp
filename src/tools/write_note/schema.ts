@@ -1,4 +1,4 @@
-// Original — no upstream. write_note input/output schemas per ADR-009 — direct-fs-write redesign: `template` parameter dropped (strict-mode rejects); `file`/`path` fields gated by structural path-safety refinement; active-mode disallows `vault`/`file`/`path`/`open` (via target-mode primitive) and requires `overwrite: true`.
+// Original — no upstream. write_note input/output schemas per ADR-009 — direct-fs-write redesign: `template` parameter dropped (strict-mode rejects); `file`/`path` fields gated by structural path-safety refinement; active-mode disallows `vault`/`file`/`path`/`open` (via target-mode primitive) and requires `overwrite: true`. 075: the strict output adds bytes_written (the size change; a new note's old size counts as 0), described by the shared BYTES_WRITTEN_DESCRIPTION.
 import { z } from "zod";
 
 import {
@@ -11,6 +11,7 @@ import {
   TARGET_MODE_PATH_DESCRIPTION,
   targetModeBaseSchema,
 } from "../../target-mode/target-mode.js";
+import { BYTES_WRITTEN_DESCRIPTION } from "../_shared.js";
 
 const safePathField = z
   .string()
@@ -59,6 +60,7 @@ export const writeNoteOutputSchema = z
   .strictObject({
     created: z.boolean(),
     path: z.string(),
+    bytes_written: z.number().int().describe(BYTES_WRITTEN_DESCRIPTION),
   });
 
 export type WriteNoteInput = z.infer<typeof writeNoteInputSchema>;

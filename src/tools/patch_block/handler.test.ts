@@ -4,97 +4,12 @@ import { Writable } from "node:stream";
 
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
-import { executePatchBlock, type ExecuteFs } from "./handler.js";
-import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
+import { deps, EVAL_OK, fakeFs, fakeRegistry, VAULT_ROOT } from "./_handler-fixtures.js";
+import { executePatchBlock } from "./handler.js";
+import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
-import { createLogger, type Logger } from "../../logger.js";
-import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn, silentLogger, type StubResponse } from "../_handler-test-fixtures.js";
-
-import type { VaultRegistry } from "../../vault-registry/registry.js";
-
-const VAULT_ROOT = resolve("/test-vault");
-
-interface FakeFsHandle extends ExecuteFs {
-  reads: string[];
-  writes: Array<[string, string]>;
-  renames: Array<[string, string]>;
-  unlinks: string[];
-}
-
-function fakeFs(canned: { content?: string } = {}, over: Partial<ExecuteFs> = {}): FakeFsHandle {
-  const reads: string[] = [];
-  const writes: Array<[string, string]> = [];
-  const renames: Array<[string, string]> = [];
-  const unlinks: string[] = [];
-  const enoent = (): NodeJS.ErrnoException => {
-    const e = new Error("ENOENT") as NodeJS.ErrnoException;
-    e.code = "ENOENT";
-    return e;
-  };
-  const base: ExecuteFs = {
-    readFile: vi.fn(async (p: string) => {
-      reads.push(p);
-      return canned.content ?? "fallback ^foo\n";
-    }),
-    writeFile: vi.fn(async (p: string, c: string) => {
-      writes.push([p, c]);
-    }),
-    rename: vi.fn(async (from: string, to: string) => {
-      renames.push([from, to]);
-    }),
-    realpath: vi.fn(async (p: string) => {
-      if (p === VAULT_ROOT) return VAULT_ROOT;
-      throw enoent();
-    }),
-    unlink: vi.fn(async (p: string) => {
-      unlinks.push(p);
-    }),
-  };
-  const merged: ExecuteFs = { ...base, ...over };
-  return Object.assign(merged, { reads, writes, renames, unlinks });
-}
-
-function fakeRegistry(map: Record<string, string>): VaultRegistry {
-  return {
-    resolveVaultPath: vi.fn(async (name: string) => {
-      const path = map[name];
-      if (path === undefined) {
-        throw new UpstreamError({
-          code: "VALIDATION_ERROR",
-          cause: null,
-          details: { requestedVault: name, knownVaults: Object.keys(map) },
-          message: `Vault "${name}" is not registered.`,
-        });
-      }
-      return path;
-    }),
-    resolveVaultDisplayName: vi.fn((basePath: string) => {
-      for (const [name, path] of Object.entries(map)) {
-        if (path === basePath) return name;
-      }
-      return null;
-    }),
-  };
-}
-
-function deps(opts: {
-  spawnFn: SpawnLike;
-  vaultRegistry: VaultRegistry;
-  fs?: ExecuteFs;
-  logger?: Logger;
-}) {
-  return {
-    logger: opts.logger ?? silentLogger(),
-    queue: createQueue(),
-    vaultRegistry: opts.vaultRegistry,
-    spawnFn: opts.spawnFn,
-    env: {},
-    fs: opts.fs,
-  };
-}
-
-const EVAL_OK: StubResponse = { stdout: "=> undefined\n", exitCode: 0 };
+import { createLogger } from "../../logger.js";
+import { makeQueuedSpawn, type StubResponse } from "../_handler-test-fixtures.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -122,7 +37,8 @@ describe("US1 happy paths — three success block shapes", () => {
     expect(result.vault).toBe("TestVault");
     expect(result.block_id).toBe("foo");
     expect(result.block_shape).toBe("paragraph");
-    expect(result.bytes_written).toBeGreaterThan(0);
+    // "A simple paragraph." (19 bytes) → "Replaced text." (14 bytes): the note shrinks by 5.
+    expect(result.bytes_written).toBe(-5);
     expect(fs.writes[0]![1]).toBe("intro\n\nReplaced text. ^foo\n\nclosing\n");
   });
 
@@ -509,22 +425,6 @@ describe("US1 success envelope + IO invariants", () => {
     );
   });
 
-  test("bytes_written equals Buffer.byteLength of written content", async () => {
-    const fs = fakeFs({ content: "body ^foo\n" });
-    const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
-    const result = await executePatchBlock(
-      {
-        target_mode: "specific",
-        vault: "TestVault",
-        path: "n.md",
-        block_id: "foo",
-        content: "x",
-      },
-      deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
-    );
-    expect(result.bytes_written).toBe(Buffer.byteLength(fs.writes[0]![1], "utf8"));
-  });
-
   test("no fs.writeFile call targets a path ending in .bak / .backup / .old (FR-025 no-backup)", async () => {
     const fs = fakeFs({ content: "body ^foo\n" });
     const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
@@ -597,7 +497,8 @@ describe("US1 success envelope + IO invariants", () => {
       },
       deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
     );
-    expect(result.bytes_written).toBeGreaterThan(0);
+    // "body" → "x": the note shrinks by 3.
+    expect(result.bytes_written).toBe(-3);
     expect(recorded.length).toBe(1);
     expect(recorded[0]!.argv).toContain("vault=TestVault");
     const codeArg = recorded[0]!.argv.find((a) => a.startsWith("code="));

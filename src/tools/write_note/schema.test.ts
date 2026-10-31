@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the write_note input/output schemas per ADR-009 — target_mode discriminator coverage; path-safety refinement; template strict rejection; active-mode rules; output envelope strict shape.
+// Original — no upstream. Tests for the write_note input/output schemas per ADR-009 — target_mode discriminator coverage; path-safety refinement; template strict rejection; active-mode rules; output envelope strict shape. 075: the output carries bytes_written (required integer, may be negative).
 import { describe, expect, it, test } from "vitest";
 
 import { targetModeWiringCases } from "../_target-mode-test-cases.js";
@@ -174,9 +174,13 @@ test("100KB content accepted at schema layer (no size cap)", () => {
   expect(result.success).toBe(true);
 });
 
-// (20) Output shape { created: true, path: "..." } parses
-test("output shape { created: true, path } parses", () => {
-  const result = writeNoteOutputSchema.safeParse({ created: true, path: "Sandbox/x.md" });
+// (20) Output shape { created: true, path: "...", bytes_written } parses (spec 075)
+test("output shape { created: true, path, bytes_written } parses", () => {
+  const result = writeNoteOutputSchema.safeParse({
+    created: true,
+    path: "Sandbox/x.md",
+    bytes_written: 5,
+  });
   expect(result.success).toBe(true);
 });
 
@@ -185,6 +189,7 @@ test("output shape with extra field rejected", () => {
   const result = writeNoteOutputSchema.safeParse({
     created: true,
     path: "Sandbox/x.md",
+    bytes_written: 5,
     surprise: 1,
   });
   expect(result.success).toBe(false);
@@ -195,6 +200,31 @@ test("output shape with non-boolean created rejected", () => {
   const result = writeNoteOutputSchema.safeParse({
     created: "yes",
     path: "Sandbox/x.md",
+    bytes_written: 5,
   });
   expect(result.success).toBe(false);
+});
+
+// Spec 075: bytes_written is required, an integer, and may be zero or negative.
+test("output shape without bytes_written rejected", () => {
+  const result = writeNoteOutputSchema.safeParse({ created: true, path: "Sandbox/x.md" });
+  expect(result.success).toBe(false);
+});
+
+test("output shape with non-integer bytes_written rejected", () => {
+  const result = writeNoteOutputSchema.safeParse({
+    created: true,
+    path: "Sandbox/x.md",
+    bytes_written: 1.5,
+  });
+  expect(result.success).toBe(false);
+});
+
+test("output shape with negative bytes_written accepted (the note shrank)", () => {
+  const result = writeNoteOutputSchema.safeParse({
+    created: false,
+    path: "Sandbox/x.md",
+    bytes_written: -30,
+  });
+  expect(result.success).toBe(true);
 });

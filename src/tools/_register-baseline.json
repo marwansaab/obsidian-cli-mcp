@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedFromBranch": "074-return-exact-content",
+  "generatedFromBranch": "075-unify-size-reporting",
   "generatedAt": "2026-10-31",
   "tools": [
     {
@@ -9,7 +9,7 @@
       "schemaFingerprint": "39475dbd51a0bc94efd3886ff9a2f9c0e86593df59a32507fbaaf79d183c71ab",
       "titleFingerprint": "b4e70fcca8337df813856fe107b446f87d98dc05c431d5c0a2e860af8e04c957",
       "annotationsFingerprint": "d72d3cb182e3d7fcf0b1c6782251eee772cdf2a99470e1a4bd6a006b5c8f4e25",
-      "outputSchemaFingerprint": "b317fe6b851272a63f1f5f13ef5c044324677d2a62f6af205287d299dddcd00f"
+      "outputSchemaFingerprint": "16752ec021c03a03d408166c137b1ac0ec3aaf3835287c55b8fd644d8660e2d3"
     },
     {
       "name": "backlinks",
@@ -137,7 +137,7 @@
       "schemaFingerprint": "b4fde5f50df8f082289dfd18411c4c6455f4dae804f21a75912e0714cb5b8d39",
       "titleFingerprint": "9c4af05b67851af83c79920a6379bfad5f1a9cac683ad1f65dea85b47c1cb224",
       "annotationsFingerprint": "d72d3cb182e3d7fcf0b1c6782251eee772cdf2a99470e1a4bd6a006b5c8f4e25",
-      "outputSchemaFingerprint": "0af55cde9ed2591d1441d5c10f10f9c039816641ab38defa91189ebb3f807caf"
+      "outputSchemaFingerprint": "7cfb0568e2367351991152c282adcd02baa7aa0260fcdef40bcd336d63bca968"
     },
     {
       "name": "patch_heading",
@@ -145,7 +145,7 @@
       "schemaFingerprint": "ead12f25ce3140af863c2793fe7d8e7bec138ec9c08ae88e933b7eced7ef07ec",
       "titleFingerprint": "28f7bb84489352f6f0c1d3245afaa834ea4b18b44e56eb054ce69a1a759b7253",
       "annotationsFingerprint": "d72d3cb182e3d7fcf0b1c6782251eee772cdf2a99470e1a4bd6a006b5c8f4e25",
-      "outputSchemaFingerprint": "8113cd991dfee99ad54b2cba3cfb02b7fde514d69b3a25d547e172f5153e3e93"
+      "outputSchemaFingerprint": "90fb86d24bfc5f2ad7286b78574cf0ca092dfdc99f876bf6180e89579751007a"
     },
     {
       "name": "paths",
@@ -169,7 +169,7 @@
       "schemaFingerprint": "367ef00fb171150d7fd0368b91aa70f7360da3c71b06002afa92fec465a2512d",
       "titleFingerprint": "90c4e4916a771305bcaa026b908457c81069b20bbf34f54007f4ddd29dbf8297",
       "annotationsFingerprint": "d72d3cb182e3d7fcf0b1c6782251eee772cdf2a99470e1a4bd6a006b5c8f4e25",
-      "outputSchemaFingerprint": "b317fe6b851272a63f1f5f13ef5c044324677d2a62f6af205287d299dddcd00f"
+      "outputSchemaFingerprint": "16752ec021c03a03d408166c137b1ac0ec3aaf3835287c55b8fd644d8660e2d3"
     },
     {
       "name": "properties",
@@ -281,7 +281,7 @@
       "schemaFingerprint": "b791b9e9e1755d65d815cfe5c0579bcb3c747738c25ecb14c735bebc772aaa3d",
       "titleFingerprint": "9879595288c11fef687d30326a66af6f79ffae68cd9560300853cc0e24ff757e",
       "annotationsFingerprint": "b15393126f12ebd7533afe7d31a1beb8938a1e37d0bb2a52c382aaba4373f265",
-      "outputSchemaFingerprint": "c2705f4dea5f019af8d0d4acabcbb855a7156670f1a5ce54edde6dac41014899"
+      "outputSchemaFingerprint": "75e4b759e131a7988910724bc99b5d42f6a67f54e4c3e7c97ee2436854decb56"
     }
   ]
 }

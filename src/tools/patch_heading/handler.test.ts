@@ -4,123 +4,12 @@ import { Writable } from "node:stream";
 
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
-import { executePatchHeading, type ExecuteFs } from "./handler.js";
-import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
+import { deps, EVAL_OK, fakeFs, fakeRegistry, VAULT_ROOT } from "./_handler-fixtures.js";
+import { executePatchHeading } from "./handler.js";
+import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
-import { createLogger, type Logger } from "../../logger.js";
-import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn, silentLogger, type StubResponse } from "../_handler-test-fixtures.js";
-
-import type { VaultRegistry } from "../../vault-registry/registry.js";
-
-const VAULT_ROOT = resolve("/test-vault");
-
-const SAMPLE_NOTE =
-  "---\n" +
-  "date: 2026-05-21\n" +
-  "tags: [daily]\n" +
-  "---\n" +
-  "\n" +
-  "# Daily\n" +
-  "\n" +
-  "## Tasks\n" +
-  "\n" +
-  "### TODO\n" +
-  "\n" +
-  "- Buy groceries\n" +
-  "- Submit timesheet\n" +
-  "\n" +
-  "### Done\n" +
-  "\n" +
-  "- Reviewed PR #128\n" +
-  "\n" +
-  "## Notes\n" +
-  "\n" +
-  "A quick thought.\n";
-
-interface FakeFsHandle extends ExecuteFs {
-  reads: string[];
-  writes: Array<[string, string]>;
-  renames: Array<[string, string]>;
-  unlinks: string[];
-}
-
-function fakeFs(canned: { content?: string } = {}, over: Partial<ExecuteFs> = {}): FakeFsHandle {
-  const reads: string[] = [];
-  const writes: Array<[string, string]> = [];
-  const renames: Array<[string, string]> = [];
-  const unlinks: string[] = [];
-  const enoent = (): NodeJS.ErrnoException => {
-    const e = new Error("ENOENT") as NodeJS.ErrnoException;
-    e.code = "ENOENT";
-    return e;
-  };
-  const base: ExecuteFs = {
-    readFile: vi.fn(async (p: string) => {
-      reads.push(p);
-      return canned.content ?? SAMPLE_NOTE;
-    }),
-    writeFile: vi.fn(async (p: string, c: string) => {
-      writes.push([p, c]);
-    }),
-    rename: vi.fn(async (from: string, to: string) => {
-      renames.push([from, to]);
-    }),
-    realpath: vi.fn(async (p: string) => {
-      if (p === VAULT_ROOT) return VAULT_ROOT;
-      // Parent directories of the absPath are presumed-existing.
-      // Anything else (including the absPath itself when probed): throw ENOENT — the
-      // canonical-path check uses ENOENT to mean "non-existent leaf, fall back to lexical".
-      throw enoent();
-    }),
-    unlink: vi.fn(async (p: string) => {
-      unlinks.push(p);
-    }),
-  };
-  const merged: ExecuteFs = { ...base, ...over };
-  return Object.assign(merged, { reads, writes, renames, unlinks });
-}
-
-function fakeRegistry(map: Record<string, string>): VaultRegistry {
-  return {
-    resolveVaultPath: vi.fn(async (name: string) => {
-      const path = map[name];
-      if (path === undefined) {
-        throw new UpstreamError({
-          code: "VALIDATION_ERROR",
-          cause: null,
-          details: { requestedVault: name, knownVaults: Object.keys(map) },
-          message: `Vault "${name}" is not registered.`,
-        });
-      }
-      return path;
-    }),
-    resolveVaultDisplayName: vi.fn((basePath: string) => {
-      for (const [name, path] of Object.entries(map)) {
-        if (path === basePath) return name;
-      }
-      return null;
-    }),
-  };
-}
-
-function deps(opts: {
-  spawnFn: SpawnLike;
-  vaultRegistry: VaultRegistry;
-  fs?: ExecuteFs;
-  logger?: Logger;
-}) {
-  return {
-    logger: opts.logger ?? silentLogger(),
-    queue: createQueue(),
-    vaultRegistry: opts.vaultRegistry,
-    spawnFn: opts.spawnFn,
-    env: {},
-    fs: opts.fs,
-  };
-}
-
-const EVAL_OK: StubResponse = { stdout: "=> undefined\n", exitCode: 0 };
+import { createLogger } from "../../logger.js";
+import { makeQueuedSpawn, type StubResponse } from "../_handler-test-fixtures.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -527,24 +416,6 @@ describe("US1 success envelope + IO invariants", () => {
     expect(Object.keys(result).sort()).toEqual(
       ["bytes_written", "heading_path", "mode", "path", "vault"],
     );
-  });
-
-  test("bytes_written equals Buffer.byteLength of written content", async () => {
-    const fs = fakeFs();
-    const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
-    const result = await executePatchHeading(
-      {
-        target_mode: "specific",
-        vault: "TestVault",
-        path: "Daily Notes/2026-05-21.md",
-        heading_path: "Daily#Tasks#TODO",
-        mode: "append",
-        content: "x\n",
-      },
-      deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
-    );
-    const written = fs.writes[0]![1];
-    expect(result.bytes_written).toBe(Buffer.byteLength(written, "utf8"));
   });
 
   test("no fs.writeFile call targets a path ending in .bak / .backup / .old (FR-024 no-backup)", async () => {

@@ -1,4 +1,4 @@
-// Original — no upstream. write_note handler per ADR-009 — direct-fs-write: specific-mode resolveVaultPath / active-mode focused-file eval → note-only file-type check (spec 070: a non-note target is rejected as UNSUPPORTED_FILE_TYPE before any write) → checkCanonicalPath → mkdir → atomic temp+rename (overwrite=true) or wx-flag write (overwrite=false → FILE_EXISTS) → best-effort metadataCache refresh eval on the vault-relative path in the written vault (logged on failure) → optional best-effort openLinkText eval (specific + open=true, vault-relative path, vault=) → return { created, path }. User content NEVER crosses the CLI argv pipe at any size (FR-005, SC-007).
+// Original — no upstream. write_note handler per ADR-009 — direct-fs-write: specific-mode resolveVaultPath / active-mode focused-file eval → note-only file-type check (spec 070: a non-note target is rejected as UNSUPPORTED_FILE_TYPE before any write) → checkCanonicalPath → mkdir → stat probe (overwrite=true: existence and old size, ENOENT → created with old size 0, any other errno → FS_WRITE_FAILED before the write; spec 075) → atomic temp+rename (overwrite=true) or wx-flag write (overwrite=false → FILE_EXISTS; old size 0) → best-effort metadataCache refresh eval on the vault-relative path in the written vault (logged on failure) → optional best-effort openLinkText eval (specific + open=true, vault-relative path, vault=) → return { created, path, bytes_written } (bytes_written = byteLength(content) − old size). User content NEVER crosses the CLI argv pipe at any size (FR-005, SC-007).
 import { randomUUID } from "node:crypto";
 import * as nodeFs from "node:fs/promises";
 import { dirname } from "node:path";
@@ -25,6 +25,7 @@ export interface ExecuteFs {
   writeFile: (p: string, content: string, opts?: { flag?: "wx" }) => Promise<void>;
   rename: (from: string, to: string) => Promise<void>;
   realpath: (p: string) => Promise<string>;
+  stat: (p: string) => Promise<{ size: number }>;
   unlink: (p: string) => Promise<void>;
 }
 
@@ -42,6 +43,10 @@ const DEFAULT_FS: ExecuteFs = {
   writeFile: (p, content, opts) => nodeFs.writeFile(p, content, opts),
   rename: (from, to) => nodeFs.rename(from, to),
   realpath: (p) => nodeFs.realpath(p),
+  stat: async (p) => {
+    const s = await nodeFs.stat(p);
+    return { size: s.size };
+  },
   unlink: (p) => nodeFs.unlink(p),
 };
 
@@ -126,15 +131,16 @@ export async function executeWriteNote(
     throw mapFsError(e);
   }
 
-  let created: boolean;
+  // Spec 075: the note's size before the write, null when it did not exist (the
+  // write is a create), so bytes_written reports the size change. A stat that fails
+  // with anything but ENOENT fails the call before the write (FR-006a): no figure
+  // without a measurement.
+  let sizeBefore: number | null = null;
   if (input.overwrite === true) {
-    let existedBefore: boolean;
     try {
-      await fs.realpath(absPath);
-      existedBefore = true;
+      sizeBefore = (await fs.stat(absPath)).size;
     } catch (e) {
       if (getErrno(e) !== "ENOENT") throw mapFsError(e);
-      existedBefore = false;
     }
 
     try {
@@ -142,11 +148,11 @@ export async function executeWriteNote(
     } catch (e) {
       throw mapFsError(e);
     }
-    created = !existedBefore;
   } else {
     // overwrite=false: atomic create-or-fail via O_CREAT|O_EXCL (the `wx` flag).
     // The kernel guarantees the EEXIST race-freeness; no TOCTOU window exists
     // between an exists-check and the write because there is no exists-check.
+    // A write that lands is therefore a create: sizeBefore stays null.
     try {
       await fs.writeFile(absPath, input.content, { flag: "wx" });
     } catch (e) {
@@ -160,7 +166,6 @@ export async function executeWriteNote(
       }
       throw mapFsError(e);
     }
-    created = true;
   }
 
   // Best-effort metadataCache refresh per FR-011 — logged on failure (shared _note-io substrate).
@@ -173,5 +178,9 @@ export async function executeWriteNote(
     await openNote(deps, { vault: input.vault, relPath });
   }
 
-  return { created, path: relPath };
+  return {
+    created: sizeBefore === null,
+    path: relPath,
+    bytes_written: Buffer.byteLength(input.content, "utf8") - (sizeBefore ?? 0),
+  };
 }

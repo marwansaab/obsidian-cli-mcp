@@ -1,4 +1,4 @@
-// Original — no upstream. patch_block handler per BI-043 / ADR-009 — specific-mode vault-registry resolve OR active-mode focused-file eval → Layer 2 canonical path check → fs.readFile (ENOENT → NOTE_NOT_FOUND per FR-018) → block-scan + first-match resolve (BLOCK_NOT_FOUND per FR-017) → block-on-heading short-circuit (BLOCK_ON_HEADING per FR-019a, both ATX and setext) → per-shape surgery → atomic tmp+rename with EBUSY/EPERM EXTERNAL_EDITOR_CONFLICT classification (FR-021) → best-effort metadataCache refresh eval in the written vault (logged on failure) → typed output envelope. No race detection — FR-026 publishes last-write-wins per R4 (deliberate divergence from sibling patch_heading).
+// Original — no upstream. patch_block handler per BI-043 / ADR-009 — specific-mode vault-registry resolve OR active-mode focused-file eval → Layer 2 canonical path check → fs.readFile (ENOENT → NOTE_NOT_FOUND per FR-018) → block-scan + first-match resolve (BLOCK_NOT_FOUND per FR-017) → block-on-heading short-circuit (BLOCK_ON_HEADING per FR-019a, both ATX and setext) → per-shape surgery → atomic tmp+rename with EBUSY/EPERM EXTERNAL_EDITOR_CONFLICT classification (FR-021) → best-effort metadataCache refresh eval in the written vault (logged on failure) → typed output envelope. No race detection — FR-026 publishes last-write-wins per R4 (deliberate divergence from sibling patch_heading). 075: bytes_written = edited minus original byte length (the size change).
 import { randomUUID } from "node:crypto";
 import * as nodeFs from "node:fs/promises";
 
@@ -13,7 +13,7 @@ import { type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import { assertCanonicalPath, resolveActiveLocatorWithVault } from "../_active-file.js";
 import { getErrno, mapFsWriteError } from "../_fs-errors.js";
-import { invalidateMetadataCache, writeAtomic } from "../_note-io.js";
+import { invalidateMetadataCache, sizeChange, writeAtomic } from "../_note-io.js";
 
 import type { PatchBlockInput, PatchBlockOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
@@ -182,8 +182,6 @@ export async function executePatchBlock(
   } catch (e) {
     throw mapWriteErr(e);
   }
-  const bytesWritten = Buffer.byteLength(editedContent, "utf8");
-
   await invalidateMetadataCache(deps, { vault: input.vault, relPath });
 
   return {
@@ -191,6 +189,6 @@ export async function executePatchBlock(
     vault: vaultDisplayName,
     block_id: input.block_id,
     block_shape: successShape,
-    bytes_written: bytesWritten,
+    bytes_written: sizeChange(originalContent, editedContent),
   };
 }
