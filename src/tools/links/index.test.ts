@@ -5,11 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  createLinksTool,
-  LINKS_DESCRIPTION,
-  LINKS_TOOL_NAME,
-} from "./index.js";
+import { createLinksTool, LINKS_DESCRIPTION, LINKS_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
@@ -107,11 +103,11 @@ describe("docs/tools/links.md exists and is non-stub (FR-018)", () => {
 });
 
 describe("spec 071 — one display-label rule, no caveat (FR-006, FR-007)", () => {
-  const RULE_SENTENCE =
-    "displayText on a wikilink or embed is present only when the author wrote a non-empty alias after | distinct from the link target, and carries that alias, with or without a heading, block or other fragment and for frontmatter links alike; a Markdown link or image reports its bracketed link text or image alt text as written (empty included) when distinct from the target.";
-
+  // The FR-018 baseline fingerprint pins the description's exact bytes; this pins the rule itself.
   it("LINKS_DESCRIPTION states the single rule with no caveat or derived-label shape", () => {
-    expect(LINKS_DESCRIPTION).toContain(RULE_SENTENCE);
+    expect(LINKS_DESCRIPTION).toContain(
+      "present only when the author wrote a non-empty alias after |",
+    );
     expect(LINKS_DESCRIPTION).not.toContain("alias distinct from the link target. ");
     expect(LINKS_DESCRIPTION).not.toContain("CAVEAT");
     expect(LINKS_DESCRIPTION).not.toContain(" > ");

@@ -99,10 +99,7 @@ Uniform envelope across both modes (the only difference is whether `links` is po
 
 ### Display label rule
 
-One rule decides whether an entry carries `displayText`, and it is decided from what the note's source contains, never from the shape of a label:
-
-- **Wikilinks and embeds** (`[[…]]`, `![[…]]`, in the body or in frontmatter): the field is present only when the author wrote a non-empty alias after the `|` separator (the table-safe `\|` form included) that differs from `target`. It then carries that alias as Obsidian parses it: surrounding whitespace is trimmed, so `[[Target|  Padded  ]]` reports `"Padded"`. Image-size text such as `![[img.png|300]]` is text written after the separator, so it is reported as the alias. An editor-derived label such as `"Note > Heading"` is never reported.
-- **Markdown links and images** (`[text](…)`, `![alt](…)`): the bracketed link text or alt text is reported as written, empty included, unless it equals `target`.
+Whether an entry carries `displayText` is decided from what the note's source contains, never from the shape of a label, so an editor-derived label such as `"Note > Heading"` is never reported. An alias written after the table-safe `\|` separator counts like one written after `|`. The alias is reported as Obsidian parses it, with surrounding whitespace trimmed: `[[Target|  Padded  ]]` reports `"Padded"`.
 
 | Source | `displayText` |
 |---|---|

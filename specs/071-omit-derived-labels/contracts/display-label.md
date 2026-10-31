@@ -19,7 +19,7 @@ with:
 
 > displayText on a wikilink or embed is present only when the author wrote a non-empty alias after | distinct from the link target, and carries that alias, with or without a heading, block or other fragment and for frontmatter links alike; a Markdown link or image reports its bracketed link text or image alt text as written (empty included) when distinct from the target.
 
-No other sentence in the description changes. The test `index.test.ts` asserts the new sentence is present and that the description contains no `" > "`-shape caveat.
+No other sentence in the description changes. The test `index.test.ts` asserts that the description contains a distinctive fragment of the new sentence (`present only when the author wrote a non-empty alias after |`) and no `" > "`-shape caveat. The FR-018 baseline fingerprint pins the description's exact bytes, so the test does not repeat the sentence verbatim (PR #98 review, owner ruling Q2 = B).
 
 ## Help page (`docs/tools/links.md`)
 
