@@ -1,7 +1,7 @@
 // Original — no upstream. Unit tests for the shared filesystem-error mapper (_fs-errors.ts, F4 of the thermo-nuclear code-quality review). Covers getErrno narrowing and mapFsWriteError's two branches (EXTERNAL_EDITOR_CONFLICT vs FS_WRITE_FAILED), the per-tool divergence parameters (conflictErrnos, conflictVerb, includeFsPath), and the byte-exact details shapes + messages the handler cohort relies on.
 import { describe, expect, test } from "vitest";
 
-import { getErrno, mapFsWriteError } from "./_fs-errors.js";
+import { getErrno, getSyscall, mapFsWriteError } from "./_fs-errors.js";
 import { UpstreamError } from "../errors.js";
 
 function errnoError(code: string, extra: { syscall?: string; path?: string } = {}): NodeJS.ErrnoException {
@@ -18,6 +18,19 @@ describe("getErrno", () => {
     expect(getErrno("EBUSY")).toBeUndefined();
     expect(getErrno(new Error("no code"))).toBeUndefined();
     expect(getErrno({ code: 42 })).toBeUndefined();
+  });
+});
+
+describe("getSyscall", () => {
+  test("returns the syscall from a NodeJS error", () => {
+    expect(getSyscall(errnoError("ENOENT", { syscall: "open" }))).toBe("open");
+  });
+
+  test("returns undefined for non-objects, null, and objects without a string syscall", () => {
+    expect(getSyscall(null)).toBeUndefined();
+    expect(getSyscall("open")).toBeUndefined();
+    expect(getSyscall(errnoError("ENOENT"))).toBeUndefined();
+    expect(getSyscall({ syscall: 42 })).toBeUndefined();
   });
 });
 

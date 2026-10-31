@@ -6,7 +6,7 @@ import { invokeCli, type ResolveBinaryFn, type SpawnLike, type CallScope } from 
 import { UpstreamError } from "../../errors.js";
 import { assertSupportedFileType, type SupportDeclaration } from "../../file-type/file-type.js";
 import { resolveFileTarget } from "../_file-target.js";
-import { getErrno } from "../_fs-errors.js";
+import { getErrno, getSyscall } from "../_fs-errors.js";
 
 import type { ReadNoteInput } from "./schema.js";
 import type { Logger } from "../../logger.js";
@@ -52,15 +52,23 @@ export async function executeReadNote(input: ReadNoteInput, deps: ExecuteDeps): 
     { command: "read", vault: target.vault, parameters: target.locator, flags: [], target_mode: "specific" },
     deps,
   );
-  // Spec 074: the CLI adds a final "\n" and drops one leading byte-order mark. Two facts from the
-  // note's bytes on disk undo both; the result is still built from stdout only (research D1).
   // The registry lookup runs after the CLI read, so an unknown vault still fails at the CLI.
-  const vaultRoot = target.vaultRoot ?? (await deps.vaultRegistry.resolveVaultPath(target.vault!));
-  const bytes = await readDiskBytes(deps.fs ?? DEFAULT_FS, join(vaultRoot, target.relPath), target.relPath);
-  let content = stdout;
-  if (content.endsWith("\n") && bytes.at(-1) !== 0x0a) content = content.slice(0, -1);
-  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) content = `\uFEFF${content}`;
-  return { content };
+  const vaultRoot =
+    target.vault === undefined ? target.vaultRoot : await deps.vaultRegistry.resolveVaultPath(target.vault);
+  const disk = await readDiskBytes(deps.fs ?? DEFAULT_FS, join(vaultRoot, target.relPath), target.relPath);
+  return { content: exactContent(stdout, disk) };
+}
+
+const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf]);
+
+/**
+ * Spec 074: the CLI adds a final "\n" when the note has none and drops one leading byte-order mark.
+ * Two facts from the note's bytes on disk undo both; the result is still built from stdout only
+ * (research D1).
+ */
+function exactContent(stdout: string, disk: Buffer): string {
+  const content = stdout.endsWith("\n") && disk.at(-1) !== 0x0a ? stdout.slice(0, -1) : stdout;
+  return disk.subarray(0, UTF8_BOM.length).equals(UTF8_BOM) ? `\uFEFF${content}` : content;
 }
 
 async function readDiskBytes(fs: ReadFs, absPath: string, relPath: string): Promise<Buffer> {
@@ -68,7 +76,7 @@ async function readDiskBytes(fs: ReadFs, absPath: string, relPath: string): Prom
     return await fs.readFile(absPath);
   } catch (e) {
     const errno = getErrno(e) ?? "UNKNOWN";
-    const syscall = (e as NodeJS.ErrnoException | null)?.syscall;
+    const syscall = getSyscall(e);
     throw new UpstreamError({
       code: "FS_WRITE_FAILED",
       cause: e,

@@ -26,6 +26,7 @@ import {
   resolveVaultRootOrRemap,
 } from "../_active-file.js";
 import { NON_INTERACTIVE_CALL } from "../_confirm.js";
+import { getSyscall } from "../_fs-errors.js";
 import { invalidateMetadataCache, writeAtomic } from "../_note-io.js";
 
 import type { SupportDeclaration } from "../../file-type/file-type.js";
@@ -263,7 +264,7 @@ function mapFsError(
   vault: string | null,
 ): UpstreamError {
   const errno = (err as NodeJS.ErrnoException | null)?.code ?? "UNKNOWN";
-  const syscall = (err as NodeJS.ErrnoException | null)?.syscall;
+  const syscall = getSyscall(err);
   const details: Record<string, unknown> = { reason, errno };
   if (syscall) details.syscall = syscall;
   if (notePath !== null) details.path = notePath;
