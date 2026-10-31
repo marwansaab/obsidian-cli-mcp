@@ -4,14 +4,14 @@
 |---|---|
 | Run | `obsidian-cli-mcp-bi-0115-2026-10-31` |
 | Project | obsidian-cli-mcp (pack speckit) |
-| Status | running |
+| Status | done |
 | Started | 2026-10-31T10:16:18.513Z |
-| Finished | not yet |
-| Elapsed | 24 min 8 s |
+| Finished | 2026-10-31T10:51:52.025Z |
+| Elapsed | 35 min 34 s |
 | Questions | 1 (0 needed the owner) |
-| Requests to the advisor | 2 (0 needed the owner) |
+| Requests to the advisor | 3 (0 needed the owner) |
 | Escalations | 0 |
-| Edits by the advisor | 0 |
+| Edits by the advisor | 4 |
 
 ## Inputs
 
@@ -148,25 +148,54 @@ Skipped.
 ### implementation (`0cd27b48-5fdc-4fbd-984c-931bd5b81c56`)
 
 - Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\specs\074-return-exact-content\tasks.md exists.
+- Condition `gh-pr-open` (done_when): met. Pull request #102 is open.
 
 - **implement**: done, 92 turns.
 
 > All 23 tasks are done and marked [X]. read now returns a file's exact text: the CLI call is unchanged, and the handler then reads the file's bytes from disk to drop the line feed the CLI adds and put back the leading byte-order mark it removes. The vault folder comes from the focused-file lookup in active mode (new optional FileTarget.vaultRoot) and from the vault registry in specific mode, looked up after the CLI read. A failed disk read returns FS_WRITE_FAILED with reason "read". server.ts changed by one argument. Description, docs/tools/read.md, docs/tools/index.md, CHANGELOG and the baseline are updated; only read's description fingerprint moved. typecheck, lint and npm test pass (3476 passed). npm run format:check fails, but it flags 1119 files including untouched ones and the base versions of the edited files, so it was left alone. CodeGraph check: no new error code, errors.ts unchanged, imports run downward, new code reachable from createServer. Live check: all 16 fixtures plus one file-mode and one active-mode read are exact. In the first round-trip run, 2 of 9 steps failed before the new code ran (CLI "File not found" right after write_note created the note, then append_note EPERM), most likely because Obsidian had not finished picking up the new file; with a 2-second pause after creation, all 9 writer steps match the disk. The vault is cleaned up and Welcome.md is untouched. The optional before/after git-commit hooks were skipped, so nothing is committed. The structural-check results still need to go into the PR's Constitution Compliance section.
 
-- **open-pr**: in progress.
+- **open-pr**: done, 21 turns.
 
-### review
+> Committed the spec 074 work on 074-return-exact-content in two commits that follow CONTRIBUTING.md: c25a663 (chore: agent context and Relay records) and 90ff2e7 (fix: read returns exact content). Type check, lint and build pass, and the full test suite passes (3476 passed, 6 skipped). npm run format:check fails, but it flags 1119 files repo-wide, including files the PR does not touch; it is left alone and noted in the commit and PR. Pushed the branch to origin and opened non-draft PR #102 into main. The repo has no PR template file, so the description follows PR #101's layout: summary, evidence, test results and the Constitution Compliance table, with no N verdicts. Not merged. /code-review and /speckit-docs-as-code 102 still need to run before merge.
 
-- **code-review**: not run.
-- **fix**: not run.
 
-### docs
+### review (`19c0d2cb-b168-44ea-aa59-ed7d662fa9f9`)
 
-- **document**: not run.
+- Condition `gh-pr-open` (start_when): met. Pull request #102 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #102 is open.
 
-### record
+- **code-review**: done, 11 turns.
 
-- **record-in-vault**: not run.
+> Ran the thermo-nuclear code-quality review of PR #102 (074-return-exact-content against main). Verdict: approve with three non-blocking fixes; nothing was run. The obvious simplification (return the disk text and drop the CLI stdout patching) is correctly rejected by research D1: returning disk bytes would need containment that breaks today's symlinked-note reads, and dropping the CLI read changes every failure. The design is minimal and in the right layers, no file is near 1k lines, and there is no new error code or kernel-node edge beyond one injected argument in createServer. Findings: (1) medium, FileTarget encodes active mode in two optional fields (vault undefined, vaultRoot set), and read rebuilds that with `??` plus `target.vault!`; narrowing to a discriminated union removes the cast with no runtime change. (2) Low-medium, readDiskBytes is the third hand-written FS_WRITE_FAILED mapper with the same `?.syscall` cast; add getSyscall next to getErrno in _fs-errors.ts. (3) Low, extract the two-line correction into a pure exactContent(stdout, disk) function with a UTF8_BOM constant. Added entry 35 to .memory/refactor-decisions.md (gitignored). No source changes.
+
+- **fix**: done, 26 turns.
+
+> Fixed all three review findings in commit 57b17af and pushed it to 074-return-exact-content, so it is on PR #102. Behaviour is unchanged and nothing needed a question against spec 074. (1) FileTarget in _file-target.ts is now a union, {vault: string; vaultRoot?: never} | {vault: undefined; vaultRoot: string}. read narrows on `vault === undefined` and the `target.vault!` assertion is gone; rename, move and outline needed no change. (2) getSyscall now sits beside getErrno in _fs-errors.ts and replaces the hand-written `?.syscall` casts in read, mapFsWriteError and find_and_replace's mapFsError, with 2 new unit tests. (3) The stdout correction is now a pure exactContent(stdout, disk) with a UTF8_BOM constant, and the registry lookup still runs after the CLI read. Gates: lint, typecheck and build clean; 3478/3478 tests pass, 6 skipped (+2 new, 0 regressions); coverage 97.04% statements; baseline fingerprints unchanged. Left alone: prettier --check flags the edited files, but it flags their versions on main and files across the repo too, so it is an existing problem I didn't fix here. The uncommitted change to relay-digest.md was already there and is not mine, so I left it out of the commit. I updated entry 35 in .memory/refactor-decisions.md to record the fixes.
+
+
+### docs (`c1f73c44-80a6-4703-a01e-4c5c5ac216d0`)
+
+- Condition `gh-pr-open` (start_when): met. Pull request #102 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #102 is open.
+
+- **document**: done, 39 turns.
+
+> Ran /speckit-docs-as-code 102. Read the PR body, its commit bodies and the full diff (the PR has no comments). Updated .docs-as-code/capabilities/read.md: a new "Exact content" section covering the CLI's added line feed and dropped BOM, the correction from two facts read from disk, where the vault root comes from, and a sequence diagram; plus the FS_WRITE_FAILED reason "read" failure and new known limits. Updated architecture.md (the FileTarget vaultRoot union, FS_WRITE_FAILED as the read-failure code, the typed-results row, read reading disk) and capabilities/mutate.md (getSyscall is now shared). Added decisions/ADR-047-read-corrects-the-cli-text-from-two-disk-facts.md and linked it from README.md. No docs/tools changes were needed: the PR already corrected them. The CHANGELOG already has the entry. Committed 5d176d3, pushed to the PR branch, and added a ## Documentation section to the PR body. specs/074-return-exact-content/relay-digest.md was already modified before the run; it was left unstaged and is still uncommitted.
+
+
+### record (`533daf12-ebd3-44c9-9555-12ad18ecdb93`)
+
+- **record-in-vault**: done.
+
+> BI-0115's note now records the reviewed pull request. All edits were applied and confirmed by reading the note back. They follow the format already used for BI-0039, BI-0060, BI-0072, BI-0076 and BI-0109.
+>
+> - Frontmatter `status` changed from `planned` to `in-review`. `in-review` is in the backlog-item status list in the Vault Frontmatter Convention, so there is nothing to escalate.
+> - Frontmatter `spec_branch` changed from `""` to `074-return-exact-content`. `updated` was already 2026-10-31 and is unchanged.
+> - The `## Status` section now opens with a new paragraph: "**In review — 2026-10-31.**" It links PR [marwansaab/obsidian-cli-mcp#102](https://github.com/marwansaab/obsidian-cli-mcp/pull/102) and gives the spec branch `074-return-exact-content` and the feature folder `specs/074-return-exact-content`, awaiting owner merge. The earlier re-validation paragraph stays below it as history.
+> - A dated audit comment at the bottom of the note says Relay run obsidian-cli-mcp-bi-0115-2026-10-31 produced PR #102, gives the branch and folder, and records the status change and the `spec_branch` value.
+>
+> The template has no frontmatter field for a PR URL or a feature folder, so, as in the earlier notes, those appear in the Status paragraph and the audit comment.
+
 
 ## Escalations
 
@@ -175,7 +204,12 @@ None.
 
 ## Edits made by the advisor
 
-None.
+| File | Change | Triggered by |
+|---|---|---|
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0115 - Fix Read Trailing Newline Normalisation.md` | Frontmatter status: planned → in-review. | record / record-in-vault: The work for job BI-0115 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0115 - Fix Read Trailing Newline Normalisation.md` | Frontmatter spec_branch: "" → 074-return-exact-content. | record / record-in-vault: The work for job BI-0115 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0115 - Fix Read Trailing Newline Normalisation.md` | Added an 'In review — 2026-10-31' paragraph at the top of ## Status with PR #102 link, spec branch and feature folder specs/074-return-exact-content. | record / record-in-vault: The work for job BI-0115 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0115 - Fix Read Trailing Newline Normalisation.md` | Appended a dated audit comment: Relay run obsidian-cli-mcp-bi-0115-2026-10-31 produced PR #102 (branch, folder, status flip). | record / record-in-vault: The work for job BI-0115 is now a reviewed, documented pull request. Record that on the job's note,  |
 
 ## Files
 

@@ -182,3 +182,46 @@ Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0
 > If a fix would widen scope (other read-side tools, a new flag) or contradict an ADR, do not apply it. List it as an open item instead.
 >
 > Rationale: the Constitution's spec-kit workflow says clarify until nothing is underspecified, before plan and implement. The Architecture keeps the cli-adapter unchanged and puts output transforms in each tool's handler. The scope limits come from the BI's own prompt and its Out of scope section.
+
+## 4. record / record-in-vault (2026-10-31T10:50:51.103Z)
+
+**Question (verbatim):**
+
+> The work for job BI-0115 is now a reviewed, documented pull request. Record that on the job's note, following the vault's conventions for backlog items:
+> - the spec branch: 074-return-exact-content
+> - the feature folder in the code repository: specs/074-return-exact-content
+> - the pull request: https://github.com/marwansaab/obsidian-cli-mcp/pull/102 (number 102)
+> - the status that means "in review" in this vault (if the vault has no such status, escalate `decision` with up to 3 choices)
+> - a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0115-2026-10-31 produced it.
+>
+> Dry run: no. In a dry run, change nothing: list each edit you would make in `vault_edits`, starting its change with "Would". Otherwise list each edit you made.
+
+**Advisor** (escalate: none):
+
+> BI-0115's note now records the reviewed pull request. All edits were applied and confirmed by reading the note back. They follow the format already used for BI-0039, BI-0060, BI-0072, BI-0076 and BI-0109.
+>
+> - Frontmatter `status` changed from `planned` to `in-review`. `in-review` is in the backlog-item status list in the Vault Frontmatter Convention, so there is nothing to escalate.
+> - Frontmatter `spec_branch` changed from `""` to `074-return-exact-content`. `updated` was already 2026-10-31 and is unchanged.
+> - The `## Status` section now opens with a new paragraph: "**In review — 2026-10-31.**" It links PR [marwansaab/obsidian-cli-mcp#102](https://github.com/marwansaab/obsidian-cli-mcp/pull/102) and gives the spec branch `074-return-exact-content` and the feature folder `specs/074-return-exact-content`, awaiting owner merge. The earlier re-validation paragraph stays below it as history.
+> - A dated audit comment at the bottom of the note says Relay run obsidian-cli-mcp-bi-0115-2026-10-31 produced PR #102, gives the branch and folder, and records the status change and the `spec_branch` value.
+>
+> The template has no frontmatter field for a PR URL or a feature folder, so, as in the earlier notes, those appear in the Status paragraph and the audit comment.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0115 - Fix Read Trailing Newline Normalisation.md`, `000-Meta/Vault Frontmatter Convention.md`, `000-Meta/Templates/Backlog Item Template.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0109 - Standardise Cohort Tool Parameter Names.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0039 - Disambiguate Read Heading Leading Line Terminator.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0115 - Fix Read Trailing Newline Normalisation.md`: Frontmatter status: planned → in-review.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0115 - Fix Read Trailing Newline Normalisation.md`: Frontmatter spec_branch: "" → 074-return-exact-content.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0115 - Fix Read Trailing Newline Normalisation.md`: Added an 'In review — 2026-10-31' paragraph at the top of ## Status with PR #102 link, spec branch and feature folder specs/074-return-exact-content.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0115 - Fix Read Trailing Newline Normalisation.md`: Appended a dated audit comment: Relay run obsidian-cli-mcp-bi-0115-2026-10-31 produced PR #102 (branch, folder, status flip).
+
+**Sent to the step:**
+
+> BI-0115's note now records the reviewed pull request. All edits were applied and confirmed by reading the note back. They follow the format already used for BI-0039, BI-0060, BI-0072, BI-0076 and BI-0109.
+>
+> - Frontmatter `status` changed from `planned` to `in-review`. `in-review` is in the backlog-item status list in the Vault Frontmatter Convention, so there is nothing to escalate.
+> - Frontmatter `spec_branch` changed from `""` to `074-return-exact-content`. `updated` was already 2026-10-31 and is unchanged.
+> - The `## Status` section now opens with a new paragraph: "**In review — 2026-10-31.**" It links PR [marwansaab/obsidian-cli-mcp#102](https://github.com/marwansaab/obsidian-cli-mcp/pull/102) and gives the spec branch `074-return-exact-content` and the feature folder `specs/074-return-exact-content`, awaiting owner merge. The earlier re-validation paragraph stays below it as history.
+> - A dated audit comment at the bottom of the note says Relay run obsidian-cli-mcp-bi-0115-2026-10-31 produced PR #102, gives the branch and folder, and records the status change and the `spec_branch` value.
+>
+> The template has no frontmatter field for a PR URL or a feature folder, so, as in the earlier notes, those appear in the Status paragraph and the audit comment.
