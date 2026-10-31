@@ -834,7 +834,10 @@ than added as new codes:
   example `obsidian-not-running` on `CLI_NON_ZERO_EXIT`, `named-missing` and
   `not-open` on `views_base`'s `BASE_NOT_FOUND` (a named Base that does not
   exist, against no Base focused), and `unsupported-type` or `type-change` on
-  `UNSUPPORTED_FILE_TYPE` (PR #97). This page used to give `VAULT_NOT_FOUND` /
+  `UNSUPPORTED_FILE_TYPE` (PR #97). Since PR #104 `prepend` adds
+  `extra-trailing-newline` on `FS_WRITE_FAILED`: the content landed in a
+  note with no body, but the line break Obsidian added could not be removed
+  ([mutate](capabilities/mutate.md#prepend-on-a-note-with-no-body)). This page used to give `VAULT_NOT_FOUND` /
   `not-open`, "a vault that is registered but closed", as the example. That
   state was never produced through the CLI the server drives, and PR #100
   withdrew it ([ADR-045](decisions/ADR-045-closed-vaults-recovered-only-by-the-dispatch-retry.md)).
@@ -1039,6 +1042,17 @@ behaviour the tool promises. That brings the argv limit back, so `prepend`
 caps content at 3072 UTF-16 code units: the original 24576 cap was lowered in
 BI-047 (PR #49) after larger writes were seen to leave the GUI degraded.
 Content longer than that should go through `write_note`.
+
+Since PR #104 (spec 076) `prepend` also uses item 3 for one write of its own.
+In default mode Obsidian appends an LF after the content, which on an empty
+or properties-only note is an extra trailing line break. When the pure
+predicate `landedAtEmptyBody` shows Obsidian's insertion landed at the very
+end of the note read before the call, the handler rewrites the note without
+that byte through `writeAtomic` and refreshes the metadata cache. Obsidian
+still decides where the text lands, so the wrapper still parses no
+frontmatter
+([ADR-049](decisions/ADR-049-prepend-keeps-obsidians-write-and-removes-the-added-line-break.md);
+[capabilities/mutate.md](capabilities/mutate.md#prepend-on-a-note-with-no-body)).
 
 `read` is the one CLI-path tool that also touches the disk, and it only
 reads. Since PR #102 it takes the text from `obsidian read` and then reads the

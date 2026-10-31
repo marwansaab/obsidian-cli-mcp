@@ -12,7 +12,7 @@ below.
 | `patch_heading` | direct filesystem | [docs/tools/patch_heading.md](../../docs/tools/patch_heading.md) |
 | `patch_block` | direct filesystem | [docs/tools/patch_block.md](../../docs/tools/patch_block.md) |
 | `find_and_replace` | direct filesystem scan and write | [docs/tools/find_and_replace.md](../../docs/tools/find_and_replace.md) |
-| `prepend` | native CLI `prepend` | [docs/tools/prepend.md](../../docs/tools/prepend.md) |
+| `prepend` | native CLI `prepend`, plus one direct-filesystem correction for a bodiless note (PR #104) | [docs/tools/prepend.md](../../docs/tools/prepend.md) |
 | `set_property` | native CLI `property:set` | [docs/tools/set_property.md](../../docs/tools/set_property.md) |
 | `delete` | native CLI `delete` | [docs/tools/delete.md](../../docs/tools/delete.md) |
 | `rename` | native CLI `rename` | [docs/tools/rename.md](../../docs/tools/rename.md) |
@@ -112,7 +112,7 @@ Each tool computes the figure from data it already holds, so only
 | Tool | Before | After | Bound in the output schema |
 | --- | --- | --- | --- |
 | `append_note`, `patch_heading`, `patch_block` | the text read | the edited text | `append_note` `min(1)`; the patch tools none, so 0 and negative values are valid |
-| `prepend` | `fs.stat` size before the CLI call | `fs.stat` size after | `min(1)`; a zero change is the `post-stat-byte-delta-zero` failure [below](#the-cli-wrapped-tools) |
+| `prepend` | `fs.stat` size before the CLI call | `fs.stat` size after, less the one byte the [empty-body correction](#prepend-on-a-note-with-no-body) removes (PR #104) | `min(1)`; a zero change is the `post-stat-byte-delta-zero` failure [below](#the-cli-wrapped-tools) |
 | `write_note` | `fs.stat` size (`overwrite: true`), or 0 (`wx` create) | the content's UTF-8 length | none |
 
 - **One helper for the text case.** `sizeChange(before, after)` in
@@ -251,6 +251,64 @@ the call fails as `FS_WRITE_FAILED` with
 `details.reason: "post-stat-byte-delta-zero"`. It is not returned as a success
 with `bytes_written: 0`.
 
+### `prepend` on a note with no body
+
+Since PR #104 (spec 076;
+[ADR-049](../decisions/ADR-049-prepend-keeps-obsidians-write-and-removes-the-added-line-break.md))
+`prepend` is no longer a pure CLI wrap. The spec 076 T0 probe (research F2)
+showed that in default mode Obsidian appends one LF after the content on
+every call. On an empty note or a properties-only note that LF was an extra
+trailing line break: `""` + `"first"` gave `"first\n"` and
+`bytes_written: 6`, where `append_note` gave `"first"` and 5. The handler now
+takes that byte back:
+
+```mermaid
+flowchart LR
+  pre["stat + readFile: before (default mode only)"] --> cli[invokeCli prepend]
+  cli --> post[stat: size change]
+  post -- "before read and grew by byteLength(content) + 1" --> back[readFile: after]
+  post -- otherwise --> out[result]
+  back -- "landedAtEmptyBody" --> fix["writeAtomic(before + content) + metadata refresh; report 1 byte less"]
+  back -- otherwise --> out
+  fix --> out
+```
+
+- **The predicate** is `landedAtEmptyBody(before, content, after)` in
+  `src/tools/prepend/empty-body.ts`, pure and tested on its own: `after` must
+  be exactly `before + content + "\n"`, and `before` must not end with the
+  primitive root of `content + "\n"` (research D2). The wrapper still parses
+  no frontmatter (spec 045 FR-005b); it only checks whether Obsidian's
+  insertion landed at the very end of the note.
+- **The write** reuses this cohort's `writeAtomic` and
+  `invalidateMetadataCache` from `src/tools/_note-io.ts`, so `prepend`'s
+  `ExecuteFs` gained `readFile`, `writeFile`, `rename` and `unlink`. The
+  helper `removeAddedLineBreak` in `src/tools/prepend/handler.ts` returns the
+  bytes it removed (0 or 1); the PR #104 code-quality review (commit
+  `a90ed90`) moved it out of `executePrepend`, which it had made a nest of
+  `try`/`catch` blocks.
+- **Inline calls read nothing.** Obsidian's inline write is already exact, so
+  `before` stays `null` and the correction is skipped. The first version read
+  the note before every call; review finding 3 showed that cost inline calls a
+  full-note read and a new failure for nothing, and the owner chose to read in
+  default mode only (commit `eaba135`).
+- **A concurrent edit wins.** A note another writer changed between the call
+  and the read-back fails the predicate, is not rewritten, and reports the
+  measured size change (clarification Q1).
+
+Its failures all stay under `FS_WRITE_FAILED`, split by whether the content
+landed:
+
+| When | `details` | The note |
+| --- | --- | --- |
+| the pre-call read fails with anything but `ENOENT` (default mode) | `{ errno, syscall: "open", path }` | unchanged; Obsidian was not called |
+| the rewrite fails, or an empty note cannot be read back | `{ reason: "extra-trailing-newline", path, vault, errno? }` | holds the content plus one extra line break |
+| a non-empty note cannot be read back | `{ errno, syscall: "open", path }`, no `reason` | holds the content; it may or may not have the extra line break |
+
+An `ENOENT` on the pre-call read leaves `before` `null`, so upstream's
+`NOTE_NOT_FOUND` stays the contract for a missing note. A failed metadata
+refresh does not fail the call; it is logged as
+`bridge.metadata_refresh_failed`, as for the rest of the cohort.
+
 `set_property` wraps `property:set`. It infers the property type from the JS
 value when `type` is omitted, except for `date` and `datetime`, which must be
 given explicitly. `delete` is a thin wrapper. It sends a file to the OS trash
@@ -367,6 +425,23 @@ from their schema would have reached the client as SDK free text rather than
   all. Spec 075 (clarification Q1) kept the `bytes_written` convention to
   the five single-note text writers; adding a figure to any of the three is
   its own item (PR #103).
+- `prepend`'s empty-body correction (PR #104) leaves one shape alone: a
+  properties-only note whose end already repeats `content + "\n"`, such as
+  `content: "---"`, `"-"` or only line breaks, keeps Obsidian's extra
+  trailing line break (spec 076 contract E12). The bytes are the same as an
+  insertion into a note with a body, and changing such a note would break
+  spec 076 FR-006. `docs/tools/prepend.md` documents it.
+- A default-mode `prepend` now reads the whole note before the call and,
+  because Obsidian adds one LF on every default call, reads it again after
+  almost every successful one. The content cap bounds the predicate, not the
+  note.
+- `docs/tools/prepend.md`'s *Separator behaviour* is still wrong for notes
+  that already have a body. It says a content's trailing `\n` is the
+  separator and that the separator follows the note's line endings; the
+  spec 076 probe saw `"abc"` + `"def\n"` give `"def\n\nabc"`, and a CRLF note
+  get an LF separator (research F3). PR #104 kept separator behaviour out of
+  scope and left the correction to its own item, which should fix the page
+  and this entry together.
 - `write_note` dropped its `template` parameter in the ADR-009 rewrite;
   template-based creation goes through `obsidian_exec`.
 - Writes made by the direct path are visible to Obsidian through the
