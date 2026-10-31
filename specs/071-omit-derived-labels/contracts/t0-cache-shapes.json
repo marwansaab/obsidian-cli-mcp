@@ -1,0 +1,148 @@
+{
+  "fm": [
+    {
+      "link": "Tgt#Head",
+      "original": "[[Tgt#Head]]",
+      "displayText": "Tgt > Head"
+    }
+  ],
+  "links": [
+    {
+      "link": "Tgt#Head",
+      "original": "[[Tgt#Head]]",
+      "displayText": "Tgt > Head"
+    },
+    {
+      "link": "Tgt#^blk",
+      "original": "[[Tgt#^blk]]",
+      "displayText": "Tgt > ^blk"
+    },
+    {
+      "link": "Tgt#Head",
+      "original": "[[Tgt#Head|Custom Display]]",
+      "displayText": "Custom Display"
+    },
+    {
+      "link": "Tgt#^blk",
+      "original": "[[Tgt#^blk|Other Label]]",
+      "displayText": "Other Label"
+    },
+    {
+      "link": "Tgt",
+      "original": "[[Tgt|Alias]]",
+      "displayText": "Alias"
+    },
+    {
+      "link": "Tgt",
+      "original": "[[Tgt]]",
+      "displayText": "Tgt"
+    },
+    {
+      "link": "Tgt#Head",
+      "original": "[[Tgt#Head|]]",
+      "displayText": ""
+    },
+    {
+      "link": "Tgt",
+      "original": "[[Tgt|]]",
+      "displayText": ""
+    },
+    {
+      "link": "Tgt#Head",
+      "original": "[[Tgt#Head| ]]",
+      "displayText": ""
+    },
+    {
+      "link": "Tgt#Head",
+      "original": "[[Tgt#Head|Tgt > Head]]",
+      "displayText": "Tgt > Head"
+    },
+    {
+      "link": "#Local",
+      "original": "[[#Local]]",
+      "displayText": "Local"
+    },
+    {
+      "link": "#^lb",
+      "original": "[[#^lb]]",
+      "displayText": "^lb"
+    },
+    {
+      "link": "Tgt#H1#H2",
+      "original": "[[Tgt#H1#H2]]",
+      "displayText": "Tgt > H1 > H2"
+    },
+    {
+      "link": "Tgt#Head",
+      "original": "[[Tgt#Head|Tgt#Head]]",
+      "displayText": "Tgt#Head"
+    },
+    {
+      "link": "Tgt",
+      "original": "[[Tgt|Tgt]]",
+      "displayText": "Tgt"
+    },
+    {
+      "link": "Tgt#Head",
+      "original": "[[Tgt#Head\\|Tbl Alias]]",
+      "displayText": "Tbl Alias"
+    },
+    {
+      "link": "Tgt#Head",
+      "original": "[[Tgt#Head]]",
+      "displayText": "Tgt > Head"
+    },
+    {
+      "link": "Tgt.md#Head",
+      "original": "[Text](Tgt.md#Head)",
+      "displayText": "Text"
+    },
+    {
+      "link": "Tgt.md#Head",
+      "original": "[](Tgt.md#Head)",
+      "displayText": ""
+    }
+  ],
+  "embeds": [
+    {
+      "link": "Tgt#Head",
+      "original": "![[Tgt#Head]]",
+      "displayText": "Tgt > Head"
+    },
+    {
+      "link": "Tgt#^blk",
+      "original": "![[Tgt#^blk]]",
+      "displayText": "Tgt > ^blk"
+    },
+    {
+      "link": "paper.pdf#page=3",
+      "original": "![[paper.pdf#page=3]]",
+      "displayText": "paper.pdf > page=3"
+    },
+    {
+      "link": "Tgt#Head",
+      "original": "![[Tgt#Head|Emb Alias]]",
+      "displayText": "Emb Alias"
+    },
+    {
+      "link": "img.png",
+      "original": "![[img.png]]",
+      "displayText": "img.png"
+    },
+    {
+      "link": "img.png",
+      "original": "![[img.png|300]]",
+      "displayText": "300"
+    },
+    {
+      "link": "img.png",
+      "original": "![[img.png|300x200]]",
+      "displayText": "300x200"
+    },
+    {
+      "link": "img.png",
+      "original": "![alt](img.png)",
+      "displayText": "alt"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedFromBranch": "070-prevent-filetype-changes",
+  "generatedFromBranch": "071-omit-derived-labels",
   "generatedAt": "2026-10-31",
   "tools": [
     {
@@ -93,7 +93,7 @@
     },
     {
       "name": "links",
-      "descriptionFingerprint": "53594770da49b6917ff12f6606e2f770590d7ab02a7aa5901ad67cc65c8287cb",
+      "descriptionFingerprint": "29b7b017d778bffbd34fa00aa64625b1a2054d5f7d9b99c1b5682d2b9a7a4c9a",
       "schemaFingerprint": "85fcb7ebcbebdc2f04c321c9f4d5307c72c2e4158ce888f75a91cb6c60f4ff3b",
       "titleFingerprint": "9024c197d84940e47ff6aa631b7711c4cbff4e7fb2fe1a574a3592b662983a0d",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",

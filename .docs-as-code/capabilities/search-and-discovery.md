@@ -85,6 +85,40 @@ declaration in the tool's handler. None of the three changed behaviour:
 `links` and `backlinks` keep their existing `NOT_MARKDOWN` rejection
 (spec 070 FR-007a).
 
+**Display labels in `links`** (PR #98, spec 071). Obsidian fills
+`displayText` on every link-cache entry, and when no alias is written it makes
+one up for its own link pane: `"Tgt > Head"` for heading and block links,
+`"paper.pdf > page=3"` for other fragments, the bare fragment for a same-note
+link. Until PR #98 the template's only rule was omit-when-equal (spec 025 F6),
+which let every unaliased fragment link and embed through, frontmatter links
+included, and reported empty or blank aliases as `""`. The help page made up
+for it with a CAVEAT and a regex the caller had to apply, and said wiki
+embeds never carry the field. That was wrong: they carried the derived label
+whenever they pointed at a fragment. The help page now says what the tool
+does.
+
+The rule now lives in the one `wrap()` that `src/tools/links/_template.ts`
+uses for frontmatter links, body links and embeds alike (research D1/D2). An
+entry is wiki-form when its `original` source text starts with `[[` or
+`![[`. A wiki-form entry gets `displayText` only when `original` contains
+`|`, the label is not `""` and it differs from the link. The decision reads
+the source, never the label's shape, so an author who writes the alias
+`Tgt > Head` keeps it (FR-003). Markdown links and images keep
+omit-when-equal, so `[](x)` still reports `""` (analysis I1, option (b)).
+The emitted value is still the cache's own, and Obsidian trims surrounding
+whitespace off an alias before the template sees it (live gate G1). That is
+why the contract reads "as written, with surrounding whitespace trimmed". In
+review, the same `wiki` test came to feed the `kind` classification, so the
+two cannot disagree. Review also removed an `e.original||''` default that
+would have sent an entry with no `original` down the Markdown branch and
+brought the derived label back. A missing `original` now fails the `eval`
+loudly. Every recorded cache shape carries one.
+
+The fix ships with the first test that runs a tool's `eval` template
+([architecture](../architecture.md#reaching-obsidian-internals-the-eval-template-pattern)).
+Handler tests mock the envelope, which is how the derived labels shipped
+unnoticed.
+
 ## Failure
 
 Shared across the group: an unknown vault (`CLI_REPORTED_ERROR`,
@@ -110,3 +144,8 @@ than an empty result; an invalid regex in
   restates the locator rule now carried by the field descriptions. PR #90's
   T051 list did not include it, and the PR body leaves its removal to the
   owner (the same applies to five write tools, [mutate](mutate.md#known-limits)).
+- `links` does not say whether a `kind: "embed"` entry came from a wiki embed
+  or a Markdown image. On an embed, `displayText` may be an image's alt text
+  rather than an author alias, so `"displayText" in entry` finds exactly the
+  author-written aliases only on `kind: "wikilink"` entries (PR #98; stated on
+  the help page).

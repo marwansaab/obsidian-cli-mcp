@@ -95,7 +95,26 @@ Uniform envelope across both modes (the only difference is whether `links` is po
 | `links[].target` | string | Link target byte-faithful to source. Heading and block fragments are EMBEDDED in the string (e.g. `"Target#Heading"`, `"Target#^block-id"`); no separate `fragment` field. |
 | `links[].line` | integer ≥ 1 | 1-based source line. Body link/embed entries: source position from Obsidian's metadata cache. Frontmatter-declared link entries: synthetic `line: 1` (the cache has no per-entry position data for frontmatter links). |
 | `links[].kind` | enum | Closed three-value enum: `"wikilink"` (body `[[…]]` AND frontmatter wikilinks AND wiki embeds-without-`!`), `"embed"` (body `![[…]]` AND `![alt](…)`), `"markdown"` (body `[text](…)` to vault-internal targets). Bare URLs in body prose are NOT surfaced. |
-| `links[].displayText` | string OPTIONAL | Present when the source carries an alias distinct from `target`. **CAVEAT**: for fragment-bearing wikilinks (`[[Target#Heading]]`, `[[Target#^block-id]]`) without an explicit `\|alias`, Obsidian auto-populates `displayText` with a `"<file> > <fragment>"` shape. Bare wikilinks (`[[Roadmap]]`) and wiki embeds (`![[diagrams/x.png]]`) omit the field. Callers wanting strict "absent when no source alias" semantics should treat fragment-bearing entries as a special case: `entry.target.includes("#") && /^.+ > .+$/.test(entry.displayText)` indicates an auto-derived value, not a real alias. |
+| `links[].displayText` | string OPTIONAL | **Wikilinks and embeds**: present only when the author wrote a non-empty alias after `\|` distinct from `target`, carrying that alias (`[[Glossary\|Terms]]` → `"Terms"`, `![[Note#Part\|Intro]]` → `"Intro"`, `![[img.png\|300]]` → `"300"`). Absent otherwise, including unaliased heading, block and other fragment links and embeds (`[[Target#Heading]]`, `![[Target#^block-id]]`, `![[paper.pdf#page=3]]`), frontmatter links, and empty or blank aliases (`[[Target\|]]`). A single presence check identifies author-written aliases. **Markdown links and images**: the bracketed link text or image alt text as written, empty included, when distinct from `target` (`[See Other](Other-Note.md)` → `"See Other"`, `[](Other-Note.md)` → `""`). See [Display label rule](#display-label-rule). |
+
+### Display label rule
+
+Whether an entry carries `displayText` is decided from what the note's source contains, never from the shape of a label, so an editor-derived label such as `"Note > Heading"` is never reported. An alias written after the table-safe `\|` separator counts like one written after `|`. The alias is reported as Obsidian parses it, with surrounding whitespace trimmed: `[[Target|  Padded  ]]` reports `"Padded"`.
+
+| Source | `displayText` |
+|---|---|
+| `[[Tgt#Head]]` | absent |
+| `[[#Local]]` | absent |
+| frontmatter `related: "[[Tgt#Head]]"` | absent |
+| `![[paper.pdf#page=3]]` | absent |
+| `[[Tgt#Head\|Custom Display]]` | `"Custom Display"` |
+| `[[Tgt#Head\|Tgt > Head]]` | `"Tgt > Head"` (written by the author) |
+| `![[img.png\|300]]` | `"300"` |
+| `[[Tgt\|]]` | absent |
+| `[[Tgt]]` | absent |
+| `[](Tgt.md#Head)` | `""` |
+
+To find every author-written alias in a note, check `"displayText" in entry`. On `kind: "wikilink"` entries the check is exact. A `kind: "embed"` entry can come from a wiki embed or from a Markdown image, and the response does not say which, so on an embed the field may hold a Markdown image's alt text instead of an alias.
 
 ### Per-occurrence semantic
 

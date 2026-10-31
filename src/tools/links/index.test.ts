@@ -5,11 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  createLinksTool,
-  LINKS_DESCRIPTION,
-  LINKS_TOOL_NAME,
-} from "./index.js";
+import { createLinksTool, LINKS_DESCRIPTION, LINKS_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
@@ -103,6 +99,29 @@ describe("docs/tools/links.md exists and is non-stub (FR-018)", () => {
     expect(exampleHeadings).toBeGreaterThanOrEqual(4);
     expect(body).toMatch(/multi-?vault|multiple vaults|focused vault/i);
     expect(body).toMatch(/frontmatter/i);
+  });
+});
+
+describe("spec 071 — one display-label rule, no caveat (FR-006, FR-007)", () => {
+  // The FR-018 baseline fingerprint pins the description's exact bytes; this pins the rule itself.
+  it("LINKS_DESCRIPTION states the single rule with no caveat or derived-label shape", () => {
+    expect(LINKS_DESCRIPTION).toContain(
+      "present only when the author wrote a non-empty alias after |",
+    );
+    expect(LINKS_DESCRIPTION).not.toContain("alias distinct from the link target. ");
+    expect(LINKS_DESCRIPTION).not.toContain("CAVEAT");
+    expect(LINKS_DESCRIPTION).not.toContain(" > ");
+  });
+
+  it("docs/tools/links.md drops the CAVEAT, the regex workaround and the embeds-omit claim", () => {
+    const docsPath = resolve(
+      dirname(fileURLToPath(import.meta.url)),
+      "../../../docs/tools/links.md",
+    );
+    const body = readFileSync(docsPath, "utf8");
+    expect(body).not.toContain("CAVEAT");
+    expect(body).not.toContain("/^.+ > .+$/.test(entry.displayText)");
+    expect(body).not.toContain("and wiki embeds (`![[diagrams/x.png]]`) omit the field");
   });
 });
 
