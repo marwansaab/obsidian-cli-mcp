@@ -14,6 +14,7 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
+import { closedVaultNote } from "../_shared.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -49,17 +50,9 @@ describe("createSmartConnectionsSimilarTool — descriptor", () => {
     expect(desc.length).toBeGreaterThan(0);
   });
 
-  // (c1) spec 072 FR-008 / SC-007: closed vault recovers; vault unavailable is a failure; no not-open
-  it("description states closed-vault recovery and vault unavailable, and no not-open state", () => {
-    const desc = SMART_CONNECTIONS_SIMILAR_DESCRIPTION;
-    for (const s of ["Closed vault", "opened automatically", 'Command "', "vault unavailable", "never an empty result"]) {
-      expect(desc).toContain(s);
-    }
-    expect(desc).not.toContain("not-open");
-    expect(desc).not.toContain("registered but not open");
-    const closedVaultSentence = desc.slice(desc.indexOf("Closed vault")).split("\n\n")[0]!;
-    expect(closedVaultSentence).not.toContain("Vault not found");
-    expect(closedVaultSentence).not.toContain("VAULT_NOT_FOUND");
+  // spec 072 FR-008: the shared closed-vault note, naming this tool's subcommand (wording pinned in _shared.test.ts)
+  it("description carries the closed-vault note for `eval`", () => {
+    expect(SMART_CONNECTIONS_SIMILAR_DESCRIPTION).toContain(closedVaultNote("eval"));
   });
 });
 

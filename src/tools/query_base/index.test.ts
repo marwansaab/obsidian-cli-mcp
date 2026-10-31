@@ -15,6 +15,7 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
+import { closedVaultNote } from "../_shared.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -106,18 +107,9 @@ describe("createQueryBaseTool — descriptor", () => {
     expect(desc).toContain("VAULT_NOT_FOUND");
   });
 
-  it("072: description states closed-vault recovery and the vault-unavailable failure, with no not-open state", () => {
-    const desc = QUERY_BASE_DESCRIPTION;
-    for (const needle of ["Closed vault", "opened automatically", 'Command "', "vault unavailable", "never an empty result"]) {
-      expect(desc).toContain(needle);
-    }
-    expect(desc).not.toContain("not-open");
-    expect(desc).not.toContain("registered but not open");
-    // The closed-vault sentence stands on its own (FR-008, SC-007).
-    const start = desc.indexOf("Closed vault");
-    const sentence = desc.slice(start, desc.indexOf("never an empty result.", start));
-    expect(sentence).not.toContain("Vault not found");
-    expect(sentence).not.toContain("VAULT_NOT_FOUND");
+  // spec 072 FR-008: the shared closed-vault note, naming this tool's subcommand (wording pinned in _shared.test.ts)
+  it("description carries the closed-vault note for `base:query`", () => {
+    expect(QUERY_BASE_DESCRIPTION).toContain(closedVaultNote("base:query"));
   });
 
   it("deps wired through: handler receives stubbed CLI envelope and produces typed response", async () => {

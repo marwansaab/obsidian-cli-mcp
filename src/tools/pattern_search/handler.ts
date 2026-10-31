@@ -61,7 +61,7 @@ export async function executePatternSearch(
   let stdout = result.stdout.trimStart();
   if (stdout.startsWith("=> ")) stdout = stdout.slice(3);
 
-  // === Stage 6 — JSON.parse ===
+  // === Stage 5 — JSON.parse ===
   let parsedJson: unknown;
   try {
     parsedJson = JSON.parse(stdout);
@@ -74,7 +74,7 @@ export async function executePatternSearch(
     });
   }
 
-  // === Stage 7 — envelope safeParse ===
+  // === Stage 6 — envelope safeParse ===
   const validated = patternSearchEvalEnvelopeSchema.safeParse(parsedJson);
   if (!validated.success) {
     throw new UpstreamError({
@@ -85,7 +85,7 @@ export async function executePatternSearch(
     });
   }
 
-  // === Stage 8 — discriminate on ok ===
+  // === Stage 7 — discriminate on ok ===
   if (validated.data.ok === false) {
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
@@ -99,7 +99,7 @@ export async function executePatternSearch(
     });
   }
 
-  // === Stage 9 — post-process ok branch (R6 defensive .md filter, R2 sort, output validation) ===
+  // === Stage 8 — post-process ok branch (R6 defensive .md filter, R2 sort, output validation) ===
   const mdOnly = validated.data.matches.filter((m) => m.path.toLowerCase().endsWith(".md"));
   const sorted = [...mdOnly].sort(comparePatternSearchMatch);
   return patternSearchOutputSchema.parse({

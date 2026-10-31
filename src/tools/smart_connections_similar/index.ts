@@ -3,7 +3,7 @@ import { registerTool } from "../_register.js";
 import { type ExecuteDeps, executeSmartConnectionsSimilar, SMART_CONNECTIONS_SIMILAR_SUPPORTED } from "./handler.js";
 import { smartConnectionsSimilarInputSchema, smartConnectionsSimilarOutputSchema } from "./schema.js";
 import { describeSupport } from "../../file-type/file-type.js";
-import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
+import { closedVaultNote, READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const SMART_CONNECTIONS_SIMILAR_TOOL_NAME = "smart_connections_similar";
 
@@ -20,7 +20,7 @@ Plugin dependency: requires the Smart Connections plugin (by Brian Petro; minimu
 
 Vault states: VAULT_NOT_FOUND carries a details.reason sub-discriminator — "unknown" (vault not registered).
 
-Closed vault: a registered vault that is not open is opened automatically and the call returns its normal result (the first call takes longer). If it cannot be brought up — for example, its command-line integration is disabled — the call fails with CLI_REPORTED_ERROR whose details.stdout starts Error: Command "eval" not found. (vault unavailable): open the vault in Obsidian, then call again. This is a failure, never an empty result.
+${closedVaultNote("eval")}
 
 Error-precedence chain (outer-to-inner, cheapest-first): VAULT_NOT_FOUND(unknown) → SMART_CONNECTIONS_NOT_INSTALLED → NO_ACTIVE_FILE / FILE_NOT_FOUND → NOT_MARKDOWN → SMART_CONNECTIONS_NOT_READY → SOURCE_NOT_INDEXED → success.`;
 

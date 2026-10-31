@@ -408,7 +408,7 @@ export async function executeQueryBase(
   // `cause` is null here (no originating dispatch error on the success path).
   classifyAndThrow(cliResult.stdout, cliResult.stderr, input, null);
 
-  // === Stage 6 — JSON.parse + wire envelope safeParse ===
+  // === Stage 5 — JSON.parse + wire envelope safeParse ===
   let parsedJson: unknown;
   try {
     parsedJson = JSON.parse(cliResult.stdout);
@@ -456,7 +456,7 @@ export async function executeQueryBase(
   }
   const upstreamRows: QueryBaseWire = wireValidated.data;
 
-  // === Stage 7 — row post-process: path reservation + columns vector ===
+  // === Stage 6 — row post-process: path reservation + columns vector ===
   // Determinism (FR-003 / SC-003): the wrapper preserves upstream's emission order
   // verbatim. Per data-model.md the view's declared sort is trusted from upstream;
   // path-asc tiebreak is satisfied de facto when upstream emits in path order for
@@ -475,7 +475,7 @@ export async function executeQueryBase(
   // so, we lift the column names from there.
   const { rows: rowsOut, columns } = postProcessRows(capped, null);
 
-  // === Stage 8 — output schema parse (defence-in-depth) ===
+  // === Stage 7 — output schema parse (defence-in-depth) ===
   return queryBaseOutputSchema.parse({
     columns,
     rows: rowsOut,

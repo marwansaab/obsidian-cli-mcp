@@ -10,6 +10,7 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
+import { closedVaultNote } from "../_shared.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -75,16 +76,9 @@ describe("createPathsTool — descriptor", () => {
     expect(PATHS_DESCRIPTION).toContain('end with "/"');
   });
 
-  // (3b) spec 072 — closed vault: automatic recovery + vault unavailable; no retired not-open state
-  it("PATHS_DESCRIPTION documents the closed-vault outcomes and no not-open state", () => {
-    for (const s of ["Closed vault", "opened automatically", 'Command "', "vault unavailable", "never an empty result"]) {
-      expect(PATHS_DESCRIPTION).toContain(s);
-    }
-    expect(PATHS_DESCRIPTION).not.toContain("not-open");
-    expect(PATHS_DESCRIPTION).not.toContain("registered but not open");
-    const closedVaultSentence = /Closed vault[\s\S]*?never an empty result\./.exec(PATHS_DESCRIPTION)![0];
-    expect(closedVaultSentence).not.toContain("Vault not found");
-    expect(closedVaultSentence).not.toContain("VAULT_NOT_FOUND");
+  // spec 072 FR-008: the shared closed-vault note, naming this tool's subcommand (wording pinned in _shared.test.ts)
+  it("description carries the closed-vault note for `eval`", () => {
+    expect(PATHS_DESCRIPTION).toContain(closedVaultNote("eval"));
   });
 });
 

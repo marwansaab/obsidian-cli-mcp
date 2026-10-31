@@ -19,7 +19,7 @@ import {
 import { UpstreamError } from "../../errors.js";
 import { type Logger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn, silentLogger, captureRejection } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger, captureRejection, coldStartResponse } from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -294,12 +294,10 @@ test("US1: no-vault path: single base:query spawn", async () => {
 // Spec 072: a closed registered vault is brought up by the shared ADR-029 cold-start retry in
 // dispatch; the handler has no closed-vault stage of its own. These cases run the real retry
 // through the mock spawn and pin that no `vaults` spawn is ever issued.
-const COLD_START_STDOUT = 'Error: Command "base:query" not found. It may require a plugin to be enabled.\n';
-
 test("072 US1: closed vault recovers via cold-start retry → normal result, two base:query spawns", async () => {
   const rows = [{ path: "x.md", status: "open" }];
   const { spawnFn, recorded, getCount } = makeQueuedSpawn([
-    { stdout: COLD_START_STDOUT, exitCode: 0 },
+    coldStartResponse("base:query"),
     { stdout: JSON.stringify(rows), exitCode: 0 },
   ]);
   const r = await executeQueryBase({ ...HAPPY_INPUT, vault: "Closed" }, deps({ spawnFn }));
@@ -312,15 +310,15 @@ test("072 US1: closed vault recovers via cold-start retry → normal result, two
   }
 });
 
-for (const [label, stdout] of [
-  ["plain", COLD_START_STDOUT],
-  ["with `Did you mean` suffix", 'Error: Command "base:query" not found. Did you mean: base:views, base:create?\n'],
+for (const [label, response] of [
+  ["plain", coldStartResponse("base:query")],
+  [
+    "with `Did you mean` suffix",
+    { stdout: 'Error: Command "base:query" not found. Did you mean: base:views, base:create?\n', exitCode: 0 },
+  ],
 ] as const) {
   test(`072 US2: vault unavailable (${label}): cold-start persists after retry → CLI_REPORTED_ERROR unchanged`, async () => {
-    const { spawnFn, recorded, getCount } = makeQueuedSpawn([
-      { stdout, exitCode: 0 },
-      { stdout, exitCode: 0 },
-    ]);
+    const { spawnFn, recorded, getCount } = makeQueuedSpawn([response, response]);
     const err = (await captureRejection(
       executeQueryBase({ ...HAPPY_INPUT, vault: "Closed" }, deps({ spawnFn })),
     )) as UpstreamError;
@@ -329,8 +327,6 @@ for (const [label, stdout] of [
     expect(COLD_START_PATTERN.test(String(err.details.stdout))).toBe(true);
     // classifyAndThrow must pass the failure through unchanged (research F4).
     expect(err.details.code).toBeUndefined();
-    expect(err.details.code).not.toBe("VIEW_NOT_FOUND");
-    expect(err.details.code).not.toBe("BASE_MALFORMED");
     expect(err.details.reason).toBeUndefined();
     expect(getCount()).toBe(2);
     for (const rec of recorded) expect(rec.argv).not.toContain("vaults");
@@ -737,7 +733,7 @@ test("BI-041 US2: VIEW_NOT_FOUND on stdout-only emit (T0-captured upstream shape
 
 // Bug-fix anchor: pre-edit ternary picked stderr (non-empty incidental warning)
 // and discarded the stdout error phrase, so this case surfaced as BASE_MALFORMED/
-// unknown via the stage-6 fallback. Post-edit both-channel concat exposes the
+// unknown via the stage-5 fallback. Post-edit both-channel concat exposes the
 // VIEW_NOT_FOUND phrase regardless of which channel carried the warning.
 test("BI-041 US2: VIEW_NOT_FOUND on stdout emit with incidental stderr (bug-fix anchor)", async () => {
   const { spawnFn } = makeQueuedSpawn([

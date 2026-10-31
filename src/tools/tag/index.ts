@@ -2,7 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeTag, type ExecuteDeps } from "./handler.js";
 import { tagInputSchema } from "./schema.js";
-import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
+import { closedVaultNote, READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const TAG_TOOL_NAME = "tag";
 
@@ -23,7 +23,7 @@ Both body inline tags (\`#tag\`) and frontmatter tag arrays (\`tags: [...]\`) co
 
 Optional \`vault\` (string): routes to a named vault even when it is open but unfocused (B1 falsified — BI-0134 / ADR-031); omitted routes to the focused vault. Residual limit: genuine same-vault-name collision (focus does not fix it — give colliding vaults distinct vault names).
 
-Closed vault: a registered vault that is not open is opened automatically and the call returns its normal result (the first call takes longer). If it cannot be brought up — for example, its command-line integration is disabled — the call fails with \`CLI_REPORTED_ERROR\` whose \`details.stdout\` starts \`Error: Command "eval" not found.\` (vault unavailable): open the vault in Obsidian, then call again. This is a failure, never an empty result.
+${closedVaultNote("eval")}
 
 Optional \`total: true\` returns the bare integer count (token-economical pre-flight); the count is invariant across both modes for the same vault state.
 

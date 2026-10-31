@@ -39,11 +39,11 @@ export async function executePaths(
     deps,
   );
 
-  // === Stage 4 — extract JSON via "=> " prefix ===
+  // === Stage 3 — extract JSON via "=> " prefix ===
   const trimmed = result.stdout.trimStart();
   const jsonText = trimmed.startsWith("=> ") ? trimmed.slice(3) : trimmed;
 
-  // === Stage 5 — JSON.parse ===
+  // === Stage 4 — JSON.parse ===
   let parsedJson: unknown;
   try {
     parsedJson = JSON.parse(jsonText);
@@ -56,7 +56,7 @@ export async function executePaths(
     });
   }
 
-  // === Stage 6 — envelope safeParse ===
+  // === Stage 5 — envelope safeParse ===
   const validated = pathsEvalEnvelopeSchema.safeParse(parsedJson);
   if (!validated.success) {
     throw new UpstreamError({
@@ -68,7 +68,7 @@ export async function executePaths(
   }
   const envelope = validated.data;
 
-  // === Stage 7 — discriminate on ok ===
+  // === Stage 6 — discriminate on ok ===
   if (envelope.ok === false) {
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
@@ -82,6 +82,6 @@ export async function executePaths(
     });
   }
 
-  // === Stage 8 — output schema validation at the return boundary ===
+  // === Stage 7 — output schema validation at the return boundary ===
   return pathsOutputSchema.parse({ count: envelope.count, paths: envelope.paths });
 }

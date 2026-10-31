@@ -10,7 +10,7 @@ import {
 } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
@@ -188,12 +188,10 @@ test("US4 Q-21 cross-mode count invariant: count-only result === default-mode pa
 // Closed vault — recovery through the shared ADR-029 cold-start retry (spec 072)
 // =====================================================================
 
-const COLD_START_STDOUT = 'Error: Command "eval" not found. It may require a plugin to be enabled.\n';
-
 // (16) A closed registered vault answers the cold-start signature once; the retry recovers.
 test("closed vault recovers via cold-start retry: normal result, two eval spawns, no vaults spawn", async () => {
   const { spawnFn, recorded, getCount } = makeQueuedSpawn([
-    { stdout: COLD_START_STDOUT, exitCode: 0 },
+    coldStartResponse("eval"),
     { stdout: defaultEnv(["a.md"]), exitCode: 0 },
   ]);
   const result = await executeTag({ tag: "foo", vault: "Closed" }, deps(spawnFn));
@@ -209,8 +207,8 @@ test("closed vault recovers via cold-start retry: normal result, two eval spawns
 // (17) Vault unavailable: the cold-start signature persists past the retry.
 test("vault unavailable: cold-start persists after retry → CLI_REPORTED_ERROR unchanged", async () => {
   const { spawnFn, recorded, getCount } = makeQueuedSpawn([
-    { stdout: COLD_START_STDOUT, exitCode: 0 },
-    { stdout: COLD_START_STDOUT, exitCode: 0 },
+    coldStartResponse("eval"),
+    coldStartResponse("eval"),
   ]);
   const err = (await captureRejection(
     executeTag({ tag: "foo", vault: "Closed" }, deps(spawnFn)),

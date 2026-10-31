@@ -2,7 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executePatternSearch, type ExecuteDeps } from "./handler.js";
 import { patternSearchInputSchema, patternSearchOutputSchema } from "./schema.js";
-import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
+import { closedVaultNote, READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const PATTERN_SEARCH_TOOL_NAME = "pattern_search";
 
@@ -25,7 +25,7 @@ Optional \`case_sensitive\` (boolean, **default true**).
 
 Optional \`vault\` (string): routes to a named vault; omitted routes to the focused vault.
 
-Closed vault: a registered vault that is not open is opened automatically and the call returns its normal result (the first call takes longer). If it cannot be brought up — for example, its command-line integration is disabled — the call fails with \`CLI_REPORTED_ERROR\` whose \`details.stdout\` starts \`Error: Command "eval" not found.\` (vault unavailable): open the vault in Obsidian, then call again. This is a failure, never an empty result.
+${closedVaultNote("eval")}
 
 \`match\` is the substring matched by the regex — NEVER capped, emitted verbatim. \`text\` is the full line capped at 500 UTF-16 code units + \`…\` ellipsis marker. \`offset\` is the 0-based start of the match within the line. Sort: \`(path, line, offset)\` ascending. Per-occurrence emission — three matches on the same line produce three entries differing only in \`offset\`. Zero-length matches (\`^\`, \`$\`, \`a*\`, \`\\b\`, lookarounds) are SKIPPED — they never emit entries.
 

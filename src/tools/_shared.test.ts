@@ -1,4 +1,4 @@
-// Original — no upstream. Co-located tests for the tool aggregator's shared utilities (asToolError, B64_PAYLOAD_DECODE_EXPR, composeEvalCode). Post-010: wrap-branch cases deleted alongside the helper itself (FR-005); the no-op path is now the only path. BI-034: adds tests for B64_PAYLOAD_DECODE_EXPR and composeEvalCode — the shared UTF-8-safe decoder snippet and Node-side base64 compose helper that fix the seven-tool atob+base64 silent-non-ASCII-lookup defect. 068 (C3): the BI-067 draft-07 parity-normaliser tests are deleted with toMcpInputSchema; the published-schema checks live in _register.test.ts.
+// Original — no upstream. Co-located tests for the tool aggregator's shared utilities (asToolError, B64_PAYLOAD_DECODE_EXPR, composeEvalCode). Post-010: wrap-branch cases deleted alongside the helper itself (FR-005); the no-op path is now the only path. BI-034: adds tests for B64_PAYLOAD_DECODE_EXPR and composeEvalCode — the shared UTF-8-safe decoder snippet and Node-side base64 compose helper that fix the seven-tool atob+base64 silent-non-ASCII-lookup defect. 068 (C3): the BI-067 draft-07 parity-normaliser tests are deleted with toMcpInputSchema; the published-schema checks live in _register.test.ts. 072: closedVaultNote wording.
 import { runInNewContext } from "node:vm";
 
 import { test, expect } from "vitest";
@@ -6,6 +6,7 @@ import { test, expect } from "vitest";
 import {
   asToolError,
   B64_PAYLOAD_DECODE_EXPR,
+  closedVaultNote,
   composeEvalCode,
 } from "./_shared.js";
 
@@ -76,4 +77,18 @@ test("composeEvalCode throws when the template lacks the __PAYLOAD_B64__ placeho
   expect(() => composeEvalCode("(()=>'no placeholder')()", { x: 1 })).toThrow(
     /composeEvalCode: template is missing the __PAYLOAD_B64__ placeholder/,
   );
+});
+
+// Spec 072 contract §2: the closed-vault note states recovery and the vault-unavailable failure,
+// names the tool's subcommand, and stands on its own (no unknown-vault text).
+test("closedVaultNote states closed-vault recovery and vault unavailable for the given subcommand", () => {
+  const note = closedVaultNote("base:query");
+  for (const s of ["Closed vault", "opened automatically", "vault unavailable", "never an empty result."]) {
+    expect(note).toContain(s);
+  }
+  expect(note).toContain('`Error: Command "base:query" not found.`');
+  expect(note).not.toContain("not-open");
+  expect(note).not.toContain("registered but not open");
+  expect(note).not.toContain("Vault not found");
+  expect(note).not.toContain("VAULT_NOT_FOUND");
 });

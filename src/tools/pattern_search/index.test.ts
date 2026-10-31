@@ -10,6 +10,7 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
+import { closedVaultNote } from "../_shared.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -96,17 +97,8 @@ describe("createPatternSearchTool — descriptor", () => {
     expect(desc).toContain("default");
   });
 
-  // (7) spec 072: closed vault opens automatically; vault unavailable is a failure; no retired not-open text
-  it("description states closed-vault recovery and vault unavailable, with no not-open sub-state", () => {
-    const desc = PATTERN_SEARCH_DESCRIPTION;
-    for (const phrase of ["Closed vault", "opened automatically", 'Command "', "vault unavailable", "never an empty result"]) {
-      expect(desc).toContain(phrase);
-    }
-    expect(desc).not.toContain("not-open");
-    expect(desc).not.toContain("registered but not open");
-    const start = desc.indexOf("Closed vault");
-    const sentence = desc.slice(start, desc.indexOf("never an empty result.", start) + "never an empty result.".length);
-    expect(sentence).not.toContain("Vault not found");
-    expect(sentence).not.toContain("VAULT_NOT_FOUND");
+  // spec 072 FR-008: the shared closed-vault note, naming this tool's subcommand (wording pinned in _shared.test.ts)
+  it("description carries the closed-vault note for `eval`", () => {
+    expect(PATTERN_SEARCH_DESCRIPTION).toContain(closedVaultNote("eval"));
   });
 });

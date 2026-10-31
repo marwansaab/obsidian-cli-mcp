@@ -10,7 +10,7 @@ import {
 } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
@@ -25,8 +25,6 @@ function decodePayload(argv: string[]): unknown {
 }
 
 const defaultLimit = 20;
-
-const COLD_START_STDOUT = 'Error: Command "eval" not found. It may require a plugin to be enabled.\n';
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -386,7 +384,7 @@ test("closed vault recovers via cold-start retry: normal result, two eval spawns
     matches: [{ path: "Note.md", headingPath: [], score: 0.5 }],
   };
   const { spawnFn, recorded, getCount } = makeQueuedSpawn([
-    { stdout: COLD_START_STDOUT, exitCode: 0 },
+    coldStartResponse("eval"),
     { stdout: withPreamble(envelope), exitCode: 0 },
   ]);
   const result = await executeSmartConnectionsQuery(
@@ -405,8 +403,8 @@ test("closed vault recovers via cold-start retry: normal result, two eval spawns
 // (17b) Vault unavailable — cold-start persists past the single retry (spec 072 US2)
 test("vault unavailable: cold-start persists after retry → CLI_REPORTED_ERROR unchanged", async () => {
   const { spawnFn, recorded, getCount } = makeQueuedSpawn([
-    { stdout: COLD_START_STDOUT, exitCode: 0 },
-    { stdout: COLD_START_STDOUT, exitCode: 0 },
+    coldStartResponse("eval"),
+    coldStartResponse("eval"),
   ]);
   const err = (await captureRejection(
     executeSmartConnectionsQuery(

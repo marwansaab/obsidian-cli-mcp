@@ -2,7 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeSmartConnectionsQuery, type ExecuteDeps } from "./handler.js";
 import { MAX_QUERY_LENGTH, smartConnectionsQueryInputSchema, smartConnectionsQueryOutputSchema } from "./schema.js";
-import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
+import { closedVaultNote, READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const SMART_CONNECTIONS_QUERY_TOOL_NAME = "smart_connections_query";
 
@@ -19,7 +19,7 @@ Per-match fields: \`path\` is the source file's vault-relative path with \`.md\`
 
 Runtime dependency: the Smart Connections plugin (by Brian Petro; ≥ v4.5.0) must be installed in the target vault AND have completed initial indexing AND have an embed model configured. Missing / not-ready states surface as typed CLI_REPORTED_ERROR codes (\`SMART_CONNECTIONS_NOT_INSTALLED\` or \`SMART_CONNECTIONS_NOT_READY\` with \`details.reason: "api-missing"\` or \`"embed-failed"\`).
 
-Closed vault: a registered vault that is not open is opened automatically and the call returns its normal result (the first call takes longer). If it cannot be brought up — for example, its command-line integration is disabled — the call fails with \`CLI_REPORTED_ERROR\` whose \`details.stdout\` starts \`Error: Command "eval" not found.\` (vault unavailable): open the vault in Obsidian, then call again. This is a failure, never an empty result.
+${closedVaultNote("eval")}
 
 Error-precedence (outer to inner): VAULT_NOT_FOUND(unknown) → SMART_CONNECTIONS_NOT_INSTALLED → SMART_CONNECTIONS_NOT_READY(api-missing) → SMART_CONNECTIONS_NOT_READY(embed-failed) → success.`;
 

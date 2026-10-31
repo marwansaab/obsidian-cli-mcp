@@ -6,7 +6,7 @@ import { executeSmartConnectionsSimilar } from "./handler.js";
 import { __resetInFlightRegistryForTests, COLD_START_PATTERN, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
@@ -23,9 +23,6 @@ function decodePayload(argv: string[]): unknown {
 // Input with limit:20 default applied (the handler is called with already-validated
 // input by registerTool in production, so test fixtures replicate that contract).
 const defaultLimit = 20;
-
-// The shim's answer for a registered vault that is not open yet (ADR-029 cold start).
-const COLD_START_STDOUT = 'Error: Command "eval" not found. It may require a plugin to be enabled.\n';
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -489,7 +486,7 @@ test("closed vault recovers via cold-start retry: normal result, two eval spawns
     matches: [{ path: "Other.md", headingPath: [], score: 0.6 }],
   };
   const { spawnFn, recorded, getCount } = makeQueuedSpawn([
-    { stdout: COLD_START_STDOUT, exitCode: 0 },
+    coldStartResponse("eval"),
     { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeSmartConnectionsSimilar(
@@ -509,8 +506,8 @@ test("closed vault recovers via cold-start retry: normal result, two eval spawns
 // single retry and reaches the caller as the dispatch layer's CLI_REPORTED_ERROR.
 test("vault unavailable: cold-start persists after retry → CLI_REPORTED_ERROR unchanged (spec 072 US2)", async () => {
   const { spawnFn, recorded, getCount } = makeQueuedSpawn([
-    { stdout: COLD_START_STDOUT, exitCode: 0 },
-    { stdout: COLD_START_STDOUT, exitCode: 0 },
+    coldStartResponse("eval"),
+    coldStartResponse("eval"),
   ]);
   const err = (await captureRejection(
     executeSmartConnectionsSimilar(

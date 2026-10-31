@@ -10,6 +10,7 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
+import { closedVaultNote } from "../_shared.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -36,17 +37,9 @@ describe("createTagTool — descriptor", () => {
     expect(tool.descriptor.description).toBe(TAG_DESCRIPTION);
   });
 
-  // (3b) spec 072 — closed vault is opened automatically; vault unavailable is a failure; no not-open
-  it("describes closed-vault recovery and vault unavailable, with no not-open sub-state", () => {
-    for (const s of ["Closed vault", "opened automatically", 'Command "', "vault unavailable", "never an empty result"]) {
-      expect(TAG_DESCRIPTION).toContain(s);
-    }
-    expect(TAG_DESCRIPTION).not.toContain("not-open");
-    expect(TAG_DESCRIPTION).not.toContain("registered but not open");
-    const start = TAG_DESCRIPTION.indexOf("Closed vault");
-    const closedVault = TAG_DESCRIPTION.slice(start, TAG_DESCRIPTION.indexOf("never an empty result.", start));
-    expect(closedVault).not.toContain("Vault not found");
-    expect(closedVault).not.toContain("VAULT_NOT_FOUND");
+  // spec 072 FR-008: the shared closed-vault note, naming this tool's subcommand (wording pinned in _shared.test.ts)
+  it("description carries the closed-vault note for `eval`", () => {
+    expect(TAG_DESCRIPTION).toContain(closedVaultNote("eval"));
   });
 });
 
