@@ -180,6 +180,7 @@ High-blast-radius surface: none edited. `invokeCli` and `dispatchCli` are among 
 - **Unknown-vault wording mismatch** (analyze finding I1, option (b)):
   - The reference pages and descriptions of the five eval tools describe the unknown vault as `CLI_REPORTED_ERROR` / `VAULT_NOT_FOUND` / `unknown`, but those handlers return `details.message: "Vault not found."`.
   - The `paths` description has no unknown-vault wording at all.
+  - The `smart_connections_similar` description keeps "Vault states: VAULT_NOT_FOUND carries a details.reason sub-discriminator — "unknown" (vault not registered)." Without `not-open` this sub-discriminator has one value. The PR #100 review flagged it, and the owner chose to leave it here, because contract §2 keeps the unknown-vault part unchanged.
 
   This feature leaves that text unchanged, apart from removing `not-open`. The vault-unavailable entries do not cross-reference it. Recorded on BI-0076 as a candidate follow-up BI. The unknown-vault surface is locked by TC-00228, TC-00105 and TC-00209.
 
