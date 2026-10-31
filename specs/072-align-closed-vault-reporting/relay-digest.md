@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-10-31T08:22:21.132Z |
 | Finished | not yet |
-| Elapsed | 16 min 36 s |
+| Elapsed | 29 min 1 s |
 | Questions | 3 (0 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 0 |
@@ -52,6 +52,7 @@
 ### pre-implementation (`81ce43ff-1f5e-4944-a808-a45965d2d520`)
 
 - Condition `shell-exit-0` (run_when): met. "node -e "process.exit('' === '' ? 0 : 1)"" exited 0.
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\specs\072-align-closed-vault-reporting\tasks.md exists.
 
 - **specify**: done, 19 turns.
 
@@ -73,16 +74,36 @@
 
 > Applied all 17 analyze remediation edits for I1 (option b), I2 and C1, plus the checklist note. None changes the unknown-vault rows, the ADR-029 retry or obsidian_exec, and none uses option (a) wording, so no edit had to become a follow-up note. Files changed: spec.md (US2 acceptance scenario 2, FR-008, SC-002, SC-007, a new Out of Scope entry for the unknown-vault wording mismatch as a BI-0076 follow-up), plan.md (new Follow-ups section), research.md (D3, D4, D5), tasks.md (shared description assertions, T016, T017, a note on T021–T026, T029, Notes), contracts/closed-vault-contract.md (§1, §2, §3) and contracts/t0-probe-plan.md (G2 is optional for SC-002). In tag and query_base, only `not-open` is removed from the unknown-vault text; pattern_search drops VAULT_NOT_FOUND because there it only meant not-open. The Clarifications log keeps its original wording of the Q1 answer. Nothing is committed yet. Next step is /speckit-implement.
 
-- **resolve-analysis**: in progress.
+- **resolve-analysis**: done, 17 turns.
+
+> Resolved the analyze findings and committed the feature folder as 7b92619 on 072-align-closed-vault-reporting, following CONTRIBUTING.md, not pushed. I1 (option b), I2 and C1 were already applied as approved. U1: the query_base unknown-vault reference rows in the contract and data model also list the facade form `Vault not found.`, for reference only with no change to published wording. U2: T033 renames and keeps the no-vault spawn-count test instead of deleting it. F1: T019 and T020 no longer carry [P]. F2: T044 states where not-open may remain. I also fixed T020 and contract §2 so smart_connections_similar keeps the unknown-vault part of its "Vault states" sentence, which option (b) requires. No CRITICAL or HIGH finding remains. Left open: the unknown-vault wording mismatch (VAULT_NOT_FOUND/unknown versus `Vault not found.`, and no wording in paths) is out of scope and recorded on BI-0076 as a follow-up. The CLAUDE.md plan pointer and .specify/feature.json were not committed because they are outside the feature folder. The Relay run records in the feature folder were included in the commit.
+
 
 ### continue
 
-- **prepare**: not run.
+Skipped.
 
-### implementation
+- Condition `shell-exit-0` (run_when): not met. "node -e "process.exit('' === '' ? 1 : 0)"" exited 1.
 
-- **implement**: not run.
-- **open-pr**: not run.
+- **prepare**: skipped.
+
+### implementation (`fa1177a9-ff88-40c2-afa8-b0057d28e752`)
+
+- Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\specs\072-align-closed-vault-reporting\tasks.md exists.
+
+- **implement**: done, 25 turns.
+
+> All 45 tasks for 072 are done and marked [X]. Nothing is committed; the optional after_implement commit hook was skipped.
+>
+> T0 gate G1 passed on 2026-10-31 against the authorised test vault (Obsidian 1.14.5, Obsidian.com shim). With the vault closed, a raw `eval` returned `Error: Command "eval" not found.` on exit 0, not empty stdout. All six tools, each called through the built server with the vault closed first, returned their normal result. The five eval tools each logged one `dispatch.retry`. `query_base` needed no retry, because `base:query` answered normally on a closed vault. G2 was not run live (no safe way to disable the CLI integration for one vault); the handler tests cover it. The vault's open state was restored and no note was touched.
+>
+> Each of the six tools (paths, tag, pattern_search, query_base, smart_connections_query, smart_connections_similar) now has three new handler tests: recovers, vault unavailable, and empty answer. The empty-answer test failed before the handler edit, as planned. Each handler lost its closed-vault stage and its `detectIfClosed` import, and its header line was updated. The retired not-open tests were deleted. Each description lost its not-open text and gained the closed-vault / vault-unavailable sentence, with tests for it. Each reference page got a Closed vault note and a vault-unavailable row. The not-open entries were removed from find_and_replace.md and patch_block.md. The `_eval-vault-closed-detection` module is deleted, and CHANGELOG.md has an [Unreleased] entry. Evidence and logs are in research.md.
+>
+> One deviation from the plan, recorded in research.md: the Story 3 grep also hit `find_and_replace/index.ts`, whose description still listed `not-open`. SC-004 forbids that, so I removed it and added a test. As a result seven description fingerprints moved in the baseline, not the six in contract §5. No schema, title or annotation changed.
+>
+> Final gate is green: typecheck, lint, and npm test (3389 passed, 6 skipped, coverage thresholds met). The Story 4 grep finds nothing in src. The Story 3 grep finds only views_base. `errors.ts`, `server.ts`, `_register.ts` and `cli-adapter/**` are unchanged.
+
+- **open-pr**: in progress.
 
 ### review
 
