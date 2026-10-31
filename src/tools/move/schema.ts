@@ -9,7 +9,7 @@ export const moveInputSchema = applyTargetModeRefinement(
       .string()
       .min(1)
       .describe(
-        'Vault-relative destination: a folder ending in "/" (e.g. "Archive/") keeps the file name, otherwise a full new path (e.g. "Archive/Old.md").',
+        'Vault-relative destination: a folder ending in "/" (e.g. "Archive/") keeps the file name, otherwise a full new path (e.g. "Archive/Old.md"). A new name without an extension keeps the file\'s own; an extension of a different file type is rejected.',
       ),
   }),
 );

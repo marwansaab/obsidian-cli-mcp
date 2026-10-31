@@ -2,12 +2,16 @@
 import { registerTool } from "../_register.js";
 import { executeViewsBase, type ExecuteDeps } from "./handler.js";
 import { viewsBaseInputSchema, viewsBaseOutputSchema } from "./schema.js";
+import { describeSupport, type FileCategory } from "../../file-type/file-type.js";
 import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const VIEWS_BASE_TOOL_NAME = "views_base";
 
+/** views_base reads a base (`base_path`); others keep their INVALID_BASE_PATH rejection (spec 070 FR-007a). */
+export const VIEWS_BASE_SUPPORTED = ["base"] as const satisfies readonly FileCategory[];
+
 export const VIEWS_BASE_DESCRIPTION =
-  `List the views defined inside an Obsidian Bases (\`.base\`) file. Siblings in the Bases family: \`bases\` (enumerate \`.base\` files), \`query_base\` (query rows from a view), \`create_base\` (create a new item in a base).
+  `List the views defined inside an Obsidian Bases (\`.base\`) file. Siblings in the Bases family: \`bases\` (enumerate \`.base\` files), \`query_base\` (query rows from a view), \`create_base\` (create a new item in a base). ${describeSupport(VIEWS_BASE_SUPPORTED)}
 
 Two modes. **Named Base** — pass \`base_path\` (a vault-relative \`.base\` path, the same identifier \`bases\` emits and \`query_base\`/\`create_base\` accept) to list THAT Base's views, regardless of what is focused in Obsidian; the named Base is focused as a side effect and always wins over the open Base. **Open Base** — omit \`base_path\` to list the views of the Base currently focused in Obsidian (no human re-focus needed when you name one).
 

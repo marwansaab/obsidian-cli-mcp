@@ -8,7 +8,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createRenameTool, RENAME_DESCRIPTION, RENAME_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { makeStubSpawn as makeSingleSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import {
+  focusedFileResponse,
+  makeQueuedSpawn,
+  silentLogger,
+  stubVaultRegistry,
+} from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -19,7 +24,7 @@ describe("createRenameTool — descriptor", () => {
   it("publishes name = 'rename' and description verbatim", () => {
     const tool = createRenameTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), vaultRegistry: stubVaultRegistry(),
       spawnFn: makeStubSpawn(),
     });
     expect(tool.descriptor.name).toBe(RENAME_TOOL_NAME);
@@ -31,7 +36,7 @@ describe("createRenameTool — descriptor", () => {
   it("emits a post-010 inputSchema with no oneOf (Story 8 AC#2)", () => {
     const tool = createRenameTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), vaultRegistry: stubVaultRegistry(),
       spawnFn: makeStubSpawn(),
     });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
@@ -42,7 +47,7 @@ describe("createRenameTool — descriptor", () => {
   it("description names 'rename' AND surfaces the link-rewriting caveat (Story 8 AC#3, FR-012)", () => {
     const tool = createRenameTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), vaultRegistry: stubVaultRegistry(),
       spawnFn: makeStubSpawn(),
     });
     const desc = tool.descriptor.description;
@@ -58,7 +63,7 @@ describe("createRenameTool — handler integration via registerTool", () => {
   it("malformed input (empty name) surfaces as VALIDATION_ERROR isError envelope", async () => {
     const tool = createRenameTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), vaultRegistry: stubVaultRegistry(),
       spawnFn: makeStubSpawn(),
     });
     const result = (await tool.handler({
@@ -82,13 +87,14 @@ describe("createRenameTool — handler integration via registerTool", () => {
   // active-mode rename reaches executeRenameNote → invokeCli (success spawn) and returns a JSON
   // success envelope. Reuses handler.test.ts's "Renamed: ..." success stdout.
   it("VALID input drives the handler closure to a success envelope", async () => {
-    const { spawnFn } = makeSingleSpawn({
-      stdout: "Renamed: Inbox/focused.md -> Inbox/Today.md\n",
-      exitCode: 0,
-    });
+    // Spec 070: active mode resolves the focused file (eval) before the rename spawn.
+    const { spawnFn } = makeQueuedSpawn([
+      focusedFileResponse("Inbox/focused.md"),
+      { stdout: "Renamed: Inbox/focused.md -> Inbox/Today.md\n", exitCode: 0 },
+    ]);
     const tool = createRenameTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), vaultRegistry: stubVaultRegistry(),
       spawnFn,
     });
     const result = (await tool.handler({ target_mode: "active", name: "Today" })) as {

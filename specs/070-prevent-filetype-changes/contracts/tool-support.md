@@ -2,7 +2,7 @@
 
 **Feature**: `070-prevent-filetype-changes` · The declared support set of every in-scope tool, the behaviour each declaration implies, and the sentence its description gains (FR-002, FR-003, FR-003a, FR-010). Decisions: [research.md](../research.md) D2, D3, D6, D7.
 
-The description sentence is generated from the declaration, so its exact wording is fixed at implement time; the column below gives the content it must carry. The same types are stated on the tool's `docs/tools/<tool>.md` page.
+The description sentence is generated from the declaration by `describeSupport` in `src/file-type/file-type.ts`: `Supported file types: <list>.` (for example `Supported file types: notes, canvases and bases.`), or, for the any-file tools, `Works on any file type (notes, canvases, bases, attachments and others).`; rename and move add a sentence that the file keeps its type and that a type change goes through `obsidian_exec`. The column below gives the content it must carry. The same types are stated on the tool's `docs/tools/<tool>.md` page. Declarations live in the handler where the handler enforces them (`READ_SUPPORTED`, `OUTLINE_SUPPORTED`, `WRITE_NOTE_SUPPORTED`, `APPEND_NOTE_SUPPORTED`, `PREPEND_SUPPORTED`) and in `index.ts` otherwise (`RENAME_SUPPORTED`, `MOVE_SUPPORTED`, `DELETE_SUPPORTED`, `OPEN_FILE_SUPPORTED` are `"any"`; the description-only notes and bases tools declare their category). `read`, `rename`, `move` and `outline` resolve `file` / `active` targets through one shared helper, `src/tools/_file-target.ts` (`resolveFileTarget`, `forwardedLocator`), which composes the existing `_active-file.ts` resolvers; `_active-file.ts` itself is unchanged.
 
 | Tool | Declared support | Unsupported input → | Description must name | Code change |
 |------|------------------|---------------------|-----------------------|-------------|
@@ -32,10 +32,10 @@ The description sentence is generated from the declaration, so its exact wording
 `src/instructions/instructions.ts`:
 
 - "Read a note: `read`" → names notes, canvases and bases.
-- "Move, rename or delete a note: `move`, `rename`, `delete`." → "… a file of any type …".
-- New rule line: tools reject file types they do not support with `UNSUPPORTED_FILE_TYPE`, and rename/move keep a file's type.
+- "Move, rename or delete a note: `move`, `rename`, `delete`." → "Move, rename or delete a file: `move`, `rename`, `delete`."
+- New rule line, as shipped: "- Unsupported file types fail with UNSUPPORTED_FILE_TYPE; renames and moves keep the type." It names no tool, so it is kept in every configuration.
 
-Opening paragraph unchanged; total stays well under 4,096 characters (MCP Tool Surface Standards; enforced by `instructions.test.ts`).
+Opening paragraph unchanged. `instructions.test.ts` holds the full unfiltered text under 2,000 characters (the project's own budget, tighter than the 4,096-character standard); the shipped wording above is what fits it.
 
 ## Invariants (tested)
 

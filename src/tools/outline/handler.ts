@@ -1,38 +1,48 @@
-// Original — no upstream. outline handler — single-spawn invokeCli wrapper around the CLI's native `outline` subcommand (R2/R3); branched on input.total — default mode sends `format=json` parameter only, count-only mode sends `total` flag only (mutually exclusive at upstream per F14). Load-bearing wrapper transforms: empty-outline sentinel detection per R9/F7 (literal "No headings found." after trim → { count: 0, headings: [] } in BOTH modes), and the upstream `heading` → wrapper `text` field rename per F1/FR-008. All other failure surfaces (file-not-found, non-`.md`, path-traversal, no-focus, output-cap, binary-not-found) flow through the dispatch layer's existing classifier without wrapper involvement.
+// Original — no upstream. outline handler — invokeCli wrapper around the CLI's native `outline` subcommand (R2/R3), one `outline` spawn per call; branched on input.total — default mode sends `format=json` parameter only, count-only mode sends `total` flag only (mutually exclusive at upstream per F14). Spec 070: the target is resolved first (`file` / active add one resolution call) and a non-note file is rejected as UNSUPPORTED_FILE_TYPE before the outline call; `file` mode forwards the original `file=`, active mode the resolved `path=` in specific mode. Load-bearing wrapper transforms: empty-outline sentinel detection per R9/F7 (literal "No headings found." after trim → { count: 0, headings: [] } in BOTH modes), and the upstream `heading` → wrapper `text` field rename per F1/FR-008. All other failure surfaces (file-not-found, path-traversal, no-focus, output-cap, binary-not-found) flow through the dispatch layer's existing classifier without wrapper involvement.
 import { outlineUpstreamArraySchema, type OutlineInput, type OutlineOutput } from "./schema.js";
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
+import { assertSupportedFileType, type FileCategory } from "../../file-type/file-type.js";
+import { forwardedLocator, resolveFileTarget } from "../_file-target.js";
 
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
+import type { VaultRegistry } from "../../vault-registry/registry.js";
 
 export interface ExecuteDeps extends CallScope {
   logger: Logger;
   queue: Queue;
+  vaultRegistry: VaultRegistry;
   spawnFn?: SpawnLike;
   env?: NodeJS.ProcessEnv;
 }
 
 export const EMPTY_OUTLINE_SENTINEL = "No headings found.";
 
+/** The file types `outline` handles (spec 070): Markdown notes only. */
+export const OUTLINE_SUPPORTED = ["note"] as const satisfies readonly FileCategory[];
+
 export async function executeOutline(
   input: OutlineInput,
   deps: ExecuteDeps,
 ): Promise<OutlineOutput> {
+  const target = await resolveFileTarget(input, deps, "outline");
+  assertSupportedFileType({ relPath: target.relPath, supported: OUTLINE_SUPPORTED, toolName: "outline" });
+  const locator = forwardedLocator(input, target);
+
   const countOnly = input.total === true;
   const parameters: Record<string, string> = {};
   if (!countOnly) parameters.format = "json";
-  if (input.file !== undefined) parameters.file = input.file;
-  if (input.path !== undefined) parameters.path = input.path;
+  Object.assign(parameters, locator.parameters);
   const flags: string[] = countOnly ? ["total"] : [];
 
   const result = await invokeCli(
     {
       command: "outline",
-      vault: input.vault,
+      vault: locator.vault,
       parameters,
       flags,
-      target_mode: input.target_mode,
+      target_mode: "specific",
     },
     deps,
   );

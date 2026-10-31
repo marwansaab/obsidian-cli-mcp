@@ -58,3 +58,27 @@ Across US1 and US2, every successful result path has the input's extension; ever
 ## Cleanup
 
 Delete `Sandbox/070-<run-id>/` and any `.trash/` residue from the run; confirm `Welcome.md` is untouched.
+
+## Quickstart run
+
+Run 2026-10-31 (task T034) through an MCP client (`@modelcontextprotocol/client`, stdio) against `node dist/index.js`, vault `TestVault-Obsidian-CLI-MCP`, fixtures `P.canvas`, `T.base`, `I.png`, `N.md` seeded under `Sandbox/070-qs/`. The automated gate passed first: `npm run lint` clean, `npm run typecheck` clean, `npx vitest run` 159 files / 3,361 tests passed (6 skipped), `npm run build` clean. `npm run format:check` was not used as a gate: it already fails on 1,064 of 1,079 tracked files in the repository; the files this change created are formatted.
+
+| Scenario | Result | Observed |
+|----------|--------|----------|
+| US1.1 rename canvas → `Roadmap` | Pass | `{"renamed":true,"fromPath":"Sandbox/070-qs/P.canvas","toPath":"Sandbox/070-qs/Roadmap.canvas"}`; content unchanged |
+| US1.2 rename base → `Open Tasks` | Pass | `toPath` `Sandbox/070-qs/Open Tasks.base` |
+| US1.3 move `I.png` → `Archive/` | Pass | `toPath` `Sandbox/070-qs/Archive/I.png` |
+| US1.4 move canvas → `Archive/Plan2` | Pass | `toPath` `Sandbox/070-qs/Archive/Plan2.canvas` |
+| US1.5 active rename of the focused canvas → `Focus` | Pass | `toPath` `Sandbox/070-qs/Archive/Focus.canvas` |
+| US1.6 rename `N.md` → `Renamed` | Pass | `toPath` `Sandbox/070-qs/Renamed.md` |
+| US2.1 rename canvas → `Plan.md` | Pass | `VALIDATION_ERROR`, `"rename: Sandbox/070-qs/Archive/Focus.canvas is a canvas; the new name \"Plan.md\" would make it a note. rename and move keep a file's type. Nothing was changed. Omit the extension to keep it a canvas, or use obsidian_exec to change the type deliberately."`, `details.reason` `type-change`, `alternative` `obsidian_exec`; listing unchanged |
+| US2.2 move `Renamed.md` → `N.canvas` | Pass | `VALIDATION_ERROR`, `reason` `type-change`, `destination` `Sandbox/070-qs/N.canvas`; listing unchanged |
+| US2.3 append_note / prepend / write_note on the canvas | Pass | each `VALIDATION_ERROR`, `"<tool>: Sandbox/070-qs/Archive/Focus.canvas is a canvas (.canvas); <tool> supports notes. Nothing was changed."`, `reason` `unsupported-type`; canvas bytes unchanged |
+| US2.4 write_note `file: "Plan.canvas"` | Pass | `reason` `unsupported-type`, `path` `Plan.canvas`; no `Plan.canvas.md` in the vault |
+| US2.5 read `I.png` / canvas / base | Pass | png: `"read: Sandbox/070-qs/Archive/I.png is an attachment (.png); read supports notes, canvases and bases. Nothing was changed. Use open_file for this file instead."`, `alternative` `open_file`; canvas `{"content":"{\"nodes\":[],\"edges\":[]}\n"}`; base `{"content":"views: []\n"}` |
+| US2.6 outline the canvas | Pass | `VALIDATION_ERROR`, `reason` `unsupported-type` (was `CLI_REPORTED_ERROR` "Error: File is not a markdown file.") |
+| US3.1 tool list | Pass | all 16 in-scope descriptions carry their supported-types sentence |
+| US3.2 `help` rename / move / read | Pass | each page names `UNSUPPORTED_FILE_TYPE` and its reason (`type-change` for rename/move, `unsupported-type` and canvases for read) |
+| US4 no silent conversion | Pass | final listing `Archive/Focus.canvas`, `Archive/I.png`, `Open Tasks.base`, `Renamed.md`: every success kept its extension; every type-changing call failed with `UNSUPPORTED_FILE_TYPE` |
+
+Cleanup: `Sandbox/070-qs/` removed; `Sandbox/` back to its pre-run listing; no `.trash/` folder in the vault; `Welcome.md` untouched.

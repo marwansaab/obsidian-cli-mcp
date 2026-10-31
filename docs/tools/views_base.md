@@ -2,6 +2,8 @@
 
 List the views defined inside an Obsidian Bases (`.base`) file. Member of the Bases-family cohort (siblings: `bases`, `query_base`, `create_base`).
 
+**Supported file types:** bases only (`base_path`). A `base_path` that does not end in `.base` is rejected as before, with `VALIDATION_ERROR` + `params.code: "INVALID_BASE_PATH"`, `params.reason: "wrong-extension"`.
+
 ## When to use this tool
 
 | You want to | Reach for |

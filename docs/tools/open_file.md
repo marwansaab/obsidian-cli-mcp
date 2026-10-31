@@ -2,6 +2,8 @@
 
 Surface an existing vault file — of **any** recognised type (markdown note, canvas, PDF, image, attachment) — as the focused, visible, active file in the running Obsidian workspace. Decouples the open/hand-off affordance from `write_note` (which only opens what it just wrote): `open_file` opens a file you merely located.
 
+**Supported file types:** any file type Obsidian can display (notes, canvases, bases, attachments and others).
+
 ## When to reach for it
 
 - You located a file (via `files`, `search`, `backlinks`, …) and want a human to see it in Obsidian.
@@ -116,6 +118,8 @@ Every failure routes through `UpstreamError`. On every failure mode, nothing is 
 | `INTERNAL_ERROR` | `stage: "json-parse" \| "envelope-parse"` | The eval returned a result the handler cannot interpret. Should not occur in normal operation. | Report with the full payload; retry once for a transient failure. |
 
 The unregistered-vault, file-not-found, and app-down outcomes are mutually distinguishable: `VAULT_NOT_FOUND/unknown` vs `FILE_NOT_FOUND` vs `obsidian-not-running`.
+
+`open_file`'s `CLI_REPORTED_ERROR` + `details.code: "UNSUPPORTED_FILE_TYPE"` means "Obsidian cannot display this file". It is not the same as the `VALIDATION_ERROR` + `details.code: "UNSUPPORTED_FILE_TYPE"` that other tools (such as `read`, `write_note`, `rename` and `move`) raise, which means "this tool does not handle this file type". Tell them apart by the top-level `code`.
 
 ### Failure examples
 

@@ -2,12 +2,16 @@
 import { registerTool } from "../_register.js";
 import { executeCreateBase, type ExecuteDeps } from "./handler.js";
 import { createBaseInputSchema, createBaseOutputSchema, MAX_CONTENT_LENGTH } from "./schema.js";
+import { describeSupport, type FileCategory } from "../../file-type/file-type.js";
 import { ADDITIVE_WRITE_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const CREATE_BASE_TOOL_NAME = "create_base";
 
+/** create_base adds an item to a base (`path`); others keep their INVALID_BASE_PATH rejection (spec 070 FR-007a). */
+export const CREATE_BASE_SUPPORTED = ["base"] as const satisfies readonly FileCategory[];
+
 export const CREATE_BASE_DESCRIPTION =
-  `Create a new item (Markdown note) within an Obsidian Bases (\`.base\`) file. Siblings in the Bases family: \`bases\` (enumerate \`.base\` files), \`query_base\` (query rows from a view), \`views_base\` (list views inside a base).
+  `Create a new item (Markdown note) within an Obsidian Bases (\`.base\`) file. Siblings in the Bases family: \`bases\` (enumerate \`.base\` files), \`query_base\` (query rows from a view), \`views_base\` (list views inside a base). ${describeSupport(CREATE_BASE_SUPPORTED)} The created item is a note.
 
 Required \`path\` (string, 1..1000 chars): vault-relative path to the \`.base\` file; MUST end with \`.base\` (case-insensitive). Required \`name\` (string, 1..1000 chars): name for the new item (becomes the Markdown filename). Optional \`content\` (string): body text for the new item; max ${MAX_CONTENT_LENGTH} UTF-16 code units — over-limit fails fast with \`VALIDATION_ERROR\` / \`CONTENT_TOO_LARGE\` before invoking the CLI. Optional \`view\` (string): view name within the base; not validated by the CLI (nonexistent views silently accepted). Optional \`vault\` (string): accepted for cohort parity but silently ignored by the CLI.
 

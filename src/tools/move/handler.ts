@@ -1,14 +1,18 @@
-// Original — no upstream. move handler: thin transformer routing parsed input through invokeCli — resolveTo per /speckit-clarify Q1+Q2 (trailing-`/` discriminator + source-`.md`-guarded `.md` append), parseMoveResponse three-shape contract.
+// Original — no upstream. move handler: thin transformer routing parsed input through invokeCli — resolves the source (spec 070 research D3), then resolveTo (trailing-`/` folder form keeps the basename; otherwise the type-preservation rule on the final segment of `to`: keep the source's extension, reject a change to another recognised type), forwarding the original `file=` / `path=` or, in active mode, the resolved `path=` in specific mode; parseMoveResponse three-shape contract.
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
+import { resolveDestinationName } from "../../file-type/file-type.js";
+import { forwardedLocator, resolveFileTarget } from "../_file-target.js";
 
 import type { MoveInput, MoveOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
+import type { VaultRegistry } from "../../vault-registry/registry.js";
 
 export interface ExecuteDeps extends CallScope {
   logger: Logger;
   queue: Queue;
+  vaultRegistry: VaultRegistry;
   spawnFn?: SpawnLike;
   env?: NodeJS.ProcessEnv;
 }
@@ -18,26 +22,24 @@ function basename(p: string): string {
   return i === -1 ? p : p.slice(i + 1);
 }
 
-// /speckit-clarify Q1+Q2 (locked 2026-05-15): byte-equality endsWith — mirrors
-// 020-fix-write-gaps R2 / 021-rename Q1. Source-`.md` guard suppresses append
-// on non-`.md` sources so `.canvas`/`.pdf` don't silently become `.md`.
+// Folder form (trailing `/`, /speckit-clarify Q1 of spec 030) keeps the source's basename.
+// Otherwise spec 070's rule applies to the final segment of `to`: it replaces spec 030's
+// source-`.md` guard, so a canvas moved to `Archive/Plan2` lands at `Archive/Plan2.canvas`
+// (T0 P1: the CLI reads an extensionless `to` as a folder) and `Archive/Plan.md` is rejected.
 function resolveTo(to: string, fromPath: string): string {
   if (to.endsWith("/")) return to + basename(fromPath);
-  const tail = to.includes("/") ? to.slice(to.lastIndexOf("/") + 1) : to;
-  return fromPath.endsWith(".md") && !tail.endsWith(".md") ? to + ".md" : to;
+  return resolveDestinationName({ relPath: fromPath, destination: to, toolName: "move" });
 }
 
 // Anticipated single-line shape per 011/012/021 precedent. Fallbacks: two-line;
 // empty stdout + exit 0. Unrecognised throws CLI_REPORTED_ERROR(stage:"parse").
 const MOVE_RESPONSE_RE = /^Moved: (.+?) (?:→|->) (.+?)\s*$/m;
 
-function parseMoveResponse(stdout: string, input: MoveInput, resolvedTo: string): { fromPath: string; toPath: string } {
+function parseMoveResponse(stdout: string, fromPath: string, resolvedTo: string): { fromPath: string; toPath: string } {
   const trimmed = stdout.trimStart();
   const match = trimmed.match(MOVE_RESPONSE_RE);
   if (match) return { fromPath: match[1]!, toPath: match[2]! };
-  if (trimmed === "" && input.target_mode === "specific" && input.path !== undefined) {
-    return { fromPath: input.path, toPath: resolvedTo };
-  }
+  if (trimmed === "") return { fromPath, toPath: resolvedTo };
   const lines = trimmed.split("\n").filter((l) => l.length > 0);
   if (lines.length >= 2) return { fromPath: lines[0]!, toPath: lines[1]! };
   throw new UpstreamError({
@@ -49,22 +51,16 @@ function parseMoveResponse(stdout: string, input: MoveInput, resolvedTo: string)
 }
 
 export async function executeMove(input: MoveInput, deps: ExecuteDeps): Promise<MoveOutput> {
-  const resolvedTo =
-    input.target_mode === "specific" && input.path !== undefined
-      ? resolveTo(input.to, input.path)
-      : input.to;
-  const parameters: Record<string, string> =
-    input.target_mode === "specific"
-      ? {
-          ...(input.path !== undefined ? { path: input.path } : {}),
-          ...(input.file !== undefined ? { file: input.file } : {}),
-          to: resolvedTo,
-        }
-      : { to: resolvedTo };
+  const target = await resolveFileTarget(input, deps, "move");
+  const resolvedTo = resolveTo(input.to, target.relPath);
+  // The folder form is expanded only for a `path` locator, as before; `file` and active calls
+  // forward it as given and the CLI keeps the basename itself.
+  const forwardedTo = input.path === undefined && input.to.endsWith("/") ? input.to : resolvedTo;
+  const { vault, parameters } = forwardedLocator(input, target);
   const { stdout } = await invokeCli(
-    { command: "move", vault: input.target_mode === "specific" ? input.vault! : undefined, parameters, flags: [], target_mode: input.target_mode },
+    { command: "move", vault, parameters: { ...parameters, to: forwardedTo }, flags: [], target_mode: "specific" },
     deps,
   );
-  const { fromPath, toPath } = parseMoveResponse(stdout, input, resolvedTo);
+  const { fromPath, toPath } = parseMoveResponse(stdout, target.relPath, resolvedTo);
   return { moved: true, fromPath, toPath };
 }

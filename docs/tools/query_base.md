@@ -2,6 +2,8 @@
 
 Run a named view from an Obsidian Bases (`.base`) file and return its matched rows as a structured JSON envelope. First member of the Bases-family cohort (siblings: `bases`, `views_base`, `create_base`).
 
+**Supported file types:** bases only (`base_path`). A `base_path` that does not end in `.base` is rejected as before, with `VALIDATION_ERROR` + `INVALID_BASE_PATH` (`wrong-extension`).
+
 ## When to use this tool
 
 | You want to | Reach for |

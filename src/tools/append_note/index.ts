@@ -1,13 +1,14 @@
 // Original — no upstream. append_note tool registration per BI-044 / ADR-009 — wraps the executeAppendNote direct-fs read-modify-write handler via registerTool (ADR-006); responseFormat: "json" emits the { path, vault, bytes_written, inline } envelope on the MCP wire.
 import { registerTool } from "../_register.js";
-import { executeAppendNote, type ExecuteDeps } from "./handler.js";
+import { APPEND_NOTE_SUPPORTED, executeAppendNote, type ExecuteDeps } from "./handler.js";
 import { appendNoteInputSchema, appendNoteOutputSchema } from "./schema.js";
+import { describeSupport } from "../../file-type/file-type.js";
 import { ADDITIVE_WRITE_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const APPEND_NOTE_TOOL_NAME = "append_note";
 
 export const APPEND_NOTE_DESCRIPTION =
-  `Add content to the END of an existing markdown note. Eliminates the read-then-rewrite cycle of the full-replace surface.
+  `Add content to the END of an existing markdown note. Eliminates the read-then-rewrite cycle of the full-replace surface. ${describeSupport(APPEND_NOTE_SUPPORTED)} Any other file type is rejected with \`UNSUPPORTED_FILE_TYPE\` before anything is written.
 
 Pick \`prepend\` to add at the TOP of a note instead. Pick \`write_note\` to replace the WHOLE file or create a new note (this tool does NOT auto-create).
 
@@ -17,7 +18,7 @@ Separator: a newline is auto-inserted between the existing file content and your
 
 Content: preserved byte-for-byte (no trim, no normalisation, no auto-appended trailing newline — caller controls whether the file ends with a newline after the call). Must be non-empty. No wrapper-imposed size cap.
 
-Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (with \`details.code: CONTENT_EMPTY\`), \`NOTE_NOT_FOUND\`, \`EXTERNAL_EDITOR_CONFLICT\` (Windows file-lock detection only), \`FS_WRITE_FAILED\`, \`PATH_ESCAPES_VAULT\`, \`VAULT_NOT_FOUND\`, \`ERR_NO_ACTIVE_FILE\`.`;
+Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (with \`details.code: CONTENT_EMPTY\` or \`UNSUPPORTED_FILE_TYPE\`), \`NOTE_NOT_FOUND\`, \`EXTERNAL_EDITOR_CONFLICT\` (Windows file-lock detection only), \`FS_WRITE_FAILED\`, \`PATH_ESCAPES_VAULT\`, \`VAULT_NOT_FOUND\`, \`ERR_NO_ACTIVE_FILE\`.`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

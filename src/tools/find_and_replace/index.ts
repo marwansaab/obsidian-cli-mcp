@@ -3,13 +3,17 @@ import { type z } from "zod";
 
 import { executeFindAndReplace, type ExecuteDeps } from "./handler.js";
 import { findAndReplaceInputSchema, findAndReplaceOutputSchema } from "./schema.js";
+import { describeSupport, type FileCategory } from "../../file-type/file-type.js";
 import { registerTool } from "../_register.js";
 import { DESTRUCTIVE_HINTS, type BootDeps, type RegisteredTool, type ToolErrorPayload } from "../_shared.js";
 
 export const FIND_AND_REPLACE_TOOL_NAME = "find_and_replace";
 
+/** find_and_replace edits Markdown notes only; others keep their INVALID_NOTE / not-eligible rejection (spec 070 FR-007a). */
+export const FIND_AND_REPLACE_SUPPORTED = ["note"] as const satisfies readonly FileCategory[];
+
 export const FIND_AND_REPLACE_DESCRIPTION =
-  `Find-and-replace with **preview-then-commit** semantics. Scan a vault, a sub-folder, or a single note for a literal-or-regex pattern; default returns a preview, \`commit: true\` rewrites the matches on disk.
+  `Find-and-replace with **preview-then-commit** semantics. Scan a vault, a sub-folder, or a single note for a literal-or-regex pattern; default returns a preview, \`commit: true\` rewrites the matches on disk. ${describeSupport(FIND_AND_REPLACE_SUPPORTED)}
 
 **SCOPE — default is vault-wide; narrow it deliberately.** With no scope field this tool replaces matches across EVERY eligible \`.md\` file in the vault (or the named \`subfolder\`, recursively). To confine a change to ONE note, use a single-note scope (below) so the SCOPE — not a globally-unique pattern — bounds the blast radius. Agents have corrupted unintended files by committing wide-pattern replacements.
 

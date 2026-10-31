@@ -2,12 +2,16 @@
 import { registerTool } from "../_register.js";
 import { executeBacklinks, type ExecuteDeps } from "./handler.js";
 import { backlinksInputSchema, backlinksOutputSchema } from "./schema.js";
+import { describeSupport, type FileCategory } from "../../file-type/file-type.js";
 import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const BACKLINKS_TOOL_NAME = "backlinks";
 
+/** backlinks takes a Markdown note as its target; others keep their NOT_MARKDOWN rejection (spec 070 FR-007a). */
+export const BACKLINKS_SUPPORTED = ["note"] as const satisfies readonly FileCategory[];
+
 export const BACKLINKS_DESCRIPTION =
-  `Return the flat ordered list of every source note that references a target Markdown note as a typed envelope \`{ count, backlinks: [{ source, count? }], truncated? }\`. Replaces "vault-wide body-text search for the target's name" at one to two orders of magnitude less token cost.
+  `Return the flat ordered list of every source note that references a target Markdown note as a typed envelope \`{ count, backlinks: [{ source, count? }], truncated? }\`. Replaces "vault-wide body-text search for the target's name" at one to two orders of magnitude less token cost. ${describeSupport(BACKLINKS_SUPPORTED)}
 
 Inverse of \`links\` (which returns outgoing references from a single note); together the two surfaces give complete 1-hop link-graph reads.
 

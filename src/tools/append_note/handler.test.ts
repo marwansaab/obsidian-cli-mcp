@@ -530,7 +530,8 @@ describe("US2 NOTE_NOT_FOUND cohort (FR-016)", () => {
       {
         target_mode: "specific",
         vault: "TestVault",
-        path: "is-a-directory",
+        // A directory named like a note: spec 070 rejects an extensionless target before the read.
+        path: "is-a-directory.md",
         content: "x",
         inline: false,
       },

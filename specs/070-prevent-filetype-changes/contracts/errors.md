@@ -26,7 +26,7 @@
 
 ```json
 { "code": "VALIDATION_ERROR",
-  "message": "read: Att/photo.png is an attachment (.png); read supports notes, canvases and bases. Nothing was changed. To show it in Obsidian, use open_file.",
+  "message": "read: Att/photo.png is an attachment (.png); read supports notes, canvases and bases. Nothing was changed. Use open_file for this file instead.",
   "details": { "code": "UNSUPPORTED_FILE_TYPE", "reason": "unsupported-type", "path": "Att/photo.png",
                "extension": "png", "supported": ["note", "canvas", "base"], "alternative": "open_file" } }
 ```
@@ -39,7 +39,7 @@
                "destination": "Plan.md", "destinationExtension": "md", "alternative": "obsidian_exec" } }
 ```
 
-Messages state the received type, the accepted types, that nothing changed, and the alternative (FR-008, SC-004). Exact wording is fixed in implementation; tests assert the `details` fields and that the message contains the path, the received type and each accepted category.
+Messages state the received type, the accepted types, that nothing changed, and the alternative (FR-008, SC-004). The wording is built in `src/file-type/file-type.ts`: `assertSupportedFileType` produces `<tool>: <path> is <a canvas (.canvas) | an attachment (.png) | a ".txt" file | a file with no extension>; <tool> supports <list>. Nothing was changed.` plus ` Use <alternative> for this file instead.` when an alternative exists; `typeChangeError` produces the second example (`the new name` for rename, `the destination` for move). Tests assert the `details` fields, the full message for one case of each reason, and that the message contains the path, the received type and each accepted category.
 
 ## Precedence (research D9)
 

@@ -1,10 +1,16 @@
-// Original — no upstream. write_note handler per ADR-009 — direct-fs-write: specific-mode resolveVaultPath / active-mode focused-file eval → checkCanonicalPath → mkdir → atomic temp+rename (overwrite=true) or wx-flag write (overwrite=false → FILE_EXISTS) → best-effort metadataCache refresh eval on the vault-relative path in the written vault (logged on failure) → optional best-effort openLinkText eval (specific + open=true, vault-relative path, vault=) → return { created, path }. User content NEVER crosses the CLI argv pipe at any size (FR-005, SC-007).
+// Original — no upstream. write_note handler per ADR-009 — direct-fs-write: specific-mode resolveVaultPath / active-mode focused-file eval → note-only file-type check (spec 070: a non-note target is rejected as UNSUPPORTED_FILE_TYPE before any write) → checkCanonicalPath → mkdir → atomic temp+rename (overwrite=true) or wx-flag write (overwrite=false → FILE_EXISTS) → best-effort metadataCache refresh eval on the vault-relative path in the written vault (logged on failure) → optional best-effort openLinkText eval (specific + open=true, vault-relative path, vault=) → return { created, path }. User content NEVER crosses the CLI argv pipe at any size (FR-005, SC-007).
 import { randomUUID } from "node:crypto";
 import * as nodeFs from "node:fs/promises";
 import { dirname } from "node:path";
 
 import { type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
+import {
+  assertSupportedFileType,
+  categoryOf,
+  extensionOf,
+  type FileCategory,
+} from "../../file-type/file-type.js";
 import { assertCanonicalPath, resolveActiveFocusedFile } from "../_active-file.js";
 import { getErrno } from "../_fs-errors.js";
 import { invalidateMetadataCache, openNote, writeAtomic } from "../_note-io.js";
@@ -38,6 +44,9 @@ const DEFAULT_FS: ExecuteFs = {
   realpath: (p) => nodeFs.realpath(p),
   unlink: (p) => nodeFs.unlink(p),
 };
+
+/** The file types `write_note` handles (spec 070): Markdown notes only. */
+export const WRITE_NOTE_SUPPORTED = ["note"] as const satisfies readonly FileCategory[];
 
 // FR-001 / R2 canonical short-form predicate: file is canonical iff it has no
 // folder separator AND does not end in `.md`. Internal periods preserved
@@ -91,8 +100,15 @@ export async function executeWriteNote(
     ({ vaultRoot, relPath } = await resolveActiveFocusedFile(deps, "write_note"));
   } else {
     vaultRoot = await deps.vaultRegistry.resolveVaultPath(input.vault!);
+    // Spec 070: a `file` naming another core type ("Plan.canvas") is rejected rather than
+    // becoming "Plan.canvas.md"; an unrecognised trailing segment stays part of the stem.
+    if (input.file !== undefined && categoryOf(extensionOf(input.file)) !== null) {
+      assertSupportedFileType({ relPath: input.file, supported: WRITE_NOTE_SUPPORTED, toolName: "write_note" });
+    }
     relPath = resolveSpecificModePath(input);
   }
+
+  assertSupportedFileType({ relPath, supported: WRITE_NOTE_SUPPORTED, toolName: "write_note" });
 
   const absPath = await assertCanonicalPath(vaultRoot, relPath, {
     realpath: fs.realpath,

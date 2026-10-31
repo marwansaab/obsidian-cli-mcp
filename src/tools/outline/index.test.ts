@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createOutlineTool, OUTLINE_DESCRIPTION, OUTLINE_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger, stubVaultRegistry } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -17,14 +17,14 @@ afterEach(() => __resetInFlightRegistryForTests());
 describe("createOutlineTool — descriptor", () => {
   // (a) descriptor.name === "outline"
   it("publishes name = 'outline'", () => {
-    const tool = createOutlineTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
+    const tool = createOutlineTool({ logger: silentLogger(), queue: createQueue(), vaultRegistry: stubVaultRegistry(), spawnFn: makeStubSpawn() });
     expect(tool.descriptor.name).toBe(OUTLINE_TOOL_NAME);
     expect(tool.descriptor.name).toBe("outline");
   });
 
   // (c) OUTLINE_DESCRIPTION is published verbatim
   it("publishes OUTLINE_DESCRIPTION verbatim", () => {
-    const tool = createOutlineTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
+    const tool = createOutlineTool({ logger: silentLogger(), queue: createQueue(), vaultRegistry: stubVaultRegistry(), spawnFn: makeStubSpawn() });
     expect(tool.descriptor.description).toBe(OUTLINE_DESCRIPTION);
   });
 
@@ -40,7 +40,7 @@ describe("createOutlineTool — descriptor", () => {
     const { spawnFn } = makeQueuedSpawn([{ stdout: upstream + "\n", exitCode: 0 }]);
     const tool = createOutlineTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), vaultRegistry: stubVaultRegistry(),
       spawnFn,
     });
     const result = await tool.handler({

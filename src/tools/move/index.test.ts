@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createMoveTool, MOVE_DESCRIPTION, MOVE_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { makeStubSpawn as makeSuccessSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { makeStubSpawn as makeSuccessSpawn, silentLogger, stubVaultRegistry } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -19,7 +19,7 @@ describe("createMoveTool — descriptor", () => {
   it("publishes name = 'move' and description verbatim (Story 7 AC#1)", () => {
     const tool = createMoveTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), vaultRegistry: stubVaultRegistry(),
       spawnFn: makeStubSpawn(),
     });
     expect(tool.descriptor.name).toBe(MOVE_TOOL_NAME);
@@ -31,7 +31,7 @@ describe("createMoveTool — descriptor", () => {
   it("emits a post-010 inputSchema with no oneOf (Story 7 AC#1/AC#2)", () => {
     const tool = createMoveTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), vaultRegistry: stubVaultRegistry(),
       spawnFn: makeStubSpawn(),
     });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
@@ -42,7 +42,7 @@ describe("createMoveTool — descriptor", () => {
   it("description names 'move' AND surfaces the link-rewriting caveat (Story 7 AC#3, FR-012)", () => {
     const tool = createMoveTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), vaultRegistry: stubVaultRegistry(),
       spawnFn: makeStubSpawn(),
     });
     const desc = tool.descriptor.description;
@@ -63,7 +63,7 @@ describe("createMoveTool — descriptor", () => {
     });
     const tool = createMoveTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), vaultRegistry: stubVaultRegistry(),
       spawnFn,
     });
     const result = await tool.handler({
@@ -90,7 +90,7 @@ describe("createMoveTool — descriptor", () => {
 
 describe("docs/tools/move.md exists and is non-stub (Story 7 AC#4 / FR-014 / SC-006 LOAD-BEARING)", () => {
   // Case 4 — docs file resolves, non-stub, contains required error codes + examples + caveats + to-shape rules
-  it("docs file resolves via import.meta.url, has no TODO/stub marker, contains 5 error codes + active-mode ERR_NO_ACTIVE_FILE note + to-shape rules + source-`.md`-guard explanation + rename-equivalence + ≥4 examples + link-rewriting caveat (Story 7 AC#4)", () => {
+  it("docs file resolves via import.meta.url, has no TODO/stub marker, contains 5 error codes + active-mode ERR_NO_ACTIVE_FILE note + to-shape rules + type-preservation explanation + rename-equivalence + ≥4 examples + link-rewriting caveat (Story 7 AC#4)", () => {
     const docsPath = resolve(
       dirname(fileURLToPath(import.meta.url)),
       "../../../docs/tools/move.md",
@@ -121,8 +121,10 @@ describe("docs/tools/move.md exists and is non-stub (Story 7 AC#4 / FR-014 / SC-
     // (e) `to`-shape rules section with trailing-`/` discriminator surprise-case guidance
     expect(body.toLowerCase()).toMatch(/trailing.*\/|trailing slash/);
     expect(body).toMatch(/ALWAYS include trailing/i);
-    // (f) source-`.md`-guard explanation
-    expect(body).toMatch(/source.*\.md.*guard|\.md.*source.*guard|source-`?\.md`?/i);
+    // (f) type-preservation explanation (spec 070 replaced the source-`.md` guard)
+    expect(body).toMatch(/keeps its type/i);
+    expect(body).toContain("UNSUPPORTED_FILE_TYPE");
+    expect(body).toContain("type-change");
     // (g) rename-equivalence note
     expect(body.toLowerCase()).toContain("rename");
   });

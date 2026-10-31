@@ -13,7 +13,7 @@ The four core file categories (spec Key Entities: Core file type).
 | `note` | `md` |
 | `canvas` | `canvas` |
 | `base` | `base` |
-| `attachment` | images `avif bmp gif jpeg jpg png svg webp`; audio `flac m4a mp3 ogg wav webm 3gp`; video `mkv mov mp4 ogv`; `pdf` |
+| `attachment` | images `avif bmp gif jpeg jpg png svg webp`; audio `flac m4a mp3 oga ogg opus wav webm 3gp`; video `mkv mov mp4 ogv`; `pdf` |
 
 Any other extension, or none, classifies as `null` (not a core type). The table lives once, in `src/file-type/file-type.ts` (research D1, D8). T0 gate P3 cross-checks it against the running Obsidian version.
 
@@ -48,11 +48,13 @@ Inputs: resolved source `relPath`; destination file name (rename `name`; move fi
 ```
 srcExt = extensionOf(source); dstExt = extensionOf(destination)
 if categoryOf(dstExt) != null and lower(dstExt) != lower(srcExt)  → reject type-change
-elif source is a note  and destination endsWith ".md" (byte-exact)  → forward verbatim
-elif source not a note and lower(dstExt) == lower(srcExt) and srcExt != "" → forward verbatim
 elif srcExt == ""                                                     → forward verbatim
+elif srcExt == "md" (exact)  and destination endsWith ".md" (byte-exact) → forward verbatim
+elif srcExt != "md" (exact)  and lower(dstExt) == lower(srcExt)         → forward verbatim
 else                                                                  → forward destination + "." + srcExt
 ```
+
+Implementation note (`resolveDestinationName` in `src/file-type/file-type.ts`): the byte-exact branch applies to a source whose extension is exactly lower-case `md`, which is every row FR-012 protects. A note stored as `.MD` takes the case-insensitive branch like every other type, so `New.MD` is forwarded as is instead of becoming `New.MD.MD` (FR-005, no doubling).
 
 Move with `to` ending in `/` → `to + basename(source)` (unchanged).
 

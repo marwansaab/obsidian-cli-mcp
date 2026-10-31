@@ -11,7 +11,7 @@ The spec and its clarify session settled the behavioural contract: rename and mo
 
 **Decision**: Add `src/file-type/file-type.ts` (plus `file-type.test.ts`), a leaf module with no imports beyond `src/errors.ts`. It holds:
 
-- the core extension table, grouped by category: `note` → `md`; `canvas` → `canvas`; `base` → `base`; `attachment` → the image, audio, video and PDF extensions Obsidian opens natively (`avif bmp gif jpeg jpg png svg webp`, `flac m4a mp3 ogg wav webm 3gp`, `mkv mov mp4 ogv`, `pdf`);
+- the core extension table, grouped by category: `note` → `md`; `canvas` → `canvas`; `base` → `base`; `attachment` → the image, audio, video and PDF extensions Obsidian opens natively (`avif bmp gif jpeg jpg png svg webp`, `flac m4a mp3 oga ogg opus wav webm 3gp` (`oga` and `opus` added after T0 P5), `mkv mov mp4 ogv`, `pdf`);
 - `extensionOf(path)` — the substring after the last `.` of the final path segment, or `""` when there is none;
 - `categoryOf(ext)` — case-insensitive lookup returning `"note" | "canvas" | "base" | "attachment" | null` (`null` = not a core type);
 - `assertSupportedFileType(relPath, supported, toolName, alternative?)` — throws the D4 rejection when `categoryOf(extensionOf(relPath))` is not in `supported`.

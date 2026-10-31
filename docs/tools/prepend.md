@@ -6,6 +6,8 @@
 
 When the target note has a YAML frontmatter block (opening `---`, body, closing `---`), the prepended content lands IMMEDIATELY AFTER the closing `---` and the frontmatter is preserved byte-for-byte. When no frontmatter is present, the content lands at byte zero. This eliminates the read-then-rewrite cycle for adding a TL;DR line, a status block, or a header pre-amble, and eliminates the metadata-corruption risk of a naive byte-zero prepend that would tear the YAML frontmatter apart.
 
+**Supported file types: notes only.** Note text prepended to a canvas, base or attachment would corrupt it, so a target of any other type is rejected with `VALIDATION_ERROR` + `details.code: "UNSUPPORTED_FILE_TYPE"` before the `prepend` call (spec 070).
+
 ## When to use this tool
 
 | You want to | Reach for |
@@ -141,6 +143,8 @@ Wikilink-form brackets are rejected at the schema layer: `[[…]]` pairs trigger
 
 Active mode (`target_mode: "active"`) supplies neither `file` nor `path`; the wrapper resolves the currently-focused note via eval.
 
+**File-type check.** Once the target is known — the `path` as given, the path the `file` resolver returned, or the focused file's path — the wrapper checks that it is a `.md` note (matched case-insensitively). A canvas, base, attachment, extensionless path or any other file is rejected with `UNSUPPORTED_FILE_TYPE` before the pre-edit size check and the `prepend` call. Resolution failures (`VAULT_NOT_FOUND`, a `file` name that does not resolve, `ERR_NO_ACTIVE_FILE`) surface first. For a `path` the check runs before any existence check, so a missing `Boards/Plan.canvas` reports `UNSUPPORTED_FILE_TYPE`, not `NOTE_NOT_FOUND`. Example message: `prepend: Boards/Plan.canvas is a canvas (.canvas); prepend supports notes. Nothing was changed.`
+
 ## Output envelope
 
 ```typescript
@@ -163,6 +167,7 @@ interface PrependOutput {
 | `VALIDATION_ERROR` | `details.code: CONTENT_EMPTY` | Empty content. | Supply non-empty content. |
 | `VALIDATION_ERROR` | `details.code: CONTENT_TOO_LARGE` | Content > 3072 UTF-16 code units. | Use [`write_note`](./write_note.md) for larger payloads. See *Size ceiling*. |
 | `VALIDATION_ERROR` | (Zod issue path on the offending field) | Bracket-rejection on `file`, locator-mutex (`file` AND `path`), unknown extra field, structural path safety, type mismatch on `inline`. | Read `details.issues[].message` for the field-level fix. |
+| `VALIDATION_ERROR` | `details.code: UNSUPPORTED_FILE_TYPE`, `details.reason: "unsupported-type"` | The resolved target is not a `.md` note (a canvas, base, attachment, extensionless path or other file). Raised before the `prepend` call. `details` also carries `path` (the resolved vault-relative path), `extension` (original case, `""` if none) and `supported: ["note"]`. | Nothing was changed. Target a `.md` note. |
 | `CLI_REPORTED_ERROR` | `details.code: NOTE_NOT_FOUND` | The target file does not exist. | Recheck the path. Use [`write_note`](./write_note.md) if you meant to create a new note (`prepend` does NOT auto-create). |
 | `CLI_REPORTED_ERROR` | `details.code: EXTERNAL_EDITOR_CONFLICT`, `details.reason: "file-locked"` | The target file is held open by an external editor. | Ask the user to save and close the file in the editor, then retry. |
 | `CLI_REPORTED_ERROR` | `details.stage: "prepend-cli"` (generic) | Unrecognised upstream failure. | Inspect `details.stdout` / `details.stderr` for diagnosis. |

@@ -1,8 +1,9 @@
-// Original — no upstream. prepend handler per BI-045 — CLI-wrap of upstream `obsidian prepend` (cohort divergence from BI-044's fs-direct; rationale in research.md R1). Specific-mode vault-registry resolve (+ pre-flight `obsidian file` TSV resolver for wikilink-form `file`) OR active-mode focused-file eval → Layer 2 canonical path check → stat (pre) → invokeCli prepend with optional `inline` flag → stat (post) → bytes_written delta → typed output envelope. NOTE_NOT_FOUND (FR-016) + EXTERNAL_EDITOR_CONFLICT (FR-022) re-classification on upstream stdout/stderr inspection. No fs read/write/rename — upstream owns the byte-level write; the wrapper only stats for the byte-count delta + realpath for Layer 2.
+// Original — no upstream. prepend handler per BI-045 — CLI-wrap of upstream `obsidian prepend` (cohort divergence from BI-044's fs-direct; rationale in research.md R1). Specific-mode vault-registry resolve (+ pre-flight `obsidian file` TSV resolver for wikilink-form `file`) OR active-mode focused-file eval → note-only file-type check (spec 070: a non-note target is rejected as UNSUPPORTED_FILE_TYPE before the stat and the CLI call) → Layer 2 canonical path check → stat (pre) → invokeCli prepend with optional `inline` flag → stat (post) → bytes_written delta → typed output envelope. NOTE_NOT_FOUND (FR-016) + EXTERNAL_EDITOR_CONFLICT (FR-022) re-classification on upstream stdout/stderr inspection. No fs read/write/rename — upstream owns the byte-level write; the wrapper only stats for the byte-count delta + realpath for Layer 2.
 import * as nodeFs from "node:fs/promises";
 
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError, stringDetail } from "../../errors.js";
+import { assertSupportedFileType, type FileCategory } from "../../file-type/file-type.js";
 import {
   assertCanonicalPath,
   resolveActiveLocatorWithVault,
@@ -123,6 +124,9 @@ function classifyUpstreamFailure(
   });
 }
 
+/** The file types `prepend` handles (spec 070): Markdown notes only. */
+export const PREPEND_SUPPORTED = ["note"] as const satisfies readonly FileCategory[];
+
 async function resolveLocator(
   input: PrependInput,
   deps: ExecuteDeps,
@@ -152,6 +156,8 @@ export async function executePrepend(
   const fs = deps.fs ?? DEFAULT_FS;
 
   const { vaultRoot, relPath, vaultDisplayName } = await resolveLocator(input, deps);
+  // Spec 070: note text written into a canvas, base or attachment corrupts it; reject before the stat and the prepend call.
+  assertSupportedFileType({ relPath, supported: PREPEND_SUPPORTED, toolName: "prepend" });
 
   const absPath = await assertCanonicalPath(vaultRoot, relPath, {
     realpath: fs.realpath,

@@ -1,26 +1,25 @@
-// Original — no upstream. rename handler: thin transformer routing parsed input through invokeCli — appendMdIfMissing helper per /speckit-clarify Q1, parseRenameResponse regex locked against T0 capture.
+// Original — no upstream. rename handler: thin transformer routing parsed input through invokeCli — resolves the source (spec 070 research D3) and applies the type-preservation rule to `name` (resolveDestinationName: keep the source's extension, reject a change to another recognised type), then forwards the original `file=` / `path=` or, in active mode, the resolved `path=` in specific mode; parseRenameResponse regex locked against T0 capture.
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
+import { resolveDestinationName } from "../../file-type/file-type.js";
+import { forwardedLocator, resolveFileTarget } from "../_file-target.js";
 
 import type { RenameNoteInput, RenameNoteOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
+import type { VaultRegistry } from "../../vault-registry/registry.js";
 
 export interface ExecuteDeps extends CallScope {
   logger: Logger;
   queue: Queue;
+  vaultRegistry: VaultRegistry;
   spawnFn?: SpawnLike;
   env?: NodeJS.ProcessEnv;
 }
 
-// /speckit-clarify Q1 (locked 2026-05-12) — mirrors 020-fix-write-gaps R2's
-// `endsWith(".md")` predicate exactly. Literal byte equality, case-sensitive.
-function appendMdIfMissing(name: string): string {
-  return name.endsWith(".md") ? name : name + ".md";
-}
-
 // Locked at T0 (F2/F12) — see research.md ## T0 Live-CLI Capture (2026-05-12).
-// CLI emits `Renamed: <fromPath> -> <toPath>` on success (ASCII arrow, bare paths).
+// CLI emits `Renamed: <fromPath> -> <toPath>` on success (ASCII arrow, bare paths); spec 070 T0 P1
+// confirmed the same shape for canvas, base and attachment sources.
 const RESPONSE_RE = /^Renamed: (.+?) -> (.+?)\s*$/m;
 
 function parseRenameResponse(stdout: string): { fromPath: string; toPath: string } {
@@ -38,23 +37,11 @@ export async function executeRenameNote(
   input: RenameNoteInput,
   deps: ExecuteDeps,
 ): Promise<RenameNoteOutput> {
-  const forwardedName = appendMdIfMissing(input.name);
-  const parameters: Record<string, string> =
-    input.target_mode === "specific"
-      ? {
-          ...(input.file !== undefined ? { file: input.file } : {}),
-          ...(input.path !== undefined ? { path: input.path } : {}),
-          name: forwardedName,
-        }
-      : { name: forwardedName };
+  const target = await resolveFileTarget(input, deps, "rename");
+  const name = resolveDestinationName({ relPath: target.relPath, destination: input.name, toolName: "rename" });
+  const { vault, parameters } = forwardedLocator(input, target);
   const { stdout } = await invokeCli(
-    {
-      command: "rename",
-      vault: input.target_mode === "specific" ? input.vault! : undefined,
-      parameters,
-      flags: [],
-      target_mode: input.target_mode,
-    },
+    { command: "rename", vault, parameters: { ...parameters, name }, flags: [], target_mode: "specific" },
     deps,
   );
   const { fromPath, toPath } = parseRenameResponse(stdout);

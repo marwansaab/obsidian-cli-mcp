@@ -48,4 +48,81 @@
 
 ## Evidence
 
-_To be filled at `/speckit-implement` T0 with verbatim CLI output, binary path and version, and the cleanup record._
+Run 2026-10-31 against `TestVault-Obsidian-CLI-MCP`, fixtures under `Sandbox/070-t0a/`. Binary: `C:\Users\sirzi\AppData\Local\Programs\Obsidian\Obsidian.com` (bare `obsidian`), `obsidian version` → `1.14.5 (installer 1.14.4)`. Every invocation passed `vault=TestVault-Obsidian-CLI-MCP`. All replies arrived on stdout; stderr was empty and the exit code was 0 for every call, including the `Error:` replies.
+
+### P1 — rename / move extension behaviour: PASS (no fallback)
+
+```text
+rename path=Sandbox/070-t0a/P.canvas name=Q
+Renamed: Sandbox/070-t0a/P.canvas -> Sandbox/070-t0a/Q.canvas
+rename path=Sandbox/070-t0a/Q.canvas name=R.canvas
+Renamed: Sandbox/070-t0a/Q.canvas -> Sandbox/070-t0a/R.canvas
+move path=Sandbox/070-t0a/R.canvas to=Sandbox/070-t0a/Sub/S
+Error: ENOENT: no such file or directory, rename 'C:\…\Sandbox\070-t0a\R.canvas' -> 'C:\…\Sandbox\070-t0a\Sub\S\R.canvas'
+rename path=Sandbox/070-t0a/T.base name=U
+Renamed: Sandbox/070-t0a/T.base -> Sandbox/070-t0a/U.base
+rename path=Sandbox/070-t0a/I.png name=J
+Renamed: Sandbox/070-t0a/I.png -> Sandbox/070-t0a/J.png
+move path=Sandbox/070-t0a/U.base to=Sandbox/070-t0a/Sub/
+Moved: Sandbox/070-t0a/U.base -> Sandbox/070-t0a/Sub/U.base
+move path=Sandbox/070-t0a/J.png to=Sandbox/070-t0a/Sub/K.png
+Moved: Sandbox/070-t0a/J.png -> Sandbox/070-t0a/Sub/K.png
+move path=Sandbox/070-t0a/R.canvas to=Sandbox/070-t0a/Sub/S.canvas
+Moved: Sandbox/070-t0a/R.canvas -> Sandbox/070-t0a/Sub/S.canvas
+rename path=Sandbox/070-t0a/Sub/S.canvas name=X.md
+Renamed: Sandbox/070-t0a/Sub/S.canvas -> Sandbox/070-t0a/Sub/X.md
+rename path=Sandbox/070-t0a/Sub/X.md name=S.canvas
+(empty stdout; the file became Sub/S.canvas)
+```
+
+Findings: the CLI's `rename` keeps the source extension for an extensionless name, so the D5 append step is redundant for rename but harmless. The CLI's `move` treats an extensionless `to` as a **folder** (`Sub/S` → `Sub/S/R.canvas`, ENOENT when the folder does not exist), so for move the D5 append step is required, not just harmless: it turns `to: "Archive/Plan2"` on a canvas into the file `Archive/Plan2.canvas`, as the existing source-`.md` guard already does for notes. The CLI does not refuse a cross-type name in either direction (canvas → `X.md`, `.md` → `S.canvas`), which confirms the `type-change` rejection must live in the wrapper. Response lines for canvas, base and attachment sources have the same `Renamed: <from> -> <to>` / `Moved: <from> -> <to>` shape the existing parsers match; no parser change.
+
+### P2 — `obsidian file` resolution of non-note names: PASS (no fallback)
+
+```text
+file file=P.canvas   → path	Sandbox/070-t0a/P.canvas / name	P / extension	canvas / size	23 / created … / modified …
+file file=P          → Error: File "P" not found.
+file file=T.base     → path	Sandbox/070-t0a/T.base / extension	base
+file file=I.png      → path	Sandbox/070-t0a/I.png / extension	png
+file file=I          → Error: File "I" not found.
+file file=N          → path	Sandbox/070-t0a/N.md / extension	md
+```
+
+Names with their extension resolve to the right non-note file; extensionless names resolve only to `.md` notes (and fail otherwise). `resolveFileByTsv` works unchanged for non-note files.
+
+### P3 — focused-file eval on non-note views: PASS (no fallback)
+
+```text
+open path=Sandbox/070-t0a/Sub/S.canvas ; eval FOCUSED_FILE_TEMPLATE
+=> {"path":"Sandbox/070-t0a/Sub/S.canvas","base":"C:\\Marwan-Saab-ADO\\My-Setup\\My-Setup\\TestVault-Obsidian-CLI-MCP"}
+open path=Sandbox/070-t0a/Sub/U.base   → Opened: Sandbox/070-t0a/Sub/U.base
+=> {"path":"Sandbox/070-t0a/Sub/U.base","base":"C:\\…\\TestVault-Obsidian-CLI-MCP"}
+open path=Sandbox/070-t0a/Sub/K.png    → Opened: Sandbox/070-t0a/Sub/K.png
+=> {"path":"Sandbox/070-t0a/Sub/K.png","base":"C:\\…\\TestVault-Obsidian-CLI-MCP"}
+```
+
+The eval reports the real path, with its extension, for canvas, base and image views.
+
+### P4 — before-state of `read` / `outline`: as expected
+
+```text
+read path=Sandbox/070-t0a/P.canvas   → {"nodes":[],"edges":[]}
+read path=Sandbox/070-t0a/T.base     → views: []
+read path=Sandbox/070-t0a/I.png      → \r\n<U+FFFD>PNG\r\n\x1a\n\0\0\0\rIHDR… (binary decoded as text, signature byte replaced)
+outline path=Sandbox/070-t0a/P.canvas → Error: File is not a markdown file.
+outline path=Sandbox/070-t0a/T.base   → Error: File is not a markdown file.
+outline path=Sandbox/070-t0a/I.png    → Error: File is not a markdown file.
+```
+
+### P5 — attachment table vs. `app.viewRegistry`: DIFFERENCE, table updated
+
+```text
+eval code=JSON.stringify(Object.keys(app.viewRegistry.typeByExtension))
+=> ["md","bmp","png","jpg","jpeg","gif","svg","webp","avif","mp3","wav","m4a","3gp","flac","ogg","oga","opus","mp4","webm","ogv","mov","mkv","pdf","canvas","base"]
+```
+
+The registry has two audio extensions the D1 table lacked: `oga` and `opus`. Fallback taken: both added to the attachment row in research.md D1 and data-model.md `FileCategory`, and to the table in `src/file-type/file-type.ts`. Every other entry matches.
+
+### Cleanup
+
+`Sandbox/070-t0a/` (fixtures `P.canvas`, `T.base`, `I.png`, `N.md` and their renamed/moved forms) removed after the run; `Sandbox/` is back to its pre-run listing; no `.trash/` folder exists in the vault (no probe trashed anything); `Welcome.md` untouched.

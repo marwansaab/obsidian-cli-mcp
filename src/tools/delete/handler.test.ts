@@ -286,3 +286,44 @@ describe("permanent delete confirmation (068 R12, T079)", () => {
     expect(recorded).toHaveLength(1);
   });
 });
+
+// Spec 070 FR-003: delete works on every file type; the path is forwarded unchanged and no
+// file-type rejection applies.
+describe("spec 070 — delete accepts every file type", () => {
+  test.each([
+    ["Boards/Plan.canvas", false, "Moved to trash: Boards/Plan.canvas\n"],
+    ["Att/photo.png", true, "Deleted permanently: Att/photo.png\n"],
+  ])("path=%s (permanent=%s) is forwarded unchanged", async (path, permanent, stdout) => {
+    const { spawnFn, recorded } = makeStubSpawn({ stdout, exitCode: 0 });
+    const result = await executeDeleteNote(
+      { target_mode: "specific", vault: "MyVault", path, permanent },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      answeredCall("delete"),
+    );
+    expect(result).toEqual({ deleted: true, path, toTrash: !permanent });
+    expect(recorded[0]!.argv.slice(0, 3)).toEqual(["vault=MyVault", "delete", `path=${path}`]);
+  });
+
+  test.each(["Plan.canvas", "photo.png"])("file=%s is forwarded unchanged", async (file) => {
+    const { spawnFn, recorded } = makeStubSpawn({ stdout: `Moved to trash: X/${file}\n`, exitCode: 0 });
+    const result = await executeDeleteNote(
+      { target_mode: "specific", vault: "MyVault", file, permanent: false },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    );
+    expect(result).toEqual({ deleted: true, path: `X/${file}`, toTrash: true });
+    expect(recorded[0]!.argv).toContain(`file=${file}`);
+  });
+
+  test("a CLI not-found reply for a missing attachment surfaces its existing error, not a file-type rejection", async () => {
+    const { spawnFn } = makeStubSpawn({ stdout: 'Error: File "Att/missing.png" not found.\n', exitCode: 0 });
+    const err = (await captureRejection(
+      executeDeleteNote(
+        { target_mode: "specific", vault: "MyVault", path: "Att/missing.png", permanent: false },
+        { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      ),
+    )) as UpstreamError;
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.details.message).toBe('Error: File "Att/missing.png" not found.');
+    expect(err.details.code).not.toBe("UNSUPPORTED_FILE_TYPE");
+  });
+});

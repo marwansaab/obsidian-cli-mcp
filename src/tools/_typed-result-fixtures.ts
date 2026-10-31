@@ -185,7 +185,11 @@ export const TYPED_RESULT_FIXTURES: readonly TypedResultFixture[] = [
   },
   {
     name: "move",
-    build: () => createMoveTool(cli(out("Moved: Inbox/Tax-2026.md → Archive/Tax-2026.md\n"))),
+    build: () =>
+      createMoveTool({
+        ...cli(out("Moved: Inbox/Tax-2026.md → Archive/Tax-2026.md\n")),
+        vaultRegistry: registryAt("/vaults/MyVault"),
+      }),
     args: { target_mode: "specific", vault: "MyVault", path: "Inbox/Tax-2026.md", to: "Archive/" },
   },
   {
@@ -200,9 +204,10 @@ export const TYPED_RESULT_FIXTURES: readonly TypedResultFixture[] = [
   {
     name: "outline",
     build: () =>
-      createOutlineTool(
-        cli(out(JSON.stringify([{ level: 1, heading: "Top", line: 1 }, { level: 2, heading: "Sub A", line: 3 }]) + "\n")),
-      ),
+      createOutlineTool({
+        ...cli(out(JSON.stringify([{ level: 1, heading: "Top", line: 1 }, { level: 2, heading: "Sub A", line: 3 }]) + "\n")),
+        vaultRegistry: registryAt("/vaults/Demo"),
+      }),
     args: { target_mode: "specific", vault: "Demo", path: "Notes/x.md" },
   },
   {
@@ -277,7 +282,11 @@ export const TYPED_RESULT_FIXTURES: readonly TypedResultFixture[] = [
   },
   {
     name: "rename",
-    build: () => createRenameTool(cli(out("Renamed: Inbox/focused.md -> Inbox/Today.md\n"))),
+    build: () =>
+      createRenameTool({
+        ...cli(evalOut({ path: "Inbox/focused.md", base: "/vaults/Work" }), out("Renamed: Inbox/focused.md -> Inbox/Today.md\n")),
+        vaultRegistry: registryAt("/vaults/Work"),
+      }),
     args: { target_mode: "active", name: "Today" },
   },
   {

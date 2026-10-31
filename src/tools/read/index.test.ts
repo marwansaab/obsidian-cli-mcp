@@ -4,7 +4,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createReadTool, READ_DESCRIPTION, READ_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import {
+  fileTsvResponse,
+  focusedFileResponse,
+  makeQueuedSpawn,
+  silentLogger,
+  stubVaultRegistry,
+} from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -12,13 +18,13 @@ afterEach(() => __resetInFlightRegistryForTests());
 
 describe("createReadTool — descriptor", () => {
   it("publishes the documented name + description verbatim", () => {
-    const tool = createReadTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
+    const tool = createReadTool({ logger: silentLogger(), queue: createQueue(), vaultRegistry: stubVaultRegistry(), spawnFn: makeStubSpawn() });
     expect(tool.descriptor.name).toBe(READ_TOOL_NAME);
     expect(tool.descriptor.description).toBe(READ_DESCRIPTION);
   });
 
   it("publishes inputSchema as a post-010 flat object with target_mode/vault/file/path properties and additionalProperties: false", () => {
-    const tool = createReadTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
+    const tool = createReadTool({ logger: silentLogger(), queue: createQueue(), vaultRegistry: stubVaultRegistry(), spawnFn: makeStubSpawn() });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
     expect(schema.type).toBe("object");
     expect(schema.oneOf).toBeUndefined();
@@ -35,8 +41,9 @@ describe("createReadTool — handler integration via registerTool", () => {
   it("specific+file happy path wraps content in JSON-stringified envelope", async () => {
     const tool = createReadTool({
       logger: silentLogger(),
-      queue: createQueue(),
-      spawnFn: makeStubSpawn({ stdout: "# Note body\n", exitCode: 0 }),
+      queue: createQueue(), vaultRegistry: stubVaultRegistry(),
+      // Spec 070: the `obsidian file` resolution call precedes the read.
+      spawnFn: makeQueuedSpawn([fileTsvResponse("Note.md"), { stdout: "# Note body\n", exitCode: 0 }]).spawnFn,
       env: {},
     });
     const result = (await tool.handler({ target_mode: "specific", vault: "MyVault", file: "Note" })) as {
@@ -49,8 +56,9 @@ describe("createReadTool — handler integration via registerTool", () => {
   it("active happy path wraps stdout content (FR-021 reach: no locator)", async () => {
     const tool = createReadTool({
       logger: silentLogger(),
-      queue: createQueue(),
-      spawnFn: makeStubSpawn({ stdout: "<active body>", exitCode: 0 }),
+      queue: createQueue(), vaultRegistry: stubVaultRegistry(),
+      // Spec 070: the focused-file eval precedes the read.
+      spawnFn: makeQueuedSpawn([focusedFileResponse("Today.md"), { stdout: "<active body>", exitCode: 0 }]).spawnFn,
       env: {},
     });
     const result = (await tool.handler({ target_mode: "active" })) as {
@@ -61,7 +69,7 @@ describe("createReadTool — handler integration via registerTool", () => {
   });
 
   it("VALIDATION_ERROR for invalid input (specific without locator)", async () => {
-    const tool = createReadTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
+    const tool = createReadTool({ logger: silentLogger(), queue: createQueue(), vaultRegistry: stubVaultRegistry(), spawnFn: makeStubSpawn() });
     const result = (await tool.handler({ target_mode: "specific", vault: "MyVault" })) as {
       isError?: boolean;
       content: { type: string; text: string }[];
