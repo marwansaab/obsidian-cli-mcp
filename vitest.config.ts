@@ -11,7 +11,6 @@ export default defineConfig({
       include: ["src/**"],
       exclude: [
         "src/**/*.test.ts",
-        "src/**/graphify-out/**",
         // Non-production surface excluded from the coverage denominator (coverage-gap
         // analysis 2026-05-30): static data fixtures and test-support helpers
         // (fixtures / spawn stubs / schema utils) consumed only by *.test.ts.

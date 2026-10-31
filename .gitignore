@@ -156,4 +156,7 @@ vite.config.ts.timestamp-*
 
 # Scratch witnesses
 .scratch/
-graphify-out/
+
+# Code index (CLAUDE.md, "Code index"). CodeGraph indexes the code from the
+# repository root; the index is derived and rebuilds from the sources.
+.codegraph/

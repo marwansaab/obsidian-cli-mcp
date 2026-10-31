@@ -1,0 +1,3 @@
+{
+  "exclude": ["specs/", ".specify/"]
+}

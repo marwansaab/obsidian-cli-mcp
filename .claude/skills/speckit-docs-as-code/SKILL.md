@@ -1,10 +1,10 @@
 ---
 name: speckit-docs-as-code
 description: Document the system as built — invocation IS consent. With a PR number, reads the reviewed PR, writes the .docs-as-code/ pages and corrects the shipped docs it made wrong, commits them onto the PR's own branch and pushes so the documentation merges with the code. With no argument, baselines the whole repository (or, once a baseline exists, audits it for drift) and commits on the current branch.
-compatibility: Requires an authenticated `gh` CLI for PR mode, .specify/memory/constitution.md for the principles the pages must not restate, CONTRIBUTING.md for the commit-message convention, and the graphify skill for the post-commit graph refresh
+compatibility: Requires an authenticated `gh` CLI for PR mode, .specify/memory/constitution.md for the principles the pages must not restate, and CONTRIBUTING.md for the commit-message convention
 metadata:
   author: marwansaab
-  source: ported 2026-10-24 from Slipwright-Dependencies' speckit-docs-as-code. Adapted for this repository — PR mode targets main under the protect-main ruleset; no-argument mode does the baseline and drift audit that the original deliberately left out; new ADRs continue the project-wide ADR-NNN series in a tracked tree because .decisions/ is gitignored; docs/tools/** is shipped package content asserted by tests; commit messages follow CONTRIBUTING.md; the graphify semantic layer is refreshed after every docs commit.
+  source: ported 2026-10-24 from Slipwright-Dependencies' speckit-docs-as-code. Adapted for this repository — PR mode targets main under the protect-main ruleset; no-argument mode does the baseline and drift audit that the original deliberately left out; new ADRs continue the project-wide ADR-NNN series in a tracked tree because .decisions/ is gitignored; docs/tools/** is shipped package content asserted by tests; commit messages follow CONTRIBUTING.md.
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -17,7 +17,7 @@ disable-model-invocation: true
 ```
 
 Treat the invocation as **full consent** to read, write documentation, commit,
-push where the mode calls for it, refresh the graph, and report. Do not pause
+push where the mode calls for it, and report. Do not pause
 for approval of the pages. Report in one line and stop.
 
 ## Where this sits in the workflow
@@ -40,7 +40,7 @@ describes a change is reviewed in the same pull request as the change. A PR
 whose code moved and whose documentation did not is not "Done".
 
 **Why a tracked tree at all.** This repository's ADRs and architecture notes
-(`.decisions/`, `.architecture/`) and the knowledge graph (`graphify-out/`) are
+(`.decisions/`, `.architecture/`) and the code index (`.codegraph/`) are
 gitignored. They are the maintainer's working notes, they may not exist on a
 given machine, and nothing in them reaches a reader of the GitHub repository.
 `.docs-as-code/` is the part that ships with the code.
@@ -287,9 +287,9 @@ it — the next reader is less likely to repeat the mistake.
   for. Where something is deliberately incomplete, name it and say why.
 - **Reference identifiers natively**: `BI-NNN`, `FR-NNN`, `SC-NNN`, `TNNN`,
   `RNN`, `ADR-NNN`, `PR #NN`, short SHAs, `src/path.ts:LINE`.
-- **Cite structure by role, not by count** (CLAUDE.md): "among the top
-  god-nodes", "the boot-time DI factory". Never embed degree counts, community
-  IDs, node counts or test counts in a page — they drift.
+- **Cite structure by role, not by count** (CLAUDE.md): "among the
+  most-depended-on symbols", "the boot-time DI factory". Never embed caller
+  counts, index statistics or test counts in a page — they drift.
 - **Do not restate the constitution or the specs.** Link to
   `.specify/memory/constitution.md` and `specs/*/` instead. A copy drifts.
 - **Never rewrite history.** This skill does not edit `specs/`,
@@ -375,21 +375,15 @@ Do not rewrite the rest of the body, including the Constitution Compliance
 table. It survived review; this skill adds a section and leaves everything
 else as the reviewers left it.
 
-## Step 8 — Refresh the graph, return, report
+## Step 8 — Return, report
 
-1. **Refresh the graph.** If `graphify-out/` exists, run `/graphify --update`
-   from the repository root, after the push — the semantic layer should
-   describe the committed state including the new pages. If `graphify-out/`
-   does not exist on this machine, skip and say so in the report; building
-   the graph from scratch is the user's decision.
-
-2. **Return.** `git switch <original branch from Step 0.3>`. If that was the
+1. **Return.** `git switch <original branch from Step 0.3>`. If that was the
    PR's own branch, stay put and say nothing.
 
-3. **Report in one chat line:**
+2. **Report in one chat line:**
 
    ```
-   PR #<n> (<state>, <head> -> <base>): docs committed <sha> and pushed. Pages: <list>. CI re-running; graph refreshed.
+   PR #<n> (<state>, <head> -> <base>): docs committed <sha> and pushed. Pages: <list>. CI re-running.
    ```
 
    Add a second line only for something the user must act on:
@@ -425,9 +419,8 @@ Survey the whole solution, then write the tree once:
    disagree, the code wins and the gap goes in the report.
 2. **Read the structure.** Use CodeGraph (`codegraph_explore`) for the spines
    and kernel nodes named in CLAUDE.md's *Validated architectural facts*, the
-   tool pipelines, and the error model; use graphify (`/graphify query`,
-   `/graphify explain`) if `graphify-out/` exists. Confirm against the source
-   before writing anything down.
+   tool pipelines, and the error model. Confirm against the source before
+   writing anything down.
 3. **Read the history that explains the shape.** `git log --merges` on
    `main`, and the bodies of the PRs that introduced each pipeline and each
    cohort (`gh pr view <n>`). Cite them inline.
@@ -460,11 +453,10 @@ Find drift between the pages and the code since the baseline, and extend:
 4. Commit as `docs(docs-as-code): document <what> since <short-sha>`, body
    listing the PRs caught up and any claims corrected.
 
-Repository mode runs Step 5's verification, then Step 8's graph refresh, and
-reports:
+Repository mode runs Step 5's verification and reports:
 
 ```
-<Baseline|Audit> on <branch>: docs committed <sha>, not pushed. Pages: <list>. Graph refreshed.
+<Baseline|Audit> on <branch>: docs committed <sha>, not pushed. Pages: <list>.
 ```
 
 ## What this skill does NOT do
@@ -500,9 +492,8 @@ reports:
   said and stop.
 - **Branch was force-pushed since the read** — stop, as in Step 3.
 - **`.docs-as-code/` missing in PR mode** — stop, as in Step 1.3.
-- **`graphify-out/` or `.decisions/` missing on this machine** — carry on.
-  Number ADRs from the tracked sources, skip the graph refresh, and say both
-  in the report.
+- **`.decisions/` missing on this machine** — carry on. Number ADRs from the
+  tracked sources and say so in the report.
 - **PR touches only `specs/`, `.specify/`, or `.claude/`** — usually nothing
   to document; those trees are records, rules and tooling, not the system.
   Report that conclusion rather than manufacturing a page.
