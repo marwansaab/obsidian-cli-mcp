@@ -317,3 +317,74 @@ Edits:
 > B
 >
 > My earlier I1 answer is replaced: the tool cannot detect a properties-only note without a wrapper-side parser, which FR-005b forbids. Constitution Principle IV rules out A, which stays silent, and C, which makes a false claim.
+
+## 6. review / fix (2026-10-31T12:30:24.103Z)
+
+**Question (verbatim):**
+
+> Review finding 3: prepend now reads the whole note before every call, inline calls included, but an inline call never uses that text (Obsidian's inline write is already exact, research F2). The cost is a full-note read on every inline prepend, plus a new way for inline calls to fail: an unreadable note (any errno except ENOENT) now fails with FS_WRITE_FAILED before Obsidian is called, where before 076 it went through. Skipping that read for inline calls changes behaviour that specs/076-fix-empty-prepend/data-model.md (`before` is read before every call) and contract tests E2/E6 (`readCalls` has length 1 in inline mode) pin. FR-009 (b) allows that failure but does not require it for inline calls.
+>
+> | Option | What changes |
+> |---|---|
+> | A (recommended) | Read the note before the call only when `inline` is false. Inline calls go back to their behaviour before 076: no pre-read and no pre-read failure. The correction gate `before !== null` then excludes inline calls on its own; the size pre-filter stays as the cheap check that skips the read-back. Update data-model.md (the `before` row: read only in default mode, otherwise null), change E2/E6 to assert `readCalls` is empty, add one test that an unreadable note still prepends inline, and add a docs/tools/prepend.md note if the error table names inline. |
+> | B | Keep the current behaviour (the pre-read runs on every call) and record finding 3 as declined in the review notes. |
+>
+> Recommended: A. Inline calls gain nothing from the read, and A brings them back in line with FR-009's base rule (failure behaviour unchanged for any input) instead of relying on the exception. Which option should I take?
+
+**Advisor** (escalate: none):
+
+> A
+>
+> Inline writes are already exact (research F2), so the pre-read gains nothing for them. Skipping it keeps inline calls under FR-009's base rule (failure behaviour unchanged), and BI-0118 is scoped to the defective empty-note and properties-only case only.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0118 - Fix Prepend Empty File FR-009 Divergence.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Constitution.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0118 - Fix Prepend Empty File FR-009 Divergence.md`: Appended a dated audit comment recording review finding 3 answered A: pre-read only in default mode; inline calls go back to their pre-076 behaviour.
+
+**Sent to the step:**
+
+> A
+>
+> Inline writes are already exact (research F2), so the pre-read gains nothing for them. Skipping it keeps inline calls under FR-009's base rule (failure behaviour unchanged), and BI-0118 is scoped to the defective empty-note and properties-only case only.
+
+## 7. record / record-in-vault (2026-10-31T12:35:24.852Z)
+
+**Question (verbatim):**
+
+> The work for job BI-0118 is now a reviewed, documented pull request. Record that on the job's note, following the vault's conventions for backlog items:
+> - the spec branch: 076-fix-empty-prepend
+> - the feature folder in the code repository: specs/076-fix-empty-prepend
+> - the pull request: https://github.com/marwansaab/obsidian-cli-mcp/pull/104 (number 104)
+> - the status that means "in review" in this vault (if the vault has no such status, escalate `decision` with up to 3 choices)
+> - a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0118-2026-10-31 produced it.
+>
+> Dry run: no. In a dry run, change nothing: list each edit you would make in `vault_edits`, starting its change with "Would". Otherwise list each edit you made.
+
+**Advisor** (escalate: none):
+
+> Recorded on BI-0118, the same way as the in-review sibling BI-0115.
+> - Status: `planned` → `in-review`, the backlog-item status meaning "in review" per the Vault Frontmatter Convention vocab (`queued | planned | in-flight | in-review | shipped | deferred | superseded | retired`).
+> - `spec_branch`: `076-fix-empty-prepend`.
+> - The `## Status` section now opens with an "In review — 2026-10-31" paragraph. It links PR #104 (https://github.com/marwansaab/obsidian-cli-mcp/pull/104) and names the spec branch and the feature folder `specs/076-fix-empty-prepend`.
+> - A dated HTML comment at the end of the note says that Relay run obsidian-cli-mcp-bi-0118-2026-10-31 produced PR #104.
+> - `updated` was already 2026-10-31.
+> - Read back the status and the Status section to check them.
+
+Sources: `000-Meta/Vault Frontmatter Convention.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0115 - Fix Read Trailing Newline Normalisation.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0118 - Fix Prepend Empty File FR-009 Divergence.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0118 - Fix Prepend Empty File FR-009 Divergence.md`: Frontmatter status planned → in-review.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0118 - Fix Prepend Empty File FR-009 Divergence.md`: Frontmatter spec_branch set to 076-fix-empty-prepend.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0118 - Fix Prepend Empty File FR-009 Divergence.md`: Added an 'In review — 2026-10-31' paragraph at the top of the ## Status section linking PR #104, the spec branch and the feature folder specs/076-fix-empty-prepend.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0118 - Fix Prepend Empty File FR-009 Divergence.md`: Appended a dated HTML comment: Relay run obsidian-cli-mcp-bi-0118-2026-10-31 produced PR #104 (spec branch, feature folder, status flip).
+
+**Sent to the step:**
+
+> Recorded on BI-0118, the same way as the in-review sibling BI-0115.
+> - Status: `planned` → `in-review`, the backlog-item status meaning "in review" per the Vault Frontmatter Convention vocab (`queued | planned | in-flight | in-review | shipped | deferred | superseded | retired`).
+> - `spec_branch`: `076-fix-empty-prepend`.
+> - The `## Status` section now opens with an "In review — 2026-10-31" paragraph. It links PR #104 (https://github.com/marwansaab/obsidian-cli-mcp/pull/104) and names the spec branch and the feature folder `specs/076-fix-empty-prepend`.
+> - A dated HTML comment at the end of the note says that Relay run obsidian-cli-mcp-bi-0118-2026-10-31 produced PR #104.
+> - `updated` was already 2026-10-31.
+> - Read back the status and the Status section to check them.

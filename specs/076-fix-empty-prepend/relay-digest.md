@@ -4,14 +4,14 @@
 |---|---|
 | Run | `obsidian-cli-mcp-bi-0118-2026-10-31` |
 | Project | obsidian-cli-mcp (pack speckit) |
-| Status | running |
+| Status | done |
 | Started | 2026-10-31T11:53:33.184Z |
-| Finished | not yet |
-| Elapsed | 29 min 17 s |
-| Questions | 3 (0 needed the owner) |
-| Requests to the advisor | 2 (0 needed the owner) |
+| Finished | 2026-10-31T12:35:57.837Z |
+| Elapsed | 42 min 25 s |
+| Questions | 4 (0 needed the owner) |
+| Requests to the advisor | 3 (0 needed the owner) |
 | Escalations | 0 |
-| Edits by the advisor | 3 |
+| Edits by the advisor | 8 |
 
 ## Inputs
 
@@ -168,25 +168,53 @@ Skipped.
 ### implementation (`39f3af0a-4f38-42ca-8492-506214434ecc`)
 
 - Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\specs\076-fix-empty-prepend\tasks.md exists.
+- Condition `gh-pr-open` (done_when): met. Pull request #104 is open.
 
 - **implement**: done, 77 turns.
 
 > Implemented spec 076. All 18 tasks are done and marked [X]. The new pure predicate src/tools/prepend/empty-body.ts (landedAtEmptyBody) and the reworked prepend handler (read before the call, read back when the size grew by content + 1 byte, then an atomic rewrite without the extra trailing line break plus a metadata refresh, with bytes_written reduced by 1) make prepend on an empty or properties-only note exact. The three new FS_WRITE_FAILED cases follow the contract's error table (reason "extra-trailing-newline", a failed read-back after the call, a failed read before the call), with no new error code. The test fixture fakeFs gained a contents sequence and recorded writes. New tests empty-body.test.ts and handler.empty-body.test.ts cover E1–E8, E12, the failure rows, the race and the append_note mirror. Typecheck and lint are clean and the full suite passes (3555 tests, 6 skipped). The published tool fingerprints did not move: baseline:write changed only the generatedFromBranch field, and that edit was reverted. Structural verification passed: no new error class, no DI-factory imports in handlers, imports point downward, and the new code is reachable from createPrependTool. The live quickstart §3 check against TestVault-Obsidian-CLI-MCP passed all 9 steps (one extra empty fixture, e5.md, was seeded for step 8), the fixtures were removed and Welcome.md is untouched. docs/tools/prepend.md and CHANGELOG.md are updated. npm run format:check fails across 1147 files, including untouched ones, because the Windows checkout has CRLF line endings; with line endings normalised, the only flag in the changed files is an existing line in handler.ts this change did not touch. I did not find format:check in the CI workflows. The optional after_implement commit hook was skipped, so nothing is committed.
 
-- **open-pr**: in progress.
+- **open-pr**: done, 14 turns.
 
-### review
+> Ran the gates before committing: typecheck, lint and build are clean, and npm test passes 3555 tests with 6 skipped (baseline 3518, +37 new, no previously passing test now failing). Committed in two commits that follow CONTRIBUTING.md: 073ca04 fix(076) with the code, tests, docs, CHANGELOG and tasks.md, and caac518 chore(076) with the spec-kit pointer and the Relay records. The working tree is clean. Pushed 076-fix-empty-prepend to origin and opened PR #104 into main, not as a draft and not merged. The repo has no PR template file, so the description follows PR #103's layout (Summary, Evidence, Test results, the Constitution Compliance table with every gate Y or N/A, a kernel-node note, Follow-ups). npm run format:check still fails across most of the repo on this Windows checkout because files are CRLF on disk and the config wants LF; it already failed before this change, and the PR states this.
 
-- **code-review**: not run.
-- **fix**: not run.
 
-### docs
+### review (`73f528ca-4e36-489d-a22f-31f1e7a310c7`)
 
-- **document**: not run.
+- Condition `gh-pr-open` (start_when): met. Pull request #104 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #104 is open.
 
-### record
+- **code-review**: done, 15 turns.
 
-- **record-in-vault**: not run.
+> Reviewed PR #104 (076-fix-empty-prepend vs main); verdict is changes requested. The blocker: the spec 076 correction is written inline in executePrepend (78 to about 125 lines: a mid-function closure, nested try/catch blocks, and bytesWritten changed to let); it should move into one helper next to the pure landedAtEmptyBody that returns 0 or 1. Other findings: two hand-written copies of the same FS_WRITE_FAILED { errno, syscall: "open", path } error; inline calls do a pre-read whose text is never used and can now fail on it (gating it on !input.inline needs owner approval because E2/E6 pin readCalls); an unused fakeFs unlinks tracker; a stray UTF-8 BOM in handler.empty-body.test.ts. Follow-up, not blocking: the pre-call stat and pre-read handle the same failure with different error contracts. The bytes-only predicate with its primitive-root guard is sound and should stay. Prepend tests pass (7 files, 138 tests). Added entry #37 to .memory/refactor-decisions.md. No code fixes applied and nothing posted to the PR.
+
+- **fix**: done, 42 turns, 1 questions.
+
+> All five review findings on PR #104 are fixed, in two commits pushed to 076-fix-empty-prepend. Commit a90ed90 changes no behaviour: (1) the empty-body correction moved out of executePrepend into a module-level removeAddedLineBreak that returns 0 or 1, so bytesWritten is const again; (2) the two hand-built FS_WRITE_FAILED { errno, syscall: "open", path } errors now come from one readFailed builder, and the extra-trailing-newline error is the module-level extraNewlineFailed, with every code, details object and message unchanged; (4) the rename-failure test now asserts the fixture's fs.unlinks instead of overriding unlink; (5) stripped the UTF-8 BOM from handler.empty-body.test.ts. Commit eaba135 is finding 3, option A as you chose: the pre-call read runs in default mode only, so inline calls never read the note and keep their failure behaviour from before 076. E2/E6 now assert that inline calls make no read, a new test shows an inline call on an unreadable (EACCES) note still prepends, and data-model.md, the contract's section 4 row, the plan's performance line and docs/tools/prepend.md's error row now say the read is default mode only. Gates: lint, typecheck and build clean; 3556 tests pass, 6 skipped, 1 new test. Left on purpose: the pre-call stat still rethrows a non-ENOENT error raw, while the read right after it turns the same failure into FS_WRITE_FAILED. Research D3 kept that as it was and a test in handler.test.ts pins the raw rethrow, so changing it is a separate decision; it was a non-blocking follow-up in the review. I also left the uncommitted Relay run-record edits in relay-digest.md and relay-qa-log.md alone; they are not review fixes. Entry #37 in .memory/refactor-decisions.md now records both outcomes.
+
+
+### docs (`64d9035e-3a35-4382-98ef-ed4c9fad9d3f`)
+
+- Condition `gh-pr-open` (start_when): met. Pull request #104 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #104 is open.
+
+- **document**: done, 31 turns.
+
+> PR mode for #104 (OPEN, 076-fix-empty-prepend -> main). Documented prepend's empty-body correction in .docs-as-code (mutate.md, architecture.md, README.md) and added ADR-049. Committed as 83df62a, pushed to the PR branch, and added a ## Documentation section to the PR body. The PR body still says the pre-call read runs on every call; commit eaba135 made it default-mode only, and the pages follow the diff. ADR-049 needs a matching entry in .decisions/Decision Log.md. The separator drift in docs/tools/prepend.md (research F3) is recorded as a known limit but not fixed, because the PR left it to a separate item. The CHANGELOG entry is present. No docs/tools file changed, so npm test was not needed. The Relay record files were left unstaged.
+
+
+### record (`13275977-de3e-4557-aaf5-edd983c98e62`)
+
+- **record-in-vault**: done.
+
+> Recorded on BI-0118, the same way as the in-review sibling BI-0115.
+> - Status: `planned` → `in-review`, the backlog-item status meaning "in review" per the Vault Frontmatter Convention vocab (`queued | planned | in-flight | in-review | shipped | deferred | superseded | retired`).
+> - `spec_branch`: `076-fix-empty-prepend`.
+> - The `## Status` section now opens with an "In review — 2026-10-31" paragraph. It links PR #104 (https://github.com/marwansaab/obsidian-cli-mcp/pull/104) and names the spec branch and the feature folder `specs/076-fix-empty-prepend`.
+> - A dated HTML comment at the end of the note says that Relay run obsidian-cli-mcp-bi-0118-2026-10-31 produced PR #104.
+> - `updated` was already 2026-10-31.
+> - Read back the status and the Status section to check them.
+
 
 ## Escalations
 
@@ -200,6 +228,11 @@ None.
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0118 - Fix Prepend Empty File FR-009 Divergence.md` | Appended a dated audit comment recording the Q1 clarify ruling (A: FS_WRITE_FAILED plus a new reason if the strip step fails; last-write-wins on a concurrent edit; FR-009 narrowed) and the developer's confirmation that prepend is still CLI-wrap via invokeCli under FR-005b. | pre-implementation / clarify: Question 1: What happens when the exact empty-note result cannot be guaranteed |
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0118 - Fix Prepend Empty File FR-009 Divergence.md` | Appended a dated audit comment recording the answers to the /speckit-analyze findings: C1 wrap as FS_WRITE_FAILED with no new reason; I1 option A widened to the bodiless class; I2/I3/G1/T1 accepted; I4 FR-007 reworded. | pre-implementation / analyze: Specification Analysis Report |
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0118 - Fix Prepend Empty File FR-009 Divergence.md` | Appended a dated audit comment recording the I1 revision to option B (an empty `before` gives the extra-trailing-newline reason; a non-empty `before` gives FS_WRITE_FAILED with no reason and a content-landed message; FR-009 gains exception (c)), replacing the earlier widened-class answer. | pre-implementation / analyze: I1 follow-up: the read-back failure cannot classify properties-only notes |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0118 - Fix Prepend Empty File FR-009 Divergence.md` | Appended a dated audit comment recording review finding 3 answered A: pre-read only in default mode; inline calls go back to their pre-076 behaviour. | review / fix: Review finding 3: prepend now reads the whole note before every call, inline calls included, but an  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0118 - Fix Prepend Empty File FR-009 Divergence.md` | Frontmatter status planned → in-review. | record / record-in-vault: The work for job BI-0118 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0118 - Fix Prepend Empty File FR-009 Divergence.md` | Frontmatter spec_branch set to 076-fix-empty-prepend. | record / record-in-vault: The work for job BI-0118 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0118 - Fix Prepend Empty File FR-009 Divergence.md` | Added an 'In review — 2026-10-31' paragraph at the top of the ## Status section linking PR #104, the spec branch and the feature folder specs/076-fix-empty-prepend. | record / record-in-vault: The work for job BI-0118 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0118 - Fix Prepend Empty File FR-009 Divergence.md` | Appended a dated HTML comment: Relay run obsidian-cli-mcp-bi-0118-2026-10-31 produced PR #104 (spec branch, feature folder, status flip). | record / record-in-vault: The work for job BI-0118 is now a reviewed, documented pull request. Record that on the job's note,  |
 
 ## Files
 
