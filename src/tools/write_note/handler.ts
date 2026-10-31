@@ -131,20 +131,16 @@ export async function executeWriteNote(
     throw mapFsError(e);
   }
 
-  let created: boolean;
-  // Spec 075: the note's size before the write (0 when it did not exist), so
-  // bytes_written reports the size change. A stat that fails with anything but
-  // ENOENT fails the call before the write (FR-006a): no figure without a measurement.
-  let oldSize: number;
+  // Spec 075: the note's size before the write, null when it did not exist (the
+  // write is a create), so bytes_written reports the size change. A stat that fails
+  // with anything but ENOENT fails the call before the write (FR-006a): no figure
+  // without a measurement.
+  let sizeBefore: number | null = null;
   if (input.overwrite === true) {
-    let existedBefore: boolean;
     try {
-      oldSize = (await fs.stat(absPath)).size;
-      existedBefore = true;
+      sizeBefore = (await fs.stat(absPath)).size;
     } catch (e) {
       if (getErrno(e) !== "ENOENT") throw mapFsError(e);
-      existedBefore = false;
-      oldSize = 0;
     }
 
     try {
@@ -152,11 +148,11 @@ export async function executeWriteNote(
     } catch (e) {
       throw mapFsError(e);
     }
-    created = !existedBefore;
   } else {
     // overwrite=false: atomic create-or-fail via O_CREAT|O_EXCL (the `wx` flag).
     // The kernel guarantees the EEXIST race-freeness; no TOCTOU window exists
     // between an exists-check and the write because there is no exists-check.
+    // A write that lands is therefore a create: sizeBefore stays null.
     try {
       await fs.writeFile(absPath, input.content, { flag: "wx" });
     } catch (e) {
@@ -170,8 +166,6 @@ export async function executeWriteNote(
       }
       throw mapFsError(e);
     }
-    created = true;
-    oldSize = 0;
   }
 
   // Best-effort metadataCache refresh per FR-011 — logged on failure (shared _note-io substrate).
@@ -185,8 +179,8 @@ export async function executeWriteNote(
   }
 
   return {
-    created,
+    created: sizeBefore === null,
     path: relPath,
-    bytes_written: Buffer.byteLength(input.content, "utf8") - oldSize,
+    bytes_written: Buffer.byteLength(input.content, "utf8") - (sizeBefore ?? 0),
   };
 }

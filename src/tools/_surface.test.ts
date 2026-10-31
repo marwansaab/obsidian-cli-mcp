@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { BASE_PATH_DESCRIPTION } from "./_base-path.js";
 import { connectInMemoryClient, connectModernClient, quietServer, serveOne } from "./_mcp-client-fixtures.js";
 import { undescribedProperties } from "./_schema-test-utils.js";
+import { BYTES_WRITTEN_DESCRIPTION } from "./_shared.js";
 import { TYPED_RESULT_FIXTURES } from "./_typed-result-fixtures.js";
 import { UpstreamError } from "../errors.js";
 import { createVaultsTool } from "./vaults/index.js";
@@ -213,6 +214,8 @@ describe("published tool surface (068 US6, US8)", () => {
 // form is a bare integer.
 const UNTYPED_TOOLS = ["help", "obsidian_exec", "read", "tag"];
 
+const SINGLE_NOTE_TEXT_WRITERS = ["append_note", "patch_block", "patch_heading", "prepend", "write_note"];
+
 // One sample per variant of each union-of-objects result (068 R6, T066).
 const UNION_VARIANT_SAMPLES: Readonly<Record<string, readonly unknown[]>> = {
   search: [
@@ -290,6 +293,15 @@ describe("published outputSchema in both eras (068 US12, FR-039, R6 T0)", () => 
   it("every typed tool has a round-trip fixture below", () => {
     const typed = legacyTools.filter((t) => t.outputSchema !== undefined).map((t) => t.name);
     expect(new Set(TYPED_RESULT_FIXTURES.map((f) => f.name))).toEqual(new Set(typed));
+  });
+
+  // Spec 075 FR-008 / SC-003: one published meaning of bytes_written on the five single-note text writers.
+  it.each(SINGLE_NOTE_TEXT_WRITERS)("%s describes bytes_written with BYTES_WRITTEN_DESCRIPTION", (name) => {
+    const properties = legacyTools.find((t) => t.name === name)!.outputSchema!["properties"] as Record<
+      string,
+      { description?: string }
+    >;
+    expect(properties["bytes_written"]!.description).toBe(BYTES_WRITTEN_DESCRIPTION);
   });
 });
 

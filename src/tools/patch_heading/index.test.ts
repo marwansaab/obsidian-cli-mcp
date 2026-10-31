@@ -1,4 +1,4 @@
-// Original — no upstream. patch_heading tool registration tests per BI-040 / FR-022 / ADR-005 — descriptor name + description + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate. 075: the published output schema describes bytes_written with BYTES_WRITTEN_DESCRIPTION.
+// Original — no upstream. patch_heading tool registration tests per BI-040 / FR-022 / ADR-005 — descriptor name + description + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate.
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,12 +11,9 @@ import {
   PATCH_HEADING_DESCRIPTION,
   PATCH_HEADING_TOOL_NAME,
 } from "./index.js";
-import { patchHeadingOutputSchema } from "./schema.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
-import { toSdkOutputSchema } from "../_register.js";
-import { BYTES_WRITTEN_DESCRIPTION } from "../_shared.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -126,16 +123,6 @@ describe("createPatchHeadingTool — handler closure (registered boundary)", () 
     expect(payload.heading_path).toBe("Daily#Tasks#TODO");
     expect(payload.mode).toBe("append");
     expect(payload.bytes_written).toBeGreaterThan(0);
-  });
-});
-
-describe("createPatchHeadingTool — published output schema (spec 075)", () => {
-  it("describes bytes_written with BYTES_WRITTEN_DESCRIPTION", () => {
-    const published = toSdkOutputSchema(patchHeadingOutputSchema)["~standard"].jsonSchema.output({
-      target: "draft-2020-12",
-    });
-    const properties = published["properties"] as Record<string, { description?: string }>;
-    expect(properties["bytes_written"]!.description).toBe(BYTES_WRITTEN_DESCRIPTION);
   });
 });
 

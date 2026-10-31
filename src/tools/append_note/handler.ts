@@ -9,7 +9,7 @@ import { assertSupportedFileType, type SupportDeclaration } from "../../file-typ
 import { assertCanonicalPath } from "../_active-file.js";
 import { resolveFsTarget } from "../_file-target.js";
 import { getErrno, mapFsWriteError } from "../_fs-errors.js";
-import { invalidateMetadataCache, writeAtomic } from "../_note-io.js";
+import { invalidateMetadataCache, sizeChange, writeAtomic } from "../_note-io.js";
 
 import type { AppendNoteInput, AppendNoteOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
@@ -92,9 +92,7 @@ export async function executeAppendNote(
     throw mapWriteErr(e);
   }
 
-  const originalByteCount = Buffer.byteLength(existingContent, "utf8");
   const newContent = appendEdit(existingContent, input.content, input.inline);
-  const newByteCount = Buffer.byteLength(newContent, "utf8");
 
   // ADR-009 §3 atomic write (tmp + rename, UUID-uniquified per FR-026) then
   // best-effort metadataCache refresh per ADR-009 §5 / R9 — both via the
@@ -110,7 +108,7 @@ export async function executeAppendNote(
   return {
     path: relPath,
     vault: vaultDisplayName,
-    bytes_written: newByteCount - originalByteCount,
+    bytes_written: sizeChange(existingContent, newContent),
     inline: input.inline,
   };
 }

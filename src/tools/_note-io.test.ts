@@ -2,14 +2,21 @@
 // thermo-nuclear code-quality review): the UUID-uniquified atomic tmp+rename write (raw-error rethrow,
 // rename-failure unlink, writeFile-failure no-unlink) and the best-effort post-write evals: the
 // metadataCache refresh (vault-relative path, vault= argv, logged-on-failure contract — spec 068 A1)
-// and the editor open (same addressing, silent on failure).
+// and the editor open (same addressing, silent on failure). Spec 075: sizeChange, the byte (not
+// character) size difference, positive, zero or negative.
 import { EventEmitter } from "node:events";
 import { Readable } from "node:stream";
 
 import { describe, expect, test } from "vitest";
 
 import { captureLogger } from "./_handler-test-fixtures.js";
-import { invalidateMetadataCache, openNote, writeAtomic, type AtomicWriteFs } from "./_note-io.js";
+import {
+  invalidateMetadataCache,
+  openNote,
+  sizeChange,
+  writeAtomic,
+  type AtomicWriteFs,
+} from "./_note-io.js";
 import { createQueue } from "../queue.js";
 
 import type { EvalDeps } from "./_active-file.js";
@@ -36,6 +43,17 @@ function recordingFs(over: Partial<AtomicWriteFs> = {}): {
   };
   return { fs, calls };
 }
+
+describe("sizeChange", () => {
+  test.each([
+    ["a", "abc", 2],
+    ["abc", "xyz", 0],
+    ["abc", "", -3],
+    ["abc", "日本", 3],
+  ] as const)("%j → %j is %i bytes", (before, after, expected) => {
+    expect(sizeChange(before, after)).toBe(expected);
+  });
+});
 
 describe("writeAtomic", () => {
   test("writes to a UUID-uniquified tmp sibling then renames onto the target", async () => {

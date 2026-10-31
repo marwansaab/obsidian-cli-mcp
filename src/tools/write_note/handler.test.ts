@@ -43,7 +43,7 @@ test("specific happy path (fresh file, overwrite=true) → { created: true, path
 test("specific overwrite=true on existing file → { created: false, path }", async () => {
   // stat answers for absPath (file exists, 3 bytes)
   const fs = fakeFs({
-    stat: vi.fn(async () => ({ size: 3 })),
+    stat: async () => ({ size: 3 }),
   });
   const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
   const result = await executeWriteNote(
@@ -498,7 +498,7 @@ test("open=false (default) → only invalidate eval, no openLinkText (#18)", asy
 test("active mode with focused file → resolved path written, returns { created:false, path }", async () => {
   const fs = fakeFs({
     // Pretend the focused file already exists (4 bytes) for the existedBefore probe
-    stat: vi.fn(async () => ({ size: 4 })),
+    stat: async () => ({ size: 4 }),
   });
   const focusedResp: StubResponse = {
     stdout: `=> {"path":"Daily/today.md","base":${JSON.stringify(VAULT_ROOT)}}\n`,
@@ -532,7 +532,7 @@ test("active mode with no focused file (eval returns path: null) → ERR_NO_ACTI
 // (#15) Active-mode focused-file eval is small (~120 bytes argv) — stays under the SC-007 cap
 test("active-mode focused-file eval argv stays under 250-byte cap (SC-007 / F1)", async () => {
   const fs = fakeFs({
-    stat: vi.fn(async () => ({ size: 1 })),
+    stat: async () => ({ size: 1 }),
   });
   const focusedResp: StubResponse = {
     stdout: `=> {"path":"x.md","base":${JSON.stringify(VAULT_ROOT)}}\n`,
@@ -954,7 +954,7 @@ test("020/US2 mapFsError EEXIST keeps single-field details (preserved asymmetry)
 // response. FR-010 / Story 2 AC#4 / SC-006.
 test("020/US2 overwrite=true on existing → success envelope carries no errno", async () => {
   const fs = fakeFs({
-    stat: vi.fn(async () => ({ size: 10 })), // target exists
+    stat: async () => ({ size: 10 }), // target exists
   });
   const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
   const result = await executeWriteNote(

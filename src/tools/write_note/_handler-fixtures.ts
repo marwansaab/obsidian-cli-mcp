@@ -54,8 +54,9 @@ export function fakeFs(over: Partial<ExecuteFs> = {}): FakeWriteFs {
     realpath: async (p: string) => {
       // default: vault root identity; non-existent files throw ENOENT
       if (p === VAULT_ROOT || p === FOO_ROOT || p === BAR_ROOT) return p;
-      // parent dirs are presumed-existing for the mkdir target check; throw for the
-      // pre-write existence probe on the absPath itself
+      // anything else (the absPath itself, where the canonical-path check starts its
+      // nearest-existing-ancestor walk, and its parents) is absent; the pre-write
+      // existence probe is `stat` below
       throw enoent();
     },
     stat: async () => {

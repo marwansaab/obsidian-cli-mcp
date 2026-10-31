@@ -195,10 +195,6 @@ describe("bytes_written is the size change (spec 075, unchanged for append_note)
         { target_mode: "specific", vault: "TestVault", path: "n.md", content, inline: false },
         deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
       );
-      const written = fs.writes[0]![1];
-      expect(result.bytes_written).toBe(
-        Buffer.byteLength(written, "utf8") - Buffer.byteLength(existing, "utf8"),
-      );
       expect(result.bytes_written).toBe(expected);
     });
   }

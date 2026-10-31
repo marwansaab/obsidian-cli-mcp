@@ -19,7 +19,7 @@ import { type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import { assertCanonicalPath, resolveActiveLocatorWithVault } from "../_active-file.js";
 import { getErrno, mapFsWriteError } from "../_fs-errors.js";
-import { invalidateMetadataCache, writeAtomic } from "../_note-io.js";
+import { invalidateMetadataCache, sizeChange, writeAtomic } from "../_note-io.js";
 
 import type { PatchHeadingInput, PatchHeadingOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
@@ -229,9 +229,6 @@ export async function executePatchHeading(
   } catch (e) {
     throw mapWriteErr(e);
   }
-  const bytesWritten =
-    Buffer.byteLength(editedContent, "utf8") - Buffer.byteLength(originalContent, "utf8");
-
   await invalidateMetadataCache(deps, { vault: input.vault, relPath });
 
   return {
@@ -239,6 +236,6 @@ export async function executePatchHeading(
     vault: vaultDisplayName,
     heading_path: input.heading_path,
     mode: input.mode,
-    bytes_written: bytesWritten,
+    bytes_written: sizeChange(originalContent, editedContent),
   };
 }

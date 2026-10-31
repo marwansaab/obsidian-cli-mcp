@@ -7,6 +7,8 @@
 // tool). invalidateMetadataCache (spec 068 A1 / R13) refreshes the written note by its vault-relative path
 // in the written vault (`vault=` in specific mode); it never fails the write, but every failure — including
 // a note Obsidian cannot find — is logged as `bridge.metadata_refresh_failed` rather than swallowed.
+// Spec 075: sizeChange, the `bytes_written` figure for the writers that hold the note's text before
+// and after the edit (append_note, patch_block, patch_heading).
 import { evalInVault, type EvalDeps } from "./_active-file.js";
 import { UpstreamError } from "../errors.js";
 
@@ -40,6 +42,14 @@ export async function writeAtomic(
     await fs.unlink(tmpPath).catch(() => {});
     throw e;
   }
+}
+
+/**
+ * The note's size change in UTF-8 bytes from `before` to `after`: the `bytes_written` figure
+ * (spec 075 FR-001). Zero when the size did not change, negative when the note shrank.
+ */
+export function sizeChange(before: string, after: string): number {
+  return Buffer.byteLength(after, "utf8") - Buffer.byteLength(before, "utf8");
 }
 
 /** The note a post-write eval targets. */

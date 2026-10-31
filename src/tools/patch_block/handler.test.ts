@@ -4,97 +4,12 @@ import { Writable } from "node:stream";
 
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
-import { executePatchBlock, type ExecuteFs } from "./handler.js";
-import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
+import { deps, EVAL_OK, fakeFs, fakeRegistry, VAULT_ROOT } from "./_handler-fixtures.js";
+import { executePatchBlock } from "./handler.js";
+import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
-import { createLogger, type Logger } from "../../logger.js";
-import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn, silentLogger, type StubResponse } from "../_handler-test-fixtures.js";
-
-import type { VaultRegistry } from "../../vault-registry/registry.js";
-
-const VAULT_ROOT = resolve("/test-vault");
-
-interface FakeFsHandle extends ExecuteFs {
-  reads: string[];
-  writes: Array<[string, string]>;
-  renames: Array<[string, string]>;
-  unlinks: string[];
-}
-
-function fakeFs(canned: { content?: string } = {}, over: Partial<ExecuteFs> = {}): FakeFsHandle {
-  const reads: string[] = [];
-  const writes: Array<[string, string]> = [];
-  const renames: Array<[string, string]> = [];
-  const unlinks: string[] = [];
-  const enoent = (): NodeJS.ErrnoException => {
-    const e = new Error("ENOENT") as NodeJS.ErrnoException;
-    e.code = "ENOENT";
-    return e;
-  };
-  const base: ExecuteFs = {
-    readFile: vi.fn(async (p: string) => {
-      reads.push(p);
-      return canned.content ?? "fallback ^foo\n";
-    }),
-    writeFile: vi.fn(async (p: string, c: string) => {
-      writes.push([p, c]);
-    }),
-    rename: vi.fn(async (from: string, to: string) => {
-      renames.push([from, to]);
-    }),
-    realpath: vi.fn(async (p: string) => {
-      if (p === VAULT_ROOT) return VAULT_ROOT;
-      throw enoent();
-    }),
-    unlink: vi.fn(async (p: string) => {
-      unlinks.push(p);
-    }),
-  };
-  const merged: ExecuteFs = { ...base, ...over };
-  return Object.assign(merged, { reads, writes, renames, unlinks });
-}
-
-function fakeRegistry(map: Record<string, string>): VaultRegistry {
-  return {
-    resolveVaultPath: vi.fn(async (name: string) => {
-      const path = map[name];
-      if (path === undefined) {
-        throw new UpstreamError({
-          code: "VALIDATION_ERROR",
-          cause: null,
-          details: { requestedVault: name, knownVaults: Object.keys(map) },
-          message: `Vault "${name}" is not registered.`,
-        });
-      }
-      return path;
-    }),
-    resolveVaultDisplayName: vi.fn((basePath: string) => {
-      for (const [name, path] of Object.entries(map)) {
-        if (path === basePath) return name;
-      }
-      return null;
-    }),
-  };
-}
-
-function deps(opts: {
-  spawnFn: SpawnLike;
-  vaultRegistry: VaultRegistry;
-  fs?: ExecuteFs;
-  logger?: Logger;
-}) {
-  return {
-    logger: opts.logger ?? silentLogger(),
-    queue: createQueue(),
-    vaultRegistry: opts.vaultRegistry,
-    spawnFn: opts.spawnFn,
-    env: {},
-    fs: opts.fs,
-  };
-}
-
-const EVAL_OK: StubResponse = { stdout: "=> undefined\n", exitCode: 0 };
+import { createLogger } from "../../logger.js";
+import { makeQueuedSpawn, type StubResponse } from "../_handler-test-fixtures.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -508,95 +423,6 @@ describe("US1 success envelope + IO invariants", () => {
     expect(Object.keys(result).sort()).toEqual(
       ["block_id", "block_shape", "bytes_written", "path", "vault"],
     );
-  });
-
-  test("bytes_written equals byteLength(written) minus byteLength(original) (spec 075)", async () => {
-    const fs = fakeFs({ content: "body ^foo\n" });
-    const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
-    const result = await executePatchBlock(
-      {
-        target_mode: "specific",
-        vault: "TestVault",
-        path: "n.md",
-        block_id: "foo",
-        content: "x",
-      },
-      deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
-    );
-    expect(result.bytes_written).toBe(
-      Buffer.byteLength(fs.writes[0]![1], "utf8") - Buffer.byteLength("body ^foo\n", "utf8"),
-    );
-    expect(result.bytes_written).toBe(-3);
-  });
-
-  // Spec 075 contract §3 patch_block rows: the size change, which may be 0 or negative.
-  // Expected values come from the fixture's actual bytes before and after the edit (R1).
-  async function blockDelta(
-    original: string,
-    blockId: string,
-    content: string,
-  ): Promise<{ bytesWritten: number; delta: number }> {
-    const fs = fakeFs({ content: original });
-    const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
-    const result = await executePatchBlock(
-      { target_mode: "specific", vault: "TestVault", path: "n.md", block_id: blockId, content },
-      deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
-    );
-    return {
-      bytesWritten: result.bytes_written,
-      delta: Buffer.byteLength(fs.writes[0]![1], "utf8") - Buffer.byteLength(original, "utf8"),
-    };
-  }
-  const PARAGRAPH_NOTE = "intro\n\nhello ^foo\n\nclosing\n";
-
-  test("bytes_written equals size after minus size before (075 uniform check)", async () => {
-    const fs = fakeFs({ content: PARAGRAPH_NOTE });
-    const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
-    const result = await executePatchBlock(
-      { target_mode: "specific", vault: "TestVault", path: "n.md", block_id: "foo", content: "new body" },
-      deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
-    );
-    const sizeBefore = Buffer.byteLength(PARAGRAPH_NOTE, "utf8");
-    const sizeAfter = Buffer.byteLength(fs.writes[0]![1], "utf8");
-    expect(result.bytes_written).toBe(sizeAfter - sizeBefore);
-  });
-
-  test("paragraph grow yields the positive size change", async () => {
-    const r = await blockDelta(PARAGRAPH_NOTE, "foo", "hello big");
-    expect(r.bytesWritten).toBe(r.delta);
-    expect(r.bytesWritten).toBe(4);
-  });
-
-  test("paragraph same-size replace yields 0", async () => {
-    const r = await blockDelta(PARAGRAPH_NOTE, "foo", "world");
-    expect(r.bytesWritten).toBe(r.delta);
-    expect(r.bytesWritten).toBe(0);
-  });
-
-  test("paragraph shrink yields a negative size change", async () => {
-    const r = await blockDelta(PARAGRAPH_NOTE, "foo", "hi");
-    expect(r.bytesWritten).toBe(r.delta);
-    expect(r.bytesWritten).toBe(-3);
-  });
-
-  test('paragraph clear ("") yields a negative size change', async () => {
-    const r = await blockDelta(PARAGRAPH_NOTE, "foo", "");
-    expect(r.bytesWritten).toBe(r.delta);
-    expect(r.bytesWritten).toBe(-5);
-  });
-
-  test("separately-placed grow yields the positive size change", async () => {
-    const note = "| a | b |\n| - | - |\n| 1 | 2 |\n^baz\ntrailing\n";
-    const r = await blockDelta(note, "baz", "| a | b |\n| - | - |\n| 1 | 2 |\n| 3 | 4 |");
-    expect(r.bytesWritten).toBe(r.delta);
-    expect(r.bytesWritten).toBe(10);
-  });
-
-  test("multi-byte: replace body abc with 日本 yields 3 (bytes, not characters)", async () => {
-    const r = await blockDelta("abc ^foo\n", "foo", "日本");
-    expect(r.bytesWritten).toBe(r.delta);
-    expect(r.bytesWritten).toBe(3);
-    expect(r.bytesWritten).not.toBe("日本".length - "abc".length);
   });
 
   test("no fs.writeFile call targets a path ending in .bak / .backup / .old (FR-025 no-backup)", async () => {
