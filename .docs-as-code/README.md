@@ -44,7 +44,7 @@ extends it.
 - Capabilities, one page per tool group, in the same groups as the README's
   Tool inventory:
   - [capabilities/read.md](capabilities/read.md) — `read`, `read_heading`,
-    `read_property`.
+    `read_property`, and how `read` returns a file's exact text (PR #102).
   - [capabilities/search-and-discovery.md](capabilities/search-and-discovery.md)
     — the four searches, `find_by_property`, `tag`, `links`, `backlinks`,
     `open_file`, `get_active_file`.
@@ -112,3 +112,9 @@ applies. Records written since:
   the owner's ruling on spec 073 (clarify Q2) the canonical copy is written in
   the vault and this mirror is renamed at the next vault sync, as listed in
   `specs/073-align-parameter-names/research.md` ("Pending vault sync").
+- [decisions/ADR-047-read-corrects-the-cli-text-from-two-disk-facts.md](decisions/ADR-047-read-corrects-the-cli-text-from-two-disk-facts.md)
+  — `read` keeps its CLI call and undoes the CLI's added final line feed and
+  dropped byte-order mark from two facts read from disk, rather than
+  returning the disk text; a failed disk read is `FS_WRITE_FAILED` /
+  `read` (PR #102). Numbered 047 because ADR-046 is the number spec 073's
+  plan gave the record above.

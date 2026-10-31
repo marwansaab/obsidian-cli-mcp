@@ -1,4 +1,4 @@
-// Original — no upstream. Shared filesystem-error mapping for the single-file write/edit cohort (F4 of the thermo-nuclear code-quality review). Centralises `getErrno` and the EXTERNAL_EDITOR_CONFLICT / FS_WRITE_FAILED classification skeleton previously copy-pasted across append_note, patch_block, and patch_heading. The per-tool divergences are explicit parameters — which errnos count as an external-editor conflict (patch_heading classifies EACCES as a conflict; patch_block does not), the action verb in the conflict message ("append to" vs "patch"), and whether the raw errno path is echoed as `details.fsPath` (patch_heading only) — so each difference is a visible choice rather than a one-token edit buried in a near-duplicate function. Byte-preserving per consumer. write_note (FILE_EXISTS, no editor-conflict) and find_and_replace (reason-keyed, vault-wide) have distinct shapes and keep their own mappers.
+// Original — no upstream. Shared filesystem-error mapping for the single-file write/edit cohort (F4 of the thermo-nuclear code-quality review). Centralises `getErrno` / `getSyscall` and the EXTERNAL_EDITOR_CONFLICT / FS_WRITE_FAILED classification skeleton previously copy-pasted across append_note, patch_block, and patch_heading. The per-tool divergences are explicit parameters — which errnos count as an external-editor conflict (patch_heading classifies EACCES as a conflict; patch_block does not), the action verb in the conflict message ("append to" vs "patch"), and whether the raw errno path is echoed as `details.fsPath` (patch_heading only) — so each difference is a visible choice rather than a one-token edit buried in a near-duplicate function. Byte-preserving per consumer. write_note (FILE_EXISTS, no editor-conflict) and find_and_replace (reason-keyed, vault-wide) have distinct shapes and keep their own mappers.
 import { UpstreamError } from "../errors.js";
 
 /** Narrow an unknown thrown value to its NodeJS errno `code`, if present. */
@@ -6,6 +6,13 @@ export function getErrno(e: unknown): string | undefined {
   if (typeof e !== "object" || e === null) return undefined;
   const code = (e as NodeJS.ErrnoException).code;
   return typeof code === "string" ? code : undefined;
+}
+
+/** Narrow an unknown thrown value to its NodeJS `syscall`, if present. */
+export function getSyscall(e: unknown): string | undefined {
+  if (typeof e !== "object" || e === null) return undefined;
+  const syscall = (e as NodeJS.ErrnoException).syscall;
+  return typeof syscall === "string" ? syscall : undefined;
 }
 
 export interface FsWriteErrorOptions {
@@ -54,9 +61,8 @@ export function mapFsWriteError(e: unknown, opts: FsWriteErrorOptions): Upstream
       message: `Cannot ${opts.conflictVerb} "${opts.relPath}" — the file is held open by an external editor (${errno}). Save and close the file in the editor, then retry.`,
     });
   }
-  const err = e as NodeJS.ErrnoException | null;
-  const syscall = err?.syscall;
-  const fsPath = err?.path;
+  const syscall = getSyscall(e);
+  const fsPath = (e as NodeJS.ErrnoException | null)?.path;
   return new UpstreamError({
     code: "FS_WRITE_FAILED",
     cause: e,

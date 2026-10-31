@@ -1,7 +1,9 @@
-// Original — no upstream. Tests for the read handler — schema-typed input → invokeCli → text envelope; bounds-via-dispatchCli failures surface verbatim; spec 070 file-type support (notes, canvases, bases) and file/active target resolution.
+// Original — no upstream. Tests for the read handler — schema-typed input → invokeCli → text envelope; bounds-via-dispatchCli failures surface verbatim; spec 070 file-type support (notes, canvases, bases) and file/active target resolution; spec 074 exact content (the CLI's added final line feed dropped, its removed byte-order mark restored, from the note's bytes on disk) and the disk-read failure.
+import { join } from "node:path";
+
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
-import { executeReadNote } from "./handler.js";
+import { executeReadNote, type ReadFs } from "./handler.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
@@ -12,12 +14,27 @@ import {
   makeQueuedSpawn,
   makeStubSpawn,
   silentLogger,
+  stubVaultRegistry,
 } from "../_handler-test-fixtures.js";
 
 import type { SpawnLike } from "../../cli-adapter/_dispatch.js";
 
-function deps(spawnFn: SpawnLike) {
-  return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
+const ROOT = "/registry/MyVault";
+
+/** An fs stub whose readFile returns `disk` (the note's bytes on disk) for any path. */
+function diskFs(disk: string | Buffer = "") {
+  return { readFile: vi.fn(async (_p: string) => Buffer.from(disk)) } satisfies ReadFs;
+}
+
+function deps(spawnFn: SpawnLike, fs: ReadFs = diskFs()) {
+  return {
+    logger: silentLogger(),
+    queue: createQueue(),
+    spawnFn,
+    env: {},
+    vaultRegistry: stubVaultRegistry("MyVault", ROOT),
+    fs,
+  };
 }
 
 function pendingRejection<T>(p: Promise<T>): Promise<UpstreamError> {
@@ -43,7 +60,7 @@ test("US1 specific+file invokes adapter and returns content (Story 1 AC#1)", asy
   ]);
   const result = await executeReadNote(
     { target_mode: "specific", vault: "MyVault", file: "Recipe" },
-    deps(spawnFn),
+    deps(spawnFn, diskFs(stdoutText)),
   );
   expect(result).toEqual({ content: stdoutText });
   // Spec 070: the resolution spawn (own test below) precedes the read spawn.
@@ -53,11 +70,11 @@ test("US1 specific+file invokes adapter and returns content (Story 1 AC#1)", asy
   expect(recorded[1]!.argv).toEqual(["vault=MyVault", "read", "file=Recipe"]);
 });
 
-test("US1 boundary empty stdout returns { content: '' } (Story 1 AC#2)", async () => {
+test("US1 boundary empty stdout returns { content: '' } (Story 1 AC#2; spec 074 US3: an empty note stays empty)", async () => {
   const { spawnFn } = makeQueuedSpawn([fileTsvResponse("Empty.md"), { stdout: "", exitCode: 0 }]);
   const result = await executeReadNote(
     { target_mode: "specific", vault: "MyVault", file: "Empty" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    deps(spawnFn, diskFs(Buffer.alloc(0))),
   );
   expect(result).toEqual({ content: "" });
 });
@@ -69,7 +86,7 @@ test("US2 specific+path invokes adapter and returns content (Story 2 AC#1)", asy
   const { spawnFn, recorded } = makeStubSpawn({ stdout: stdoutText, exitCode: 0 });
   const result = await executeReadNote(
     { target_mode: "specific", vault: "MyVault", path: "Templates/Recipe.md" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    deps(spawnFn, diskFs(stdoutText)),
   );
   expect(result).toEqual({ content: stdoutText });
   expect(recorded[0]!.argv).toEqual(["vault=MyVault", "read", "path=Templates/Recipe.md"]);
@@ -83,7 +100,7 @@ test("US3 active resolves the focused file and reads it by path with no vault= (
     focusedFileResponse("Daily/Today.md"),
     { stdout: stdoutText, exitCode: 0 },
   ]);
-  const result = await executeReadNote({ target_mode: "active" }, deps(spawnFn));
+  const result = await executeReadNote({ target_mode: "active" }, deps(spawnFn, diskFs(stdoutText)));
   expect(result).toEqual({ content: stdoutText });
   expect(recorded[1]!.argv).toEqual(["read", "path=Daily/Today.md"]);
 });
@@ -93,7 +110,7 @@ test("US3 active propagates ERR_NO_ACTIVE_FILE from the adapter (Story 3 AC#3)",
   const err = (await captureRejection(
     executeReadNote(
       { target_mode: "active" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      deps(spawnFn),
     ),
   )) as UpstreamError;
   expect(err).toBeInstanceOf(UpstreamError);
@@ -108,7 +125,7 @@ test("US5 propagates CLI_NON_ZERO_EXIT (Story 5 AC#1)", async () => {
   const err = (await captureRejection(
     executeReadNote(
       { target_mode: "specific", vault: "MyVault", file: "Missing" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      deps(spawnFn),
     ),
   )) as UpstreamError;
   expect(err.code).toBe("CLI_NON_ZERO_EXIT");
@@ -120,7 +137,7 @@ test("US5 propagates CLI_REPORTED_ERROR for in-band Error: prefix (Story 5 AC#2)
   const err = (await captureRejection(
     executeReadNote(
       { target_mode: "specific", vault: "MyVault", file: "Missing" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      deps(spawnFn),
     ),
   )) as UpstreamError;
   expect(err.code).toBe("CLI_REPORTED_ERROR");
@@ -133,7 +150,7 @@ test("US5 propagates CLI_BINARY_NOT_FOUND when spawn raises ENOENT (Story 5 AC#3
   const err = (await captureRejection(
     executeReadNote(
       { target_mode: "specific", vault: "MyVault", file: "Recipe" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      deps(spawnFn),
     ),
   )) as UpstreamError;
   expect(err.code).toBe("CLI_BINARY_NOT_FOUND");
@@ -145,7 +162,7 @@ test("US5 re-throws non-UpstreamError verbatim (Story 5 AC#4)", async () => {
   const rejection = await captureRejection(
     executeReadNote(
       { target_mode: "specific", vault: "MyVault", file: "Recipe" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      deps(spawnFn),
     ),
   );
   expect(rejection).toBe(synthetic);
@@ -169,7 +186,7 @@ test("typed-tool TIMEOUT: synthetic 11 s hang → CLI_TIMEOUT within ~10.5 s (SC
     const rejected = pendingRejection(
       executeReadNote(
         { target_mode: "active" },
-        { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, resolveBinary: stubResolveBinary },
+        { ...deps(spawnFn), resolveBinary: stubResolveBinary },
       ),
     );
     await vi.advanceTimersByTimeAsync(0);
@@ -189,7 +206,7 @@ test("typed-tool CAP: synthetic > 10 MiB → CLI_OUTPUT_TOO_LARGE with partial �
   const err = (await captureRejection(
     executeReadNote(
       { target_mode: "active" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, resolveBinary: stubResolveBinary },
+      { ...deps(spawnFn), resolveBinary: stubResolveBinary },
     ),
   )) as UpstreamError;
   expect(err.code).toBe("CLI_OUTPUT_TOO_LARGE");
@@ -203,7 +220,7 @@ test.each(["Boards/Plan.canvas", "Views/Tasks.base", "Notes/N.MD"])(
   "spec 070: path=%s is a supported type → read spawn with the path unchanged",
   async (path) => {
     const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: "{}", exitCode: 0 }]);
-    const result = await executeReadNote({ target_mode: "specific", vault: "MyVault", path }, deps(spawnFn));
+    const result = await executeReadNote({ target_mode: "specific", vault: "MyVault", path }, deps(spawnFn, diskFs("{}")));
     expect(result).toEqual({ content: "{}" });
     expect(recorded).toHaveLength(1);
     expect(recorded[0]!.argv).toEqual(["vault=MyVault", "read", `path=${path}`]);
@@ -270,4 +287,129 @@ test("spec 070: active mode with no focused file → ERR_NO_ACTIVE_FILE, no read
   const err = (await captureRejection(executeReadNote({ target_mode: "active" }, deps(spawnFn)))) as UpstreamError;
   expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
   expect(recorded).toHaveLength(1);
+});
+
+// --- Spec 074: exact content (contract §2) — disk bytes → CLI stdout → content ---
+
+const BOM = Buffer.from([0xef, 0xbb, 0xbf]);
+
+async function readWith(disk: string | Buffer, stdout: string): Promise<string> {
+  const { spawnFn } = makeStubSpawn({ stdout, exitCode: 0 });
+  const result = await executeReadNote(
+    { target_mode: "specific", vault: "MyVault", path: "N.md" },
+    deps(spawnFn, diskFs(disk)),
+  );
+  return result.content;
+}
+
+// US1: a note with no final line feed reads back with nothing added.
+test.each([
+  ["first", "first\n", "first"],
+  ["a\r\nb", "a\r\nb\n", "a\r\nb"],
+  ["a\r", "a\r\n", "a\r"],
+  ["# T\n\nlast line", "# T\n\nlast line\n", "# T\n\nlast line"],
+])("spec 074 US1: disk %j, stdout %j → content %j", async (disk, stdout, expected) => {
+  expect(await readWith(disk, stdout)).toBe(expected);
+});
+
+// US2: real final line breaks (LF, CRLF, repeated, mixed) are kept.
+test.each([
+  ["first\n", "first\n"],
+  ["a\r\nb\r\n", "a\r\nb\r\n"],
+  ["a\n\n", "a\n\n"],
+  ["\n", "\n"],
+  ["a\r\nb\nc\n", "a\r\nb\nc\n"],
+])("spec 074 US2: disk %j, stdout %j → content unchanged", async (disk, stdout) => {
+  expect(await readWith(disk, stdout)).toBe(disk);
+});
+
+// US4: the leading byte-order mark the CLI removes is restored; any other BOM is the CLI's text.
+test.each([
+  ["BOM a", Buffer.concat([BOM, Buffer.from("a")]), "a\n", "\uFEFFa"],
+  ["BOM a LF", Buffer.concat([BOM, Buffer.from("a\n")]), "a\n", "\uFEFFa\n"],
+  ["BOM only", BOM, "", "\uFEFF"],
+  ["BOM BOM a", Buffer.concat([BOM, BOM, Buffer.from("a")]), "\uFEFFa\n", "\uFEFF\uFEFFa"],
+  ["a BOM b", Buffer.concat([Buffer.from("a"), BOM, Buffer.from("b")]), "a\uFEFFb\n", "a\uFEFFb"],
+])("spec 074 US4: %s → content restored exactly", async (_label, disk, stdout, expected) => {
+  expect(await readWith(disk, stdout)).toBe(expected);
+});
+
+test.each([
+  ["file", { file: "Plan.canvas" }, [fileTsvResponse("Boards/Plan.canvas")], '{"nodes":[]}'],
+  ["path", { path: "B.base" }, [], "views:\n  - type: table"],
+])("spec 074 US4: %s-mode canvas/base reads back its disk text exactly", async (_mode, locator, pre, disk) => {
+  const { spawnFn } = makeQueuedSpawn([...pre, { stdout: `${disk}\n`, exitCode: 0 }]);
+  const result = await executeReadNote(
+    { target_mode: "specific", vault: "MyVault", ...locator },
+    deps(spawnFn, diskFs(disk)),
+  );
+  expect(result).toEqual({ content: disk });
+});
+
+// --- Spec 074: which file is read, and when ---
+
+test("spec 074: path mode reads <registry root>/<path> from disk", async () => {
+  const { spawnFn } = makeStubSpawn({ stdout: "x\n", exitCode: 0 });
+  const fs = diskFs("x");
+  await executeReadNote({ target_mode: "specific", vault: "MyVault", path: "Templates/Recipe.md" }, deps(spawnFn, fs));
+  expect(fs.readFile).toHaveBeenCalledExactlyOnceWith(join(ROOT, "Templates/Recipe.md"));
+});
+
+test("spec 074: file mode reads the TSV-resolved path from disk", async () => {
+  const { spawnFn } = makeQueuedSpawn([fileTsvResponse("Cooking/Recipe.md"), { stdout: "x\n", exitCode: 0 }]);
+  const fs = diskFs("x");
+  await executeReadNote({ target_mode: "specific", vault: "MyVault", file: "Recipe" }, deps(spawnFn, fs));
+  expect(fs.readFile).toHaveBeenCalledExactlyOnceWith(join(ROOT, "Cooking/Recipe.md"));
+});
+
+test("spec 074: active mode reads <eval base>/<path> and never calls the vault registry", async () => {
+  const { spawnFn } = makeQueuedSpawn([
+    focusedFileResponse("Daily/Today.md", "/vaults/Focused"),
+    { stdout: "x\n", exitCode: 0 },
+  ]);
+  const fs = diskFs("x");
+  const resolveVaultPath = vi.fn(async () => ROOT);
+  const result = await executeReadNote(
+    { target_mode: "active" },
+    { ...deps(spawnFn, fs), vaultRegistry: { ...stubVaultRegistry("MyVault", ROOT), resolveVaultPath } },
+  );
+  expect(result).toEqual({ content: "x" });
+  expect(fs.readFile).toHaveBeenCalledExactlyOnceWith(join("/vaults/Focused", "Daily/Today.md"));
+  expect(resolveVaultPath).not.toHaveBeenCalled();
+});
+
+test.each([
+  ["CLI_REPORTED_ERROR", { stdout: 'Error: Vault "Nope" not found.\n', exitCode: 0 }],
+  ["CLI_NON_ZERO_EXIT", { stderr: "vault not found", exitCode: 1 }],
+])("spec 074: a CLI failure (%s) surfaces unchanged, before any registry lookup or disk read", async (code, response) => {
+  const { spawnFn } = makeStubSpawn(response);
+  const fs = diskFs("x");
+  const resolveVaultPath = vi.fn(async () => ROOT);
+  const err = (await captureRejection(
+    executeReadNote(
+      { target_mode: "specific", vault: "Nope", path: "N.md" },
+      { ...deps(spawnFn, fs), vaultRegistry: { ...stubVaultRegistry("MyVault", ROOT), resolveVaultPath } },
+    ),
+  )) as UpstreamError;
+  expect(err.code).toBe(code);
+  expect(resolveVaultPath).not.toHaveBeenCalled();
+  expect(fs.readFile).not.toHaveBeenCalled();
+});
+
+test("spec 074: a failed disk read → FS_WRITE_FAILED { reason: 'read' }, no fallback content", async () => {
+  const { spawnFn } = makeStubSpawn({ stdout: "x\n", exitCode: 0 });
+  const enoent = Object.assign(new Error("ENOENT: no such file or directory"), {
+    code: "ENOENT",
+    syscall: "open",
+    path: join(ROOT, "Gone.md"),
+  });
+  const fs = { readFile: vi.fn(async () => { throw enoent; }) };
+  const err = (await captureRejection(
+    executeReadNote({ target_mode: "specific", vault: "MyVault", path: "Gone.md" }, deps(spawnFn, fs)),
+  )) as UpstreamError;
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect(err.code).toBe("FS_WRITE_FAILED");
+  expect(err.details).toEqual({ reason: "read", errno: "ENOENT", syscall: "open", path: "Gone.md" });
+  expect(err.cause).toBe(enoent);
+  expect(err.message).toBe('read: filesystem read failed: ENOENT for "Gone.md"');
 });

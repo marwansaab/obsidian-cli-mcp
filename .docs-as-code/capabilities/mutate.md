@@ -60,7 +60,10 @@ flowchart LR
   `append_note` and `patch_heading` but not `patch_block` —
   because on Windows they mean another program holds the file. Anything else
   is `FS_WRITE_FAILED`. The per-tool differences are explicit parameters of
-  the shared mapper in `src/tools/_fs-errors.ts` (PR #58).
+  the shared mapper in `src/tools/_fs-errors.ts` (PR #58). Since PR #102 that
+  module also exports `getSyscall` beside `getErrno`; the mapper,
+  `find_and_replace`'s own `mapFsError` and `read`'s disk-read failure all
+  use it instead of three hand-rolled casts.
 - **Refresh.** A best-effort `eval` asks Obsidian to recompute its cached
   metadata for the written note, so the next search or property read sees the
   new text (spec 068 FR-001–FR-005, PR #87). `invalidateMetadataCache` in

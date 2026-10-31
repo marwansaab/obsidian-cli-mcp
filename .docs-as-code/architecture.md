@@ -432,7 +432,7 @@ publish no `outputSchema`:
 
 | Tool | Why not |
 | --- | --- |
-| `read` | its `{ content }` text block stays byte-identical to before (FR-041) |
+| `read` | its `{ content }` text block stays byte-identical to before (FR-041); this fixed the shape, and since PR #102 the value is the file's exact text |
 | `help` | raw Markdown (FR-041) |
 | `obsidian_exec` | free-form CLI output, no zod schema |
 | `tag` | count-only mode (`total: true`) returns a bare integer, so its result is not always an object; its text block is unchanged. Flagged in the PR #91 body for owner review |
@@ -776,7 +776,10 @@ since PR #91); `VALIDATION_ERROR` from the vault registry for a vault name
 Obsidian does not know;
 `FS_WRITE_FAILED`, `FILE_EXISTS`, `PATH_ESCAPES_VAULT` from the
 direct-filesystem write cohort; `HELP_TOOL_NOT_FOUND`, `HELP_DOCS_MISSING` from
-`help`.
+`help`. `FS_WRITE_FAILED` is also the code for a failed filesystem *read*,
+with `details.reason: "read"`: `find_and_replace`'s scan raised it first, and
+since PR #102 `read`'s confirmation read raises the same shape rather than a
+new `FS_READ_FAILED` (spec 074 research D4).
 
 Three things changed at the protocol edge with the move to `McpServer`
 (PR #89, ADR-039). None adds a code:
@@ -933,7 +936,14 @@ flowchart LR
   between. PR #97 first forwarded the vault's display name from the vault
   registry here; review found that a registry miss would forward the
   absolute folder path, which the CLI rejects, and the fix (`5cf24a1`) took
-  the registry out of these four tools again.
+  the registry out of these four tools again. That still holds for what they
+  forward. Since PR #102 `FileTarget` is a union: in active mode, where
+  `vault` is `undefined`, it also carries `vaultRoot`, the focused-file
+  `eval`'s `base`, and `vault === undefined` narrows to it. `read` alone uses
+  it, for the disk read that corrects the CLI's text, and in specific mode
+  `read` asks the vault registry for the root only after the CLI read has
+  succeeded ([read](capabilities/read.md#exact-content-the-clis-text-corrected-from-the-disk-bytes)).
+  `rename`, `move` and `outline` ignore it.
 - `resolveFsTarget` serves the direct-filesystem tools that need the vault
   root (`append_note`, `prepend`). It replaced an identical private
   `resolveLocator` in each, keeping their order: the registry lookup runs
@@ -1013,6 +1023,15 @@ behaviour the tool promises. That brings the argv limit back, so `prepend`
 caps content at 3072 UTF-16 code units: the original 24576 cap was lowered in
 BI-047 (PR #49) after larger writes were seen to leave the GUI degraded.
 Content longer than that should go through `write_note`.
+
+`read` is the one CLI-path tool that also touches the disk, and it only
+reads. Since PR #102 it takes the text from `obsidian read` and then reads the
+file's bytes for two facts — a leading byte-order mark, a final line feed —
+to undo the two changes the CLI makes to the text. It reuses item 1, the
+vault registry (in specific mode), and nothing else from this list: no disk
+content reaches its result, so there is no containment check and no write
+([ADR-047](decisions/ADR-047-read-corrects-the-cli-text-from-two-disk-facts.md),
+Read Corrects the CLI's Text From Two Disk Facts).
 
 ## Reaching Obsidian internals: the `eval` template pattern
 

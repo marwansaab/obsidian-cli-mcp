@@ -1,4 +1,4 @@
-// Original — no upstream. Resolves the file a file-path tool will act on, so its file-type check runs on that file however it is addressed (spec 070 FR-009, research D3): `path` as given (no CLI call), `file` through the `obsidian file` TSV resolver, `active` through the focused-file eval. `resolveFileTarget` serves the CLI-pass-through tools (read, rename, move, outline) and also returns the locator they forward (active mode: the resolved `path=` with no `vault=`, so no vault registry is involved); `resolveFsTarget` serves the direct-fs tools (append_note, prepend) and also returns the vault root and display name. Composes the shared `_active-file.ts` resolvers; resolution failures surface unchanged.
+// Original — no upstream. Resolves the file a file-path tool will act on, so its file-type check runs on that file however it is addressed (spec 070 FR-009, research D3): `path` as given (no CLI call), `file` through the `obsidian file` TSV resolver, `active` through the focused-file eval. `resolveFileTarget` serves the CLI-pass-through tools (read, rename, move, outline) and also returns the locator they forward (active mode: the resolved `path=` with no `vault=`, so no vault registry is involved) and, in active mode only (narrowed by `vault === undefined`), the focused-file eval's vault root (spec 074: read's exact-content check); `resolveFsTarget` serves the direct-fs tools (append_note, prepend) and also returns the vault root and display name. Composes the shared `_active-file.ts` resolvers; resolution failures surface unchanged.
 import {
   resolveActiveFocusedFile,
   resolveActiveLocatorWithVault,
@@ -17,16 +17,16 @@ export interface FileTargetInput {
   path?: string;
 }
 
-export interface FileTarget {
+/**
+ * `vault` is the `vault=` the tool forwards: the input's vault in specific mode; `undefined` in active
+ * mode, so the CLI uses its current vault — the one the vault-less focused-file eval just read (T0 P6,
+ * research D3). The vault registry is never consulted, so a reverse-lookup miss cannot turn into a
+ * `vault=<absolute path>` the CLI rejects. Active mode instead carries `vaultRoot`, the vault's absolute
+ * folder from the focused-file eval's `base` (spec 074); `vault === undefined` narrows to it.
+ */
+export type FileTarget = {
   /** Vault-relative path of the file the tool will act on. */
   relPath: string;
-  /**
-   * The `vault=` the tool forwards: the input's vault in specific mode; `undefined` in active mode,
-   * so the CLI uses its current vault — the one the vault-less focused-file eval just read (T0 P6,
-   * research D3). The vault registry is never consulted, so a reverse-lookup miss cannot turn into
-   * a `vault=<absolute path>` the CLI rejects.
-   */
-  vault: string | undefined;
   /**
    * The locator the tool forwards to its action command: `file=` / `path=` exactly as given in
    * specific mode (the action command resolves a `file` name the way the check did), or the
@@ -34,7 +34,7 @@ export interface FileTarget {
    * moves to another file in between.
    */
   locator: { file: string } | { path: string };
-}
+} & ({ vault: string; vaultRoot?: never } | { vault: undefined; vaultRoot: string });
 
 // Specific mode: `path` as given, or the `file` name resolved through the TSV resolver.
 async function specificRelPath(input: FileTargetInput, deps: EvalDeps, toolName: string): Promise<string> {
@@ -47,8 +47,8 @@ export async function resolveFileTarget(
   toolName: string,
 ): Promise<FileTarget> {
   if (input.target_mode === "active") {
-    const { relPath } = await resolveActiveFocusedFile(deps, toolName);
-    return { relPath, vault: undefined, locator: { path: relPath } };
+    const { vaultRoot, relPath } = await resolveActiveFocusedFile(deps, toolName);
+    return { relPath, vault: undefined, locator: { path: relPath }, vaultRoot };
   }
   const relPath = await specificRelPath(input, deps, toolName);
   return {
