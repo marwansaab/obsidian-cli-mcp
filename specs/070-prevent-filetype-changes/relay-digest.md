@@ -4,14 +4,14 @@
 |---|---|
 | Run | `obsidian-cli-mcp-bi-0060-2026-10-31` |
 | Project | obsidian-cli-mcp (pack speckit) |
-| Status | running |
+| Status | done |
 | Started | 2026-10-31T05:04:57.745Z |
-| Finished | not yet |
-| Elapsed | 1 h 7 min |
-| Questions | 4 (0 needed the owner) |
-| Requests to the advisor | 2 (0 needed the owner) |
+| Finished | 2026-10-31T06:55:20.871Z |
+| Elapsed | 1 h 50 min |
+| Questions | 6 (0 needed the owner) |
+| Requests to the advisor | 3 (0 needed the owner) |
 | Escalations | 0 |
-| Edits by the advisor | 0 |
+| Edits by the advisor | 5 |
 
 ## Inputs
 
@@ -91,6 +91,7 @@ Skipped.
 ### implementation (`832f65fa-662f-4948-a04b-af2ce25f1001`)
 
 - Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\specs\070-prevent-filetype-changes\tasks.md exists.
+- Condition `gh-pr-open` (done_when): met. Pull request #97 is open.
 
 - **implement**: done, 2 turns.
 
@@ -102,20 +103,76 @@ Skipped.
 >
 > All 36 tasks in tasks.md are marked done. Nothing is committed yet.
 
-- **open-pr**: in progress.
+- **open-pr**: done, 12 turns.
 
-### review
+> All the 070 work is committed on 070-prevent-filetype-changes. The branch is pushed to origin and pull request #97 into main is open; it is not merged.
+>
+> There are two new commits, following CONTRIBUTING.md:
+> - `2e18e95` `feat(070): keep file types on rename and move, reject unsupported types` holds the code, tests, docs, regenerated register baseline and spec artifacts.
+> - `dceaa77` `docs(070): add the Relay run records` holds the run records, matching how 069 committed its own.
+>
+> Gates passed just before committing: lint, typecheck and build are clean, and `npm test` passed 3,361 tests (6 skipped) with 97.07% statement coverage. `npm run format:check` was not used as a gate: it already fails on 1,064 of 1,079 tracked files on main; the files this change adds are formatted.
+>
+> The repo has no pull request template file, so the description follows the layout of the previous PR (#96): Summary, Evidence, Test results and the Constitution Compliance table. Every gate is marked Y or N/A, with no N. The description flags the argument-only change to four `createServer` lines for review.
 
-- **code-review**: not run.
-- **fix**: not run.
 
-### docs
+### review (`890b7b83-0032-4083-8604-a8380b1e6bc2`)
 
-- **document**: not run.
+- Condition `gh-pr-open` (start_when): met. Pull request #97 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #97 is open.
 
-### record
+- **code-review**: done, 19 turns.
 
-- **record-in-vault**: not run.
+> Thermo-nuclear code-quality review of PR #97 (070-prevent-filetype-changes vs main). Verdict: not approved yet. Blockers: (F1) _file-target.ts is a third copy of the target-mode locator resolution (append_note/prepend resolveLocator) and re-inlines resolveActiveLocatorWithVault; its resolveFileTarget+forwardedLocator split needs an optional activeVault and four non-null assertions — collapse into one helper returning {relPath, vault, locator}. (F3) write_note's file pre-check branch should fold into isCanonicalShortForm (no behaviour change). (F4) move's forwardedTo branch keeps old argv bytes only; always forward resolvedTo (3 test edits, needs approval). Owner decision: (F2) active mode now forwards vault=<resolveVaultDisplayName>, which falls back to the absolute base path on a registry miss and the CLI rejects it (memory items 17/24); alternative is path= without vault=, which drops vaultRegistry from 4 tools but conflicts with research D3 and needs a T0 probe. Should-fix: (F5) 16 support declarations hand-spliced into descriptions, split between handler.ts and index.ts — consider ToolSpec.fileTypes composed by registerTool; (F6) read classifies the path twice to pick its alternative; (F7) typeChangeError branches on the tool name. No file crosses 1000 lines. Lessons recorded as item 32 in .memory/refactor-decisions.md. No code changed and no tests run.
+
+- **fix**: done, 147 turns, 2 questions.
+
+> Applied the owner's rulings and pushed 5cf24a1 to 070-prevent-filetype-changes (PR #97). Q1 = B: ran the live CLI check (T0 P6) first and it passed, so the fail-loud fallback was not needed. Without vault=, eval, read, outline, rename and move all went to the same vault: the focused vault when the working directory is outside any vault folder, otherwise the working directory's vault, for the eval and the action alike. One window was logged as observed: the eval and the action without vault= briefly both missed a just-seeded file, and the action failed loudly; six paired re-checks on a fresh file all agreed, so it did not happen again. Code: in active mode, read, rename, move and outline now send the resolved path= and no vault= (the call stays in specific mode with no vault, because invokeCli drops path= in active mode). vaultRegistry is removed from all four tools and their createServer lines match main, so createServer is no longer touched by this PR. Tests: active-mode argument checks no longer expect vault=MyVault, and the active canvas rename test uses an unregistered vault to show no lookup happens. Docs: research D3 amended, T0 P6 plan and evidence added, data-model, tool-support contract, plan kernel-node notes, post-implement and tasks notes reconciled, and docs/tools read, rename, move and outline updated. Q2 = A: the move folder-form special case stays; its comment naming the contract was already added in 626f6a4. Gates: lint clean, typecheck clean, build clean, 3362 tests passed (6 skipped), coverage 97.06% statements. Probe files removed from the vault Sandbox; Welcome.md untouched. relay-digest.md and relay-qa-log.md left out of the commits. Refactor memory item 32 updated.
+
+
+### docs (`ff98a2db-3e07-486a-8fa7-f4318c5276e6`)
+
+- Condition `gh-pr-open` (start_when): met. Pull request #97 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #97 is open.
+
+- **document**: done, 5 turns.
+
+> PR #97 (OPEN, 070-prevent-filetype-changes -> main): the docs commit c421c84 is pushed to the PR's branch, and CI is re-running on it. Pages:
+> - .docs-as-code/architecture.md: new "File types" section, plus updates to the error model, server instructions and module layout.
+> - New .docs-as-code/decisions/ADR-044.
+> - Capability pages: read, mutate, list-and-inventory, bases, plugin-backed and search-and-discovery.
+> - .docs-as-code/README.md.
+> - Corrected docs/tools/index.md and README.md (Tool inventory and summary).
+>
+> npm test passed (3362 passed, 6 skipped). The PR body now has a Documentation section.
+>
+> The graph was NOT refreshed. All four semantic chunks covering 77 docs were extracted and cached, with no partial reads. The rebuild was then stopped by graphify's shrink guard, because the re-extracted docs replace their old semantic node IDs and the new graph comes out smaller. Getting past the guard needs a forced rebuild, which is the owner's call, so I did not run one. graph.json and GRAPH_REPORT.md are unchanged. I removed the update marks on those 77 docs so the next graphify --update picks them up again; the cached extractions mean that run will not re-extract them. This extraction used about 0.89M subagent tokens.
+>
+> To act on:
+> 1. The PR body's "Kernel-node touch: createServer" paragraph is stale, because commit 5cf24a1 reverted that change. The pages follow the diff.
+> 2. CHANGELOG.md has no entry for this change.
+> 3. The skill says to stop when the working tree is dirty. I went ahead even though the Relay record files had uncommitted changes. They were left unstaged.
+> 4. The chunk-1 extractor flagged possible drift in pages this PR did not touch:
+>    - docs/tools/append_note.md lists VAULT_NOT_FOUND.
+>    - docs/tools/create_base.md lists UPSTREAM_TIMEOUT.
+>    - docs/tools/index.md has pending entries for list_notes and search_vault.
+>    I have not checked these.
+
+
+### record (`c648b3e5-1075-4755-978a-78e92d16cf19`)
+
+- **record-in-vault**: done.
+
+> BI-0060 is now recorded as in review, following the vault's backlog-item conventions and the BI-0039 Relay precedent. In-review is the status `in-review`, which is part of the vault's own backlog-item vocabulary (Vault Frontmatter Convention), so no decision was needed.
+>
+> - **Frontmatter:** `status` changed from `planned` to `in-review`, and `spec_branch` is now `070-prevent-filetype-changes`. `updated` was already 2026-10-31.
+> - **## Status:** a new opening paragraph, "**In review — 2026-10-31.**", gives PR #97 (https://github.com/marwansaab/obsidian-cli-mcp/pull/97), the spec branch and the feature folder `specs/070-prevent-filetype-changes`, and says the PR is awaiting owner merge. The earlier Status text is kept below it unchanged.
+> - **Audit trail:** a dated HTML comment at the bottom of the note says Relay run obsidian-cli-mcp-bi-0060-2026-10-31 produced PR #97, and names the branch and folder.
+>
+> The vault has no frontmatter field for a PR URL or a feature folder, so both are recorded in the Status section and the comment, as was done for BI-0039.
+>
+> Read back after editing: `status` is `in-review`, and the Status section shows the new paragraph followed by the old text.
+
 
 ## Escalations
 
@@ -124,7 +181,13 @@ None.
 
 ## Edits made by the advisor
 
-None.
+| File | Change | Triggered by |
+|---|---|---|
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0121 - Sweep Active Mode Cold Cache Cohort For Vault Not Found Regression.md` | Appended a dated HTML-comment cross-reference: BI-0060's new active-mode resolution in read/outline/rename/move, and the ruling to forward path= with no vault= (BI-0117 path 3), falling back to fail-loud (path 2), never the absolute path. | review / fix: Q1 (F2): in active mode, how should read, outline, rename and move tell the CLI which vault to use? |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0060 - Widen Hardcoded Md Extension Support To Obsidian Native Filetypes.md` | Frontmatter status planned → in-review. | record / record-in-vault: The work for job BI-0060 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0060 - Widen Hardcoded Md Extension Support To Obsidian Native Filetypes.md` | Frontmatter spec_branch set to 070-prevent-filetype-changes. | record / record-in-vault: The work for job BI-0060 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0060 - Widen Hardcoded Md Extension Support To Obsidian Native Filetypes.md` | Prepended an 'In review — 2026-10-31' paragraph to ## Status with PR #97 link, spec branch and feature folder specs/070-prevent-filetype-changes. | record / record-in-vault: The work for job BI-0060 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0060 - Widen Hardcoded Md Extension Support To Obsidian Native Filetypes.md` | Appended dated audit-trail HTML comment: Relay run obsidian-cli-mcp-bi-0060-2026-10-31 produced PR #97. | record / record-in-vault: The work for job BI-0060 is now a reviewed, documented pull request. Record that on the job's note,  |
 
 ## Files
 

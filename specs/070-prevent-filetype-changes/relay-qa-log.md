@@ -270,3 +270,121 @@ Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Constitution
 > - **I2:** Option (b). In file mode, forward the original `file=` after the pre-check, and forward the resolved path only in active mode. Markdown calls keep the same arguments, so SC-005 holds as written. The extra resolution call is the only new behaviour; test it on its own.
 > - **I3:** Narrow the edge case to name-based and active resolution. A path-based type check runs at the boundary before any vault access (Constitution III), so a missing `photo.png` passed to `read` correctly gets `UNSUPPORTED_FILE_TYPE`.
 > - **C1:** Add a delete handler test showing that canvas and attachment paths are accepted. Constitution II requires a happy-path test and a failure-or-boundary test for every surface that is modified.
+
+## 7. review / fix (2026-10-31T06:25:23.541Z)
+
+**Question (verbatim):**
+
+> Q1 (F2): in active mode, how should read, outline, rename and move tell the CLI which vault to use?
+>
+> Today (research D3) they send `vault=<display name>`, looked up in the vault registry. If that lookup misses (the registry's path and the path Obsidian reports differ), the lookup returns the absolute vault path instead, and the CLI rejects `vault=<abs path>`. This is the same failure as refactor-memory items 17 and 24. I haven't checked how often the lookup misses in practice.
+>
+> | Option | What it means |
+> |---|---|
+> | A | Keep D3 as it is and accept the failure on a lookup miss. |
+> | B | Send the resolved `path=` with no `vault=`, so the CLI uses the focused vault. The CLI still acts on the file that was checked even if focus moves to another file. You already accepted the remaining risk (focus switching to another vault) in item 24, ruling Q1=A. This removes `vaultRegistry` from the four tools. It needs a live CLI check first, plus an update to research D3. |
+> | C | Keep D3, but drop `vault=` only when the lookup misses. This adds a special-case branch. |
+>
+> Recommended: B. It removes the failure and the extra dependency without adding a branch. If the live check shows `path=` without `vault=` doesn't target the focused vault, fall back to A.
+
+**Advisor** (escalate: none):
+
+> B. In active mode, send the resolved `path=` and no `vault=`. Take `vaultRegistry` out of these four tools, update research D3, and run the live CLI check before planning locks this in.
+>
+> If the live check shows that `path=` without `vault=` does not target the focused vault, do not fall back to A. Keep D3, but when the reverse lookup returns null, fail loudly with a typed error that names the vault it could not resolve. Never forward the absolute path as `vault=`.
+>
+> Rationale:
+> - B is BI-0117 fix path 3: it matches `read`'s active mode, which passes no `vault=` and lets the CLI use the focused vault, so the registry is never involved.
+> - A puts the `?? base` absolute-path fallback back in. BI-0121 tracks that fallback as a latent bug and requires that a lookup miss never shows up as a misleading "Vault not found".
+> - The fail-loud fallback is BI-0117 fix path 2.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0117 - Fix Prepend Active Mode Vault Not Found.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0121 - Sweep Active Mode Cold Cache Cohort For Vault Not Found Regression.md`, `200-Decisions/ADR-003 - Enforce Target Mode in Typed Tools.md`, `000-Meta/MCP Tool Notes/Obsidian CLI MCP - Tool Notes.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0121 - Sweep Active Mode Cold Cache Cohort For Vault Not Found Regression.md`: Appended a dated HTML-comment cross-reference: BI-0060's new active-mode resolution in read/outline/rename/move, and the ruling to forward path= with no vault= (BI-0117 path 3), falling back to fail-loud (path 2), never the absolute path.
+
+**Sent to the step:**
+
+> B. In active mode, send the resolved `path=` and no `vault=`. Take `vaultRegistry` out of these four tools, update research D3, and run the live CLI check before planning locks this in.
+>
+> If the live check shows that `path=` without `vault=` does not target the focused vault, do not fall back to A. Keep D3, but when the reverse lookup returns null, fail loudly with a typed error that names the vault it could not resolve. Never forward the absolute path as `vault=`.
+>
+> Rationale:
+> - B is BI-0117 fix path 3: it matches `read`'s active mode, which passes no `vault=` and lets the CLI use the focused vault, so the registry is never involved.
+> - A puts the `?? base` absolute-path fallback back in. BI-0121 tracks that fallback as a latent bug and requires that a lookup miss never shows up as a misleading "Vault not found".
+> - The fail-loud fallback is BI-0117 fix path 2.
+
+## 8. review / fix (2026-10-31T06:26:02.408Z)
+
+**Question (verbatim):**
+
+> Q2 (F4): should move stop treating the folder form (`to` ending in `/`) differently by locator?
+>
+> Removing that special case would change the Markdown `file`-mode command from `to=Archive/` to `to=Archive/Tax-2026.md`. `contracts/tool-support.md` invariant 4 and FR-012 require those commands to stay unchanged, and three tests pin them.
+>
+> | Option | What it means |
+> |---|---|
+> | A | Keep the special case. It now carries a comment naming the contract that requires it. |
+> | B | Always send the full path. This needs an amendment to the contract and three test edits. |
+> | C | Send the full path whenever the command uses `path=` (path and active modes), and leave `file=` as given. Only active-mode commands change, which SC-005 allows. It is the same amount of code, just keyed on the locator. |
+>
+> Recommended: A. The contract requires the current behaviour, and B or C would add churn without making the code simpler.
+
+**Advisor** (escalate: none):
+
+> 2. A
+>
+> Keep the special case and add the comment that names the contract. The earlier I2 ruling, option (b), is that Markdown `file=` commands stay unchanged. That ruling is the source of FR-012 and invariant 4, so B and C would reverse it for no gain. The folder form is safe for file types: `to` ending in `/` keeps the basename, extension included (Tool Notes, `move`). The BI's own cleanup rule is the same: keep a deliberate constraint and add a comment naming it.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0060 - Widen Hardcoded Md Extension Support To Obsidian Native Filetypes.md`, `000-Meta/MCP Tool Notes/Obsidian CLI MCP - Tool Notes.md`
+
+**Sent to the step:**
+
+> 2. A
+>
+> Keep the special case and add the comment that names the contract. The earlier I2 ruling, option (b), is that Markdown `file=` commands stay unchanged. That ruling is the source of FR-012 and invariant 4, so B and C would reverse it for no gain. The folder form is safe for file types: `to` ending in `/` keeps the basename, extension included (Tool Notes, `move`). The BI's own cleanup rule is the same: keep a deliberate constraint and add a comment naming it.
+
+## 9. record / record-in-vault (2026-10-31T06:54:28.259Z)
+
+**Question (verbatim):**
+
+> The work for job BI-0060 is now a reviewed, documented pull request. Record that on the job's note, following the vault's conventions for backlog items:
+> - the spec branch: 070-prevent-filetype-changes
+> - the feature folder in the code repository: specs/070-prevent-filetype-changes
+> - the pull request: https://github.com/marwansaab/obsidian-cli-mcp/pull/97 (number 97)
+> - the status that means "in review" in this vault (if the vault has no such status, escalate `decision` with up to 3 choices)
+> - a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0060-2026-10-31 produced it.
+>
+> Dry run: no. In a dry run, change nothing: list each edit you would make in `vault_edits`, starting its change with "Would". Otherwise list each edit you made.
+
+**Advisor** (escalate: none):
+
+> BI-0060 is now recorded as in review, following the vault's backlog-item conventions and the BI-0039 Relay precedent. In-review is the status `in-review`, which is part of the vault's own backlog-item vocabulary (Vault Frontmatter Convention), so no decision was needed.
+>
+> - **Frontmatter:** `status` changed from `planned` to `in-review`, and `spec_branch` is now `070-prevent-filetype-changes`. `updated` was already 2026-10-31.
+> - **## Status:** a new opening paragraph, "**In review — 2026-10-31.**", gives PR #97 (https://github.com/marwansaab/obsidian-cli-mcp/pull/97), the spec branch and the feature folder `specs/070-prevent-filetype-changes`, and says the PR is awaiting owner merge. The earlier Status text is kept below it unchanged.
+> - **Audit trail:** a dated HTML comment at the bottom of the note says Relay run obsidian-cli-mcp-bi-0060-2026-10-31 produced PR #97, and names the branch and folder.
+>
+> The vault has no frontmatter field for a PR URL or a feature folder, so both are recorded in the Status section and the comment, as was done for BI-0039.
+>
+> Read back after editing: `status` is `in-review`, and the Status section shows the new paragraph followed by the old text.
+
+Sources: `000-Meta/Vault Frontmatter Convention.md`, `000-Meta/Templates/Backlog Item Template.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0039 - Disambiguate Read Heading Leading Line Terminator.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0060 - Widen Hardcoded Md Extension Support To Obsidian Native Filetypes.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0060 - Widen Hardcoded Md Extension Support To Obsidian Native Filetypes.md`: Frontmatter status planned → in-review.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0060 - Widen Hardcoded Md Extension Support To Obsidian Native Filetypes.md`: Frontmatter spec_branch set to 070-prevent-filetype-changes.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0060 - Widen Hardcoded Md Extension Support To Obsidian Native Filetypes.md`: Prepended an 'In review — 2026-10-31' paragraph to ## Status with PR #97 link, spec branch and feature folder specs/070-prevent-filetype-changes.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0060 - Widen Hardcoded Md Extension Support To Obsidian Native Filetypes.md`: Appended dated audit-trail HTML comment: Relay run obsidian-cli-mcp-bi-0060-2026-10-31 produced PR #97.
+
+**Sent to the step:**
+
+> BI-0060 is now recorded as in review, following the vault's backlog-item conventions and the BI-0039 Relay precedent. In-review is the status `in-review`, which is part of the vault's own backlog-item vocabulary (Vault Frontmatter Convention), so no decision was needed.
+>
+> - **Frontmatter:** `status` changed from `planned` to `in-review`, and `spec_branch` is now `070-prevent-filetype-changes`. `updated` was already 2026-10-31.
+> - **## Status:** a new opening paragraph, "**In review — 2026-10-31.**", gives PR #97 (https://github.com/marwansaab/obsidian-cli-mcp/pull/97), the spec branch and the feature folder `specs/070-prevent-filetype-changes`, and says the PR is awaiting owner merge. The earlier Status text is kept below it unchanged.
+> - **Audit trail:** a dated HTML comment at the bottom of the note says Relay run obsidian-cli-mcp-bi-0060-2026-10-31 produced PR #97, and names the branch and folder.
+>
+> The vault has no frontmatter field for a PR URL or a feature folder, so both are recorded in the Status section and the comment, as was done for BI-0039.
+>
+> Read back after editing: `status` is `in-review`, and the Status section shows the new paragraph followed by the old text.
