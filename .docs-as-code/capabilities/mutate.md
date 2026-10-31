@@ -115,7 +115,7 @@ cancelled request, the handler logs `find_and_replace.commit_cancelled`
 ([architecture](../architecture.md#logging-and-shutdown)). After each written
 note it calls `reportProgress?.(written, total, relPath)`, which sends a
 progress notification only when the request carried a token. The two scope
-predicates, `isSingleNoteScope` and `effectiveSubfolder`, are shared by the
+predicates, `isSingleNoteScope` and `effectiveFolder`, are shared by the
 confirmation gate and `resolveScope` since the PR #92 review (commit
 `ca25c67`), which had found the checks written twice.
 

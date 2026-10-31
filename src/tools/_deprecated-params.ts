@@ -1,11 +1,11 @@
-// Original — no upstream. Shared deprecated-parameter-name mechanics for the family-name alignment (spec 073, research D1–D4, ADR-NNN): alias field builder, old+new conflict issue, notice collection and the deprecated_parameters result field.
+// Original — no upstream. Shared deprecated-parameter-name mechanics for the family-name alignment (spec 073, research D1–D4, ADR-NNN): alias field builder, the fold from old names to new names (conflict issue, polarity, notices) and the deprecated_parameters result field.
 import { z } from "zod";
 
 /** One renamed parameter: the old (deprecated) key and the key that replaces it. */
-export interface ParameterRename {
-  old: string;
-  replacement: string;
-  /** True when the old key carries the opposite polarity (`old: true` equals `replacement: false`). */
+export interface ParameterRename<K extends string = string> {
+  old: K;
+  replacement: K;
+  /** True when the old key carries the opposite polarity (`old: true` equals `replacement: false`); the fold negates its value. */
   inverted?: boolean;
 }
 
@@ -34,40 +34,47 @@ export function deprecatedAlias<T extends z.ZodType>(field: T, rename: Parameter
   return field.optional().meta({ description, deprecated: true });
 }
 
-/** Add one issue at `[old]` when the call supplies both the old and the new key. */
-export function appendAliasConflictIssue(
-  ctx: z.RefinementCtx,
-  input: Record<string, unknown>,
-  rename: ParameterRename,
-): void {
-  if (input[rename.old] !== undefined && input[rename.replacement] !== undefined) {
-    ctx.addIssue({
-      code: "custom",
-      path: [rename.old],
-      message: `\`${rename.old}\` is deprecated and replaced by \`${rename.replacement}\`; supply only \`${rename.replacement}\``,
-    });
-  }
+function noticeFor(rename: ParameterRename): DeprecatedParameter {
+  return rename.inverted
+    ? {
+        parameter: rename.old,
+        replacement: rename.replacement,
+        note: `${rename.old}: true equals ${rename.replacement}: false (opposite polarity).`,
+      }
+    : { parameter: rename.old, replacement: rename.replacement };
 }
 
-/** One notice entry per old key the call used, in rename-table order; `undefined` when none. */
-export function collectDeprecatedParameters(
-  input: Record<string, unknown>,
-  renames: readonly ParameterRename[],
-): DeprecatedParameter[] | undefined {
-  const notices: DeprecatedParameter[] = [];
-  for (const rename of renames) {
-    if (input[rename.old] === undefined) continue;
-    notices.push(
-      rename.inverted
-        ? {
-            parameter: rename.old,
-            replacement: rename.replacement,
-            note: `${rename.old}: true equals ${rename.replacement}: false (opposite polarity).`,
-          }
-        : { parameter: rename.old, replacement: rename.replacement },
-    );
-  }
-  return notices.length > 0 ? notices : undefined;
+/**
+ * The transform between a tool's published schema (old and new names) and the schema it pipes
+ * into, which knows only the new names. Per rename, in table order: an old key sent with its
+ * replacement adds one issue at `[old]`, which stops the pipe; otherwise the old key's value
+ * moves to the replacement (negated when `inverted`) and one notice is recorded. The notices
+ * ride on the folded object as `deprecated_parameters`, absent when no old key was used.
+ */
+export function foldDeprecatedAliases<T extends Record<string, unknown>>(
+  renames: readonly ParameterRename<Extract<keyof NoInfer<T>, string>>[],
+): (input: T, ctx: z.RefinementCtx<T>) => Record<string, unknown> {
+  return (input, ctx) => {
+    const folded: Record<string, unknown> = { ...input };
+    const notices: DeprecatedParameter[] = [];
+    for (const rename of renames) {
+      const value = input[rename.old];
+      if (value === undefined) continue;
+      if (input[rename.replacement] !== undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: [rename.old],
+          message: `\`${rename.old}\` is deprecated and replaced by \`${rename.replacement}\`; supply only \`${rename.replacement}\``,
+        });
+        continue;
+      }
+      delete folded[rename.old];
+      folded[rename.replacement] = rename.inverted ? !value : value;
+      notices.push(noticeFor(rename));
+    }
+    if (notices.length > 0) folded["deprecated_parameters"] = notices;
+    return folded;
+  };
 }
 
 /** Attach `deprecated_parameters` to a handler result when the call used an old name. */
@@ -75,6 +82,5 @@ export function withDeprecatedParameters<R extends object>(
   result: R,
   notices: DeprecatedParameter[] | undefined,
 ): R | (R & { deprecated_parameters: DeprecatedParameter[] }) {
-  if (notices === undefined || notices.length === 0) return result;
-  return { ...result, deprecated_parameters: notices };
+  return notices === undefined ? result : { ...result, deprecated_parameters: notices };
 }

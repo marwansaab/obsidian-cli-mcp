@@ -114,7 +114,7 @@ specs/073-align-parameter-names/
 ### Source Code (repository root)
 
 ```text
-src/tools/_deprecated-params.ts              # NEW: deprecatedAlias, appendAliasConflictIssue,
+src/tools/_deprecated-params.ts              # NEW: deprecatedAlias, foldDeprecatedAliases,
                                              #      deprecatedParametersField, withDeprecatedParameters
 src/tools/_deprecated-params.test.ts         # NEW
 src/tools/find_by_property/

@@ -3,16 +3,15 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import {
-  appendAliasConflictIssue,
-  collectDeprecatedParameters,
   deprecatedAlias,
   deprecatedParametersField,
+  foldDeprecatedAliases,
   withDeprecatedParameters,
   type ParameterRename,
 } from "./_deprecated-params.js";
 
-const PLAIN: ParameterRename = { old: "subfolder", replacement: "folder" };
-const INVERTED: ParameterRename = { old: "case_insensitive", replacement: "case_sensitive", inverted: true };
+const PLAIN = { old: "subfolder", replacement: "folder" } as const satisfies ParameterRename;
+const INVERTED = { old: "case_insensitive", replacement: "case_sensitive", inverted: true } as const satisfies ParameterRename;
 
 function publishedProperty(schema: z.ZodType, key: string): Record<string, unknown> {
   const json = schema["~standard"].jsonSchema.input({ target: "draft-2020-12" });
@@ -47,10 +46,15 @@ describe("deprecatedAlias", () => {
   });
 });
 
-describe("appendAliasConflictIssue", () => {
+describe("foldDeprecatedAliases", () => {
   const schema = z
-    .strictObject({ folder: z.string().optional(), subfolder: z.string().optional() })
-    .superRefine((v, ctx) => appendAliasConflictIssue(ctx, v, PLAIN));
+    .strictObject({
+      case_sensitive: z.boolean().optional(),
+      case_insensitive: z.boolean().optional(),
+      folder: z.string().optional(),
+      subfolder: z.string().optional(),
+    })
+    .transform(foldDeprecatedAliases([INVERTED, PLAIN] as const));
 
   it("raises one issue at [old] naming both keys when both are present", () => {
     const result = schema.safeParse({ folder: "A", subfolder: "B" });
@@ -70,30 +74,25 @@ describe("appendAliasConflictIssue", () => {
     expect(result.error?.issues).toHaveLength(1);
   });
 
-  it("raises nothing when only one key is present", () => {
-    expect(schema.safeParse({ folder: "A" }).success).toBe(true);
-    expect(schema.safeParse({ subfolder: "A" }).success).toBe(true);
-    expect(schema.safeParse({}).success).toBe(true);
-  });
-});
-
-describe("collectDeprecatedParameters", () => {
-  const renames = [INVERTED, PLAIN];
-
-  it("returns one entry per old key used, in table order, with the polarity note only when inverted", () => {
-    expect(collectDeprecatedParameters({ subfolder: "N", case_insensitive: false }, renames)).toEqual([
-      {
-        parameter: "case_insensitive",
-        replacement: "case_sensitive",
-        note: "case_insensitive: true equals case_sensitive: false (opposite polarity).",
-      },
-      { parameter: "subfolder", replacement: "folder" },
-    ]);
+  it("moves an old key onto its replacement, negating an inverted one, with notices in table order", () => {
+    expect(schema.parse({ subfolder: "N", case_insensitive: true })).toEqual({
+      folder: "N",
+      case_sensitive: false,
+      deprecated_parameters: [
+        {
+          parameter: "case_insensitive",
+          replacement: "case_sensitive",
+          note: "case_insensitive: true equals case_sensitive: false (opposite polarity).",
+        },
+        { parameter: "subfolder", replacement: "folder" },
+      ],
+    });
+    expect(schema.parse({ case_insensitive: false })).toMatchObject({ case_sensitive: true });
   });
 
-  it("returns undefined when no old key was used", () => {
-    expect(collectDeprecatedParameters({ folder: "N", case_sensitive: true }, renames)).toBeUndefined();
-    expect(collectDeprecatedParameters({ subfolder: undefined }, renames)).toBeUndefined();
+  it("leaves a new-name call untouched, with no deprecated_parameters key", () => {
+    expect(schema.parse({ folder: "N", case_sensitive: true })).toEqual({ folder: "N", case_sensitive: true });
+    expect(schema.parse({})).toEqual({});
   });
 });
 
@@ -102,7 +101,6 @@ describe("withDeprecatedParameters", () => {
 
   it("returns the result unchanged when there are no notices", () => {
     expect(withDeprecatedParameters(result, undefined)).toBe(result);
-    expect(withDeprecatedParameters(result, [])).toBe(result);
   });
 
   it("adds the deprecated_parameters field otherwise", () => {

@@ -1,17 +1,11 @@
-// Original — no upstream. find_and_replace input + output schemas — strict object input (pattern/replacement/mode/case_sensitive/folder/include_code_blocks/include_html_comments/commit/vault + the single-note scope locators file/path/active_note) with superRefine for regex-syntax, folder + file/path path-traversal, the file wikilink-bracket reject, and the scope mutual-exclusivity matrix (SCOPE_CONFLICT); discriminated-union output keyed on `mode: "preview" | "commit"` per FR-025 with refine enforcing failing_note_locator IFF partial===true. Spec 073: family-aligned keys case_sensitive / folder, with deprecated aliases case_insensitive (opposite polarity) / subfolder folded by the transform (old+new rejected; deprecated_parameters notice on both output branches).
+// Original — no upstream. find_and_replace input + output schemas — strict object input (pattern/replacement/mode/case_sensitive/folder/include_code_blocks/include_html_comments/commit/vault + the single-note scope locators file/path/active_note) with superRefine for regex-syntax, folder + file/path path-traversal, the file wikilink-bracket reject, and the scope mutual-exclusivity matrix (SCOPE_CONFLICT); discriminated-union output keyed on `mode: "preview" | "commit"` per FR-025 with refine enforcing failing_note_locator IFF partial===true. Spec 073: family-aligned keys case_sensitive / folder, with deprecated aliases case_insensitive (opposite polarity) / subfolder folded onto the new names before the new-name schema validates (old+new rejected; deprecated_parameters notice on both output branches).
 import { z } from "zod";
 
 import {
   isStructurallySafePath,
   STRUCTURALLY_UNSAFE_PATH_MESSAGE,
 } from "../../path-safety/schema.js";
-import {
-  appendAliasConflictIssue,
-  collectDeprecatedParameters,
-  deprecatedAlias,
-  deprecatedParametersField,
-  type ParameterRename,
-} from "../_deprecated-params.js";
+import { deprecatedAlias, deprecatedParametersField, foldDeprecatedAliases } from "../_deprecated-params.js";
 
 const PATTERN_MAX = 1000;
 const REPLACEMENT_MAX = 1000;
@@ -37,17 +31,14 @@ const SCOPE_CONFLICT_MESSAGES: Record<string, string> = {
     "find_and_replace: `active_note` cannot be combined with an explicit `vault` (the open note determines its own vault)",
 };
 
-const CASE_INSENSITIVE_RENAME: ParameterRename = { old: "case_insensitive", replacement: "case_sensitive", inverted: true };
-const SUBFOLDER_RENAME: ParameterRename = { old: "subfolder", replacement: "folder" };
+// `case_insensitive` carries the opposite polarity; the fold negates it onto `case_sensitive`.
+const CASE_INSENSITIVE_RENAME = { old: "case_insensitive", replacement: "case_sensitive", inverted: true } as const;
+const SUBFOLDER_RENAME = { old: "subfolder", replacement: "folder" } as const;
 
-export const FIND_AND_REPLACE_RENAMES: readonly ParameterRename[] = [CASE_INSENSITIVE_RENAME, SUBFOLDER_RENAME];
+export const FIND_AND_REPLACE_RENAMES = [CASE_INSENSITIVE_RENAME, SUBFOLDER_RENAME] as const;
 
-// Today's default is case-sensitive; `case_insensitive` carries the opposite polarity.
-function resolveCaseSensitive(v: { case_sensitive?: boolean; case_insensitive?: boolean }): boolean {
-  return v.case_sensitive ?? !(v.case_insensitive ?? false);
-}
-
-export const findAndReplaceInputSchema = z
+/** The published input: both names for each renamed concept, with no default on `case_sensitive`. */
+const findAndReplaceArgsSchema = z
   .strictObject({
     pattern: z
       .string()
@@ -113,13 +104,16 @@ export const findAndReplaceInputSchema = z
       .optional()
       .default(false)
       .describe("Confine to the note open in Obsidian when true. Default false; not combinable with file, path, folder or vault."),
-  })
+  });
+
+/** The input after the fold: new names only, with today's `case_sensitive` default applied. */
+const findAndReplaceFoldedSchema = findAndReplaceArgsSchema
+  .omit({ case_insensitive: true, subfolder: true })
+  .extend({ case_sensitive: z.boolean().default(true), deprecated_parameters: deprecatedParametersField })
   .superRefine((v, ctx) => {
-    for (const rename of FIND_AND_REPLACE_RENAMES) appendAliasConflictIssue(ctx, v, rename);
-    const folder = v.folder ?? v.subfolder;
     if (v.mode === "regex") {
       try {
-        new RegExp(v.pattern, resolveCaseSensitive(v) ? "" : "i");
+        new RegExp(v.pattern, v.case_sensitive ? "" : "i");
       } catch (cause) {
         ctx.addIssue({
           code: "custom",
@@ -129,8 +123,8 @@ export const findAndReplaceInputSchema = z
         });
       }
     }
-    if (folder !== undefined && folder.length > 0) {
-      if (!isStructurallySafePath(folder)) {
+    if (v.folder !== undefined && v.folder.length > 0) {
+      if (!isStructurallySafePath(v.folder)) {
         ctx.addIssue({
           code: "custom",
           path: ["folder"],
@@ -176,14 +170,14 @@ export const findAndReplaceInputSchema = z
     const hasFile = v.file !== undefined;
     const hasPath = v.path !== undefined;
     const hasActive = v.active_note === true;
-    const hasSubfolder = folder !== undefined && folder.length > 0;
+    const hasFolder = v.folder !== undefined && v.folder.length > 0;
     const hasVault = v.vault !== undefined;
     let scopeConflict: string | null = null;
     if (hasFile && hasPath) scopeConflict = "file+path";
     else if (hasActive && (hasFile || hasPath)) scopeConflict = "active+note";
-    else if (hasActive && hasSubfolder) scopeConflict = "active+folder";
+    else if (hasActive && hasFolder) scopeConflict = "active+folder";
     else if (hasActive && hasVault) scopeConflict = "active+vault";
-    else if ((hasFile || hasPath) && hasSubfolder) scopeConflict = "note+folder";
+    else if ((hasFile || hasPath) && hasFolder) scopeConflict = "note+folder";
     if (scopeConflict !== null) {
       ctx.addIssue({
         code: "custom",
@@ -192,18 +186,11 @@ export const findAndReplaceInputSchema = z
         params: { subCode: "SCOPE_CONFLICT", subReason: scopeConflict },
       });
     }
-  })
-  .transform((v) => {
-    const { case_insensitive: _caseInsensitive, subfolder, ...rest } = v;
-    const folder = rest.folder ?? subfolder;
-    const deprecated_parameters = collectDeprecatedParameters(v, FIND_AND_REPLACE_RENAMES);
-    return {
-      ...rest,
-      case_sensitive: resolveCaseSensitive(v),
-      ...(folder !== undefined && { folder }),
-      ...(deprecated_parameters !== undefined && { deprecated_parameters }),
-    };
   });
+
+export const findAndReplaceInputSchema = findAndReplaceArgsSchema
+  .transform(foldDeprecatedAliases(FIND_AND_REPLACE_RENAMES))
+  .pipe(findAndReplaceFoldedSchema);
 
 export type FindAndReplaceInput = z.infer<typeof findAndReplaceInputSchema>;
 

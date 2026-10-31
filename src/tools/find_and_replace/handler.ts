@@ -410,7 +410,7 @@ function assertEligible(relPath: string): void {
  * Probe `abs` with realpath to distinguish a genuinely-missing path from one that
  * checkCanonicalPath accepted via its lexical fallback. ENOENT → the caller's typed
  * not-found error; any other errno rethrows raw. Shared by the single-note and the
- * subfolder existence gates (their not-found `details` shapes differ, so the error
+ * folder existence gates (their not-found `details` shapes differ, so the error
  * is supplied by `onMissing`).
  */
 async function realpathOrThrow(
@@ -505,19 +505,19 @@ async function resolveSingleNoteScope(
   return { vaultRoot, listNotes: () => Promise.resolve(eligible) };
 }
 
-/** Whether the input names one note (`file` / `path` / `active_note`); otherwise the scope is a subfolder or the whole vault. */
+/** Whether the input names one note (`file` / `path` / `active_note`); otherwise the scope is a folder or the whole vault. */
 function isSingleNoteScope(input: FindAndReplaceInput): boolean {
   return input.active_note === true || input.file !== undefined || input.path !== undefined;
 }
 
 /** The folder the scan is limited to, or null for the whole vault (an empty `folder` counts as absent). */
-function effectiveSubfolder(input: FindAndReplaceInput): string | null {
+function effectiveFolder(input: FindAndReplaceInput): string | null {
   return input.folder !== undefined && input.folder.length > 0 ? input.folder : null;
 }
 
 /**
  * Front-end scope dispatch. Any of `file` / `path` / `active_note` routes to the
- * single-note resolver; otherwise the unchanged subfolder / vault-wide resolve-and-walk.
+ * single-note resolver; otherwise the unchanged folder / vault-wide resolve-and-walk.
  */
 async function resolveScope(
   input: FindAndReplaceInput,
@@ -535,12 +535,12 @@ async function resolveScope(
   const vaultRootRaw = await resolveVaultRoot(input, deps);
   const vaultRoot = await assertCanonicalPath(vaultRootRaw, ".", guard);
 
-  // === UNCHANGED — subfolder OR whole-vault scope resolution ===
+  // === UNCHANGED — folder OR whole-vault scope resolution ===
   let scanRoot = vaultRoot;
-  const subfolder = effectiveSubfolder(input);
-  if (subfolder !== null) {
-    const subResolved = await assertCanonicalPath(vaultRoot, subfolder, guard);
-    // Verify the subfolder exists — checkCanonicalPath returns ok with the
+  const folder = effectiveFolder(input);
+  if (folder !== null) {
+    const subResolved = await assertCanonicalPath(vaultRoot, folder, guard);
+    // Verify the folder exists — checkCanonicalPath returns ok with the
     // lexical fallback when the path does not exist; we need to distinguish.
     await realpathOrThrow(
       subResolved,
@@ -552,10 +552,10 @@ async function resolveScope(
           details: {
             code: "INVALID_SUBFOLDER",
             reason: "not-found",
-            subfolder,
+            subfolder: folder,
             vault: vaultLabel,
           },
-          message: `find_and_replace: folder "${subfolder}" does not exist in vault`,
+          message: `find_and_replace: folder "${folder}" does not exist in vault`,
         }),
     );
     scanRoot = subResolved;
@@ -575,8 +575,8 @@ const MULTI_NOTE_UNAVAILABLE_MESSAGE =
 /** The confirmation question for a multi-note commit: the action, the vault and the scope with its note count. */
 function multiNoteCommitQuestion(input: FindAndReplaceInput, noteCount: number, occurrences: number): string {
   const vault = input.vault !== undefined ? `vault "${input.vault}"` : "the focused vault";
-  const subfolder = effectiveSubfolder(input);
-  const scope = subfolder !== null ? `under "${subfolder}" in ${vault}` : `across ${vault}`;
+  const folder = effectiveFolder(input);
+  const scope = folder !== null ? `under "${folder}" in ${vault}` : `across ${vault}`;
   return `Replace ${occurrences} occurrence(s) of "${input.pattern}" in ${noteCount} note(s) ${scope}? The notes are rewritten in place.`;
 }
 
@@ -589,13 +589,13 @@ export async function executeFindAndReplace(
   const randomUUIDFn = deps.randomUUID ?? nodeRandomUUID;
   const vaultLabel = input.vault ?? null;
 
-  // 068 R12 / FR-048 step 1: a commit with no single-note scope (a subfolder still counts as
+  // 068 R12 / FR-048 step 1: a commit with no single-note scope (a folder still counts as
   // multi-note) is confirmed by the human. Checked here, before vault resolution — which spawns
   // Obsidian — so a client that cannot ask gets the refusal with nothing spawned or written.
   const needsConfirmation = input.commit === true && !isSingleNoteScope(input);
   if (needsConfirmation) confirmation.requireConfirmable(MULTI_NOTE_UNAVAILABLE_MESSAGE);
 
-  // === Stages 1–3 — scope resolution (single-note OR subfolder / vault-wide) ===
+  // === Stages 1–3 — scope resolution (single-note OR folder / vault-wide) ===
   const { vaultRoot, listNotes } = await resolveScope(input, deps, fs, vaultLabel);
 
   // === Stage 4 — first scan ===

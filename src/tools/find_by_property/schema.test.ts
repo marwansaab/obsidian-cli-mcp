@@ -2,6 +2,7 @@
 import { describe, expect, it, test } from "vitest";
 
 import { FIND_BY_PROPERTY_RENAMES, findByPropertyInputSchema } from "./schema.js";
+import { deprecatedAliasCases } from "../_deprecated-params-test-cases.js";
 
 // (1) Story 5 AC#1 — `name: ""` rejected (min(1) fires)
 test("empty name rejected on path=['name'] with too_small", () => {
@@ -19,7 +20,7 @@ test("missing name rejected on path=['name'] with 'name is required'", () => {
   const result = findByPropertyInputSchema.safeParse({ value: "x" });
   expect(result.success).toBe(false);
   expect(result.error?.issues).toEqual([
-    expect.objectContaining({ code: "custom", path: ["name"], message: "name is required" }),
+    expect.objectContaining({ path: ["name"], message: "name is required" }),
   ]);
 });
 
@@ -164,16 +165,16 @@ test("array_match and case_sensitive default to true when omitted (spec 073 O1: 
 
 describe("spec 073 — deprecated names", () => {
   // O2 — each old name parses to the same normalised input as its new-name twin, plus the notice
-  const base = { vault: "V", value: "x", folder: "F" };
-  it.each<[string, Record<string, unknown>, Record<string, unknown>]>([
-    ["property", { property: "id" }, { name: "id" }],
-    ["arrayMatch", { name: "id", arrayMatch: false }, { name: "id", array_match: false }],
-    ["caseSensitive", { name: "id", caseSensitive: false }, { name: "id", case_sensitive: false }],
-  ])("O2: %s parses like its replacement, plus the notice", (old, oldArgs, newArgs) => {
-    const viaNew = findByPropertyInputSchema.parse({ ...base, ...newArgs });
-    const viaOld = findByPropertyInputSchema.parse({ ...base, ...oldArgs });
-    const replacement = FIND_BY_PROPERTY_RENAMES.find((r) => r.old === old)!.replacement;
-    expect(viaOld).toEqual({ ...viaNew, deprecated_parameters: [{ parameter: old, replacement }] });
+  const cases = deprecatedAliasCases(
+    FIND_BY_PROPERTY_RENAMES,
+    { vault: "V", name: "id", value: "x", folder: "F" },
+    { name: "id", array_match: false, case_sensitive: false },
+  );
+  it.each(cases.equivalence)("O2: $old parses like its replacement, plus the notice", ({ viaOld, viaNew, notice }) => {
+    expect(findByPropertyInputSchema.parse(viaOld)).toEqual({
+      ...findByPropertyInputSchema.parse(viaNew),
+      deprecated_parameters: [notice],
+    });
   });
 
   it("O2: every old name at once lists them all in rename-table order", () => {
@@ -186,20 +187,10 @@ describe("spec 073 — deprecated names", () => {
   });
 
   // O4 — old + new for one concept rejected, even with equal values
-  it.each<[string, Record<string, unknown>]>([
-    ["property", { name: "id", property: "id" }],
-    ["arrayMatch", { name: "id", array_match: true, arrayMatch: true }],
-    ["caseSensitive", { name: "id", case_sensitive: false, caseSensitive: true }],
-  ])("O4: %s alongside its replacement → one conflict issue at [old]", (old, args) => {
-    const replacement = FIND_BY_PROPERTY_RENAMES.find((r) => r.old === old)!.replacement;
-    const result = findByPropertyInputSchema.safeParse({ value: "x", ...args });
+  it.each(cases.conflict)("O4: $old alongside its replacement → one conflict issue at [old]", ({ input, issue }) => {
+    const result = findByPropertyInputSchema.safeParse(input);
     expect(result.success).toBe(false);
-    expect(result.error?.issues).toEqual([
-      expect.objectContaining({
-        path: [old],
-        message: `\`${old}\` is deprecated and replaced by \`${replacement}\`; supply only \`${replacement}\``,
-      }),
-    ]);
+    expect(result.error?.issues).toEqual([expect.objectContaining(issue)]);
   });
 
   // O6 — the array check runs on the resolved value and names array_match

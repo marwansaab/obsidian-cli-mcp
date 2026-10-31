@@ -1,13 +1,8 @@
-// Original — no upstream. find_by_property input/output schemas — flat z.object (no target_mode discriminator per FR-002); polymorphic value union for type-faithful matching; folder-traversal regex per Q2/FR-021; cross-field superRefine rejecting array value when array_match:true. Spec 073: family-aligned keys name / array_match / case_sensitive, with deprecated aliases property / arrayMatch / caseSensitive folded by the transform (old+new rejected; deprecated_parameters notice).
+// Original — no upstream. find_by_property input/output schemas — flat z.object (no target_mode discriminator per FR-002); polymorphic value union for type-faithful matching; folder-traversal regex per Q2/FR-021; cross-field superRefine rejecting array value when array_match:true. Spec 073: family-aligned keys name / array_match / case_sensitive, with deprecated aliases property / arrayMatch / caseSensitive folded onto the new names before the new-name schema validates (old+new rejected; deprecated_parameters notice).
 import { z } from "zod";
 
-import {
-  appendAliasConflictIssue,
-  collectDeprecatedParameters,
-  deprecatedAlias,
-  deprecatedParametersField,
-  type ParameterRename,
-} from "../_deprecated-params.js";
+import { deprecatedAlias, deprecatedParametersField, foldDeprecatedAliases } from "../_deprecated-params.js";
+import { requiredString } from "../_required-string.js";
 import { focusedVaultField } from "../_vault-field.js";
 
 export const FOLDER_TRAVERSAL_REGEX = /(?:^[/\\])|(?:^|[/\\])\.\.(?:[/\\]|$)/;
@@ -19,17 +14,14 @@ const scalarValueSchema = z.union([
   z.null(),
 ]);
 
-const PROPERTY_RENAME: ParameterRename = { old: "property", replacement: "name" };
-const ARRAY_MATCH_RENAME: ParameterRename = { old: "arrayMatch", replacement: "array_match" };
-const CASE_SENSITIVE_RENAME: ParameterRename = { old: "caseSensitive", replacement: "case_sensitive" };
+const PROPERTY_RENAME = { old: "property", replacement: "name" } as const;
+const ARRAY_MATCH_RENAME = { old: "arrayMatch", replacement: "array_match" } as const;
+const CASE_SENSITIVE_RENAME = { old: "caseSensitive", replacement: "case_sensitive" } as const;
 
-export const FIND_BY_PROPERTY_RENAMES: readonly ParameterRename[] = [
-  PROPERTY_RENAME,
-  ARRAY_MATCH_RENAME,
-  CASE_SENSITIVE_RENAME,
-];
+export const FIND_BY_PROPERTY_RENAMES = [PROPERTY_RENAME, ARRAY_MATCH_RENAME, CASE_SENSITIVE_RENAME] as const;
 
-export const findByPropertyInputSchema = z
+/** The published input: both names for each renamed concept, with no defaults on the new booleans. */
+const findByPropertyArgsSchema = z
   .strictObject({
     vault: focusedVaultField,
     name: z
@@ -62,14 +54,19 @@ export const findByPropertyInputSchema = z
     arrayMatch: deprecatedAlias(z.boolean(), ARRAY_MATCH_RENAME),
     case_sensitive: z.boolean().optional().describe("Match case exactly when true. Default true."),
     caseSensitive: deprecatedAlias(z.boolean(), CASE_SENSITIVE_RENAME),
+  });
+
+/** The input after the fold: new names only, `name` required again and today's defaults applied. */
+const findByPropertyFoldedSchema = findByPropertyArgsSchema
+  .omit({ property: true, arrayMatch: true, caseSensitive: true })
+  .extend({
+    name: requiredString("name").min(1),
+    array_match: z.boolean().default(true),
+    case_sensitive: z.boolean().default(true),
+    deprecated_parameters: deprecatedParametersField,
   })
   .superRefine((input, ctx) => {
-    for (const rename of FIND_BY_PROPERTY_RENAMES) appendAliasConflictIssue(ctx, input, rename);
-    if (input.name === undefined && input.property === undefined) {
-      ctx.addIssue({ code: "custom", path: ["name"], message: "name is required" });
-    }
-    const arrayMatch = input.array_match ?? input.arrayMatch ?? true;
-    if (Array.isArray(input.value) && arrayMatch) {
+    if (Array.isArray(input.value) && input.array_match) {
       ctx.addIssue({
         code: "custom",
         path: ["value"],
@@ -77,20 +74,11 @@ export const findByPropertyInputSchema = z
           "value cannot be an array when array_match is true (default); pass a scalar for contains semantics, or set array_match: false for exact-equality.",
       });
     }
-  })
-  .transform((v) => {
-    const deprecated_parameters = collectDeprecatedParameters(v, FIND_BY_PROPERTY_RENAMES);
-    return {
-      ...(v.vault !== undefined && { vault: v.vault }),
-      // superRefine guarantees one of the two is present.
-      name: (v.name ?? v.property)!,
-      value: v.value,
-      ...(v.folder !== undefined && { folder: v.folder }),
-      array_match: v.array_match ?? v.arrayMatch ?? true,
-      case_sensitive: v.case_sensitive ?? v.caseSensitive ?? true,
-      ...(deprecated_parameters !== undefined && { deprecated_parameters }),
-    };
   });
+
+export const findByPropertyInputSchema = findByPropertyArgsSchema
+  .transform(foldDeprecatedAliases(FIND_BY_PROPERTY_RENAMES))
+  .pipe(findByPropertyFoldedSchema);
 
 export const findByPropertyOutputSchema = z
   .strictObject({

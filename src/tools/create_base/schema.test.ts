@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { CREATE_BASE_RENAMES, createBaseInputSchema, createBaseOutputSchema, MAX_CONTENT_LENGTH } from "./schema.js";
 import { BASE_PATH_DESCRIPTION } from "../_base-path.js";
+import { deprecatedAliasCases } from "../_deprecated-params-test-cases.js";
 import { messageForPath } from "../_schema-test-utils.js";
 
 function paramsForPath(
@@ -282,29 +283,25 @@ test("spec 073 O1: new names normalise with no notice", () => {
   expect(parsed).toEqual({ base_path: "Tasks.base", name: "x", view_name: "All" });
 });
 
-test.each<[string, Record<string, unknown>, Record<string, unknown>]>([
-  ["path", { path: "Tasks.base", view_name: "All" }, { base_path: "Tasks.base", view_name: "All" }],
-  ["view", { base_path: "Tasks.base", view: "All" }, { base_path: "Tasks.base", view_name: "All" }],
-])("spec 073 O2: %s parses like its replacement, plus the notice", (old, oldArgs, newArgs) => {
-  const viaOld = createBaseInputSchema.parse({ name: "x", content: "c", vault: "W", ...oldArgs });
-  const viaNew = createBaseInputSchema.parse({ name: "x", content: "c", vault: "W", ...newArgs });
-  const replacement = CREATE_BASE_RENAMES.find((r) => r.old === old)!.replacement;
-  expect(viaOld).toEqual({ ...viaNew, deprecated_parameters: [{ parameter: old, replacement }] });
+const aliasCases = deprecatedAliasCases(
+  CREATE_BASE_RENAMES,
+  { base_path: "Tasks.base", name: "x", content: "c", vault: "W", view_name: "All" },
+  { base_path: "Tasks.base", view_name: "All" },
+);
+
+test.each(aliasCases.equivalence)("spec 073 O2: $old parses like its replacement, plus the notice", ({ viaOld, viaNew, notice }) => {
+  expect(createBaseInputSchema.parse(viaOld)).toEqual({ ...createBaseInputSchema.parse(viaNew), deprecated_parameters: [notice] });
 });
 
-test.each<[string, Record<string, unknown>]>([
-  ["path", { base_path: "Tasks.base", path: "Tasks.base" }],
-  ["view", { base_path: "Tasks.base", view_name: "All", view: "Other" }],
-])("spec 073 O4: %s alongside its replacement → one conflict issue at [old]", (old, args) => {
-  const replacement = CREATE_BASE_RENAMES.find((r) => r.old === old)!.replacement;
-  const r = createBaseInputSchema.safeParse({ name: "x", ...args });
+test.each(aliasCases.conflict)("spec 073 O4: $old alongside its replacement → one conflict issue at [old]", ({ input, issue }) => {
+  const r = createBaseInputSchema.safeParse(input);
   expect(r.success).toBe(false);
-  expect(r.error?.issues).toEqual([
-    expect.objectContaining({
-      path: [old],
-      message: `\`${old}\` is deprecated and replaced by \`${replacement}\`; supply only \`${replacement}\``,
-    }),
-  ]);
+  expect(r.error?.issues).toEqual([expect.objectContaining(issue)]);
+});
+
+test("spec 073 O4: view alongside a different view_name is rejected too", () => {
+  const r = createBaseInputSchema.safeParse({ base_path: "Tasks.base", name: "x", view_name: "All", view: "Other" });
+  expect(r.error?.issues).toEqual([expect.objectContaining({ path: ["view"] })]);
 });
 
 test("spec 073 O6: deprecated path with a wrong extension → INVALID_BASE_PATH naming base_path", () => {

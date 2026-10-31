@@ -81,6 +81,8 @@ Each affected input schema declares both names: the new key, and the old key mar
 
 Handlers read the new names only, so their bodies change only in which key they read.
 
+**Amended after the PR #101 review**: the fold now runs *before* validation. Each input schema is `<published object>.transform(foldDeprecatedAliases(RENAMES)).pipe(<new-name schema>)`. The published object (both names) is unchanged, so the published JSON Schema and its fingerprint are byte-identical. The fold rejects old-plus-new pairs, moves each old value to its new key (negated for `case_insensitive`) and records the notices. The new-name schema is the published object without the old keys, with `required` and today's defaults restored, and it carries each tool's `superRefine` unchanged apart from the key names. So no refinement refers to an old name, and the removal follow-up deletes the old keys and the `.transform().pipe()` without touching the refinements. One consequence: an old-plus-new conflict stops the pipe, so a call that also breaks another rule reports only the conflict (for example `subfolder` + `folder` + `path` now returns the generic `VALIDATION_ERROR` with the conflict issue instead of `SCOPE_CONFLICT`). FR-012 holds: the error names both keys and nothing is read.
+
 - **Rationale**: the zod schema stays the single source of truth for the published shape (both names), the runtime parse (conflicts, validation), and the handler's type (new names only) — Principle III. No change to `registerTool`, which is among the most-depended-on symbols (F2).
 - **Rejected — a generic alias table in `registerTool`** that rewrites `args` before parsing. The published schema would still have to declare the old keys separately, so the shape would live in two places. It also widens the change to every tool's registration path for three tools' benefit.
 - **Rejected — `z.preprocess`**: its input side is a transform, which zod cannot render as input JSON Schema, so the old keys would not be published.
@@ -90,8 +92,7 @@ Handlers read the new names only, so their bodies change only in which key they 
 `src/tools/_deprecated-params.ts` (new, `Original — no upstream`). It is a leaf util beside `_base-path.ts` and `_required-string.ts`, and imports only `zod`. It exports:
 
 - `deprecatedAlias(field, rename)` — wraps a zod field as optional and adds the `Deprecated: use \`<replacement>\` …` description and `.meta({ deprecated: true })`;
-- `appendAliasConflictIssue(ctx, input, rename)` — adds one custom issue when both keys are present;
-- `collectDeprecatedParameters(input, renames)` — builds the notice entries for the old names used;
+- `foldDeprecatedAliases(renames)` — the transform of D1 (amended): one custom issue per old-plus-new pair, otherwise the old value moved to the new key (negated when the rename is `inverted`) and the notice entries for the old names used. Its rename table is typed against the published object's keys, so a misspelt key fails the type check. (It replaces the original `appendAliasConflictIssue` and `collectDeprecatedParameters`.);
 - `deprecatedParameterSchema` / `deprecatedParametersField` — the result-field schema of D4;
 - `withDeprecatedParameters(result, notices)` — returns `result` unchanged when `notices` is `undefined` or empty, otherwise `{ ...result, deprecated_parameters: notices }`.
 
@@ -122,6 +123,7 @@ On `find_and_replace` the field is declared on both union branches. Entries foll
 `find_by_property.name` and `create_base.base_path` are required concepts that can now arrive under either name. Both keys are optional in the published schema, and `required` loses `property` and `path`. When neither name is given, `superRefine` adds `"name is required"` / `"base_path is required"` at the new key's path (the `requiredString` wording, F6), so the error names the new parameter.
 
 - **Rationale**: a call carrying only the old name must validate during the transition (FR-010). The published descriptions still say which key is required. The removal follow-up restores `required`.
+- **Amended after the PR #101 review**: the message now comes from `requiredString("name")` / `requiredString("base_path")` in the new-name schema of D1, not from a hand-written `superRefine` issue. The text and path are the same; the issue `code` is `invalid_type`, as it was for a missing `property` / `path` before this feature.
 - **Rejected — keep the new key `required`**: every old-name call would fail, which contradicts FR-010.
 
 ### D6 — Errors name the new parameter; machine-readable codes stay
@@ -186,6 +188,7 @@ Per tool, co-located:
   - `_typed-result-fixtures.ts` moves to the new names and gains one old-name fixture each for `find_by_property`, `find_and_replace` and `create_base`, so the `_surface.test.ts` typed-result round trip checks the notice against the published output schema;
   - baseline regenerated; the reviewer checks that only these three tools' fingerprints moved.
 - **Shared module**: `src/tools/_deprecated-params.test.ts` covers the shared helpers.
+- **Amended after the PR #101 review**: the per-rename O2 (old name parses like the new one, plus the notice) and O4 (old plus new rejected) cases come from `deprecatedAliasCases` in `src/tools/_deprecated-params-test-cases.ts`, a pure, vitest-free generator like `targetModeWiringCases`, which each tool's `schema.test.ts` runs with `it.each`. The family-name and shared-wording checks live in `_surface.test.ts` with the other published-surface checks.
 
 ### D11 — Out of this feature
 

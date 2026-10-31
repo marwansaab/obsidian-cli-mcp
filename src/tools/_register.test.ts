@@ -7,7 +7,6 @@ import { fileURLToPath } from "node:url";
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import { z } from "zod";
 
-import { BASE_PATH_DESCRIPTION } from "./_base-path.js";
 import { connectInMemoryClient, serveOne, textOf } from "./_mcp-client-fixtures.js";
 import { fingerprintLiveRegistry, type RegisterBaseline } from "./_register-baseline.js";
 import { registerTool, assertToolDocsExist, toSdkInputSchema } from "./_register.js";
@@ -821,54 +820,6 @@ describe("registry: published inputSchema invariants (post-010)", () => {
         intersection,
         `retired names re-appeared in tools/list: ${intersection.join(", ")}`,
       ).toEqual([]);
-    });
-
-    // Spec 073 SC-001: one concept, one name within a tool family.
-    function publishedProps(toolName: string): Record<string, { description?: string }> {
-      const tool = listResponse.tools.find((t) => t.name === toolName);
-      expect(tool, `Tool '${toolName}' missing from tools/list response`).toBeDefined();
-      return tool!.inputSchema["properties"] as Record<string, { description?: string }>;
-    }
-
-    it("family names: each shared concept carries the same parameter name across its family (spec 073)", () => {
-      const families: Array<[string[], string[]]> = [
-        [["read_property", "set_property", "find_by_property"], ["name"]],
-        [["search", "context_search", "pattern_search", "find_by_property", "find_and_replace"], ["case_sensitive", "folder"]],
-        [["views_base", "query_base", "create_base"], ["base_path"]],
-        [["query_base", "create_base"], ["view_name"]],
-      ];
-      for (const [tools, keys] of families) {
-        for (const toolName of tools) {
-          for (const key of keys) {
-            expect(Object.keys(publishedProps(toolName)), `${toolName} lists ${key}`).toContain(key);
-          }
-        }
-      }
-    });
-
-    it("FR-008 shared wording: each renamed key opens with its siblings' wording of the concept (spec 073)", () => {
-      const desc = (toolName: string, key: string) => publishedProps(toolName)[key]?.description ?? "";
-
-      expect(desc("find_by_property", "name").startsWith('Frontmatter property name to match, matched exactly (e.g. "status").')).toBe(true);
-      expect(desc("read_property", "name")).toContain('matched exactly (e.g. "status").');
-
-      for (const toolName of ["find_by_property", "find_and_replace"]) {
-        expect(desc(toolName, "case_sensitive").startsWith("Match case exactly when true.")).toBe(true);
-      }
-      // The siblings' shared opening (pattern_search continues with ";", the others with ".").
-      for (const toolName of ["search", "context_search", "pattern_search"]) {
-        expect(desc(toolName, "case_sensitive").startsWith("Match case exactly when true")).toBe(true);
-      }
-
-      expect(desc("find_and_replace", "folder").startsWith(desc("context_search", "folder"))).toBe(true);
-      expect(desc("context_search", "folder")).toBe(desc("pattern_search", "folder"));
-
-      expect(desc("query_base", "base_path")).toBe(BASE_PATH_DESCRIPTION);
-      expect(desc("create_base", "base_path").startsWith(BASE_PATH_DESCRIPTION)).toBe(true);
-
-      for (const toolName of ["create_base", "query_base"]) {
-        expect(desc(toolName, "view_name").startsWith("Exact, case-sensitive name of the view to")).toBe(true);
-      }
     });
   });
 

@@ -6,6 +6,7 @@ import {
   findAndReplaceInputSchema,
   findAndReplaceOutputSchema,
 } from "./schema.js";
+import { deprecatedAliasCases } from "../_deprecated-params-test-cases.js";
 
 describe("findAndReplaceInputSchema — happy path", () => {
   it("accepts a minimal literal input", () => {
@@ -359,11 +360,12 @@ describe("findAndReplaceInputSchema — deprecated names (spec 073)", () => {
     note: "case_insensitive: true equals case_sensitive: false (opposite polarity).",
   };
 
-  it("O2: subfolder parses like folder, plus the notice", () => {
-    const viaNew = findAndReplaceInputSchema.parse({ ...base, folder: "Notes" });
-    const viaOld = findAndReplaceInputSchema.parse({ ...base, subfolder: "Notes" });
-    expect(viaOld).toEqual({ ...viaNew, deprecated_parameters: [{ parameter: "subfolder", replacement: "folder" }] });
-    expect("subfolder" in viaOld).toBe(false);
+  const cases = deprecatedAliasCases(FIND_AND_REPLACE_RENAMES, base, { case_sensitive: false, folder: "Notes" });
+
+  it.each(cases.equivalence)("O2: $old parses like its replacement, plus the notice", ({ old, viaOld, viaNew, notice }) => {
+    const parsed = findAndReplaceInputSchema.parse(viaOld);
+    expect(parsed).toEqual({ ...findAndReplaceInputSchema.parse(viaNew), deprecated_parameters: [notice] });
+    expect(old in parsed).toBe(false);
   });
 
   it.each([
@@ -381,20 +383,15 @@ describe("findAndReplaceInputSchema — deprecated names (spec 073)", () => {
     expect(parsed.deprecated_parameters).toEqual([CASE_NOTE, { parameter: "subfolder", replacement: "folder" }]);
   });
 
-  it.each<[string, Record<string, unknown>]>([
-    ["case_insensitive", { case_sensitive: true, case_insensitive: false }],
-    ["case_insensitive", { case_sensitive: false, case_insensitive: true }],
-    ["subfolder", { folder: "A", subfolder: "A" }],
-  ])("O4: %s alongside its replacement → one conflict issue at [old] (%o)", (old, args) => {
-    const replacement = FIND_AND_REPLACE_RENAMES.find((r) => r.old === old)!.replacement;
-    const result = findAndReplaceInputSchema.safeParse({ ...base, ...args });
+  it.each(cases.conflict)("O4: $old alongside its replacement → one conflict issue at [old]", ({ input, issue }) => {
+    const result = findAndReplaceInputSchema.safeParse(input);
     expect(result.success).toBe(false);
-    expect(result.error?.issues).toEqual([
-      expect.objectContaining({
-        path: [old],
-        message: `\`${old}\` is deprecated and replaced by \`${replacement}\`; supply only \`${replacement}\``,
-      }),
-    ]);
+    expect(result.error?.issues).toEqual([expect.objectContaining(issue)]);
+  });
+
+  it("O4: case_insensitive alongside case_sensitive is rejected whichever polarity the pair has", () => {
+    const result = findAndReplaceInputSchema.safeParse({ ...base, case_sensitive: true, case_insensitive: true });
+    expect(result.error?.issues).toEqual([expect.objectContaining({ path: ["case_insensitive"] })]);
   });
 
   it("O6: subfolder with a traversal value → issue at [folder] with INVALID_SUBFOLDER/path-traversal", () => {
