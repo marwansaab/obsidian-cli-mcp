@@ -106,6 +106,29 @@ describe("docs/tools/links.md exists and is non-stub (FR-018)", () => {
   });
 });
 
+describe("spec 071 — one display-label rule, no caveat (FR-006, FR-007)", () => {
+  const RULE_SENTENCE =
+    "displayText on a wikilink or embed is present only when the author wrote a non-empty alias after | distinct from the link target, and carries that alias, with or without a heading, block or other fragment and for frontmatter links alike; a Markdown link or image reports its bracketed link text or image alt text as written (empty included) when distinct from the target.";
+
+  it("LINKS_DESCRIPTION states the single rule with no caveat or derived-label shape", () => {
+    expect(LINKS_DESCRIPTION).toContain(RULE_SENTENCE);
+    expect(LINKS_DESCRIPTION).not.toContain("alias distinct from the link target. ");
+    expect(LINKS_DESCRIPTION).not.toContain("CAVEAT");
+    expect(LINKS_DESCRIPTION).not.toContain(" > ");
+  });
+
+  it("docs/tools/links.md drops the CAVEAT, the regex workaround and the embeds-omit claim", () => {
+    const docsPath = resolve(
+      dirname(fileURLToPath(import.meta.url)),
+      "../../../docs/tools/links.md",
+    );
+    const body = readFileSync(docsPath, "utf8");
+    expect(body).not.toContain("CAVEAT");
+    expect(body).not.toContain("/^.+ > .+$/.test(entry.displayText)");
+    expect(body).not.toContain("and wiki embeds (`![[diagrams/x.png]]`) omit the field");
+  });
+});
+
 describe("FR-018 baseline drift detector", () => {
   // (e) Baseline roll-forward gate — the fingerprint must match _register-baseline.json
   // post-npm-run-baseline:write. This test relies on T009 having been run.

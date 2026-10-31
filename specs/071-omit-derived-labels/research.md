@@ -45,6 +45,13 @@ Findings:
 - **F3**: Obsidian trims aliases: a blank alias (`| `) is reported as `""`, like an empty one. Whether leading and trailing spaces are trimmed off a non-blank alias is gate G1 in the probe plan; the rule reports the cache value either way, as it does today.
 - **F4**: Frontmatter links derive labels too, which contradicts the spec's original out-of-scope bullet. Clarified 2026-10-31: they are included.
 
+## Implement-time T0 evidence (2026-10-31)
+
+Probes ran through `Obsidian.com` with `vault=TestVault-Obsidian-CLI-MCP` (the `vault=` token placed before `eval`, as `assembleArgv` does), on fixtures under `Sandbox/p071i/`. A re-dump of the full fixture matched every G0 shape in [contracts/t0-cache-shapes.json](contracts/t0-cache-shapes.json).
+
+- **F5 (gate G1, alias trimming)**: Obsidian trims surrounding whitespace off a non-blank alias. Both `[[Tgt#Head|  Padded  ]]` (`link` `Tgt#Head`) and `[[Tgt|  Padded  ]]` (`link` `Tgt`) come back with `original` holding the padded source span and `displayText: "Padded"`. The rule still emits the cache value, so the reported alias is the written alias with surrounding whitespace trimmed, as the editor parses it. The spec wording was amended accordingly (T002, see spec Clarifications).
+- **F6 (gate G3, aliased frontmatter list item)**: a list property holding `"[[Tgt#Head|Fm Alias]]"` and `"[[Tgt#^blk]]"` gives two `frontmatterLinks` entries: `{ link: "Tgt#Head", original: "[[Tgt#Head|Fm Alias]]", displayText: "Fm Alias", key: "refs.0" }` and `{ link: "Tgt#^blk", original: "[[Tgt#^blk]]", displayText: "Tgt > ^blk", key: "refs.1" }`. `original` keeps `|`, so D2 holds for aliased frontmatter links and the G3 fallback is not needed.
+
 ## D1: Detect the alias from `original`, not from the label's shape
 
 **Decision**: An entry written in wiki form (its `original` starts with `[[` or `![[`) gets `displayText` only when all three hold: `original` contains `|`, `displayText` is not `""`, and `displayText !== link`. Entries not in wiki form (Markdown links and images) keep today's rule unchanged: `displayText` is emitted when `displayText !== link`.

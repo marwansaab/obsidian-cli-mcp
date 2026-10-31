@@ -17,6 +17,7 @@ The outgoing-links listing promises that an entry carries a display label only w
 - Q: Does image-size text after the alias separator on an embed (for example a width of 300) count as an author-written alias? → A: Yes, unchanged from today. Size text is written in the source, so it is reported as the label exactly as written. The rule is phrased as "the text the author wrote after the alias separator"; telling sizes apart from labels is new scope this feature does not carry.
 - Q: Should links declared in a note's properties follow the same rule? (Planning probe evidence: a property value holding an unaliased heading link is reported today with the derived label "Tgt > Head", so the earlier "already follows the rule" statement was wrong.) → A: Yes, include them. Property links are reported as ordinary wiki-style link entries, so the uniform rule covers them; the out-of-scope bullet is removed and FR-004 corrected.
 - Q: How should an empty or blank alias (the separator written with nothing, or only spaces, after it) be reported? (Planning probe evidence: such entries come back today with an empty-string label, plain links included.) → A: As no alias, on every wiki-style link and embed, plain or fragment-bearing. An empty label breaks the single presence check on any shape; the "plain links unchanged" story covers only plain links with no alias, so dropping the empty label leaves it intact.
+- Implement-time gate G1 (research F5): the editor trims surrounding whitespace off a non-blank alias — `[[Tgt#Head|  Padded  ]]` and `[[Tgt|  Padded  ]]` both give the label "Padded". Per the owner ruling of 2026-10-31 (analysis I2), "exactly as written" in FR-002, FR-006 and the US3 Independent Test now reads "as written, with surrounding whitespace trimmed, as the editor parses it". The tool reports the editor's parsed alias; plain aliased links report the same value as before this feature.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -58,7 +59,7 @@ An agent lists a note's outgoing links. Where the author wrote an alias on a lin
 
 **Why this priority**: Removing derived labels must not remove real information. This story guards against over-correction.
 
-**Independent Test**: List the outgoing links of a note containing aliased heading, block and plain links; confirm each label matches the written alias character for character.
+**Independent Test**: List the outgoing links of a note containing aliased heading, block and plain links; confirm each label matches the written alias as written, with surrounding whitespace trimmed, as the editor parses it.
 
 **Acceptance Scenarios**:
 
@@ -119,12 +120,12 @@ An agent reads the tool's help to learn what the display label means. The help s
 ### Functional Requirements
 
 - **FR-001**: When listing outgoing links, the system MUST omit the display label on any wiki-style link or embed that carries a fragment — a heading, a block, a PDF page or any other fragment — in another file or the same note, when the author wrote no alias for it.
-- **FR-002**: The system MUST report an author-written alias on any wiki-style link or embed, including fragment-bearing ones, as the display label exactly as written, character for character.
+- **FR-002**: The system MUST report an author-written alias on any wiki-style link or embed, including fragment-bearing ones, as the display label as written, with surrounding whitespace trimmed, as the editor parses it.
 - **FR-003**: The system MUST decide whether an alias exists from what the note's source contains, not from the form or content of any label the editor derives.
 - **FR-004**: The system MUST NOT change the display label behaviour for plain wiki-style links and embeds with no fragment and either no alias or a non-empty alias, nor for standard Markdown links and images. Links declared in a note's properties follow FR-001 to FR-003 exactly as body links do.
 - **FR-004a**: The system MUST treat an empty or blank alias on any wiki-style link or embed, plain or fragment-bearing, as no alias, and omit the display label.
 - **FR-005**: The system MUST NOT change any other part of an entry — the reported target (including its heading or block part), line, kind — nor the number or order of entries, nor the count reported in count-only mode.
-- **FR-006**: The tool's short description and its long help page MUST state a single display-label rule — present only when the author wrote an alias, and then carrying the text the author wrote after the alias separator exactly as written — that applies alike to links and embeds, with no caveat, exception or pattern-matching workaround for fragment-bearing links (heading, block or otherwise).
+- **FR-006**: The tool's short description and its long help page MUST state a single display-label rule — present only when the author wrote an alias, and then carrying the text the author wrote after the alias separator as written, with surrounding whitespace trimmed, as the editor parses it — that applies alike to links and embeds, with no caveat, exception or pattern-matching workaround for fragment-bearing links (heading, block or otherwise).
 - **FR-007**: The help page MUST NOT state that embeds never carry a display label.
 - **FR-008**: The change MUST ship with automated tests covering unaliased heading, block, other-fragment (such as a PDF page), embed and property entries (no label), empty and blank aliases on plain and fragment-bearing links (no label), aliased heading, block, embed and plain entries (label kept as written), an author alias shaped like a derived label (kept), and unchanged plain-link behaviour.
 

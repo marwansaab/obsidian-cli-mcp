@@ -1,0 +1,181 @@
+{
+  "default": {
+    "count": 29,
+    "links": [
+      {
+        "target": "Tgt#Head",
+        "line": 1,
+        "kind": "wikilink",
+        "displayText": "Tgt > Head"
+      },
+      {
+        "target": "Tgt#Head",
+        "line": 1,
+        "kind": "wikilink",
+        "displayText": "Fm Alias"
+      },
+      {
+        "target": "Tgt#^blk",
+        "line": 1,
+        "kind": "wikilink",
+        "displayText": "Tgt > ^blk"
+      },
+      {
+        "target": "Tgt#Head",
+        "line": 9,
+        "kind": "wikilink",
+        "displayText": "Tgt > Head"
+      },
+      {
+        "target": "Tgt#Head",
+        "line": 9,
+        "kind": "wikilink",
+        "displayText": "Custom Display"
+      },
+      {
+        "target": "Tgt#^blk",
+        "line": 10,
+        "kind": "wikilink",
+        "displayText": "Tgt > ^blk"
+      },
+      {
+        "target": "Tgt#H1#H2",
+        "line": 11,
+        "kind": "wikilink",
+        "displayText": "Tgt > H1 > H2"
+      },
+      {
+        "target": "#Local",
+        "line": 12,
+        "kind": "wikilink",
+        "displayText": "Local"
+      },
+      {
+        "target": "#^lb",
+        "line": 13,
+        "kind": "wikilink",
+        "displayText": "^lb"
+      },
+      {
+        "target": "Tgt#Head",
+        "line": 14,
+        "kind": "embed",
+        "displayText": "Tgt > Head"
+      },
+      {
+        "target": "Tgt#^blk",
+        "line": 15,
+        "kind": "embed",
+        "displayText": "Tgt > ^blk"
+      },
+      {
+        "target": "paper.pdf#page=3",
+        "line": 16,
+        "kind": "embed",
+        "displayText": "paper.pdf > page=3"
+      },
+      {
+        "target": "Tgt#^blk",
+        "line": 17,
+        "kind": "wikilink",
+        "displayText": "Other Label"
+      },
+      {
+        "target": "Tgt",
+        "line": 18,
+        "kind": "wikilink",
+        "displayText": "Alias"
+      },
+      {
+        "target": "Tgt#Head",
+        "line": 19,
+        "kind": "embed",
+        "displayText": "Emb Alias"
+      },
+      {
+        "target": "Tgt#Head",
+        "line": 20,
+        "kind": "wikilink",
+        "displayText": "Tgt > Head"
+      },
+      {
+        "target": "Tgt#Head",
+        "line": 24,
+        "kind": "wikilink",
+        "displayText": "Tbl Alias"
+      },
+      {
+        "target": "img.png",
+        "line": 26,
+        "kind": "embed",
+        "displayText": "300"
+      },
+      {
+        "target": "img.png",
+        "line": 27,
+        "kind": "embed",
+        "displayText": "300x200"
+      },
+      {
+        "target": "Tgt#Head",
+        "line": 28,
+        "kind": "wikilink",
+        "displayText": ""
+      },
+      {
+        "target": "Tgt#Head",
+        "line": 29,
+        "kind": "wikilink",
+        "displayText": ""
+      },
+      {
+        "target": "Tgt",
+        "line": 30,
+        "kind": "wikilink",
+        "displayText": ""
+      },
+      {
+        "target": "Tgt#Head",
+        "line": 31,
+        "kind": "wikilink"
+      },
+      {
+        "target": "Tgt",
+        "line": 32,
+        "kind": "wikilink"
+      },
+      {
+        "target": "Tgt",
+        "line": 33,
+        "kind": "wikilink"
+      },
+      {
+        "target": "img.png",
+        "line": 34,
+        "kind": "embed"
+      },
+      {
+        "target": "Tgt.md#Head",
+        "line": 35,
+        "kind": "markdown",
+        "displayText": "Text"
+      },
+      {
+        "target": "Tgt.md#Head",
+        "line": 36,
+        "kind": "markdown",
+        "displayText": ""
+      },
+      {
+        "target": "img.png",
+        "line": 37,
+        "kind": "embed",
+        "displayText": "alt"
+      }
+    ]
+  },
+  "total": {
+    "count": 29,
+    "links": []
+  }
+}
