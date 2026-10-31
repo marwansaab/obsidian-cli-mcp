@@ -1,13 +1,14 @@
 // Original — no upstream. backlinks tool registration via registerTool — link-graph primitive returning a typed { count, backlinks: [{ source, count? }], truncated? } envelope; responseFormat: "json" (default) wraps the envelope for the MCP wire.
 import { registerTool } from "../_register.js";
-import { executeBacklinks, type ExecuteDeps } from "./handler.js";
+import { BACKLINKS_SUPPORTED, executeBacklinks, type ExecuteDeps } from "./handler.js";
 import { backlinksInputSchema, backlinksOutputSchema } from "./schema.js";
+import { describeSupport } from "../../file-type/file-type.js";
 import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const BACKLINKS_TOOL_NAME = "backlinks";
 
 export const BACKLINKS_DESCRIPTION =
-  `Return the flat ordered list of every source note that references a target Markdown note as a typed envelope \`{ count, backlinks: [{ source, count? }], truncated? }\`. Replaces "vault-wide body-text search for the target's name" at one to two orders of magnitude less token cost.
+  `Return the flat ordered list of every source note that references a target Markdown note as a typed envelope \`{ count, backlinks: [{ source, count? }], truncated? }\`. Replaces "vault-wide body-text search for the target's name" at one to two orders of magnitude less token cost. ${describeSupport(BACKLINKS_SUPPORTED)}
 
 Inverse of \`links\` (which returns outgoing references from a single note); together the two surfaces give complete 1-hop link-graph reads.
 

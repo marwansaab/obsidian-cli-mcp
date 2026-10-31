@@ -4,6 +4,8 @@
 
 Return the flat ordered list of every outgoing link in a Markdown note as a typed envelope `{ count, links: [{ target, line, kind, displayText? }] }`. Replaces the agent's previous fallback (full-file `read` + client-side Markdown parse) with a single typed call at one to two orders of magnitude less token cost.
 
+**Supported file types:** notes only. A non-note file is rejected as before, with `CLI_REPORTED_ERROR` + `details.code: "NOT_MARKDOWN"`.
+
 ## When to use this tool
 
 | You want to | Reach for |

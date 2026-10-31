@@ -90,7 +90,7 @@ describe("createMoveTool — descriptor", () => {
 
 describe("docs/tools/move.md exists and is non-stub (Story 7 AC#4 / FR-014 / SC-006 LOAD-BEARING)", () => {
   // Case 4 — docs file resolves, non-stub, contains required error codes + examples + caveats + to-shape rules
-  it("docs file resolves via import.meta.url, has no TODO/stub marker, contains 5 error codes + active-mode ERR_NO_ACTIVE_FILE note + to-shape rules + source-`.md`-guard explanation + rename-equivalence + ≥4 examples + link-rewriting caveat (Story 7 AC#4)", () => {
+  it("docs file resolves via import.meta.url, has no TODO/stub marker, contains 5 error codes + active-mode ERR_NO_ACTIVE_FILE note + to-shape rules + type-preservation explanation + rename-equivalence + ≥4 examples + link-rewriting caveat (Story 7 AC#4)", () => {
     const docsPath = resolve(
       dirname(fileURLToPath(import.meta.url)),
       "../../../docs/tools/move.md",
@@ -121,8 +121,10 @@ describe("docs/tools/move.md exists and is non-stub (Story 7 AC#4 / FR-014 / SC-
     // (e) `to`-shape rules section with trailing-`/` discriminator surprise-case guidance
     expect(body.toLowerCase()).toMatch(/trailing.*\/|trailing slash/);
     expect(body).toMatch(/ALWAYS include trailing/i);
-    // (f) source-`.md`-guard explanation
-    expect(body).toMatch(/source.*\.md.*guard|\.md.*source.*guard|source-`?\.md`?/i);
+    // (f) type-preservation explanation (spec 070 replaced the source-`.md` guard)
+    expect(body).toMatch(/keeps its type/i);
+    expect(body).toContain("UNSUPPORTED_FILE_TYPE");
+    expect(body).toContain("type-change");
     // (g) rename-equivalence note
     expect(body.toLowerCase()).toContain("rename");
   });

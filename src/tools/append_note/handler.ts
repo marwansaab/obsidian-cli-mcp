@@ -1,15 +1,13 @@
-// Original — no upstream. append_note handler per BI-044 / ADR-009 — specific-mode vault-registry resolve (+ pre-flight `obsidian file` TSV resolver for wikilink-form `file`) OR active-mode focused-file eval → Layer 2 canonical path check → fs.readFile (ENOENT → NOTE_NOT_FOUND per FR-016) → appendEdit pure helper (FR-006 / FR-006a / FR-007 / FR-008 / FR-009 / FR-010 / FR-010a) → atomic tmp+rename with EBUSY/EPERM/EACCES EXTERNAL_EDITOR_CONFLICT classification (FR-022) → best-effort metadataCache refresh eval on the vault-relative path in the written vault (logged on failure) → typed output envelope. No race detection — FR-026 publishes last-write-wins (cohort parity with write_note, patch_block; divergence from patch_heading's HEADING_RACE).
+// Original — no upstream. append_note handler per BI-044 / ADR-009 — specific-mode vault-registry resolve (+ pre-flight `obsidian file` TSV resolver for wikilink-form `file`) OR active-mode focused-file eval → note-only file-type check (spec 070: a non-note target is rejected as UNSUPPORTED_FILE_TYPE before any read or write) → Layer 2 canonical path check → fs.readFile (ENOENT → NOTE_NOT_FOUND per FR-016) → appendEdit pure helper (FR-006 / FR-006a / FR-007 / FR-008 / FR-009 / FR-010 / FR-010a) → atomic tmp+rename with EBUSY/EPERM/EACCES EXTERNAL_EDITOR_CONFLICT classification (FR-022) → best-effort metadataCache refresh eval on the vault-relative path in the written vault (logged on failure) → typed output envelope. No race detection — FR-026 publishes last-write-wins (cohort parity with write_note, patch_block; divergence from patch_heading's HEADING_RACE).
 import { randomUUID } from "node:crypto";
 import * as nodeFs from "node:fs/promises";
 
 import { appendEdit } from "./append-edit.js";
 import { type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import {
-  assertCanonicalPath,
-  resolveActiveLocatorWithVault,
-  resolveFileByTsv,
-} from "../_active-file.js";
+import { assertSupportedFileType, type SupportDeclaration } from "../../file-type/file-type.js";
+import { assertCanonicalPath } from "../_active-file.js";
+import { resolveFsTarget } from "../_file-target.js";
 import { getErrno, mapFsWriteError } from "../_fs-errors.js";
 import { invalidateMetadataCache, writeAtomic } from "../_note-io.js";
 
@@ -51,27 +49,8 @@ const DEFAULT_FS: ExecuteFs = {
 // diverges (no EACCES); the difference is now an explicit mapFsWriteError arg.
 const EDITOR_CONFLICT_ERRNOS = new Set(["EBUSY", "EPERM", "EACCES"]);
 
-async function resolveLocator(
-  input: AppendNoteInput,
-  deps: ExecuteDeps,
-): Promise<{ vaultRoot: string; relPath: string; vaultDisplayName: string }> {
-  if (input.target_mode === "active") {
-    return resolveActiveLocatorWithVault(deps, "append_note");
-  }
-
-  const vaultRoot = await deps.vaultRegistry.resolveVaultPath(input.vault!);
-
-  // FR-002 / FR-003 — wikilink-form `file` resolves through a pre-flight
-  // `obsidian file file=<name>` TSV resolver call (byte-stable with
-  // set_property's pattern). `path` callers skip the resolver and feed the
-  // input verbatim into Layer 2.
-  const relPath =
-    input.path !== undefined
-      ? input.path
-      : await resolveFileByTsv(deps, input.vault!, input.file!, "append_note");
-
-  return { vaultRoot, relPath, vaultDisplayName: input.vault! };
-}
+/** The file types `append_note` handles (spec 070): Markdown notes only. */
+export const APPEND_NOTE_SUPPORTED = ["note"] as const satisfies SupportDeclaration;
 
 export async function executeAppendNote(
   input: AppendNoteInput,
@@ -79,7 +58,11 @@ export async function executeAppendNote(
 ): Promise<AppendNoteOutput> {
   const fs = deps.fs ?? DEFAULT_FS;
 
-  const { vaultRoot, relPath, vaultDisplayName } = await resolveLocator(input, deps);
+  // FR-002 / FR-003 — a wikilink-form `file` resolves through a pre-flight `obsidian file
+  // file=<name>` TSV call; `path` feeds Layer 2 verbatim.
+  const { vaultRoot, relPath, vaultDisplayName } = await resolveFsTarget(input, deps, "append_note");
+  // Spec 070: note text written into a canvas, base or attachment corrupts it; reject before reading the note.
+  assertSupportedFileType({ relPath, supported: APPEND_NOTE_SUPPORTED, toolName: "append_note" });
   const mapWriteErr = (e: unknown): UpstreamError =>
     mapFsWriteError(e, { relPath, conflictErrnos: EDITOR_CONFLICT_ERRNOS, conflictVerb: "append to" });
 

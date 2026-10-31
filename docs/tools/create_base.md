@@ -2,6 +2,8 @@
 
 Create a new item (Markdown note) within an Obsidian Bases (`.base`) file. Member of the Bases-family cohort (siblings: `bases`, `query_base`, `views_base`).
 
+**Supported file types:** bases only (`path`). A `path` that does not end in `.base` is rejected as before, with `VALIDATION_ERROR` + `INVALID_BASE_PATH` (`wrong-extension`). The created item is a note.
+
 ## When to use this tool
 
 | You want to | Reach for |

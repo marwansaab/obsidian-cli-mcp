@@ -22,6 +22,7 @@ import { createLogger, type Logger } from "../logger.js";
 import { confirmFromResponse } from "./_confirm.js";
 
 import type { Confirmation } from "./_shared.js";
+import type { VaultRegistry } from "../vault-registry/registry.js";
 
 /** A single queued spawn response for {@link makeQueuedSpawn}. */
 export interface StubResponse {
@@ -149,6 +150,24 @@ export function makeStubSpawn(
     return child as unknown as ReturnType<SpawnLike>;
   };
   return { spawnFn, recorded };
+}
+
+/** A vault registry knowing one vault (`name` at `root`), with the reverse display-name lookup. */
+export function stubVaultRegistry(name: string, root: string): VaultRegistry {
+  return {
+    resolveVaultPath: async () => root,
+    resolveVaultDisplayName: (base) => (base === root ? name : null),
+  };
+}
+
+/** The `obsidian file file=<name>` TSV reply resolving to `relPath` (the `resolveFileByTsv` round-trip). */
+export function fileTsvResponse(relPath: string): StubResponse {
+  return { stdout: `path\t${relPath}\nname\tx\n`, exitCode: 0 };
+}
+
+/** The focused-file eval reply (FOCUSED_FILE_TEMPLATE): `relPath` (or no focused file) in the vault at `base`. */
+export function focusedFileResponse(relPath: string | null, base = "/vaults/MyVault"): StubResponse {
+  return { stdout: `=> ${JSON.stringify({ path: relPath, base })}\n`, exitCode: 0 };
 }
 
 /** A Logger whose output is discarded — for handler tests that never assert logs. */

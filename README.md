@@ -13,7 +13,7 @@ An MCP server that gives Claude and other MCP clients typed, schema-validated to
 
 ## What it offers
 
-Thirty-five tools for the things a model does in a vault: read a note, a heading or a single property; search by text, pattern, tag, property or link; list folders, files, headings, properties and vaults; write, append, prepend, patch, rename, move and delete notes; preview and commit a find-and-replace; query Obsidian Bases; and run semantic searches through the Smart Connections plugin. One passthrough tool, `obsidian_exec`, reaches the rest of the CLI.
+Thirty-five tools for the things a model does in a vault: read a note, a heading or a single property; search by text, pattern, tag, property or link; list folders, files, headings, properties and vaults; write, append, prepend and patch notes; rename, move and delete files, keeping each file's type; preview and commit a find-and-replace; query Obsidian Bases; and run semantic searches through the Smart Connections plugin. One passthrough tool, `obsidian_exec`, reaches the rest of the CLI.
 
 Every tool has:
 
@@ -269,7 +269,7 @@ Every tool except `read`, `help`, `obsidian_exec` and `tag` returns typed result
 
 | Tool | Kind | Purpose |
 |---|---|---|
-| `read` | read-only | A note's full content. |
+| `read` | read-only | The full text of a note, canvas or base. |
 | `read_heading` | read-only | The content under one heading, addressed by its heading path. |
 | `read_property` | read-only | One frontmatter property, as `{ value, type }`. |
 
@@ -298,9 +298,9 @@ Every tool except `read`, `help`, `obsidian_exec` and `tag` returns typed result
 | `patch_block` | additive | Replace the content tied to a `^block-id`. |
 | `set_property` | repeatable | Set one frontmatter property. |
 | `find_and_replace` | destructive | Preview, then commit, a find-and-replace across a vault, a folder or one note. Code blocks and HTML comments are skipped by default. A commit beyond one note asks for confirmation. |
-| `rename` | destructive | Rename a note in place. |
-| `move` | destructive | Move a note, optionally renaming it, following the vault's setting for updating links. |
-| `delete` | destructive | Delete a note to the trash, or permanently after confirmation. |
+| `rename` | destructive | Rename a file in place, keeping its type: a canvas stays a canvas. |
+| `move` | destructive | Move a file, optionally renaming it and keeping its type, following the vault's setting for updating links. |
+| `delete` | destructive | Delete a file to the trash, or permanently after confirmation. |
 
 ### List and inventory
 

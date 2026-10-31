@@ -2,6 +2,8 @@
 
 Preview-then-commit find-and-replace across a vault, a named subfolder, or a single note, with fenced code blocks and HTML comments skipped by default.
 
+**Supported file types:** notes only. A single-note scope naming a non-note file is rejected as before, with `VALIDATION_ERROR` + `details.code: "INVALID_NOTE"`, `reason: "not-eligible"`.
+
 > **CRITICAL — default scope is vault-wide; narrow it deliberately.** With no scope field this tool replaces matches across EVERY eligible `.md` file in the vault. `subfolder: "Drafts"` narrows to every file under `Drafts/` recursively. To confine a change to ONE note, use a **single-note scope** — `path` (exact vault-relative path), `file` (bare note name), or `active_note: true` (the open note) — so the SCOPE, not a globally-unique pattern, bounds the blast radius. Agents have corrupted unintended files by committing wide-pattern replacements without previewing first.
 >
 > ALWAYS issue a preview first (default — omit `commit` or set `commit: false`). Inspect `affected_notes` for unexpected paths. Only set `commit: true` once the preview matches your intent. Under a single-note scope a preview affects ≤ 1 note, giving you early confirmation the scope is right.

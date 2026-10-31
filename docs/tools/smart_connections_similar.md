@@ -6,6 +6,8 @@ Return the typed list of semantically-similar block-level matches for a single s
 
 Plugin-backed primitive: routes into the plugin's runtime object at `app.plugins.plugins["smart-connections"].env.smart_sources.items[<key>].find_connections({limit})`. Wraps the Obsidian CLI's `eval` subcommand — there is no native similarity subcommand. The agent does not need to know this; the call surface is a typed MCP tool.
 
+**Supported file types:** notes only (the source). A non-note source is rejected as before, with `CLI_REPORTED_ERROR` + `details.code: "NOT_MARKDOWN"`.
+
 ## When to use this tool
 
 | You want to | Reach for |

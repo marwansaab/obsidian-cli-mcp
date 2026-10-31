@@ -4,6 +4,8 @@
 
 Add content to the END of an existing markdown note in a single MCP call. Eliminates the read-then-rewrite cycle that would otherwise force callers to ship the whole note through the full-replace surface every time they want to add a journal line, a list item, or a log entry.
 
+**Supported file types: notes only.** Note text appended to a canvas, base or attachment would corrupt it, so a target of any other type is rejected with `VALIDATION_ERROR` + `details.code: "UNSUPPORTED_FILE_TYPE"` before anything is read or written (spec 070).
+
 ## When to use this tool
 
 | You want to | Reach for |
@@ -102,6 +104,8 @@ Wikilink-form brackets are rejected at the schema layer: `[[…]]` pairs trigger
 
 Active mode (`target_mode: "active"`) supplies neither `file` nor `path`; the wrapper resolves the currently-focused note via eval.
 
+**File-type check.** Once the target is known — the `path` as given, the path the `file` resolver returned, or the focused file's path — the wrapper checks that it is a `.md` note (matched case-insensitively). A canvas, base, attachment, extensionless path or any other file is rejected with `UNSUPPORTED_FILE_TYPE` before the note is read or written. Resolution failures (`VAULT_NOT_FOUND`, a `file` name that does not resolve, `ERR_NO_ACTIVE_FILE`) surface first. For a `path` the check runs before any existence check, so a missing `Boards/Plan.canvas` reports `UNSUPPORTED_FILE_TYPE`, not `NOTE_NOT_FOUND`. Example message: `append_note: Boards/Plan.canvas is a canvas (.canvas); append_note supports notes. Nothing was changed.`
+
 ## Output envelope
 
 ```typescript
@@ -123,6 +127,7 @@ interface AppendNoteOutput {
 |---|---|---|---|
 | `VALIDATION_ERROR` | `details.code: CONTENT_EMPTY` | Empty content. | Supply non-empty content. |
 | `VALIDATION_ERROR` | (Zod issue path on the offending field) | Bracket-rejection on `file`, locator-mutex (`file` AND `path`), unknown extra field, structural path safety, type mismatch on `inline`. | Read `details.issues[].message` for the field-level fix. |
+| `VALIDATION_ERROR` | `details.code: UNSUPPORTED_FILE_TYPE`, `details.reason: "unsupported-type"` | The resolved target is not a `.md` note (a canvas, base, attachment, extensionless path or other file). Raised before the note is read or written. `details` also carries `path` (the resolved vault-relative path), `extension` (original case, `""` if none) and `supported: ["note"]`. | Nothing was changed. Target a `.md` note. |
 | `CLI_REPORTED_ERROR` | `details.code: NOTE_NOT_FOUND` | The target file does not exist. | Recheck the path. Use [`write_note`](./write_note.md) if you meant to create a new note (`append_note` does NOT auto-create). |
 | `CLI_REPORTED_ERROR` | `details.code: EXTERNAL_EDITOR_CONFLICT`, `details.reason: "file-locked"` | Windows sharing-violation (`EBUSY` / `EPERM` / `EACCES`) — the file is held open by an external editor. | Ask the user to save and close the file in the editor, then retry. |
 | `PATH_ESCAPES_VAULT` | — | The resolved path escapes the vault root (symlink traversal, `..` segments). | Fix the path. The path must resolve inside the vault. |

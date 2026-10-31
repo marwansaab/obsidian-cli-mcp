@@ -2,7 +2,9 @@
 
 ## Overview
 
-Delete a note from an Obsidian vault. Wraps the Obsidian CLI's `delete` subcommand and returns `{ deleted, path, toTrash }`. Default behaviour sends the file to the OS trash (recoverable until the trash is emptied); `permanent: true` skips the trash and removes the file unrecoverably.
+Delete a file from an Obsidian vault. Wraps the Obsidian CLI's `delete` subcommand and returns `{ deleted, path, toTrash }`. Default behaviour sends the file to the OS trash (recoverable until the trash is emptied); `permanent: true` skips the trash and removes the file unrecoverably.
+
+**Supported file types:** any file type (notes, canvases, bases, attachments and others). The path is forwarded to the CLI unchanged; no file-type check is applied.
 
 > **Irreversibility warning.** `permanent: true` cannot be undone. There is no recovery path through Obsidian or the OS. Use the default (`permanent: false` or omit) whenever recoverability matters.
 

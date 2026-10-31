@@ -4,7 +4,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createReadTool, READ_DESCRIPTION, READ_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import {
+  fileTsvResponse,
+  focusedFileResponse,
+  makeQueuedSpawn,
+  silentLogger,
+} from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -36,7 +41,8 @@ describe("createReadTool — handler integration via registerTool", () => {
     const tool = createReadTool({
       logger: silentLogger(),
       queue: createQueue(),
-      spawnFn: makeStubSpawn({ stdout: "# Note body\n", exitCode: 0 }),
+      // Spec 070: the `obsidian file` resolution call precedes the read.
+      spawnFn: makeQueuedSpawn([fileTsvResponse("Note.md"), { stdout: "# Note body\n", exitCode: 0 }]).spawnFn,
       env: {},
     });
     const result = (await tool.handler({ target_mode: "specific", vault: "MyVault", file: "Note" })) as {
@@ -50,7 +56,8 @@ describe("createReadTool — handler integration via registerTool", () => {
     const tool = createReadTool({
       logger: silentLogger(),
       queue: createQueue(),
-      spawnFn: makeStubSpawn({ stdout: "<active body>", exitCode: 0 }),
+      // Spec 070: the focused-file eval precedes the read.
+      spawnFn: makeQueuedSpawn([focusedFileResponse("Today.md"), { stdout: "<active body>", exitCode: 0 }]).spawnFn,
       env: {},
     });
     const result = (await tool.handler({ target_mode: "active" })) as {

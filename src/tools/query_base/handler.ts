@@ -20,9 +20,13 @@ import {
 } from "../_active-file.js";
 import { detectIfClosed } from "../_eval-vault-closed-detection/index.js";
 
+import type { SupportDeclaration } from "../../file-type/file-type.js";
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
 import type { VaultRegistry } from "../../vault-registry/registry.js";
+
+/** query_base runs a view of a base (`base_path`); others keep their INVALID_BASE_PATH rejection (spec 070 FR-007a). */
+export const QUERY_BASE_SUPPORTED = ["base"] as const satisfies SupportDeclaration;
 
 export interface ExecuteFs {
   stat: (p: string) => Promise<{ size: number }>;

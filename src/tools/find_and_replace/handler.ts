@@ -28,11 +28,15 @@ import {
 import { NON_INTERACTIVE_CALL } from "../_confirm.js";
 import { invalidateMetadataCache, writeAtomic } from "../_note-io.js";
 
+import type { SupportDeclaration } from "../../file-type/file-type.js";
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 import type { Confirmation } from "../_shared.js";
 import type { Dirent } from "node:fs";
+
+/** find_and_replace edits Markdown notes only; others keep their INVALID_NOTE / not-eligible rejection (spec 070 FR-007a). */
+export const FIND_AND_REPLACE_SUPPORTED = ["note"] as const satisfies SupportDeclaration;
 
 export interface ExecuteFs {
   readdir: (p: string, opts: { recursive: true; withFileTypes: true }) => Promise<Dirent[]>;

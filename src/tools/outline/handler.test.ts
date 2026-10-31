@@ -5,7 +5,13 @@ import { EMPTY_OUTLINE_SENTINEL, executeOutline } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn, silentLogger, captureRejection } from "../_handler-test-fixtures.js";
+import {
+  captureRejection,
+  fileTsvResponse,
+  focusedFileResponse,
+  makeQueuedSpawn,
+  silentLogger,
+} from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
@@ -45,12 +51,16 @@ test("specific+file wikilink form → full headings array", async () => {
     { level: 1, heading: "Wiki Top", line: 1 },
     { level: 2, heading: "Wiki Sub", line: 3 },
   ]);
-  const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: upstream, exitCode: 0 }]);
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    fileTsvResponse("Wiki/WikiLinkName.md"),
+    { stdout: upstream, exitCode: 0 },
+  ]);
   const result = await executeOutline(
     { target_mode: "specific", vault: "Demo", file: "WikiLinkName" },
     deps(spawnFn),
   );
-  expect(recorded[0]!.argv).toContain("file=WikiLinkName");
+  // Spec 070: recorded[0] is the resolution spawn; the outline spawn follows it.
+  expect(recorded[1]!.argv).toContain("file=WikiLinkName");
   expect(result.count).toBe(2);
   expect(result.headings[0]!.text).toBe("Wiki Top");
 });
@@ -61,11 +71,13 @@ test("active mode multi-level fixture → full headings array", async () => {
     { level: 1, heading: "Active Top", line: 1 },
     { level: 2, heading: "Active Sub", line: 4 },
   ]);
-  const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: upstream, exitCode: 0 }]);
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    focusedFileResponse("Daily/Today.md"),
+    { stdout: upstream, exitCode: 0 },
+  ]);
   const result = await executeOutline({ target_mode: "active" }, deps(spawnFn));
-  expect(recorded[0]!.argv.some((a) => a.startsWith("vault="))).toBe(false);
-  expect(recorded[0]!.argv.some((a) => a.startsWith("file="))).toBe(false);
-  expect(recorded[0]!.argv.some((a) => a.startsWith("path="))).toBe(false);
+  // Spec 070 (research D3): the focused file is resolved, then outlined by path with no vault=.
+  expect(recorded[1]!.argv).toEqual(["outline", "format=json", "path=Daily/Today.md"]);
   expect(result.count).toBe(2);
   expect(result.headings[0]!.text).toBe("Active Top");
 });
@@ -255,19 +267,21 @@ test("specific mode argv contains `vault=…`", async () => {
   expect(recorded[0]!.argv).toContain("path=x.md");
 });
 
-// (18) active mode argv omits vault/file/path (cli-adapter strips)
-test("active mode argv omits vault/file/path tokens", async () => {
-  const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: "[]\n", exitCode: 0 }]);
+// (18) active mode, restated by spec 070 (research D3, FR-009): the outline spawn addresses the
+// resolved focused file by path with no vault=, so the CLI uses the vault the eval read.
+test("active mode argv carries the resolved path and no vault= (spec 070)", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([focusedFileResponse("x.md"), { stdout: "[]\n", exitCode: 0 }]);
   await executeOutline({ target_mode: "active" }, deps(spawnFn));
-  const argv = recorded[0]!.argv;
+  const argv = recorded[1]!.argv;
   expect(argv).toContain("outline");
   expect(argv.some((a) => a.startsWith("vault="))).toBe(false);
+  expect(argv).toContain("path=x.md");
   expect(argv.some((a) => a.startsWith("file="))).toBe(false);
-  expect(argv.some((a) => a.startsWith("path="))).toBe(false);
 });
 
-// (19) single spawn invocation per request
-test("ONE spawn invocation per request — single-call invariant (R3 / R12)", async () => {
+// (19) single `outline` spawn per request. Holds as one spawn in `path` mode; `file` and active
+// modes add exactly one resolution spawn before it (spec 070).
+test("single `outline` spawn per request — single-call invariant (R3 / R12)", async () => {
   const upstream = JSON.stringify([{ level: 1, heading: "X", line: 1 }]);
   const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: upstream, exitCode: 0 }]);
   await executeOutline(
@@ -323,19 +337,49 @@ test("data-stdout pass-through regression guard (any vault name) — wrapper imp
   expect(result.headings[0]!.text).toBe("Focused vault top");
 });
 
-// (23) non-`.md` filetype upstream rejection → CLI_REPORTED_ERROR (dispatch-layer auto-classified per R8/F9)
-test("non-`.md` upstream rejection → CLI_REPORTED_ERROR (dispatch-layer auto-classified)", async () => {
-  const { spawnFn } = makeQueuedSpawn([
-    { stdout: "Error: File is not a markdown file.\n", exitCode: 0 },
-  ]);
+// (23) non-`.md` filetype — spec 070 replaces the undiscriminated upstream CLI_REPORTED_ERROR
+// ("Error: File is not a markdown file.") with the wrapper's rejection, before any outline spawn.
+test.each([
+  ["Sandbox/x.canvas", "canvas"],
+  ["Sandbox/x.png", "png"],
+])("non-`.md` path=%s → UNSUPPORTED_FILE_TYPE / unsupported-type, no outline spawn (spec 070)", async (path, extension) => {
+  const { spawnFn, recorded } = makeQueuedSpawn([]);
   const err = (await captureRejection(
-    executeOutline(
-      { target_mode: "specific", vault: "V", path: "Sandbox/x.canvas" },
-      deps(spawnFn),
-    ),
+    executeOutline({ target_mode: "specific", vault: "V", path }, deps(spawnFn)),
   )) as UpstreamError;
-  expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details.message).toBe("Error: File is not a markdown file.");
+  expect(err.code).toBe("VALIDATION_ERROR");
+  expect(err.details).toEqual({
+    code: "UNSUPPORTED_FILE_TYPE",
+    reason: "unsupported-type",
+    path,
+    extension,
+    supported: ["note"],
+  });
+  expect(recorded).toHaveLength(0);
+});
+
+test("spec 070: file mode resolution call runs first, in the named vault", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([fileTsvResponse("Wiki/WikiLinkName.md"), { stdout: "[]\n", exitCode: 0 }]);
+  await executeOutline({ target_mode: "specific", vault: "Demo", file: "WikiLinkName" }, deps(spawnFn));
+  expect(recorded).toHaveLength(2);
+  expect(recorded[0]!.argv).toEqual(["vault=Demo", "file", "file=WikiLinkName"]);
+  expect(recorded[1]!.argv).toEqual(["vault=Demo", "outline", "format=json", "file=WikiLinkName"]);
+});
+
+test("spec 070: file mode resolving to a canvas → rejected, no outline spawn", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([fileTsvResponse("Boards/Plan.canvas")]);
+  const err = (await captureRejection(
+    executeOutline({ target_mode: "specific", vault: "Demo", file: "Plan.canvas" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.details).toMatchObject({ code: "UNSUPPORTED_FILE_TYPE", path: "Boards/Plan.canvas" });
+  expect(recorded).toHaveLength(1);
+});
+
+test("spec 070: active mode on a focused base → rejected, no outline spawn", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([focusedFileResponse("Views/Tasks.base")]);
+  const err = (await captureRejection(executeOutline({ target_mode: "active" }, deps(spawnFn)))) as UpstreamError;
+  expect(err.details).toMatchObject({ code: "UNSUPPORTED_FILE_TYPE", path: "Views/Tasks.base" });
+  expect(recorded).toHaveLength(1);
 });
 
 // (24) active-mode no-focus → ERR_NO_ACTIVE_FILE (dispatch-layer auto-classified per R13)

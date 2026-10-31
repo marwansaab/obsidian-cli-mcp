@@ -845,10 +845,12 @@ test("020/US1 file ending in .md passes through verbatim (no double-extension)",
 
 // (#020-4) FR-001a passthrough (contains folder separator): file: "Folder/Note"
 // → verbatim, no .md appended, folder NOT stripped. Story 1 AC#7.
-test("020/US1 file with folder separator passes through verbatim", async () => {
+// 020/US1 wrote "Folder/Note" verbatim as an extensionless file. Spec 070 (research D8) keeps
+// the no-append rule for a file with a folder separator but rejects the non-note target.
+test("020/US1 file with folder separator is not given .md — and, extensionless, is rejected (spec 070)", async () => {
   const fs = fakeFs();
-  const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
-  const result = await executeWriteNote(
+  const { spawnFn } = makeQueuedSpawn([]);
+  const err = (await executeWriteNote(
     {
       target_mode: "specific",
       vault: "TestVault",
@@ -857,13 +859,10 @@ test("020/US1 file with folder separator passes through verbatim", async () => {
       overwrite: false,
     },
     deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
-  );
-  expect(result.path).toBe("Folder/Note");
-  const writtenPath = fs.writes[0]![0];
-  expect(
-    writtenPath.endsWith("Folder\\Note") || writtenPath.endsWith("Folder/Note"),
-  ).toBe(true);
-  expect(writtenPath.endsWith(".md")).toBe(false);
+  ).catch((e) => e)) as UpstreamError;
+  expect(err.code).toBe("VALIDATION_ERROR");
+  expect(err.details).toMatchObject({ code: "UNSUPPORTED_FILE_TYPE", path: "Folder/Note", extension: "" });
+  expect(fs.writes).toHaveLength(0);
 });
 
 // (#020-5) Path-form regression guard: path: "Subfolder/Note.md" → verbatim, no

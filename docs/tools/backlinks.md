@@ -4,6 +4,8 @@
 
 Return the flat ordered list of every source note that references a target Markdown note, as a typed envelope `{ count, backlinks: [{ source, count? }], truncated? }`. Inverse of the outgoing-links sibling [`links`](./links.md) — together the two surfaces give complete 1-hop link-graph reads from any note. Replaces the agent's previous fallback (vault-wide body-text `search` for the target's name) at one to two orders of magnitude less token cost.
 
+**Supported file types:** notes only (the target). A non-note target is rejected as before, with `CLI_REPORTED_ERROR` + `details.code: "NOT_MARKDOWN"`.
+
 ## When to use this tool
 
 | You want to | Reach for |

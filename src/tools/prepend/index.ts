@@ -1,8 +1,9 @@
 // Original — no upstream. prepend tool registration via registerTool with a mapValidationError hook that intercepts the schema-layer over-cap rejection and emits a stable top-level discriminator (VALIDATION_ERROR with details.code: CONTENT_TOO_LARGE + contentLength + maxLength) instead of the generic Zod issues envelope; all other validation failures keep the generic envelope shape. responseFormat: "json" emits the { path, vault, bytes_written, inline } envelope on success.
 import { type z } from "zod";
 
-import { executePrepend, type ExecuteDeps } from "./handler.js";
+import { executePrepend, PREPEND_SUPPORTED, type ExecuteDeps } from "./handler.js";
 import { MAX_CONTENT_LENGTH, prependInputSchema, prependOutputSchema } from "./schema.js";
+import { describeSupport } from "../../file-type/file-type.js";
 import { registerTool } from "../_register.js";
 import { ADDITIVE_WRITE_HINTS, type BootDeps, type RegisteredTool, type ToolErrorPayload } from "../_shared.js";
 
@@ -12,7 +13,7 @@ export const PREPEND_TOOL_NAME = "prepend";
 // schema enforces, so the description's documented ceiling and the schema's
 // enforced ceiling cannot drift (SC-008 contract-and-implementation match).
 export const PREPEND_DESCRIPTION =
-  `Add content to the TOP of an existing markdown note. Frontmatter-aware: when the note starts with a YAML block (\`---\` ... \`---\`), new content lands after the closing \`---\` so the frontmatter is preserved. Otherwise lands at byte zero.
+  `Add content to the TOP of an existing markdown note. Frontmatter-aware: when the note starts with a YAML block (\`---\` ... \`---\`), new content lands after the closing \`---\` so the frontmatter is preserved. Otherwise lands at byte zero. ${describeSupport(PREPEND_SUPPORTED)} Any other file type is rejected with \`UNSUPPORTED_FILE_TYPE\` before anything is written.
 
 Pick \`append_note\` for end-of-file. Pick \`write_note\` to replace the whole file — write_note has no size cap, use it for content > ${MAX_CONTENT_LENGTH} chars or to create new notes; this tool only updates existing notes.
 
@@ -22,7 +23,7 @@ Separator: a newline is auto-inserted between your content and the existing body
 
 Content: preserved byte-for-byte, non-empty, max ${MAX_CONTENT_LENGTH} characters. Over-cap fails fast with \`VALIDATION_ERROR\`. The cap is bounded by an upstream Obsidian CLI defect that hangs the host process around 4 KB on Windows; chunking does not help.
 
-Typed errors via \`UpstreamError.code\`: \`NOTE_NOT_FOUND\`, \`EXTERNAL_EDITOR_CONFLICT\`, \`FS_WRITE_FAILED\`, \`ERR_NO_ACTIVE_FILE\`, \`PATH_ESCAPES_VAULT\`, \`VALIDATION_ERROR\`.`;
+Typed errors via \`UpstreamError.code\`: \`NOTE_NOT_FOUND\`, \`EXTERNAL_EDITOR_CONFLICT\`, \`FS_WRITE_FAILED\`, \`ERR_NO_ACTIVE_FILE\`, \`PATH_ESCAPES_VAULT\`, \`VALIDATION_ERROR\` (including \`details.code: UNSUPPORTED_FILE_TYPE\`).`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

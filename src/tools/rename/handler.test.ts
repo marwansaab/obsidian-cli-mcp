@@ -1,11 +1,24 @@
-// Original — no upstream. Tests for the rename handler — argv assembly per /speckit-clarify Q1 (appendMdIfMissing), parseRenameResponse against T0-locked F2/F12 pattern, single-spawn invariant (R9), UpstreamError propagation across the four cli-adapter codes + ERR_NO_ACTIVE_FILE, same-name audit invariant (Story 9).
-import { afterEach, beforeEach, expect, test } from "vitest";
+// Original — no upstream. Tests for the rename handler — argv assembly with the spec 070 type-preservation rule (resolveDestinationName; supersedes the spec 021 appendMdIfMissing lock), file/active source resolution, parseRenameResponse against T0-locked F2/F12 pattern, single-spawn invariant (R9), UpstreamError propagation across the four cli-adapter codes + ERR_NO_ACTIVE_FILE, same-name audit invariant (Story 9).
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import { executeRenameNote } from "./handler.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, makeStubSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import {
+  captureRejection,
+  fileTsvResponse,
+  focusedFileResponse,
+  makeQueuedSpawn,
+  makeStubSpawn,
+  silentLogger,
+} from "../_handler-test-fixtures.js";
+
+import type { SpawnLike } from "../../cli-adapter/_dispatch.js";
+
+function deps(spawnFn: SpawnLike) {
+  return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
+}
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -98,10 +111,10 @@ test("specific+path: argv has 'vault=V' as discrete token (PSR-3 vault hoist)", 
 
 // Case 6 — Story 2 IT: file= locator produces argv with file=, NO path=
 test("specific+file+name → argv has file= and no path= (Story 2 IT)", async () => {
-  const { spawnFn, recorded } = makeStubSpawn({
-    stdout: "Renamed: Inbox/QuickNote.md -> Inbox/Quick Note.md\n",
-    exitCode: 0,
-  });
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    fileTsvResponse("Inbox/QuickNote.md"),
+    { stdout: "Renamed: Inbox/QuickNote.md -> Inbox/Quick Note.md\n", exitCode: 0 },
+  ]);
   const result = await executeRenameNote(
     { target_mode: "specific", vault: "V", file: "QuickNote", name: "Quick Note" },
     { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
@@ -111,35 +124,37 @@ test("specific+file+name → argv has file= and no path= (Story 2 IT)", async ()
     fromPath: "Inbox/QuickNote.md",
     toPath: "Inbox/Quick Note.md",
   });
-  expect(recorded[0]!.argv).toContain("file=QuickNote");
-  expect(recorded[0]!.argv).toContain("name=Quick Note.md");
-  expect(recorded[0]!.argv.some((tok) => tok.startsWith("path="))).toBe(false);
+  // Spec 070: recorded[0] is the resolution spawn; the rename spawn follows it.
+  expect(recorded[1]!.argv).toContain("file=QuickNote");
+  expect(recorded[1]!.argv).toContain("name=Quick Note.md");
+  expect(recorded[1]!.argv.some((tok) => tok.startsWith("path="))).toBe(false);
 });
 
 // Case 7 — UTF-8 byte-perfect forwarding
 test("specific+file+UTF-8 name: byte-perfect tokens (no transcoding/normalisation)", async () => {
-  const { spawnFn, recorded } = makeStubSpawn({
-    stdout: "Renamed: 笔记.md -> 日記.md\n",
-    exitCode: 0,
-  });
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    fileTsvResponse("笔记.md"),
+    { stdout: "Renamed: 笔记.md -> 日記.md\n", exitCode: 0 },
+  ]);
   await executeRenameNote(
     { target_mode: "specific", vault: "V", file: "笔记", name: "日記" },
     { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
   );
-  expect(recorded[0]!.argv).toContain("file=笔记");
-  expect(recorded[0]!.argv).toContain("name=日記.md");
+  expect(recorded[1]!.argv).toContain("file=笔记");
+  expect(recorded[1]!.argv).toContain("name=日記.md");
 });
 
 // =========================================================================
 // US5 — Active-mode (2 cases)
 // =========================================================================
 
-// Case 8 — Story 5 AC#1: active mode → argv has no locator tokens
-test("active+name → argv has 'rename', 'name=Today.md', NO vault/file/path tokens (Story 5 AC#1)", async () => {
-  const { spawnFn, recorded } = makeStubSpawn({
-    stdout: "Renamed: Inbox/focused.md -> Inbox/Today.md\n",
-    exitCode: 0,
-  });
+// Case 8 — Story 5 AC#1, restated by spec 070 (research D3, FR-009): active mode resolves the
+// focused file, then renames it by path with no vault=, in the CLI's current vault (the eval's).
+test("active+name → focused-file eval, then 'rename path=<focused> name=Today.md' with no vault= (Story 5 AC#1, spec 070)", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    focusedFileResponse("Inbox/focused.md"),
+    { stdout: "Renamed: Inbox/focused.md -> Inbox/Today.md\n", exitCode: 0 },
+  ]);
   const result = await executeRenameNote(
     { target_mode: "active", name: "Today" },
     { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
@@ -149,11 +164,8 @@ test("active+name → argv has 'rename', 'name=Today.md', NO vault/file/path tok
     fromPath: "Inbox/focused.md",
     toPath: "Inbox/Today.md",
   });
-  expect(recorded[0]!.argv).toContain("rename");
-  expect(recorded[0]!.argv).toContain("name=Today.md");
-  expect(recorded[0]!.argv.some((tok) => tok.startsWith("vault="))).toBe(false);
-  expect(recorded[0]!.argv.some((tok) => tok.startsWith("file="))).toBe(false);
-  expect(recorded[0]!.argv.some((tok) => tok.startsWith("path="))).toBe(false);
+  expect(recorded[0]!.argv[0]).toBe("eval");
+  expect(recorded[1]!.argv).toEqual(["rename", "path=Inbox/focused.md", "name=Today.md"]);
 });
 
 // Case 9 — Story 5 AC#3: active mode no-active-file → ERR_NO_ACTIVE_FILE propagates
@@ -348,17 +360,19 @@ test("name='Doc.v1.draft' → argv name=Doc.v1.draft.md (internal periods preser
   expect(recorded[0]!.argv).toContain("name=Doc.v1.draft.md");
 });
 
-// Case 21 — b5 cross-extension narrowing
-test("name='Sketch.canvas' → argv name=Sketch.canvas.md (cross-extension narrowing) (Story 3 b5)", async () => {
-  const { spawnFn, recorded } = makeStubSpawn({
-    stdout: "Renamed: Old.md -> Sketch.canvas.md\n",
-    exitCode: 0,
-  });
-  await executeRenameNote(
-    { target_mode: "specific", vault: "V", path: "Old.md", name: "Sketch.canvas" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
-  );
-  expect(recorded[0]!.argv).toContain("name=Sketch.canvas.md");
+// Case 21 — b5, superseded by spec 070 (replaces the spec 021 Q1 `.md`-only lock): a name
+// naming another recognised type is a type change and is rejected, not narrowed to `.canvas.md`.
+test("name='Sketch.canvas' on a note → UNSUPPORTED_FILE_TYPE / type-change, no rename spawn (Story 3 b5, superseded by spec 070)", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([]);
+  const err = (await captureRejection(
+    executeRenameNote(
+      { target_mode: "specific", vault: "V", path: "Old.md", name: "Sketch.canvas" },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    ),
+  )) as UpstreamError;
+  expect(err.code).toBe("VALIDATION_ERROR");
+  expect(err.details).toMatchObject({ code: "UNSUPPORTED_FILE_TYPE", reason: "type-change" });
+  expect(recorded).toHaveLength(0);
 });
 
 // =========================================================================
@@ -381,4 +395,144 @@ test("same-name rename: response carries renamed:true AND fromPath===toPath (Sto
     toPath: "Inbox/Note.md",
   });
   expect(result.fromPath === result.toPath).toBe(true);
+});
+
+// =========================================================================
+// Spec 070 — the file keeps its type (US1, US2, US4)
+// =========================================================================
+
+function dirOf(p: string): string {
+  const i = p.lastIndexOf("/");
+  return i === -1 ? "" : p.slice(0, i + 1);
+}
+
+// data-model.md DestinationNameRule worked rows that are not rejections.
+const WORKED_ROWS: Array<[source: string, name: string, forwarded: string]> = [
+  ["Inbox/Note.md", "Renamed", "Renamed.md"],
+  ["Inbox/Note.md", "Renamed.md", "Renamed.md"],
+  ["Inbox/Note.md", "Renamed.MD", "Renamed.MD.md"],
+  ["Inbox/Note.md", "Doc.v1.draft", "Doc.v1.draft.md"],
+  ["Boards/Plan.canvas", "Roadmap", "Roadmap.canvas"],
+  ["Boards/Plan.canvas", "Roadmap.canvas", "Roadmap.canvas"],
+  ["Boards/Plan.canvas", "Plan.v2", "Plan.v2.canvas"],
+  ["Views/Tasks.base", "Open Tasks", "Open Tasks.base"],
+  ["Att/Photo.PNG", "New", "New.PNG"],
+  ["Att/Photo.PNG", "New.png", "New.png"],
+  ["Misc/README", "Readme2", "Readme2"],
+  ["Misc/todo.txt", "done", "done.txt"],
+];
+
+test.each(WORKED_ROWS)("spec 070 worked row: path=%s name=%j → argv name=%s", async (source, name, forwarded) => {
+  const toPath = dirOf(source) + forwarded;
+  const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: `Renamed: ${source} -> ${toPath}\n`, exitCode: 0 }]);
+  const result = await executeRenameNote({ target_mode: "specific", vault: "V", path: source, name }, deps(spawnFn));
+  expect(recorded).toHaveLength(1);
+  expect(recorded[0]!.argv).toEqual(["vault=V", "rename", `path=${source}`, `name=${forwarded}`]);
+  expect(result).toEqual({ renamed: true, fromPath: source, toPath });
+});
+
+test("spec 070: file mode resolves the name first — `vault=MyVault file file=Plan` precedes the rename", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    fileTsvResponse("Boards/Plan.canvas"),
+    { stdout: "Renamed: Boards/Plan.canvas -> Boards/Roadmap.canvas\n", exitCode: 0 },
+  ]);
+  await executeRenameNote({ target_mode: "specific", vault: "MyVault", file: "Plan", name: "Roadmap" }, deps(spawnFn));
+  expect(recorded).toHaveLength(2);
+  expect(recorded[0]!.argv).toEqual(["vault=MyVault", "file", "file=Plan"]);
+});
+
+test("spec 070: file mode on a canvas forwards the original file= (no path=) with name=Roadmap.canvas", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    fileTsvResponse("Boards/Plan.canvas"),
+    { stdout: "Renamed: Boards/Plan.canvas -> Boards/Roadmap.canvas\n", exitCode: 0 },
+  ]);
+  const result = await executeRenameNote(
+    { target_mode: "specific", vault: "MyVault", file: "Plan", name: "Roadmap" },
+    deps(spawnFn),
+  );
+  expect(recorded[1]!.argv).toEqual(["vault=MyVault", "rename", "file=Plan", "name=Roadmap.canvas"]);
+  expect(result.toPath).toBe("Boards/Roadmap.canvas");
+});
+
+test("spec 070: active mode on a focused canvas in an unregistered vault → rename by path, no vault=, no registry lookup", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    focusedFileResponse("Boards/Plan.canvas", "/vaults/Unregistered"),
+    { stdout: "Renamed: Boards/Plan.canvas -> Boards/Roadmap.canvas\n", exitCode: 0 },
+  ]);
+  await executeRenameNote({ target_mode: "active", name: "Roadmap" }, deps(spawnFn));
+  expect(recorded[1]!.argv).toEqual(["rename", "path=Boards/Plan.canvas", "name=Roadmap.canvas"]);
+});
+
+test("spec 070: a file-mode resolution failure surfaces its CLI_REPORTED_ERROR and spawns no rename", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: 'Error: File "Plan" not found.\n', exitCode: 0 }]);
+  const err = (await captureRejection(
+    executeRenameNote({ target_mode: "specific", vault: "MyVault", file: "Plan", name: "Roadmap" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details.message).toBe('Error: File "Plan" not found.');
+  expect(recorded).toHaveLength(1);
+});
+
+test("spec 070: active mode with no focused file → ERR_NO_ACTIVE_FILE, no rename spawn", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([focusedFileResponse(null)]);
+  const err = (await captureRejection(executeRenameNote({ target_mode: "active", name: "X" }, deps(spawnFn)))) as UpstreamError;
+  expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
+  expect(recorded).toHaveLength(1);
+});
+
+// data-model.md rejection rows, in each locator form.
+const REJECTION_ROWS: Array<[source: string, name: string, extension: string, destinationExtension: string]> = [
+  ["Inbox/Note.md", "Sketch.canvas", "md", "canvas"],
+  ["Boards/Plan.canvas", "Plan.md", "canvas", "md"],
+  ["Att/Photo.png", "New.jpg", "png", "jpg"],
+];
+
+describe.each(["path", "file", "active"] as const)("spec 070 type-change rejection (%s locator)", (locator) => {
+  test.each(REJECTION_ROWS)("%s → %j rejected, rename never spawned", async (source, name, extension, destinationExtension) => {
+    const resolution =
+      locator === "file" ? [fileTsvResponse(source)] : locator === "active" ? [focusedFileResponse(source)] : [];
+    const { spawnFn, recorded } = makeQueuedSpawn(resolution);
+    const input =
+      locator === "path"
+        ? ({ target_mode: "specific", vault: "MyVault", path: source, name } as const)
+        : locator === "file"
+          ? ({ target_mode: "specific", vault: "MyVault", file: source.slice(source.lastIndexOf("/") + 1), name } as const)
+          : ({ target_mode: "active", name } as const);
+    const err = (await captureRejection(executeRenameNote(input, deps(spawnFn)))) as UpstreamError;
+    expect(err.code).toBe("VALIDATION_ERROR");
+    expect(err.details).toEqual({
+      code: "UNSUPPORTED_FILE_TYPE",
+      reason: "type-change",
+      path: source,
+      extension,
+      supported: ["note", "canvas", "base", "attachment"],
+      destination: name,
+      destinationExtension,
+      alternative: "obsidian_exec",
+    });
+    expect(recorded.some((r) => r.argv.includes("rename"))).toBe(false);
+  });
+});
+
+// US4 / FR-011 invariant, one case per category and locator form: an extensionless name keeps
+// the source's extension.
+describe.each(["path", "file", "active"] as const)("spec 070 invariant: type kept (%s locator)", (locator) => {
+  test.each(["Dir/S.md", "Dir/S.canvas", "Dir/S.base", "Dir/S.png"])("%s renamed to 'T' keeps its extension", async (source) => {
+    const ext = source.slice(source.lastIndexOf("."));
+    const resolution =
+      locator === "file" ? [fileTsvResponse(source)] : locator === "active" ? [focusedFileResponse(source)] : [];
+    const { spawnFn, recorded } = makeQueuedSpawn([
+      ...resolution,
+      { stdout: `Renamed: ${source} -> Dir/T${ext}\n`, exitCode: 0 },
+    ]);
+    const input =
+      locator === "path"
+        ? ({ target_mode: "specific", vault: "MyVault", path: source, name: "T" } as const)
+        : locator === "file"
+          ? ({ target_mode: "specific", vault: "MyVault", file: `S${ext}`, name: "T" } as const)
+          : ({ target_mode: "active", name: "T" } as const);
+    const result = await executeRenameNote(input, deps(spawnFn));
+    expect(recorded.at(-1)!.argv).toContain(`name=T${ext}`);
+    expect(result.toPath.endsWith(ext)).toBe(true);
+  });
 });

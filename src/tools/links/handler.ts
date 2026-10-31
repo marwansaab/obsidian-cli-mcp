@@ -11,8 +11,12 @@ import { UpstreamError } from "../../errors.js";
 import { decodeEvalEnvelope } from "../_active-file.js";
 import { composeEvalCode } from "../_shared.js";
 
+import type { SupportDeclaration } from "../../file-type/file-type.js";
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
+
+/** links reads Markdown notes only; others keep their NOT_MARKDOWN rejection (spec 070 FR-007a). */
+export const LINKS_SUPPORTED = ["note"] as const satisfies SupportDeclaration;
 
 export interface ExecuteDeps extends CallScope {
   logger: Logger;

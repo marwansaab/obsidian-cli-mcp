@@ -47,6 +47,11 @@ only when both tools are offered
 both publish an `outputSchema` and return their result as `structuredContent`
 beside the identical text
 ([typed results](../architecture.md#typed-results-outputschema-and-structuredcontent)).
+Since PR #97 `smart_connections_similar`'s description carries "Supported
+file types: notes."
+([file types](../architecture.md#file-types-check-the-file-that-will-be-acted-on));
+a non-note source is still refused with its existing `NOT_MARKDOWN` (spec 070
+FR-007a), and its plugin lifecycle (ADR-013, ADR-014) is untouched.
 
 ## Failure
 

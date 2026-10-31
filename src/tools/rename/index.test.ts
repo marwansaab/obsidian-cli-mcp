@@ -8,7 +8,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createRenameTool, RENAME_DESCRIPTION, RENAME_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { makeStubSpawn as makeSingleSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import {
+  focusedFileResponse,
+  makeQueuedSpawn,
+  silentLogger,
+} from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -82,10 +86,11 @@ describe("createRenameTool — handler integration via registerTool", () => {
   // active-mode rename reaches executeRenameNote → invokeCli (success spawn) and returns a JSON
   // success envelope. Reuses handler.test.ts's "Renamed: ..." success stdout.
   it("VALID input drives the handler closure to a success envelope", async () => {
-    const { spawnFn } = makeSingleSpawn({
-      stdout: "Renamed: Inbox/focused.md -> Inbox/Today.md\n",
-      exitCode: 0,
-    });
+    // Spec 070: active mode resolves the focused file (eval) before the rename spawn.
+    const { spawnFn } = makeQueuedSpawn([
+      focusedFileResponse("Inbox/focused.md"),
+      { stdout: "Renamed: Inbox/focused.md -> Inbox/Today.md\n", exitCode: 0 },
+    ]);
     const tool = createRenameTool({
       logger: silentLogger(),
       queue: createQueue(),

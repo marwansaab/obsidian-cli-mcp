@@ -277,7 +277,10 @@ export const TYPED_RESULT_FIXTURES: readonly TypedResultFixture[] = [
   },
   {
     name: "rename",
-    build: () => createRenameTool(cli(out("Renamed: Inbox/focused.md -> Inbox/Today.md\n"))),
+    build: () =>
+      createRenameTool(
+        cli(evalOut({ path: "Inbox/focused.md", base: "/vaults/Work" }), out("Renamed: Inbox/focused.md -> Inbox/Today.md\n")),
+      ),
     args: { target_mode: "active", name: "Today" },
   },
   {

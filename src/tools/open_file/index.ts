@@ -5,15 +5,16 @@
 // subcommand that can focus an existing tab; opening is eval-composed via app.workspace, the same
 // mechanism write_note's `open` parameter uses, ADR-009). Zero new top-level error codes — Constitution
 // Principle IV streak preserved (recovery is inherited from dispatchCli; no launcher import).
-import { executeOpenFile, type ExecuteDeps } from "./handler.js";
+import { type ExecuteDeps, executeOpenFile, OPEN_FILE_SUPPORTED } from "./handler.js";
 import { openFileInputSchema, openFileOutputSchema } from "./schema.js";
+import { describeSupport } from "../../file-type/file-type.js";
 import { registerTool } from "../_register.js";
 import { REPEATABLE_WRITE_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const OPEN_FILE_TOOL_NAME = "open_file";
 
 export const OPEN_FILE_DESCRIPTION =
-  `Surface an existing vault file as the focused, visible, active file in the running Obsidian workspace — markdown notes AND any other recognised type (canvas, PDF, image, attachment). Decouples the open/hand-off affordance from \`write_note\` (which only opens what it just wrote): \`open_file\` opens a file you merely located.
+  `Surface an existing vault file as the focused, visible, active file in the running Obsidian workspace. ${describeSupport(OPEN_FILE_SUPPORTED)} A type Obsidian has no view for fails with \`CLI_REPORTED_ERROR\` / \`UNSUPPORTED_FILE_TYPE\`. Decouples the open/hand-off affordance from \`write_note\` (which only opens what it just wrote): \`open_file\` opens a file you merely located.
 
 **Cross-vault — opens in the vault you name, and switches focus to it.** The open lands in the \`vault\` you request whether it is the currently focused vault, an open-but-unfocused (background) vault, or a closed-but-registered vault, and Obsidian's focus moves to that vault. You do NOT need to pre-focus the vault. The previously focused vault stays open (focus just moves). A closed vault is brought up and a fully-quit app is launched automatically (inherited recovery) — a single call, no caller retry. No Obsidian setting or config is changed.
 
