@@ -4,9 +4,13 @@ import { UpstreamError } from "../../errors.js";
 import { NON_INTERACTIVE_CALL } from "../_confirm.js";
 
 import type { DeleteNoteInput, DeleteNoteOutput } from "./schema.js";
+import type { SupportDeclaration } from "../../file-type/file-type.js";
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
 import type { Confirmation } from "../_shared.js";
+
+/** delete works on every file (spec 070 FR-003). */
+export const DELETE_SUPPORTED = "any" as const satisfies SupportDeclaration;
 
 export interface ExecuteDeps extends CallScope {
   logger: Logger;

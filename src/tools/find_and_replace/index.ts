@@ -1,16 +1,13 @@
 // Original — no upstream. find_and_replace registration via registerTool with a mapValidationError hook that maps Zod issues into VALIDATION_ERROR envelopes carrying details.code (INVALID_PATTERN / INVALID_REPLACEMENT / INVALID_SUBFOLDER) + details.reason (empty / too-long / regex-syntax / path-traversal / not-found) per ADR-015. Zero new top-level error codes — Constitution Principle IV streak preserved.
 import { type z } from "zod";
 
-import { executeFindAndReplace, type ExecuteDeps } from "./handler.js";
+import { type ExecuteDeps, executeFindAndReplace, FIND_AND_REPLACE_SUPPORTED } from "./handler.js";
 import { findAndReplaceInputSchema, findAndReplaceOutputSchema } from "./schema.js";
-import { describeSupport, type FileCategory } from "../../file-type/file-type.js";
+import { describeSupport } from "../../file-type/file-type.js";
 import { registerTool } from "../_register.js";
 import { DESTRUCTIVE_HINTS, type BootDeps, type RegisteredTool, type ToolErrorPayload } from "../_shared.js";
 
 export const FIND_AND_REPLACE_TOOL_NAME = "find_and_replace";
-
-/** find_and_replace edits Markdown notes only; others keep their INVALID_NOTE / not-eligible rejection (spec 070 FR-007a). */
-export const FIND_AND_REPLACE_SUPPORTED = ["note"] as const satisfies readonly FileCategory[];
 
 export const FIND_AND_REPLACE_DESCRIPTION =
   `Find-and-replace with **preview-then-commit** semantics. Scan a vault, a sub-folder, or a single note for a literal-or-regex pattern; default returns a preview, \`commit: true\` rewrites the matches on disk. ${describeSupport(FIND_AND_REPLACE_SUPPORTED)}

@@ -1,14 +1,11 @@
 // Original — no upstream.
 import { registerTool } from "../_register.js";
-import { executeViewsBase, type ExecuteDeps } from "./handler.js";
+import { type ExecuteDeps, executeViewsBase, VIEWS_BASE_SUPPORTED } from "./handler.js";
 import { viewsBaseInputSchema, viewsBaseOutputSchema } from "./schema.js";
-import { describeSupport, type FileCategory } from "../../file-type/file-type.js";
+import { describeSupport } from "../../file-type/file-type.js";
 import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const VIEWS_BASE_TOOL_NAME = "views_base";
-
-/** views_base reads a base (`base_path`); others keep their INVALID_BASE_PATH rejection (spec 070 FR-007a). */
-export const VIEWS_BASE_SUPPORTED = ["base"] as const satisfies readonly FileCategory[];
 
 export const VIEWS_BASE_DESCRIPTION =
   `List the views defined inside an Obsidian Bases (\`.base\`) file. Siblings in the Bases family: \`bases\` (enumerate \`.base\` files), \`query_base\` (query rows from a view), \`create_base\` (create a new item in a base). ${describeSupport(VIEWS_BASE_SUPPORTED)}

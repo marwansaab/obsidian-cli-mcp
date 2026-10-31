@@ -1,14 +1,11 @@
 // Original — no upstream. smart_connections_similar tool registration via registerTool — plugin-backed semantic-similarity primitive returning a typed { count, matches: [{ path, headingPath, score }] } envelope; responseFormat: "json" (default) wraps the envelope for the MCP wire.
 import { registerTool } from "../_register.js";
-import { executeSmartConnectionsSimilar, type ExecuteDeps } from "./handler.js";
+import { type ExecuteDeps, executeSmartConnectionsSimilar, SMART_CONNECTIONS_SIMILAR_SUPPORTED } from "./handler.js";
 import { smartConnectionsSimilarInputSchema, smartConnectionsSimilarOutputSchema } from "./schema.js";
-import { describeSupport, type FileCategory } from "../../file-type/file-type.js";
+import { describeSupport } from "../../file-type/file-type.js";
 import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const SMART_CONNECTIONS_SIMILAR_TOOL_NAME = "smart_connections_similar";
-
-/** smart_connections_similar takes a Markdown note as its source; others keep their NOT_MARKDOWN rejection (spec 070 FR-007a). */
-export const SMART_CONNECTIONS_SIMILAR_SUPPORTED = ["note"] as const satisfies readonly FileCategory[];
 
 export const SMART_CONNECTIONS_SIMILAR_DESCRIPTION =
   `Return semantically-similar block-level matches for a single source note via the Smart Connections plugin's similarity API. Returns { count, matches: [{ path, headingPath, score }] }. ${describeSupport(SMART_CONNECTIONS_SIMILAR_SUPPORTED)}

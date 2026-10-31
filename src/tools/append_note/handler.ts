@@ -5,12 +5,9 @@ import * as nodeFs from "node:fs/promises";
 import { appendEdit } from "./append-edit.js";
 import { type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import { assertSupportedFileType, type FileCategory } from "../../file-type/file-type.js";
-import {
-  assertCanonicalPath,
-  resolveActiveLocatorWithVault,
-  resolveFileByTsv,
-} from "../_active-file.js";
+import { assertSupportedFileType, type SupportDeclaration } from "../../file-type/file-type.js";
+import { assertCanonicalPath } from "../_active-file.js";
+import { resolveFsTarget } from "../_file-target.js";
 import { getErrno, mapFsWriteError } from "../_fs-errors.js";
 import { invalidateMetadataCache, writeAtomic } from "../_note-io.js";
 
@@ -53,29 +50,7 @@ const DEFAULT_FS: ExecuteFs = {
 const EDITOR_CONFLICT_ERRNOS = new Set(["EBUSY", "EPERM", "EACCES"]);
 
 /** The file types `append_note` handles (spec 070): Markdown notes only. */
-export const APPEND_NOTE_SUPPORTED = ["note"] as const satisfies readonly FileCategory[];
-
-async function resolveLocator(
-  input: AppendNoteInput,
-  deps: ExecuteDeps,
-): Promise<{ vaultRoot: string; relPath: string; vaultDisplayName: string }> {
-  if (input.target_mode === "active") {
-    return resolveActiveLocatorWithVault(deps, "append_note");
-  }
-
-  const vaultRoot = await deps.vaultRegistry.resolveVaultPath(input.vault!);
-
-  // FR-002 / FR-003 — wikilink-form `file` resolves through a pre-flight
-  // `obsidian file file=<name>` TSV resolver call (byte-stable with
-  // set_property's pattern). `path` callers skip the resolver and feed the
-  // input verbatim into Layer 2.
-  const relPath =
-    input.path !== undefined
-      ? input.path
-      : await resolveFileByTsv(deps, input.vault!, input.file!, "append_note");
-
-  return { vaultRoot, relPath, vaultDisplayName: input.vault! };
-}
+export const APPEND_NOTE_SUPPORTED = ["note"] as const satisfies SupportDeclaration;
 
 export async function executeAppendNote(
   input: AppendNoteInput,
@@ -83,7 +58,9 @@ export async function executeAppendNote(
 ): Promise<AppendNoteOutput> {
   const fs = deps.fs ?? DEFAULT_FS;
 
-  const { vaultRoot, relPath, vaultDisplayName } = await resolveLocator(input, deps);
+  // FR-002 / FR-003 — a wikilink-form `file` resolves through a pre-flight `obsidian file
+  // file=<name>` TSV call; `path` feeds Layer 2 verbatim.
+  const { vaultRoot, relPath, vaultDisplayName } = await resolveFsTarget(input, deps, "append_note");
   // Spec 070: note text written into a canvas, base or attachment corrupts it; reject before reading the note.
   assertSupportedFileType({ relPath, supported: APPEND_NOTE_SUPPORTED, toolName: "append_note" });
   const mapWriteErr = (e: unknown): UpstreamError =>

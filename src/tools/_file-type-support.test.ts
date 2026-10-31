@@ -3,29 +3,34 @@ import { describe, expect, test } from "vitest";
 
 import { APPEND_NOTE_SUPPORTED } from "./append_note/handler.js";
 import { APPEND_NOTE_DESCRIPTION } from "./append_note/index.js";
-import { BACKLINKS_DESCRIPTION, BACKLINKS_SUPPORTED } from "./backlinks/index.js";
-import { CREATE_BASE_DESCRIPTION, CREATE_BASE_SUPPORTED } from "./create_base/index.js";
-import { DELETE_DESCRIPTION, DELETE_SUPPORTED } from "./delete/index.js";
-import {
-  FIND_AND_REPLACE_DESCRIPTION,
-  FIND_AND_REPLACE_SUPPORTED,
-} from "./find_and_replace/index.js";
-import { LINKS_DESCRIPTION, LINKS_SUPPORTED } from "./links/index.js";
-import { MOVE_DESCRIPTION, MOVE_SUPPORTED } from "./move/index.js";
-import { OPEN_FILE_DESCRIPTION, OPEN_FILE_SUPPORTED } from "./open_file/index.js";
+import { BACKLINKS_SUPPORTED } from "./backlinks/handler.js";
+import { BACKLINKS_DESCRIPTION } from "./backlinks/index.js";
+import { CREATE_BASE_SUPPORTED } from "./create_base/handler.js";
+import { CREATE_BASE_DESCRIPTION } from "./create_base/index.js";
+import { DELETE_SUPPORTED } from "./delete/handler.js";
+import { DELETE_DESCRIPTION } from "./delete/index.js";
+import { FIND_AND_REPLACE_SUPPORTED } from "./find_and_replace/handler.js";
+import { FIND_AND_REPLACE_DESCRIPTION } from "./find_and_replace/index.js";
+import { LINKS_SUPPORTED } from "./links/handler.js";
+import { LINKS_DESCRIPTION } from "./links/index.js";
+import { MOVE_SUPPORTED } from "./move/handler.js";
+import { MOVE_DESCRIPTION } from "./move/index.js";
+import { OPEN_FILE_SUPPORTED } from "./open_file/handler.js";
+import { OPEN_FILE_DESCRIPTION } from "./open_file/index.js";
 import { OUTLINE_SUPPORTED } from "./outline/handler.js";
 import { OUTLINE_DESCRIPTION } from "./outline/index.js";
 import { PREPEND_SUPPORTED } from "./prepend/handler.js";
 import { PREPEND_DESCRIPTION } from "./prepend/index.js";
-import { QUERY_BASE_DESCRIPTION, QUERY_BASE_SUPPORTED } from "./query_base/index.js";
+import { QUERY_BASE_SUPPORTED } from "./query_base/handler.js";
+import { QUERY_BASE_DESCRIPTION } from "./query_base/index.js";
 import { READ_SUPPORTED } from "./read/handler.js";
 import { READ_DESCRIPTION } from "./read/index.js";
-import { RENAME_DESCRIPTION, RENAME_SUPPORTED } from "./rename/index.js";
-import {
-  SMART_CONNECTIONS_SIMILAR_DESCRIPTION,
-  SMART_CONNECTIONS_SIMILAR_SUPPORTED,
-} from "./smart_connections_similar/index.js";
-import { VIEWS_BASE_DESCRIPTION, VIEWS_BASE_SUPPORTED } from "./views_base/index.js";
+import { RENAME_SUPPORTED } from "./rename/handler.js";
+import { RENAME_DESCRIPTION } from "./rename/index.js";
+import { SMART_CONNECTIONS_SIMILAR_SUPPORTED } from "./smart_connections_similar/handler.js";
+import { SMART_CONNECTIONS_SIMILAR_DESCRIPTION } from "./smart_connections_similar/index.js";
+import { VIEWS_BASE_SUPPORTED } from "./views_base/handler.js";
+import { VIEWS_BASE_DESCRIPTION } from "./views_base/index.js";
 import { WRITE_NOTE_SUPPORTED } from "./write_note/handler.js";
 import { WRITE_NOTE_DESCRIPTION } from "./write_note/index.js";
 import { describeSupport, type SupportDeclaration } from "../file-type/file-type.js";

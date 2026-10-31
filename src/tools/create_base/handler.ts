@@ -9,8 +9,12 @@ import {
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError, stringDetail } from "../../errors.js";
 
+import type { SupportDeclaration } from "../../file-type/file-type.js";
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
+
+/** create_base adds an item to a base (`path`); others keep their INVALID_BASE_PATH rejection (spec 070 FR-007a). */
+export const CREATE_BASE_SUPPORTED = ["base"] as const satisfies SupportDeclaration;
 
 export interface ExecuteDeps extends CallScope {
   logger: Logger;

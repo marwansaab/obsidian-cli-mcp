@@ -9,7 +9,7 @@ import {
   assertSupportedFileType,
   categoryOf,
   extensionOf,
-  type FileCategory,
+  type SupportDeclaration,
 } from "../../file-type/file-type.js";
 import { assertCanonicalPath, resolveActiveFocusedFile } from "../_active-file.js";
 import { getErrno } from "../_fs-errors.js";
@@ -46,13 +46,22 @@ const DEFAULT_FS: ExecuteFs = {
 };
 
 /** The file types `write_note` handles (spec 070): Markdown notes only. */
-export const WRITE_NOTE_SUPPORTED = ["note"] as const satisfies readonly FileCategory[];
+export const WRITE_NOTE_SUPPORTED = ["note"] as const satisfies SupportDeclaration;
 
 // FR-001 / R2 canonical short-form predicate: file is canonical iff it has no
 // folder separator AND does not end in `.md`. Internal periods preserved
-// (`version_1.2.3` → canonical because `endsWith(".md")` is false).
+// (`version_1.2.3` → canonical because `endsWith(".md")` is false). Spec 070: a
+// name ending in another core type ("Plan.canvas") is not canonical either, so it
+// passes through verbatim and the type check rejects it instead of it becoming
+// "Plan.canvas.md"; a note extension in another case ("Plan.MD") stays canonical.
 function isCanonicalShortForm(file: string): boolean {
-  return !file.includes("/") && !file.includes("\\") && !file.endsWith(".md");
+  const category = categoryOf(extensionOf(file));
+  return (
+    !file.includes("/") &&
+    !file.includes("\\") &&
+    !file.endsWith(".md") &&
+    (category === null || category === "note")
+  );
 }
 
 // FR-001 / R1 specific-mode path resolution: `input.path` passes through
@@ -100,11 +109,6 @@ export async function executeWriteNote(
     ({ vaultRoot, relPath } = await resolveActiveFocusedFile(deps, "write_note"));
   } else {
     vaultRoot = await deps.vaultRegistry.resolveVaultPath(input.vault!);
-    // Spec 070: a `file` naming another core type ("Plan.canvas") is rejected rather than
-    // becoming "Plan.canvas.md"; an unrecognised trailing segment stays part of the stem.
-    if (input.file !== undefined && categoryOf(extensionOf(input.file)) !== null) {
-      assertSupportedFileType({ relPath: input.file, supported: WRITE_NOTE_SUPPORTED, toolName: "write_note" });
-    }
     relPath = resolveSpecificModePath(input);
   }
 

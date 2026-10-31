@@ -119,7 +119,7 @@ describe("assertSupportedFileType", () => {
         relPath: "Att/photo.png",
         supported: ["note", "canvas", "base"],
         toolName: "read",
-        alternative: "open_file",
+        alternatives: { attachment: "open_file" },
       }),
     );
     expect(err.code).toBe("VALIDATION_ERROR");
@@ -143,6 +143,21 @@ describe("assertSupportedFileType", () => {
       expect(err.message).toContain(fragment);
     }
     expect(err.message).toContain("Nothing was changed.");
+  });
+
+  test("an alternative is named only for its own category", () => {
+    for (const relPath of ["F/todo.txt", "a/N.md"]) {
+      const err = rejection(() =>
+        assertSupportedFileType({
+          relPath,
+          supported: ["canvas"],
+          toolName: "read",
+          alternatives: { attachment: "open_file" },
+        }),
+      );
+      expect(err.details).not.toHaveProperty("alternative");
+      expect(err.message).not.toContain("open_file");
+    }
   });
 
   test("without an alternative the details carry no alternative key", () => {
@@ -184,6 +199,7 @@ describe("typeChangeError", () => {
     const err = typeChangeError({
       relPath: "Boards/Plan.canvas",
       destination: "Plan.md",
+      destinationLabel: "the new name",
       toolName: "rename",
     });
     expect(err.code).toBe("VALIDATION_ERROR");
@@ -203,7 +219,12 @@ describe("typeChangeError", () => {
   });
 
   test("move names the destination", () => {
-    const err = typeChangeError({ relPath: "a/N.md", destination: "b/N.canvas", toolName: "move" });
+    const err = typeChangeError({
+      relPath: "a/N.md",
+      destination: "b/N.canvas",
+      destinationLabel: "the destination",
+      toolName: "move",
+    });
     expect(err.message).toContain('the destination "b/N.canvas" would make it a canvas');
   });
 });
@@ -225,7 +246,7 @@ describe("resolveDestinationName — data-model worked rows", () => {
     // Final segment of a move `to`.
     ["Boards/Plan.canvas", "Archive/Plan2", "Archive/Plan2.canvas"],
   ])("%s + %j → %j", (relPath, destination, forwarded) => {
-    expect(resolveDestinationName({ relPath, destination, toolName: "rename" })).toBe(forwarded);
+    expect(resolveDestinationName({ relPath, destination, destinationLabel: "the new name", toolName: "rename" })).toBe(forwarded);
   });
 
   test.each([
@@ -234,7 +255,7 @@ describe("resolveDestinationName — data-model worked rows", () => {
     ["Att/Photo.png", "New.jpg", "png", "jpg"],
   ])("%s + %j → type-change rejection", (relPath, destination, extension, destinationExtension) => {
     const err = rejection(() =>
-      resolveDestinationName({ relPath, destination, toolName: "rename" }),
+      resolveDestinationName({ relPath, destination, destinationLabel: "the new name", toolName: "rename" }),
     );
     expect(err.details).toMatchObject({
       code: "UNSUPPORTED_FILE_TYPE",
@@ -277,7 +298,12 @@ describe("type-preservation invariant across every category", () => {
       (destination) => {
         let forwarded: string;
         try {
-          forwarded = resolveDestinationName({ relPath: source, destination, toolName: "move" });
+          forwarded = resolveDestinationName({
+            relPath: source,
+            destination,
+            destinationLabel: "the destination",
+            toolName: "move",
+          });
         } catch (e) {
           expect(e).toBeInstanceOf(UpstreamError);
           expect((e as UpstreamError).details.reason).toBe("type-change");

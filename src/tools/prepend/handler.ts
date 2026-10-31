@@ -3,12 +3,9 @@ import * as nodeFs from "node:fs/promises";
 
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError, stringDetail } from "../../errors.js";
-import { assertSupportedFileType, type FileCategory } from "../../file-type/file-type.js";
-import {
-  assertCanonicalPath,
-  resolveActiveLocatorWithVault,
-  resolveFileByTsv,
-} from "../_active-file.js";
+import { assertSupportedFileType, type SupportDeclaration } from "../../file-type/file-type.js";
+import { assertCanonicalPath } from "../_active-file.js";
+import { resolveFsTarget } from "../_file-target.js";
 import { getErrno } from "../_fs-errors.js";
 
 import type { PrependInput, PrependOutput } from "./schema.js";
@@ -125,29 +122,7 @@ function classifyUpstreamFailure(
 }
 
 /** The file types `prepend` handles (spec 070): Markdown notes only. */
-export const PREPEND_SUPPORTED = ["note"] as const satisfies readonly FileCategory[];
-
-async function resolveLocator(
-  input: PrependInput,
-  deps: ExecuteDeps,
-): Promise<{ vaultRoot: string; relPath: string; vaultDisplayName: string }> {
-  if (input.target_mode === "active") {
-    return resolveActiveLocatorWithVault(deps, "prepend");
-  }
-
-  const vaultRoot = await deps.vaultRegistry.resolveVaultPath(input.vault!);
-
-  // FR-002 / FR-003 — wikilink-form `file` resolves through a pre-flight
-  // `obsidian file file=<name>` TSV resolver call. `path` callers skip the
-  // resolver and feed the input verbatim into Layer 2. Cohort parity with
-  // append_note + set_property.
-  const relPath =
-    input.path !== undefined
-      ? input.path
-      : await resolveFileByTsv(deps, input.vault!, input.file!, "prepend");
-
-  return { vaultRoot, relPath, vaultDisplayName: input.vault! };
-}
+export const PREPEND_SUPPORTED = ["note"] as const satisfies SupportDeclaration;
 
 export async function executePrepend(
   input: PrependInput,
@@ -155,7 +130,9 @@ export async function executePrepend(
 ): Promise<PrependOutput> {
   const fs = deps.fs ?? DEFAULT_FS;
 
-  const { vaultRoot, relPath, vaultDisplayName } = await resolveLocator(input, deps);
+  // FR-002 / FR-003 — a wikilink-form `file` resolves through a pre-flight `obsidian file
+  // file=<name>` TSV call; `path` feeds Layer 2 verbatim. Cohort parity with append_note.
+  const { vaultRoot, relPath, vaultDisplayName } = await resolveFsTarget(input, deps, "prepend");
   // Spec 070: note text written into a canvas, base or attachment corrupts it; reject before the stat and the prepend call.
   assertSupportedFileType({ relPath, supported: PREPEND_SUPPORTED, toolName: "prepend" });
 

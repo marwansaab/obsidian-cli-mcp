@@ -2,8 +2,8 @@
 import { outlineUpstreamArraySchema, type OutlineInput, type OutlineOutput } from "./schema.js";
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import { assertSupportedFileType, type FileCategory } from "../../file-type/file-type.js";
-import { forwardedLocator, resolveFileTarget } from "../_file-target.js";
+import { assertSupportedFileType, type SupportDeclaration } from "../../file-type/file-type.js";
+import { resolveFileTarget } from "../_file-target.js";
 
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
@@ -20,7 +20,7 @@ export interface ExecuteDeps extends CallScope {
 export const EMPTY_OUTLINE_SENTINEL = "No headings found.";
 
 /** The file types `outline` handles (spec 070): Markdown notes only. */
-export const OUTLINE_SUPPORTED = ["note"] as const satisfies readonly FileCategory[];
+export const OUTLINE_SUPPORTED = ["note"] as const satisfies SupportDeclaration;
 
 export async function executeOutline(
   input: OutlineInput,
@@ -28,18 +28,17 @@ export async function executeOutline(
 ): Promise<OutlineOutput> {
   const target = await resolveFileTarget(input, deps, "outline");
   assertSupportedFileType({ relPath: target.relPath, supported: OUTLINE_SUPPORTED, toolName: "outline" });
-  const locator = forwardedLocator(input, target);
 
   const countOnly = input.total === true;
   const parameters: Record<string, string> = {};
   if (!countOnly) parameters.format = "json";
-  Object.assign(parameters, locator.parameters);
+  Object.assign(parameters, target.locator);
   const flags: string[] = countOnly ? ["total"] : [];
 
   const result = await invokeCli(
     {
       command: "outline",
-      vault: locator.vault,
+      vault: target.vault,
       parameters,
       flags,
       target_mode: "specific",

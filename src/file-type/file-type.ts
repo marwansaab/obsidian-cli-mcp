@@ -105,8 +105,8 @@ export interface SupportedFileTypeCheck {
   relPath: string;
   supported: readonly FileCategory[];
   toolName: string;
-  /** Tool to use instead, carried in `details.alternative` and named in the message. */
-  alternative?: string;
+  /** Per rejected category, the tool to use instead, carried in `details.alternative` and named in the message. */
+  alternatives?: Partial<Readonly<Record<FileCategory, string>>>;
 }
 
 /**
@@ -115,10 +115,11 @@ export interface SupportedFileTypeCheck {
  * acts on the file and before any filesystem write (FR-007).
  */
 export function assertSupportedFileType(check: SupportedFileTypeCheck): void {
-  const { relPath, supported, toolName, alternative } = check;
+  const { relPath, supported, toolName } = check;
   const extension = extensionOf(relPath);
   const category = categoryOf(extension);
   if (category !== null && supported.includes(category)) return;
+  const alternative = category === null ? undefined : check.alternatives?.[category];
   const hint = alternative === undefined ? "" : ` Use ${alternative} for this file instead.`;
   throw new UpstreamError({
     code: "VALIDATION_ERROR",
@@ -140,6 +141,8 @@ export interface TypeChangeContext {
   relPath: string;
   /** The destination as given (rename `name`, move `to`). */
   destination: string;
+  /** How the message names the destination: "the new name" (rename), "the destination" (move). */
+  destinationLabel: string;
   toolName: string;
 }
 
@@ -148,11 +151,10 @@ export interface TypeChangeContext {
  * differs from the source's. The deliberate route for a type change is `obsidian_exec`.
  */
 export function typeChangeError(ctx: TypeChangeContext): UpstreamError {
-  const { relPath, destination, toolName } = ctx;
+  const { relPath, destination, destinationLabel: target, toolName } = ctx;
   const extension = extensionOf(relPath);
   const destinationExtension = extensionOf(destination);
   const source = describeFile(extension, false);
-  const target = toolName === "rename" ? "the new name" : "the destination";
   return new UpstreamError({
     code: "VALIDATION_ERROR",
     cause: null,

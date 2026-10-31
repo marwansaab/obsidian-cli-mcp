@@ -28,9 +28,13 @@ import { UpstreamError } from "../../errors.js";
 import { decodeEvalEnvelope, resolveVaultRootOrRemap } from "../_active-file.js";
 import { composeEvalCode } from "../_shared.js";
 
+import type { SupportDeclaration } from "../../file-type/file-type.js";
 import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
 import type { VaultRegistry } from "../../vault-registry/registry.js";
+
+/** open_file opens any file Obsidian can display (spec 070 FR-003). */
+export const OPEN_FILE_SUPPORTED = "any" as const satisfies SupportDeclaration;
 
 export interface ExecuteDeps extends CallScope {
   logger: Logger;

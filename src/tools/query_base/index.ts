@@ -1,14 +1,11 @@
 // Original — no upstream. query_base tool registration via registerTool — wraps the upstream `obsidian base:query` subcommand to return matched rows from a named view inside an Obsidian Bases (.base) file as a structured `{ columns, rows, truncated, total_rows? }` envelope. Sixteenth typed-tool wrap; ADR-010 mechanical name from `base:query`.
 import { registerTool } from "../_register.js";
-import { executeQueryBase, type ExecuteDeps } from "./handler.js";
+import { type ExecuteDeps, executeQueryBase, QUERY_BASE_SUPPORTED } from "./handler.js";
 import { queryBaseInputSchema, queryBaseOutputSchema } from "./schema.js";
-import { describeSupport, type FileCategory } from "../../file-type/file-type.js";
+import { describeSupport } from "../../file-type/file-type.js";
 import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const QUERY_BASE_TOOL_NAME = "query_base";
-
-/** query_base runs a view of a base (`base_path`); others keep their INVALID_BASE_PATH rejection (spec 070 FR-007a). */
-export const QUERY_BASE_SUPPORTED = ["base"] as const satisfies readonly FileCategory[];
 
 export const QUERY_BASE_DESCRIPTION =
   `Run a named view from an Obsidian Bases (\`.base\`) file and return its matched rows as a structured JSON envelope. Siblings in the Bases family: \`bases\` (enumerate \`.base\` files), \`views_base\` (enumerate views inside one), \`create_base\` (create a new one). ${describeSupport(QUERY_BASE_SUPPORTED)}
