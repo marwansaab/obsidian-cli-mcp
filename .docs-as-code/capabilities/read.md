@@ -29,6 +29,19 @@ read one section. It does not parse Markdown itself. Its frozen template reads
 the heading array Obsidian has already parsed into `metadataCache`, and finds
 the section by a `::`-separated path such as `"H1::H2"`.
 
+The body is the note text from the end of the matched heading line to the
+start of the next heading of any depth, or the end of the note. The template
+then removes the heading line's own line ending, CRLF or LF, before returning
+(`src/tools/read_heading/_template.ts:42-43`); nothing else is trimmed or
+normalised. So a body starts with a line break only when the note has a blank
+line directly under the heading. Until PR #96 the help page said the opposite —
+that every body "always begins with a leading `\n`" and should be trimmed —
+which was never true of the template. An agent that followed it deleted the
+first character of real content, or left a stray `\r` in a CRLF note. PR #96
+corrected `docs/tools/read_heading.md` only, with no code change, after 11 live
+reads against fixture notes (`specs/069-fix-section-body-docs/contracts/t0-probe-findings.md`);
+the per-layout table is in that page's "Start of body" section.
+
 `read_property` (PR #15) returns `{ value, type }` with the YAML type
 preserved, so a client can tell the number `7` from the string `"7"`.
 
@@ -63,3 +76,9 @@ documented success, not an empty result standing in for an error.
   documented fallback is `read` plus parsing on the client.
 - `read_heading` returns the direct body only, stopping at the next heading of
   any depth. Child sections are not included.
+- No in-process test pins the line-ending strip at
+  `src/tools/read_heading/_template.ts:42-43`. The start-of-body behaviour the
+  help page documents rests on PR #96's one-off live probe. Review of PR #96
+  (finding F1) asked for a `_template.test.ts`; 069's clarification ruled out
+  new tests in a docs-only BI, so the test was returned to the owner rather
+  than added.

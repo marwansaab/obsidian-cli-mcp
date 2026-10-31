@@ -4,7 +4,7 @@
 
 Read the body of a single named heading from a vault note. Returns `{ content: string }` — the body bytes between the matched heading and the next heading marker of any depth (or EOF). Saves the agent from a full-file `read` plus client-side Markdown parse (typically 5–50k tokens for long documents) — `read_heading` returns just the section's body (typically 100–500 tokens).
 
-**Leading-newline caveat:** the body always begins with a leading `\n` byte (the line terminator after the matched heading line itself). Trim client-side if you need the body to start with prose.
+**Where the body starts:** right after the heading line, with that line's own line ending removed. Everything after it, including blank lines, is returned exactly as written, so use the body as returned: removing a leading character can delete real content or leave a stray `\r`. [Start of body](#start-of-body) shows the body for each layout.
 
 ## When to use this tool
 
@@ -51,14 +51,14 @@ The following heading shapes are **out-of-reach** for `read_heading`:
 ## Output
 
 ```json
-{ "content": "\nUse kebab-case.\n" }
+{ "content": "Use kebab-case.\n" }
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `content` | string | The body bytes of the matched heading. The body always begins with a leading `\n` byte (the line terminator after the heading line itself); trim client-side if you need the body to start with prose. Line endings (CRLF or LF), fenced code blocks, table pipes, list indentation, and inline markdown are preserved byte-for-byte. |
+| `content` | string | The body of the matched heading, up to the next heading of any depth or the end of the note; see [Start of body](#start-of-body) for where it begins. Line endings (CRLF or LF), blank lines, fenced code blocks, table pipes, list indentation, and inline markdown are preserved byte-for-byte. |
 
-A heading whose body is empty (next heading marker appears on the very next line, with no intervening prose) returns `{ "content": "" }` — NOT an error. This is the structural empty-body case.
+A heading with an empty body returns `{ "content": "" }` — NOT an error. This is the structural empty-body case. A heading followed only by a blank line is not empty; [Start of body](#start-of-body) lists both cases.
 
 ## Behavioural notes
 
@@ -77,6 +77,20 @@ Minimal-normalisation, **case-sensitive byte compare**. Closing-ATX forms (e.g. 
 ### Duplicate heading paths
 
 When two or more headings in the same file share the textually-identical full path (e.g. two `## Naming` sections under the same `# Best Practices` parent), the **first-document-order** match is returned.
+
+### Start of body
+
+The heading line's own line ending, in either style, is never part of the body. A body starts with a line break only when the note has a blank line directly under the heading; text directly under the heading starts the body. By layout:
+
+| Lines under `## Section` | Returned `content` |
+|---|---|
+| `Body text.` directly under the heading | `"Body text.\n"` |
+| a blank line, then `Body text.` (LF note) | `"\nBody text.\n"` |
+| a blank line, then `Body text.` (CRLF note) | `"\r\nBody text.\r\n"` |
+| only a blank line, then the next heading (LF note) | `"\n"` |
+| only a blank line, then the next heading (CRLF note) | `"\r\n"` |
+| the next heading directly under | `""` |
+| nothing: the heading is the note's last line | `""` |
 
 ### CRLF / LF line endings
 
@@ -123,7 +137,7 @@ Multi-vault setups can still suffer from basename ambiguity: two vaults sharing 
 }
 ```
 
-Returns `{ "content": "\nUse kebab-case.\n" }` for the body of the `## Naming` section under `# Best Practices`.
+For a note where `Use kebab-case.` sits directly under `## Naming` (under `# Best Practices`), returns `{ "content": "Use kebab-case.\n" }`.
 
 ### Example 2 — Specific mode, 3-segment nested heading by file (wikilink)
 
@@ -139,7 +153,7 @@ Returns `{ "content": "\nUse kebab-case.\n" }` for the body of the `## Naming` s
 }
 ```
 
-Resolves `best-practices` via the metadata cache (wikilink form, no extension), then slices the body of the `### Casing` section under `## Naming` under `# Best Practices`. Returns `{ "content": "\nUse lowercase letters and dashes.\n" }`.
+Resolves `best-practices` via the metadata cache (wikilink form, no extension), then slices the body of the `### Casing` section under `## Naming` under `# Best Practices`. With `Use lowercase letters and dashes.` directly under `### Casing`, returns `{ "content": "Use lowercase letters and dashes.\n" }`.
 
 ### Example 3 — Active mode
 
@@ -153,7 +167,7 @@ Resolves `best-practices` via the metadata cache (wikilink form, no extension), 
 }
 ```
 
-Resolves the focused note and slices the body of `## Section A` under `# Top`. Returns `{ "content": "\nHello.\n" }`. If no note is focused, raises `ERR_NO_ACTIVE_FILE`.
+Resolves the focused note and slices the body of `## Section A` under `# Top`. With `Hello.` directly under `## Section A`, returns `{ "content": "Hello.\n" }`. If no note is focused, raises `ERR_NO_ACTIVE_FILE`.
 
 ### Example 4 — Validation rejection (single-segment heading)
 
