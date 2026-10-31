@@ -4,14 +4,14 @@
 |---|---|
 | Run | `obsidian-cli-mcp-bi-0072-2026-10-31` |
 | Project | obsidian-cli-mcp (pack speckit) |
-| Status | running |
+| Status | done |
 | Started | 2026-10-31T06:59:43.017Z |
-| Finished | not yet |
-| Elapsed | 33 min 15 s |
-| Questions | 5 (1 needed the owner) |
-| Requests to the advisor | 2 (0 needed the owner) |
+| Finished | 2026-10-31T07:50:35.232Z |
+| Elapsed | 50 min 52 s |
+| Questions | 7 (1 needed the owner) |
+| Requests to the advisor | 3 (0 needed the owner) |
 | Escalations | 1 |
-| Edits by the advisor | 4 |
+| Edits by the advisor | 8 |
 
 ## Inputs
 
@@ -91,6 +91,7 @@ Skipped.
 ### implementation (`6db05366-710b-4f40-a724-67e07010f451`)
 
 - Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\specs\071-omit-derived-labels\tasks.md exists.
+- Condition `gh-pr-open` (done_when): met. Pull request #98 is open.
 
 - **implement**: done, 88 turns.
 
@@ -113,20 +114,84 @@ Skipped.
 > - The shrink guard refused the first export because 214 nodes were missing. All of them came from re-extracted files, so the export was forced, following the spec 068 precedent.
 > - All five structural checks pass and are recorded in specs/071-omit-derived-labels/post-implement.md.
 
-- **open-pr**: in progress.
+- **open-pr**: done, 18 turns.
 
-### review
+> The spec 071 work is committed on 071-omit-derived-labels, pushed to origin, and open as PR #98 into main. It is not a draft, since dry run is no, and it has not been merged.
+>
+> Before committing I ran lint, typecheck, build and the full test suite: all pass, 3395 tests with 6 skipped and 97.06% statement coverage. Prettier flagged the new src/tools/links/_template.test.ts, so I formatted it and re-ran its tests (99 pass).
+>
+> There are two commits, following the CONTRIBUTING.md message convention:
+> - a97aea5 fix(071) holds the display-label rule change in _template.ts, the new template test, the description and help-page rewrite, the regenerated baseline, and the spec 071 evidence, spec and research changes.
+> - fcff465 chore(071) holds the agent-context pointer in CLAUDE.md, .specify/feature.json and the Relay digest; these changes were already in the working tree before this step.
+>
+> The repository has no pull request template file. The PR description follows the layout of PR #97: Summary, Evidence, Test results, and a Constitution Compliance table marking each gate Y or N/A with no N, followed by a line on kernel-node touch (none). The working tree is clean. Per CLAUDE.md, /code-review and /speckit-docs-as-code 98 come next before merge.
 
-- **code-review**: not run.
-- **fix**: not run.
 
-### docs
+### review (`e2a2ad01-006f-4e9e-8598-4801ae1bd446`)
 
-- **document**: not run.
+- Condition `gh-pr-open` (start_when): met. Pull request #98 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #98 is open.
 
-### record
+- **code-review**: done, 12 turns.
 
-- **record-in-vault**: not run.
+> Thermo-nuclear code-quality review of PR #98 (071-omit-derived-labels vs main). Production change is small and correct (2 template lines, description, docs, baseline); links suites green (99/99). Not approved as-is: 2 structural findings (duplicated `original` sniff + a silent `e.original||''` fallback that defaults into the derived-label-leaking branch), 1 test-design finding (452-line row table that copies expected values and retypes story lists by hand, plus a test oracle that mirrors production kind logic and position special-cases written twice), 1 docs finding (rule restated twice on the help page; 'single presence check' claim is exact only for kind:wikilink since kind:embed also covers Markdown images), 1 low finding (index.test.ts copies the 300-char description sentence the FR-018 fingerprint already pins; T014 mandated it). No file crosses 1k lines, no new error codes, no kernel-node touch. Durable facts appended as item 33 in .memory/refactor-decisions.md. Nothing posted to the PR.
+>
+> FINDINGS
+> 1. [structural, medium] src/tools/links/_template.ts:21-22 + :27. `original` is sniffed twice with different prefix sets: kindOf (`'[['`) and wrap's `w` (`'[['||'![['`). Inside the links array they are equivalent (embeds never land there, T0-verified). Code-judo: compute `const wiki=/^!?\[\[/.test(e.original)` once in wrap and pass it to kindOf (links: `wiki?'wikilink':'markdown'`). One concept, one place, no change to behaviour.
+> 2. [boundary, medium] _template.ts:21 `const r=e.original||''`. This is a silent fallback, and its default is the unsafe one: '' gives w=false, which takes the Markdown branch, which emits the derived 'Tgt > Head' label, which is the exact bug 071 fixes. `Reference.original` is always present (t0-cache-shapes.json, frontmatter included), and kindOf at :27 already dereferences `x.original` without a guard. Drop `||''`: if `original` is ever missing, the eval throws and the result fails loudly. It does not quietly regress.
+> 3. [test design, medium] _template.test.ts (452 lines). (a) `expected` copies `cacheDisplayText` in every kept row, but data-model.md says the emitted value is always the cache value unmodified. Make it `emitted: boolean` and assert `displayText === cacheDisplayText`. Each row then fits on one prettier line, which removes about 200 lines. (b) Put `story` on the row and use `it.each(ROWS.filter(r => r.story === "US1"))("row $id: $original", expectRow)`. This deletes the hand-retyped `[id, label]` lists, `rowById` and its throw, and the risk that a label drifts away from its row. (c) The `kindOf(row)` oracle copies production's `original.startsWith('[[')` rule, so it is circular. State `kind` on each row, or map it from source alone. (d) The position special cases are written twice with different formulas: mixedCache `id==="10"?[1,0]:id==="1"?[1,20]:[Number(id),0]`, and the expectation `id==="10"||id==="1"?2:Number(id)+1`. Both depend on 'fm-alias' never reaching `Number()`. Use a single `positionOf(row)` helper, or explicit line/col on each row.
+> 4. [docs, medium] docs/tools/links.md:98-120. The displayText rule is stated in full twice on one page: in the table cell, with examples, and again in '### Display label rule' with a second example table. help serves this page verbatim, so the duplication costs tokens on every call and doubles the places it can drift (refactor memory item 31). Fix: cut the table cell to one line and point it at the section. Separately, 'A single presence check identifies author-written aliases' / 'check "displayText" in entry on the wikilink and embed entries' is exact only for kind:"wikilink". kind:"embed" also covers `![alt](img.png)`, so an embed's displayText may be alt text. Qualify the claim, or limit it to wikilinks and wiki embeds and say the output cannot tell the two embed forms apart.
+> 5. [test, low] src/tools/links/index.test.ts:109-130. RULE_SENTENCE is a verbatim copy of the 300-char description sentence, and the FR-018 fingerprint already pins every byte of it (item 27(a)). `not.toContain(" > ")` would also break on unrelated future wording, and the docs negative greps only catch a word-for-word revert. Task T014 mandated asserting the sentence, so this is the owner's call. Suggestion: assert a short distinctive fragment.
+>
+> NOT FLAGGED: no file over 1k lines (test is 452); no new error codes; no kernel-node touch; the baseline moved only links.descriptionFingerprint, as expected; the template remains frozen and composeEvalCode/vm execution follows the _shared.test.ts pattern (item 31's recommended approach, now adopted for links).
+
+- **fix**: done, 32 turns, 2 questions.
+
+> All five review findings are fixed and pushed to 071-omit-derived-labels in two commits, so both are on PR #98. Lint, typecheck and build are clean. 3395 of 3395 tests pass (6 skipped), with 97.06% statement coverage against the 91.3% floor.
+>
+> Commit 2423926 (`refactor`) changes no behaviour for any recorded cache shape:
+> - **Template:** `wrap()` in `links/_template.ts` now computes `wiki` once and passes it to `kindOf`, so the kind and the display-label rule use the same check.
+> - **Fallback removed:** `e.original||''` is gone. Its default sent an entry without `original` down the Markdown branch, which re-emits the derived "Tgt > Head" label that spec 071 removes. `original` is present on every recorded entry, so if one were missing the eval would now fail loudly.
+> - **Template tests:** `_template.test.ts` shrinks from 452 to 242 lines and keeps the same 31 cases:
+>   - rows are one-line calls grouped by user story;
+>   - each row records whether the cache label is emitted, rather than repeating the expected string;
+>   - the expected kind no longer copies the template's own rule;
+>   - the setup and position helpers are each written once.
+>   Run against main's template, the same 13 cases fail as before.
+> - **Help page wording:** the presence-check sentence in `docs/tools/links.md` now says the check is exact on `kind: "wikilink"` entries, and that an embed entry may carry a Markdown image's alt text instead of an alias.
+>
+> Commit 3f235e3 (`docs`) applies your two rulings:
+> - **Q1 = C:** the "Display label rule" section of the help page now carries only what the table row lacks:
+>   - the rule is decided from the source, never from a label's shape;
+>   - the table-safe `\|` separator counts like `|`;
+>   - aliases are trimmed.
+>   The worked-rows table and the closing presence-check sentence stay, and the row keeps the contract text word for word. `tasks.md` T016 is amended to match; `contracts/display-label.md` is unchanged on this point.
+> - **Q2 = B:** `index.test.ts` now checks a short distinctive fragment of the description instead of the full 300-character sentence. The negative checks and the help-page checks stay. T014 and `contracts/display-label.md` are amended to say the FR-018 fingerprint pins the exact bytes.
+>
+> Nothing is left open. The Relay files `relay-digest.md` and `relay-qa-log.md` already had uncommitted changes from outside this work; I left them out of both commits and did not touch them.
+
+
+### docs (`00ee98d8-fd76-4200-b821-1bbc6be54fd3`)
+
+- Condition `gh-pr-open` (start_when): met. Pull request #98 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #98 is open.
+
+- **document**: done, 2 turns.
+
+> PR #98 (OPEN, no review decision, 071-omit-derived-labels -> main). I committed the docs as d18608e and pushed them to the PR branch, so CI is re-running. Two pages changed: `.docs-as-code/capabilities/search-and-discovery.md` (the links display-label rule, the review changes, and a known limit on embed entries) and `.docs-as-code/architecture.md` (how eval templates are tested). No `docs/tools` page needed fixing. I added a `## Documentation` section to the PR body. Things to act on: (1) CHANGELOG.md has no entry for this user-visible `links` change. (2) The graph is not refreshed. Both semantic-extraction agents finished and wrote their chunk files, but I never merged or rebuilt, so graph.json is unchanged. Run `/graphify --update` to finish. (3) Uncommitted changes to relay-digest.md and relay-qa-log.md were already in the tree; I left them unstaged and untouched. I wrote no new ADR. Nothing is still running in the background.
+
+
+### record (`0e68d9c6-392f-4202-98d9-0c02c73b8eaf`)
+
+- **record-in-vault**: done.
+
+> Recorded on BI-0072, following the in-review backlog-item convention used on BI-0039:
+> - Frontmatter `status`: planned → `in-review`. That value is in the backlog-item vocabulary in Vault Frontmatter Convention.
+> - Frontmatter `spec_branch`: `071-omit-derived-labels`. `updated` was already 2026-10-31.
+> - `## Status`: a new "In review — 2026-10-31" paragraph at the top. It links PR #98 (https://github.com/marwansaab/obsidian-cli-mcp/pull/98) and names the spec branch and the feature folder `specs/071-omit-derived-labels`.
+> - Audit-trail footer: a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0072-2026-10-31 produced PR #98, with the branch, the folder and the status flip.
+> All of it was checked by reading the note back.
+
 
 ## Escalations
 
@@ -142,6 +207,10 @@ Skipped.
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0072 - Refine Links DisplayText Emission For Fragment Bearing Wikilinks.md` | Appended a dated footer comment recording the owner ruling: property links are in scope, and this supersedes the specify prompt's false out-of-scope bullet. The prompt text was left unedited because the find_and_replace permission was denied. The earlier footer comment still says the ruling is pending; the new comment below it supersedes it. | pre-implementation / plan: **Plan question 1 of 2: should links declared in properties follow the same rule?** |
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0072 - Refine Links DisplayText Emission For Fragment Bearing Wikilinks.md` | Appended a dated footer comment recording the plan Q2 answer: an empty or blank alias counts as no alias on every wiki-style link and embed. It includes the probe evidence and grounds. | pre-implementation / plan: **Plan question 2 of 2: how should an empty alias be reported?** |
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0072 - Refine Links DisplayText Emission For Fragment Bearing Wikilinks.md` | Appended a dated footer comment recording the analyze-stage answers. I1: Markdown link text, empty included, is reported as written; the non-empty rule applies to wiki-form links only. I2: aliases are reported as parsed, and the spec wording changes to 'whitespace trimmed' if T001 confirms trimming. | pre-implementation / analyze: Would you like me to suggest concrete remediation edits for the top 5 issues? |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0072 - Refine Links DisplayText Emission For Fragment Bearing Wikilinks.md` | Set frontmatter status planned → in-review. | record / record-in-vault: The work for job BI-0072 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0072 - Refine Links DisplayText Emission For Fragment Bearing Wikilinks.md` | Set frontmatter spec_branch to 071-omit-derived-labels. | record / record-in-vault: The work for job BI-0072 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0072 - Refine Links DisplayText Emission For Fragment Bearing Wikilinks.md` | Prepended an 'In review — 2026-10-31' paragraph to ## Status. It links PR #98 and names the spec branch and the feature folder specs/071-omit-derived-labels. | record / record-in-vault: The work for job BI-0072 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0072 - Refine Links DisplayText Emission For Fragment Bearing Wikilinks.md` | Appended a dated audit-trail HTML comment: Relay run obsidian-cli-mcp-bi-0072-2026-10-31 produced PR #98, with the branch, the folder and the status flip. | record / record-in-vault: The work for job BI-0072 is now a reviewed, documented pull request. Record that on the job's note,  |
 
 ## Files
 

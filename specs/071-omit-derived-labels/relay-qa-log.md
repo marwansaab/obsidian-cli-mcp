@@ -342,3 +342,99 @@ Edits:
 > Rationale: the BI story's aim is "no real information is lost". Surrounding whitespace is not real information, and the parsed value matches today's plain-link behaviour, which the BI keeps unchanged.
 >
 > A1, F1, U1: apply as proposed.
+
+## 8. review / fix (2026-10-31T07:41:12.299Z)
+
+**Question (verbatim):**
+
+> Q1 — Help-page duplication in docs/tools/links.md. The displayText rule is written out in full twice on one page: in the `links[].displayText` table row and again in the "### Display label rule" section. `help` serves this page word for word, so every call pays for both copies, and they can drift apart. contracts/display-label.md fixes the row text word for word, and task T016 requires the section to restate the Markdown half of the rule. Removing the duplication therefore means departing from one of them.
+>
+> | Option | Change | Departs from |
+> |---|---|---|
+> | A | Keep both copies as they are | nothing (the duplication stays) |
+> | B | Shorten the table row to one line plus a link to the section; the section becomes the only full statement | contracts/display-label.md row text |
+> | C | Keep the contract row word for word; cut the section down to the facts the row lacks (alias whitespace trimmed, the table-safe `\|` form, labels judged from the source and never from their shape) plus the worked-rows table and the closing presence-check sentence; drop its repeated Markdown bullet | T016's "Markdown half" wording |
+>
+> Recommended: C. The contract's row text stays exactly as written, the worked table T016 asks for stays, and the page then states each fact once. If you choose B or C, I will also update contracts/display-label.md or tasks.md to match.
+
+**Advisor** (escalate: none):
+
+> Q1. C
+>
+> Each fact stated once on the help page. Contract row stays word for word. Section carries only facts the row lacks, the worked-rows table and the closing presence-check sentence. Update tasks.md T016 to match; leave contracts/display-label.md unchanged.
+> Rationale: ADR-005 makes `docs/tools/<name>.md` the token-optimized help surface served by `help`. The BI's help-matches-behaviour story wants a single rule statement, and two full copies invite the drift it removes.
+
+Sources: `200-Decisions/ADR-005 - Token-Optimized Tool Definitions via Progressive Disclosure.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0072 - Refine Links DisplayText Emission For Fragment Bearing Wikilinks.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Architecture.md`
+
+**Sent to the step:**
+
+> Q1. C
+>
+> Each fact stated once on the help page. Contract row stays word for word. Section carries only facts the row lacks, the worked-rows table and the closing presence-check sentence. Update tasks.md T016 to match; leave contracts/display-label.md unchanged.
+> Rationale: ADR-005 makes `docs/tools/<name>.md` the token-optimized help surface served by `help`. The BI's help-matches-behaviour story wants a single rule statement, and two full copies invite the drift it removes.
+
+## 9. review / fix (2026-10-31T07:41:24.431Z)
+
+**Question (verbatim):**
+
+> Q2 — Description-sentence test in src/tools/links/index.test.ts. The test asserts the full 300-character RULE_SENTENCE word for word, but the FR-018 fingerprint in _register-baseline.json already pins every byte of LINKS_DESCRIPTION. That copy has to be edited every time the description changes, and it adds no signal the fingerprint lacks. contracts/display-label.md and task T014 ask for the sentence to be asserted verbatim.
+>
+> | Option | Change |
+> |---|---|
+> | A | Keep the verbatim RULE_SENTENCE assertion (the contract and T014 as written) |
+> | B | Assert a short, distinctive fragment instead ("present only when the author wrote a non-empty alias after |"), keep the negative checks (old sentence, CAVEAT, " > ") and the docs checks, and let the FR-018 fingerprint pin the exact bytes; amend T014 to match |
+>
+> Recommended: B. The behaviour pin stays, and the fingerprint already gives an exact-byte check, so the copy would only duplicate it.
+
+**Advisor** (escalate: none):
+
+> Q2. B
+>
+> Constitution Principle II is still met: the fragment plus negative checks pin the behaviour, and the FR-018 registry-stability baseline (shipped under BI-0061, named in Best Practices as the drift catcher for the registered set) already pins the exact description bytes. A verbatim copy duplicates that pin and adds maintenance with no extra signal. Amend T014 to match, and amend contracts/display-label.md so it no longer requires a verbatim assertion.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Constitution.md`, `210-Guidelines/Best Practices.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0072 - Refine Links DisplayText Emission For Fragment Bearing Wikilinks.md`
+
+**Sent to the step:**
+
+> Q2. B
+>
+> Constitution Principle II is still met: the fragment plus negative checks pin the behaviour, and the FR-018 registry-stability baseline (shipped under BI-0061, named in Best Practices as the drift catcher for the registered set) already pins the exact description bytes. A verbatim copy duplicates that pin and adds maintenance with no extra signal. Amend T014 to match, and amend contracts/display-label.md so it no longer requires a verbatim assertion.
+
+## 10. record / record-in-vault (2026-10-31T07:49:47.963Z)
+
+**Question (verbatim):**
+
+> The work for job BI-0072 is now a reviewed, documented pull request. Record that on the job's note, following the vault's conventions for backlog items:
+> - the spec branch: 071-omit-derived-labels
+> - the feature folder in the code repository: specs/071-omit-derived-labels
+> - the pull request: https://github.com/marwansaab/obsidian-cli-mcp/pull/98 (number 98)
+> - the status that means "in review" in this vault (if the vault has no such status, escalate `decision` with up to 3 choices)
+> - a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0072-2026-10-31 produced it.
+>
+> Dry run: no. In a dry run, change nothing: list each edit you would make in `vault_edits`, starting its change with "Would". Otherwise list each edit you made.
+
+**Advisor** (escalate: none):
+
+> Recorded on BI-0072, following the in-review backlog-item convention used on BI-0039:
+> - Frontmatter `status`: planned → `in-review`. That value is in the backlog-item vocabulary in Vault Frontmatter Convention.
+> - Frontmatter `spec_branch`: `071-omit-derived-labels`. `updated` was already 2026-10-31.
+> - `## Status`: a new "In review — 2026-10-31" paragraph at the top. It links PR #98 (https://github.com/marwansaab/obsidian-cli-mcp/pull/98) and names the spec branch and the feature folder `specs/071-omit-derived-labels`.
+> - Audit-trail footer: a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0072-2026-10-31 produced PR #98, with the branch, the folder and the status flip.
+> All of it was checked by reading the note back.
+
+Sources: `000-Meta/Vault Frontmatter Convention.md`, `000-Meta/Templates/Backlog Item Template.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0039 - Disambiguate Read Heading Leading Line Terminator.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0072 - Refine Links DisplayText Emission For Fragment Bearing Wikilinks.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0072 - Refine Links DisplayText Emission For Fragment Bearing Wikilinks.md`: Set frontmatter status planned → in-review.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0072 - Refine Links DisplayText Emission For Fragment Bearing Wikilinks.md`: Set frontmatter spec_branch to 071-omit-derived-labels.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0072 - Refine Links DisplayText Emission For Fragment Bearing Wikilinks.md`: Prepended an 'In review — 2026-10-31' paragraph to ## Status. It links PR #98 and names the spec branch and the feature folder specs/071-omit-derived-labels.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0072 - Refine Links DisplayText Emission For Fragment Bearing Wikilinks.md`: Appended a dated audit-trail HTML comment: Relay run obsidian-cli-mcp-bi-0072-2026-10-31 produced PR #98, with the branch, the folder and the status flip.
+
+**Sent to the step:**
+
+> Recorded on BI-0072, following the in-review backlog-item convention used on BI-0039:
+> - Frontmatter `status`: planned → `in-review`. That value is in the backlog-item vocabulary in Vault Frontmatter Convention.
+> - Frontmatter `spec_branch`: `071-omit-derived-labels`. `updated` was already 2026-10-31.
+> - `## Status`: a new "In review — 2026-10-31" paragraph at the top. It links PR #98 (https://github.com/marwansaab/obsidian-cli-mcp/pull/98) and names the spec branch and the feature folder `specs/071-omit-derived-labels`.
+> - Audit-trail footer: a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0072-2026-10-31 produced PR #98, with the branch, the folder and the status flip.
+> All of it was checked by reading the note back.
