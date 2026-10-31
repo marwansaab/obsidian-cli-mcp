@@ -37,7 +37,7 @@ Mirror check (spec FR-005): for E1, E3 and E4, `append_note` on the same empty n
 |---|---|---|---|
 | `FS_WRITE_FAILED` | `reason: "extra-trailing-newline"`, `path`, `vault`, `errno` when known | Obsidian's write landed on a note without a body, and rewriting it without the extra line break failed; or the note was empty before the call and could not be read back. | Holds the content followed by one extra LF. |
 | `FS_WRITE_FAILED` | `errno`, `syscall: "open"`, `path` (no `reason`) | Obsidian's write landed on a non-empty note, and the note could not be read back, so the tool cannot tell whether it was properties-only. | Holds the content as Obsidian wrote it, possibly with one extra trailing LF. Do not re-send the content. |
-| `FS_WRITE_FAILED` | `errno`, `syscall: "open"`, `path` (no `reason`) | The note could not be read before the call (any errno other than ENOENT). | Unchanged; Obsidian was not called. |
+| `FS_WRITE_FAILED` | `errno`, `syscall: "open"`, `path` (no `reason`) | The note could not be read before a default-mode call (any errno other than ENOENT). Inline calls do not read the note first. | Unchanged; Obsidian was not called. |
 
 All existing errors (`post-stat-byte-delta-zero`, `NOTE_NOT_FOUND`, `EXTERNAL_EDITOR_CONFLICT`, `prepend-cli`, validation, path and vault errors) are unchanged. No new top-level code.
 

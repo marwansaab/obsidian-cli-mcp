@@ -30,7 +30,7 @@ The published surface is in [contracts/prepend-empty-body-contract.md](contracts
 **Testing**: `vitest run`, with co-located `*.test.ts` files. The pure helper is tested directly. Handler tests use prepend's `_handler-fixtures.ts` `fakeFs`, which gains `readFile`, `writeFile`, `rename` and `unlink`. Their defaults leave existing tests unchanged.
 **Target Platform**: Windows, macOS and Linux; CI runs on Linux and Windows.
 **Project Type**: single project, an MCP server (`src/**`).
-**Performance Goals**: one extra `readFile` before the call. Inline calls skip the read-back; every default-mode call reads the note once more (Obsidian always adds one LF, so the `content + 1` size pre-filter matches every successful default-mode call). Only when the note had no body: one atomic write and one metadata-refresh `eval`. The predicate is linear in the length of the note plus the content.
+**Performance Goals**: one extra `readFile` before a default-mode call (inline calls skip it, per the PR #104 review). Inline calls skip the read-back; every default-mode call reads the note once more (Obsidian always adds one LF, so the `content + 1` size pre-filter matches every successful default-mode call). Only when the note had no body: one atomic write and one metadata-refresh `eval`. The predicate is linear in the length of the note plus the content.
 
 **Constraints**:
 

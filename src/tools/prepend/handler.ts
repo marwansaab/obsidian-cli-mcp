@@ -1,4 +1,4 @@
-// Original — no upstream. prepend handler per BI-045 — CLI-wrap of upstream `obsidian prepend` (cohort divergence from BI-044's fs-direct; rationale in research.md R1). Specific-mode vault-registry resolve (+ pre-flight `obsidian file` TSV resolver for wikilink-form `file`) OR active-mode focused-file eval → note-only file-type check (spec 070: a non-note target is rejected as UNSUPPORTED_FILE_TYPE before the stat and the CLI call) → Layer 2 canonical path check → stat + read (pre) → invokeCli prepend with optional `inline` flag → stat (post) → bytes_written delta → spec 076 empty-body correction → typed output envelope. NOTE_NOT_FOUND (FR-016) + EXTERNAL_EDITOR_CONFLICT (FR-022) re-classification on upstream stdout/stderr inspection. Upstream owns the main write; the wrapper reads the note before and after the call and, when Obsidian added a trailing LF to a note with no body (empty or properties-only, landedAtEmptyBody), rewrites it once without that LF through the cohort's writeAtomic + metadata refresh (spec 076).
+// Original — no upstream. prepend handler per BI-045 — CLI-wrap of upstream `obsidian prepend` (cohort divergence from BI-044's fs-direct; rationale in research.md R1). Specific-mode vault-registry resolve (+ pre-flight `obsidian file` TSV resolver for wikilink-form `file`) OR active-mode focused-file eval → note-only file-type check (spec 070: a non-note target is rejected as UNSUPPORTED_FILE_TYPE before the stat and the CLI call) → Layer 2 canonical path check → stat + read (pre; default mode only) → invokeCli prepend with optional `inline` flag → stat (post) → bytes_written delta → spec 076 empty-body correction → typed output envelope. NOTE_NOT_FOUND (FR-016) + EXTERNAL_EDITOR_CONFLICT (FR-022) re-classification on upstream stdout/stderr inspection. Upstream owns the main write; the wrapper reads the note before and after the call and, when Obsidian added a trailing LF to a note with no body (empty or properties-only, landedAtEmptyBody), rewrites it once without that LF through the cohort's writeAtomic + metadata refresh (spec 076).
 import { randomUUID } from "node:crypto";
 import * as nodeFs from "node:fs/promises";
 
@@ -165,12 +165,13 @@ export async function executePrepend(
     preCallSize = 0;
   }
 
-  // Spec 076 — the note's text before the call, for the empty-body check below. ENOENT
-  // leaves it null (upstream's NOTE_NOT_FOUND stays the contract surface); any other read
-  // failure stops the call before Obsidian writes anything.
+  // Spec 076 — the note's text before the call, for the empty-body check below. Inline calls
+  // skip the read and leave it null: Obsidian's inline write is already exact (research F2).
+  // ENOENT leaves it null too (upstream's NOTE_NOT_FOUND stays the contract surface); any other
+  // read failure stops the call before Obsidian writes anything.
   let before: string | null = null;
   try {
-    before = await fs.readFile(absPath, "utf8");
+    if (!input.inline) before = await fs.readFile(absPath, "utf8");
   } catch (e) {
     if (getErrno(e) !== "ENOENT") {
       throw readFailed(
@@ -223,8 +224,8 @@ export async function executePrepend(
     });
   }
 
-  // Spec 076 — the size pre-filter skips the read-back for inline calls and for any size
-  // change that cannot be content + LF.
+  // Spec 076 — `before` is null for inline calls; the size pre-filter skips the read-back for
+  // any size change that cannot be content + LF.
   const removed =
     before !== null && bytesWritten === Buffer.byteLength(input.content, "utf8") + 1
       ? await removeAddedLineBreak(input, deps, fs, { absPath, relPath, vaultDisplayName, before })

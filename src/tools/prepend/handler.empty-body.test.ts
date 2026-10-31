@@ -87,7 +87,7 @@ describe("spec 076 US1 — empty note holds exactly the supplied text", () => {
     expect(queued.recorded[1]!.argv).toContain("eval");
   });
 
-  test("E2: inline mode is already exact — no read-back, no write", async () => {
+  test("E2: inline mode is already exact — no read, no write", async () => {
     const { fs, queued, promise } = runPrepend({
       before: "",
       after: "first",
@@ -97,7 +97,7 @@ describe("spec 076 US1 — empty note holds exactly the supplied text", () => {
     });
     const result = await promise;
     expect(result.bytes_written).toBe(5);
-    expect(fs.readCalls).toHaveLength(1);
+    expect(fs.readCalls).toEqual([]);
     expect(fs.writes).toEqual([]);
     expect(queued.getCount()).toBe(1);
   });
@@ -247,6 +247,20 @@ describe("spec 076 §4 — failures", () => {
     expect(queued.getCount()).toBe(0);
     expect(fs.writes).toEqual([]);
   });
+
+  test("inline mode never reads the note, so an unreadable note still prepends (FR-009)", async () => {
+    const { fs, queued, promise } = runPrepend({
+      before: errnoError("EACCES"),
+      after: "",
+      content: "first",
+      inline: true,
+      sizes: [3, 8],
+      responses: [PREPEND_OK],
+    });
+    expect((await promise).bytes_written).toBe(5);
+    expect(fs.readCalls).toEqual([]);
+    expect(queued.getCount()).toBe(1);
+  });
 });
 
 describe("mirror with append_note (spec 076 FR-005)", () => {
@@ -294,7 +308,7 @@ describe("spec 076 US3 — notes with only a properties block", () => {
     expect(fs.writes.map((w) => w.content)).toEqual([PROPS + "Lead"]);
   });
 
-  test("E6: inline mode — no read-back, no write", async () => {
+  test("E6: inline mode — no read, no write", async () => {
     const { fs, promise } = runPrepend({
       before: PROPS,
       after: PROPS + "Lead",
@@ -303,7 +317,7 @@ describe("spec 076 US3 — notes with only a properties block", () => {
       responses: [PREPEND_OK],
     });
     expect((await promise).bytes_written).toBe(4);
-    expect(fs.readCalls).toHaveLength(1);
+    expect(fs.readCalls).toEqual([]);
     expect(fs.writes).toEqual([]);
   });
 
