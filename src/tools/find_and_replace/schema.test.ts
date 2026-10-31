@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  FIND_AND_REPLACE_RENAMES,
   findAndReplaceInputSchema,
   findAndReplaceOutputSchema,
 } from "./schema.js";
@@ -13,7 +14,8 @@ describe("findAndReplaceInputSchema — happy path", () => {
       replacement: "bar",
     });
     expect(parsed.mode).toBe("literal");
-    expect(parsed.case_insensitive).toBe(false);
+    expect(parsed.case_sensitive).toBe(true);
+    expect("deprecated_parameters" in parsed).toBe(false);
     expect(parsed.include_code_blocks).toBe(false);
     expect(parsed.include_html_comments).toBe(false);
     expect(parsed.commit).toBe(false);
@@ -28,14 +30,14 @@ describe("findAndReplaceInputSchema — happy path", () => {
     expect(parsed.mode).toBe("regex");
   });
 
-  it("accepts a regex input with case_insensitive flag", () => {
+  it("accepts a regex input with case_sensitive: false", () => {
     const parsed = findAndReplaceInputSchema.parse({
       pattern: "foo",
       replacement: "bar",
       mode: "regex",
-      case_insensitive: true,
+      case_sensitive: false,
     });
-    expect(parsed.case_insensitive).toBe(true);
+    expect(parsed.case_sensitive).toBe(false);
   });
 
   it("accepts empty replacement (deletion semantics)", () => {
@@ -115,42 +117,42 @@ describe("findAndReplaceInputSchema — replacement validation", () => {
   });
 });
 
-describe("findAndReplaceInputSchema — subfolder validation", () => {
+describe("findAndReplaceInputSchema — folder validation", () => {
   it.each([
     ["../escape"],
     ["/abs/path"],
     ["\\\\windows-leading"],
     ["C:\\drive"],
     ["with\x00null"],
-  ])("rejects path-traversal-shaped subfolder %j", (subfolder: string) => {
+  ])("rejects path-traversal-shaped folder %j", (folder: string) => {
     const result = findAndReplaceInputSchema.safeParse({
       pattern: "foo",
       replacement: "bar",
-      subfolder,
+      folder,
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const issue = result.error.issues.find((i) => i.path[0] === "subfolder");
+      const issue = result.error.issues.find((i) => i.path[0] === "folder");
       expect(issue).toBeDefined();
       const params = (issue as { params?: { subReason?: string } }).params;
       expect(params?.subReason).toBe("path-traversal");
     }
   });
 
-  it("accepts an empty subfolder string (whole-vault scope passthrough)", () => {
+  it("accepts an empty folder string (whole-vault scope passthrough)", () => {
     const result = findAndReplaceInputSchema.safeParse({
       pattern: "foo",
       replacement: "bar",
-      subfolder: "",
+      folder: "",
     });
     expect(result.success).toBe(true);
   });
 
-  it("accepts a safe subfolder", () => {
+  it("accepts a safe folder", () => {
     const result = findAndReplaceInputSchema.safeParse({
       pattern: "foo",
       replacement: "bar",
-      subfolder: "Decisions/Archive",
+      folder: "Decisions/Archive",
     });
     expect(result.success).toBe(true);
   });
@@ -212,12 +214,12 @@ describe("findAndReplaceInputSchema — single-note locator fields (066-file-sco
     const parsed = findAndReplaceInputSchema.parse({
       pattern: "foo",
       replacement: "bar",
-      subfolder: "Decisions",
+      folder: "Decisions",
     });
     expect(parsed.file).toBeUndefined();
     expect(parsed.path).toBeUndefined();
     expect(parsed.active_note).toBe(false);
-    expect(parsed.subfolder).toBe("Decisions");
+    expect(parsed.folder).toBe("Decisions");
   });
 
   it("rejects the [[…]] bracket form on file (standard channel — no subCode)", () => {
@@ -302,11 +304,11 @@ describe("findAndReplaceInputSchema — scope mutual-exclusivity (SCOPE_CONFLICT
 
   it.each([
     [{ file: "A", path: "A.md" }, "file+path"],
-    [{ path: "A.md", subfolder: "Drafts" }, "note+folder"],
-    [{ file: "A", subfolder: "Drafts" }, "note+folder"],
+    [{ path: "A.md", folder: "Drafts" }, "note+folder"],
+    [{ file: "A", folder: "Drafts" }, "note+folder"],
     [{ active_note: true, file: "A" }, "active+note"],
     [{ active_note: true, path: "A.md" }, "active+note"],
-    [{ active_note: true, subfolder: "Drafts" }, "active+folder"],
+    [{ active_note: true, folder: "Drafts" }, "active+folder"],
     [{ active_note: true, vault: "Work" }, "active+vault"],
   ])("rejects %o with SCOPE_CONFLICT/%s before any read", (input, reason) => {
     expect(scopeConflictReason(input)).toBe(reason);
@@ -330,6 +332,106 @@ describe("findAndReplaceInputSchema — scope mutual-exclusivity (SCOPE_CONFLICT
       vault: "Work",
     });
     expect(result.success).toBe(true);
+  });
+});
+
+describe("findAndReplaceInputSchema — folder conflict wording (spec 073)", () => {
+  it("the folder scope-conflict messages name folder", () => {
+    const messages = [{ path: "A.md", folder: "Drafts" }, { active_note: true, folder: "Drafts" }].map(
+      (input) => findAndReplaceInputSchema.safeParse({ pattern: "x", replacement: "y", ...input }).error?.issues[0]?.message,
+    );
+    expect(messages).toEqual([
+      "find_and_replace: a single-note scope (`file`/`path`) and a `folder` scope are mutually exclusive",
+      "find_and_replace: `active_note` cannot be combined with a `folder` scope",
+    ]);
+  });
+});
+
+// =============================================================================
+// Spec 073 — deprecated names case_insensitive / subfolder (contract §2)
+// =============================================================================
+
+describe("findAndReplaceInputSchema — deprecated names (spec 073)", () => {
+  const base = { pattern: "foo", replacement: "bar" };
+  const CASE_NOTE = {
+    parameter: "case_insensitive",
+    replacement: "case_sensitive",
+    note: "case_insensitive: true equals case_sensitive: false (opposite polarity).",
+  };
+
+  it("O2: subfolder parses like folder, plus the notice", () => {
+    const viaNew = findAndReplaceInputSchema.parse({ ...base, folder: "Notes" });
+    const viaOld = findAndReplaceInputSchema.parse({ ...base, subfolder: "Notes" });
+    expect(viaOld).toEqual({ ...viaNew, deprecated_parameters: [{ parameter: "subfolder", replacement: "folder" }] });
+    expect("subfolder" in viaOld).toBe(false);
+  });
+
+  it.each([
+    [true, false],
+    [false, true],
+  ])("O3: case_insensitive: %s → case_sensitive: %s, with the polarity note", (caseInsensitive, caseSensitive) => {
+    const viaOld = findAndReplaceInputSchema.parse({ ...base, case_insensitive: caseInsensitive });
+    const viaNew = findAndReplaceInputSchema.parse({ ...base, case_sensitive: caseSensitive });
+    expect(viaOld).toEqual({ ...viaNew, deprecated_parameters: [CASE_NOTE] });
+    expect("case_insensitive" in viaOld).toBe(false);
+  });
+
+  it("O2: both old names list both notices in rename-table order", () => {
+    const parsed = findAndReplaceInputSchema.parse({ ...base, subfolder: "N", case_insensitive: true });
+    expect(parsed.deprecated_parameters).toEqual([CASE_NOTE, { parameter: "subfolder", replacement: "folder" }]);
+  });
+
+  it.each<[string, Record<string, unknown>]>([
+    ["case_insensitive", { case_sensitive: true, case_insensitive: false }],
+    ["case_insensitive", { case_sensitive: false, case_insensitive: true }],
+    ["subfolder", { folder: "A", subfolder: "A" }],
+  ])("O4: %s alongside its replacement → one conflict issue at [old] (%o)", (old, args) => {
+    const replacement = FIND_AND_REPLACE_RENAMES.find((r) => r.old === old)!.replacement;
+    const result = findAndReplaceInputSchema.safeParse({ ...base, ...args });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({
+        path: [old],
+        message: `\`${old}\` is deprecated and replaced by \`${replacement}\`; supply only \`${replacement}\``,
+      }),
+    ]);
+  });
+
+  it("O6: subfolder with a traversal value → issue at [folder] with INVALID_SUBFOLDER/path-traversal", () => {
+    const result = findAndReplaceInputSchema.safeParse({ ...base, subfolder: "../x" });
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({
+        path: ["folder"],
+        params: { subCode: "INVALID_SUBFOLDER", subReason: "path-traversal" },
+      }),
+    ]);
+  });
+
+  it.each([
+    [{ path: "A.md", subfolder: "Drafts" }, "note+folder"],
+    [{ active_note: true, subfolder: "Drafts" }, "active+folder"],
+  ])("O7: %o → SCOPE_CONFLICT/%s, as with folder", (input, reason) => {
+    const issue = findAndReplaceInputSchema.safeParse({ ...base, ...input }).error?.issues[0];
+    expect((issue as { params?: { subReason?: string } } | undefined)?.params?.subReason).toBe(reason);
+  });
+
+  it("published JSON Schema: both names, old keys deprecated, required unchanged, no default on case_sensitive", () => {
+    const json = findAndReplaceInputSchema["~standard"].jsonSchema.input({ target: "draft-2020-12" });
+    const props = json["properties"] as Record<string, Record<string, unknown>>;
+    expect(json["required"]).toEqual(["pattern", "replacement"]);
+    expect(props["case_sensitive"]).toEqual({ type: "boolean", description: "Match case exactly when true. Default true." });
+    expect(props["folder"]!["description"]).toBe(
+      'Vault-relative folder to search under, recursively (e.g. "Projects"). Default: the whole vault. Not combinable with file, path or active_note.',
+    );
+    expect(props["case_insensitive"]).toMatchObject({
+      deprecated: true,
+      description:
+        "Deprecated: use case_sensitive with the opposite value (case_insensitive: true equals case_sensitive: false); accepted until the next major release.",
+    });
+    expect(props["subfolder"]).toMatchObject({
+      deprecated: true,
+      description: "Deprecated: use folder (accepted until the next major release).",
+    });
   });
 });
 

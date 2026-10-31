@@ -192,3 +192,56 @@ Per tool, co-located:
 - Removal of the old names, the post-transition rejection (FR-014, User Story 2 scenarios 4 and 5, SC-003) and restoring `required`: the follow-up feature in the next major release.
 - Logging old-name use to stderr: not requested, so not added.
 - `.docs-as-code/` page updates: `/speckit-docs-as-code`.
+
+## Implement log
+
+Run on 2026-10-31 from HEAD `21a4eea`, on Windows.
+
+### T001 — Starting state
+
+`npm run typecheck`, `npm run lint` and `npm test` were green before any edit: 158 test files passed (1 skipped), 3391 tests passed (6 skipped). No pre-existing failure.
+
+### T033 — Automated gate and quickstart §1–§3
+
+- `npm run typecheck`, `npm run lint` and `npm run build`: clean.
+- `npm test`: 159 test files passed (1 skipped, the live `__t0-driver.test.ts`), 3452 tests passed (6 skipped). Coverage 97.06 % statements, 94.71 % branches, 92.33 % functions, 97.94 % lines.
+- Quickstart §2 (baseline): `npm run baseline:write` moved only `find_by_property`, `find_and_replace` and `create_base`, each in `descriptionFingerprint`, `schemaFingerprint` and `outputSchemaFingerprint`, plus the `generatedFromBranch` stamp. No `title` or `annotations` fingerprint and no other tool moved (contract §5).
+- Quickstart §3: User Story 1 is asserted by the "family names" test in `_register.test.ts`; User Story 2 by the `index.test.ts` cases O1, O2, O4 and O7 of each tool (spawn and filesystem fakes record zero calls on a conflict); User Story 3 checked by reading the ADR-NNN mirror (5 families, the shared concepts of data-model "Convention record", 7 renames, 6 exceptions with reasons).
+
+**Deviations from the task text, for review:**
+
+- **T017, sibling wording.** `pattern_search.case_sensitive` reads `Match case exactly when true; false adds the regex i flag. Default true.`, so it does not start with `Match case exactly when true.` (with a period). The test asserts the contract §1 sibling opening `Match case exactly when true` for the three search tools, and the full `Match case exactly when true.` for the two renamed keys.
+- **R2 scope.** As designed in T004, T008 and T012, each deprecated key carries its base type (and `min(1)` where the new key has it), so a type or empty-string error on the old key itself (for example `property: ""`, `arrayMatch: "x"`, `view: ""`) is reported at the old key's path with zod's built-in message. `path: 42` reports at `["path"]` with the message `base_path must be a string`. Every custom rule runs on the resolved value and names the new parameter: the `find_and_replace` folder path-safety and scope checks, `create_base`'s `INVALID_BASE_PATH` issues and `base_path is required`, `find_by_property`'s `name is required` and array check.
+- **`create_base` required `name`.** `name` stays in the published `required`. When `name` is missing, zod stops before the object-level refinement, so a call missing both `name` and `base_path` reports only `name is required` (before this change it reported both).
+
+### T034 — Post-implement structural verification
+
+`codegraph sync`, then `codegraph_explore` on the `_deprecated-params.ts` exports, `executeFindByProperty`, `executeFindAndReplace` and `executeCreateBase`:
+
+1. No new error class or code. `src/errors.ts` is unchanged; conflicts and missing names are zod issues on the existing `VALIDATION_ERROR` channel. One `UpstreamError` message (the `find_and_replace` folder not-found) is reworded; its code and `details` are byte-identical (handler test).
+2. No handler imports `createLogger` or `createQueue`; `src/server.ts` is unchanged.
+3. `_deprecated-params.ts` imports only `zod`. Its importers are exactly the three tools' `schema.ts` and `index.ts`; no upward or cyclic import, no tool→tool edge.
+4. Every export of `_deprecated-params.ts` has a production caller in the three tools (`deprecatedParameterSchema` is used by `deprecatedParametersField` in the same module).
+5. Only the three tools' description, schema and output fingerprints moved in the baseline.
+
+Also unchanged, as the plan requires: `src/tools/_register.ts`, `src/cli-adapter/**`, `find_by_property/_template.ts` and `find_and_replace/replace.ts`.
+
+### T035 — Optional live check
+
+Skipped. The CLI arguments are byte-identical (F9), asserted by the handler tests (`find_by_property` eval payload keys, `create_base` `path=` / `view=` argv), so no T0 gate applies, and this run was unattended.
+
+## Pending vault sync
+
+ADR-NNN, "Shared parameter names within a tool family", has no number yet. These places carry the literal placeholder `ADR-NNN` and must be updated in one pass once the number is allocated:
+
+- `.docs-as-code/decisions/ADR-NNN-shared-parameter-names-within-a-tool-family.md`: the file name and the title line;
+- `src/tools/_deprecated-params.ts`: the header line;
+- `CHANGELOG.md`, `[Unreleased]` → `Changed`: "The convention is recorded in ADR-NNN".
+
+No `docs/tools/*.md` page cites it.
+
+Sync steps:
+
+1. Allocate the next ADR number in the vault's `200-Decisions/`.
+2. Write the vault copy (canonical) from the repository mirror.
+3. Rename the mirror to `ADR-<n>-shared-parameter-names-within-a-tool-family.md`, update its title and Status line, and replace the placeholder in the places above, so that the mirror and the vault copy are byte-equal.

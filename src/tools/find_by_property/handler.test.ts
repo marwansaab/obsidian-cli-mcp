@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { executeFindByProperty } from "./handler.js";
+import { findByPropertyInputSchema } from "./schema.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
@@ -28,7 +29,7 @@ test("scalar string happy-path: { count: 1, paths: ['backlog/BI-030.md'] } (US1 
     { stdout: '=> {"count":1,"paths":["backlog/BI-030.md"]}\n', exitCode: 0 },
   ]);
   const result = await executeFindByProperty(
-    { vault: "Demo", property: "id", value: "BI-030", arrayMatch: true, caseSensitive: true },
+    { vault: "Demo", name: "id", value: "BI-030", array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
   expect(result).toEqual({ count: 1, paths: ["backlog/BI-030.md"] });
@@ -52,7 +53,7 @@ test("type-faithful number value: payload encodes 7 as JSON number (US1 AC#4)", 
     { stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 },
   ]);
   await executeFindByProperty(
-    { vault: "Demo", property: "count", value: 7, arrayMatch: true, caseSensitive: true },
+    { vault: "Demo", name: "count", value: 7, array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
   const payload = decodePayload(recorded[0]!.argv) as { value: unknown };
@@ -66,7 +67,7 @@ test("type-faithful boolean value: payload encodes true as JSON boolean (US1 AC#
     { stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 },
   ]);
   await executeFindByProperty(
-    { vault: "Demo", property: "archived", value: true, arrayMatch: true, caseSensitive: true },
+    { vault: "Demo", name: "archived", value: true, array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
   const payload = decodePayload(recorded[0]!.argv) as { value: unknown };
@@ -79,7 +80,7 @@ test("explicit-null query: payload encodes null as JSON null (FR-014)", async ()
     { stdout: '=> {"count":2,"paths":["a.md","b.md"]}\n', exitCode: 0 },
   ]);
   const result = await executeFindByProperty(
-    { vault: "Demo", property: "explicit_null", value: null, arrayMatch: true, caseSensitive: true },
+    { vault: "Demo", name: "explicit_null", value: null, array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
   expect(result).toEqual({ count: 2, paths: ["a.md", "b.md"] });
@@ -93,7 +94,7 @@ test("no-match: returns { count: 0, paths: [] } without error (US1 AC#3)", async
     { stdout: '=> {"count":0,"paths":[]}\n', exitCode: 0 },
   ]);
   const result = await executeFindByProperty(
-    { vault: "Demo", property: "id", value: "missing", arrayMatch: true, caseSensitive: true },
+    { vault: "Demo", name: "id", value: "missing", array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
   expect(result).toEqual({ count: 0, paths: [] });
@@ -105,7 +106,7 @@ test("multi-match: count and paths.length agree (US1 AC#2)", async () => {
     { stdout: '=> {"count":3,"paths":["a.md","b.md","c.md"]}\n', exitCode: 0 },
   ]);
   const result = await executeFindByProperty(
-    { vault: "Demo", property: "status", value: "queued", arrayMatch: true, caseSensitive: true },
+    { vault: "Demo", name: "status", value: "queued", array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
   expect(result.count).toBe(3);
@@ -118,7 +119,7 @@ test("folder-narrow: payload carries folder='backlog' (US2 AC#1)", async () => {
     { stdout: '=> {"count":1,"paths":["backlog/BI-030.md"]}\n', exitCode: 0 },
   ]);
   await executeFindByProperty(
-    { vault: "Demo", property: "id", value: "BI-030", folder: "backlog", arrayMatch: true, caseSensitive: true },
+    { vault: "Demo", name: "id", value: "BI-030", folder: "backlog", array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
   const payload = decodePayload(recorded[0]!.argv) as { folder: unknown };
@@ -131,7 +132,7 @@ test("folder-exclude: payload carries folder='archive' AND no-match envelope (US
     { stdout: '=> {"count":0,"paths":[]}\n', exitCode: 0 },
   ]);
   const result = await executeFindByProperty(
-    { vault: "Demo", property: "id", value: "BI-030", folder: "archive", arrayMatch: true, caseSensitive: true },
+    { vault: "Demo", name: "id", value: "BI-030", folder: "archive", array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
   expect(result).toEqual({ count: 0, paths: [] });
@@ -139,13 +140,13 @@ test("folder-exclude: payload carries folder='archive' AND no-match envelope (US
   expect(payload.folder).toBe("archive");
 });
 
-// (9) US3 AC#1 — arrayMatch: true (default) — payload check
-test("arrayMatch: true defaulted in payload (US3 AC#1)", async () => {
+// (9) US3 AC#1 — array_match: true (default) — payload check
+test("array_match: true defaulted in payload (US3 AC#1)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
     { stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 },
   ]);
   await executeFindByProperty(
-    { vault: "Demo", property: "tags", value: "alpha", arrayMatch: true, caseSensitive: true },
+    { vault: "Demo", name: "tags", value: "alpha", array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
   const payload = decodePayload(recorded[0]!.argv) as { arrayMatch: unknown; value: unknown };
@@ -153,13 +154,13 @@ test("arrayMatch: true defaulted in payload (US3 AC#1)", async () => {
   expect(payload.value).toBe("alpha");
 });
 
-// (10) US3 AC#3 — arrayMatch: false with array value — payload check
-test("arrayMatch: false with array value: payload preserves array exactly (US3 AC#3)", async () => {
+// (10) US3 AC#3 — array_match: false with array value — payload check
+test("array_match: false with array value: payload preserves array exactly (US3 AC#3)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
     { stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 },
   ]);
   await executeFindByProperty(
-    { vault: "Demo", property: "tags", value: ["alpha", "beta"], arrayMatch: false, caseSensitive: true },
+    { vault: "Demo", name: "tags", value: ["alpha", "beta"], array_match: false, case_sensitive: true },
     deps(spawnFn),
   );
   const payload = decodePayload(recorded[0]!.argv) as { arrayMatch: unknown; value: unknown };
@@ -167,13 +168,13 @@ test("arrayMatch: false with array value: payload preserves array exactly (US3 A
   expect(payload.value).toEqual(["alpha", "beta"]);
 });
 
-// (11) US4 AC#2 — caseSensitive: false — payload check
-test("caseSensitive: false propagates into payload (US4 AC#2)", async () => {
+// (11) US4 AC#2 — case_sensitive: false — payload check
+test("case_sensitive: false propagates into payload (US4 AC#2)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
     { stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 },
   ]);
   await executeFindByProperty(
-    { vault: "Demo", property: "tag", value: "alpha", arrayMatch: true, caseSensitive: false },
+    { vault: "Demo", name: "tag", value: "alpha", array_match: true, case_sensitive: false },
     deps(spawnFn),
   );
   const payload = decodePayload(recorded[0]!.argv) as { caseSensitive: unknown };
@@ -186,7 +187,7 @@ test("vault omitted: argv has no vault= prefix (R4 active-mode mapping, FR-003)"
     { stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 },
   ]);
   await executeFindByProperty(
-    { property: "id", value: "BI-030", arrayMatch: true, caseSensitive: true },
+    { name: "id", value: "BI-030", array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
   const argv = recorded[0]!.argv;
@@ -207,7 +208,7 @@ test("vault supplied: argv[0] starts with vault= (R4 specific-mode mapping)", as
     { stdout: '=> {"count":0,"paths":[]}\n', exitCode: 0 },
   ]);
   await executeFindByProperty(
-    { vault: "MyVault", property: "id", value: "x", arrayMatch: true, caseSensitive: true },
+    { vault: "MyVault", name: "id", value: "x", array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
   expect(recorded[0]!.argv[0]).toBe("vault=MyVault");
@@ -220,7 +221,7 @@ test("unknown vault → CLI_REPORTED_ERROR (cli-adapter R5 inheritance, US6 AC#1
   ]);
   const err = (await captureRejection(
     executeFindByProperty(
-      { vault: "NoSuchVault", property: "id", value: "x", arrayMatch: true, caseSensitive: true },
+      { vault: "NoSuchVault", name: "id", value: "x", array_match: true, case_sensitive: true },
       deps(spawnFn),
     ),
   )) as UpstreamError;
@@ -236,7 +237,7 @@ test("non-zero exit on eval → CLI_NON_ZERO_EXIT verbatim (FR-019)", async () =
   ]);
   const err = (await captureRejection(
     executeFindByProperty(
-      { vault: "Demo", property: "id", value: "x", arrayMatch: true, caseSensitive: true },
+      { vault: "Demo", name: "id", value: "x", array_match: true, case_sensitive: true },
       deps(spawnFn),
     ),
   )) as UpstreamError;
@@ -253,7 +254,7 @@ test("ENOENT on spawn → CLI_BINARY_NOT_FOUND (FR-019)", async () => {
   ]);
   const err = (await captureRejection(
     executeFindByProperty(
-      { vault: "Demo", property: "id", value: "x", arrayMatch: true, caseSensitive: true },
+      { vault: "Demo", name: "id", value: "x", array_match: true, case_sensitive: true },
       deps(spawnFn),
     ),
   )) as UpstreamError;
@@ -268,7 +269,7 @@ test("dispatch kill (output cap) → CLI_NON_ZERO_EXIT (FR-012, FR-019)", async 
   ]);
   const err = (await captureRejection(
     executeFindByProperty(
-      { vault: "Demo", property: "category", value: "bulk", arrayMatch: true, caseSensitive: true },
+      { vault: "Demo", name: "category", value: "bulk", array_match: true, case_sensitive: true },
       deps(spawnFn),
     ),
   )) as UpstreamError;
@@ -281,7 +282,7 @@ test("eval response without '=> ' prefix parses as bare JSON", async () => {
     { stdout: '{"count":1,"paths":["x.md"]}\n', exitCode: 0 },
   ]);
   const result = await executeFindByProperty(
-    { vault: "Demo", property: "id", value: "x", arrayMatch: true, caseSensitive: true },
+    { vault: "Demo", name: "id", value: "x", array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
   expect(result).toEqual({ count: 1, paths: ["x.md"] });
@@ -294,7 +295,7 @@ test("malformed JSON eval response → CLI_REPORTED_ERROR (stage: json-parse)", 
   ]);
   const err = (await captureRejection(
     executeFindByProperty(
-      { vault: "Demo", property: "id", value: "x", arrayMatch: true, caseSensitive: true },
+      { vault: "Demo", name: "id", value: "x", array_match: true, case_sensitive: true },
       deps(spawnFn),
     ),
   )) as UpstreamError;
@@ -309,7 +310,7 @@ test("eval response shape violates output schema → CLI_REPORTED_ERROR (stage: 
   ]);
   const err = (await captureRejection(
     executeFindByProperty(
-      { vault: "Demo", property: "id", value: "x", arrayMatch: true, caseSensitive: true },
+      { vault: "Demo", name: "id", value: "x", array_match: true, case_sensitive: true },
       deps(spawnFn),
     ),
   )) as UpstreamError;
@@ -324,7 +325,7 @@ test("count !== paths.length → CLI_REPORTED_ERROR (stage: count-paths-mismatch
   ]);
   const err = (await captureRejection(
     executeFindByProperty(
-      { vault: "Demo", property: "id", value: "x", arrayMatch: true, caseSensitive: true },
+      { vault: "Demo", name: "id", value: "x", array_match: true, case_sensitive: true },
       deps(spawnFn),
     ),
   )) as UpstreamError;
@@ -341,7 +342,7 @@ test("anti-injection (R6): hostile value survives base64 round-trip exactly (SC-
     { stdout: '=> {"count":0,"paths":[]}\n', exitCode: 0 },
   ]);
   await executeFindByProperty(
-    { vault: "Demo", property: "key", value: hostile, arrayMatch: true, caseSensitive: true },
+    { vault: "Demo", name: "key", value: hostile, array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
   const codeArg = recorded[0]!.argv.find((a) => a.startsWith("code="))!;
@@ -360,7 +361,7 @@ test("anti-injection (R6): hostile property survives base64 round-trip exactly",
     { stdout: '=> {"count":0,"paths":[]}\n', exitCode: 0 },
   ]);
   await executeFindByProperty(
-    { vault: "Demo", property: hostile, value: "x", arrayMatch: true, caseSensitive: true },
+    { vault: "Demo", name: hostile, value: "x", array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
   const payload = decodePayload(recorded[0]!.argv) as { property: unknown };
@@ -374,7 +375,7 @@ test("BI-034 US3 (a): em-dash + accented value round-trips through base64 (FR-00
     { stdout: '=> {"count":1,"paths":["Fixtures/BI-038/tc-mojibake-fbp.md"]}\n', exitCode: 0 },
   ]);
   const result = await executeFindByProperty(
-    { vault: "Demo", property: "unicode_marker", value, arrayMatch: true, caseSensitive: true },
+    { vault: "Demo", name: "unicode_marker", value, array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
   expect(result).toEqual({ count: 1, paths: ["Fixtures/BI-038/tc-mojibake-fbp.md"] });
@@ -389,7 +390,7 @@ test("BI-034 US3 (b): CJK value round-trips through base64 (FR-009)", async () =
     { stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 },
   ]);
   await executeFindByProperty(
-    { vault: "Demo", property: "marker", value, arrayMatch: true, caseSensitive: true },
+    { vault: "Demo", name: "marker", value, array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
   const payload = decodePayload(recorded[0]!.argv) as { value: unknown };
@@ -403,7 +404,7 @@ test("BI-034 US3 (c): emoji value round-trips through base64 (FR-009)", async ()
     { stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 },
   ]);
   await executeFindByProperty(
-    { vault: "Demo", property: "marker", value, arrayMatch: true, caseSensitive: true },
+    { vault: "Demo", name: "marker", value, array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
   const payload = decodePayload(recorded[0]!.argv) as { value: unknown };
@@ -417,7 +418,7 @@ test("BI-034 US3 (d): interleaved ASCII + non-ASCII value preserved verbatim (FR
     { stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 },
   ]);
   await executeFindByProperty(
-    { vault: "Demo", property: "title", value, arrayMatch: true, caseSensitive: true },
+    { vault: "Demo", name: "title", value, array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
   const payload = decodePayload(recorded[0]!.argv) as { value: unknown };
@@ -430,7 +431,7 @@ test("BI-034 US3 (e): selectivity — non-ASCII value payload distinct from ASCI
     { stdout: '=> {"count":1,"paths":["café-note.md"]}\n', exitCode: 0 },
   ]);
   await executeFindByProperty(
-    { vault: "Demo", property: "marker", value: "café", arrayMatch: true, caseSensitive: true },
+    { vault: "Demo", name: "marker", value: "café", array_match: true, case_sensitive: true },
     deps(spawnA),
   );
   const payloadA = decodePayload(recordedA[0]!.argv) as { value: unknown };
@@ -440,7 +441,7 @@ test("BI-034 US3 (e): selectivity — non-ASCII value payload distinct from ASCI
     { stdout: '=> {"count":1,"paths":["cafe-note.md"]}\n', exitCode: 0 },
   ]);
   await executeFindByProperty(
-    { vault: "Demo", property: "marker", value: "cafe", arrayMatch: true, caseSensitive: true },
+    { vault: "Demo", name: "marker", value: "cafe", array_match: true, case_sensitive: true },
     deps(spawnB),
   );
   const payloadB = decodePayload(recordedB[0]!.argv) as { value: unknown };
@@ -454,7 +455,7 @@ test("FR-023: wrapper does not transform value 'work' to a rollup query", async 
     { stdout: '=> {"count":0,"paths":[]}\n', exitCode: 0 },
   ]);
   const result = await executeFindByProperty(
-    { vault: "Demo", property: "tags", value: "work", arrayMatch: true, caseSensitive: true },
+    { vault: "Demo", name: "tags", value: "work", array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
   expect(result).toEqual({ count: 0, paths: [] });
@@ -469,11 +470,27 @@ test("FR-024: scalar query against list-of-mappings property surfaces as no-matc
     { stdout: '=> {"count":0,"paths":[]}\n', exitCode: 0 },
   ]);
   const result = await executeFindByProperty(
-    { vault: "Demo", property: "entries", value: "x", arrayMatch: true, caseSensitive: true },
+    { vault: "Demo", name: "entries", value: "x", array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
   expect(result).toEqual({ count: 0, paths: [] });
   const payload = decodePayload(recorded[0]!.argv) as { property: unknown; value: unknown };
   expect(payload.property).toBe("entries");
   expect(payload.value).toBe("x");
+});
+
+// (25) Spec 073 F9 — the aligned input names map onto the unchanged eval payload keys, so the CLI call is byte-identical
+test("spec 073: name / array_match / case_sensitive (new or deprecated names) reach the payload as property / arrayMatch / caseSensitive", async () => {
+  const expected = { property: "tags", value: ["a", "b"], folder: "Projects", arrayMatch: false, caseSensitive: false };
+  const argvs: string[][] = [];
+  for (const raw of [
+    { vault: "Demo", name: "tags", value: ["a", "b"], folder: "Projects", array_match: false, case_sensitive: false },
+    { vault: "Demo", property: "tags", value: ["a", "b"], folder: "Projects", arrayMatch: false, caseSensitive: false },
+  ]) {
+    const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: '=> {"count":0,"paths":[]}\n', exitCode: 0 }]);
+    await executeFindByProperty(findByPropertyInputSchema.parse(raw), deps(spawnFn));
+    expect(decodePayload(recorded[0]!.argv)).toEqual(expected);
+    argvs.push(recorded[0]!.argv);
+  }
+  expect(argvs[1]).toEqual(argvs[0]);
 });

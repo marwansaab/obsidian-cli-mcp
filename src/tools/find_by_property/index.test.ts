@@ -69,13 +69,65 @@ describe("createFindByPropertyTool — handler closure executes on VALID input",
     });
     const result = (await tool.handler({
       vault: "Demo",
-      property: "id",
+      name: "id",
       value: "BI-030",
     })) as { isError?: boolean; content: { type: string; text: string }[] };
     expect(result.isError).toBeUndefined();
     expect(Array.isArray(result.content)).toBe(true);
     const payload = JSON.parse(result.content[0]!.text);
     expect(payload).toEqual({ count: 1, paths: ["x.md"] });
+  });
+});
+
+describe("createFindByPropertyTool — deprecated names (spec 073)", () => {
+  type Result = { isError?: boolean; content: { text: string }[]; structuredContent?: Record<string, unknown> };
+  const stub = () => makeStubSpawn({ stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 });
+
+  it("O1: a new-name call carries no deprecated_parameters", async () => {
+    const tool = createFindByPropertyTool({ logger: silentLogger(), queue: createQueue(), spawnFn: stub() });
+    const result = (await tool.handler({ vault: "Demo", name: "id", value: "BI-030", array_match: true, case_sensitive: true })) as Result;
+    expect(result.structuredContent).toEqual({ count: 1, paths: ["x.md"] });
+  });
+
+  it("O2: an old-name call gets today's result plus the notice, identical in text and structuredContent", async () => {
+    const tool = createFindByPropertyTool({ logger: silentLogger(), queue: createQueue(), spawnFn: stub() });
+    const result = (await tool.handler({ vault: "Demo", property: "id", value: "BI-030", arrayMatch: true, caseSensitive: true })) as Result;
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent).toEqual({
+      count: 1,
+      paths: ["x.md"],
+      deprecated_parameters: [
+        { parameter: "property", replacement: "name" },
+        { parameter: "arrayMatch", replacement: "array_match" },
+        { parameter: "caseSensitive", replacement: "case_sensitive" },
+      ],
+    });
+    expect(JSON.parse(result.content[0]!.text)).toEqual(result.structuredContent);
+  });
+
+  it("O4: old + new → VALIDATION_ERROR, nothing spawned", async () => {
+    let spawned = false;
+    const spawnSpy: SpawnLike = () => {
+      spawned = true;
+      throw new Error("spawn on a rejected call");
+    };
+    const tool = createFindByPropertyTool({ logger: silentLogger(), queue: createQueue(), spawnFn: spawnSpy });
+    const result = (await tool.handler({ name: "id", property: "id", value: "x" })) as Result;
+    expect(result.isError).toBe(true);
+    const payload = JSON.parse(result.content[0]!.text);
+    expect(payload.code).toBe("VALIDATION_ERROR");
+    expect(payload.details.issues).toEqual([
+      expect.objectContaining({ path: ["property"], message: "`property` is deprecated and replaced by `name`; supply only `name`" }),
+    ]);
+    expect(spawned).toBe(false);
+  });
+
+  it("description uses the new names, drops the property: NOTE and lists the deprecated ones", () => {
+    expect(FIND_BY_PROPERTY_DESCRIPTION).toContain("Inputs: `{ vault?, name, value, folder?, array_match?, case_sensitive? }`.");
+    expect(FIND_BY_PROPERTY_DESCRIPTION).not.toContain("NOTE — the property-name parameter");
+    expect(FIND_BY_PROPERTY_DESCRIPTION).toContain(
+      "Deprecated names (accepted until the next major release; a call that uses one gets `deprecated_parameters` in its result): `property` → `name`, `arrayMatch` → `array_match`, `caseSensitive` → `case_sensitive`.",
+    );
   });
 });
 

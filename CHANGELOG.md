@@ -9,9 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Spec 072-align-closed-vault-reporting (BI-0076).
 
+Spec 073-align-parameter-names (BI-0109).
+
 ### Changed
 
 - **Closed vaults are documented as opened automatically.** `paths`, `tag`, `pattern_search`, `query_base`, `smart_connections_query` and `smart_connections_similar` now say that a registered vault that is not open is opened by the server's automatic retry and the call returns its normal result. Their descriptions and reference pages document the existing post-retry `CLI_REPORTED_ERROR`, whose `details.stdout` starts `Error: Command "…" not found.`, as their vault-unavailable failure: the vault could not be brought up, for example because its command-line integration is disabled. The failure itself is unchanged.
+- **One name per concept within a tool family** (spec 073). Seven parameters take the name their siblings already use, with today's meaning and defaults:
+  - `find_by_property`: `property` → `name`, `arrayMatch` → `array_match`, `caseSensitive` → `case_sensitive`;
+  - `find_and_replace`: `case_insensitive` → `case_sensitive` (opposite value; the default stays case-sensitive), `subfolder` → `folder`;
+  - `create_base`: `path` → `base_path`, `view` → `view_name`.
+
+  Validation errors name the new parameter; error codes, `details` keys and the CLI calls are unchanged. `create_base`'s `INVALID_BASE_PATH` issues now report `field: "base_path"`. The convention is recorded in ADR-NNN, "Shared parameter names within a tool family" (number allocated at the next vault sync).
+
+### Deprecated
+
+- **The seven old parameter names** (spec 073) are accepted until the next major release. A call that uses one gets the same result plus a `deprecated_parameters` field (`parameter`, `replacement` and, for `case_insensitive`, a polarity `note`) in both the text result and `structuredContent`. A call that sends an old name together with its new name is rejected with `VALIDATION_ERROR` before anything is read, written or spawned. The old keys stay in the published input schemas, marked `deprecated: true`. During the transition `find_by_property.name` and `create_base.base_path` are enforced at parse time rather than listed in `required`, and `array_match` and both `case_sensitive` keys publish no JSON Schema `default`.
 
 ### Removed
 

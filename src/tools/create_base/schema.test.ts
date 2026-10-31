@@ -2,7 +2,8 @@
 import { expect, test } from "vitest";
 import { z } from "zod";
 
-import { createBaseInputSchema, createBaseOutputSchema, MAX_CONTENT_LENGTH } from "./schema.js";
+import { CREATE_BASE_RENAMES, createBaseInputSchema, createBaseOutputSchema, MAX_CONTENT_LENGTH } from "./schema.js";
+import { BASE_PATH_DESCRIPTION } from "../_base-path.js";
 import { messageForPath } from "../_schema-test-utils.js";
 
 function paramsForPath(
@@ -20,7 +21,7 @@ function paramsForPath(
 
 test("happy: minimal required input parses OK", () => {
   const r = createBaseInputSchema.safeParse({
-    path: "Indexes/Active.base",
+    base_path: "Indexes/Active.base",
     name: "New item",
   });
   expect(r.success).toBe(true);
@@ -28,10 +29,10 @@ test("happy: minimal required input parses OK", () => {
 
 test("happy: with all optional fields", () => {
   const r = createBaseInputSchema.safeParse({
-    path: "Indexes/Active.base",
+    base_path: "Indexes/Active.base",
     name: "New item",
     content: "Body text",
-    view: "All",
+    view_name: "All",
     vault: "Work",
   });
   expect(r.success).toBe(true);
@@ -39,46 +40,46 @@ test("happy: with all optional fields", () => {
 
 test("happy: extension case-insensitivity (.BASE accepted)", () => {
   const r = createBaseInputSchema.safeParse({
-    path: "Indexes/Active.BASE",
+    base_path: "Indexes/Active.BASE",
     name: "New item",
   });
   expect(r.success).toBe(true);
 });
 
 // =====================================================================
-// path sub-discriminators
+// base_path sub-discriminators
 // =====================================================================
 
 test("INVALID_BASE_PATH/empty: empty path", () => {
-  const r = createBaseInputSchema.safeParse({ path: "", name: "x" });
+  const r = createBaseInputSchema.safeParse({ base_path: "", name: "x" });
   expect(r.success).toBe(false);
-  expect(paramsForPath(r, "path")).toMatchObject({
+  expect(paramsForPath(r, "base_path")).toMatchObject({
     code: "INVALID_BASE_PATH",
     reason: "empty",
-    field: "path",
+    field: "base_path",
     value_length: 0,
   });
 });
 
 test("INVALID_BASE_PATH/too-long: 1001-char path", () => {
   const longPath = "a".repeat(1001 - ".base".length) + ".base";
-  const r = createBaseInputSchema.safeParse({ path: longPath, name: "x" });
+  const r = createBaseInputSchema.safeParse({ base_path: longPath, name: "x" });
   expect(r.success).toBe(false);
-  expect(paramsForPath(r, "path")).toMatchObject({
+  expect(paramsForPath(r, "base_path")).toMatchObject({
     code: "INVALID_BASE_PATH",
     reason: "too-long",
-    field: "path",
+    field: "base_path",
     value_length: 1001,
   });
 });
 
 test("INVALID_BASE_PATH/wrong-extension: .md", () => {
   const r = createBaseInputSchema.safeParse({
-    path: "Indexes/Active.md",
+    base_path: "Indexes/Active.md",
     name: "x",
   });
   expect(r.success).toBe(false);
-  expect(paramsForPath(r, "path")).toMatchObject({
+  expect(paramsForPath(r, "base_path")).toMatchObject({
     code: "INVALID_BASE_PATH",
     reason: "wrong-extension",
   });
@@ -86,11 +87,11 @@ test("INVALID_BASE_PATH/wrong-extension: .md", () => {
 
 test("INVALID_BASE_PATH/path-traversal: ../escape.base", () => {
   const r = createBaseInputSchema.safeParse({
-    path: "../escape.base",
+    base_path: "../escape.base",
     name: "x",
   });
   expect(r.success).toBe(false);
-  expect(paramsForPath(r, "path")).toMatchObject({
+  expect(paramsForPath(r, "base_path")).toMatchObject({
     code: "INVALID_BASE_PATH",
     reason: "path-traversal",
   });
@@ -98,33 +99,33 @@ test("INVALID_BASE_PATH/path-traversal: ../escape.base", () => {
 
 test("INVALID_BASE_PATH/path-traversal: leading slash", () => {
   const r = createBaseInputSchema.safeParse({
-    path: "/etc/secrets.base",
+    base_path: "/etc/secrets.base",
     name: "x",
   });
   expect(r.success).toBe(false);
-  expect(paramsForPath(r, "path")).toMatchObject({
+  expect(paramsForPath(r, "base_path")).toMatchObject({
     reason: "path-traversal",
   });
 });
 
 test("INVALID_BASE_PATH/path-traversal: drive letter prefix", () => {
   const r = createBaseInputSchema.safeParse({
-    path: "C:\\Users\\secrets.base",
+    base_path: "C:\\Users\\secrets.base",
     name: "x",
   });
   expect(r.success).toBe(false);
-  expect(paramsForPath(r, "path")).toMatchObject({
+  expect(paramsForPath(r, "base_path")).toMatchObject({
     reason: "path-traversal",
   });
 });
 
 test("INVALID_BASE_PATH/path-traversal: control char", () => {
   const r = createBaseInputSchema.safeParse({
-    path: "Indexes/Active\x00.base",
+    base_path: "Indexes/Active\x00.base",
     name: "x",
   });
   expect(r.success).toBe(false);
-  expect(paramsForPath(r, "path")).toMatchObject({
+  expect(paramsForPath(r, "base_path")).toMatchObject({
     reason: "path-traversal",
   });
 });
@@ -135,7 +136,7 @@ test("INVALID_BASE_PATH/path-traversal: control char", () => {
 
 test("INVALID_NAME/empty: empty name", () => {
   const r = createBaseInputSchema.safeParse({
-    path: "Indexes/Active.base",
+    base_path: "Indexes/Active.base",
     name: "",
   });
   expect(r.success).toBe(false);
@@ -149,7 +150,7 @@ test("INVALID_NAME/empty: empty name", () => {
 
 test("INVALID_NAME/too-long: 1001-char name", () => {
   const r = createBaseInputSchema.safeParse({
-    path: "Indexes/Active.base",
+    base_path: "Indexes/Active.base",
     name: "n".repeat(1001),
   });
   expect(r.success).toBe(false);
@@ -167,7 +168,7 @@ test("INVALID_NAME/too-long: 1001-char name", () => {
 
 test("CONTENT_TOO_LARGE: content over limit", () => {
   const r = createBaseInputSchema.safeParse({
-    path: "Indexes/Active.base",
+    base_path: "Indexes/Active.base",
     name: "x",
     content: "x".repeat(MAX_CONTENT_LENGTH + 1),
   });
@@ -182,7 +183,7 @@ test("CONTENT_TOO_LARGE: content over limit", () => {
 
 test("content exactly at limit accepted", () => {
   const r = createBaseInputSchema.safeParse({
-    path: "Indexes/Active.base",
+    base_path: "Indexes/Active.base",
     name: "x",
     content: "x".repeat(MAX_CONTENT_LENGTH),
   });
@@ -195,7 +196,7 @@ test("content exactly at limit accepted", () => {
 
 test("strict mode: unknown top-level key rejected", () => {
   const r = createBaseInputSchema.safeParse({
-    path: "Indexes/Active.base",
+    base_path: "Indexes/Active.base",
     name: "x",
     surprise: "x",
   });
@@ -209,7 +210,7 @@ test("strict mode: unknown top-level key rejected", () => {
 
 test("vault min-length: empty vault string rejected", () => {
   const r = createBaseInputSchema.safeParse({
-    path: "Indexes/Active.base",
+    base_path: "Indexes/Active.base",
     name: "x",
     vault: "",
   });
@@ -237,8 +238,8 @@ test("z.toJSONSchema emits expected shape", () => {
   expect(json.type).toBe("object");
   expect(json.additionalProperties).toBe(false);
   const props = json.properties as Record<string, unknown>;
-  expect(Object.keys(props).sort()).toEqual(["content", "name", "path", "vault", "view"]);
-  expect(json.required).toEqual(["path", "name"]);
+  expect(Object.keys(props).sort()).toEqual(["base_path", "content", "name", "path", "vault", "view", "view_name"]);
+  expect(json.required).toEqual(["name"]);
 });
 
 // =====================================================================
@@ -248,26 +249,93 @@ test("z.toJSONSchema emits expected shape", () => {
 // silent message regression on the migrated fields.
 // =====================================================================
 
-test("BI-067 FR-010: missing path yields exact required message", () => {
+test("BI-067 FR-010 / spec 073 O5: missing base_path (and path) yields exact required message", () => {
   const r = createBaseInputSchema.safeParse({ name: "x" });
   expect(r.success).toBe(false);
-  expect(messageForPath(r, "path")).toBe("path is required");
+  expect(messageForPath(r, "base_path")).toBe("base_path is required");
 });
 
-test("BI-067 FR-010: non-string path yields exact type message", () => {
-  const r = createBaseInputSchema.safeParse({ path: 42, name: "x" });
+test("BI-067 FR-010: non-string base_path yields exact type message", () => {
+  const r = createBaseInputSchema.safeParse({ base_path: 42, name: "x" });
   expect(r.success).toBe(false);
-  expect(messageForPath(r, "path")).toBe("path must be a string");
+  expect(messageForPath(r, "base_path")).toBe("base_path must be a string");
 });
 
 test("BI-067 FR-010: missing name yields exact required message", () => {
-  const r = createBaseInputSchema.safeParse({ path: "Indexes/Active.base" });
+  const r = createBaseInputSchema.safeParse({ base_path: "Indexes/Active.base" });
   expect(r.success).toBe(false);
   expect(messageForPath(r, "name")).toBe("name is required");
 });
 
 test("BI-067 FR-010: non-string name yields exact type message", () => {
-  const r = createBaseInputSchema.safeParse({ path: "Indexes/Active.base", name: 42 });
+  const r = createBaseInputSchema.safeParse({ base_path: "Indexes/Active.base", name: 42 });
   expect(r.success).toBe(false);
   expect(messageForPath(r, "name")).toBe("name must be a string");
+});
+
+// =====================================================================
+// Spec 073 — base_path / view_name with deprecated aliases path / view
+// =====================================================================
+
+test("spec 073 O1: new names normalise with no notice", () => {
+  const parsed = createBaseInputSchema.parse({ base_path: "Tasks.base", name: "x", view_name: "All" });
+  expect(parsed).toEqual({ base_path: "Tasks.base", name: "x", view_name: "All" });
+});
+
+test.each<[string, Record<string, unknown>, Record<string, unknown>]>([
+  ["path", { path: "Tasks.base", view_name: "All" }, { base_path: "Tasks.base", view_name: "All" }],
+  ["view", { base_path: "Tasks.base", view: "All" }, { base_path: "Tasks.base", view_name: "All" }],
+])("spec 073 O2: %s parses like its replacement, plus the notice", (old, oldArgs, newArgs) => {
+  const viaOld = createBaseInputSchema.parse({ name: "x", content: "c", vault: "W", ...oldArgs });
+  const viaNew = createBaseInputSchema.parse({ name: "x", content: "c", vault: "W", ...newArgs });
+  const replacement = CREATE_BASE_RENAMES.find((r) => r.old === old)!.replacement;
+  expect(viaOld).toEqual({ ...viaNew, deprecated_parameters: [{ parameter: old, replacement }] });
+});
+
+test.each<[string, Record<string, unknown>]>([
+  ["path", { base_path: "Tasks.base", path: "Tasks.base" }],
+  ["view", { base_path: "Tasks.base", view_name: "All", view: "Other" }],
+])("spec 073 O4: %s alongside its replacement → one conflict issue at [old]", (old, args) => {
+  const replacement = CREATE_BASE_RENAMES.find((r) => r.old === old)!.replacement;
+  const r = createBaseInputSchema.safeParse({ name: "x", ...args });
+  expect(r.success).toBe(false);
+  expect(r.error?.issues).toEqual([
+    expect.objectContaining({
+      path: [old],
+      message: `\`${old}\` is deprecated and replaced by \`${replacement}\`; supply only \`${replacement}\``,
+    }),
+  ]);
+});
+
+test("spec 073 O6: deprecated path with a wrong extension → INVALID_BASE_PATH naming base_path", () => {
+  const r = createBaseInputSchema.safeParse({ path: "x.md", name: "x" });
+  expect(r.error?.issues).toEqual([
+    expect.objectContaining({
+      path: ["base_path"],
+      message: "INVALID_BASE_PATH/wrong-extension: base_path must end with .base",
+      params: { code: "INVALID_BASE_PATH", reason: "wrong-extension", field: "base_path", value: "x.md" },
+    }),
+  ]);
+});
+
+test("spec 073 O6: deprecated path with a non-string value names base_path in the message", () => {
+  const r = createBaseInputSchema.safeParse({ path: 42, name: "x" });
+  expect(r.error?.issues[0]?.message).toBe("base_path must be a string");
+});
+
+test("spec 073: published JSON Schema — descriptions and deprecated aliases", () => {
+  const json = createBaseInputSchema["~standard"].jsonSchema.input({ target: "draft-2020-12" });
+  const props = json["properties"] as Record<string, Record<string, unknown>>;
+  expect(props["base_path"]!["description"]).toBe(`${BASE_PATH_DESCRIPTION} Required (or the deprecated path).`);
+  expect(props["view_name"]!["description"]).toBe(
+    "Exact, case-sensitive name of the view to create the item in (as listed by views_base). Not checked by the CLI; omit for the default.",
+  );
+  expect(props["path"]).toMatchObject({
+    deprecated: true,
+    description: "Deprecated: use base_path (accepted until the next major release).",
+  });
+  expect(props["view"]).toMatchObject({
+    deprecated: true,
+    description: "Deprecated: use view_name (accepted until the next major release).",
+  });
 });

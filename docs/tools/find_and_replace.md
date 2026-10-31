@@ -1,10 +1,10 @@
 # `find_and_replace`
 
-Preview-then-commit find-and-replace across a vault, a named subfolder, or a single note, with fenced code blocks and HTML comments skipped by default.
+Preview-then-commit find-and-replace across a vault, a named folder, or a single note, with fenced code blocks and HTML comments skipped by default.
 
 **Supported file types:** notes only. A single-note scope naming a non-note file is rejected as before, with `VALIDATION_ERROR` + `details.code: "INVALID_NOTE"`, `reason: "not-eligible"`.
 
-> **CRITICAL — default scope is vault-wide; narrow it deliberately.** With no scope field this tool replaces matches across EVERY eligible `.md` file in the vault. `subfolder: "Drafts"` narrows to every file under `Drafts/` recursively. To confine a change to ONE note, use a **single-note scope** — `path` (exact vault-relative path), `file` (bare note name), or `active_note: true` (the open note) — so the SCOPE, not a globally-unique pattern, bounds the blast radius. Agents have corrupted unintended files by committing wide-pattern replacements without previewing first.
+> **CRITICAL — default scope is vault-wide; narrow it deliberately.** With no scope field this tool replaces matches across EVERY eligible `.md` file in the vault. `folder: "Drafts"` narrows to every file under `Drafts/` recursively. To confine a change to ONE note, use a **single-note scope** — `path` (exact vault-relative path), `file` (bare note name), or `active_note: true` (the open note) — so the SCOPE, not a globally-unique pattern, bounds the blast radius. Agents have corrupted unintended files by committing wide-pattern replacements without previewing first.
 >
 > ALWAYS issue a preview first (default — omit `commit` or set `commit: false`). Inspect `affected_notes` for unexpected paths. Only set `commit: true` once the preview matches your intent. Under a single-note scope a preview affects ≤ 1 note, giving you early confirmation the scope is right.
 
@@ -26,8 +26,8 @@ Preview-then-commit find-and-replace across a vault, a named subfolder, or a sin
 | `pattern` | string (1..1000 UTF-16 code units) | Y | — | Empty / over-cap / invalid-regex rejected at the input boundary. |
 | `replacement` | string (0..1000 UTF-16 code units) | Y | — | Empty is valid (deletion). |
 | `mode` | `"literal" \| "regex"` | N | `"literal"` | Regex: ECMAScript dialect (V8). `$1`/`$&`/`$$` interpolation supported in `replacement`. |
-| `case_insensitive` | boolean | N | `false` | |
-| `subfolder` | string | N | — | Vault-relative; structurally validated + canonicalised. Path-traversal rejected. Missing folder rejected. Scope. |
+| `case_sensitive` | boolean | N | `true` | Match case exactly when true; `false` ignores case. |
+| `folder` | string | N | — | Vault-relative folder, searched recursively; structurally validated + canonicalised. Path-traversal rejected. Missing folder rejected. Scope. |
 | `path` | string | N | — | Vault-relative path to ONE note (e.g. `Projects/Alpha.md`). Structurally validated + canonicalised. Single-note scope. |
 | `file` | string | N | — | Bare note name (e.g. `Alpha`), resolved by Obsidian shortest-unique-name (like a wikilink). The `[[…]]` bracket form is rejected. Single-note scope. |
 | `active_note` | boolean | N | `false` | When `true`, confine to the note currently open in the editor (no path). Single-note scope. |
@@ -36,16 +36,30 @@ Preview-then-commit find-and-replace across a vault, a named subfolder, or a sin
 | `commit` | boolean | N | `false` | Preview when false/absent; rewrite on disk when true. |
 | `vault` | string | N | — | Focused vault when absent. Permitted with a named `file`/`path`; forbidden with `active_note`. |
 
+### Deprecated names
+
+Spec 073 aligned this tool's parameter names with the search tools. The old names are accepted until the next major release:
+
+| Old name | New name |
+|---|---|
+| `case_insensitive` | `case_sensitive`, with the opposite value (`case_insensitive: true` equals `case_sensitive: false`) |
+| `subfolder` | `folder` |
+
+- A call that uses an old name gets the same result as the new name, plus a `deprecated_parameters` field (see *Output shape*).
+- A call that sends an old name together with its new name (even with agreeing values) fails with `VALIDATION_ERROR`, before any note is read. The issue sits at the old name's path and names both.
+- A `subfolder` scope is honoured exactly like `folder`: it is validated as `folder`, conflicts with `file` / `path` / `active_note` the same way, and never widens to the whole vault.
+- The old keys stay in the published input schema, marked `deprecated: true`. `case_sensitive` publishes no JSON Schema `default` during the transition; the default (`true`) is applied at parse time.
+
 ### Scope rules
 
-The scope fields (`subfolder`, `path`, `file`, `active_note`) are **mutually exclusive** — choose at most one. Omitting all of them is the vault-wide default. Conflicting combinations are rejected with `VALIDATION_ERROR` + `details.code: "SCOPE_CONFLICT"` **before any note is read**:
+The scope fields (`folder`, `path`, `file`, `active_note`) are **mutually exclusive** — choose at most one. Omitting all of them is the vault-wide default. Conflicting combinations are rejected with `VALIDATION_ERROR` + `details.code: "SCOPE_CONFLICT"` **before any note is read**:
 
 | Combination | `details.reason` |
 |---|---|
 | `file` + `path` | `file+path` |
-| (`file`\|`path`) + `subfolder` | `note+folder` |
+| (`file`\|`path`) + `folder` | `note+folder` |
 | `active_note` + (`file`\|`path`) | `active+note` |
-| `active_note` + `subfolder` | `active+folder` |
+| `active_note` + `folder` | `active+folder` |
 | `active_note` + `vault` | `active+vault` |
 
 `vault` is permitted alongside a named `file`/`path` (it selects which vault the note lives in). Under a single-note scope `affected_notes` / `changed_notes` carry **at most one** entry (FR-009); a zero-match named scope returns an empty success — not an error.
@@ -87,6 +101,22 @@ Notes path-ascending; occurrences `(line_number, offset)`-ascending.
 
 **Commit branch** (halted mid-batch by `FS_WRITE_FAILED`): carries `partial: true` and `failing_note_locator`.
 
+Either branch gains `deprecated_parameters` when the call used a deprecated name, for example:
+
+```json
+{
+  "mode": "preview",
+  "affected_notes": [],
+  "total_occurrences": 0,
+  "deprecated_parameters": [
+    { "parameter": "case_insensitive", "replacement": "case_sensitive", "note": "case_insensitive: true equals case_sensitive: false (opposite polarity)." },
+    { "parameter": "subfolder", "replacement": "folder" }
+  ]
+}
+```
+
+The field is absent when the call used only current names.
+
 ## Error roster
 
 | top-level | details.code | details.reason | Trigger | Recovery |
@@ -95,21 +125,21 @@ Notes path-ascending; occurrences `(line_number, offset)`-ascending.
 | `VALIDATION_ERROR` | `INVALID_PATTERN` | `too-long` | over 1000 UTF-16 code units | Shorten pattern, or split the work into multiple calls. |
 | `VALIDATION_ERROR` | `INVALID_PATTERN` | `regex-syntax` | invalid ECMAScript regex (regex mode) | Fix the regex per `details.issues[0].message`. |
 | `VALIDATION_ERROR` | `INVALID_REPLACEMENT` | — | replacement over 1000 UTF-16 code units | Shorten replacement. |
-| `VALIDATION_ERROR` | `INVALID_SUBFOLDER` | `path-traversal` | `../`, leading `/` or `\`, drive letter, control char in subfolder | Supply a vault-relative subfolder path. |
-| `VALIDATION_ERROR` | `INVALID_SUBFOLDER` | `not-found` | subfolder does not exist | Recheck the subfolder path; use [`paths`](./paths.md) or [`files`](./files.md) to enumerate the vault structure. |
+| `VALIDATION_ERROR` | `INVALID_SUBFOLDER` | `path-traversal` | `../`, leading `/` or `\`, drive letter, control char in `folder` (or the deprecated `subfolder`) | Supply a vault-relative folder path. |
+| `VALIDATION_ERROR` | `INVALID_SUBFOLDER` | `not-found` | folder does not exist (message: `folder "<x>" does not exist in vault`; `details.subfolder` carries the value) | Recheck the folder path; use [`paths`](./paths.md) or [`files`](./files.md) to enumerate the vault structure. |
 | `VALIDATION_ERROR` | `SCOPE_CONFLICT` | `file+path` \| `note+folder` \| `active+note` \| `active+folder` \| `active+vault` | two mutually-exclusive scope fields supplied | Supply exactly one scope (or none). `details.reason` names the conflicting pair. |
 | `VALIDATION_ERROR` | `INVALID_NOTE` | `not-found` | named `file`/`path` does not resolve to an existing note | Recheck the note name/path; `details.note` echoes the offending locator. |
 | `VALIDATION_ERROR` | `INVALID_NOTE` | `not-eligible` | target resolves to a non-`.md` file or a dotfolder note (`.obsidian/…`) | Name an eligible `.md` note. |
 | `VALIDATION_ERROR` | `INVALID_NOTE` | `path-traversal` | structurally-unsafe `file`/`path` (`../`, leading `/` or `\`, drive letter, control char) | Supply a vault-relative single-note locator. |
 | `VALIDATION_ERROR` | — | — | `file` supplied in `[[…]]` bracket form | Supply the bare note name (`Alpha`, not `[[Alpha]]`). |
 | `ERR_NO_ACTIVE_FILE` | — | — | `active_note: true` but no note is open in the editor | Open a note in the editor, or name one explicitly with `path`/`file`. |
-| `VALIDATION_ERROR` | `OCCURRENCE_COUNT_EXCEEDED` | — | total > `OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES` (default 500) | Narrow with `subfolder` or a more specific pattern. The operator can raise the bound via the env var. |
+| `VALIDATION_ERROR` | `OCCURRENCE_COUNT_EXCEEDED` | — | total > `OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES` (default 500) | Narrow the scope with `folder` or a more specific pattern. The operator can raise the bound via the env var. |
 | `VALIDATION_ERROR` | `OCCURRENCE_COUNT_DRIFT` | — | second-scan count differs from the preview count (vault changed between preview and commit) | Re-run the call to pick up the new vault state — the wrapper refuses to commit a stale preview. |
-| `PATH_ESCAPES_VAULT` | — | — | canonical path resolves outside vault root (symlink traversal) | Caller's bug — fix the subfolder. |
+| `PATH_ESCAPES_VAULT` | — | — | canonical path resolves outside vault root (symlink traversal) | Caller's bug — fix the folder. |
 | `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND` | `unknown` | vault name not in registry | Verify the vault name (case-sensitive); list registered vaults with `obsidian vaults`. |
 | `FS_WRITE_FAILED` | — | `read` | `fs.readFile` failed during scan | No partial flag; nothing written. Inspect `details.errno`. |
 | `FS_WRITE_FAILED` | — | `write` | `fs.writeFile` / `fs.rename` failed during commit | Carries `details.partial: true` + `details.failing_note_locator` + `details.changed_notes` + `details.total_occurrences_replaced`. Some files were modified before the failure — inspect `changed_notes` to see what landed. |
-| `VALIDATION_ERROR` | `CONFIRMATION_UNAVAILABLE` | — | multi-note commit (`commit: true` with no `file` / `path` / `active_note`; a `subfolder` commit counts) and the MCP client cannot show a confirmation prompt | Refused before vault resolution: nothing spawned, read or written. Commit one note at a time with `file` or `path`, or use a client that supports elicitation. |
+| `VALIDATION_ERROR` | `CONFIRMATION_UNAVAILABLE` | — | multi-note commit (`commit: true` with no `file` / `path` / `active_note`; a `folder` commit counts) and the MCP client cannot show a confirmation prompt | Refused before vault resolution: nothing spawned, read or written. Commit one note at a time with `file` or `path`, or use a client that supports elicitation. |
 | `VALIDATION_ERROR` | `CONFIRMATION_DECLINED` | — | multi-note commit and the human did not confirm the prompt; `details.action` is `"decline"`, `"cancel"`, or `"accept"` with the box left unticked | Nothing written. Do not retry without the human's agreement. |
 
 ## Worked examples
@@ -121,7 +151,7 @@ Notes path-ascending; occurrences `(line_number, offset)`-ascending.
   "pattern": "ADR-0042",
   "replacement": "ADR-0089",
   "mode": "literal",
-  "subfolder": "Decisions"
+  "folder": "Decisions"
 }
 ```
 
@@ -204,7 +234,7 @@ Confines to whichever note is open in the editor; the response reports that note
 ### Example 8 — Scope conflict (rejected before any read)
 
 ```json
-{ "pattern": "x", "replacement": "y", "path": "A.md", "subfolder": "Drafts" }
+{ "pattern": "x", "replacement": "y", "path": "A.md", "folder": "Drafts" }
 ```
 
 Returns `VALIDATION_ERROR` + `details.code: "SCOPE_CONFLICT"` + `details.reason: "note+folder"`. Nothing read or changed.
@@ -216,7 +246,7 @@ Returns `VALIDATION_ERROR` + `details.code: "SCOPE_CONFLICT"` + `details.reason:
 - **Frontmatter is treated as PROSE** — `---`-delimited YAML at the top of a note is NOT a separately-skipped region. Inline code spans (`` `...` ``) and indented code blocks are also treated as prose.
 - **Eligible files**: `.md` extension (case-insensitive) AND every path segment NOT starting with `.` (skips `.obsidian/`, `.trash/`, etc.).
 - **Per-note atomic writes** via temp + rename. If a write fails mid-batch, the in-flight file is rolled back but previously-written files are NOT — the response carries `partial: true` and lists the changed notes.
-- **A multi-note commit asks the human first** (since 0.9.0). A commit with no `file`, `path` or `active_note` — whole vault or `subfolder` — sends a confirmation prompt through the MCP client (elicitation) after the commit's re-scan and before the first write, naming the pattern, the occurrence and note counts, the vault and the subfolder. A client that cannot show the prompt is refused at once with `CONFIRMATION_UNAVAILABLE`, before the vault is even resolved. A commit that finds nothing to write asks nothing. A single-note commit and every preview ask nothing.
+- **A multi-note commit asks the human first** (since 0.9.0). A commit with no `file`, `path` or `active_note` — whole vault or `folder` — sends a confirmation prompt through the MCP client (elicitation) after the commit's re-scan and before the first write, naming the pattern, the occurrence and note counts, the vault and the folder. A client that cannot show the prompt is refused at once with `CONFIRMATION_UNAVAILABLE`, before the vault is even resolved. A commit that finds nothing to write asks nothing. A single-note commit and every preview ask nothing.
 - **Cancelling a commit stops it between notes.** Notes already written stay written (there is no rollback); the rest are left unchanged. The cancelled request gets no response, so the partial outcome goes to the server's stderr log as `find_and_replace.commit_cancelled` with `vault`, `committed` and `skipped` paths.
 - **Progress**: when the request carries a progress token, a commit sends one progress notification per written note (`progress` = notes written, `total` = notes to write, `message` = the note's path).
 

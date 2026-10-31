@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedFromBranch": "072-align-closed-vault-reporting",
+  "generatedFromBranch": "073-align-parameter-names",
   "generatedAt": "2026-10-31",
   "tools": [
     {
@@ -37,11 +37,11 @@
     },
     {
       "name": "create_base",
-      "descriptionFingerprint": "fe15ba565e31e825ef66a0788f37839dc282ec0d719474abd4534329be5f1e58",
-      "schemaFingerprint": "5432c54988b24d052de919fb85934dc323a2789ee1ef115d9690e944a20d2fa7",
+      "descriptionFingerprint": "1a1460a88c2d1f1316dd025be0d1c3afe6c390996c44ae2e24190e8d754c824b",
+      "schemaFingerprint": "210ce952f6553021064c1554a75a3c4f35e27835ed3ce4f4439877e6d5423e23",
       "titleFingerprint": "d09213fea04104b836a8bcd13a551dcb0d5ce6fe7103e46a78a2d433c1f1eba5",
       "annotationsFingerprint": "d72d3cb182e3d7fcf0b1c6782251eee772cdf2a99470e1a4bd6a006b5c8f4e25",
-      "outputSchemaFingerprint": "7cff1fd346b5b6f65b7ca7bbbf46ef59a4fe1d860b098a1e03a290521e8a1add"
+      "outputSchemaFingerprint": "b962965cc6aa2be73aeb1045613290504e29c851aa7f16485f6e99f4c4438181"
     },
     {
       "name": "delete",
@@ -61,19 +61,19 @@
     },
     {
       "name": "find_and_replace",
-      "descriptionFingerprint": "753860517864dbd8fedf5ed7bb6c8b7de57844bed56a2e509762b2d857459e29",
-      "schemaFingerprint": "d04f3c6ff342505edeca8b1b84be0b4d749e1f8673545c9f88042c2801d90082",
+      "descriptionFingerprint": "929198d6632ce29ffd9e3fed24bca3e1de908c259c94c2c100e68fd21a33de52",
+      "schemaFingerprint": "a71919f035828dc94320837f68f751261e07d0f075ee458f8903e569ed8996bb",
       "titleFingerprint": "770f80fa77ad69c756e602919e3c79b3d60a641d8949b7280c34dc0604be786f",
       "annotationsFingerprint": "b15393126f12ebd7533afe7d31a1beb8938a1e37d0bb2a52c382aaba4373f265",
-      "outputSchemaFingerprint": "d85e926184f4880738d64107e7b21e2d691be8e1bee1e1c77300c3a2d712aba4"
+      "outputSchemaFingerprint": "6aa683b944229fa276a76e2c6b01380271fae23334ba4cae81e0f02758e26f5e"
     },
     {
       "name": "find_by_property",
-      "descriptionFingerprint": "e2d64db64bc69b63deb2e7dab780f536c1078ca138e35570bfee4a5430f21b11",
-      "schemaFingerprint": "8f09914f7ded6b064aa66064c05c44136d83cba03ff0bdaa28733033e74013ab",
+      "descriptionFingerprint": "142ac9422c9c8a68a7bfbe400a60343d8f64ec898b3d88826c29838d01886ecd",
+      "schemaFingerprint": "0ac6c66832888f1803646d243a56ed3a4aa912c7c6ee4a14954794c158c8dfff",
       "titleFingerprint": "d46f63728bf0b32fbc5102d4f9bb295b98a1e36f1a8c15db79babb07cf2513b0",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",
-      "outputSchemaFingerprint": "4dfa0f8386b1920312d4f36aff0a073ca45af7348bdc83c1f0b86fa80b904f3d"
+      "outputSchemaFingerprint": "6e0b9c6203ac8c7e2c16f756b1452fde64e8b1f0d496728f5f3031e9581b02b6"
     },
     {
       "name": "get_active_file",

@@ -1,5 +1,5 @@
 // Original — no upstream. Shared boundary refinement for the Bases-family `.base` path locator.
-// create_base (field `path`), query_base (field `base_path`), and views_base (field `base_path`)
+// create_base, query_base and views_base (all field `base_path`; create_base since spec 073)
 // validate a vault-relative `.base` path identically — empty / too-long / path-traversal /
 // wrong-extension — emitting INVALID_BASE_PATH sub-issues whose `params: { code, reason, field,
 // value_length? }` follow the ADR-015 sub-discrimination convention (callers branch on
@@ -20,9 +20,10 @@ export const BASE_PATH_DESCRIPTION = `Vault-relative path to the .base file (e.g
 /**
  * Append the INVALID_BASE_PATH sub-issues for a vault-relative `.base` path `value` to `ctx`.
  *
- * `field` is the input key being validated — `"path"` for create_base, `"base_path"` for query_base
- * and views_base. It is threaded through the issue `path`, the human-readable message, and
- * `params.field` so each tool's emitted issues are byte-identical to its prior hand-rolled copy.
+ * `field` is the input key being validated — `"base_path"` for create_base, query_base and
+ * views_base (create_base resolves its deprecated `path` alias to `base_path` first, spec 073).
+ * It is threaded through the issue `path`, the human-readable message, and `params.field` so
+ * each tool's emitted issues are byte-identical to its prior hand-rolled copy.
  * No issue is added when `value` is structurally valid (non-empty, within length, no traversal shape,
  * `.base` extension); the caller is responsible for only invoking this when `value` is a string.
  */

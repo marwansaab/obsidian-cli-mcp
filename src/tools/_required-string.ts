@@ -1,6 +1,6 @@
 // Original — no upstream. Shared required-string field builder (BI-067 / PR #78 review).
 // zod 4 removed the v3 `required_error` / `invalid_type_error` params in favor of a single
-// `error` callback; the four migrated fields (create_base `path`/`name`, query_base
+// `error` callback; the four migrated fields (create_base `base_path`/`name`, query_base
 // `base_path`/`view_name`) share this one closure so the "<field> is required" /
 // "<field> must be a string" message contract has a single source instead of four
 // copy-pasted callbacks. Per-tool FR-010 tests pin the published strings exactly.

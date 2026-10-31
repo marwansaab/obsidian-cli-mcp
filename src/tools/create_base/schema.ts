@@ -1,15 +1,30 @@
-// Original — no upstream.
+// Original — no upstream. create_base input/output schemas; spec 073 aligned names base_path / view_name with deprecated aliases path / view.
 import { z } from "zod";
 
 import { appendBasePathIssues, BASE_PATH_DESCRIPTION } from "../_base-path.js";
+import {
+  appendAliasConflictIssue,
+  collectDeprecatedParameters,
+  deprecatedAlias,
+  deprecatedParametersField,
+  type ParameterRename,
+} from "../_deprecated-params.js";
 import { requiredString } from "../_required-string.js";
 
 const NAME_MAX = 1000;
 export const MAX_CONTENT_LENGTH = 3072;
 
+const PATH_RENAME: ParameterRename = { old: "path", replacement: "base_path" };
+const VIEW_RENAME: ParameterRename = { old: "view", replacement: "view_name" };
+
+export const CREATE_BASE_RENAMES: readonly ParameterRename[] = [PATH_RENAME, VIEW_RENAME];
+
 export const createBaseInputSchema = z
   .strictObject({
-    path: requiredString("path").describe(BASE_PATH_DESCRIPTION),
+    base_path: requiredString("base_path")
+      .optional()
+      .describe(`${BASE_PATH_DESCRIPTION} Required (or the deprecated path).`),
+    path: deprecatedAlias(requiredString("base_path"), PATH_RENAME),
     name: requiredString("name").describe(
       "Name of the new item, 1..1000 chars; becomes the Markdown file name (auto-incremented on collision).",
     ),
@@ -17,11 +32,14 @@ export const createBaseInputSchema = z
       .string()
       .optional()
       .describe(`Body text of the new item, up to ${MAX_CONTENT_LENGTH} UTF-16 code units. Default: none.`),
-    view: z
+    view_name: z
       .string()
       .min(1)
       .optional()
-      .describe("View name inside the base to create the item in. Not checked by the CLI; omit for the default."),
+      .describe(
+        "Exact, case-sensitive name of the view to create the item in (as listed by views_base). Not checked by the CLI; omit for the default.",
+      ),
+    view: deprecatedAlias(z.string().min(1), VIEW_RENAME),
     vault: z
       .string()
       .min(1)
@@ -29,7 +47,14 @@ export const createBaseInputSchema = z
       .describe("Obsidian vault display name. Accepted for parity but currently ignored by the CLI."),
   })
   .superRefine((v, ctx) => {
-    if (typeof v.path === "string") appendBasePathIssues(ctx, v.path, "path");
+    for (const rename of CREATE_BASE_RENAMES) appendAliasConflictIssue(ctx, v, rename);
+
+    const basePath = v.base_path ?? v.path;
+    if (basePath === undefined) {
+      ctx.addIssue({ code: "custom", path: ["base_path"], message: "base_path is required" });
+    } else {
+      appendBasePathIssues(ctx, basePath, "base_path");
+    }
 
     if (typeof v.name === "string") {
       const value_length = v.name.length;
@@ -73,11 +98,25 @@ export const createBaseInputSchema = z
         },
       });
     }
+  })
+  .transform((v) => {
+    const view_name = v.view_name ?? v.view;
+    const deprecated_parameters = collectDeprecatedParameters(v, CREATE_BASE_RENAMES);
+    return {
+      // superRefine guarantees one of the two is present.
+      base_path: (v.base_path ?? v.path)!,
+      name: v.name,
+      ...(v.content !== undefined && { content: v.content }),
+      ...(view_name !== undefined && { view_name }),
+      ...(v.vault !== undefined && { vault: v.vault }),
+      ...(deprecated_parameters !== undefined && { deprecated_parameters }),
+    };
   });
 
 export const createBaseOutputSchema = z.strictObject({
   path: z.string(),
   name: z.string(),
+  deprecated_parameters: deprecatedParametersField,
 });
 
 export type CreateBaseInput = z.infer<typeof createBaseInputSchema>;

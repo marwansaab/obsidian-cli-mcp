@@ -36,7 +36,7 @@ The published key descriptions are in contract §1. Outcomes O1 to O7 are in con
 
 **Purpose**: Record the starting state.
 
-- [ ] T001 Run `npm run typecheck`, `npm run lint` and `npm test` from the repository root and confirm all are green before any edit. Note any pre-existing failure in `specs/073-align-parameter-names/research.md` under a new "Implement log" heading, so later failures are attributable.
+- [X] T001 Run `npm run typecheck`, `npm run lint` and `npm test` from the repository root and confirm all are green before any edit. Note any pre-existing failure in `specs/073-align-parameter-names/research.md` under a new "Implement log" heading, so later failures are attributable.
 
 ---
 
@@ -46,7 +46,7 @@ The published key descriptions are in contract §1. Outcomes O1 to O7 are in con
 
 **⚠️ CRITICAL**: No user-story task starts until T002 and T003 are done.
 
-- [ ] T002 Create `src/tools/_deprecated-params.ts`. It starts with the header line `// Original — no upstream. Shared deprecated-parameter-name mechanics for the family-name alignment (spec 073, research D1–D4, ADR-NNN): alias field builder, old+new conflict issue, notice collection and the deprecated_parameters result field.` and imports only `zod`. Export:
+- [X] T002 Create `src/tools/_deprecated-params.ts`. It starts with the header line `// Original — no upstream. Shared deprecated-parameter-name mechanics for the family-name alignment (spec 073, research D1–D4, ADR-NNN): alias field builder, old+new conflict issue, notice collection and the deprecated_parameters result field.` and imports only `zod`. Export:
   - `interface ParameterRename { old: string; replacement: string; inverted?: boolean }`.
   - `deprecatedParameterSchema = z.strictObject({ parameter: z.string().min(1), replacement: z.string().min(1), note: z.string().min(1).optional() })` and `type DeprecatedParameter = z.infer<…>`.
   - `deprecatedParametersField`: `z.array(deprecatedParameterSchema).min(1).optional()`, described `"Present only when the call used a deprecated parameter name: each old name, its replacement and any note. Old names are accepted until the next major release."`.
@@ -54,7 +54,7 @@ The published key descriptions are in contract §1. Outcomes O1 to O7 are in con
   - `appendAliasConflictIssue(ctx: z.RefinementCtx, input: Record<string, unknown>, rename: ParameterRename)`: when both `input[old]` and `input[replacement]` are `!== undefined`, add one custom issue with `path: [old]` and the message ``"`<old>` is deprecated and replaced by `<replacement>`; supply only `<replacement>`"``.
   - `collectDeprecatedParameters(input: Record<string, unknown>, renames: readonly ParameterRename[]): DeprecatedParameter[] | undefined`: one entry per rename whose `old` key is `!== undefined`, in table order. `note` is `"<old>: true equals <replacement>: false (opposite polarity)."` only when `inverted`. Returns `undefined` when there are none.
   - `withDeprecatedParameters<R extends object>(result: R, notices: DeprecatedParameter[] | undefined)`: returns `result` unchanged when `notices` is `undefined` or empty, otherwise `{ ...result, deprecated_parameters: notices }`.
-- [ ] T003 [P] Create `src/tools/_deprecated-params.test.ts` (header `// Original — no upstream.`) covering every export:
+- [X] T003 [P] Create `src/tools/_deprecated-params.test.ts` (header `// Original — no upstream.`) covering every export:
   - `deprecatedAlias` published JSON Schema (`["~standard"].jsonSchema.input({ target: "draft-2020-12" })`): the key carries `deprecated: true` and the exact description, in both the plain and the inverted form.
   - The conflict issue is raised when both keys are present (including equal values), and not when only one is.
   - `collectDeprecatedParameters`: order, the polarity note, `undefined` when none.
@@ -73,7 +73,7 @@ The published key descriptions are in contract §1. Outcomes O1 to O7 are in con
 
 ### `find_by_property`
 
-- [ ] T004 [US1] Rewrite `findByPropertyInputSchema` in `src/tools/find_by_property/schema.ts`:
+- [X] T004 [US1] Rewrite `findByPropertyInputSchema` in `src/tools/find_by_property/schema.ts`:
   - Define `FIND_BY_PROPERTY_RENAMES: readonly ParameterRename[]` (rows 1–3 of the rename table), exported for the tests.
   - Keys, in order: `vault`, `name` (`z.string().min(1).optional()`, contract description), `property` (`deprecatedAlias(z.string().min(1), …)`), `value` (unchanged, required), `folder` (unchanged), `array_match` (`z.boolean().optional()`, no `.default`, description as contract), `arrayMatch` (alias), `case_sensitive` (`z.boolean().optional()`, no `.default`, contract description), `caseSensitive` (alias).
   - In `superRefine`, in this order:
@@ -82,18 +82,18 @@ The published key descriptions are in contract §1. Outcomes O1 to O7 are in con
     3. compute `arrayMatch = v.array_match ?? v.arrayMatch ?? true` and keep the existing array check against it, with the message reworded to say `array_match` (`"value cannot be an array when array_match is true (default); pass a scalar for contains semantics, or set array_match: false for exact-equality."`).
   - Append `.transform((v) => ({ vault: v.vault, name: (v.name ?? v.property)!, value: v.value, folder: v.folder, array_match: v.array_match ?? v.arrayMatch ?? true, case_sensitive: v.case_sensitive ?? v.caseSensitive ?? true, deprecated_parameters: collectDeprecatedParameters(v, FIND_BY_PROPERTY_RENAMES) }))`. Omit keys whose value is `undefined` where the existing handler checks presence (`vault`, `folder`).
   - Update the header intent line to name the new keys, the aliases and spec 073.
-- [ ] T005 [US1] In `src/tools/find_by_property/handler.ts`, read `input.name`, `input.array_match` and `input.case_sensitive`. Keep the `composeEvalCode` payload keys `property`, `arrayMatch` and `caseSensitive` unchanged, because they are internal to the frozen `_template.ts` (research F1, F9). Do not touch `_template.ts`. Append "spec 073: reads the aligned names; payload keys unchanged" to the header.
-- [ ] T006 [P] [US1] Update `src/tools/find_by_property/schema.test.ts`:
+- [X] T005 [US1] In `src/tools/find_by_property/handler.ts`, read `input.name`, `input.array_match` and `input.case_sensitive`. Keep the `composeEvalCode` payload keys `property`, `arrayMatch` and `caseSensitive` unchanged, because they are internal to the frozen `_template.ts` (research F1, F9). Do not touch `_template.ts`. Append "spec 073: reads the aligned names; payload keys unchanged" to the header.
+- [X] T006 [P] [US1] Update `src/tools/find_by_property/schema.test.ts`:
   - Move every existing case to the new names.
   - Add a case that the defaults resolve to `array_match: true` and `case_sensitive: true`.
   - Add `{ value: "x" }` → an issue at `["name"]` with message `"name is required"`.
   - Add an array `value` with the default `array_match` → the reworded message.
   - Add that a folder traversal is still rejected.
-- [ ] T007 [P] [US1] Update `src/tools/find_by_property/handler.test.ts`. Move the inputs to the new names, and add one case that decodes the base64 `eval` payload from the recorded spawn argv. Assert that it holds the keys `property`, `arrayMatch` and `caseSensitive` with the input's values (byte-identical CLI call, research F9).
+- [X] T007 [P] [US1] Update `src/tools/find_by_property/handler.test.ts`. Move the inputs to the new names, and add one case that decodes the base64 `eval` payload from the recorded spawn argv. Assert that it holds the keys `property`, `arrayMatch` and `caseSensitive` with the input's values (byte-identical CLI call, research F9).
 
 ### `find_and_replace`
 
-- [ ] T008 [US1] Rewrite `findAndReplaceInputSchema` in `src/tools/find_and_replace/schema.ts`:
+- [X] T008 [US1] Rewrite `findAndReplaceInputSchema` in `src/tools/find_and_replace/schema.ts`:
   - Define and export `FIND_AND_REPLACE_RENAMES` (rows 4–5; `case_insensitive` has `inverted: true`).
   - Replace `case_insensitive` with `case_sensitive` (`z.boolean().optional()`, no `.default`, contract description) followed by its alias `case_insensitive` (`deprecatedAlias(z.boolean(), …)`).
   - Replace `subfolder` with `folder` (`z.string().optional()`, contract description) followed by its alias `subfolder` (`deprecatedAlias(z.string(), …)`).
@@ -106,13 +106,13 @@ The published key descriptions are in contract §1. Outcomes O1 to O7 are in con
     5. compute `hasSubfolder` from `folder`.
   - Append a `.transform()` that returns every existing key except the two old ones, plus `case_sensitive: caseSensitive` (recomputed), `folder` (only when defined) and `deprecated_parameters: collectDeprecatedParameters(v, FIND_AND_REPLACE_RENAMES)`.
   - Update the header intent line.
-- [ ] T009 [US1] In `src/tools/find_and_replace/handler.ts`:
+- [X] T009 [US1] In `src/tools/find_and_replace/handler.ts`:
   - change the `compileFindRegex` call to `compileFindRegex(input.pattern, input.mode, !input.case_sensitive)`; `replace.ts` is unchanged;
   - change `effectiveSubfolder` to read `input.folder`, with its doc comment saying `folder`;
   - in `resolveScope`, change the not-found message to `` `find_and_replace: folder "${subfolder}" does not exist in vault` ``, keeping the `details` (`code: "INVALID_SUBFOLDER"`, `reason: "not-found"`, `subfolder`, `vault`) byte-identical (research D6);
   - update the stage comments that say "subfolder" only where they name the parameter.
-- [ ] T010 [US1] In `src/tools/find_and_replace/index.ts` `mapZodIssuesToToolError`, change `path0 === "subfolder"` to `path0 === "folder"` and the message to `"folder is not structurally safe"`. The `details.code` and `reason` stay unchanged. The description is rewritten in T021.
-- [ ] T011 [P] [US1] Move the `find_and_replace` test inputs to `case_sensitive` and `folder` (a `case_insensitive: true` input becomes `case_sensitive: false`, and an omitted one stays omitted) in:
+- [X] T010 [US1] In `src/tools/find_and_replace/index.ts` `mapZodIssuesToToolError`, change `path0 === "subfolder"` to `path0 === "folder"` and the message to `"folder is not structurally safe"`. The `details.code` and `reason` stay unchanged. The description is rewritten in T021.
+- [X] T011 [P] [US1] Move the `find_and_replace` test inputs to `case_sensitive` and `folder` (a `case_insensitive: true` input becomes `case_sensitive: false`, and an omitted one stays omitted) in:
   - `src/tools/find_and_replace/schema.test.ts`
   - `src/tools/find_and_replace/handler.test.ts`
   - `src/tools/find_and_replace/scope.test.ts`
@@ -124,7 +124,7 @@ The published key descriptions are in contract §1. Outcomes O1 to O7 are in con
 
 ### `create_base`
 
-- [ ] T012 [US1] Rewrite `createBaseInputSchema` in `src/tools/create_base/schema.ts`:
+- [X] T012 [US1] Rewrite `createBaseInputSchema` in `src/tools/create_base/schema.ts`:
   - Define and export `CREATE_BASE_RENAMES` (rows 6–7).
   - Keys: `base_path: requiredString("base_path").optional().describe(…)`, so a wrong type still says `"base_path must be a string"`; `path` (`deprecatedAlias(requiredString("base_path"), …)`); `name` (unchanged); `content` (unchanged); `view_name` (`z.string().min(1).optional()`, contract description); `view` (alias); `vault` (unchanged).
   - In `superRefine`:
@@ -133,15 +133,15 @@ The published key descriptions are in contract §1. Outcomes O1 to O7 are in con
     3. keep the `name` and `content` checks unchanged.
   - Append a `.transform()` returning `base_path`, `name`, `content`, `view_name` (from `view_name ?? view`), `vault` and `deprecated_parameters`, leaving out the keys that are `undefined`.
   - Update the header (currently `// Original — no upstream.` only; append " create_base input/output schemas; spec 073 aligned names base_path / view_name with deprecated aliases path / view.").
-- [ ] T013 [US1] In `src/tools/create_base/handler.ts`, read `input.base_path` and `input.view_name`. The CLI parameter keys stay `path` and `view`, and the `BASE_NOT_FOUND` details keep the key `path` (contract §4). Update the `CREATE_BASE_SUPPORTED` doc comment that says "(`path`)" to "(`base_path`)".
-- [ ] T014 [P] [US1] Update `src/tools/create_base/schema.test.ts` and `src/tools/create_base/handler.test.ts`:
+- [X] T013 [US1] In `src/tools/create_base/handler.ts`, read `input.base_path` and `input.view_name`. The CLI parameter keys stay `path` and `view`, and the `BASE_NOT_FOUND` details keep the key `path` (contract §4). Update the `CREATE_BASE_SUPPORTED` doc comment that says "(`path`)" to "(`base_path`)".
+- [X] T014 [P] [US1] Update `src/tools/create_base/schema.test.ts` and `src/tools/create_base/handler.test.ts`:
   - **Schema**: new names; `"base_path is required"` / `"base_path must be a string"`; INVALID_BASE_PATH issues carry `path: ["base_path"]` and `params.field: "base_path"`.
   - **Handler**: the recorded argv still contains `path=<…>.base` and `view=<…>` (byte-identical CLI call).
-- [ ] T015 [P] [US1] Update the comments that name create_base's field `path` in `src/tools/_base-path.ts` (header and the `field` doc), `src/tools/_base-path.test.ts` (line 3) and `src/tools/_required-string.ts` (header) to say `base_path`. No code change.
+- [X] T015 [P] [US1] Update the comments that name create_base's field `path` in `src/tools/_base-path.ts` (header and the `field` doc), `src/tools/_base-path.test.ts` (line 3) and `src/tools/_required-string.ts` (header) to say `base_path`. No code change.
 
 ### Cross-tool
 
-- [ ] T016 [US1] In `src/tools/_register.test.ts`:
+- [X] T016 [US1] In `src/tools/_register.test.ts`:
   - set the expected entries to these full key sets:
     - `find_by_property`: `properties_equals_set` = `["vault", "name", "property", "value", "folder", "array_match", "arrayMatch", "case_sensitive", "caseSensitive"]`, `required_equals` = `["value"]`;
     - `find_and_replace`: `properties_equals_set` = `["active_note", "case_insensitive", "case_sensitive", "commit", "file", "folder", "include_code_blocks", "include_html_comments", "mode", "path", "pattern", "replacement", "subfolder", "vault"]`, `required_equals` = `["pattern", "replacement"]` (unchanged);
@@ -151,7 +151,7 @@ The published key descriptions are in contract §1. Outcomes O1 to O7 are in con
     - `search`, `context_search`, `pattern_search`, `find_by_property` and `find_and_replace` all list `case_sensitive` and `folder`;
     - `views_base`, `query_base` and `create_base` list `base_path`;
     - `query_base` and `create_base` list `view_name` (SC-001).
-- [ ] T017 [US1] In `src/tools/_register.test.ts`, add one "FR-008 shared wording" test over the published descriptors. For each concept, assert that the renamed key's description starts with the shared opening from contract §1 ("FR-008 shared wording"), and that the sibling it was copied from still carries that wording:
+- [X] T017 [US1] In `src/tools/_register.test.ts`, add one "FR-008 shared wording" test over the published descriptors. For each concept, assert that the renamed key's description starts with the shared opening from contract §1 ("FR-008 shared wording"), and that the sibling it was copied from still carries that wording:
   - `find_by_property.name` starts with `Frontmatter property name to match, matched exactly (e.g. "status").`, and `read_property.name` contains `matched exactly (e.g. "status").`;
   - `find_by_property.case_sensitive` and `find_and_replace.case_sensitive` start with `Match case exactly when true.`, as do the `search`, `context_search` and `pattern_search` `case_sensitive` descriptions;
   - `find_and_replace.folder` starts with the exact `context_search.folder` description;
@@ -159,7 +159,7 @@ The published key descriptions are in contract §1. Outcomes O1 to O7 are in con
   - `create_base.view_name` and `query_base.view_name` both start with `Exact, case-sensitive name of the view to`.
 
   This is the FR-008 check that the analysis found missing (C1). It needs the descriptions from T004, T008 and T012.
-- [ ] T018 [US1] In `src/tools/_typed-result-fixtures.ts`, change the `create_base` fixture args to `{ base_path: "Tasks.base", name: "New item" }` and the `find_by_property` args to `{ vault: "Demo", name: "id", value: "BI-030" }`. These are consumed by the `_surface.test.ts` typed-result round trip.
+- [X] T018 [US1] In `src/tools/_typed-result-fixtures.ts`, change the `create_base` fixture args to `{ base_path: "Tasks.base", name: "New item" }` and the `find_by_property` args to `{ vault: "Demo", name: "id", value: "BI-030" }`. These are consumed by the `_surface.test.ts` typed-result round trip.
 
 **Checkpoint**: `npm run typecheck` and `npm test` are green except the baseline test (fingerprints move; T025 regenerates them). Every new-name call returns today's result.
 
@@ -171,37 +171,37 @@ The published key descriptions are in contract §1. Outcomes O1 to O7 are in con
 
 **Independent Test**: For each tool, old-name calls match the new-name results and carry the notice in both the text and `structuredContent`. Conflicts are rejected before any spawn or read (quickstart §3, User Story 2).
 
-- [ ] T019 [US2] Declare the result field (research D4, contract §3): add `deprecated_parameters: deprecatedParametersField` to `findByPropertyOutputSchema` (`src/tools/find_by_property/schema.ts`), to both `previewBranchSchema` and `commitBranchSchema` (`src/tools/find_and_replace/schema.ts`), and to `createBaseOutputSchema` (`src/tools/create_base/schema.ts`). Leave the existing internal `.parse`/`.safeParse` uses in the handlers as they are (the field is absent there, research F5).
-- [ ] T020 [US2] Attach the notice in each registration wrapper:
+- [X] T019 [US2] Declare the result field (research D4, contract §3): add `deprecated_parameters: deprecatedParametersField` to `findByPropertyOutputSchema` (`src/tools/find_by_property/schema.ts`), to both `previewBranchSchema` and `commitBranchSchema` (`src/tools/find_and_replace/schema.ts`), and to `createBaseOutputSchema` (`src/tools/create_base/schema.ts`). Leave the existing internal `.parse`/`.safeParse` uses in the handlers as they are (the field is absent there, research F5).
+- [X] T020 [US2] Attach the notice in each registration wrapper:
   - `src/tools/find_by_property/index.ts`: `handler: async (input, d) => withDeprecatedParameters(await executeFindByProperty(input, d), input.deprecated_parameters)`.
   - `src/tools/find_and_replace/index.ts`: replace `handler: executeFindAndReplace` with `async (input, d, call) => withDeprecatedParameters(await executeFindAndReplace(input, d, call), input.deprecated_parameters)`.
   - `src/tools/create_base/index.ts`: `async (input, d) => withDeprecatedParameters(await executeCreateBase(input, d), input.deprecated_parameters)`.
 
   `registerTool` is not edited.
-- [ ] T021 [US2] Rewrite the three tool descriptions (`FIND_BY_PROPERTY_DESCRIPTION`, `FIND_AND_REPLACE_DESCRIPTION`, `CREATE_BASE_DESCRIPTION`) in their `index.ts` files to the new names everywhere (FR-018).
+- [X] T021 [US2] Rewrite the three tool descriptions (`FIND_BY_PROPERTY_DESCRIPTION`, `FIND_AND_REPLACE_DESCRIPTION`, `CREATE_BASE_DESCRIPTION`) in their `index.ts` files to the new names everywhere (FR-018).
   - `find_by_property`: remove the "**NOTE — the property-name parameter is `property:`…**" paragraph, and change the inputs line to `{ vault?, name, value, folder?, array_match?, case_sensitive? }`.
   - `create_base`: change the response sentence to note that `path` in the *response* is the created item's path.
   - All three: end with one sentence: ``Deprecated names (accepted until the next major release; a call that uses one gets `deprecated_parameters` in its result): `<old>` → `<new>`, ….`` For `find_and_replace`, add "(opposite value)" after `case_insensitive` → `case_sensitive`.
   - Keep every other sentence unchanged.
-- [ ] T022 [P] [US2] Add old-name schema cases to `src/tools/find_by_property/schema.test.ts`, `src/tools/find_and_replace/schema.test.ts` and `src/tools/create_base/schema.test.ts`, per contract §2:
+- [X] T022 [P] [US2] Add old-name schema cases to `src/tools/find_by_property/schema.test.ts`, `src/tools/find_and_replace/schema.test.ts` and `src/tools/create_base/schema.test.ts`, per contract §2:
   - **O2**: each old name parses to the same normalised object as its new-name twin, plus the expected `deprecated_parameters`.
   - **O3**: `case_insensitive` `true` / `false` → `case_sensitive` `false` / `true`, with the note.
   - **O4**: each old+new pair, including equal values, gives one issue at `[old]` whose message names both.
   - **O6**: an old name with an invalid value gives an issue at the new path with the new name (for example `subfolder: "../x"` → `["folder"]`; `path: "x.md"` → INVALID_BASE_PATH `wrong-extension`, `field: "base_path"`).
   - **Published JSON Schema**: old keys have `deprecated: true` and the contract description; `required` matches contract §1; and `array_match`, `case_sensitive` (both tools) carry no `default`.
-- [ ] T023 [P] [US2] Add registration-level cases to `src/tools/find_by_property/index.test.ts`, `src/tools/find_and_replace/index.test.ts` and `src/tools/create_base/index.test.ts`. Call the registered `handler` with stubbed deps and assert:
+- [X] T023 [P] [US2] Add registration-level cases to `src/tools/find_by_property/index.test.ts`, `src/tools/find_and_replace/index.test.ts` and `src/tools/create_base/index.test.ts`. Call the registered `handler` with stubbed deps and assert:
   - **O1**: a new-name call's `structuredContent` has no `deprecated_parameters`.
   - **O2**: an old-name call returns `structuredContent.deprecated_parameters` as expected, and `JSON.parse(content[0].text)` equals `structuredContent`.
   - **O4**: a conflict returns `isError: true` / `VALIDATION_ERROR`, and the spawn (or, for `find_and_replace`, the in-memory filesystem) recorded zero calls.
   - **O7**: `find_and_replace` `subfolder` + `path` returns `SCOPE_CONFLICT` / `note+folder`.
   - **Descriptions**: the new description text, including the deprecated-names sentence, and the absence of the old `property:` NOTE paragraph.
-- [ ] T024 [US2] Add three old-name fixtures to `src/tools/_typed-result-fixtures.ts`, so that the `_surface.test.ts` round trip checks the notice against the published output schema through a real client:
+- [X] T024 [US2] Add three old-name fixtures to `src/tools/_typed-result-fixtures.ts`, so that the `_surface.test.ts` round trip checks the notice against the published output schema through a real client:
   - `create_base` with `{ path: "Tasks.base", name: "New item", view: "All" }`;
   - `find_by_property` with `{ vault: "Demo", property: "id", value: "BI-030" }`;
   - `find_and_replace` with `{ vault: "V", pattern: "alpha", replacement: "gamma", case_insensitive: true, subfolder: "Notes" }`.
 
   Depends on T019.
-- [ ] T025 [US2] Run `npm run baseline:write`, then `git diff src/tools/_register-baseline.json`. Confirm that only `find_by_property`, `find_and_replace` and `create_base` changed, and in each only `descriptionFingerprint`, `schemaFingerprint` and `outputSchemaFingerprint` (contract §5). If any other entry moved, stop and find the cause before continuing.
+- [X] T025 [US2] Run `npm run baseline:write`, then `git diff src/tools/_register-baseline.json`. Confirm that only `find_by_property`, `find_and_replace` and `create_base` changed, and in each only `descriptionFingerprint`, `schemaFingerprint` and `outputSchemaFingerprint` (contract §5). If any other entry moved, stop and find the cause before continuing.
 
 **Checkpoint**: full `npm test` green; old-name calls work with the notice.
 
@@ -213,7 +213,7 @@ The published key descriptions are in contract §1. Outcomes O1 to O7 are in con
 
 **Independent Test**: The mirror page lists everything in data-model "Convention record": 7 renames and 6 exceptions with reasons (quickstart §3, User Story 3).
 
-- [ ] T026 [US3] Write the verbatim repository mirror `.docs-as-code/decisions/ADR-NNN-shared-parameter-names-within-a-tool-family.md`. Keep the literal placeholder `ADR-NNN` in the file name and title: the number is not allocated, and the vault and repository numbering have drifted.
+- [X] T026 [US3] Write the verbatim repository mirror `.docs-as-code/decisions/ADR-NNN-shared-parameter-names-within-a-tool-family.md`. Keep the literal placeholder `ADR-NNN` in the file name and title: the number is not allocated, and the vault and repository numbering have drifted.
   - **Layout**: follow `.docs-as-code/decisions/ADR-045-closed-vaults-recovered-only-by-the-dispatch-retry.md` (title, Status/Date/Source/Related bullets, Context, Decision, Consequences).
   - **Status**: `Accepted — number not yet allocated; the canonical vault copy (200-Decisions/) is pending sync, after which this mirror is kept byte-equal to it`.
   - **Source**: spec `specs/073-align-parameter-names/`, BI-0109, clarify Q2.
@@ -227,7 +227,7 @@ The published key descriptions are in contract §1. Outcomes O1 to O7 are in con
     - the rule for new tools.
   - **No Constitution Compliance row.**
   - **Do not write**: `.decisions/`, the Decision Log or the vault. The owner allocates the number and writes the canonical vault copy at sync (FR-016; ADR-010 Implementation).
-- [ ] T027 [US3] Record the pending sync in `specs/073-align-parameter-names/research.md`, under a new "Pending vault sync" heading. List every place that carries the `ADR-NNN` placeholder, so that the owner can replace it in one pass after allocating the number:
+- [X] T027 [US3] Record the pending sync in `specs/073-align-parameter-names/research.md`, under a new "Pending vault sync" heading. List every place that carries the `ADR-NNN` placeholder, so that the owner can replace it in one pass after allocating the number:
   - the mirror's file name and title (T026);
   - the header line of `src/tools/_deprecated-params.ts` (T002);
   - any `CHANGELOG.md` or `docs/tools/*.md` text that cites it (T028–T032).
@@ -240,16 +240,16 @@ The published key descriptions are in contract §1. Outcomes O1 to O7 are in con
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T028 [P] Update `docs/tools/find_by_property.md` to the new names: the parameter table, examples and the property-name divergence note, which is removed. Add a "Deprecated names" table (old → new, accepted until the next major release, the `deprecated_parameters` result field).
-- [ ] T029 [P] Update `docs/tools/find_and_replace.md` the same way, including the `case_insensitive` → `case_sensitive` polarity row, and `folder` in the scope section and the recovery hints ("narrow the scope with `folder`").
-- [ ] T030 [P] Update `docs/tools/create_base.md` (`base_path`, `view_name`, the deprecated table, and a note that the response's `path` is the created item) and the `create_base` line in `docs/tools/index.md` (`view` → `view_name`).
-- [ ] T031 [P] In `README.md` line 180, change "A commit limited to a `subfolder` still asks." to "A commit limited to a `folder` still asks."
-- [ ] T032 [P] Add to `CHANGELOG.md` `[Unreleased]` a "Spec 073-align-parameter-names (BI-0109)." line, then:
+- [X] T028 [P] Update `docs/tools/find_by_property.md` to the new names: the parameter table, examples and the property-name divergence note, which is removed. Add a "Deprecated names" table (old → new, accepted until the next major release, the `deprecated_parameters` result field).
+- [X] T029 [P] Update `docs/tools/find_and_replace.md` the same way, including the `case_insensitive` → `case_sensitive` polarity row, and `folder` in the scope section and the recovery hints ("narrow the scope with `folder`").
+- [X] T030 [P] Update `docs/tools/create_base.md` (`base_path`, `view_name`, the deprecated table, and a note that the response's `path` is the created item) and the `create_base` line in `docs/tools/index.md` (`view` → `view_name`).
+- [X] T031 [P] In `README.md` line 180, change "A commit limited to a `subfolder` still asks." to "A commit limited to a `folder` still asks."
+- [X] T032 [P] Add to `CHANGELOG.md` `[Unreleased]` a "Spec 073-align-parameter-names (BI-0109)." line, then:
   - a `Changed` entry listing the seven renames by tool;
   - a `Deprecated` entry: old names accepted with a `deprecated_parameters` notice until the next major release, and old+new in one call rejected.
-- [ ] T033 Run `npm run typecheck`, `npm run lint`, `npm run build` and `npm test`, and work through quickstart §1–§3. Record the results in `specs/073-align-parameter-names/research.md` under "Implement log".
-- [ ] T034 Post-implement structural verification: run `codegraph sync`, then `codegraph_explore` on `_deprecated-params.ts` exports, `executeFindByProperty`, `executeFindAndReplace` and `executeCreateBase`. Check the five points in plan "Post-implement structural verification" and record the outcome in `research.md` "Implement log".
-- [ ] T035 Optional: the live check in quickstart §4. Read `.memory/test-execution-instructions.md` first and follow it, including cleanup. Record the outcome or "skipped" in `research.md` "Implement log".
+- [X] T033 Run `npm run typecheck`, `npm run lint`, `npm run build` and `npm test`, and work through quickstart §1–§3. Record the results in `specs/073-align-parameter-names/research.md` under "Implement log".
+- [X] T034 Post-implement structural verification: run `codegraph sync`, then `codegraph_explore` on `_deprecated-params.ts` exports, `executeFindByProperty`, `executeFindAndReplace` and `executeCreateBase`. Check the five points in plan "Post-implement structural verification" and record the outcome in `research.md` "Implement log".
+- [X] T035 Optional: the live check in quickstart §4. Read `.memory/test-execution-instructions.md` first and follow it, including cleanup. Record the outcome or "skipped" in `research.md` "Implement log".
 
 ---
 

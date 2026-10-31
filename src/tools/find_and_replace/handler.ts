@@ -287,7 +287,7 @@ async function scanNotes(
   fs: ExecuteFs,
   vaultLabel: string | null,
 ): Promise<ScanResult> {
-  const regex = compileFindRegex(input.pattern, input.mode, input.case_insensitive);
+  const regex = compileFindRegex(input.pattern, input.mode, !input.case_sensitive);
   const perNote = new Map<string, FindAndReplaceOccurrence[]>();
   const rewrittenContent = new Map<string, string>();
   let total = 0;
@@ -510,9 +510,9 @@ function isSingleNoteScope(input: FindAndReplaceInput): boolean {
   return input.active_note === true || input.file !== undefined || input.path !== undefined;
 }
 
-/** The subfolder the scan is limited to, or null for the whole vault (an empty `subfolder` counts as absent). */
+/** The folder the scan is limited to, or null for the whole vault (an empty `folder` counts as absent). */
 function effectiveSubfolder(input: FindAndReplaceInput): string | null {
-  return input.subfolder !== undefined && input.subfolder.length > 0 ? input.subfolder : null;
+  return input.folder !== undefined && input.folder.length > 0 ? input.folder : null;
 }
 
 /**
@@ -555,7 +555,7 @@ async function resolveScope(
             subfolder,
             vault: vaultLabel,
           },
-          message: `find_and_replace: subfolder "${subfolder}" does not exist in vault`,
+          message: `find_and_replace: folder "${subfolder}" does not exist in vault`,
         }),
     );
     scanRoot = subResolved;

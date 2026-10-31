@@ -43,7 +43,7 @@ describe("066-file-scope US1 — named single-note scope by path", () => {
     ];
     const { fs, state } = inMemoryFs(files, VAULT_ROOT);
     const result = await executeFindAndReplace(
-      { pattern: "STATUS", replacement: "STATE", mode: "literal", vault: "V", path: "Projects/Target.md", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
+      { pattern: "STATUS", replacement: "STATE", mode: "literal", vault: "V", path: "Projects/Target.md", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
       baseDeps({ fs }),
     );
     expect(result.mode).toBe("preview");
@@ -71,7 +71,7 @@ describe("066-file-scope US1 — named single-note scope by path", () => {
     ];
     const { fs, state } = inMemoryFs(files, VAULT_ROOT);
     const result = await executeFindAndReplace(
-      { pattern: "STATUS", replacement: "STATE", mode: "literal", vault: "V", path: "Projects/Target.md", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true, active_note: false },
+      { pattern: "STATUS", replacement: "STATE", mode: "literal", vault: "V", path: "Projects/Target.md", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: true, active_note: false },
       baseDeps({ fs }),
     );
     expect(result.mode).toBe("commit");
@@ -96,7 +96,7 @@ describe("066-file-scope US1 — named single-note scope by path", () => {
     const files: MemFile[] = [{ abs: resolve(OTHER, "Projects", "Target.md"), content: "STATUS x" }];
     const { fs, state } = inMemoryFs(files, OTHER);
     const result = await executeFindAndReplace(
-      { pattern: "STATUS", replacement: "STATE", mode: "literal", vault: "Work", path: "Projects/Target.md", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
+      { pattern: "STATUS", replacement: "STATE", mode: "literal", vault: "Work", path: "Projects/Target.md", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
       baseDeps({ fs, vaultRegistry: fakeRegistry({ Work: OTHER }) }),
     );
     expect(result.mode).toBe("preview");
@@ -110,7 +110,7 @@ describe("066-file-scope US1 — named single-note scope by path", () => {
     const files: MemFile[] = [{ abs: relToAbs("Projects/Target.md"), content: "nothing matches" }];
     const { fs } = inMemoryFs(files, VAULT_ROOT);
     const result = await executeFindAndReplace(
-      { pattern: "ZZZ-absent", replacement: "y", mode: "literal", vault: "V", path: "Projects/Target.md", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
+      { pattern: "ZZZ-absent", replacement: "y", mode: "literal", vault: "V", path: "Projects/Target.md", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
       baseDeps({ fs }),
     );
     expect(result).toEqual({ mode: "preview", affected_notes: [], total_occurrences: 0 });
@@ -119,7 +119,7 @@ describe("066-file-scope US1 — named single-note scope by path", () => {
   it("ineligible named target (non-.md) → INVALID_NOTE/not-eligible", async () => {
     const { fs, state } = inMemoryFs([], VAULT_ROOT);
     const err = await executeFindAndReplace(
-      { pattern: "x", replacement: "y", mode: "literal", vault: "V", path: "Board.canvas", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
+      { pattern: "x", replacement: "y", mode: "literal", vault: "V", path: "Board.canvas", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
       baseDeps({ fs }),
     ).catch((e) => e);
     expect(err).toBeInstanceOf(UpstreamError);
@@ -133,7 +133,7 @@ describe("066-file-scope US1 — named single-note scope by path", () => {
   it("ineligible named target (dot-dir segment) → INVALID_NOTE/not-eligible", async () => {
     const { fs } = inMemoryFs([], VAULT_ROOT);
     const err = await executeFindAndReplace(
-      { pattern: "x", replacement: "y", mode: "literal", vault: "V", path: ".obsidian/config.md", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
+      { pattern: "x", replacement: "y", mode: "literal", vault: "V", path: ".obsidian/config.md", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
       baseDeps({ fs }),
     ).catch((e) => e);
     expect((err as UpstreamError).details.code).toBe("INVALID_NOTE");
@@ -153,7 +153,7 @@ describe("066-file-scope US1 — named single-note scope by path", () => {
       },
     });
     const err = await executeFindAndReplace(
-      { pattern: "x", replacement: "y", mode: "literal", vault: "V", path: "Projects/Ghost.md", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
+      { pattern: "x", replacement: "y", mode: "literal", vault: "V", path: "Projects/Ghost.md", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
       baseDeps({ fs }),
     ).catch((e) => e);
     expect((err as UpstreamError).code).toBe("VALIDATION_ERROR");
@@ -169,7 +169,7 @@ describe("066-file-scope US1 — named single-note scope by path", () => {
     const { fs, state } = inMemoryFs(files, VAULT_ROOT);
     const { spawnFn, getCount } = makeQueuedSpawn([FILE_TSV_OK("Projects/Target.md")]);
     const result = await executeFindAndReplace(
-      { pattern: "STATUS", replacement: "STATE", mode: "literal", vault: "V", file: "Target", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
+      { pattern: "STATUS", replacement: "STATE", mode: "literal", vault: "V", file: "Target", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
       baseDeps({ fs, spawnFn }),
     );
     expect(getCount()).toBe(1); // exactly one `obsidian file` spawn
@@ -188,7 +188,7 @@ describe("066-file-scope US1 — named single-note scope by path", () => {
     // second `file` spawn and fail the count below.
     const { spawnFn, recorded } = makeQueuedSpawn([FILE_TSV_OK("Projects/Target.md"), { stdout: "=> ok\n", exitCode: 0 }]);
     const result = await executeFindAndReplace(
-      { pattern: "STATUS", replacement: "STATE", mode: "literal", vault: "V", file: "Target", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true, active_note: false },
+      { pattern: "STATUS", replacement: "STATE", mode: "literal", vault: "V", file: "Target", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: true, active_note: false },
       baseDeps({ fs, spawnFn }),
     );
     expect(result.mode).toBe("commit");
@@ -230,7 +230,7 @@ describe("066-file-scope US1 — named single-note scope by path", () => {
     const invokeEval = vi.fn(async (): Promise<FocusedVaultResponse> => ({ path: null, base: RAW }));
     const { spawnFn, recorded } = makeQueuedSpawn([FILE_TSV_OK("Projects/Target.md")]);
     const result = await executeFindAndReplace(
-      { pattern: "STATUS", replacement: "STATE", mode: "literal", file: "Target", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
+      { pattern: "STATUS", replacement: "STATE", mode: "literal", file: "Target", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
       baseDeps({ fs, vaultRegistry: registry, invokeEval, spawnFn }),
     );
     expect(result.mode).toBe("preview");
@@ -249,7 +249,7 @@ describe("066-file-scope US1 — named single-note scope by path", () => {
       realpathOverride: linkRealpath({ [subdirAbs]: resolve("/elsewhere") }),
     });
     const err = await executeFindAndReplace(
-      { pattern: "x", replacement: "y", mode: "literal", vault: "V", path: "subdir/evil.md", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
+      { pattern: "x", replacement: "y", mode: "literal", vault: "V", path: "subdir/evil.md", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
       baseDeps({ fs, logger: captureLogger(events) }),
     ).catch((e) => e);
     expect((err as UpstreamError).code).toBe("PATH_ESCAPES_VAULT");
@@ -271,7 +271,7 @@ describe("066-file-scope US2 — active_note scope", () => {
     const { fs, state } = inMemoryFs(files, VAULT_ROOT);
     const { spawnFn } = makeQueuedSpawn([ACTIVE_EVAL("Projects/Target.md")]);
     const result = await executeFindAndReplace(
-      { pattern: "STATUS", replacement: "STATE", mode: "literal", active_note: true, case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      { pattern: "STATUS", replacement: "STATE", mode: "literal", active_note: true, case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: false },
       baseDeps({ fs, spawnFn }),
     );
     expect(result.mode).toBe("preview");
@@ -294,7 +294,7 @@ describe("066-file-scope US2 — active_note scope", () => {
     const { fs, state } = inMemoryFs(files, VAULT_ROOT);
     const { spawnFn } = makeQueuedSpawn([ACTIVE_EVAL("Projects/Target.md")]);
     const result = await executeFindAndReplace(
-      { pattern: "STATUS", replacement: "STATE", mode: "literal", active_note: true, case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true },
+      { pattern: "STATUS", replacement: "STATE", mode: "literal", active_note: true, case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: true },
       baseDeps({ fs, spawnFn }),
     );
     expect(result.mode).toBe("commit");
@@ -310,7 +310,7 @@ describe("066-file-scope US2 — active_note scope", () => {
     const { fs, state } = inMemoryFs(files, VAULT_ROOT);
     const { spawnFn } = makeQueuedSpawn([ACTIVE_EVAL(null)]);
     const err = await executeFindAndReplace(
-      { pattern: "STATUS", replacement: "STATE", mode: "literal", active_note: true, case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      { pattern: "STATUS", replacement: "STATE", mode: "literal", active_note: true, case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: false },
       baseDeps({ fs, spawnFn }),
     ).catch((e) => e);
     expect(err).toBeInstanceOf(UpstreamError);
@@ -327,7 +327,7 @@ describe("066-file-scope US2 — active_note scope", () => {
     const { fs, state } = inMemoryFs([], VAULT_ROOT);
     const { spawnFn } = makeQueuedSpawn([ACTIVE_EVAL("Board.canvas")]);
     const err = await executeFindAndReplace(
-      { pattern: "x", replacement: "y", mode: "literal", active_note: true, case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false },
+      { pattern: "x", replacement: "y", mode: "literal", active_note: true, case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: false },
       baseDeps({ fs, spawnFn }),
     ).catch((e) => e);
     expect((err as UpstreamError).code).toBe("VALIDATION_ERROR");
@@ -352,7 +352,7 @@ describe("066-file-scope US3 — rejections read/change nothing (via wrapped too
       pattern: "x",
       replacement: "y",
       path: "A.md",
-      subfolder: "Drafts",
+      folder: "Drafts",
       vault: "V",
     });
     expect("isError" in result && result.isError).toBe(true);
@@ -377,7 +377,7 @@ describe("066-file-scope Polish — unscoped vault-wide is byte-identical to pre
     ];
     const { fs } = inMemoryFs(files, VAULT_ROOT);
     const result = await executeFindAndReplace(
-      { pattern: "pat", replacement: "x", mode: "literal", vault: "V", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false , active_note: false },
+      { pattern: "pat", replacement: "x", mode: "literal", vault: "V", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: false , active_note: false },
       baseDeps({ fs }),
     );
     expect(result.mode).toBe("preview");
@@ -393,7 +393,7 @@ describe("066-file-scope Polish — guards still fire under a single-note scope 
     const files: MemFile[] = [{ abs: relToAbs("Projects/Target.md"), content: "pat ".repeat(15) }];
     const { fs, state } = inMemoryFs(files, VAULT_ROOT);
     const err = await executeFindAndReplace(
-      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", path: "Projects/Target.md", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
+      { pattern: "pat", replacement: "_", mode: "literal", vault: "V", path: "Projects/Target.md", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
       baseDeps({ fs, env: { OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES: "10" } }),
     ).catch((e) => e);
     expect((err as UpstreamError).code).toBe("VALIDATION_ERROR");
@@ -409,7 +409,7 @@ describe("066-file-scope Polish — guards still fire under a single-note scope 
       return reads === 1 ? "pat pat pat" : "pat pat pat pat"; // edited between scans
     });
     const err = await executeFindAndReplace(
-      { pattern: "pat", replacement: "rep", mode: "literal", vault: "V", path: "Projects/Target.md", case_insensitive: false, include_code_blocks: false, include_html_comments: false, commit: true, active_note: false },
+      { pattern: "pat", replacement: "rep", mode: "literal", vault: "V", path: "Projects/Target.md", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: true, active_note: false },
       baseDeps({ fs }),
     ).catch((e) => e);
     expect((err as UpstreamError).code).toBe("VALIDATION_ERROR");

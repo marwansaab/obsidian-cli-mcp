@@ -2,7 +2,7 @@
 
 Create a new item (Markdown note) within an Obsidian Bases (`.base`) file. Member of the Bases-family cohort (siblings: `bases`, `query_base`, `views_base`).
 
-**Supported file types:** bases only (`path`). A `path` that does not end in `.base` is rejected as before, with `VALIDATION_ERROR` + `INVALID_BASE_PATH` (`wrong-extension`). The created item is a note.
+**Supported file types:** bases only (`base_path`). A `base_path` that does not end in `.base` is rejected as before, with `VALIDATION_ERROR` + `INVALID_BASE_PATH` (`wrong-extension`). The created item is a note.
 
 ## When to use this tool
 
@@ -17,11 +17,25 @@ Create a new item (Markdown note) within an Obsidian Bases (`.base`) file. Membe
 
 | Field     | Type   | Required | Notes |
 |-----------|--------|----------|-------|
-| `path`    | string | yes      | Vault-relative path to the `.base` file. Must end with `.base` (case-insensitive). Length cap 1000 UTF-16 code units. Path-traversal shapes rejected. |
+| `base_path` | string | yes (or the deprecated `path`) | Vault-relative path to the `.base` file. Must end with `.base` (case-insensitive). Length cap 1000 UTF-16 code units. Path-traversal shapes rejected. Not in the published `required` list during the transition, so that calls using `path` validate; a call with neither fails with `base_path is required`. |
 | `name`    | string | yes      | Name for the new item (becomes the Markdown filename). Length cap 1000 UTF-16 code units. |
 | `content` | string | no       | Body text for the new item. Max 3072 UTF-16 code units — over-limit fails fast with `CONTENT_TOO_LARGE` before invoking the CLI. |
-| `view`    | string | no       | View name within the base. Not validated by the CLI — nonexistent view names are silently accepted. |
+| `view_name` | string | no     | Exact, case-sensitive name of the view to create the item in (as listed by `views_base`). Not validated by the CLI — nonexistent view names are silently accepted. |
 | `vault`   | string | no       | Vault display name. **Note**: silently ignored by the current CLI. Accepted for forward compatibility. |
+
+### Deprecated names
+
+Spec 073 aligned this tool's parameter names with `query_base` and `views_base`. The old names are accepted until the next major release:
+
+| Old name | New name |
+|---|---|
+| `path` | `base_path` |
+| `view` | `view_name` |
+
+- A call that uses an old name gets the same result as the new name, plus a `deprecated_parameters` field (see *Output*).
+- A call that sends an old name together with its new name (even with the same value) fails with `VALIDATION_ERROR`, before the CLI is invoked. The issue sits at the old name's path and names both.
+- Validation reports the new name whichever key was used: an `INVALID_BASE_PATH` issue carries `path: ["base_path"]` and `params.field: "base_path"`.
+- The old keys stay in the published input schema, marked `deprecated: true`.
 
 ## Output
 
@@ -32,8 +46,9 @@ Create a new item (Markdown note) within an Obsidian Bases (`.base`) file. Membe
 }
 ```
 
-- `path` — vault-relative path of the created item (wrapper-constructed from the base file's directory + the CLI-returned filename).
+- `path` — vault-relative path of the created item (wrapper-constructed from the base file's directory + the CLI-returned filename). This is the created note, not the `.base` file, which the input names `base_path`.
 - `name` — actual filename of the created item. May differ from the requested name due to auto-increment on collision.
+- `deprecated_parameters` — present only when the call used a deprecated name, e.g. `[{ "parameter": "path", "replacement": "base_path" }]`. Absent otherwise.
 
 ## Name collision auto-increment
 
@@ -56,7 +71,7 @@ The `vault` parameter is silently ignored by the underlying CLI for the `base:cr
 | `VALIDATION_ERROR`   | `INVALID_BASE_PATH`  | Empty / over-cap / wrong-extension / path-traversal | Inspect `details.reason`; supply a valid vault-relative `.base` path. |
 | `VALIDATION_ERROR`   | `INVALID_NAME`       | Empty / over-cap | Supply a non-empty name within the length cap. |
 | `VALIDATION_ERROR`   | `CONTENT_TOO_LARGE`  | Content exceeds 3072 UTF-16 code units | Reduce content size; use `write_note` for larger content. |
-| `CLI_REPORTED_ERROR` | `BASE_NOT_FOUND`     | Specified `.base` file does not exist | Verify the path; use `bases` to enumerate `.base` files in the vault. |
+| `CLI_REPORTED_ERROR` | `BASE_NOT_FOUND`     | Specified `.base` file does not exist (`details.path` carries the `base_path` value) | Verify the `base_path`; use `bases` to enumerate `.base` files in the vault. |
 | `UPSTREAM_TIMEOUT`   | —                    | Subprocess exceeded 10 s | Retry. |
 
 ## Worked examples
@@ -67,7 +82,7 @@ The `vault` parameter is silently ignored by the underlying CLI for the `base:cr
 {
   "name": "create_base",
   "arguments": {
-    "path": "220-Planning/Backlog (Base).base",
+    "base_path": "220-Planning/Backlog (Base).base",
     "name": "New feature request",
     "content": "## Description\nAgent-discovered feature gap."
   }
@@ -89,7 +104,7 @@ Response:
 {
   "name": "create_base",
   "arguments": {
-    "path": "220-Planning/Backlog (Base).base",
+    "base_path": "220-Planning/Backlog (Base).base",
     "name": "New feature request"
   }
 }
@@ -110,7 +125,7 @@ When `New feature request.md` already exists:
 {
   "name": "create_base",
   "arguments": {
-    "path": "nonexistent.base",
+    "base_path": "nonexistent.base",
     "name": "Test"
   }
 }
@@ -124,7 +139,7 @@ Returns `CLI_REPORTED_ERROR` with `details.code: "BASE_NOT_FOUND"`. Use `bases` 
 {
   "name": "create_base",
   "arguments": {
-    "path": "Tasks.base",
+    "base_path": "Tasks.base",
     "name": "Item",
     "content": "<3073+ characters>"
   }

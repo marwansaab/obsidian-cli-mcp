@@ -4,7 +4,7 @@
 
 Find every note in an Obsidian vault whose named frontmatter property matches a given value. Returns `{ count, paths }` — a JSON envelope carrying the integer match count and the sorted vault-relative paths of every match (for example, `Inbox/Notes.md`). Inverse direction of [`read_property`](./read_property.md): where `read_property` goes file → value (given a path, return the property's value), this tool goes value → file.
 
-> **NOTE — the property-name parameter is `property:`, not `name:`** (diverges from sibling [`read_property`](./read_property.md) / [`set_property`](./set_property.md) which use `name:`). A call passing `name:` instead fails with `VALIDATION_ERROR`.
+The property-name parameter is `name`, as on the sibling [`read_property`](./read_property.md) and [`set_property`](./set_property.md). The pre-073 names are still accepted for now; see *Deprecated names* below.
 
 Unlike most typed tools, `find_by_property` is **inherently vault-wide**: it has no notion of an "active file" or "single named file". The schema therefore does NOT carry the `target_mode` discriminator. Pass `vault` to scope to a specific vault; omit it to use Obsidian's focused-vault default (with the multi-vault caveats below).
 
@@ -25,24 +25,39 @@ Unlike most typed tools, `find_by_property` is **inherently vault-wide**: it has
 ```json
 {
   "vault": "<vault name>",
-  "property": "<property name>",
+  "name": "<property name>",
   "value": "<scalar | array<scalar>>",
   "folder": "<vault-relative subtree>",
-  "arrayMatch": true,
-  "caseSensitive": true
+  "array_match": true,
+  "case_sensitive": true
 }
 ```
 
 | Field | Type | Required | Default | Constraint |
 |-------|------|----------|---------|------------|
 | `vault` | string | optional | (focused vault) | length ≥ 1; when omitted, the underlying CLI resolves to its focused-vault default — see *Multi-vault default ambiguity* below. |
-| `property` | string | YES | none | length ≥ 1; passed through verbatim — no sanitisation, no escaping. |
-| `value` | `string \| number \| boolean \| null \| Array<scalar>` | YES | none | Type-faithful comparison: number `7` is distinct from string `"7"`. Array branch is allowed only when `arrayMatch: false`; pairing array with the default `arrayMatch: true` is rejected at the schema layer. |
+| `name` | string | YES (or the deprecated `property`) | none | length ≥ 1; passed through verbatim — no sanitisation, no escaping. Not in the published `required` list during the transition, so that calls using `property` validate; a call with neither fails with `name is required`. |
+| `value` | `string \| number \| boolean \| null \| Array<scalar>` | YES | none | Type-faithful comparison: number `7` is distinct from string `"7"`. Array branch is allowed only when `array_match: false`; pairing array with the default `array_match: true` is rejected at the schema layer. |
 | `folder` | string | optional | `""` (whole vault) | Vault-relative folder. Rejected at the schema layer if it contains any `..` path segment OR starts with `/` or `\` — see *Folder path-traversal closure* below. |
-| `arrayMatch` | boolean | optional | `true` | When the property's stored value is a YAML list, `true` performs **contains-semantics** (any element strict-equals the query); `false` performs **order-sensitive exact-equality** with an array `value`. |
-| `caseSensitive` | boolean | optional | `true` | When `false`, string-vs-string comparisons fold case via `toLowerCase()`. Numeric / boolean / null / mixed-type comparisons remain strict-equality. |
+| `array_match` | boolean | optional | `true` | When the property's stored value is a YAML list, `true` performs **contains-semantics** (any element strict-equals the query); `false` performs **order-sensitive exact-equality** with an array `value`. |
+| `case_sensitive` | boolean | optional | `true` | When `false`, string-vs-string comparisons fold case via `toLowerCase()`. Numeric / boolean / null / mixed-type comparisons remain strict-equality. |
 
 `additionalProperties: false`. Unknown top-level keys are rejected.
+
+### Deprecated names
+
+Spec 073 aligned this tool's parameter names with its families. The old names are accepted until the next major release:
+
+| Old name | New name |
+|---|---|
+| `property` | `name` |
+| `arrayMatch` | `array_match` |
+| `caseSensitive` | `case_sensitive` |
+
+- A call that uses an old name gets the same result as the new name, plus a `deprecated_parameters` field listing each old name used and its replacement (see *Output*).
+- A call that sends an old name together with its new name (even with the same value) fails with `VALIDATION_ERROR`, before anything is spawned. The issue sits at the old name's path and names both.
+- The old keys stay in the published input schema, marked `deprecated: true`.
+- `array_match` and `case_sensitive` publish no JSON Schema `default` during the transition; the defaults (`true`, `true`) are applied at parse time.
 
 ## Output
 
@@ -54,6 +69,7 @@ Unlike most typed tools, `find_by_property` is **inherently vault-wide**: it has
 |-------|------|-------------|
 | `count` | non-negative integer | Number of matching notes; equals `paths.length` (the wrapper checks the invariant defensively). |
 | `paths` | `string[]` | Vault-relative paths of every match, in Obsidian's metadata-cache iteration order. Same query within one MCP server session, with no intervening vault state change, returns byte-identical `paths` arrays. |
+| `deprecated_parameters` | `{ parameter, replacement }[]` | Present only when the call used a deprecated name, e.g. `[{ "parameter": "property", "replacement": "name" }]`. Absent otherwise. |
 
 A query with zero matches returns `{ "count": 0, "paths": [] }` and does NOT raise an error (this is the contractually distinct "no match" outcome, not conflated with the unknown-vault failure surface).
 
@@ -69,11 +85,11 @@ When `vault` is omitted, the underlying Obsidian CLI resolves to its **focused-v
 
 ### Order-sensitive exact-array equality
 
-`arrayMatch: false` with an array `value` performs **positional** comparison via `every((e, i) => eq(e, y[i]))`. `[alpha, beta]` does NOT equal `[beta, alpha]`. Set-membership / multiset matching is not supported; callers needing it can compose two `arrayMatch: true` calls and intersect the result paths client-side, OR run an `arrayMatch: false` call against every plausible permutation.
+`array_match: false` with an array `value` performs **positional** comparison via `every((e, i) => eq(e, y[i]))`. `[alpha, beta]` does NOT equal `[beta, alpha]`. Set-membership / multiset matching is not supported; callers needing it can compose two `array_match: true` calls and intersect the result paths client-side, OR run an `array_match: false` call against every plausible permutation.
 
 ### Hierarchical-tag rollup is NOT performed
 
-A query with `property: "tags"` and `value: "work"` does NOT match a note tagged `tags: [work/tasks]`. The wrapper treats frontmatter tags as opaque values — `===` only. Callers wanting hierarchical-rollup semantics must enumerate the descendant tags themselves.
+A query with `name: "tags"` and `value: "work"` does NOT match a note tagged `tags: [work/tasks]`. The wrapper treats frontmatter tags as opaque values — `===` only. Callers wanting hierarchical-rollup semantics must enumerate the descendant tags themselves.
 
 ### List-of-mappings non-match
 
@@ -107,7 +123,7 @@ Unknown vault names surface as `CLI_REPORTED_ERROR` with the verbatim `Vault not
 
 | Code | When | Recovery |
 |------|------|----------|
-| `VALIDATION_ERROR` | Input failed schema validation: missing or empty `property`, missing `value`, value typed outside the union, array `value` paired with the default `arrayMatch: true`, `folder` containing a `..` segment or leading `/` `\`, unknown top-level key, etc. | Retry with corrected input. `details.issues` carries the per-issue `path` + `message` + zod code. |
+| `VALIDATION_ERROR` | Input failed schema validation: missing or empty `name` (`name is required`), missing `value`, value typed outside the union, array `value` paired with the default `array_match: true`, an old name sent with its new name, `folder` containing a `..` segment or leading `/` `\`, unknown top-level key, etc. | Retry with corrected input. `details.issues` carries the per-issue `path` + `message` + zod code. |
 | `CLI_NON_ZERO_EXIT` | The Obsidian CLI exited with a non-zero code (eval syntax error, output-cap kill, dispatch timeout, dispatch kill on signal). | `details.{exitCode, signal, stdout, stderr}` carry the failure context. |
 | `CLI_REPORTED_ERROR` | The CLI exited 0 but reported a failure in-band — the unknown-vault response (`Vault not found.`) was detected, OR the eval response was unparseable JSON (`details.stage: "json-parse"`), OR the eval response shape failed the output-schema check (`details.stage: "schema-parse"`), OR the defensive `count !== paths.length` invariant tripped (`details.stage: "count-paths-mismatch"`). | `details.message` and `details.stage` (when the wrapper added one) name the specific failure. |
 | `CLI_BINARY_NOT_FOUND` | The `obsidian` CLI binary is not on `PATH` and `OBSIDIAN_BIN` was unset/invalid. | Operator-side: install the Obsidian CLI, OR set `OBSIDIAN_BIN` to a valid path. |
@@ -121,7 +137,7 @@ Unknown vault names surface as `CLI_REPORTED_ERROR` with the verbatim `Vault not
   "name": "find_by_property",
   "arguments": {
     "vault": "MyVault",
-    "property": "id",
+    "name": "id",
     "value": "BI-030"
   }
 }
@@ -136,7 +152,7 @@ Spawns `obsidian vault=MyVault eval code=<rendered-js>`. Returns `{ "count": 1, 
   "name": "find_by_property",
   "arguments": {
     "vault": "MyVault",
-    "property": "status",
+    "name": "status",
     "value": "queued",
     "folder": "backlog"
   }
@@ -145,20 +161,20 @@ Spawns `obsidian vault=MyVault eval code=<rendered-js>`. Returns `{ "count": 1, 
 
 Returns matches restricted to notes whose vault-relative path begins with `backlog/`. Useful when the same property name appears in multiple subtrees (e.g. `backlog/`, `archive/`, `inbox/`) and the caller cares about only one.
 
-### Example 3 — Array contains (default `arrayMatch: true`)
+### Example 3 — Array contains (default `array_match: true`)
 
 ```json
 {
   "name": "find_by_property",
   "arguments": {
     "vault": "MyVault",
-    "property": "tags",
+    "name": "tags",
     "value": "alpha"
   }
 }
 ```
 
-Matches every note whose `tags` list contains `"alpha"` as an element. The default `arrayMatch: true` plus a scalar `value` gives contains-semantics. Note: hierarchical tags do NOT roll up — a note tagged `tags: [alpha/sub]` does not match a query for `"alpha"`.
+Matches every note whose `tags` list contains `"alpha"` as an element. The default `array_match: true` plus a scalar `value` gives contains-semantics. Note: hierarchical tags do NOT roll up — a note tagged `tags: [alpha/sub]` does not match a query for `"alpha"`.
 
 ### Example 4 — Case-insensitive opt-in
 
@@ -167,29 +183,29 @@ Matches every note whose `tags` list contains `"alpha"` as an element. The defau
   "name": "find_by_property",
   "arguments": {
     "vault": "MyVault",
-    "property": "tag",
+    "name": "tag",
     "value": "alpha",
-    "caseSensitive": false
+    "case_sensitive": false
   }
 }
 ```
 
 Matches notes with `tag: Alpha`, `tag: ALPHA`, `tag: alpha`, etc. Case folding applies only to string-vs-string comparisons; numeric, boolean, and null comparisons remain strict-equality.
 
-### Example 5 — Array exact-equality (`arrayMatch: false`, order-sensitive)
+### Example 5 — Array exact-equality (`array_match: false`, order-sensitive)
 
 ```json
 {
   "name": "find_by_property",
   "arguments": {
-    "property": "tags",
+    "name": "tags",
     "value": ["alpha", "beta"],
-    "arrayMatch": false
+    "array_match": false
   }
 }
 ```
 
-Matches notes with `tags: [alpha, beta]` in **that exact order**. `tags: [beta, alpha]` does NOT match. For set-membership semantics, use `arrayMatch: true` with a scalar `value`.
+Matches notes with `tags: [alpha, beta]` in **that exact order**. `tags: [beta, alpha]` does NOT match. For set-membership semantics, use `array_match: true` with a scalar `value`.
 
 ### Example 6 — Type-faithful numeric
 
@@ -197,7 +213,7 @@ Matches notes with `tags: [alpha, beta]` in **that exact order**. `tags: [beta, 
 {
   "name": "find_by_property",
   "arguments": {
-    "property": "count",
+    "name": "count",
     "value": 7
   }
 }
@@ -211,7 +227,7 @@ Matches notes with `count: 7` (YAML number). Does NOT match notes with `count: "
 {
   "name": "find_by_property",
   "arguments": {
-    "property": "id",
+    "name": "id",
     "value": "BI-030"
   }
 }

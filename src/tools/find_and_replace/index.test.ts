@@ -1,6 +1,7 @@
 // Original — no upstream. find_and_replace registration tests — descriptor shape, name, inputSchema property set + additionalProperties:false + required keys, error-mapping path (Zod issues → typed details.code + details.reason envelope).
 import { describe, expect, it } from "vitest";
 
+import { baseDeps, inMemoryFs, relToAbs, VAULT_ROOT } from "./_handler-fixtures.js";
 import {
   FIND_AND_REPLACE_DESCRIPTION,
   FIND_AND_REPLACE_TOOL_NAME,
@@ -57,8 +58,10 @@ describe("createFindAndReplaceTool — descriptor", () => {
     expect(Object.keys(props).sort()).toEqual([
       "active_note",
       "case_insensitive",
+      "case_sensitive",
       "commit",
       "file",
+      "folder",
       "include_code_blocks",
       "include_html_comments",
       "mode",
@@ -142,7 +145,7 @@ describe("createFindAndReplaceTool — wrapped handler error mapping", () => {
     }
   });
 
-  it("path-traversal subfolder → INVALID_SUBFOLDER + path-traversal", async () => {
+  it("path-traversal folder → INVALID_SUBFOLDER + path-traversal", async () => {
     const tool = createFindAndReplaceTool({
       logger: silentLogger(),
       queue: createQueue(),
@@ -151,10 +154,12 @@ describe("createFindAndReplaceTool — wrapped handler error mapping", () => {
     const result = await tool.handler({
       pattern: "x",
       replacement: "y",
-      subfolder: "../escape",
+      folder: "../escape",
     });
+    expect("isError" in result && result.isError).toBe(true);
     if ("isError" in result && result.isError) {
       const payload = JSON.parse(result.content[0]!.text);
+      expect(payload.message).toBe("folder is not structurally safe");
       expect(payload.details.code).toBe("INVALID_SUBFOLDER");
       expect(payload.details.reason).toBe("path-traversal");
     }
@@ -167,7 +172,7 @@ describe("createFindAndReplaceTool — wrapped handler error mapping", () => {
       vaultRegistry: fakeRegistry(),
     });
     // pattern + replacement are valid, so the only failing issue is the `mode`
-    // enum — it matches NO pattern/replacement/subfolder sub-discriminator branch
+    // enum — it matches NO pattern/replacement/folder sub-discriminator branch
     // in mapZodIssuesToToolError, exercising the L109-113 generic fallback.
     const result = await tool.handler({
       pattern: "x",
@@ -241,9 +246,9 @@ describe("createFindAndReplaceTool — wrapped handler error mapping", () => {
 
   it.each([
     [{ file: "A", path: "A.md" }, "file+path"],
-    [{ path: "A.md", subfolder: "Drafts" }, "note+folder"],
+    [{ path: "A.md", folder: "Drafts" }, "note+folder"],
     [{ active_note: true, file: "A" }, "active+note"],
-    [{ active_note: true, subfolder: "Drafts" }, "active+folder"],
+    [{ active_note: true, folder: "Drafts" }, "active+folder"],
     [{ active_note: true, vault: "Work" }, "active+vault"],
   ])("SCOPE_CONFLICT mapping for %o → reason %s (066-file-scope, T018)", async (input, reason) => {
     const tool = createFindAndReplaceTool({
@@ -285,5 +290,74 @@ describe("createFindAndReplaceTool — wrapped handler error mapping", () => {
       expect(payload.details.code).toBeUndefined();
       expect(payload.details.reason).toBeUndefined();
     }
+  });
+});
+
+describe("createFindAndReplaceTool — deprecated names (spec 073)", () => {
+  function setup() {
+    const { fs, state } = inMemoryFs(
+      [
+        { abs: relToAbs("Notes/A.md"), content: "Alpha alpha\n" },
+        { abs: relToAbs("Other/B.md"), content: "alpha\n" },
+      ],
+      VAULT_ROOT,
+    );
+    return { tool: createFindAndReplaceTool(baseDeps({ fs })), state };
+  }
+  type Result = { isError?: boolean; content: { text: string }[]; structuredContent?: Record<string, unknown> };
+
+  it("O1: a new-name call carries no deprecated_parameters", async () => {
+    const { tool } = setup();
+    const result = (await tool.handler({ vault: "V", pattern: "alpha", replacement: "x", case_sensitive: false, folder: "Notes" })) as Result;
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent).toMatchObject({ mode: "preview", total_occurrences: 2 });
+    expect(result.structuredContent).not.toHaveProperty("deprecated_parameters");
+  });
+
+  it("O2/O3: an old-name call gets today's result plus the notice, identical in text and structuredContent", async () => {
+    const viaNew = (await setup().tool.handler({ vault: "V", pattern: "alpha", replacement: "x", case_sensitive: false, folder: "Notes" })) as Result;
+    const viaOld = (await setup().tool.handler({ vault: "V", pattern: "alpha", replacement: "x", case_insensitive: true, subfolder: "Notes" })) as Result;
+    expect(viaOld.structuredContent).toEqual({
+      ...viaNew.structuredContent,
+      deprecated_parameters: [
+        {
+          parameter: "case_insensitive",
+          replacement: "case_sensitive",
+          note: "case_insensitive: true equals case_sensitive: false (opposite polarity).",
+        },
+        { parameter: "subfolder", replacement: "folder" },
+      ],
+    });
+    expect(JSON.parse(viaOld.content[0]!.text)).toEqual(viaOld.structuredContent);
+  });
+
+  it("O4: old + new for one concept → VALIDATION_ERROR before any read", async () => {
+    const { tool, state } = setup();
+    const result = (await tool.handler({ vault: "V", pattern: "alpha", replacement: "x", folder: "Notes", subfolder: "Notes" })) as Result;
+    expect(result.isError).toBe(true);
+    const payload = JSON.parse(result.content[0]!.text);
+    expect(payload.code).toBe("VALIDATION_ERROR");
+    expect(payload.details.issues).toEqual([
+      expect.objectContaining({ path: ["subfolder"], message: "`subfolder` is deprecated and replaced by `folder`; supply only `folder`" }),
+    ]);
+    expect(state.reads).toEqual([]);
+  });
+
+  it("O7: subfolder + path → SCOPE_CONFLICT/note+folder, message naming folder", async () => {
+    const { tool } = setup();
+    const result = (await tool.handler({ pattern: "alpha", replacement: "x", subfolder: "Notes", path: "Notes/A.md" })) as Result;
+    const payload = JSON.parse(result.content[0]!.text);
+    expect(payload.details.code).toBe("SCOPE_CONFLICT");
+    expect(payload.details.reason).toBe("note+folder");
+    expect(payload.message).toContain("`folder` scope");
+  });
+
+  it("description uses the new names and lists the deprecated ones", () => {
+    expect(FIND_AND_REPLACE_DESCRIPTION).toContain("Optional `case_sensitive` (boolean, default true).");
+    expect(FIND_AND_REPLACE_DESCRIPTION).not.toContain("Optional `case_insensitive`");
+    expect(FIND_AND_REPLACE_DESCRIPTION).toContain(
+      "Deprecated names (accepted until the next major release; a call that uses one gets `deprecated_parameters` in its result): `case_insensitive` → `case_sensitive` (opposite value), `subfolder` → `folder`.",
+    );
+    expect(FIND_AND_REPLACE_DESCRIPTION.replace(/Deprecated names[^\n]*$/, "")).not.toContain("subfolder`");
   });
 });
