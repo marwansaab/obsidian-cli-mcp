@@ -202,3 +202,75 @@ Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0
 > - U1: Add a one-line FR-009 verify step to T020.
 >
 > All four stay inside the docs-only scope. The BI's Out of scope excludes runtime change, and the change is documentation-only.
+
+## 5. review / fix (2026-10-31T04:55:39.392Z)
+
+**Question (verbatim):**
+
+> The review's finding 1 (MEDIUM) asks for an in-process test, src/tools/read_heading/_template.test.ts. It would run JS_TEMPLATE under node:vm runInNewContext with a fake `app`, the same way src/tools/_shared.test.ts already runs composeEvalCode, to pin the one-line-ending strip at src/tools/read_heading/_template.ts:42-43 against the doc's Start of body table. Nothing would stop the doc and the code drifting apart again otherwise. But spec 069 forbids it: FR-011 says the change 'MUST NOT add or change automated tests', and the 2026-10-31 clarification chose docs-only verification with a single live probe.
+>
+> What should I do?
+>
+> | Option | What happens |
+> |---|---|
+> | A (recommended) | Keep PR #96 docs-only, as the spec says. Record the template test as a follow-up backlog item, owned by whoever handles read_heading next. |
+> | B | Change spec 069 (amend FR-011 and the clarification) and add _template.test.ts to PR #96 now, with the seven table rows as its test cases. |
+> | C | Drop the finding. The live probe evidence (P1 to P8) is the accepted proof, and no follow-up is recorded. |
+>
+> Recommendation: A. The spec and the clarification deliberately chose docs-only for this BI. A test for the eval template is new test infrastructure (a fake Obsidian `app`) and deserves its own small BI rather than an amendment to the spec after review. Option A still closes the gap the review found, without reopening a decision already settled.
+
+**Advisor** (escalate: none):
+
+> A
+>
+> Keep PR #96 docs-only. Do not add `_template.test.ts` and do not amend FR-011 or the 2026-10-31 clarification. BI-0039 says "The change is documentation-only", and the clarification (Q1 = A) chose live-probe verification with no tests. The follow-up is now recorded on BI-0039 under Out of scope as a candidate for its own BI, so you don't need to file anything from the repo side.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0039 - Disambiguate Read Heading Leading Line Terminator.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Constitution.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0039 - Disambiguate Read Heading Leading Line Terminator.md`: Appended an Out of scope bullet deferring the in-process read_heading eval-template test (the spec 069 review finding) to a candidate follow-up BI, not yet filed.
+
+**Sent to the step:**
+
+> A
+>
+> Keep PR #96 docs-only. Do not add `_template.test.ts` and do not amend FR-011 or the 2026-10-31 clarification. BI-0039 says "The change is documentation-only", and the clarification (Q1 = A) chose live-probe verification with no tests. The follow-up is now recorded on BI-0039 under Out of scope as a candidate for its own BI, so you don't need to file anything from the repo side.
+
+## 6. record / record-in-vault (2026-10-31T04:58:11.414Z)
+
+**Question (verbatim):**
+
+> The work for job BI-0039 is now a reviewed, documented pull request. Record that on the job's note, following the vault's conventions for backlog items:
+> - the spec branch: 069-fix-section-body-docs
+> - the feature folder in the code repository: specs/069-fix-section-body-docs
+> - the pull request: https://github.com/marwansaab/obsidian-cli-mcp/pull/96 (number 96)
+> - the status that means "in review" in this vault (if the vault has no such status, escalate `decision` with up to 3 choices)
+> - a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0039-2026-10-31 produced it.
+>
+> Dry run: no. In a dry run, change nothing: list each edit you would make in `vault_edits`, starting its change with "Would". Otherwise list each edit you made.
+
+**Advisor** (escalate: none):
+
+> BI-0039's note now records the reviewed, documented PR #96, following the vault's conventions for backlog items (precedent: BI-0165):
+> - Frontmatter `status`: `planned` → `in-review`. `in-review` is the vault's "in review" value for backlog items (Vault Frontmatter Convention).
+> - Frontmatter `spec_branch`: set to `069-fix-section-body-docs`. `updated` was already 2026-10-31.
+> - `## Status`: added a dated paragraph at the top, "**In review — 2026-10-31.**". It links [marwansaab/obsidian-cli-mcp#96](https://github.com/marwansaab/obsidian-cli-mcp/pull/96) and names the spec branch `069-fix-section-body-docs` and the repo feature folder `specs/069-fix-section-body-docs`. It also states that verification was a live probe only, with no new tests (FR-011). The earlier *Planned.* paragraph stays below it as history.
+> - Footer: added the audit comment `<!-- 2026-10-31: Relay run obsidian-cli-mcp-bi-0039-2026-10-31 produced https://github.com/marwansaab/obsidian-cli-mcp/pull/96 (#96), spec branch ..., feature folder ...; reviewed and documented, awaiting owner merge. ... -->`.
+> I read the note back afterwards: the frontmatter parses, the line endings are still LF, and nothing else changed.
+
+Sources: `000-Meta/Vault Frontmatter Convention.md`, `000-Meta/Templates/Backlog Item Template.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0165 - Ship 0.9.0 SDK V2 And Safety Release.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0039 - Disambiguate Read Heading Leading Line Terminator.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0039 - Disambiguate Read Heading Leading Line Terminator.md`: Frontmatter status planned → in-review.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0039 - Disambiguate Read Heading Leading Line Terminator.md`: Frontmatter spec_branch set to 069-fix-section-body-docs.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0039 - Disambiguate Read Heading Leading Line Terminator.md`: Prepended an 'In review — 2026-10-31' paragraph to ## Status with the PR #96 link, spec branch and feature folder specs/069-fix-section-body-docs.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0039 - Disambiguate Read Heading Leading Line Terminator.md`: Appended a dated audit-trail HTML comment crediting Relay run obsidian-cli-mcp-bi-0039-2026-10-31 for PR #96.
+
+**Sent to the step:**
+
+> BI-0039's note now records the reviewed, documented PR #96, following the vault's conventions for backlog items (precedent: BI-0165):
+> - Frontmatter `status`: `planned` → `in-review`. `in-review` is the vault's "in review" value for backlog items (Vault Frontmatter Convention).
+> - Frontmatter `spec_branch`: set to `069-fix-section-body-docs`. `updated` was already 2026-10-31.
+> - `## Status`: added a dated paragraph at the top, "**In review — 2026-10-31.**". It links [marwansaab/obsidian-cli-mcp#96](https://github.com/marwansaab/obsidian-cli-mcp/pull/96) and names the spec branch `069-fix-section-body-docs` and the repo feature folder `specs/069-fix-section-body-docs`. It also states that verification was a live probe only, with no new tests (FR-011). The earlier *Planned.* paragraph stays below it as history.
+> - Footer: added the audit comment `<!-- 2026-10-31: Relay run obsidian-cli-mcp-bi-0039-2026-10-31 produced https://github.com/marwansaab/obsidian-cli-mcp/pull/96 (#96), spec branch ..., feature folder ...; reviewed and documented, awaiting owner merge. ... -->`.
+> I read the note back afterwards: the frontmatter parses, the line endings are still LF, and nothing else changed.
