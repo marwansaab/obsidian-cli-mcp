@@ -92,6 +92,63 @@ flowchart LR
   (T010). A unit test in `_note-io.test.ts` forbids the old call. ADR-009 §5
   still names it.
 
+### What `bytes_written` reports
+
+Since PR #103 (BI-0116, spec 075 FR-001;
+[ADR-048](../decisions/ADR-048-bytes-written-is-the-size-change.md))
+`bytes_written` has one meaning on the five single-note text writers —
+`write_note`, `append_note`, `prepend`, `patch_heading` and `patch_block`: the
+note's size in bytes after the write minus its size before, counting a note
+that did not exist as 0. Before PR #103 it meant three things (spec 075
+research F1). `append_note` and `prepend` already reported that change;
+`patch_heading` and `patch_block` reported the note's **total** size after the
+edit; `write_note` reported nothing. Their `docs/tools/` pages said so, and
+the patch pages called a near-zero value "a red flag" — advice that was only
+sound under the total-size meaning and that PR #103 removed.
+
+Each tool computes the figure from data it already holds, so only
+`write_note` gained any I/O:
+
+| Tool | Before | After | Bound in the output schema |
+| --- | --- | --- | --- |
+| `append_note`, `patch_heading`, `patch_block` | the text read | the edited text | `append_note` `min(1)`; the patch tools none, so 0 and negative values are valid |
+| `prepend` | `fs.stat` size before the CLI call | `fs.stat` size after | `min(1)`; a zero change is the `post-stat-byte-delta-zero` failure [below](#the-cli-wrapped-tools) |
+| `write_note` | `fs.stat` size (`overwrite: true`), or 0 (`wx` create) | the content's UTF-8 length | none |
+
+- **One helper for the text case.** `sizeChange(before, after)` in
+  `src/tools/_note-io.ts` is the UTF-8 byte difference that `append_note` and
+  both patch tools return. Research D1 had rejected a helper as "an
+  abstraction for one line"; the PR #103 code-quality review (commit
+  `4a203e0`) found the subtraction spelled three ways and added it, knowingly
+  lifting the plan's "do not edit `_note-io.ts` / `append_note/handler.ts`"
+  constraint. `append_note`'s figure did not change.
+- **`write_note`'s probe.** The `overwrite: true` existence check was
+  `fs.realpath`; it is now `fs.stat`, which gives existence and the old size in
+  one call. `ENOENT` means a create with old size 0; any other errno fails as
+  `FS_WRITE_FAILED { errno, syscall: "stat", path }` **before** anything is
+  written, so the tool never returns a guessed figure (clarification Q3,
+  FR-006a, data-model R4). The `details` shape is unchanged; only `syscall`
+  reads `"stat"` where it read `"realpath"`. `ExecuteFs` gained a required `stat`. The
+  handler holds one `sizeBefore: number | null`, where `null` means the note
+  did not exist: `created` is `sizeBefore === null`, so an existing 0-byte
+  note still reports `created: false`.
+- **The tolerated race.** When `patch_heading`'s re-walk finds the heading
+  unchanged but other bytes moved, the write proceeds (last-write-wins) and
+  the figure is still this write's change against the text it edited
+  (data-model R5), not against whatever was on disk at the end.
+- **One published sentence.** The five output schemas describe the field with
+  `BYTES_WRITTEN_DESCRIPTION` from `src/tools/_shared.ts`, and a
+  `_surface.test.ts` case checks it on each tool's published `outputSchema`
+  through the real `tools/list`
+  ([architecture](../architecture.md#typed-results-outputschema-and-structuredcontent)).
+
+A caller that compared `bytes_written` from a patch tool with the note's total
+size has to compare it with the intended size change instead, or `read` the
+note; the CHANGELOG's `[Unreleased]` entry carries that migration note. PR
+#103's live check (T031) drove the built server over stdio against the test
+vault and saw the reported figure equal the measured file-size change in all
+12 steps, including 0, −15, −18 and −51.
+
 **Concurrency is last-write-wins**, except in `patch_heading`. It walks the
 heading tree again just before writing and fails with `HEADING_RACE` if the
 section moved. Nothing else detects an editor changing the file between the
@@ -306,6 +363,10 @@ from their schema would have reached the client as SDK free text rather than
 - `patch_heading` and `patch_block` were outside spec 070 (FR-013): they do
   not run the type check and their descriptions carry no supported-types
   sentence.
+- `set_property`, `find_and_replace` and `create_base` report no size at
+  all. Spec 075 (clarification Q1) kept the `bytes_written` convention to
+  the five single-note text writers; adding a figure to any of the three is
+  its own item (PR #103).
 - `write_note` dropped its `template` parameter in the ADR-009 rewrite;
   template-based creation goes through `obsidian_exec`.
 - Writes made by the direct path are visible to Obsidian through the

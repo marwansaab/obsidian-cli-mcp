@@ -49,8 +49,9 @@ extends it.
     — the four searches, `find_by_property`, `tag`, `links`, `backlinks`,
     `open_file`, `get_active_file`.
   - [capabilities/mutate.md](capabilities/mutate.md) — the direct-filesystem
-    write cohort, `find_and_replace`, `prepend`, `set_property`, `delete`,
-    `rename`, `move`.
+    write cohort, what `bytes_written` reports (PR #103),
+    `find_and_replace`, `prepend`, `set_property`, `delete`, `rename`,
+    `move`.
   - [capabilities/list-and-inventory.md](capabilities/list-and-inventory.md) —
     `files`, `paths`, `outline`, `properties`, `vaults`.
   - [capabilities/bases.md](capabilities/bases.md) — `bases`, `views_base`,
@@ -118,3 +119,7 @@ applies. Records written since:
   returning the disk text; a failed disk read is `FS_WRITE_FAILED` /
   `read` (PR #102). Numbered 047 because ADR-046 is the number spec 073's
   plan gave the record above.
+- [decisions/ADR-048-bytes-written-is-the-size-change.md](decisions/ADR-048-bytes-written-is-the-size-change.md)
+  — `bytes_written` means the size change (after minus before, a new note
+  counting as 0) on the five single-note text writers; `write_note` gains it
+  and fails before writing if it cannot measure the old note (PR #103).
