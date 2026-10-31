@@ -15,6 +15,8 @@ Spec 074-return-exact-content (BI-0115).
 
 Spec 075-unify-size-reporting (BI-0116).
 
+Spec 076-fix-empty-prepend.
+
 ### Added
 
 - **`write_note` reports `bytes_written`**, with the same meaning, counting a new note's old size as 0. If the existing note's size cannot be read before an overwrite, the call fails with `FS_WRITE_FAILED` before anything is written. Its `details` shape is unchanged; `details.syscall` now reads `"stat"` where the old existence probe reported `"realpath"`.
@@ -42,6 +44,7 @@ Spec 075-unify-size-reporting (BI-0116).
 ### Fixed
 
 - **`read` now returns a file's exact text.** It no longer adds a final line break to a file that does not end with one, and it keeps a leading byte-order mark that the Obsidian CLI drops. A failed confirmation read reports `FS_WRITE_FAILED` with `reason: "read"`.
+- **`prepend` on an empty note, or a note with only a properties block, no longer adds a trailing line break** (spec 076). The note ends with exactly the supplied content, and `bytes_written` equals the content's size in bytes. If removing the extra line break fails, the call reports `FS_WRITE_FAILED` with the new `reason: "extra-trailing-newline"`.
 
 ## [0.9.0] - 2026-10-30
 

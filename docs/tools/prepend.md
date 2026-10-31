@@ -115,6 +115,8 @@ The frontmatter is byte-stable; a separator is inserted between the prepended co
 | `\r\n` (CRLF-trailing) | The content's trailing `\r\n` IS the separator. | Same. |
 | Empty file or frontmatter-only-no-body | No trailing separator. | Same. |
 
+One limitation applies to a note with only a properties block (frontmatter): when the note's end already repeats `content + "\n"` (for example `content: "---"`, `"-"` or only line breaks), the result keeps one trailing line break. Those bytes cannot be told apart from an insertion into a note that has a body, so the wrapper leaves Obsidian's result in place rather than risk changing such a note; `bytes_written` still reports the true size change.
+
 The "supplied content's trailing line break IS the separator" rule is load-bearing for two common patterns: line-builder (`content` without trailing newline) and paragraph-builder (`content` with trailing newline). Both produce clean byte-stable concatenation under repeated default-mode prepends.
 
 **Worked examples.**
@@ -122,6 +124,7 @@ The "supplied content's trailing line break IS the separator" rule is load-beari
 - `existing = "abc"`, `content = "def"`, default → `"def\nabc"` (separator inserted).
 - `existing = "abc"`, `content = "def\n"`, default → `"def\nabc"` (content's `\n` IS the separator; no double newline).
 - `existing = ""`, `content = "def"`, default → `"def"` (empty file: no separator).
+- `existing = "---\nkey: v\n---\n"`, `content = "Lead"`, default → `"---\nkey: v\n---\nLead"` (frontmatter only, no body: no trailing separator).
 - `existing = "---\nkey: v\n---\nbody"`, `content = "Lead"`, default → `"---\nkey: v\n---\nLead\nbody"` (frontmatter preserved; separator between `Lead` and `body`).
 
 ## Inline opt-in
@@ -157,7 +160,7 @@ interface PrependOutput {
 ```
 
 - `path` is ALWAYS canonical. A caller who supplied `file: "tasks"` receives `path: "tasks.md"` (whatever the resolver yields).
-- `bytes_written` is the change in the note's size in bytes caused by this write: its size after the write minus its size before, counting a note that did not exist as 0. Zero when the size did not change; negative when the note shrank. For `prepend` it is always at least 1. It exactly equals `content.length` when the content's trailing newline IS the separator, or when `inline: true` suppresses the separator. Equals `content.length + separator_bytes` (1 byte for LF, 2 for CRLF) when a separator is inserted. To verify a write, compare `bytes_written` with the size change you intended; 0 and negative values are normal for same-size and shrinking edits by the other writers (`patch_heading`, `patch_block`, `write_note`).
+- `bytes_written` is the change in the note's size in bytes caused by this write: its size after the write minus its size before, counting a note that did not exist as 0. Zero when the size did not change; negative when the note shrank. For `prepend` it is always at least 1. It exactly equals `content.length` when the content's trailing newline IS the separator, or when `inline: true` suppresses the separator. Equals `content.length + separator_bytes` (1 byte for LF, 2 for CRLF) when a separator is inserted. On an empty note or a note with only a properties block it exactly equals the content's size in bytes. To verify a write, compare `bytes_written` with the size change you intended; 0 and negative values are normal for same-size and shrinking edits by the other writers (`patch_heading`, `patch_block`, `write_note`).
 - `inline` is `false` for default calls (input `inline: false` or omitted), `true` for input `inline: true`.
 
 ## Error states
@@ -172,6 +175,9 @@ interface PrependOutput {
 | `CLI_REPORTED_ERROR` | `details.code: EXTERNAL_EDITOR_CONFLICT`, `details.reason: "file-locked"` | The target file is held open by an external editor. | Ask the user to save and close the file in the editor, then retry. |
 | `CLI_REPORTED_ERROR` | `details.stage: "prepend-cli"` (generic) | Unrecognised upstream failure. | Inspect `details.stdout` / `details.stderr` for diagnosis. |
 | `FS_WRITE_FAILED` | `details.reason: "post-stat-byte-delta-zero"` | Upstream returned exit 0 but the on-disk byte count did not change (silent-no-op failure). | Usually transient lock contention or upstream IPC degradation. Retry once. If the failure repeats at the same payload size, you have likely hit the cap-boundary IPC defect — use [`write_note`](./write_note.md) instead. |
+| `FS_WRITE_FAILED` | `details.reason: "extra-trailing-newline"` | The content landed in a note with no body (empty or properties-only), but the extra trailing line break Obsidian added could not be removed, or the note was empty and could not be read back. `details` also carries `path`, `vault` and `errno` when known. | The note holds the content plus one extra line break. Do not re-send the content. Retry once the file is free, or remove the final line break yourself. |
+| `FS_WRITE_FAILED` | `details.syscall: "open"` (no `reason`) — after the call | The content landed in a non-empty note, but the note could not be read back to check for an extra trailing line break. `details` carries `errno`, `syscall` and `path`. | Do not re-send the content. Read the note and check its end. |
+| `FS_WRITE_FAILED` | `details.syscall: "open"` (no `reason`) — before the call | The note could not be read before the call (any error other than not-found). `details` carries `errno`, `syscall` and `path`. | Nothing was changed; Obsidian was not called. Retry once the file can be read. |
 | `PATH_ESCAPES_VAULT` | — | The resolved path escapes the vault root (symlink traversal, `..` segments). | Fix the path. The path must resolve inside the vault. |
 | `VAULT_NOT_FOUND` | — | The supplied `vault` display name is not registered with the Obsidian CLI. | Recheck the vault name (case-sensitive). The user can list registered vaults with `obsidian vaults`. |
 | `ERR_NO_ACTIVE_FILE` | — | Active mode but no note is focused in Obsidian. | Switch to `target_mode: "specific"` with explicit `vault` + `file`/`path`, or ask the user to open a note first. |
@@ -197,7 +203,7 @@ Callers automating against multi-platform deployments must plan around this dive
 
 ## Atomicity and concurrent calls
 
-A single `prepend` invocation does not leave the note on disk in a half-written or otherwise inconsistent state at any observable instant within the wrapper's control. Atomicity is inherited from the upstream `obsidian prepend` subcommand's internal write pipeline — the wrapper does not introduce additional atomicity machinery. Interrupted invocations (power loss, `kill -9`) leave on-disk state to the operating system.
+A single `prepend` invocation does not leave the note on disk in a half-written or otherwise inconsistent state at any observable instant within the wrapper's control. Atomicity is inherited from the upstream `obsidian prepend` subcommand's internal write pipeline. The one write the wrapper makes itself, removing the extra trailing line break from a note with no body, goes through an atomic temp-file-and-rename. Interrupted invocations (power loss, `kill -9`) leave on-disk state to the operating system.
 
 Two concurrent `prepend` calls against the same note resolve **last-write-wins**. Callers needing stronger guarantees coordinate externally.
 

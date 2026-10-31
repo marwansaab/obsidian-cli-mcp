@@ -1,12 +1,15 @@
-// Original — no upstream. prepend handler per BI-045 — CLI-wrap of upstream `obsidian prepend` (cohort divergence from BI-044's fs-direct; rationale in research.md R1). Specific-mode vault-registry resolve (+ pre-flight `obsidian file` TSV resolver for wikilink-form `file`) OR active-mode focused-file eval → note-only file-type check (spec 070: a non-note target is rejected as UNSUPPORTED_FILE_TYPE before the stat and the CLI call) → Layer 2 canonical path check → stat (pre) → invokeCli prepend with optional `inline` flag → stat (post) → bytes_written delta → typed output envelope. NOTE_NOT_FOUND (FR-016) + EXTERNAL_EDITOR_CONFLICT (FR-022) re-classification on upstream stdout/stderr inspection. No fs read/write/rename — upstream owns the byte-level write; the wrapper only stats for the byte-count delta + realpath for Layer 2.
+// Original — no upstream. prepend handler per BI-045 — CLI-wrap of upstream `obsidian prepend` (cohort divergence from BI-044's fs-direct; rationale in research.md R1). Specific-mode vault-registry resolve (+ pre-flight `obsidian file` TSV resolver for wikilink-form `file`) OR active-mode focused-file eval → note-only file-type check (spec 070: a non-note target is rejected as UNSUPPORTED_FILE_TYPE before the stat and the CLI call) → Layer 2 canonical path check → stat + read (pre) → invokeCli prepend with optional `inline` flag → stat (post) → bytes_written delta → spec 076 empty-body correction → typed output envelope. NOTE_NOT_FOUND (FR-016) + EXTERNAL_EDITOR_CONFLICT (FR-022) re-classification on upstream stdout/stderr inspection. Upstream owns the main write; the wrapper reads the note before and after the call and, when Obsidian added a trailing LF to a note with no body (empty or properties-only, landedAtEmptyBody), rewrites it once without that LF through the cohort's writeAtomic + metadata refresh (spec 076).
+import { randomUUID } from "node:crypto";
 import * as nodeFs from "node:fs/promises";
 
+import { landedAtEmptyBody } from "./empty-body.js";
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError, stringDetail } from "../../errors.js";
 import { assertSupportedFileType, type SupportDeclaration } from "../../file-type/file-type.js";
 import { assertCanonicalPath } from "../_active-file.js";
 import { resolveFsTarget } from "../_file-target.js";
 import { getErrno } from "../_fs-errors.js";
+import { invalidateMetadataCache, writeAtomic } from "../_note-io.js";
 
 import type { PrependInput, PrependOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
@@ -16,6 +19,10 @@ import type { VaultRegistry } from "../../vault-registry/registry.js";
 export interface ExecuteFs {
   realpath: (p: string) => Promise<string>;
   stat: (p: string) => Promise<{ size: number }>;
+  readFile: (p: string, encoding: "utf8") => Promise<string>;
+  writeFile: (p: string, content: string) => Promise<void>;
+  rename: (from: string, to: string) => Promise<void>;
+  unlink: (p: string) => Promise<void>;
 }
 
 export interface ExecuteDeps extends CallScope {
@@ -33,6 +40,10 @@ const DEFAULT_FS: ExecuteFs = {
     const s = await nodeFs.stat(p);
     return { size: s.size };
   },
+  readFile: (p, encoding) => nodeFs.readFile(p, encoding),
+  writeFile: (p, content) => nodeFs.writeFile(p, content),
+  rename: (from, to) => nodeFs.rename(from, to),
+  unlink: (p) => nodeFs.unlink(p),
 };
 
 // FR-016 / R6 — placeholder pattern strings. T22's T0-P10 probe confirms the
@@ -154,6 +165,24 @@ export async function executePrepend(
     preCallSize = 0;
   }
 
+  // Spec 076 — the note's text before the call, for the empty-body check below. ENOENT
+  // leaves it null (upstream's NOTE_NOT_FOUND stays the contract surface); any other read
+  // failure stops the call before Obsidian writes anything.
+  let before: string | null = null;
+  try {
+    before = await fs.readFile(absPath, "utf8");
+  } catch (e) {
+    const errno = getErrno(e) ?? "UNKNOWN";
+    if (errno !== "ENOENT") {
+      throw new UpstreamError({
+        code: "FS_WRITE_FAILED",
+        cause: e,
+        details: { errno, syscall: "open", path: relPath },
+        message: `prepend: could not read "${relPath}" before the call (${errno}); nothing was changed. Retry once the file can be read.`,
+      });
+    }
+  }
+
   try {
     await invokeCli(
       {
@@ -173,7 +202,7 @@ export async function executePrepend(
   }
 
   const postCallSize = (await fs.stat(absPath)).size;
-  const bytesWritten = postCallSize - preCallSize;
+  let bytesWritten = postCallSize - preCallSize;
 
   // BI-047 / FR-003 — post-stat byte-delta guard. Upstream returned exit 0
   // but the on-disk byte count is unchanged (or smaller): the write did not
@@ -193,6 +222,51 @@ export async function executePrepend(
       },
       message: `prepend: upstream returned success but on-disk byte count is unchanged (pre=${preCallSize}, post=${postCallSize}); the write did not land. Possible silent-no-op from upstream — retry after confirming the target file is not held open by an external editor.`,
     });
+  }
+
+  // Spec 076 — in default mode Obsidian appends one LF after the content. On a note with no
+  // body that LF ends up as an extra trailing line break; take it back. The size pre-filter
+  // skips the read-back for inline calls and for any size change that cannot be content + LF.
+  if (before !== null && bytesWritten === Buffer.byteLength(input.content, "utf8") + 1) {
+    const extraNewlineError = (e: unknown): UpstreamError => {
+      const errno = getErrno(e);
+      return new UpstreamError({
+        code: "FS_WRITE_FAILED",
+        cause: e,
+        details: {
+          reason: "extra-trailing-newline",
+          path: relPath,
+          vault: vaultDisplayName,
+          ...(errno ? { errno } : {}),
+        },
+        message: `prepend: the content landed in "${relPath}", but the extra trailing line break Obsidian added could not be removed (${errno ?? (e instanceof Error ? e.message : String(e))}); the note ends with one extra line break. Retry once the file is free, or remove the final line break yourself.`,
+      });
+    };
+
+    let after: string;
+    try {
+      after = await fs.readFile(absPath, "utf8");
+    } catch (e) {
+      if (before === "") throw extraNewlineError(e);
+      // A non-empty note may have been properties-only; the content landed either way.
+      const errno = getErrno(e) ?? "UNKNOWN";
+      throw new UpstreamError({
+        code: "FS_WRITE_FAILED",
+        cause: e,
+        details: { errno, syscall: "open", path: relPath },
+        message: `prepend: the content landed in "${relPath}", but the note could not be read back (${errno}) to check whether Obsidian left an extra trailing line break. Do not send the content again; read the note to check its end.`,
+      });
+    }
+
+    if (landedAtEmptyBody(before, input.content, after)) {
+      try {
+        await writeAtomic(fs, absPath, before + input.content, randomUUID);
+      } catch (e) {
+        throw extraNewlineError(e);
+      }
+      await invalidateMetadataCache(deps, { vault: input.vault, relPath });
+      bytesWritten -= 1;
+    }
   }
 
   return {

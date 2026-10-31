@@ -25,7 +25,7 @@ Load the `karpathy-guidelines` skill before writing any code or test (user's glo
 
 **Purpose**: confirm a green starting point.
 
-- [ ] T001 Run `npm run typecheck`, `npm run lint` and `npm test` on branch `076-fix-empty-prepend` before any edit, and record any pre-existing failure so it is not later blamed on this change.
+- [X] T001 Run `npm run typecheck`, `npm run lint` and `npm test` on branch `076-fix-empty-prepend` before any edit, and record any pre-existing failure so it is not later blamed on this change.
 
 ---
 
@@ -35,14 +35,14 @@ Load the `karpathy-guidelines` skill before writing any code or test (user's glo
 
 **⚠️ CRITICAL**: no user story work can begin until this phase is complete.
 
-- [ ] T002 In `src/tools/prepend/handler.ts`, add `readFile: (p: string, encoding: "utf8") => Promise<string>`, `writeFile`, `rename` and `unlink` to `ExecuteFs`, with the same signatures as `append_note/handler.ts`'s `ExecuteFs`, so it satisfies `AtomicWriteFs` from `../_note-io.js`. Add matching `node:fs/promises` implementations to `DEFAULT_FS`. Do not use them yet.
-- [ ] T003 In `src/tools/prepend/_handler-fixtures.ts`, extend `fakeFs`:
+- [X] T002 In `src/tools/prepend/handler.ts`, add `readFile: (p: string, encoding: "utf8") => Promise<string>`, `writeFile`, `rename` and `unlink` to `ExecuteFs`, with the same signatures as `append_note/handler.ts`'s `ExecuteFs`, so it satisfies `AtomicWriteFs` from `../_note-io.js`. Add matching `node:fs/promises` implementations to `DEFAULT_FS`. Do not use them yet.
+- [X] T003 In `src/tools/prepend/_handler-fixtures.ts`, extend `fakeFs`:
   - Add an optional `contents?: string[]` sequence that `readFile` replays like `sizes` (default `[""]`; the last value repeats).
   - Add `writeFile` and `rename`, recorded in a new `writes: Array<{ path: string; content: string }>` and `renames: Array<{ from: string; to: string }>` on `FakeFsHandle`, and add `unlink`.
   - Keep `opts.over` merging onto the base, so existing per-test overrides still work.
   - Update the header's intent line.
   - Depends on T002.
-- [ ] T004 Run `npm run typecheck` and `npm test`. Every existing prepend test (`handler.test.ts`, `handler.bi047.test.ts`, `handler.file-type.test.ts`, `index.test.ts`, `schema.test.ts`) and `_surface.test.ts` (prepend entry of `src/tools/_typed-result-fixtures.ts`) must pass unchanged. Depends on T003.
+- [X] T004 Run `npm run typecheck` and `npm test`. Every existing prepend test (`handler.test.ts`, `handler.bi047.test.ts`, `handler.file-type.test.ts`, `index.test.ts`, `schema.test.ts`) and `_surface.test.ts` (prepend entry of `src/tools/_typed-result-fixtures.ts`) must pass unchanged. Depends on T003.
 
 **Checkpoint**: seam widened, behaviour unchanged.
 
@@ -56,12 +56,12 @@ Load the `karpathy-guidelines` skill before writing any code or test (user's glo
 
 ### Tests for User Story 1 ⚠️ write first, confirm they fail
 
-- [ ] T005 [P] [US1] Create `src/tools/prepend/empty-body.test.ts` (header `// Original — no upstream.`) for `landedAtEmptyBody(before, content, after)` per research D2 and data-model §Predicate. Cases:
+- [X] T005 [P] [US1] Create `src/tools/prepend/empty-body.test.ts` (header `// Original — no upstream.`) for `landedAtEmptyBody(before, content, after)` per research D2 and data-model §Predicate. Cases:
   - true: `("", "first", "first\n")`; `("", "first\n", "first\n\n")`; `("", "first\r\n", "first\r\n\n")`; `("", "café", "café\n")`.
   - false: inline-shaped `("", "first", "first")`; another writer changed the note, e.g. `("", "first", "first\nX")`; Obsidian did not write `("", "first", "")`.
   - false for notes with a body: `("abc", "def", "def\nabc")`; `("\n", "first", "first\n\n")`.
   - ambiguity guard false: `("x\n", "x", "x\nx\n")`, and the same shape with `content` `"x\nx"` (primitive root shorter than `content + "\n"`).
-- [ ] T006 [P] [US1] Create `src/tools/prepend/handler.empty-body.test.ts` (header `// Original — no upstream.`), reusing `_handler-fixtures.ts` (`fakeFs`, `fakeRegistry`, `deps`, `PREPEND_OK`) and `makeQueuedSpawn` from `../_handler-test-fixtures.js`. Queue a stub for the metadata-refresh `eval` (stdout `=> ok`) after `PREPEND_OK` whenever the correction runs (`invalidateMetadataCache → evalInVault → invokeCli`). Cases:
+- [X] T006 [P] [US1] Create `src/tools/prepend/handler.empty-body.test.ts` (header `// Original — no upstream.`), reusing `_handler-fixtures.ts` (`fakeFs`, `fakeRegistry`, `deps`, `PREPEND_OK`) and `makeQueuedSpawn` from `../_handler-test-fixtures.js`. Queue a stub for the metadata-refresh `eval` (stdout `=> ok`) after `PREPEND_OK` whenever the correction runs (`invalidateMetadataCache → evalInVault → invokeCli`). Cases:
   - **E1**: `fakeFs` with `contents: ["", "first\n"]` and `sizes: [0, 6]`. Expect `fs.writes` to hold exactly one write whose content is `"first"`, a rename onto the absolute target, `bytes_written: 5`, and that the queued `eval` was consumed.
   - **E2**: inline (`sizes: [0, 5]`). Expect no write, `bytes_written: 5`, and no `readFile` after the call.
   - **E3**: `"first\n"`. Expect a write of `"first\n"` and `bytes_written: 6`.
@@ -76,15 +76,15 @@ Load the `karpathy-guidelines` skill before writing any code or test (user's glo
 
 ### Implementation for User Story 1
 
-- [ ] T007 [P] [US1] Create `src/tools/prepend/empty-body.ts` (header `// Original — no upstream.`, plus an intent line citing spec 076 research D2) exporting `landedAtEmptyBody(before: string, content: string, after: string): boolean`. Logic: `w = content + "\n"`; return `after === before + w && !before.endsWith(w.slice(0, (w + w).indexOf(w, 1)))`. Pure: no fs access and no `UpstreamError`. Makes T005 pass.
-- [ ] T008 [US1] In `src/tools/prepend/handler.ts` `executePrepend`, implement the data-model §Sequence. Depends on T002 and T007.
+- [X] T007 [P] [US1] Create `src/tools/prepend/empty-body.ts` (header `// Original — no upstream.`, plus an intent line citing spec 076 research D2) exporting `landedAtEmptyBody(before: string, content: string, after: string): boolean`. Logic: `w = content + "\n"`; return `after === before + w && !before.endsWith(w.slice(0, (w + w).indexOf(w, 1)))`. Pure: no fs access and no `UpstreamError`. Makes T005 pass.
+- [X] T008 [US1] In `src/tools/prepend/handler.ts` `executePrepend`, implement the data-model §Sequence. Depends on T002 and T007.
   - (a) After the pre-call `stat`, read `before` with `fs.readFile(absPath, "utf8")`: ENOENT → `null`; any other errno → throw `UpstreamError` `{ code: "FS_WRITE_FAILED", cause: e, details: { errno, syscall: "open", path: relPath } }` (errno through `getErrno`, no `reason`), before the `invokeCli` call. Leave the pre-call `stat`'s existing raw rethrow unchanged (outside this BI).
   - (b) After the existing `bytesWritten <= 0` guard, if `before !== null && bytesWritten === Buffer.byteLength(input.content, "utf8") + 1`, read `after`.
   - (c) If `landedAtEmptyBody(before, input.content, after)`, call `writeAtomic(fs, absPath, before + input.content, randomUUID)` (`node:crypto`), then `invalidateMetadataCache(deps, { vault: input.vault, relPath })`, then `bytesWritten -= 1` (make `bytesWritten` `let`).
   - (d) A failure of `writeAtomic`, or of the `after` read when `before === ""`, throws `UpstreamError` `{ code: "FS_WRITE_FAILED", cause: e, details: { reason: "extra-trailing-newline", path: relPath, vault: vaultDisplayName, ...(errno ? { errno } : {}) } }` with the contract §4 `extra-trailing-newline` message. A failure of the `after` read when `before` is non-empty throws `UpstreamError` `{ code: "FS_WRITE_FAILED", cause: e, details: { errno, syscall: "open", path: relPath } }` (no `reason`) with the contract §4 unverified message. Get the errno through `getErrno`.
   - (e) Update the file header's intent line: it now reads the note before and after the call and rewrites it once when Obsidian added a trailing LF to a note with no body (spec 076). Remove "No fs read/write/rename".
   - Makes T006 pass.
-- [ ] T009 [US1] Run `npm test -- src/tools/prepend`. T005 and T006 pass, and all pre-existing prepend tests still pass unchanged (spec SC-004, FR-006). Depends on T007 and T008.
+- [X] T009 [US1] Run `npm test -- src/tools/prepend`. T005 and T006 pass, and all pre-existing prepend tests still pass unchanged (spec SC-004, FR-006). Depends on T007 and T008.
 
 **Checkpoint**: MVP. Empty-note prepend is exact.
 
@@ -96,7 +96,7 @@ Load the `karpathy-guidelines` skill before writing any code or test (user's glo
 
 **Independent Test**: one test drives both handlers on an empty fake note and compares the written content and `bytes_written`.
 
-- [ ] T010 [US2] Add a `describe("mirror with append_note (spec 076 FR-005)")` block to `src/tools/prepend/handler.empty-body.test.ts`. For each of `"first"`, `"first\n"` and `"café"`:
+- [X] T010 [US2] Add a `describe("mirror with append_note (spec 076 FR-005)")` block to `src/tools/prepend/handler.empty-body.test.ts`. For each of `"first"`, `"first\n"` and `"café"`:
   - run `executePrepend` as in T006 E1;
   - run `executeAppendNote` from `../append_note/handler.js`. append_note has no shared `_handler-fixtures.ts`, so build an inline append_note `ExecuteFs` literal: `realpath` resolves the vault root and throws ENOENT otherwise (as prepend's `fakeFs` does), `readFile` returns `""`, `writeFile` records content, and `rename` and `unlink` are no-ops. Use the same `fakeRegistry`, a `makeQueuedSpawn` with one `=> ok` eval stub for its metadata refresh, and the same `path` input;
   - assert the final written contents are equal and both `bytes_written` values are equal.
@@ -113,11 +113,11 @@ Load the `karpathy-guidelines` skill before writing any code or test (user's glo
 
 **Independent Test**: with `contents: ["---\nkey: v\n---\n", "---\nkey: v\n---\nLead\n"]` and `sizes: [15, 20]`, `executePrepend` writes `"---\nkey: v\n---\nLead"` and returns `bytes_written: 4`.
 
-- [ ] T011 [P] [US3] Extend `src/tools/prepend/empty-body.test.ts` with properties-only cases:
+- [X] T011 [P] [US3] Extend `src/tools/prepend/empty-body.test.ts` with properties-only cases:
   - true: LF `("---\nkey: v\n---\n", "Lead", "---\nkey: v\n---\nLead\n")`; CRLF `("---\r\nkey: v\r\n---\r\n", "Lead", "---\r\nkey: v\r\n---\r\nLead\n")`; no line break after the closing `---` `("---\nkey: v\n---", "Lead", "---\nkey: v\n---Lead\n")`.
   - false: a note with a body `("---\nkey: v\n---\nbody", "Lead", "---\nkey: v\n---\nLead\nbody")`; a blank body `("---\nkey: v\n---\n\n", "Lead", "---\nkey: v\n---\nLead\n\n")`; the ambiguity case E12 `("---\nkey: v\n---\n", "---", "---\nkey: v\n---\n---\n")`.
   - Depends on T007 only for running; can be written alongside T005.
-- [ ] T012 [US3] Add contract E5, E6 (inline: no write), E7, E8 and E12 (no write, `bytes_written: 4`) to `src/tools/prepend/handler.empty-body.test.ts`, with the same fixture pattern as T006. Depends on T008.
+- [X] T012 [US3] Add contract E5, E6 (inline: no write), E7, E8 and E12 (no write, `bytes_written: 4`) to `src/tools/prepend/handler.empty-body.test.ts`, with the same fixture pattern as T006. Depends on T008.
 
 **Checkpoint**: properties-only prepend exact; the ambiguity guard is pinned.
 
@@ -129,15 +129,15 @@ Load the `karpathy-guidelines` skill before writing any code or test (user's glo
 
 **Independent Test**: each docs statement about empty and properties-only notes matches a contract §3 row and a passing test.
 
-- [ ] T013 [P] [US4] Edit `docs/tools/prepend.md`:
+- [X] T013 [P] [US4] Edit `docs/tools/prepend.md`:
   - (0) Where the page first refers to the properties block in the new text, write "properties block (frontmatter)" once, then keep the page's existing "frontmatter" wording.
   - (a) *Separator behaviour* worked examples: keep `existing = ""` → `"def"`, and add `existing = "---\nkey: v\n---\n"`, `content = "Lead"` → `"---\nkey: v\n---\nLead"` (no trailing separator).
   - (b) Add one sentence under the table on the limitation: on a properties-only note whose end repeats `content + "\n"` (for example `content: "---"`), the result keeps one trailing line break (research D2).
   - (c) *Output envelope* `bytes_written` bullet: add "On an empty note or a note with only a properties block it exactly equals the content's size in bytes."
   - (d) *Error states*: add the three new `FS_WRITE_FAILED` rows from contract §4: `details.reason: "extra-trailing-newline"` (what to do: retry once the file is free, or remove the final line break); the unverified read-back row with `details.syscall: "open"` and no reason (what to do: do not re-send; read the note and check its end); and the pre-read row (nothing changed; retry once the file can be read).
   - Leave the separator rows for notes with content unchanged (spec Out of Scope; plan Follow-ups).
-- [ ] T014 [P] [US4] Add to `CHANGELOG.md` `[Unreleased]` a `Spec 076-fix-empty-prepend.` line and a **Fixed** entry: `prepend` on an empty note or a properties-only note no longer adds a trailing line break, and `bytes_written` equals the content's size; a new `FS_WRITE_FAILED` reason `extra-trailing-newline` reports a failed correction. Follow the existing `[Unreleased]` layout.
-- [ ] T015 [US4] Confirm `src/tools/prepend/index.ts` `PREPEND_DESCRIPTION` makes no empty-note claim that now contradicts behaviour, and leave it unchanged, so no fingerprint moves. Run `npm run baseline:write` and `git diff --exit-code src/tools/_register-baseline.json`: expect no diff (contract §5).
+- [X] T014 [P] [US4] Add to `CHANGELOG.md` `[Unreleased]` a `Spec 076-fix-empty-prepend.` line and a **Fixed** entry: `prepend` on an empty note or a properties-only note no longer adds a trailing line break, and `bytes_written` equals the content's size; a new `FS_WRITE_FAILED` reason `extra-trailing-newline` reports a failed correction. Follow the existing `[Unreleased]` layout.
+- [X] T015 [US4] Confirm `src/tools/prepend/index.ts` `PREPEND_DESCRIPTION` makes no empty-note claim that now contradicts behaviour, and leave it unchanged, so no fingerprint moves. Run `npm run baseline:write` and `git diff --exit-code src/tools/_register-baseline.json`: expect no diff (contract §5).
 
 **Checkpoint**: docs agree with behaviour.
 
@@ -145,14 +145,14 @@ Load the `karpathy-guidelines` skill before writing any code or test (user's glo
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T016 Run `npm run typecheck`, `npm run lint`, `npm run format:check` and `npm test`; all green. Depends on T009 to T015.
-- [ ] T017 Post-implement structural verification (CLAUDE.md): run `codegraph sync`, then `codegraph_explore "landedAtEmptyBody executePrepend writeAtomic invalidateMetadataCache UpstreamError"`. Confirm:
+- [X] T016 Run `npm run typecheck`, `npm run lint`, `npm run format:check` and `npm test`; all green. Depends on T009 to T015.
+- [X] T017 Post-implement structural verification (CLAUDE.md): run `codegraph sync`, then `codegraph_explore "landedAtEmptyBody executePrepend writeAtomic invalidateMetadataCache UpstreamError"`. Confirm:
   1. no new error code or class, and `src/errors.ts` is unchanged;
   2. no handler imports `createLogger` / `createQueue`;
   3. `empty-body.ts` is imported only by `prepend/handler.ts` and tests, and `handler.ts`'s new import `../_note-io.js` is downward, with no production tool→tool import;
   4. `landedAtEmptyBody` is reachable from `createPrependTool`.
   Record the result in the PR description's Constitution Compliance section.
-- [ ] T018 Run the [quickstart.md](quickstart.md) §3 live check after reading `.memory/test-execution-instructions.md`: `npm run build`, fixtures under `Sandbox/076-<run>/` seeded through `obsidian eval`, steps 1 to 9, then clean up and confirm the folder is gone. Report each step's result verbatim. Depends on T016.
+- [X] T018 Run the [quickstart.md](quickstart.md) §3 live check after reading `.memory/test-execution-instructions.md`: `npm run build`, fixtures under `Sandbox/076-<run>/` seeded through `obsidian eval`, steps 1 to 9, then clean up and confirm the folder is gone. Report each step's result verbatim. Depends on T016.
 
 ---
 
