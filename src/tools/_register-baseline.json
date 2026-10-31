@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedFromBranch": "073-align-parameter-names",
+  "generatedFromBranch": "074-return-exact-content",
   "generatedAt": "2026-10-31",
   "tools": [
     {
@@ -189,7 +189,7 @@
     },
     {
       "name": "read",
-      "descriptionFingerprint": "58076e20ed3d1c7b91cdbbf67e2bc9357d380cd383f476584588819b9bc376a9",
+      "descriptionFingerprint": "f466744ed853a69c8135d6184f0217d837f4d6ce1b2102a6a8fb7e1516cb4cb9",
       "schemaFingerprint": "2c04a98caa9e2c3e3f7aabb62d4c128669afca749a45dab94d1d925a150da0b0",
       "titleFingerprint": "9b9a8d05a7ec353bda84f9c1bb3178c299de3001b5e970508ddc889c487f92ca",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",

@@ -1,4 +1,4 @@
-// Original — no upstream. Resolves the file a file-path tool will act on, so its file-type check runs on that file however it is addressed (spec 070 FR-009, research D3): `path` as given (no CLI call), `file` through the `obsidian file` TSV resolver, `active` through the focused-file eval. `resolveFileTarget` serves the CLI-pass-through tools (read, rename, move, outline) and also returns the locator they forward (active mode: the resolved `path=` with no `vault=`, so no vault registry is involved); `resolveFsTarget` serves the direct-fs tools (append_note, prepend) and also returns the vault root and display name. Composes the shared `_active-file.ts` resolvers; resolution failures surface unchanged.
+// Original — no upstream. Resolves the file a file-path tool will act on, so its file-type check runs on that file however it is addressed (spec 070 FR-009, research D3): `path` as given (no CLI call), `file` through the `obsidian file` TSV resolver, `active` through the focused-file eval. `resolveFileTarget` serves the CLI-pass-through tools (read, rename, move, outline) and also returns the locator they forward (active mode: the resolved `path=` with no `vault=`, so no vault registry is involved) and, in active mode only, the focused-file eval's vault root (spec 074: read's exact-content check); `resolveFsTarget` serves the direct-fs tools (append_note, prepend) and also returns the vault root and display name. Composes the shared `_active-file.ts` resolvers; resolution failures surface unchanged.
 import {
   resolveActiveFocusedFile,
   resolveActiveLocatorWithVault,
@@ -34,6 +34,8 @@ export interface FileTarget {
    * moves to another file in between.
    */
   locator: { file: string } | { path: string };
+  /** The vault's absolute folder, set in active mode only, from the focused-file eval's `base`. */
+  vaultRoot?: string;
 }
 
 // Specific mode: `path` as given, or the `file` name resolved through the TSV resolver.
@@ -47,8 +49,8 @@ export async function resolveFileTarget(
   toolName: string,
 ): Promise<FileTarget> {
   if (input.target_mode === "active") {
-    const { relPath } = await resolveActiveFocusedFile(deps, toolName);
-    return { relPath, vault: undefined, locator: { path: relPath } };
+    const { vaultRoot, relPath } = await resolveActiveFocusedFile(deps, toolName);
+    return { relPath, vault: undefined, locator: { path: relPath }, vaultRoot };
   }
   const relPath = await specificRelPath(input, deps, toolName);
   return {

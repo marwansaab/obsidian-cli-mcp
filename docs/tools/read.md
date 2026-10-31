@@ -2,11 +2,11 @@
 
 ## Overview
 
-Read a note, canvas or base from an Obsidian vault. Returns the file's raw UTF-8 text from the CLI's stdout.
+Read a note, canvas or base from an Obsidian vault. Returns the file's exact text.
 
 **Supported file types: notes, canvases and bases.** Attachments (images, audio, video, PDF) and files of any other type are rejected with `UNSUPPORTED_FILE_TYPE` before the read runs (spec 070); to show an attachment in Obsidian, use [`open_file`](./open_file.md). See *File types* below.
 
-**Trailing-newline caveat:** the upstream CLI may append a synthetic trailing `\n` when the file on disk does not already end with one. A file containing exactly `"first"` (5 bytes on disk) is returned as `"first\n"` (6 chars). A file ending with `\n` is returned unchanged. No other transformations are applied — no trim, no line-ending normalisation, no BOM strip. If you need byte-exact verification of a file's on-disk content, use the `bytes_written` field returned by the fs-direct write tools (`append_note`, `patch_heading`, `patch_block`) rather than reading-and-comparing.
+**Exact content:** `content` is the file's text exactly as it is on disk, with nothing added and nothing removed. Real final line breaks are kept, whether LF, CRLF or repeated (`"first\n"` stays `"first\n"`, `"a\n\n"` stays `"a\n\n"`). A missing final line break stays missing: a file containing exactly `first` is returned as `"first"`. A leading byte-order mark is kept as `"\uFEFF"`. Line endings are not normalised and nothing is trimmed. To verify a write, read the file back right after it and compare.
 
 ## When to use this tool
 
@@ -92,7 +92,7 @@ This `UNSUPPORTED_FILE_TYPE` sits under the top-level `VALIDATION_ERROR` and mea
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `content` | string | The note's UTF-8 text from the CLI's `stdout`. The upstream CLI may append a synthetic trailing `\n` if the file did not already end with one. Empty strings are valid (empty notes succeed). |
+| `content` | string | The file's exact text: nothing added or removed. Final line breaks (LF, CRLF, repeated) and a leading byte-order mark are kept; a missing final line break stays missing. Empty strings are valid (empty notes succeed). |
 
 ## Errors
 
@@ -104,6 +104,7 @@ This `UNSUPPORTED_FILE_TYPE` sits under the top-level `VALIDATION_ERROR` and mea
 | `CLI_REPORTED_ERROR` | The CLI exited 0 but stdout starts with `Error:` (and is NOT the more-specific `Error: no active file` case). | `details.message` (the first line of stdout) names the specific failure. |
 | `ERR_NO_ACTIVE_FILE` | `target_mode: "active"` was used but no note is focused in Obsidian. | Ask the user to open a note in the editor, OR call again with `target_mode: "specific"` and explicit `vault` + `file`/`path`. |
 | `CLI_BINARY_NOT_FOUND` | The `obsidian` CLI binary is not on `PATH` and `OBSIDIAN_BIN` was unset/invalid. | Operator-side: install the Obsidian CLI, OR set `OBSIDIAN_BIN` to a valid path. |
+| `FS_WRITE_FAILED` (`details.reason: "read"`) | After a successful CLI read, the file's bytes could not be read from disk to confirm its first and last characters (for example, it was deleted or locked in between, or the server cannot read the vault folder). `read` reuses the project's existing filesystem-failure code for a failed read, with the same `reason: "read"` shape as `find_and_replace`. `details` carries `errno`, `syscall` (when known) and `path` (vault-relative). Nothing was written, and no uncorrected text is returned. | Retry. If it persists, check the server's access to the vault folder. |
 
 ## Examples
 

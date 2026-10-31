@@ -131,7 +131,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     createPrependTool({ logger, queue, vaultRegistry }),
     createPropertiesTool({ logger, queue }),
     createQueryBaseTool({ logger, queue, vaultRegistry }),
-    createReadTool({ logger, queue }),
+    createReadTool({ logger, queue, vaultRegistry }),
     createReadHeadingTool({ logger, queue }),
     createReadPropertyTool({ logger, queue }),
     createRenameTool({ logger, queue }),

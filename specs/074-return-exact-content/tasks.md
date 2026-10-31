@@ -27,7 +27,7 @@ Single project: `src/`, with co-located `*.test.ts`. Docs are in `docs/tools/`.
 
 **Purpose**: confirm a green starting point.
 
-- [ ] T001 Run `npm run typecheck`, `npm run lint` and `npm test` on branch `074-return-exact-content` before any edit, and note any pre-existing failure, so later failures can be attributed (repository root).
+- [X] T001 Run `npm run typecheck`, `npm run lint` and `npm test` on branch `074-return-exact-content` before any edit, and note any pre-existing failure, so later failures can be attributed (repository root).
 
 ---
 
@@ -37,26 +37,26 @@ Single project: `src/`, with co-located `*.test.ts`. Docs are in `docs/tools/`.
 
 **⚠️ CRITICAL**: no user-story work can begin until this phase is complete.
 
-- [ ] T002 In `src/tools/_file-target.ts`:
+- [X] T002 In `src/tools/_file-target.ts`:
   - add an optional `vaultRoot?: string` to `FileTarget`, documented as "the vault's absolute folder, set in active mode only, from the focused-file eval's `base`";
   - in `resolveFileTarget`'s active branch, take `vaultRoot` from `resolveActiveFocusedFile` and return it;
   - leave the specific branch unchanged;
   - update the file's header intent line to mention it.
 
   `rename`, `move` and `outline` must compile and their tests stay green with no edit.
-- [ ] T003 In `src/tools/read/handler.ts`, extend `ExecuteDeps` with `vaultRegistry: VaultRegistry` (type import from `../../vault-registry/registry.js`) and `fs?: ReadFs`. Then:
+- [X] T003 In `src/tools/read/handler.ts`, extend `ExecuteDeps` with `vaultRegistry: VaultRegistry` (type import from `../../vault-registry/registry.js`) and `fs?: ReadFs`. Then:
   - export `interface ReadFs { readFile: (p: string) => Promise<Buffer> }`;
   - add `DEFAULT_FS` backed by `node:fs/promises` `readFile`;
   - do not change behaviour yet;
   - update the header intent line (research D1 to D4).
 
   Depends on T002.
-- [ ] T004 Update the existing deps builders so they compile against the new required `vaultRegistry`, using `stubVaultRegistry("MyVault", <root>)` from `../_handler-test-fixtures.js` and an `fs` stub whose `readFile` returns the bytes the test's stdout implies:
+- [X] T004 Update the existing deps builders so they compile against the new required `vaultRegistry`, using `stubVaultRegistry("MyVault", <root>)` from `../_handler-test-fixtures.js` and an `fs` stub whose `readFile` returns the bytes the test's stdout implies:
   - `deps()` and every inline deps object in `src/tools/read/handler.test.ts`;
   - every `createReadTool({...})` call in `src/tools/read/index.test.ts`.
 
   Existing assertions stay as they are. Depends on T003.
-- [ ] T005 In `src/server.ts` (`createServer`, a kernel node), change `createReadTool({ logger, queue })` to `createReadTool({ logger, queue, vaultRegistry })`. This must be the only change to `server.ts` (plan, Kernel-node attention). Depends on T003.
+- [X] T005 In `src/server.ts` (`createServer`, a kernel node), change `createReadTool({ logger, queue })` to `createReadTool({ logger, queue, vaultRegistry })`. This must be the only change to `server.ts` (plan, Kernel-node attention). Depends on T003.
 
 **Checkpoint**: `npm run typecheck` and `npm test` are green, and `read` behaviour is unchanged.
 
@@ -70,12 +70,12 @@ Single project: `src/`, with co-located `*.test.ts`. Docs are in `docs/tools/`.
 
 ### Tests for User Story 1 ⚠️ (write first and confirm they fail)
 
-- [ ] T006 [US1] In `src/tools/read/handler.test.ts`, add a table-driven test over these contract §2 rows (disk bytes → stub stdout → expected `content`):
+- [X] T006 [US1] In `src/tools/read/handler.test.ts`, add a table-driven test over these contract §2 rows (disk bytes → stub stdout → expected `content`):
   - `first` → `first\n` → `first`;
   - `a\r\nb` → `a\r\nb\n` → `a\r\nb`;
   - `a\r` → `a\r\n` → `a\r`;
   - `# T\n\nlast line` → `# T\n\nlast line\n` → `# T\n\nlast line`.
-- [ ] T007 [US1] In `src/tools/read/handler.test.ts`, add the locator and ordering tests:
+- [X] T007 [US1] In `src/tools/read/handler.test.ts`, add the locator and ordering tests:
   - **`path` mode**: `readFile` is called with `join(<registry root>, "Templates/Recipe.md")`.
   - **`file` mode**: the TSV-resolved path is read, using `fileTsvResponse`.
   - **Active mode**: `join(<eval base>, "Daily/Today.md")` is read, with the root coming from `focusedFileResponse`'s base, and the registry is never called.
@@ -84,7 +84,7 @@ Single project: `src/`, with co-located `*.test.ts`. Docs are in `docs/tools/`.
 
 ### Implementation for User Story 1
 
-- [ ] T008 [US1] In `src/tools/read/handler.ts`, after the unchanged `invokeCli` call:
+- [X] T008 [US1] In `src/tools/read/handler.ts`, after the unchanged `invokeCli` call:
   - resolve the root: `target.vaultRoot ?? await deps.vaultRegistry.resolveVaultPath(target.vault!)`;
   - read `join(root, target.relPath)` through `deps.fs ?? DEFAULT_FS`;
   - wrap a read failure as `FS_WRITE_FAILED` with `details: { reason: "read", errno: getErrno(e) ?? "UNKNOWN", syscall?, path: target.relPath }` and the message `read: filesystem read failed: <errno> for "<relPath>"` (`getErrno` from `../_fs-errors.js`);
@@ -104,7 +104,7 @@ Single project: `src/`, with co-located `*.test.ts`. Docs are in `docs/tools/`.
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T009 [US2] In `src/tools/read/handler.test.ts`, extend the T006 table with these rows (disk bytes → stub stdout → expected `content`):
+- [X] T009 [US2] In `src/tools/read/handler.test.ts`, extend the T006 table with these rows (disk bytes → stub stdout → expected `content`):
   - `first\n` → `first\n` → `first\n`;
   - `a\r\nb\r\n` → `a\r\nb\r\n` → `a\r\nb\r\n`;
   - `a\n\n` → `a\n\n` → `a\n\n`;
@@ -113,7 +113,7 @@ Single project: `src/`, with co-located `*.test.ts`. Docs are in `docs/tools/`.
 
 ### Implementation for User Story 2
 
-- [ ] T010 [US2] Confirm that the T008 rule in `src/tools/read/handler.ts` passes T009 with no further change. If a row fails, fix the rule and not the test. Depends on T008 and T009.
+- [X] T010 [US2] Confirm that the T008 rule in `src/tools/read/handler.ts` passes T009 with no further change. If a row fails, fix the rule and not the test. Depends on T008 and T009.
 
 **Checkpoint**: US1 and US2 green together. No real line break is lost.
 
@@ -125,7 +125,7 @@ Single project: `src/`, with co-located `*.test.ts`. Docs are in `docs/tools/`.
 
 **Independent test**: disk bytes empty and stdout `""` give `content === ""`.
 
-- [ ] T011 [US3] In `src/tools/read/handler.test.ts`, update the existing "US1 boundary empty stdout" test to give its `fs` stub empty bytes, and assert `{ content: "" }`. Depends on T008.
+- [X] T011 [US3] In `src/tools/read/handler.test.ts`, update the existing "US1 boundary empty stdout" test to give its `fs` stub empty bytes, and assert `{ content: "" }`. Depends on T008.
 
 **Checkpoint**: the empty case is guarded.
 
@@ -139,17 +139,17 @@ Single project: `src/`, with co-located `*.test.ts`. Docs are in `docs/tools/`.
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T012 [US4] In `src/tools/read/handler.test.ts`, extend the table with the byte-order-mark rows of contract §2 (disk bytes → stub stdout → expected `content`):
+- [X] T012 [US4] In `src/tools/read/handler.test.ts`, extend the table with the byte-order-mark rows of contract §2 (disk bytes → stub stdout → expected `content`):
   - `EF BB BF 61` → `a\n` → `﻿a`;
   - `EF BB BF 61 0A` → `a\n` → `﻿a\n`;
   - `EF BB BF` → `""` → `﻿`;
   - `EF BB BF EF BB BF 61` → `﻿a\n` → `﻿﻿a`;
   - `61 EF BB BF 62` → `a﻿b\n` → `a﻿b`.
-- [ ] T013 [US4] In `src/tools/read/handler.test.ts`, add one canvas case (`file: "Plan.canvas"`, disk `{"nodes":[]}` with no trailing line feed, stdout with an added `\n`) and one base case (`path: "B.base"`), each returning the disk text exactly (FR-006).
+- [X] T013 [US4] In `src/tools/read/handler.test.ts`, add one canvas case (`file: "Plan.canvas"`, disk `{"nodes":[]}` with no trailing line feed, stdout with an added `\n`) and one base case (`path: "B.base"`), each returning the disk text exactly (FR-006).
 
 ### Implementation for User Story 4
 
-- [ ] T014 [US4] In `src/tools/read/handler.ts`, add the byte-order-mark half of the rule: when the disk bytes start with `EF BB BF`, prepend `"﻿"` to the corrected stdout. Keep R1: the result is built from stdout only. Makes T012 and T013 pass. Depends on T008, T012 and T013.
+- [X] T014 [US4] In `src/tools/read/handler.ts`, add the byte-order-mark half of the rule: when the disk bytes start with `EF BB BF`, prepend `"﻿"` to the corrected stdout. Keep R1: the result is built from stdout only. Makes T012 and T013 pass. Depends on T008, T012 and T013.
 
 **Checkpoint**: every contract §2 row passes.
 
@@ -161,15 +161,15 @@ Single project: `src/`, with co-located `*.test.ts`. Docs are in `docs/tools/`.
 
 **Independent test**: grepping `docs/tools/read.md` and `READ_DESCRIPTION` finds no "synthetic", "may append" or "no BOM strip", and does find "exact".
 
-- [ ] T015 [US5] In `src/tools/read/index.ts`, rewrite the second sentence of `READ_DESCRIPTION` to state the exact contract per contract §4: "Returns the file's exact text as { content }: nothing added or removed; line breaks and any byte-order mark are kept." Leave the rest (active mode, `describeSupport`, the attachment rejection, `open_file`) unchanged. Update the header intent line if it names stdout.
-- [ ] T016 [US5] In `src/tools/read/index.test.ts`, assert that the description contains "exact text" and no longer contains "<stdout>". Run `src/tools/_file-type-support.test.ts` to confirm that its supported-types sentence assertion still passes. Depends on T015.
-- [ ] T017 [P] [US5] In `docs/tools/read.md`:
+- [X] T015 [US5] In `src/tools/read/index.ts`, rewrite the second sentence of `READ_DESCRIPTION` to state the exact contract per contract §4: "Returns the file's exact text as { content }: nothing added or removed; line breaks and any byte-order mark are kept." Leave the rest (active mode, `describeSupport`, the attachment rejection, `open_file`) unchanged. Update the header intent line if it names stdout.
+- [X] T016 [US5] In `src/tools/read/index.test.ts`, assert that the description contains "exact text" and no longer contains "<stdout>". Run `src/tools/_file-type-support.test.ts` to confirm that its supported-types sentence assertion still passes. Depends on T015.
+- [X] T017 [P] [US5] In `docs/tools/read.md`:
   - **Overview line 5**: say "exact text" and drop "from the CLI's stdout".
   - **Line 9**: replace the "Trailing-newline caveat" paragraph with an "Exact content" paragraph: nothing added or removed; real final line breaks (LF, CRLF, repeated) kept; a missing final line break stays missing; a leading byte-order mark kept; read back after a write to verify it.
   - **Output row (line 95)**: rewrite it the same way.
   - **Errors table**: add a row for `FS_WRITE_FAILED` (`details.reason: "read"`) per contract §3. The row states that `read` reuses the project's existing filesystem-failure code for a failed read, with the same `reason: "read"` shape as `find_and_replace`, and that nothing was written.
-- [ ] T018 [P] [US5] In `docs/tools/index.md`, change the `read` line (line 29) from "Read the raw text" to "Read the exact text".
-- [ ] T019 [US5] Run `npm run baseline:write`, then `git diff src/tools/_register-baseline.json`. Confirm that only `read`'s description fingerprint changed (contract §5, quickstart §2). Depends on T015.
+- [X] T018 [P] [US5] In `docs/tools/index.md`, change the `read` line (line 29) from "Read the raw text" to "Read the exact text".
+- [X] T019 [US5] Run `npm run baseline:write`, then `git diff src/tools/_register-baseline.json`. Confirm that only `read`'s description fingerprint changed (contract §5, quickstart §2). Depends on T015.
 
 **Checkpoint**: docs and the published surface match the behaviour.
 
@@ -177,20 +177,20 @@ Single project: `src/`, with co-located `*.test.ts`. Docs are in `docs/tools/`.
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T020 [P] In `CHANGELOG.md`, add under `[Unreleased]` → **Fixed**:
+- [X] T020 [P] In `CHANGELOG.md`, add under `[Unreleased]` → **Fixed**:
 
   > `read` now returns a file's exact text. It no longer adds a final line break to a file that does not end with one, and it keeps a leading byte-order mark that the Obsidian CLI drops. A failed confirmation read reports `FS_WRITE_FAILED` with `reason: "read"`.
 
   Follow the file's existing entry style.
-- [ ] T021 Run `npm run typecheck`, `npm run lint`, `npm run format:check` and `npm test` (quickstart §1), and fix any failure in the files this feature touched. Depends on T001 to T020.
-- [ ] T022 Post-implement structural verification (CLAUDE.md, plan "Post-implement structural verification"): run `codegraph sync`, then `codegraph_explore "executeReadNote resolveFileTarget FileTarget createServer createReadTool"`. Confirm all four checks:
+- [X] T021 Run `npm run typecheck`, `npm run lint`, `npm run format:check` and `npm test` (quickstart §1), and fix any failure in the files this feature touched. Depends on T001 to T020.
+- [X] T022 Post-implement structural verification (CLAUDE.md, plan "Post-implement structural verification"): run `codegraph sync`, then `codegraph_explore "executeReadNote resolveFileTarget FileTarget createServer createReadTool"`. Confirm all four checks:
   - no new error code, and `src/errors.ts` unchanged;
   - `server.ts` differs only by the one argument;
   - `read/handler.ts` imports run downward only;
   - the new code is reachable from `createServer`.
 
   Record the outcome in the PR description's Constitution Compliance section. Depends on T021.
-- [ ] T023 Live end-to-end check, quickstart §3. Read `.memory/test-execution-instructions.md` first. Then `npm run build`, seed `Sandbox/t074/` in `TestVault-Obsidian-CLI-MCP` with the contract §2 byte fixtures, and call `read` through the built server for each. Check:
+- [X] T023 Live end-to-end check, quickstart §3. Read `.memory/test-execution-instructions.md` first. Then `npm run build`, seed `Sandbox/t074/` in `TestVault-Obsidian-CLI-MCP` with the contract §2 byte fixtures, and call `read` through the built server for each. Check:
   - one `file` call and one active-mode call;
   - the round trip with every note-writing tool (quickstart §3 step 5: `write_note`, `append_note`, `prepend`, `patch_heading`, `patch_block`, `set_property`, `find_and_replace` single-note commit), with an immediate `read` after each write compared with the disk bytes (FR-007, SC-003, research D7). The writing tools only produce the fixtures; none of them is changed.
 
