@@ -949,6 +949,21 @@ them:
   mode when a vault is given, active mode otherwise. The write cohort's two
   post-write evals, the metadata refresh and `write_note`'s editor open, both
   go through it.
+- **Testing a template.** Handler tests mock `invokeCli` and hand back a
+  ready-made envelope, so they never run the template's JavaScript. The only
+  in-process check on what a template computes is a template-execution test.
+  It renders the template through `composeEvalCode` and runs it in `node:vm`
+  against a stub `app` loaded with cache shapes recorded from a live vault.
+  `src/tools/links/_template.test.ts` (PR #98, spec 071 research D4) is the
+  first one for a tool. It was written because `links` reported
+  editor-derived display labels that no mocked handler test could catch
+  ([search and discovery](capabilities/search-and-discovery.md)).
+  `src/tools/_shared.test.ts` already ran the payload decode in `node:vm`, but
+  not a tool template. The other `_template.test.ts` files (`open_file`,
+  `get_active_file`, `views_base`) check the template string, meaning its
+  bytes, its payload encoding and which calls it contains. They do not run
+  it. Every other template's transforms are covered only by live probes
+  ([read](capabilities/read.md#known-limits) records one such gap).
 
 Since ADR-031 (Cross-Vault Open via Vault-Targeted Focus; PR #66, verified
 across the read and query cohort in PR #67), an `eval` sent with `vault=<name>`
