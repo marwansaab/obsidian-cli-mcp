@@ -33,6 +33,15 @@ every other tool. Bypassing those is the one thing an escape hatch here
 cannot do: `architecture.test.ts` keeps `dispatchCli` reachable only through
 the two facades.
 
+Its `eval` (when the gate below is open) is the one `eval` the server does
+not tag. Since PR #110 dispatch reads `eval` output line by line
+([architecture](../architecture.md#error-spine)), and for an untagged call any
+line starting `=> ` is the answer, so an `obsidian_exec` `eval` that prints an
+answer succeeds even when an `Error:` line came first. Without an answer
+line, an `Error:` or cold-start line is recognised wherever it starts a line.
+The code is sent as given and the result is still the raw `stdout`, `stderr`,
+`exitCode` and `argv` (spec 080 FR-012).
+
 Several typed tools point to `obsidian_exec` for what they deliberately do not
 cover: `rename` on non-`.md` files, `write_note` templates, `properties`
 ordered by frequency.
@@ -90,8 +99,9 @@ or `OBSIDIAN_MCP_READ_ONLY` (it is not read-only). It lifts the whole list at on
 no per-command opt-in.
 
 The gate sits only in the passthrough. The typed tools that run fixed `eval`
-templates go through `invokeCli`, not `invokeBoundedCli`, and are unaffected
-(FR-013) — PR #88 changed none of their tests.
+templates go through the typed-tool facade, not `invokeBoundedCli`, and are
+unaffected (FR-013) — PR #88 changed none of their tests. That entry point was
+`invokeCli` when PR #88 landed; since PR #110 it is `invokeEval`.
 
 ## `help` — the long reference
 
