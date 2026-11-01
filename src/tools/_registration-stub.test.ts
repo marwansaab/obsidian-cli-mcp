@@ -5,6 +5,7 @@ import { Readable } from "node:stream";
 import { describe, expect, it } from "vitest";
 
 import { makeRegistrationStubSpawn } from "./_registration-stub.js";
+import { wrapEvalCode } from "../cli-adapter/_eval-answer.js";
 
 type StubChild = ChildProcess & {
   stdout: Readable;
@@ -128,5 +129,28 @@ describe("makeRegistrationStubSpawn", () => {
 
     const exitCode = await awaitExit(child);
     expect(exitCode).toBe(0);
+  });
+
+  describe("answer-tag awareness (spec 080)", () => {
+    const TAG = "ocm-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+    const wrappedArgv = ["eval", `code=${wrapEvalCode("app.vault.getName()", TAG)}`];
+
+    it("case 8: an unwrapped argv leaves stdout untouched", async () => {
+      const child = makeRegistrationStubSpawn({ stdout: "=> 1\n" })("obsidian", ["eval", "code=1"], {}) as StubChild;
+      expect(await readToString(child.stdout)).toBe("=> 1\n");
+    });
+
+    it("case 9: a wrapped argv tags every => line of string stdout", async () => {
+      const child = makeRegistrationStubSpawn({ stdout: "noise\n=> 1\n" })("obsidian", wrappedArgv, {}) as StubChild;
+      expect(await readToString(child.stdout)).toBe(`noise\n=> <<${TAG}>>1\n`);
+    });
+
+    it("case 10: function-form stdout receives the tag and is emitted verbatim", async () => {
+      const spawnFn = makeRegistrationStubSpawn({ stdout: ({ answerTag }) => `=> 0\n=> <<${answerTag ?? "none"}>>1\n` });
+      const wrapped = spawnFn("obsidian", wrappedArgv, {}) as StubChild;
+      expect(await readToString(wrapped.stdout)).toBe(`=> 0\n=> <<${TAG}>>1\n`);
+      const plain = spawnFn("obsidian", ["read"], {}) as StubChild;
+      expect(await readToString(plain.stdout)).toBe("=> 0\n=> <<none>>1\n");
+    });
   });
 });

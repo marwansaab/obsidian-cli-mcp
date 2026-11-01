@@ -13,6 +13,11 @@
 //   - makeQueuedSpawn: consumes responses[idx++] and THROWS on overflow.
 //   - makeStubSpawn:   single spec answers every spawn (no queue, no overflow).
 // The cli-adapter trio keeps its own richer stub (emitErrno / child-in-recording).
+//
+// Spec 080: both factories are answer-tag aware. When the spawn's `code=` argument carries the
+// typed-eval wrapper, every string-stdout line starting `=> ` is tagged with that call's tag, so
+// fixtures written as `=> {…}` keep working; a function-form `stdout` receives the tag and is
+// emitted verbatim, for tests that need exact bytes (noise, look-alikes).
 import { type SpawnOptions } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { Readable, Writable } from "node:stream";
@@ -24,9 +29,62 @@ import { confirmFromResponse } from "./_confirm.js";
 import type { Confirmation } from "./_shared.js";
 import type { VaultRegistry } from "../vault-registry/registry.js";
 
+/** Spawn stdout: literal text (tagged on a wrapped eval), or a function of the call's answer tag emitted verbatim. */
+export type StubStdout = string | ((ctx: { answerTag?: string }) => string);
+
+// Mirrors wrapEvalCode in src/cli-adapter/_eval-answer.ts. Duplicated rather than imported so this
+// fixture keeps its imports downward and free of the adapter's runtime.
+const WRAPPED_CODE_HEAD = "(async()=>'<<";
+const WRAPPED_CODE_TAG_END = ">>'+(await (";
+const WRAPPED_CODE_TAIL = ")))()";
+
+/** The answer tag in a spawn's `code=` argument, or `undefined` when the code is not wrapped. */
+export function answerTagFromArgv(argv: string[]): string | undefined {
+  const head = `code=${WRAPPED_CODE_HEAD}ocm-`;
+  const arg = argv.find((a) => a.startsWith(head));
+  if (arg === undefined) return undefined;
+  const end = arg.indexOf(WRAPPED_CODE_TAG_END);
+  return end < 0 ? undefined : arg.slice(`code=${WRAPPED_CODE_HEAD}`.length, end);
+}
+
+/** The answer line a wrapped eval prints for `body`. */
+export function answerLine(tag: string, body: string): string {
+  return `=> <<${tag}>>${body}`;
+}
+
+/** The original code inside a wrapped `code=` argument (with or without the `code=` prefix); other input is returned unchanged. */
+export function unwrapEvalCode(codeArg: string): string {
+  const code = codeArg.startsWith("code=") ? codeArg.slice("code=".length) : codeArg;
+  const tagEnd = code.indexOf(WRAPPED_CODE_TAG_END);
+  if (!code.startsWith(WRAPPED_CODE_HEAD) || tagEnd < 0 || !code.endsWith(WRAPPED_CODE_TAIL)) return codeArg;
+  return code.slice(tagEnd + WRAPPED_CODE_TAG_END.length, -WRAPPED_CODE_TAIL.length);
+}
+
+let taggedStdoutTransform: ((stdout: string, answerTag: string) => string) | undefined;
+
+/**
+ * Test hook: rewrite the (already tagged) string stdout of every wrapped eval spawn, e.g. to put
+ * plugin noise around the answer. Pass `undefined` to clear it.
+ */
+export function setTaggedStdoutTransform(transform: ((stdout: string, answerTag: string) => string) | undefined): void {
+  taggedStdoutTransform = transform;
+}
+
+function renderStdout(stdout: StubStdout | undefined, argv: string[]): string | undefined {
+  if (stdout === undefined) return undefined;
+  const answerTag = answerTagFromArgv(argv);
+  if (typeof stdout === "function") return stdout({ answerTag });
+  if (answerTag === undefined) return stdout;
+  const tagged = stdout
+    .split("\n")
+    .map((line) => (line.startsWith("=> ") ? answerLine(answerTag, line.slice(3)) : line))
+    .join("\n");
+  return taggedStdoutTransform ? taggedStdoutTransform(tagged, answerTag) : tagged;
+}
+
 /** A single queued spawn response for {@link makeQueuedSpawn}. */
 export interface StubResponse {
-  stdout?: string;
+  stdout?: StubStdout;
   stderr?: string;
   exitCode?: number | null;
   signal?: NodeJS.Signals | null;
@@ -39,7 +97,7 @@ export interface StubResponse {
  * absent for delete/move/rename.
  */
 export interface StubChildSpec {
-  stdout?: string;
+  stdout?: StubStdout;
   stderr?: string;
   chunkedStdout?: Buffer[];
   exitCode?: number | null;
@@ -101,8 +159,9 @@ export function makeQueuedSpawn(
     if (spec.errorOnSpawn) throw spec.errorOnSpawn;
     recorded.push({ binary, argv: [...argv], options });
     const child = makeChild(opts.pid ?? DEFAULT_PID);
+    const stdout = renderStdout(spec.stdout, argv);
     setImmediate(() => {
-      if (spec.stdout) child.stdout.push(Buffer.from(spec.stdout, "utf8"));
+      if (stdout) child.stdout.push(Buffer.from(stdout, "utf8"));
       child.stdout.push(null);
       if (spec.stderr) child.stderr.push(Buffer.from(spec.stderr, "utf8"));
       child.stderr.push(null);
@@ -131,11 +190,12 @@ export function makeStubSpawn(
     if (spec.errorOnSpawn) throw spec.errorOnSpawn;
     recorded.push({ binary, argv: [...argv], options });
     const child = makeChild(opts.pid ?? DEFAULT_PID);
+    const stdout = renderStdout(spec.stdout, argv);
     setImmediate(() => {
       if (spec.chunkedStdout) {
         for (const chunk of spec.chunkedStdout) child.stdout.push(chunk);
-      } else if (spec.stdout) {
-        child.stdout.push(Buffer.from(spec.stdout, "utf8"));
+      } else if (stdout) {
+        child.stdout.push(Buffer.from(stdout, "utf8"));
       }
       child.stdout.push(null);
       if (spec.stderr) child.stderr.push(Buffer.from(spec.stderr, "utf8"));
