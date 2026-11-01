@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-11-01T02:27:20.284Z |
 | Finished | not yet |
-| Elapsed | 18 min 57 s |
+| Elapsed | 21 min 21 s |
 | Questions | 3 (0 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 0 |
@@ -53,6 +53,7 @@
 ### pre-implementation (`b3447577-451c-4a83-ac16-4dda3d67bd14`)
 
 - Condition `shell-exit-0` (run_when): met. "node -e "process.exit('' === '' ? 0 : 1)"" exited 0.
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\specs\078-refuse-oversized-text\tasks.md exists.
 
 - **specify**: done, 16 turns.
 
@@ -141,16 +142,44 @@
 >
 > Next step is /speckit-git-commit, then open the PR.
 
-- **resolve-analysis**: in progress.
+- **resolve-analysis**: done, 7 turns.
+
+> All analysis findings are resolved, and the feature folder is committed on 078-refuse-oversized-text as 20b2ab2, `docs(078): add spec, plan and tasks for prepend's UTF-8 size limit`. Nothing is pushed. No CRITICAL or HIGH findings ever came up.
+>
+> The fixes had already gone into the spec artifacts on your earlier approval:
+> - **U1 (medium):** research F2 now cites BI-0123 History as the direct multi-byte evidence and BI-0120 for the character cap.
+> - **I1:** research D4 now says B1–B16.
+> - **I2:** plan.md's Testing line now credits the spawn spy to the new test file, not `handler.test.ts:507`.
+> - **A1:** the CJK example in task T014 is `${MAX_CONTENT_BYTES / 3}`, no hard-coded count.
+> - **C1 (CRLF half):** contract B15/B16 added, with tasks T003, T004, T008 and T009 updated.
+> - **C2:** quickstart §3 step 5 now covers mixed-script text.
+>
+> This round I added a note in tasks.md recording the remediation and why the `.canvas` case is left out.
+>
+> None of the findings needed a product or design decision, so I asked no questions. One item is left open on purpose: the `.canvas` test (the other half of C1). You put non-`.md` file types under BI-0060, and the size check runs before the file type is looked at, so the spec's non-note-file edge case still holds.
+>
+> The commit holds the whole feature folder: spec, plan, research, data model, contract, quickstart, tasks, checklist and the two Relay records. The body follows CONTRIBUTING.md, with the finding IDs and an AI co-author trailer.
+>
+> As you asked, the implementation is not in this commit and is still uncommitted in the working tree. That is `src/tools/prepend/{schema,index}.ts`, their tests, the new `index.byte-cap.test.ts`, the registry baseline, `docs/tools/{prepend,index}.md`, `CHANGELOG.md`, `CLAUDE.md` and `.specify/feature.json`. Next step is `/speckit-git-commit` for those changes, then open the PR.
+
 
 ### continue
 
-- **prepare**: not run.
+Skipped.
 
-### implementation
+- Condition `shell-exit-0` (run_when): not met. "node -e "process.exit('' === '' ? 1 : 0)"" exited 1.
 
-- **implement**: not run.
-- **open-pr**: not run.
+- **prepare**: skipped.
+
+### implementation (`a4cfbd2c-da33-4758-9f0c-27941e9dba15`)
+
+- Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\specs\078-refuse-oversized-text\tasks.md exists.
+
+- **implement**: done, 16 turns.
+
+> All 23 tasks in specs/078-refuse-oversized-text/tasks.md were already marked [X] from the earlier implementation work; this run re-checked them. Requirements checklist: 16/16 done. Typecheck and lint are clean. Full tests: 166 test files passed (1 skipped), 3,599 tests passed (6 skipped), statement coverage 96.91%. In the tool fingerprint baseline only prepend's description and schema fingerprints changed. src/errors.ts, src/server.ts, src/tools/_register.ts and src/tools/prepend/handler.ts are unchanged. The production diff matches the spec: MAX_CONTENT_BYTES = 3072, a refine that marks the size-limit issue, the mapper returns CONTENT_TOO_LARGE with reason "bytes", and the character-limit error takes precedence when both limits are broken. npm run format:check fails across the repo (1,168 files, not caused by this change), so it was not treated as a blocker. The optional pre- and post-implement git commit hooks were skipped, so the changes are still uncommitted.
+
+- **open-pr**: in progress.
 
 ### review
 
