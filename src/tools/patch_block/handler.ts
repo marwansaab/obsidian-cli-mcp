@@ -12,7 +12,7 @@ import { findBlock } from "./block-scan.js";
 import { type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import { assertCanonicalPath, resolveActiveLocatorWithVault } from "../_active-file.js";
-import { getErrno, mapFsWriteError } from "../_fs-errors.js";
+import { getErrno, mapFsWriteError, noteNotFound } from "../_fs-errors.js";
 import { invalidateMetadataCache, sizeChange, writeAtomic } from "../_note-io.js";
 
 import type { PatchBlockInput, PatchBlockOutput } from "./schema.js";
@@ -106,19 +106,7 @@ export async function executePatchBlock(
   try {
     originalContent = await fs.readFile(absPath, "utf8");
   } catch (e) {
-    const errno = getErrno(e) ?? "UNKNOWN";
-    if (errno === "ENOENT") {
-      throw new UpstreamError({
-        code: "CLI_REPORTED_ERROR",
-        cause: e,
-        details: {
-          code: "NOTE_NOT_FOUND",
-          path: relPath,
-          vault: input.vault ?? "<focused>",
-        },
-        message: `Note "${relPath}" not found in vault.`,
-      });
-    }
+    if (getErrno(e) === "ENOENT") throw noteNotFound(relPath, input.vault ?? "<focused>", e);
     throw mapWriteErr(e);
   }
 

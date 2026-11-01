@@ -50,7 +50,8 @@ extends it.
     `open_file`, `get_active_file`.
   - [capabilities/mutate.md](capabilities/mutate.md) — the direct-filesystem
     write cohort, what `bytes_written` reports (PR #103),
-    `find_and_replace`, `prepend` and its empty-body correction (PR #104),
+    `find_and_replace`, `prepend` and its empty-body correction (PR #104)
+    and missing-note check (PR #105),
     `set_property`, `delete`, `rename`, `move`.
   - [capabilities/list-and-inventory.md](capabilities/list-and-inventory.md) —
     `files`, `paths`, `outline`, `properties`, `vaults`.
@@ -127,3 +128,8 @@ applies. Records written since:
   — `prepend` keeps Obsidian's write and, in default mode, removes the LF it
   adds to an empty or properties-only note through `writeAtomic`, rather than
   moving to the direct-write path with its own frontmatter parser (PR #104).
+- [decisions/ADR-050-prepend-checks-the-note-on-disk-before-calling-obsidian.md](decisions/ADR-050-prepend-checks-the-note-on-disk-before-calling-obsidian.md)
+  — `prepend` reports a missing note from its pre-call `stat` before
+  Obsidian is called and from Obsidian's confirmed line after, and one
+  shared `noteNotFound` builder, the location review argued the PR into,
+  reports it for the single-note writers (PR #105).

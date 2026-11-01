@@ -1,7 +1,7 @@
 // Original — no upstream. Unit tests for the shared filesystem-error mapper (_fs-errors.ts, F4 of the thermo-nuclear code-quality review). Covers getErrno narrowing and mapFsWriteError's two branches (EXTERNAL_EDITOR_CONFLICT vs FS_WRITE_FAILED), the per-tool divergence parameters (conflictErrnos, conflictVerb, includeFsPath), and the byte-exact details shapes + messages the handler cohort relies on.
 import { describe, expect, test } from "vitest";
 
-import { getErrno, getSyscall, mapFsWriteError } from "./_fs-errors.js";
+import { getErrno, getSyscall, mapFsWriteError, noteNotFound } from "./_fs-errors.js";
 import { UpstreamError } from "../errors.js";
 
 function errnoError(code: string, extra: { syscall?: string; path?: string } = {}): NodeJS.ErrnoException {
@@ -124,5 +124,19 @@ describe("mapFsWriteError — FS_WRITE_FAILED branch", () => {
     expect(err.code).toBe("FS_WRITE_FAILED");
     expect(err.details).toMatchObject({ errno: "UNKNOWN" });
     expect(err.message).toBe('Filesystem write failed: UNKNOWN for "x.md"');
+  });
+});
+
+describe("noteNotFound", () => {
+  test("builds the cohort's NOTE_NOT_FOUND failure and passes the caller's vault through", () => {
+    const cause = errnoError("ENOENT");
+    for (const vault of ["TestVault", null, "<focused>"]) {
+      const err = noteNotFound("Sandbox/missing.md", vault, cause);
+      expect(err).toBeInstanceOf(UpstreamError);
+      expect(err.code).toBe("CLI_REPORTED_ERROR");
+      expect(err.cause).toBe(cause);
+      expect(err.details).toEqual({ code: "NOTE_NOT_FOUND", path: "Sandbox/missing.md", vault });
+      expect(err.message).toBe('Note "Sandbox/missing.md" not found in vault.');
+    }
   });
 });

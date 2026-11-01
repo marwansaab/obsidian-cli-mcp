@@ -21,6 +21,14 @@ import type { StubResponse } from "../_handler-test-fixtures.js";
 
 export const VAULT_ROOT = resolve("/test-vault");
 
+/** A NodeJS fs error with the given errno (`syscall: "open"`, as a failed read reports it). */
+export function errnoError(code: string): NodeJS.ErrnoException {
+  const e = new Error(code) as NodeJS.ErrnoException;
+  e.code = code;
+  e.syscall = "open";
+  return e;
+}
+
 export interface FakeFsHandle extends ExecuteFs {
   statCalls: string[];
   readCalls: string[];
@@ -48,9 +56,7 @@ export function fakeFs(
   const base: ExecuteFs = {
     realpath: async (p: string) => {
       if (p === VAULT_ROOT) return VAULT_ROOT;
-      const e = new Error("ENOENT") as NodeJS.ErrnoException;
-      e.code = "ENOENT";
-      throw e;
+      throw errnoError("ENOENT");
     },
     stat: async (p: string) => {
       statCalls.push(p);

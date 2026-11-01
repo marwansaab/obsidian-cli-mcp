@@ -829,6 +829,12 @@ than added as new codes:
   / `move` was given a destination of another type. It too is raised before
   anything changes, and its `details.reason` says which
   ([file types](#file-types-check-the-file-that-will-be-acted-on)).
+  A missing note on the single-note writers is `CLI_REPORTED_ERROR` with
+  `details.code: "NOTE_NOT_FOUND"`. Since PR #105 one builder,
+  `noteNotFound` in `src/tools/_fs-errors.ts`, produces it for
+  `append_note`, `patch_block` and `prepend`, so its shape and message are
+  defined once; each caller still supplies its own `details.vault`
+  ([ADR-050](decisions/ADR-050-prepend-checks-the-note-on-disk-before-calling-obsidian.md)).
 - `details.reason` separates the states of one multi-state condition (ADR-015,
   Sub-Discriminators via details.reason for Multi-State Error Codes) — for
   example `obsidian-not-running` on `CLI_NON_ZERO_EXIT`, `named-missing` and
@@ -1053,6 +1059,14 @@ still decides where the text lands, so the wrapper still parses no
 frontmatter
 ([ADR-049](decisions/ADR-049-prepend-keeps-obsidians-write-and-removes-the-added-line-break.md);
 [capabilities/mutate.md](capabilities/mutate.md#prepend-on-a-note-with-no-body)).
+
+Since PR #105 (spec 077) the `stat` `prepend` already ran before the call is
+also its missing-note check: `ENOENT` fails with `NOTE_NOT_FOUND` before
+Obsidian is called, as `append_note`'s pre-write read and `query_base`'s
+pre-flight `stat` do. Obsidian's own `Error: File "<path>" not found.` line
+is classified too, for a wrong-case path or a note removed after the `stat`
+([ADR-050](decisions/ADR-050-prepend-checks-the-note-on-disk-before-calling-obsidian.md);
+[capabilities/mutate.md](capabilities/mutate.md#prepend-on-a-missing-note)).
 
 `read` is the one CLI-path tool that also touches the disk, and it only
 reads. Since PR #102 it takes the text from `obsidian read` and then reads the

@@ -1,4 +1,4 @@
-// Original — no upstream. Shared filesystem-error mapping for the single-file write/edit cohort (F4 of the thermo-nuclear code-quality review). Centralises `getErrno` / `getSyscall` and the EXTERNAL_EDITOR_CONFLICT / FS_WRITE_FAILED classification skeleton previously copy-pasted across append_note, patch_block, and patch_heading. The per-tool divergences are explicit parameters — which errnos count as an external-editor conflict (patch_heading classifies EACCES as a conflict; patch_block does not), the action verb in the conflict message ("append to" vs "patch"), and whether the raw errno path is echoed as `details.fsPath` (patch_heading only) — so each difference is a visible choice rather than a one-token edit buried in a near-duplicate function. Byte-preserving per consumer. write_note (FILE_EXISTS, no editor-conflict) and find_and_replace (reason-keyed, vault-wide) have distinct shapes and keep their own mappers.
+// Original — no upstream. Shared filesystem-error mapping for the single-file write/edit cohort (F4 of the thermo-nuclear code-quality review). Centralises `getErrno` / `getSyscall` and the EXTERNAL_EDITOR_CONFLICT / FS_WRITE_FAILED classification skeleton previously copy-pasted across append_note, patch_block, and patch_heading. The per-tool divergences are explicit parameters — which errnos count as an external-editor conflict (patch_heading classifies EACCES as a conflict; patch_block does not), the action verb in the conflict message ("append to" vs "patch"), and whether the raw errno path is echoed as `details.fsPath` (patch_heading only) — so each difference is a visible choice rather than a one-token edit buried in a near-duplicate function. Byte-preserving per consumer. write_note (FILE_EXISTS, no editor-conflict) and find_and_replace (reason-keyed, vault-wide) have distinct shapes and keep their own mappers. `noteNotFound` is the cohort's one NOTE_NOT_FOUND builder (spec 077 PR #105 review).
 import { UpstreamError } from "../errors.js";
 
 /** Narrow an unknown thrown value to its NodeJS errno `code`, if present. */
@@ -73,5 +73,20 @@ export function mapFsWriteError(e: unknown, opts: FsWriteErrorOptions): Upstream
       ...(opts.includeFsPath && fsPath !== undefined ? { fsPath } : {}),
     },
     message: `Filesystem write failed: ${errno}${syscall ? ` on ${syscall}` : ""} for "${opts.relPath}"`,
+  });
+}
+
+/**
+ * The single-note cohort's missing-note failure (append_note, patch_block, prepend): one shape
+ * and message for all three. `vault` is the caller's choice and differs per tool on purpose
+ * (append_note `input.vault ?? null`, patch_block `input.vault ?? "<focused>"`, prepend the
+ * resolved display name — spec 077 Assumptions); pass it through, do not pick one policy here.
+ */
+export function noteNotFound(relPath: string, vault: string | null, cause: unknown): UpstreamError {
+  return new UpstreamError({
+    code: "CLI_REPORTED_ERROR",
+    cause,
+    details: { code: "NOTE_NOT_FOUND", path: relPath, vault },
+    message: `Note "${relPath}" not found in vault.`,
   });
 }

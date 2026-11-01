@@ -12,7 +12,7 @@ below.
 | `patch_heading` | direct filesystem | [docs/tools/patch_heading.md](../../docs/tools/patch_heading.md) |
 | `patch_block` | direct filesystem | [docs/tools/patch_block.md](../../docs/tools/patch_block.md) |
 | `find_and_replace` | direct filesystem scan and write | [docs/tools/find_and_replace.md](../../docs/tools/find_and_replace.md) |
-| `prepend` | native CLI `prepend`, plus one direct-filesystem correction for a bodiless note (PR #104) | [docs/tools/prepend.md](../../docs/tools/prepend.md) |
+| `prepend` | native CLI `prepend`, plus one direct-filesystem correction for a bodiless note (PR #104) and a pre-call missing-note check (PR #105) | [docs/tools/prepend.md](../../docs/tools/prepend.md) |
 | `set_property` | native CLI `property:set` | [docs/tools/set_property.md](../../docs/tools/set_property.md) |
 | `delete` | native CLI `delete` | [docs/tools/delete.md](../../docs/tools/delete.md) |
 | `rename` | native CLI `rename` | [docs/tools/rename.md](../../docs/tools/rename.md) |
@@ -63,7 +63,13 @@ flowchart LR
   the shared mapper in `src/tools/_fs-errors.ts` (PR #58). Since PR #102 that
   module also exports `getSyscall` beside `getErrno`; the mapper,
   `find_and_replace`'s own `mapFsError` and `read`'s disk-read failure all
-  use it instead of three hand-rolled casts.
+  use it instead of three hand-rolled casts. Since PR #105 it also exports
+  `noteNotFound(relPath, vault, cause)`, the one builder of the
+  missing-note failure (`CLI_REPORTED_ERROR`, `details.code: NOTE_NOT_FOUND`)
+  for `append_note`, `patch_block` and `prepend`. Each caller passes its own
+  `vault` value; the builder does not pick one
+  ([below](#prepend-on-a-missing-note);
+  [ADR-050](../decisions/ADR-050-prepend-checks-the-note-on-disk-before-calling-obsidian.md)).
 - **Refresh.** A best-effort `eval` asks Obsidian to recompute its cached
   metadata for the written note, so the next search or property read sees the
   new text (spec 068 FR-001–FR-005, PR #87). `invalidateMetadataCache` in
@@ -304,10 +310,58 @@ landed:
 | the rewrite fails, or an empty note cannot be read back | `{ reason: "extra-trailing-newline", path, vault, errno? }` | holds the content plus one extra line break |
 | a non-empty note cannot be read back | `{ errno, syscall: "open", path }`, no `reason` | holds the content; it may or may not have the extra line break |
 
-An `ENOENT` on the pre-call read leaves `before` `null`, so upstream's
-`NOTE_NOT_FOUND` stays the contract for a missing note. A failed metadata
+An `ENOENT` on the pre-call read leaves `before` `null` and lets the call go
+on to Obsidian. Until PR #105 this page said that kept "upstream's
+`NOTE_NOT_FOUND`" as the contract for a missing note; in fact no missing note
+reached `NOTE_NOT_FOUND` then ([below](#prepend-on-a-missing-note)). Since
+PR #105 a plainly missing note fails at the `stat` before this read, so an
+`ENOENT` here means the note was removed between the two. A failed metadata
 refresh does not fail the call; it is logged as
 `bridge.metadata_refresh_failed`, as for the rest of the cohort.
+
+### `prepend` on a missing note
+
+Before PR #105 (spec 077;
+[ADR-050](../decisions/ADR-050-prepend-checks-the-note-on-disk-before-calling-obsidian.md))
+`prepend` on a missing note returned a generic `CLI_REPORTED_ERROR` with
+`details.stage: "prepend-cli"`, though its description and
+`docs/tools/prepend.md` promised `NOTE_NOT_FOUND` (research F1). The pre-call
+`stat` swallowed `ENOENT`, and the four classifier patterns were placeholders
+that never matched Obsidian's real line, `Error: File "<path>" not found.`
+(stdout, exit 0; spec 077 T0 probe, research F2). The handler now detects the
+case at two points and reports it the same way from both:
+
+```mermaid
+flowchart LR
+  stat["stat (pre)"] -- ENOENT --> nnf["noteNotFound: CLI_REPORTED_ERROR / NOTE_NOT_FOUND"]
+  stat -- other error --> rethrow[rethrown unchanged]
+  stat -- ok --> cli[invokeCli prepend]
+  cli -- "stdout: Error: File #quot;…#quot; not found." --> nnf
+  cli -- "Folder / Vault not found, cold start" --> generic["generic, details.stage: prepend-cli"]
+  cli -- ok --> rest[size change, empty-body correction]
+```
+
+- **Before the call** (FR-001a). A `stat` `ENOENT` throws `noteNotFound`
+  with the fs error as `cause`, in default and inline mode, so Obsidian is
+  not called and nothing is read or written. The check stats the file under
+  the vault root the registry resolves, so it does not depend on which vault
+  Obsidian has open — the probe saw the CLI act in the open vault despite
+  `vault=` (research F2).
+- **From Obsidian's report** (FR-001b). `/^\s*Error: File ".*" not found\.\s*$/m`
+  now heads `NOTE_NOT_FOUND_PATTERNS` in `src/tools/prepend/handler.ts`, with
+  the dispatch error as `cause`. It catches what the `stat` cannot see: a
+  path whose letter case differs from the note's (Obsidian's vault paths are
+  case-sensitive, while `stat` succeeds on Windows and default macOS) and a
+  note removed after the `stat`. The pattern requires `File` and a quoted
+  path, so Obsidian's `Error: Folder "x" not found.`, `Vault not found.` and
+  a persistent cold start stay generic (FR-007).
+- **The same failure as `append_note`.** Both points go through
+  `noteNotFound` in `src/tools/_fs-errors.ts`. The plan kept the builder
+  private to `prepend/handler.ts` (research D3); PR #105's review moved it
+  into the shared module (commit `cdbd8af`), because parity had held only
+  through a test comparing the two handlers. `append_note` and `patch_block`
+  dropped their inline copies, with byte-identical output.
+  `handler.not-found.test.ts` checks the parity and the FR-007 guards.
 
 `set_property` wraps `property:set`. It infers the property type from the JS
 value when `type` is omitted, except for `date` and `datetime`, which must be
@@ -370,7 +424,9 @@ focused note destroys content. `append_note` and `prepend` need no opt-in in
 active mode, because adding cannot destroy anything. `write_note` defaults to
 `overwrite: false`, so a collision returns `FILE_EXISTS`. It also does not
 create a note for `append_note`/`prepend`: those return `NOTE_NOT_FOUND` for a
-missing target.
+missing target. For `prepend` that held only from PR #105; before it, the
+failure was a generic upstream error
+([above](#prepend-on-a-missing-note)).
 
 ## Published surface
 
@@ -442,6 +498,21 @@ from their schema would have reached the client as SDK free text rather than
   get an LF separator (research F3). PR #104 kept separator behaviour out of
   scope and left the correction to its own item, which should fix the page
   and this entry together.
+- The missing-note failure's `details.vault` differs per tool in active
+  mode: `prepend` echoes the focused vault's name, `append_note` `null`,
+  `patch_block` `"<focused>"`. In specific mode all three echo `input.vault`.
+  `noteNotFound` passes the caller's value through on purpose; aligning the
+  tools is a follow-up in spec 077's plan (PR #105).
+- A `prepend` note removed between the pre-call `stat` and the default-mode
+  `readFile` still goes to Obsidian and is reported from Obsidian's line.
+  Mapping that `readFile` `ENOENT` straight to `NOTE_NOT_FOUND` was left for
+  the owner in PR #105's review (commit `cdbd8af`), since spec 077 research
+  D1 and FR-001b keep the current behaviour.
+- Beside the confirmed pattern, `prepend` still carries four unconfirmed
+  placeholder patterns (`note not found`, `file not found`, `no such file`,
+  `does not exist`). None matches any output Obsidian is known to produce;
+  PR #105 kept them so nothing they match is reported differently, and
+  replacing them is its own item.
 - `write_note` dropped its `template` parameter in the ADR-009 rewrite;
   template-based creation goes through `obsidian_exec`.
 - Writes made by the direct path are visible to Obsidian through the

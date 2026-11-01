@@ -1,4 +1,4 @@
-// Original — no upstream. prepend handler per BI-045 — CLI-wrap of upstream `obsidian prepend` (cohort divergence from BI-044's fs-direct; rationale in research.md R1). Specific-mode vault-registry resolve (+ pre-flight `obsidian file` TSV resolver for wikilink-form `file`) OR active-mode focused-file eval → note-only file-type check (spec 070: a non-note target is rejected as UNSUPPORTED_FILE_TYPE before the stat and the CLI call) → Layer 2 canonical path check → stat + read (pre; default mode only) → invokeCli prepend with optional `inline` flag → stat (post) → bytes_written delta → spec 076 empty-body correction → typed output envelope. NOTE_NOT_FOUND (FR-016) + EXTERNAL_EDITOR_CONFLICT (FR-022) re-classification on upstream stdout/stderr inspection. Upstream owns the main write; the wrapper reads the note before and after the call and, when Obsidian added a trailing LF to a note with no body (empty or properties-only, landedAtEmptyBody), rewrites it once without that LF through the cohort's writeAtomic + metadata refresh (spec 076).
+// Original — no upstream. prepend handler per BI-045 — CLI-wrap of upstream `obsidian prepend` (cohort divergence from BI-044's fs-direct; rationale in research.md R1). Specific-mode vault-registry resolve (+ pre-flight `obsidian file` TSV resolver for wikilink-form `file`) OR active-mode focused-file eval → note-only file-type check (spec 070: a non-note target is rejected as UNSUPPORTED_FILE_TYPE before the stat and the CLI call) → Layer 2 canonical path check → stat (pre; ENOENT → NOTE_NOT_FOUND before the call, spec 077) + read (pre; default mode only) → invokeCli prepend with optional `inline` flag → stat (post) → bytes_written delta → spec 076 empty-body correction → typed output envelope. NOTE_NOT_FOUND (FR-016; Obsidian's T0-confirmed `Error: File "<path>" not found.` line, spec 077) + EXTERNAL_EDITOR_CONFLICT (FR-022) re-classification on upstream stdout/stderr inspection. Upstream owns the main write; the wrapper reads the note before and after the call and, when Obsidian added a trailing LF to a note with no body (empty or properties-only, landedAtEmptyBody), rewrites it once without that LF through the cohort's writeAtomic + metadata refresh (spec 076).
 import { randomUUID } from "node:crypto";
 import * as nodeFs from "node:fs/promises";
 
@@ -8,7 +8,7 @@ import { UpstreamError, stringDetail } from "../../errors.js";
 import { assertSupportedFileType, type SupportDeclaration } from "../../file-type/file-type.js";
 import { assertCanonicalPath } from "../_active-file.js";
 import { resolveFsTarget } from "../_file-target.js";
-import { getErrno } from "../_fs-errors.js";
+import { getErrno, noteNotFound } from "../_fs-errors.js";
 import { invalidateMetadataCache, writeAtomic } from "../_note-io.js";
 
 import type { PrependInput, PrependOutput } from "./schema.js";
@@ -46,11 +46,12 @@ const DEFAULT_FS: ExecuteFs = {
   unlink: (p) => nodeFs.unlink(p),
 };
 
-// FR-016 / R6 — placeholder pattern strings. T22's T0-P10 probe confirms the
-// byte-exact upstream stderr/stdout NOTE_NOT_FOUND signal for the `prepend`
-// subcommand; the post-T22 consolidation step updates these patterns to the
-// T0-confirmed value before the quality gate runs.
+// FR-016 — the first entry is Obsidian's confirmed missing-note line (spec 077 T0
+// probe, research F2: stdout, exit 0, default and inline mode). The remaining
+// entries are the original unconfirmed placeholders, kept so nothing they match
+// today is reported differently (spec 077 FR-007).
 const NOTE_NOT_FOUND_PATTERNS = [
+  /^\s*Error: File ".*" not found\.\s*$/m,
   /note not found/i,
   /file not found/i,
   /no such file/i,
@@ -94,16 +95,7 @@ function classifyUpstreamFailure(
   const haystack = `${stdout}\n${stderr}\n${message}`;
 
   if (matchesAny(haystack, NOTE_NOT_FOUND_PATTERNS)) {
-    throw new UpstreamError({
-      code: "CLI_REPORTED_ERROR",
-      cause: err,
-      details: {
-        code: "NOTE_NOT_FOUND",
-        path: relPath,
-        vault: vaultDisplayName,
-      },
-      message: `Note "${relPath}" not found in vault.`,
-    });
+    throw noteNotFound(relPath, vaultDisplayName, err);
   }
 
   if (matchesAny(haystack, EDITOR_CONFLICT_PATTERNS)) {
@@ -153,22 +145,22 @@ export async function executePrepend(
     vaultLabel: input.vault ?? null,
   });
 
-  // Pre-call stat brackets the byte-count delta. ENOENT here means the target
-  // doesn't exist; we don't fail eagerly because upstream's NOTE_NOT_FOUND
-  // classification is the contract surface for that case (FR-016). Default to
-  // 0 and let the upstream prepend call surface the typed error.
-  let preCallSize = 0;
+  // The pre-call stat brackets the byte-count delta and is the missing-note check (spec 077
+  // FR-001a), mirroring append_note's pre-write read: Obsidian is not called for a note that
+  // is not there.
+  let preCallSize: number;
   try {
     preCallSize = (await fs.stat(absPath)).size;
   } catch (e) {
-    if (getErrno(e) !== "ENOENT") throw e;
-    preCallSize = 0;
+    if (getErrno(e) === "ENOENT") throw noteNotFound(relPath, vaultDisplayName, e);
+    throw e;
   }
 
   // Spec 076 — the note's text before the call, for the empty-body check below. Inline calls
   // skip the read and leave it null: Obsidian's inline write is already exact (research F2).
-  // ENOENT leaves it null too (upstream's NOTE_NOT_FOUND stays the contract surface); any other
-  // read failure stops the call before Obsidian writes anything.
+  // An ENOENT here means the note was removed after the stat: it is left null and Obsidian's
+  // report is classified as NOTE_NOT_FOUND (spec 077 FR-001b); any other read failure stops
+  // the call before Obsidian writes anything.
   let before: string | null = null;
   try {
     if (!input.inline) before = await fs.readFile(absPath, "utf8");
