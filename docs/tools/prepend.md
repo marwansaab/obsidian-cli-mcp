@@ -20,7 +20,7 @@ When the target note has a YAML frontmatter block (opening `---`, body, closing 
 | Find/replace text patterns across many regions | [`find_and_replace`](./find_and_replace.md) |
 | Edit a value in YAML frontmatter | [`set_property`](./set_property.md) |
 | Insert content BEFORE the frontmatter (rare) | Out of scope — `prepend` lands AFTER the frontmatter. Use `write_note` with a manually-constructed full-document body. |
-| Prepend more than 3072 characters | [`write_note`](./write_note.md) — no size cap. See *Size ceiling* below for why. |
+| Prepend more than 3072 characters or 3072 UTF-8 bytes | [`write_note`](./write_note.md) — no size cap. See *Size ceiling* below for why. |
 
 ## Input schema
 
@@ -68,7 +68,7 @@ The wrapper resolves the focused note via a small `obsidian eval` call. **NO opt
 | `vault` | string ≥ 1 char | iff specific | Resolved against the wrapper's vault registry. Unknown vault → `VAULT_NOT_FOUND`. |
 | `file` | string ≥ 1 char (structurally safe; no `[[` / `]]`) | XOR with `path`, iff specific | Wikilink-form bare name. A pre-flight `obsidian file` TSV resolver call canonicalises the name to a vault-relative path before the prepend lands. |
 | `path` | string ≥ 1 char (structurally safe) | XOR with `file`, iff specific | Vault-relative path. Brackets are NOT a special case here (legal in note names). |
-| `content` | string, ≥ 1 char and ≤ 3072 UTF-16 code units | YES | Non-empty required. Preserved byte-for-byte (no trim, no whitespace normalisation, no encoding conversion). See *Size ceiling* for why the cap is 3072 and not larger. |
+| `content` | string, ≥ 1 char, ≤ 3072 UTF-16 code units and ≤ 3072 UTF-8 bytes | YES | Non-empty required. Preserved byte-for-byte (no trim, no whitespace normalisation, no encoding conversion). Non-Latin text counts more heavily towards the byte limit; see *Size ceiling* for why the caps are 3072 and not larger. |
 | `inline` | boolean | NO (default `false`) | When `true`, suppresses the inserted separator between prepended content and the existing body. |
 
 ## Frontmatter-aware insertion-point rule
@@ -168,7 +168,8 @@ interface PrependOutput {
 | Top-level `code` | `details.code` / `details.reason` | What triggered it | What to do |
 |---|---|---|---|
 | `VALIDATION_ERROR` | `details.code: CONTENT_EMPTY` | Empty content. | Supply non-empty content. |
-| `VALIDATION_ERROR` | `details.code: CONTENT_TOO_LARGE` | Content > 3072 UTF-16 code units. | Use [`write_note`](./write_note.md) for larger payloads. See *Size ceiling*. |
+| `VALIDATION_ERROR` | `details.code: CONTENT_TOO_LARGE` | (no `details.reason`) Content > 3072 UTF-16 code units. | Use [`write_note`](./write_note.md) for larger payloads. See *Size ceiling*. |
+| `VALIDATION_ERROR` | `details.code: CONTENT_TOO_LARGE`, `details.reason: "bytes"` | Content within 3072 characters but over 3072 UTF-8 bytes (typically non-Latin text: Chinese, Japanese, Korean, emoji). `details` carries `contentBytes` and `maxBytes`; the message is `content exceeds maximum size of 3072 UTF-8 bytes (got N)`. Raised before Obsidian is called; nothing is changed. | Use [`write_note`](./write_note.md) for larger payloads. See *Size ceiling*. |
 | `VALIDATION_ERROR` | (Zod issue path on the offending field) | Bracket-rejection on `file`, locator-mutex (`file` AND `path`), unknown extra field, structural path safety, type mismatch on `inline`. | Read `details.issues[].message` for the field-level fix. |
 | `VALIDATION_ERROR` | `details.code: UNSUPPORTED_FILE_TYPE`, `details.reason: "unsupported-type"` | The resolved target is not a `.md` note (a canvas, base, attachment, extensionless path or other file). Raised before the `prepend` call. `details` also carries `path` (the resolved vault-relative path), `extension` (original case, `""` if none) and `supported: ["note"]`. | Nothing was changed. Target a `.md` note. |
 | `CLI_REPORTED_ERROR` | `details.code: NOTE_NOT_FOUND` | The target note does not exist. Reported before Obsidian is called when no file is at the path; or from Obsidian's own report when the file exists only under a different letter case (Obsidian's vault paths are case-sensitive) or was removed just before the call. `details` carries `path` (the vault-relative path) and `vault`; the message is `Note "<path>" not found in vault.`, the same as [`append_note`](./append_note.md) in specific mode (in active mode `vault` is the focused vault's name). Nothing is written. | Recheck the path. Use [`write_note`](./write_note.md) if you meant to create a new note (`prepend` does NOT auto-create). |
@@ -182,15 +183,24 @@ interface PrependOutput {
 | `VAULT_NOT_FOUND` | — | The supplied `vault` display name is not registered with the Obsidian CLI. | Recheck the vault name (case-sensitive). The user can list registered vaults with `obsidian vaults`. |
 | `ERR_NO_ACTIVE_FILE` | — | Active mode but no note is focused in Obsidian. | Switch to `target_mode: "specific"` with explicit `vault` + `file`/`path`, or ask the user to open a note first. |
 
+**`CONTENT_TOO_LARGE` sub-states (ADR-015).** The `details.reason` set under `(VALIDATION_ERROR, CONTENT_TOO_LARGE)` is closed:
+
+- no `details.reason`: the character limit, with `contentLength` and `maxLength`;
+- `details.reason: "bytes"`: the size limit, with `contentBytes` and `maxBytes`.
+
+When content exceeds both limits, the character-limit error is returned.
+
 ## Size ceiling
 
-**Explicit cap of 3072 UTF-16 code units.** The cap is NOT driven by the Windows `CreateProcess` command-line maximum (which sits around ~32 767 chars — six orders larger than this cap). The cap is bounded by an **upstream Obsidian.com argv-IPC defect** that hangs the host process around 4 KB of content on Windows.
+**Two caps of 3072: UTF-16 code units and UTF-8 bytes.** The caps are NOT driven by the Windows `CreateProcess` command-line maximum (which sits around ~32 767 chars — six orders larger than these caps). The caps are bounded by an **upstream Obsidian.com argv-IPC defect** that hangs the host process around 4 KB of content on Windows.
 
 Empirical bisect data: 10/10 trials succeed at 3584 chars; 0/10 succeed at 4096 chars (calls SIGTERM after 12 s, then Obsidian's CLI-receiving state degrades until the GUI is restarted). The 3072 cap leaves ~1 KB of safety margin for the `vault=` / `path=` argv-overhead a real prepend call adds on top of the content payload.
 
 The defect is upstream-side and matches [forum thread 113867](https://forum.obsidian.md/t/cli-content-parameter-corrupts-multi-byte-utf-8-at-8-kb-chunk-boundary-silent/113867) (no Obsidian-team response as of writing). **Chunking the content does not help** — the defect re-fires on each call regardless of cumulative size, and partial-prepend semantics would be order-fragile anyway. Callers needing payloads above the cap MUST use the full-replace [`write_note`](./write_note.md) surface, which is fs-direct and cap-free.
 
-The cap is enforced at the schema layer via `z.string().max(3072)`; oversized payloads surface as `(VALIDATION_ERROR, CONTENT_TOO_LARGE)` BEFORE any spawn occurs. The cap may be ratcheted back up in a future release if upstream Obsidian repairs the argv-IPC defect.
+**Non-Latin text counts more heavily.** The defect depends on the content's size in UTF-8 bytes, not its character count: 1,500 Chinese characters (4,500 bytes) crashed Obsidian while inside the character cap. Each character takes 1 byte (ASCII), 2 bytes (accented Latin, Greek, Cyrillic, Arabic, Hebrew), 3 bytes (Chinese, Japanese, Korean and most other scripts) or 4 bytes (emoji), so 1,024 CJK characters or 768 emoji already reach the byte cap; a Windows line ending (CRLF) counts 2 bytes. The byte cap keeps the same ~1 KB headroom the character cap was chosen for (spec 078).
+
+Both caps are enforced at the schema layer (`z.string().max(3072)` plus a UTF-8 byte check); oversized payloads surface as `(VALIDATION_ERROR, CONTENT_TOO_LARGE)`, with `details.reason: "bytes"` for the byte cap, BEFORE any spawn occurs. The caps may be ratcheted back up in a future release if upstream Obsidian repairs the argv-IPC defect.
 
 ## Platform-specific behaviour: EXTERNAL_EDITOR_CONFLICT
 
@@ -214,4 +224,4 @@ Two concurrent `prepend` calls against the same note resolve **last-write-wins**
 - Symmetric additive write at the end of the file → use [`append_note`](./append_note.md).
 - Writing under a named heading → use [`patch_heading`](./patch_heading.md).
 - Writing tied to a `^block-id` marker → use [`patch_block`](./patch_block.md).
-- Content larger than 3072 UTF-16 code units → use [`write_note`](./write_note.md) (no size cap).
+- Content larger than 3072 UTF-16 code units or 3072 UTF-8 bytes → use [`write_note`](./write_note.md) (no size cap).

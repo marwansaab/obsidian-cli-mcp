@@ -51,7 +51,7 @@ extends it.
   - [capabilities/mutate.md](capabilities/mutate.md) — the direct-filesystem
     write cohort, what `bytes_written` reports (PR #103),
     `find_and_replace`, `prepend` and its empty-body correction (PR #104)
-    and missing-note check (PR #105),
+    and missing-note check (PR #105), its UTF-8 byte limit (PR #106),
     `set_property`, `delete`, `rename`, `move`.
   - [capabilities/list-and-inventory.md](capabilities/list-and-inventory.md) —
     `files`, `paths`, `outline`, `properties`, `vaults`.
@@ -133,3 +133,8 @@ applies. Records written since:
   Obsidian is called and from Obsidian's confirmed line after, and one
   shared `noteNotFound` builder, the location review argued the PR into,
   reports it for the single-note writers (PR #105).
+- [decisions/ADR-051-prepend-caps-content-in-utf-8-bytes-as-a-second-limit.md](decisions/ADR-051-prepend-caps-content-in-utf-8-bytes-as-a-second-limit.md)
+  — `prepend` caps `content` at 3072 UTF-8 bytes beside its character cap,
+  checked in the schema and reported as `CONTENT_TOO_LARGE` with
+  `details.reason: "bytes"`; the character limit wins through zod's `abort`
+  flag, the placement review argued the PR into (PR #106).

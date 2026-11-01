@@ -293,7 +293,7 @@ Every tool except `read`, `help`, `obsidian_exec` and `tag` returns typed result
 |---|---|---|
 | `write_note` | destructive | Create a note, or overwrite one. No size limit. |
 | `append_note` | additive | Add content at the end of a note, byte for byte. |
-| `prepend` | additive | Add content at the top of a note, after any frontmatter. Up to 3,072 characters; use `write_note` for more. |
+| `prepend` | additive | Add content at the top of a note, after any frontmatter. Up to 3,072 characters and 3,072 UTF-8 bytes (about 1,000 Chinese, Japanese or Korean characters); use `write_note` for more. |
 | `patch_heading` | additive | Append, prepend or replace the content under a heading. |
 | `patch_block` | additive | Replace the content tied to a `^block-id`. |
 | `set_property` | repeatable | Set one frontmatter property. |

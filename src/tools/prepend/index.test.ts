@@ -10,7 +10,7 @@ import {
   PREPEND_DESCRIPTION,
   PREPEND_TOOL_NAME,
 } from "./index.js";
-import { MAX_CONTENT_LENGTH } from "./schema.js";
+import { MAX_CONTENT_BYTES, MAX_CONTENT_LENGTH } from "./schema.js";
 import { createQueue } from "../../queue.js";
 import { silentLogger } from "../_handler-test-fixtures.js";
 
@@ -83,5 +83,20 @@ describe("createPrependTool — descriptor (BI-045 / ADR-005 / ADR-010)", () => 
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
     const properties = schema.properties as Record<string, Record<string, unknown>>;
     expect(properties.content!.maxLength).toBe(MAX_CONTENT_LENGTH);
+  });
+
+  it("description names the size limit (spec 078 FR-009)", () => {
+    const tool = build();
+    expect(tool.descriptor.description).toContain(`${MAX_CONTENT_BYTES} UTF-8 bytes`);
+    expect(tool.descriptor.description).toContain(`details.reason: "bytes"`);
+  });
+
+  it("inputSchema.properties.content.description states both limits (spec 078 FR-009)", () => {
+    const tool = build();
+    const schema = tool.descriptor.inputSchema as Record<string, unknown>;
+    const properties = schema.properties as Record<string, Record<string, unknown>>;
+    const description = properties.content!.description as string;
+    expect(description).toContain(`${MAX_CONTENT_LENGTH} characters`);
+    expect(description).toContain(`${MAX_CONTENT_BYTES} bytes as UTF-8`);
   });
 });

@@ -843,7 +843,12 @@ than added as new codes:
   `UNSUPPORTED_FILE_TYPE` (PR #97). Since PR #104 `prepend` adds
   `extra-trailing-newline` on `FS_WRITE_FAILED`: the content landed in a
   note with no body, but the line break Obsidian added could not be removed
-  ([mutate](capabilities/mutate.md#prepend-on-a-note-with-no-body)). This page used to give `VAULT_NOT_FOUND` /
+  ([mutate](capabilities/mutate.md#prepend-on-a-note-with-no-body)). Since
+  PR #106 `prepend`'s `CONTENT_TOO_LARGE` has two sub-states: no
+  `details.reason` for the character limit (the origin sub-state, unchanged)
+  and `bytes` for the UTF-8 size limit
+  ([ADR-051](decisions/ADR-051-prepend-caps-content-in-utf-8-bytes-as-a-second-limit.md)).
+  This page used to give `VAULT_NOT_FOUND` /
   `not-open`, "a vault that is registered but closed", as the example. That
   state was never produced through the CLI the server drives, and PR #100
   withdrew it ([ADR-045](decisions/ADR-045-closed-vaults-recovered-only-by-the-dispatch-retry.md)).
@@ -1047,7 +1052,13 @@ own `prepend` subcommand, because the CLI's frontmatter detection is the
 behaviour the tool promises. That brings the argv limit back, so `prepend`
 caps content at 3072 UTF-16 code units: the original 24576 cap was lowered in
 BI-047 (PR #49) after larger writes were seen to leave the GUI degraded.
-Content longer than that should go through `write_note`.
+Since PR #106 (spec 078) it also caps content at 3072 UTF-8 bytes, because
+the fault follows the UTF-8 size and non-Latin text inside the character cap
+still crashed Obsidian. Both limits are in the input schema, so an oversized
+call is refused before the handler runs
+([ADR-051](decisions/ADR-051-prepend-caps-content-in-utf-8-bytes-as-a-second-limit.md);
+[capabilities/mutate.md](capabilities/mutate.md#prepends-two-content-limits)).
+Content over either limit should go through `write_note`.
 
 Since PR #104 (spec 076) `prepend` also uses item 3 for one write of its own.
 In default mode Obsidian appends an LF after the content, which on an empty
