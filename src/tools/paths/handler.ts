@@ -1,8 +1,9 @@
-// Original — no upstream. paths handler — single invokeCli wrapper around the eval subcommand with the frozen JS template + base64 JSON payload (anti-injection); single-call architecture branched at envelope-emission on `payload.total` (in-template); a closed vault is brought up by the shared cold-start retry in the dispatch layer, with no per-tool check; stage-1 extraction uses the trimStart+startsWith pattern; stages 2-5 multi-stage parse (JSON.parse → envelope safeParse → discriminate on ok → output validation) with structured CLI_REPORTED_ERROR propagation; surfaces two details.code values (FOLDER_NOT_FOUND, NOT_A_FOLDER) under existing CLI_REPORTED_ERROR top-level code per the established sub-discriminator pattern.
+// Original — no upstream. paths handler — single invokeCli wrapper around the eval subcommand with the frozen JS template + base64 JSON payload (anti-injection); single-call architecture branched at envelope-emission on `payload.total` (in-template); a closed vault is brought up by the shared cold-start retry in the dispatch layer, with no per-tool check; stage-1 extraction reads the call's tagged eval answer (spec 080); stages 2-5 multi-stage parse (JSON.parse → envelope safeParse → discriminate on ok → output validation) with structured CLI_REPORTED_ERROR propagation; surfaces two details.code values (FOLDER_NOT_FOUND, NOT_A_FOLDER) under existing CLI_REPORTED_ERROR top-level code per the established sub-discriminator pattern.
 import { JS_TEMPLATE } from "./_template.js";
 import { pathsEvalEnvelopeSchema, pathsOutputSchema, type PathsInput, type PathsOutput } from "./schema.js";
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
+import { evalParseFailureStdout, parseEvalAnswer } from "../_active-file.js";
 import { composeEvalCode } from "../_shared.js";
 
 import type { Logger } from "../../logger.js";
@@ -39,19 +40,15 @@ export async function executePaths(
     deps,
   );
 
-  // === Stage 3 — extract JSON via "=> " prefix ===
-  const trimmed = result.stdout.trimStart();
-  const jsonText = trimmed.startsWith("=> ") ? trimmed.slice(3) : trimmed;
-
-  // === Stage 4 — JSON.parse ===
+  // === Stages 3–4 — JSON.parse of the call's tagged eval answer ===
   let parsedJson: unknown;
   try {
-    parsedJson = JSON.parse(jsonText);
+    parsedJson = parseEvalAnswer(result);
   } catch (err) {
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
       cause: err,
-      details: { stage: "json-parse", stdout: result.stdout.slice(0, 500) },
+      details: { stage: "json-parse", ...evalParseFailureStdout(result.stdout) },
       message: `paths: eval response is not JSON: ${result.stdout.slice(0, 200)}`,
     });
   }
@@ -62,7 +59,7 @@ export async function executePaths(
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
       cause: validated.error,
-      details: { stage: "envelope-parse", stdout: result.stdout.slice(0, 500) },
+      details: { stage: "envelope-parse", ...evalParseFailureStdout(result.stdout) },
       message: "paths: eval response shape unexpected",
     });
   }

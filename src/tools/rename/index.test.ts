@@ -8,11 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createRenameTool, RENAME_DESCRIPTION, RENAME_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import {
-  focusedFileResponse,
-  makeQueuedSpawn,
-  silentLogger,
-} from "../_handler-test-fixtures.js";
+import { focusedFileResponse, makeQueuedSpawn, silentLogger, EVAL_NONCE_SEAM } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -23,7 +19,7 @@ describe("createRenameTool — descriptor", () => {
   it("publishes name = 'rename' and description verbatim", () => {
     const tool = createRenameTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn: makeStubSpawn(),
     });
     expect(tool.descriptor.name).toBe(RENAME_TOOL_NAME);
@@ -35,7 +31,7 @@ describe("createRenameTool — descriptor", () => {
   it("emits a post-010 inputSchema with no oneOf (Story 8 AC#2)", () => {
     const tool = createRenameTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn: makeStubSpawn(),
     });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
@@ -46,7 +42,7 @@ describe("createRenameTool — descriptor", () => {
   it("description names 'rename' AND surfaces the link-rewriting caveat (Story 8 AC#3, FR-012)", () => {
     const tool = createRenameTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn: makeStubSpawn(),
     });
     const desc = tool.descriptor.description;
@@ -62,7 +58,7 @@ describe("createRenameTool — handler integration via registerTool", () => {
   it("malformed input (empty name) surfaces as VALIDATION_ERROR isError envelope", async () => {
     const tool = createRenameTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn: makeStubSpawn(),
     });
     const result = (await tool.handler({
@@ -93,7 +89,7 @@ describe("createRenameTool — handler integration via registerTool", () => {
     ]);
     const tool = createRenameTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn,
     });
     const result = (await tool.handler({ target_mode: "active", name: "Today" })) as {

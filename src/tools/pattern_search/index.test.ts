@@ -8,7 +8,7 @@ import {
 } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import { silentLogger, TEST_EVAL_TAG, EVAL_NONCE_SEAM } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 import { closedVaultNote } from "../_shared.js";
 
@@ -20,7 +20,7 @@ describe("createPatternSearchTool — descriptor", () => {
   it("publishes name = 'pattern_search' with a non-empty description", () => {
     const tool = createPatternSearchTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn: makeStubSpawn(),
     });
     expect(tool.descriptor.name).toBe(PATTERN_SEARCH_TOOL_NAME);
@@ -33,7 +33,7 @@ describe("createPatternSearchTool — descriptor", () => {
   it("emits inputSchema with additionalProperties:false and the expected property set", () => {
     const tool = createPatternSearchTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn: makeStubSpawn(),
     });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
@@ -54,7 +54,7 @@ describe("createPatternSearchTool — descriptor", () => {
   it("description length > 300 chars (budget for dialect + default-flip + cross-pointer + worked examples)", () => {
     const tool = createPatternSearchTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn: makeStubSpawn(),
     });
     expect(tool.descriptor.description.length).toBeGreaterThan(300);
@@ -65,8 +65,8 @@ describe("createPatternSearchTool — descriptor", () => {
     const envelope = JSON.stringify({ ok: true, count: 0, matches: [] });
     const tool = createPatternSearchTool({
       logger: silentLogger(),
-      queue: createQueue(),
-      spawnFn: makeStubSpawn({ stdout: `=> ${envelope}\n` }),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
+      spawnFn: makeStubSpawn({ stdout: `=> ${TEST_EVAL_TAG}${envelope}\n` }),
     });
     const result = await tool.handler({ pattern: "x", vault: "Demo" });
     expect(result).not.toHaveProperty("isError");
@@ -79,7 +79,7 @@ describe("createPatternSearchTool — descriptor", () => {
   it("description contains cross-pointer to sibling 'context_search'", () => {
     const tool = createPatternSearchTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn: makeStubSpawn(),
     });
     expect(tool.descriptor.description).toContain("context_search");
@@ -89,7 +89,7 @@ describe("createPatternSearchTool — descriptor", () => {
   it("description explicitly notes case-sensitivity default (callout phrases 'case' + 'default')", () => {
     const tool = createPatternSearchTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn: makeStubSpawn(),
     });
     const desc = tool.descriptor.description.toLowerCase();

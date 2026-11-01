@@ -1,4 +1,4 @@
-// Original — no upstream. tag handler — single invokeCli wrapper around the eval subcommand with the frozen JS template + base64 JSON payload (R6 / FR-020 anti-injection); R2/R3 single-call architecture branched at envelope-emission on `wantTotal`; a closed vault is brought up by the shared ADR-029 cold-start retry in the dispatch layer, so the handler has no closed-vault stage of its own (spec 072); stage-1 extraction uses the BI-026 trimStart+startsWith pattern (the template is quiet — no plugin-side console preamble); stages 2-5 multi-stage parse (JSON.parse → envelope safeParse → discriminate on ok → per-mode output validation) with structured CLI_REPORTED_ERROR propagation; ZERO new top-level error codes + ZERO new details.code values (preserves fourteen-tool zero-new-codes streak).
+// Original — no upstream. tag handler — single invokeCli wrapper around the eval subcommand with the frozen JS template + base64 JSON payload (R6 / FR-020 anti-injection); R2/R3 single-call architecture branched at envelope-emission on `wantTotal`; a closed vault is brought up by the shared ADR-029 cold-start retry in the dispatch layer, so the handler has no closed-vault stage of its own (spec 072); stage-1 extraction reads the call's tagged eval answer, so other plugins' output around it is ignored (spec 080); stages 2-5 multi-stage parse (JSON.parse → envelope safeParse → discriminate on ok → per-mode output validation) with structured CLI_REPORTED_ERROR propagation; ZERO new top-level error codes + ZERO new details.code values (preserves fourteen-tool zero-new-codes streak).
 import { JS_TEMPLATE } from "./_template.js";
 import {
   tagCountOnlyOutputSchema,
@@ -10,6 +10,7 @@ import {
 } from "./schema.js";
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
+import { evalParseFailureStdout, parseEvalAnswer } from "../_active-file.js";
 import { composeEvalCode } from "../_shared.js";
 
 import type { Logger } from "../../logger.js";
@@ -42,19 +43,15 @@ export async function executeTag(
     deps,
   );
 
-  // === Stage 1 — extract JSON via "=> " prefix (BI-026 pattern, no LAST-`=> ` rescan) ===
-  const trimmed = result.stdout.trimStart();
-  const jsonText = trimmed.startsWith("=> ") ? trimmed.slice(3) : trimmed;
-
-  // === Stage 2 — JSON.parse ===
+  // === Stages 1–2 — JSON.parse of the call's tagged eval answer (spec 080) ===
   let parsedJson: unknown;
   try {
-    parsedJson = JSON.parse(jsonText);
+    parsedJson = parseEvalAnswer(result);
   } catch (err) {
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
       cause: err,
-      details: { stage: "json-parse", stdout: result.stdout.slice(0, 500) },
+      details: { stage: "json-parse", ...evalParseFailureStdout(result.stdout) },
       message: `tag: eval response is not JSON: ${result.stdout.slice(0, 200)}`,
     });
   }
@@ -65,7 +62,7 @@ export async function executeTag(
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
       cause: validated.error,
-      details: { stage: "envelope-parse", stdout: result.stdout.slice(0, 500) },
+      details: { stage: "envelope-parse", ...evalParseFailureStdout(result.stdout) },
       message: "tag: eval response shape unexpected",
     });
   }

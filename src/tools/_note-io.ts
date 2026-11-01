@@ -102,10 +102,10 @@ export async function invalidateMetadataCache(deps: EvalDeps, note: WrittenNote)
   let reason: MetadataRefreshFailureReason;
   let detail: string;
   try {
-    const output = (await evalInVault(deps, buildInvalidateTemplate(relPath), note.vault)).trim();
-    if (output === "=> ok") return;
-    reason = output === "=> missing" ? "note-not-found" : "unexpected-output";
-    detail = output.slice(0, 200);
+    const result = await evalInVault(deps, buildInvalidateTemplate(relPath), note.vault);
+    if (result.evalAnswer === "ok") return;
+    reason = result.evalAnswer === "missing" ? "note-not-found" : "unexpected-output";
+    detail = result.stdout.trim().slice(0, 200);
   } catch (e) {
     reason = "cli-error";
     detail = describeFailure(e);

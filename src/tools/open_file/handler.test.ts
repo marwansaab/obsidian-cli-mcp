@@ -15,7 +15,19 @@ import { executeOpenFile } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, makeQueuedSpawn, silentLogger, type StubResponse } from "../_handler-test-fixtures.js";
+import {
+  captureRejection,
+  EVAL_NONCE_SEAM,
+  evalAnswerLine,
+  lookalike,
+  makeQueuedSpawn,
+  NO_ANSWER,
+  NOISE_AFTER,
+  NOISE_BEFORE,
+  silentLogger,
+  TEST_EVAL_TAG,
+  type StubResponse,
+} from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -43,7 +55,7 @@ function deps(
   vaultRegistry: VaultRegistry = fakeRegistry(),
   env: NodeJS.ProcessEnv = {},
 ) {
-  return { logger: silentLogger(), queue: createQueue(), vaultRegistry, spawnFn, env };
+  return { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, vaultRegistry, spawnFn, env };
 }
 
 function decodePayload(argv: string[]): Record<string, unknown> {
@@ -64,7 +76,7 @@ afterEach(() => __resetInFlightRegistryForTests());
 test("happy path by path: returns { opened, vault, new_tab, placement }; specific-mode argv carries vault=requested; payload has NO expectedBase (US1)", async () => {
   const envelope = { ok: true, opened: "Projects/Roadmap.md", new_tab: false, placement: "active_tab_used" };
   const { spawnFn, recorded, getCount } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeOpenFile(
     { vault: "Work", path: "Projects/Roadmap.md", new_tab: false },
@@ -93,7 +105,7 @@ test("happy path by path: returns { opened, vault, new_tab, placement }; specifi
 test("happy path by file: payload encodes file set / path null; opened is the canonical path; vault echoed (US1/FR-019)", async () => {
   const envelope = { ok: true, opened: "Projects/Roadmap.md", new_tab: false, placement: "active_tab_used" };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeOpenFile({ vault: "Work", file: "Roadmap" }, deps(spawnFn));
   expect(result).toEqual({
@@ -108,7 +120,7 @@ test("happy path by file: payload encodes file set / path null; opened is the ca
 test("cross-vault: the REQUESTED (unfocused/closed) vault is echoed, never a focused vault (US1-AC2)", async () => {
   const envelope = { ok: true, opened: "Sandbox/cv.md", new_tab: false, placement: "active_tab_used" };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeOpenFile(
     { vault: "Background", path: "Sandbox/cv.md" },
@@ -121,10 +133,10 @@ test("cross-vault: the REQUESTED (unfocused/closed) vault is echoed, never a foc
 test("determinism (SC-006): two identical calls produce byte-equal eval argv + identical envelopes", async () => {
   const envelope = { ok: true, opened: "a.md", new_tab: false, placement: "active_tab_used" };
   const { spawnFn: s1, recorded: r1 } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const { spawnFn: s2, recorded: r2 } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const out1 = await executeOpenFile({ vault: "Work", path: "a.md" }, deps(s1));
   const out2 = await executeOpenFile({ vault: "Work", path: "a.md" }, deps(s2));
@@ -141,7 +153,7 @@ for (const opened of ["Boards/Architecture.canvas", "Papers/transformer.pdf", "A
   test(`any-type happy path: ${opened} → identical { opened, vault, new_tab, placement } shape (US2/FR-020)`, async () => {
     const envelope = { ok: true, opened, new_tab: false, placement: "active_tab_used" };
     const { spawnFn } = makeQueuedSpawn([
-      { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+      { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
     ]);
     const result = await executeOpenFile(
       { vault: "Research", path: opened },
@@ -160,7 +172,7 @@ for (const opened of ["Boards/Architecture.canvas", "Papers/transformer.pdf", "A
 test("placement new_tab_created: new_tab:true → payload new_tab:true; result.placement is new_tab_created (US3/FR-009)", async () => {
   const envelope = { ok: true, opened: "Reference/Style Guide.md", new_tab: true, placement: "new_tab_created" };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeOpenFile(
     { vault: "Work", path: "Reference/Style Guide.md", new_tab: true },
@@ -174,7 +186,7 @@ test("placement new_tab_created: new_tab:true → payload new_tab:true; result.p
 test("placement existing_tab_reused: already-open + new_tab:false → result.placement is existing_tab_reused (US3/FR-010)", async () => {
   const envelope = { ok: true, opened: "a.md", new_tab: false, placement: "existing_tab_reused" };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeOpenFile({ vault: "Work", path: "a.md" }, deps(spawnFn));
   expect(result.placement).toBe("existing_tab_reused");
@@ -184,7 +196,7 @@ test("placement existing_tab_reused: already-open + new_tab:false → result.pla
 test("placement active_tab_used: not-open + new_tab:false → result.placement is active_tab_used (US3/FR-011)", async () => {
   const envelope = { ok: true, opened: "a.md", new_tab: false, placement: "active_tab_used" };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeOpenFile({ vault: "Work", path: "a.md" }, deps(spawnFn));
   expect(result.placement).toBe("active_tab_used");
@@ -194,7 +206,7 @@ test("exactly one placement per success: the result carries a single placement f
   for (const placement of ["new_tab_created", "existing_tab_reused", "active_tab_used"]) {
     const envelope = { ok: true, opened: "a.md", new_tab: placement === "new_tab_created", placement };
     const { spawnFn } = makeQueuedSpawn([
-      { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+      { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
     ]);
     const result = await executeOpenFile(
       { vault: "Work", path: "a.md", new_tab: placement === "new_tab_created" },
@@ -213,7 +225,7 @@ test("new-tab control: new_tab:true forces new_tab_created even when the file is
   // Force-new: the eval opens a fresh leaf regardless of an existing tab → new_tab_created.
   const envelope = { ok: true, opened: "a.md", new_tab: true, placement: "new_tab_created" };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeOpenFile({ vault: "Work", path: "a.md", new_tab: true }, deps(spawnFn));
   expect(result.placement).toBe("new_tab_created");
@@ -223,7 +235,7 @@ test("new-tab control: new_tab:true forces new_tab_created even when the file is
 test("new-tab control: new_tab omitted defaults to false in the payload (reuse/active per open state) (US4/FR-008)", async () => {
   const envelope = { ok: true, opened: "a.md", new_tab: false, placement: "existing_tab_reused" };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeOpenFile({ vault: "Work", path: "a.md" }, deps(spawnFn));
   expect(result.new_tab).toBe(false);
@@ -247,7 +259,7 @@ test("unknown vault → CLI_REPORTED_ERROR + VAULT_NOT_FOUND/unknown, pre-eval (
 
 test("FILE_NOT_FOUND envelope → CLI_REPORTED_ERROR/FILE_NOT_FOUND (US5/FR-014)", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: '=> {"ok":false,"code":"FILE_NOT_FOUND","detail":"Sandbox/missing.md"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":false,"code":"FILE_NOT_FOUND","detail":"Sandbox/missing.md"}\n`, exitCode: 0 },
   ]);
   const err = (await captureRejection(
     executeOpenFile({ vault: "Work", path: "Sandbox/missing.md" }, deps(spawnFn)),
@@ -258,7 +270,7 @@ test("FILE_NOT_FOUND envelope → CLI_REPORTED_ERROR/FILE_NOT_FOUND (US5/FR-014)
 
 test("UNSUPPORTED_FILE_TYPE envelope → CLI_REPORTED_ERROR/UNSUPPORTED_FILE_TYPE + extension (US5)", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: '=> {"ok":false,"code":"UNSUPPORTED_FILE_TYPE","detail":"sqlite"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":false,"code":"UNSUPPORTED_FILE_TYPE","detail":"sqlite"}\n`, exitCode: 0 },
   ]);
   const err = (await captureRejection(
     executeOpenFile({ vault: "Work", path: "data/export.sqlite" }, deps(spawnFn)),
@@ -274,10 +286,10 @@ test("UNSUPPORTED_FILE_TYPE envelope → CLI_REPORTED_ERROR/UNSUPPORTED_FILE_TYP
 
 test("FILE_NOT_FOUND and UNSUPPORTED_FILE_TYPE are mutually distinguishable (US5/FR-015)", async () => {
   const { spawnFn: s1 } = makeQueuedSpawn([
-    { stdout: '=> {"ok":false,"code":"UNSUPPORTED_FILE_TYPE","detail":"sqlite"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":false,"code":"UNSUPPORTED_FILE_TYPE","detail":"sqlite"}\n`, exitCode: 0 },
   ]);
   const { spawnFn: s2 } = makeQueuedSpawn([
-    { stdout: '=> {"ok":false,"code":"FILE_NOT_FOUND","detail":"x.md"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":false,"code":"FILE_NOT_FOUND","detail":"x.md"}\n`, exitCode: 0 },
   ]);
   const unsupported = (await captureRejection(
     executeOpenFile({ vault: "Work", path: "data/export.sqlite" }, deps(s1)),
@@ -291,7 +303,7 @@ test("FILE_NOT_FOUND and UNSUPPORTED_FILE_TYPE are mutually distinguishable (US5
 });
 
 test("malformed eval result (non-JSON) → INTERNAL_ERROR + details.stage:'json-parse' (US5)", async () => {
-  const { spawnFn } = makeQueuedSpawn([{ stdout: "=> not-valid-json{\n", exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: `=> ${TEST_EVAL_TAG}not-valid-json{\n`, exitCode: 0 }]);
   const err = (await captureRejection(
     executeOpenFile({ vault: "Work", path: "a.md" }, deps(spawnFn)),
   )) as UpstreamError;
@@ -301,7 +313,7 @@ test("malformed eval result (non-JSON) → INTERNAL_ERROR + details.stage:'json-
 
 test("wrong-shape eval result (ok:true, no placement) → INTERNAL_ERROR + details.stage:'envelope-parse' (US5)", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"opened":"a.md","new_tab":false}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"opened":"a.md","new_tab":false}\n`, exitCode: 0 },
   ]);
   const err = (await captureRejection(
     executeOpenFile({ vault: "Work", path: "a.md" }, deps(spawnFn)),
@@ -314,7 +326,7 @@ test("the retired VAULT_NOT_FOCUSED/not-open is NEVER produced (ADR-031; Princip
   // A legacy VAULT_NOT_FOCUSED envelope is no longer a recognised code: it fails
   // schema validation → INTERNAL_ERROR, NOT a VAULT_NOT_FOUND/reason:"not-open".
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: '=> {"ok":false,"code":"VAULT_NOT_FOCUSED"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":false,"code":"VAULT_NOT_FOCUSED"}\n`, exitCode: 0 },
   ]);
   const err = (await captureRejection(
     executeOpenFile({ vault: "Archive", path: "old.md" }, deps(spawnFn)),
@@ -326,9 +338,9 @@ test("the retired VAULT_NOT_FOCUSED/not-open is NEVER produced (ADR-031; Princip
 
 test("every failure case rejects, never issues a success envelope (FR-017)", async () => {
   const failures: StubResponse[] = [
-    { stdout: '=> {"ok":false,"code":"FILE_NOT_FOUND","detail":"x.md"}\n', exitCode: 0 },
-    { stdout: '=> {"ok":false,"code":"UNSUPPORTED_FILE_TYPE","detail":"sqlite"}\n', exitCode: 0 },
-    { stdout: "=> not-valid-json{\n", exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":false,"code":"FILE_NOT_FOUND","detail":"x.md"}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":false,"code":"UNSUPPORTED_FILE_TYPE","detail":"sqlite"}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}not-valid-json{\n`, exitCode: 0 },
   ];
   for (const f of failures) {
     const { spawnFn } = makeQueuedSpawn([f]);
@@ -400,7 +412,7 @@ test("anti-injection (R12): a hostile locator round-trips ONLY inside the base64
   const envelope = { ok: true, opened: "a.md", new_tab: false, placement: "active_tab_used" };
   const hostile = 'Tricky"); doSomething(); //.md';
   const { spawnFn, recorded, getCount } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   await executeOpenFile({ vault: "Work", path: hostile }, deps(spawnFn));
   expect(getCount()).toBe(1);
@@ -410,4 +422,94 @@ test("anti-injection (R12): a hostile locator round-trips ONLY inside the base64
     if (a.startsWith("code=")) continue;
     expect(a.includes(hostile)).toBe(false);
   }
+});
+
+// =====================================================================
+// Spec 080 — plugin output around the tagged eval answer
+// =====================================================================
+
+const OPEN_OK = { ok: true, opened: "Projects/Roadmap.md", new_tab: false, placement: "active_tab_used" };
+const OPEN_FAKE = { ok: true, opened: "Fake/Other.md", new_tab: true, placement: "new_tab_created" };
+const OPEN_RESULT = { opened: "Projects/Roadmap.md", vault: "Work", new_tab: false, placement: "active_tab_used" };
+const EVAL_COLD = 'Error: Command "eval" not found. It may require a plugin to be enabled.\n';
+
+test("spec 080 US1 (T018): plugin lines before the answer → normal result", async () => {
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: `${NOISE_BEFORE}${evalAnswerLine(JSON.stringify(OPEN_OK))}\n`, exitCode: 0 },
+  ]);
+  const result = await executeOpenFile({ vault: "Work", path: "Projects/Roadmap.md" }, deps(spawnFn));
+  expect(result).toEqual(OPEN_RESULT);
+});
+
+test("spec 080 US1 (T018): FILE_NOT_FOUND envelope behind plugin lines → CLI_REPORTED_ERROR/FILE_NOT_FOUND", async () => {
+  const envelope = { ok: false, code: "FILE_NOT_FOUND", detail: "Sandbox/missing.md" };
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: `${NOISE_BEFORE}${evalAnswerLine(JSON.stringify(envelope))}\n`, exitCode: 0 },
+  ]);
+  const err = (await captureRejection(
+    executeOpenFile({ vault: "Work", path: "Sandbox/missing.md" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toMatchObject({ code: "FILE_NOT_FOUND", path: "Sandbox/missing.md", vault: "Work" });
+});
+
+test("spec 080 US2 (T024): plugin lines + cold-start line, then plugin lines + answer → one retry, success", async () => {
+  const { spawnFn, getCount } = makeQueuedSpawn([
+    { stdout: `${NOISE_BEFORE}${EVAL_COLD}`, exitCode: 0 },
+    { stdout: `${NOISE_BEFORE}${evalAnswerLine(JSON.stringify(OPEN_OK))}\n`, exitCode: 0 },
+  ]);
+  const result = await executeOpenFile({ vault: "Work", path: "Projects/Roadmap.md" }, deps(spawnFn));
+  expect(result).toEqual(OPEN_RESULT);
+  expect(getCount()).toBe(2);
+});
+
+test("spec 080 US2 (T024): plugin lines + cold-start line on both attempts → cold-start error after exactly one retry", async () => {
+  const stdout = `${NOISE_BEFORE}${EVAL_COLD}`;
+  const { spawnFn, getCount } = makeQueuedSpawn([
+    { stdout, exitCode: 0 },
+    { stdout, exitCode: 0 },
+  ]);
+  const err = (await captureRejection(
+    executeOpenFile({ vault: "Work", path: "Projects/Roadmap.md" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toMatchObject({ command: "eval", stdout, message: EVAL_COLD.trim() });
+  expect(getCount()).toBe(2);
+});
+
+test("spec 080 US2 (T024, E5b): a look-alike before the cold-start line does not mask it → one retry", async () => {
+  const { spawnFn, getCount } = makeQueuedSpawn([
+    { stdout: `${lookalike(JSON.stringify(OPEN_FAKE))}\n${EVAL_COLD}`, exitCode: 0 },
+    { stdout: `${evalAnswerLine(JSON.stringify(OPEN_OK))}\n`, exitCode: 0 },
+  ]);
+  const result = await executeOpenFile({ vault: "Work", path: "Projects/Roadmap.md" }, deps(spawnFn));
+  expect(result).toEqual(OPEN_RESULT);
+  expect(getCount()).toBe(2);
+});
+
+test("spec 080 US3 (T036): look-alikes before and after the answer never win", async () => {
+  const fake = lookalike(JSON.stringify(OPEN_FAKE));
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: `${fake}\n${evalAnswerLine(JSON.stringify(OPEN_OK))}\n${fake}\n`, exitCode: 0 },
+  ]);
+  const result = await executeOpenFile({ vault: "Work", path: "Projects/Roadmap.md" }, deps(spawnFn));
+  expect(result).toEqual(OPEN_RESULT);
+});
+
+test("spec 080 US3 (T036): a look-alike alone → INTERNAL_ERROR json-parse with the raw output", async () => {
+  const stdout = `${NO_ANSWER}${lookalike(JSON.stringify(OPEN_FAKE))}\n`;
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  const err = (await captureRejection(
+    executeOpenFile({ vault: "Work", path: "Projects/Roadmap.md" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.code).toBe("INTERNAL_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", stdout });
+});
+
+test("spec 080 US4 (T040): plugin output after the answer → normal result", async () => {
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: `${evalAnswerLine(JSON.stringify(OPEN_OK))}${NOISE_AFTER}\n`, exitCode: 0 },
+  ]);
+  const result = await executeOpenFile({ vault: "Work", path: "Projects/Roadmap.md" }, deps(spawnFn));
+  expect(result).toEqual(OPEN_RESULT);
 });

@@ -1,4 +1,6 @@
-// Original — no upstream. invokeCli typed-tool facade: top-level vault field (symmetric with invokeBoundedCli per Code-5 / 2026-05-08), target-mode locator strip on parameters, queue-wrapped routing through dispatchCli with fixed 10 s / 10 MiB bounds (ADR-007, FR-013), success-path stdout inspection re-classifying unknown-vault responses to CLI_REPORTED_ERROR (BI 011-write-note R5 / T002 — verbatim CLI wording captured at T0.4: "Vault not found." on stdout, exit 0). 068 R11: the per-call signal and progress reporter pass to the queue and to dispatchCli.
+// Original — no upstream. invokeCli typed-tool facade: top-level vault field (symmetric with invokeBoundedCli per Code-5 / 2026-05-08), target-mode locator strip on parameters, queue-wrapped routing through dispatchCli with fixed 10 s / 10 MiB bounds (ADR-007, FR-013), success-path stdout inspection re-classifying unknown-vault responses to CLI_REPORTED_ERROR (BI 011-write-note R5 / T002 — verbatim CLI wording captured at T0.4: "Vault not found." on stdout, exit 0). 068 R11: the per-call signal and progress reporter pass to the queue and to dispatchCli. 080: an `eval` call's code is wrapped with a per-call answer tag (evalNonce seam, default randomUUID), the tag rides on the DispatchInput, and the result carries the tagged answer as `evalAnswer`.
+import { randomUUID } from "node:crypto";
+
 import {
   dispatchCli,
   killInFlightChildren,
@@ -9,6 +11,7 @@ import {
   type ResolveBinaryFn,
   type SpawnLike,
 } from "./_dispatch.js";
+import { evalAnswerTag, findTaggedEvalAnswer, wrapEvalCode } from "./eval-output.js";
 import { UpstreamError } from "../errors.js";
 
 import type { Logger } from "../logger.js";
@@ -37,6 +40,11 @@ export interface InvokeCliInput {
 export interface InvokeCliSuccess {
   stdout: string;
   stderr: string;
+  /**
+   * `eval` calls only: the text after this call's answer tag on its `=> ` line, or null when no
+   * line carries the tag or tagged lines disagree (spec 080). Absent on every other command.
+   */
+  evalAnswer?: string | null;
 }
 
 export interface InvokeCliDeps extends CallScope {
@@ -48,6 +56,8 @@ export interface InvokeCliDeps extends CallScope {
   resolveBinary?: ResolveBinaryFn;
   /** Test seam — passes through to dispatchCli's BI-060 recovery. See DispatchDeps.launchFn. */
   launchFn?: LaunchFn;
+  /** Test seam — the nonce for an eval call's answer tag (spec 080). Defaults to `randomUUID`. */
+  evalNonce?: () => string;
 }
 
 export { UpstreamError, killInFlightChildren };
@@ -73,8 +83,13 @@ export function invokeCli(input: InvokeCliInput, deps: InvokeCliDeps): Promise<I
   // caller that constructs `parameters` less carefully gets the same protection
   // here. With vault now a top-level field, the strip primarily defends against
   // file/path leaking in via parameters (vault stripping is redundant but harmless).
-  const parameters =
+  const stripped =
     input.target_mode === "active" ? stripTargetLocators(input.parameters) : input.parameters;
+  // Spec 080: a typed eval's code is wrapped so its printed answer starts with a per-call tag,
+  // which tells the answer apart from plugin lines (look-alike `=> ` lines included).
+  const tag = input.command === "eval" ? evalAnswerTag((deps.evalNonce ?? randomUUID)()) : undefined;
+  const parameters =
+    tag === undefined ? stripped : { ...stripped, code: wrapEvalCode(String(stripped.code), tag) };
   const dispatchInput: DispatchInput = {
     command: input.command,
     vault: input.target_mode === "active" ? undefined : input.vault,
@@ -83,6 +98,7 @@ export function invokeCli(input: InvokeCliInput, deps: InvokeCliDeps): Promise<I
     copy: input.copy ?? false,
     timeoutMs: TYPED_TOOL_TIMEOUT_MS,
     outputCapBytes: TYPED_TOOL_OUTPUT_CAP_BYTES,
+    ...(tag === undefined ? {} : { evalAnswerTag: tag }),
   };
   // 068 R11: the signal reaches both the queue (a cancelled queued call never starts) and the
   // dispatch (a cancelled running call kills its child).
@@ -110,6 +126,9 @@ export function invokeCli(input: InvokeCliInput, deps: InvokeCliDeps): Promise<I
         details: { command: input.command, stdout: out.stdout, stderr: out.stderr, exitCode: 0, message },
         message,
       });
+    }
+    if (tag !== undefined) {
+      return { stdout: out.stdout, stderr: out.stderr, evalAnswer: findTaggedEvalAnswer(out.stdout, tag) };
     }
     return { stdout: out.stdout, stderr: out.stderr };
   }, { signal: deps.signal });

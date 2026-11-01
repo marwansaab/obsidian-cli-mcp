@@ -1,9 +1,10 @@
-// Original — no upstream. dispatchCli: the single spawn-and-collect primitive owning argv assembly, four-priority classification, always-on bounds, atomic in-flight registry, and failure-only stderr logging (ADR-007, FR-008..FR-018a). Wraps one `dispatchOnce` attempt with the ADR-029 single cold-start retry: a form-(a) cold-start signature (`CLI_REPORTED_ERROR` whose stdout matches COLD_START_PATTERN, the registry-not-ready `Error: Command "<cmd>" not found.`) on the first attempt triggers exactly one re-spawn whose outcome is authoritative; all other outcomes are single-shot. Form (b) `Stream closed` is NOT retried — a dropped transport pipe carries no evidence of lifecycle position, so retrying it could double-apply a mutation; the default-safe posture leaves it single-shot (form (a) only). Signature pinned by 2026-05-30 T0 probes against the production `Obsidian.com` shim. 068 R11 (FR-051, FR-054): a request's AbortSignal kills the running child through the same SIGTERM-then-SIGKILL path as a timeout and stops further attempts; the auto-launch readiness poll reports progress per poll when the request carried a progress token.
+// Original — no upstream. dispatchCli: the single spawn-and-collect primitive owning argv assembly, four-priority classification, always-on bounds, atomic in-flight registry, and failure-only stderr logging (ADR-007, FR-008..FR-018a). Wraps one `dispatchOnce` attempt with the ADR-029 single cold-start retry: a form-(a) cold-start signature (`CLI_REPORTED_ERROR` whose stdout matches COLD_START_PATTERN, the registry-not-ready `Error: Command "<cmd>" not found.`) on the first attempt triggers exactly one re-spawn whose outcome is authoritative; all other outcomes are single-shot. Form (b) `Stream closed` is NOT retried — a dropped transport pipe carries no evidence of lifecycle position, so retrying it could double-apply a mutation; the default-safe posture leaves it single-shot (form (a) only). Signature pinned by 2026-05-30 T0 probes against the production `Obsidian.com` shim. 068 R11 (FR-051, FR-054): a request's AbortSignal kills the running child through the same SIGTERM-then-SIGKILL path as a timeout and stops further attempts; the auto-launch readiness poll reports progress per poll when the request carried a progress token. 080 (ADR-029 amendment 2026-11-01): for `eval` only, an output with no answer (no line carrying the call's answer tag, or for an untagged call no `=> ` line) is classified by its last `Error:` line anywhere in the output, and the cold-start signature matches at the start of any line; non-eval classification is unchanged.
 import { spawn as nodeSpawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 
+import { findReportedErrorLine, findTaggedEvalAnswer, hasEvalAnswerLine } from "./eval-output.js";
 import { launchObsidian } from "../app-launcher/app-launcher.js";
 import { resolveBinary, type ResolutionAttempt } from "../binary-resolver/binary-resolver.js";
 import { UpstreamError } from "../errors.js";
@@ -35,6 +36,11 @@ export interface DispatchInput {
   copy?: boolean;
   timeoutMs: number;
   outputCapBytes: number;
+  /**
+   * The answer tag `invokeCli` wrapped a typed eval's code with (spec 080). When set on an
+   * `eval` call, only a `=> ` line carrying this tag counts as an answer at classification.
+   */
+  evalAnswerTag?: string;
 }
 
 export interface DispatchOutput {
@@ -115,6 +121,14 @@ let shuttingDown = false;
 export const COLD_START_PATTERN = /^\s*Error: Command "[^"]*" not found\./;
 
 /**
+ * The cold-start signature at the start of ANY line, for `eval` output only (spec 080, the
+ * ADR-029 amendment of 2026-11-01): plugins may print start-up lines before Obsidian's own
+ * `Error: Command "<cmd>" not found.` line. Non-eval commands keep the start-anchored
+ * {@link COLD_START_PATTERN}. The retry it triggers stays single.
+ */
+export const COLD_START_LINE_PATTERN = /^\s*Error: Command "[^"]*" not found\./m;
+
+/**
  * Decides whether a first-attempt thrown value is a form-(a) cold-start eligible for one retry.
  * Type-guards before reading `.code`/`.details` (the caught value is `unknown`). Form (a) only:
  * form (b) `Stream closed` is NOT retried — a dropped transport pipe carries no evidence of
@@ -132,14 +146,17 @@ export const COLD_START_PATTERN = /^\s*Error: Command "[^"]*" not found\./;
  * require a plugin to be enabled.`), so an EOL anchor would FALSE-NEGATIVE genuine cold-starts
  * — a far worse failure (the feature silently no-ops) than one bounded, non-masking extra
  * spawn on pathological file content.
+ *
+ * For `eval` (spec 080) the signature is matched at the start of any line
+ * ({@link COLD_START_LINE_PATTERN}): the exit-0 classifier only reports an `eval` error when the
+ * output carries no answer, so plugin start-up lines before the cold-start line no longer hide it.
  */
 export function isColdStart(value: unknown): boolean {
-  return (
-    value instanceof UpstreamError &&
-    value.code === "CLI_REPORTED_ERROR" &&
-    typeof value.details?.stdout === "string" &&
-    COLD_START_PATTERN.test(value.details.stdout)
-  );
+  if (!(value instanceof UpstreamError) || value.code !== "CLI_REPORTED_ERROR") return false;
+  const stdout = value.details?.stdout;
+  if (typeof stdout !== "string") return false;
+  const pattern = value.details?.command === "eval" ? COLD_START_LINE_PATTERN : COLD_START_PATTERN;
+  return pattern.test(stdout);
 }
 
 /**
@@ -555,14 +572,50 @@ async function dispatchOnce(
         return;
       }
 
+      // Spec 080 (ADR-029 amendment of 2026-11-01): `eval` output may carry plugin lines, so
+      // priorities (b) and (c) look at Obsidian's last `Error:` line anywhere in the output — but
+      // only when the output carries no answer. A typed eval's answer is the `=> ` line with its
+      // tag (a look-alike is not an answer); an untagged eval (obsidian_exec) counts any `=> ` line.
+      if (input.command === "eval") {
+        const answered =
+          input.evalAnswerTag !== undefined
+            ? findTaggedEvalAnswer(stdout, input.evalAnswerTag) !== null
+            : hasEvalAnswerLine(stdout);
+        const line = answered ? null : findReportedErrorLine(stdout);
+        if (line !== null && line.toLowerCase().startsWith("error: no active file")) {
+          reject(
+            new UpstreamError({
+              code: "ERR_NO_ACTIVE_FILE",
+              cause: null,
+              details: { argv, command: input.command, stdout, stderr, exitCode: 0, message: line },
+              message:
+                'No active file in Obsidian. Open a note in the editor, or call this tool with target_mode: "specific" and an explicit vault/file.',
+            }),
+          );
+          return;
+        }
+        if (line !== null) {
+          reject(
+            new UpstreamError({
+              code: "CLI_REPORTED_ERROR",
+              cause: null,
+              details: { argv, command: input.command, stdout, stderr, exitCode: 0, message: line },
+            }),
+          );
+          return;
+        }
+        resolve({ stdout, stderr, exitCode: 0, argv });
+        return;
+      }
+
       const trimmedHead = stdout.trimStart();
 
       // Priority (b): ERR_NO_ACTIVE_FILE — exit 0 with stdout starting with the canonical
       // phrase, case-insensitive (BI-041 FR-001). Upstream emits the capital-N canonical
       // form `"Error: No active file."` on `delete` / `rename` / `outline`; older lowercase
-      // fixtures keep matching (monotonic widening). Anchor stays at the message head —
-      // substring-anywhere matches are rejected by the prefix invariant. Must precede
-      // priority (c).
+      // fixtures keep matching (monotonic widening). For non-eval commands the anchor stays at
+      // the message head — substring-anywhere matches are rejected by the prefix invariant
+      // (`eval` output is classified line by line above). Must precede priority (c).
       if (trimmedHead.toLowerCase().startsWith("error: no active file")) {
         const message = stdout.split("\n", 1)[0]!.trim();
         reject(

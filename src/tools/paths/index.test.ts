@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createPathsTool, PATHS_DESCRIPTION, PATHS_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger, TEST_EVAL_TAG, EVAL_NONCE_SEAM } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 import { closedVaultNote } from "../_shared.js";
 
@@ -22,11 +22,11 @@ describe("createPathsTool — handler closure execution", () => {
   // A VALID input drives the closure → executePaths → invokeCli (success spawn) and
   // returns a JSON success envelope. Reuses handler.test.ts's okEnv success stdout.
   it("VALID input drives the handler closure to a success envelope", async () => {
-    const okEnv = `=> ${JSON.stringify({ ok: true, count: 1, paths: ["README.md"] })}\n`;
+    const okEnv = `=> ${TEST_EVAL_TAG}${JSON.stringify({ ok: true, count: 1, paths: ["README.md"] })}\n`;
     const { spawnFn } = makeQueuedSpawn([{ stdout: okEnv, exitCode: 0 }]);
     const tool = createPathsTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn,
     });
     const result = (await tool.handler({ target_mode: "specific", vault: "Demo" })) as {
@@ -44,7 +44,7 @@ describe("createPathsTool — descriptor", () => {
   it("publishes name = 'paths'", () => {
     const tool = createPathsTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn: makeStubSpawn(),
     });
     expect(tool.descriptor.name).toBe(PATHS_TOOL_NAME);
@@ -55,7 +55,7 @@ describe("createPathsTool — descriptor", () => {
   it("emits inputSchema excluding file/path per FR-001", () => {
     const tool = createPathsTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn: makeStubSpawn(),
     });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
@@ -68,7 +68,7 @@ describe("createPathsTool — descriptor", () => {
   it("PATHS_DESCRIPTION carries the trailing-slash promise", () => {
     const tool = createPathsTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn: makeStubSpawn(),
     });
     expect(tool.descriptor.description).toBe(PATHS_DESCRIPTION);

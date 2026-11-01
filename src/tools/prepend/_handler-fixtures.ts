@@ -11,7 +11,7 @@ import { resolve } from "node:path";
 
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import { silentLogger, EVAL_NONCE_SEAM } from "../_handler-test-fixtures.js";
 import { type ExecuteFs } from "./handler.js";
 
 import type { SpawnLike } from "../../cli-adapter/_dispatch.js";
@@ -116,7 +116,7 @@ export function deps(opts: {
 }) {
   return {
     logger: opts.logger ?? silentLogger(),
-    queue: createQueue(),
+    queue: createQueue(), ...EVAL_NONCE_SEAM,
     vaultRegistry: opts.vaultRegistry,
     spawnFn: opts.spawnFn,
     env: {},

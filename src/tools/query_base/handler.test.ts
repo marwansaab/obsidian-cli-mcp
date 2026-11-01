@@ -19,7 +19,20 @@ import {
 import { UpstreamError } from "../../errors.js";
 import { type Logger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn, silentLogger, captureRejection, coldStartResponse } from "../_handler-test-fixtures.js";
+import {
+  captureRejection,
+  coldStartResponse,
+  EVAL_NONCE_SEAM,
+  evalAnswerLine,
+  LONG_NO_ANSWER,
+  lookalike,
+  makeQueuedSpawn,
+  NO_ANSWER,
+  NOISE_AFTER,
+  NOISE_BEFORE,
+  silentLogger,
+  TEST_EVAL_TAG,
+} from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -42,7 +55,7 @@ function deps(opts: DepsOpts): ExecuteDeps {
   const vaultRoot = opts.vaultRoot ?? TEST_VAULT_ROOT;
   return {
     logger: silentLogger(),
-    queue: createQueue(),
+    queue: createQueue(), ...EVAL_NONCE_SEAM,
     spawnFn: opts.spawnFn,
     env: {},
     vaultRegistry: makeStubRegistry(vaultRoot),
@@ -372,7 +385,7 @@ test("US1: vault unknown via vaultRegistry resolveVaultPath → CLI_REPORTED_ERR
   };
   const d: ExecuteDeps = {
     logger: silentLogger(),
-    queue: createQueue(),
+    queue: createQueue(), ...EVAL_NONCE_SEAM,
     spawnFn,
     env: {},
     vaultRegistry: registryThatRejects,
@@ -586,14 +599,14 @@ test("US1: no-vault path exercises default FOCUSED_VAULT_TEMPLATE eval round-tri
   );
   const { spawnFn } = makeQueuedSpawn([
     // 1st spawn: focused-vault eval → returns the JSON-string-wrapped envelope.
-    { stdout: `=> ${focusedResp}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${focusedResp}\n`, exitCode: 0 },
     // 2nd spawn: base:query → returns wire envelope.
     { stdout: JSON.stringify([{ path: "x.md" }]), exitCode: 0 },
   ]);
   // Build deps WITHOUT injecting invokeEval, so defaultInvokeEval runs.
   const d: ExecuteDeps = {
     logger: silentLogger(),
-    queue: createQueue(),
+    queue: createQueue(), ...EVAL_NONCE_SEAM,
     spawnFn,
     env: {},
     vaultRegistry: makeStubRegistry("C:\\Vault"),
@@ -608,11 +621,11 @@ test("US1: no-vault path exercises default FOCUSED_VAULT_TEMPLATE eval round-tri
 
 test("US1: no-vault path with unparseable focused-vault eval → CLI_REPORTED_ERROR/stage=focused-vault-resolve", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: "=> garbled-not-json\n", exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}garbled-not-json\n`, exitCode: 0 },
   ]);
   const d: ExecuteDeps = {
     logger: silentLogger(),
-    queue: createQueue(),
+    queue: createQueue(), ...EVAL_NONCE_SEAM,
     spawnFn,
     env: {},
     vaultRegistry: makeStubRegistry("C:\\Vault"),
@@ -681,7 +694,7 @@ test("US2: PATH_ESCAPES_VAULT — realpath returns path outside vault root → P
   const { spawnFn } = makeQueuedSpawn([]);
   const d: ExecuteDeps = {
     logger: customLogger,
-    queue: createQueue(),
+    queue: createQueue(), ...EVAL_NONCE_SEAM,
     spawnFn,
     env: {},
     vaultRegistry: makeStubRegistry("C:\\Vault"),
@@ -772,4 +785,77 @@ test("BI-041 US2: JSON-array short-circuit preserved when stderr carries a warni
   expect(r.rows).toEqual([]);
   expect(r.columns).toEqual(["path"]);
   expect(r.truncated).toBe(false);
+});
+
+// =====================================================================
+// Spec 080 — plugin output around the focused-vault eval answer (defaultInvokeEval)
+// =====================================================================
+
+const QB_REAL = JSON.stringify({ path: null, base: TEST_VAULT_ROOT });
+const QB_FAKE = JSON.stringify({ path: null, base: resolvePath("/elsewhere") });
+
+// No invokeEval seam → defaultInvokeEval runs the eval through spawnFn and parseFocusedVault.
+// `statted` records the .base path resolved against whichever vault root won.
+function noVaultRun(evalStdout: string) {
+  const statted: string[] = [];
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: evalStdout, exitCode: 0 },
+    { stdout: JSON.stringify([{ path: "x.md" }]), exitCode: 0 },
+  ]);
+  const d: ExecuteDeps = {
+    logger: silentLogger(),
+    queue: createQueue(),
+    ...EVAL_NONCE_SEAM,
+    spawnFn,
+    env: {},
+    vaultRegistry: makeStubRegistry(TEST_VAULT_ROOT),
+    fs: {
+      stat: async (p: string) => {
+        statted.push(p);
+        return { size: 100 };
+      },
+      realpath: async (p: string) => p,
+    },
+  };
+  return { run: executeQueryBase({ base_path: "Indexes/Active.base", view_name: "Open" }, d), statted };
+}
+
+test("spec 080 US1 (T020): plugin lines before the focused-vault answer → normal result", async () => {
+  const { run, statted } = noVaultRun(`${NOISE_BEFORE}${evalAnswerLine(QB_REAL)}\n`);
+  expect((await run).rows).toEqual([{ path: "x.md" }]);
+  expect(statted[0]!.startsWith(TEST_VAULT_ROOT)).toBe(true);
+});
+
+test("spec 080 US4 (T040): plugin output after the focused-vault answer → normal result", async () => {
+  const { run } = noVaultRun(`${evalAnswerLine(QB_REAL)}${NOISE_AFTER}\n`);
+  expect((await run).rows).toEqual([{ path: "x.md" }]);
+});
+
+test("spec 080 US3 check 1 (T034): look-alikes before and after the answer never win", async () => {
+  const { run, statted } = noVaultRun(`${lookalike(QB_FAKE)}\n${evalAnswerLine(QB_REAL)}\n${lookalike(QB_FAKE)}\n`);
+  expect((await run).rows).toEqual([{ path: "x.md" }]);
+  expect(statted).toEqual([resolvePath(TEST_VAULT_ROOT, "Indexes/Active.base")]);
+});
+
+test("spec 080 US3 check 2 (T034): a look-alike alone → focused-vault-resolve failure with the raw output", async () => {
+  const stdout = `${NO_ANSWER}${lookalike(QB_FAKE)}\n`;
+  const { run, statted } = noVaultRun(stdout);
+  const err = (await captureRejection(run)) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "focused-vault-resolve", stdout });
+  expect(statted).toEqual([]);
+});
+
+test("spec 080 US3 check 3 (T034): no answer → focused-vault-resolve failure without stdoutTail", async () => {
+  const err = (await captureRejection(noVaultRun(NO_ANSWER).run)) as UpstreamError;
+  expect(err.details).toEqual({ stage: "focused-vault-resolve", stdout: NO_ANSWER });
+});
+
+test("spec 080 US3 check 4 (T034): long output with no answer → focused-vault-resolve failure carrying stdoutTail", async () => {
+  const err = (await captureRejection(noVaultRun(LONG_NO_ANSWER).run)) as UpstreamError;
+  expect(err.details).toEqual({
+    stage: "focused-vault-resolve",
+    stdout: LONG_NO_ANSWER.slice(0, 500),
+    stdoutTail: LONG_NO_ANSWER.slice(-500),
+  });
 });

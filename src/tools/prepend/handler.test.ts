@@ -20,7 +20,7 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { UpstreamError } from "../../errors.js";
 import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn, silentLogger, type StubResponse } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger, type StubResponse, TEST_EVAL_TAG, EVAL_NONCE_SEAM } from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -446,7 +446,7 @@ describe("US2 schema-layer errors via registerTool boundary translator", () => {
   function buildTool() {
     return createPrependTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }),
     });
   }
@@ -642,7 +642,7 @@ describe("US3 inline opt-in (FR-007)", () => {
 
 describe("US4 active-mode focused-file resolution", () => {
   const FOCUSED_OK = (vaultPath: string, relPath: string): StubResponse => ({
-    stdout: `=> ${JSON.stringify({ base: vaultPath, path: relPath })}\n`,
+    stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify({ base: vaultPath, path: relPath })}\n`,
     exitCode: 0,
   });
 
@@ -671,7 +671,7 @@ describe("US4 active-mode focused-file resolution", () => {
   test("no focused file → ERR_NO_ACTIVE_FILE; no prepend call follows", async () => {
     const fs = fakeFs({ sizes: [0, 0] });
     const { spawnFn, recorded } = makeQueuedSpawn([
-      { stdout: `=> ${JSON.stringify({ base: VAULT_ROOT, path: null })}\n`, exitCode: 0 },
+      { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify({ base: VAULT_ROOT, path: null })}\n`, exitCode: 0 },
     ]);
     const err = await executePrepend(
       {
@@ -736,7 +736,7 @@ describe("US4 active-mode focused-file resolution", () => {
 
   test("eval parse failure → CLI_REPORTED_ERROR with stage 'json-parse'", async () => {
     const fs = fakeFs({ sizes: [0, 0] });
-    const { spawnFn } = makeQueuedSpawn([{ stdout: "=> not-valid-json\n", exitCode: 0 }]);
+    const { spawnFn } = makeQueuedSpawn([{ stdout: `=> ${TEST_EVAL_TAG}not-valid-json\n`, exitCode: 0 }]);
     const err = await executePrepend(
       {
         target_mode: "active",
@@ -752,7 +752,7 @@ describe("US4 active-mode focused-file resolution", () => {
   test("eval envelope shape failure → CLI_REPORTED_ERROR with stage 'envelope-parse'", async () => {
     const fs = fakeFs({ sizes: [0, 0] });
     const { spawnFn } = makeQueuedSpawn([
-      { stdout: `=> ${JSON.stringify({ unexpected: "shape" })}\n`, exitCode: 0 },
+      { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify({ unexpected: "shape" })}\n`, exitCode: 0 },
     ]);
     const err = await executePrepend(
       {

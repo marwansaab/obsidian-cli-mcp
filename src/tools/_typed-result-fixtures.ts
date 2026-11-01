@@ -5,7 +5,7 @@
 import { resolve, sep } from "node:path";
 
 import { createQueue } from "../queue.js";
-import { makeQueuedSpawn, makeStubSpawn, silentLogger, type StubResponse } from "./_handler-test-fixtures.js";
+import { makeQueuedSpawn, makeStubSpawn, silentLogger, type StubResponse, TEST_EVAL_TAG, EVAL_NONCE_SEAM } from "./_handler-test-fixtures.js";
 import { createAppendNoteTool } from "./append_note/index.js";
 import { createBacklinksTool } from "./backlinks/index.js";
 import { createBasesTool } from "./bases/index.js";
@@ -67,12 +67,12 @@ export interface TypedResultFixture {
 
 /** Logger, queue, empty env and a spawn answering `responses` in order. */
 function cli(...responses: StubResponse[]) {
-  return { logger: silentLogger(), queue: createQueue(), env: {}, spawnFn: makeQueuedSpawn(responses).spawnFn };
+  return { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, env: {}, spawnFn: makeQueuedSpawn(responses).spawnFn };
 }
 
 /** A one-line eval envelope as the Obsidian CLI prints it. */
 function evalOut(value: unknown): StubResponse {
-  return { stdout: `=> ${JSON.stringify(value)}\n`, exitCode: 0 };
+  return { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(value)}\n`, exitCode: 0 };
 }
 
 function out(stdout: string): StubResponse {
@@ -177,12 +177,12 @@ export const TYPED_RESULT_FIXTURES: readonly TypedResultFixture[] = [
   },
   {
     name: "find_by_property",
-    build: () => createFindByPropertyTool(cli(out('=> {"count":1,"paths":["x.md"]}\n'))),
+    build: () => createFindByPropertyTool(cli(out(`=> ${TEST_EVAL_TAG}{"count":1,"paths":["x.md"]}\n`))),
     args: { vault: "Demo", name: "id", value: "BI-030" },
   },
   {
     name: "find_by_property",
-    build: () => createFindByPropertyTool(cli(out('=> {"count":1,"paths":["x.md"]}\n'))),
+    build: () => createFindByPropertyTool(cli(out(`=> ${TEST_EVAL_TAG}{"count":1,"paths":["x.md"]}\n`))),
     // Spec 073: deprecated names — the result carries deprecated_parameters.
     args: { vault: "Demo", property: "id", value: "BI-030" },
   },
@@ -285,7 +285,7 @@ export const TYPED_RESULT_FIXTURES: readonly TypedResultFixture[] = [
   },
   {
     name: "read_heading",
-    build: () => createReadHeadingTool(cli(out('=> {"ok":true,"content":"body."}\n'))),
+    build: () => createReadHeadingTool(cli(out(`=> ${TEST_EVAL_TAG}{"ok":true,"content":"body."}\n`))),
     args: { target_mode: "active", heading: "A::B" },
   },
   {
@@ -336,7 +336,7 @@ export const TYPED_RESULT_FIXTURES: readonly TypedResultFixture[] = [
     build: () =>
       createViewsBaseTool({
         logger: silentLogger(),
-        queue: createQueue(),
+        queue: createQueue(), ...EVAL_NONCE_SEAM,
         vaultRegistry: registryAt("C:/vaults/Demo"),
         spawnFn: makeStubSpawn(out("All\ttable\nActive\ttable\n")).spawnFn,
       }),

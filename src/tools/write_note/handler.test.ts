@@ -12,7 +12,18 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { UpstreamError } from "../../errors.js";
 import { createLogger, type Logger } from "../../logger.js";
 import { createVaultRegistry } from "../../vault-registry/registry.js";
-import { captureLogger, makeQueuedSpawn, type StubResponse } from "../_handler-test-fixtures.js";
+import {
+  captureLogger,
+  evalAnswerLine,
+  lookalike,
+  makeQueuedSpawn,
+  NO_ANSWER,
+  NOISE_AFTER,
+  NOISE_BEFORE,
+  TEST_EVAL_TAG,
+  type StubResponse,
+  wrappedEvalCode,
+} from "../_handler-test-fixtures.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -444,7 +455,7 @@ test("open=true → post-write openLinkText eval fired (#16)", async () => {
   expect(recorded[0]!.argv.find((a) => a.startsWith("code="))).toContain('getFileByPath("Sandbox/n.md")');
   expect(recorded[1]!.argv).toContain("vault=TestVault");
   const openArg = recorded[1]!.argv.find((a) => a.startsWith("code="));
-  expect(openArg).toBe('code=app.workspace.openLinkText("Sandbox/n.md","")');
+  expect(openArg).toBe(`code=${wrappedEvalCode('app.workspace.openLinkText("Sandbox/n.md","")')}`);
 });
 
 // (#17) open=true + post-write open eval fails → response is STILL success
@@ -501,7 +512,7 @@ test("active mode with focused file → resolved path written, returns { created
     stat: async () => ({ size: 4 }),
   });
   const focusedResp: StubResponse = {
-    stdout: `=> {"path":"Daily/today.md","base":${JSON.stringify(VAULT_ROOT)}}\n`,
+    stdout: `=> ${TEST_EVAL_TAG}{"path":"Daily/today.md","base":${JSON.stringify(VAULT_ROOT)}}\n`,
     exitCode: 0,
   };
   const { spawnFn } = makeQueuedSpawn([focusedResp, EVAL_OK]);
@@ -517,7 +528,7 @@ test("active mode with focused file → resolved path written, returns { created
 test("active mode with no focused file (eval returns path: null) → ERR_NO_ACTIVE_FILE", async () => {
   const fs = fakeFs();
   const focusedResp: StubResponse = {
-    stdout: `=> {"path":null,"base":${JSON.stringify(VAULT_ROOT)}}\n`,
+    stdout: `=> ${TEST_EVAL_TAG}{"path":null,"base":${JSON.stringify(VAULT_ROOT)}}\n`,
     exitCode: 0,
   };
   const { spawnFn } = makeQueuedSpawn([focusedResp]);
@@ -535,7 +546,7 @@ test("active-mode focused-file eval argv stays under 250-byte cap (SC-007 / F1)"
     stat: async () => ({ size: 1 }),
   });
   const focusedResp: StubResponse = {
-    stdout: `=> {"path":"x.md","base":${JSON.stringify(VAULT_ROOT)}}\n`,
+    stdout: `=> ${TEST_EVAL_TAG}{"path":"x.md","base":${JSON.stringify(VAULT_ROOT)}}\n`,
     exitCode: 0,
   };
   const { spawnFn, recorded } = makeQueuedSpawn([focusedResp, EVAL_OK]);
@@ -970,4 +981,42 @@ test("020/US2 overwrite=true on existing → success envelope carries no errno",
   // "new" (3 bytes) over a 10-byte note
   expect(result).toEqual({ created: false, path: "Existing.md", bytes_written: -7 });
   expect((result as unknown as { details?: unknown }).details).toBeUndefined();
+});
+
+// Spec 080 — plugin output around the active-mode focused-file eval answer. write_note stands
+// for the file cohort, which resolves through resolveActiveFocusedFile.
+const FOCUSED_REAL = JSON.stringify({ path: "Daily/today.md", base: VAULT_ROOT });
+const FOCUSED_FAKE = JSON.stringify({ path: "Other/fake.md", base: VAULT_ROOT });
+
+async function activeWrite(focusedStdout: string) {
+  const fs = fakeFs({ stat: async () => ({ size: 4 }) });
+  const { spawnFn } = makeQueuedSpawn([{ stdout: focusedStdout, exitCode: 0 }, EVAL_OK]);
+  return executeWriteNote(
+    { target_mode: "active", content: "rewritten", overwrite: true },
+    deps({ spawnFn, vaultRegistry: fakeRegistry({}), fs }),
+  );
+}
+
+test("spec 080 US1 (T021): plugin lines before the focused-file answer → normal write", async () => {
+  const result = await activeWrite(`${NOISE_BEFORE}${evalAnswerLine(FOCUSED_REAL)}\n`);
+  expect(result).toEqual({ created: false, path: "Daily/today.md", bytes_written: 5 });
+});
+
+test("spec 080 US4 (T040): plugin output after the focused-file answer → normal write", async () => {
+  const result = await activeWrite(`${evalAnswerLine(FOCUSED_REAL)}${NOISE_AFTER}\n`);
+  expect(result).toEqual({ created: false, path: "Daily/today.md", bytes_written: 5 });
+});
+
+test("spec 080 US3 (T037): look-alikes before and after the focused-file answer never win", async () => {
+  const fake = lookalike(FOCUSED_FAKE);
+  const result = await activeWrite(`${fake}\n${evalAnswerLine(FOCUSED_REAL)}\n${fake}\n`);
+  expect(result).toEqual({ created: false, path: "Daily/today.md", bytes_written: 5 });
+});
+
+test("spec 080 US3 (T037): a look-alike alone → CLI_REPORTED_ERROR json-parse with the full raw output", async () => {
+  const stdout = `${NO_ANSWER}${lookalike(FOCUSED_FAKE)}\n`;
+  const err = (await activeWrite(stdout).catch((e: unknown) => e)) as UpstreamError;
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", stdout });
 });

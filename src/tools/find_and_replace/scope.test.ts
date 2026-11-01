@@ -23,7 +23,7 @@ import {
 } from "./handler.js";
 import { UpstreamError } from "../../errors.js";
 import { linkRealpath } from "../../path-safety/_realpath-fixtures.js";
-import { captureLogger, makeQueuedSpawn } from "../_handler-test-fixtures.js";
+import { captureLogger, makeQueuedSpawn, TEST_EVAL_TAG } from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -186,7 +186,7 @@ describe("066-file-scope US1 — named single-note scope by path", () => {
     // ONE queued `obsidian file` response, then the post-write metadata refresh eval
     // (spec 068 FR-001). A commit-time re-resolve would consume the refresh slot as a
     // second `file` spawn and fail the count below.
-    const { spawnFn, recorded } = makeQueuedSpawn([FILE_TSV_OK("Projects/Target.md"), { stdout: "=> ok\n", exitCode: 0 }]);
+    const { spawnFn, recorded } = makeQueuedSpawn([FILE_TSV_OK("Projects/Target.md"), { stdout: `=> ${TEST_EVAL_TAG}ok\n`, exitCode: 0 }]);
     const result = await executeFindAndReplace(
       { pattern: "STATUS", replacement: "STATE", mode: "literal", vault: "V", file: "Target", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: true, active_note: false },
       baseDeps({ fs, spawnFn }),

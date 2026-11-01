@@ -69,7 +69,7 @@ export async function executeGetActiveFile(
     deps,
   );
 
-  // Strip the "=> " echo → JSON.parse → safeParse straight into the output schema. The frozen template
+  // The call's tagged eval answer → JSON.parse → safeParse straight into the output schema. The frozen template
   // emits exactly that `{ active }` shape — there is no separate ok-wrapped envelope to unwrap, because
   // getActiveFile() has no in-eval failure arm (see schema.ts) — so the decoded value IS the result, with
   // no re-parse step. `active: null` carries straight through with NO error branch: the AUTHORIZED SUCCESS
@@ -81,7 +81,7 @@ export async function executeGetActiveFile(
   // is most plausibly a CLI-layer corruption that reads as an upstream report. That groups it with the other
   // pure-read eval tools (backlinks/links) rather than with open_file, which composes its eval from a caller
   // locator and so treats a bad envelope as an internal invariant violation.
-  return decodeEvalEnvelope(result.stdout, getActiveFileOutputSchema, {
+  return decodeEvalEnvelope(result, getActiveFileOutputSchema, {
     toolName: TOOL_NAME,
     malformedCode: "CLI_REPORTED_ERROR",
   });

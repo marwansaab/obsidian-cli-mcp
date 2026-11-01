@@ -7,14 +7,7 @@ import { executeAppendNote, type ExecuteFs } from "./handler.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import {
-  fileTsvResponse,
-  focusedFileResponse,
-  makeQueuedSpawn,
-  silentLogger,
-  stubVaultRegistry,
-  type StubResponse,
-} from "../_handler-test-fixtures.js";
+import { fileTsvResponse, focusedFileResponse, makeQueuedSpawn, silentLogger, stubVaultRegistry, type StubResponse, TEST_EVAL_TAG, EVAL_NONCE_SEAM } from "../_handler-test-fixtures.js";
 
 import type { AppendNoteInput } from "./schema.js";
 import type { SpawnLike } from "../../cli-adapter/_dispatch.js";
@@ -49,7 +42,7 @@ function trackingFs(): ExecuteFs & { calls: string[] } {
 function deps(spawnFn: SpawnLike, fs: ExecuteFs) {
   return {
     logger: silentLogger(),
-    queue: createQueue(),
+    queue: createQueue(), ...EVAL_NONCE_SEAM,
     vaultRegistry: stubVaultRegistry("TestVault", VAULT_ROOT),
     spawnFn,
     env: {},
@@ -114,7 +107,7 @@ describe("spec 070 — append_note rejects non-note targets before reading or wr
 
   test("a Markdown target still appends", async () => {
     const fs = trackingFs();
-    const { spawnFn } = makeQueuedSpawn([{ stdout: "=> undefined\n", exitCode: 0 }]);
+    const { spawnFn } = makeQueuedSpawn([{ stdout: `=> ${TEST_EVAL_TAG}undefined\n`, exitCode: 0 }]);
     const result = await executeAppendNote(
       { target_mode: "specific", vault: "TestVault", path: "n.md", content: "def", inline: false },
       deps(spawnFn, fs),

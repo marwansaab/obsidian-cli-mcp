@@ -9,7 +9,14 @@ import { Readable } from "node:stream";
 
 import { describe, expect, test } from "vitest";
 
-import { captureLogger } from "./_handler-test-fixtures.js";
+import {
+  captureLogger,
+  EVAL_NONCE_SEAM,
+  evalAnswerLine,
+  NOISE_BEFORE,
+  TEST_EVAL_TAG,
+  wrappedEvalCode,
+} from "./_handler-test-fixtures.js";
 import {
   invalidateMetadataCache,
   openNote,
@@ -139,14 +146,14 @@ function recordingSpawn(opts: {
 }
 
 function evalDeps(spawnFn: SpawnLike, events: Array<Record<string, unknown>> = []): EvalDeps {
-  return { logger: captureLogger(events), queue: createQueue(), spawnFn };
+  return { logger: captureLogger(events), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn };
 }
 
 describe("invalidateMetadataCache", () => {
   test("evals computeFileMetadataAsync on the vault-relative path, with vault= on the argv", async () => {
     let argv: readonly string[] | null = null;
     const events: Array<Record<string, unknown>> = [];
-    const spawnFn = recordingSpawn({ stdout: "=> ok\n", onArgv: (a) => (argv = a) });
+    const spawnFn = recordingSpawn({ stdout: `=> ${TEST_EVAL_TAG}ok\n`, onArgv: (a) => (argv = a) });
     await expect(
       invalidateMetadataCache(evalDeps(spawnFn, events), { vault: "TestVault", relPath: "Notes/a.md" }),
     ).resolves.toBeUndefined();
@@ -162,14 +169,14 @@ describe("invalidateMetadataCache", () => {
 
   test("normalises a Windows-style relPath to forward slashes", async () => {
     let argv: readonly string[] | null = null;
-    const spawnFn = recordingSpawn({ stdout: "=> ok\n", onArgv: (a) => (argv = a) });
+    const spawnFn = recordingSpawn({ stdout: `=> ${TEST_EVAL_TAG}ok\n`, onArgv: (a) => (argv = a) });
     await invalidateMetadataCache(evalDeps(spawnFn), { vault: "TestVault", relPath: "Notes\\Sub\\a.md" });
     expect(argv!.find((a) => a.startsWith("code="))).toContain('getFileByPath("Notes/Sub/a.md")');
   });
 
   test("active-mode target (no vault) runs without vault= on the argv", async () => {
     let argv: readonly string[] | null = null;
-    const spawnFn = recordingSpawn({ stdout: "=> ok\n", onArgv: (a) => (argv = a) });
+    const spawnFn = recordingSpawn({ stdout: `=> ${TEST_EVAL_TAG}ok\n`, onArgv: (a) => (argv = a) });
     await invalidateMetadataCache(evalDeps(spawnFn), { relPath: "a.md" });
     expect(argv!.some((a) => a.startsWith("vault="))).toBe(false);
   });
@@ -188,7 +195,7 @@ describe("invalidateMetadataCache", () => {
 
   test("a note Obsidian cannot find is logged, not silently ignored", async () => {
     const events: Array<Record<string, unknown>> = [];
-    const spawnFn = recordingSpawn({ stdout: "=> missing\n" });
+    const spawnFn = recordingSpawn({ stdout: `=> ${TEST_EVAL_TAG}missing\n` });
     await invalidateMetadataCache(evalDeps(spawnFn, events), { relPath: "a.md" });
     expect(events).toEqual([
       expect.objectContaining({
@@ -196,7 +203,7 @@ describe("invalidateMetadataCache", () => {
         vault: null,
         relPath: "a.md",
         reason: "note-not-found",
-        detail: "=> missing",
+        detail: `=> ${TEST_EVAL_TAG}missing`,
       }),
     ]);
   });
@@ -215,15 +222,35 @@ describe("invalidateMetadataCache", () => {
       }),
     ]);
   });
+
+  // Spec 080 US1: plugin lines before the tagged "ok" answer are not a refresh failure.
+  test("plugin lines before the tagged ok answer log nothing", async () => {
+    const events: Array<Record<string, unknown>> = [];
+    const spawnFn = recordingSpawn({ stdout: `${NOISE_BEFORE}${evalAnswerLine("ok")}\n` });
+    await invalidateMetadataCache(evalDeps(spawnFn, events), { vault: "TestVault", relPath: "a.md" });
+    expect(events.filter((e) => e.event === "bridge.metadata_refresh_failed")).toEqual([]);
+  });
+
+  // Spec 080 US3: an untagged look-alike "=> ok" is not this call's answer.
+  test("an untagged look-alike => ok is logged as unexpected-output", async () => {
+    const events: Array<Record<string, unknown>> = [];
+    const spawnFn = recordingSpawn({ stdout: "plugin z: ready\n=> ok\n" });
+    await invalidateMetadataCache(evalDeps(spawnFn, events), { vault: "TestVault", relPath: "a.md" });
+    expect(events).toEqual([
+      expect.objectContaining({ event: "bridge.metadata_refresh_failed", reason: "unexpected-output" }),
+    ]);
+  });
 });
 
 describe("openNote", () => {
   test("opens the vault-relative forward-slash path in the named vault", async () => {
     let argv: readonly string[] | null = null;
-    const spawnFn = recordingSpawn({ stdout: "=> undefined\n", onArgv: (a) => (argv = a) });
+    const spawnFn = recordingSpawn({ stdout: `=> ${TEST_EVAL_TAG}undefined\n`, onArgv: (a) => (argv = a) });
     await openNote(evalDeps(spawnFn), { vault: "TestVault", relPath: "Notes\\Sub\\a.md" });
     expect(argv).toContain("vault=TestVault");
-    expect(argv!.find((a) => a.startsWith("code="))).toBe('code=app.workspace.openLinkText("Notes/Sub/a.md","")');
+    expect(argv!.find((a) => a.startsWith("code="))).toBe(
+      `code=${wrappedEvalCode('app.workspace.openLinkText("Notes/Sub/a.md","")')}`,
+    );
   });
 
   test("swallows an upstream failure (write already landed) and logs nothing", async () => {

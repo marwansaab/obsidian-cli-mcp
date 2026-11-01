@@ -7,15 +7,7 @@ import { executeReadNote, type ReadFs } from "./handler.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import {
-  captureRejection,
-  fileTsvResponse,
-  focusedFileResponse,
-  makeQueuedSpawn,
-  makeStubSpawn,
-  silentLogger,
-  stubVaultRegistry,
-} from "../_handler-test-fixtures.js";
+import { captureRejection, fileTsvResponse, focusedFileResponse, makeQueuedSpawn, makeStubSpawn, silentLogger, stubVaultRegistry, EVAL_NONCE_SEAM } from "../_handler-test-fixtures.js";
 
 import type { SpawnLike } from "../../cli-adapter/_dispatch.js";
 
@@ -29,7 +21,7 @@ function diskFs(disk: string | Buffer = "") {
 function deps(spawnFn: SpawnLike, fs: ReadFs = diskFs()) {
   return {
     logger: silentLogger(),
-    queue: createQueue(),
+    queue: createQueue(), ...EVAL_NONCE_SEAM,
     spawnFn,
     env: {},
     vaultRegistry: stubVaultRegistry("MyVault", ROOT),

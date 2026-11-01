@@ -28,7 +28,18 @@ import {
 } from "./handler.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { answeredCall, captureLogger, makeQueuedSpawn } from "../_handler-test-fixtures.js";
+import {
+  answeredCall,
+  captureLogger,
+  evalAnswerLine,
+  LONG_NO_ANSWER,
+  lookalike,
+  makeQueuedSpawn,
+  NO_ANSWER,
+  NOISE_AFTER,
+  NOISE_BEFORE,
+  TEST_EVAL_TAG,
+} from "../_handler-test-fixtures.js";
 
 import type { FindAndReplaceInput } from "./schema.js";
 
@@ -136,8 +147,8 @@ describe("068 A1 — metadata refresh per committed note", () => {
   it("a 2-note commit on a real queue completes, with one refresh per changed note in the written vault", async () => {
     const { fs, state } = inMemoryFs(twoNotes(), VAULT_ROOT);
     const { spawnFn, recorded } = makeQueuedSpawn([
-      { stdout: "=> ok\n", exitCode: 0 },
-      { stdout: "=> ok\n", exitCode: 0 },
+      { stdout: `=> ${TEST_EVAL_TAG}ok\n`, exitCode: 0 },
+      { stdout: `=> ${TEST_EVAL_TAG}ok\n`, exitCode: 0 },
     ]);
     const result = await executeFindAndReplace(commitInput, baseDeps({ fs, spawnFn, queue: createQueue() }));
     expect(result).toEqual({ mode: "commit", changed_notes: ["B.md", "Sub/A.md"], total_occurrences_replaced: 2, partial: false });
@@ -153,7 +164,7 @@ describe("068 A1 — metadata refresh per committed note", () => {
     const { fs } = inMemoryFs(twoNotes(), VAULT_ROOT);
     const { spawnFn } = makeQueuedSpawn([
       { stdout: "Error: boom\n", exitCode: 1 },
-      { stdout: "=> ok\n", exitCode: 0 },
+      { stdout: `=> ${TEST_EVAL_TAG}ok\n`, exitCode: 0 },
     ]);
     const events: Array<Record<string, unknown>> = [];
     const result = await executeFindAndReplace(commitInput, baseDeps({ fs, spawnFn, logger: captureLogger(events) }));
@@ -839,7 +850,7 @@ describe("defaultInvokeEval — default factory drives obsidian eval (L192-220)"
   // echo lands as `=> "<json-encoded string>"`. parseFocusedVault strips the
   // `=> ` echo + JSON.parse (outer string), then JSON.parse again (inner object).
   function focusedVaultStdout(envelope: { path: string | null; base: string }): string {
-    return "=> " + JSON.stringify(JSON.stringify(envelope));
+    return "=> " + TEST_EVAL_TAG + JSON.stringify(JSON.stringify(envelope));
   }
 
   it("input.vault absent + no injected invokeEval → default eval round-trip resolves the focused vault root", async () => {
@@ -866,7 +877,7 @@ describe("defaultInvokeEval — default factory drives obsidian eval (L192-220)"
     const { spawnFn } = makeQueuedSpawn([
       // `=> ` echo present but the body is not valid JSON → parseFocusedVault
       // fails at the json-parse stage.
-      { stdout: "=> not-valid-json-at-all", exitCode: 0 },
+      { stdout: `=> ${TEST_EVAL_TAG}not-valid-json-at-all`, exitCode: 0 },
     ]);
     const err = await executeFindAndReplace(
       { pattern: "alpha", replacement: "X", mode: "literal", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: false , active_note: false },
@@ -875,7 +886,7 @@ describe("defaultInvokeEval — default factory drives obsidian eval (L192-220)"
     expect(err).toBeInstanceOf(UpstreamError);
     expect((err as UpstreamError).code).toBe("CLI_REPORTED_ERROR");
     expect((err as UpstreamError).details.stage).toBe("json-parse");
-    expect((err as UpstreamError).details.stdout).toBe("=> not-valid-json-at-all");
+    expect((err as UpstreamError).details.stdout).toBe(`=> ${TEST_EVAL_TAG}not-valid-json-at-all`);
   });
 });
 
@@ -930,5 +941,61 @@ describe("subfolder realpath — non-ENOENT error rethrows raw (L436)", () => {
     expect(err).toBe(eacces);
     expect((err as NodeJS.ErrnoException).code).toBe("EACCES");
     expect(err).not.toBeInstanceOf(UpstreamError);
+  });
+});
+
+describe("spec 080 — plugin output around the focused-vault eval answer (defaultInvokeEval)", () => {
+  const PREVIEW_INPUT = { pattern: "alpha", replacement: "X", mode: "literal", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false } as const;
+  const REAL = JSON.stringify({ path: null, base: VAULT_ROOT });
+  const FAKE = JSON.stringify({ path: null, base: resolve(VAULT_ROOT, "..", "elsewhere") });
+
+  // invokeEval omitted → defaultInvokeEval runs the eval through spawnFn and parseFocusedVault.
+  async function run(stdout: string) {
+    const { fs } = inMemoryFs([{ abs: relToAbs("note.md"), content: "alpha" }], VAULT_ROOT);
+    const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+    return executeFindAndReplace(PREVIEW_INPUT, baseDeps({ fs, spawnFn }));
+  }
+  function expectNormal(result: Awaited<ReturnType<typeof run>>) {
+    expect(result.mode).toBe("preview");
+    if (result.mode === "preview") {
+      expect(result.total_occurrences).toBe(1);
+      expect(result.affected_notes[0]!.path).toBe("note.md");
+    }
+  }
+
+  it("US1 (T020): plugin lines before the answer → normal preview", async () => {
+    expectNormal(await run(`${NOISE_BEFORE}${evalAnswerLine(REAL)}\n`));
+  });
+
+  it("US4 (T040): plugin output after the answer → normal preview", async () => {
+    expectNormal(await run(`${evalAnswerLine(REAL)}${NOISE_AFTER}\n`));
+  });
+
+  it("US3 check 1 (T034): look-alikes before and after the answer never win", async () => {
+    expectNormal(await run(`${lookalike(FAKE)}\n${evalAnswerLine(REAL)}\n${lookalike(FAKE)}\n`));
+  });
+
+  it("US3 check 2 (T034): a look-alike alone → CLI_REPORTED_ERROR json-parse with the raw output", async () => {
+    const stdout = `${NO_ANSWER}${lookalike(FAKE)}\n`;
+    const err = (await run(stdout).catch((e: unknown) => e)) as UpstreamError;
+    expect(err).toBeInstanceOf(UpstreamError);
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.details).toEqual({ stage: "json-parse", stdout });
+  });
+
+  it("US3 check 3 (T034): no answer → json-parse failure without stdoutTail", async () => {
+    const err = (await run(NO_ANSWER).catch((e: unknown) => e)) as UpstreamError;
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.details).toEqual({ stage: "json-parse", stdout: NO_ANSWER });
+  });
+
+  it("US3 check 4 (T034): long output with no answer → json-parse failure carrying stdoutTail", async () => {
+    const err = (await run(LONG_NO_ANSWER).catch((e: unknown) => e)) as UpstreamError;
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.details).toEqual({
+      stage: "json-parse",
+      stdout: LONG_NO_ANSWER.slice(0, 500),
+      stdoutTail: LONG_NO_ANSWER.slice(-500),
+    });
   });
 });

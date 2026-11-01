@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the smart_connections_query handler — single-call argv assembly, closed-vault recovery and vault-unavailable through the shared ADR-029 cold-start retry (spec 072), base64 payload round-trip (R6 anti-injection), LAST-`=> ` stdout extraction (R14 — plugin-side console.log preamble), three envelope codes with `details.reason` sub-discriminator unflattening per ADR-015, error-precedence chain (FR-017), R3 single-spawn invariant. 26 cases per data-model.md inventory.
+// Original — no upstream. Tests for the smart_connections_query handler — single-call argv assembly, closed-vault recovery and vault-unavailable through the shared ADR-029 cold-start retry (spec 072), base64 payload round-trip (R6 anti-injection), tagged-answer stdout extraction (spec 080 — plugin-side console.log lines and look-alikes before or after the answer), three envelope codes with `details.reason` sub-discriminator unflattening per ADR-015, error-precedence chain (FR-017), R3 single-spawn invariant. 26 cases per data-model.md inventory.
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { JS_TEMPLATE } from "./_template.js";
@@ -10,10 +10,25 @@ import {
 } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import {
+  captureRejection,
+  coldStartResponse,
+  EVAL_NONCE_SEAM,
+  evalAnswerLine,
+  INVENTED,
+  LONG_NO_ANSWER,
+  lookalike,
+  makeQueuedSpawn,
+  NO_ANSWER,
+  NOISE_AFTER,
+  NOISE_BEFORE,
+  silentLogger,
+  TEST_EVAL_TAG,
+  wrappedEvalCode,
+} from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
-  return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
+  return { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} };
 }
 
 function decodePayload(argv: string[]): unknown {
@@ -29,9 +44,9 @@ const defaultLimit = 20;
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
 
-// Helper — build a plugin-side preamble + envelope stdout (R14 LAST-`=> ` strategy)
+// Helper — build a plugin-side preamble + tagged answer stdout (spec 080)
 function withPreamble(envelope: unknown): string {
-  return `Found and returned 5 smart_blocks.\n=> ${JSON.stringify(envelope)}\n`;
+  return `Found and returned 5 smart_blocks.\n${evalAnswerLine(JSON.stringify(envelope))}\n`;
 }
 
 // =====================================================================
@@ -552,13 +567,13 @@ test("precedence: api-missing wins over embed-failed", async () => {
 // Single-spawn invariant + R14 LAST-`=> ` invariant (25)
 // =====================================================================
 
-test("R3 single-spawn invariant on happy path + R14 LAST-`=> ` extraction; frozen template prefix/suffix", async () => {
+test("R3 single-spawn invariant on happy path + tagged-answer extraction behind a preamble; frozen template embedded verbatim", async () => {
   const envelope = { ok: true, count: 0, matches: [] };
   const { spawnFn, recorded, getCount } = makeQueuedSpawn([
     {
       stdout:
-        "Found and returned 0 smart_blocks.\n[warn] something innocuous\n=> " +
-        JSON.stringify(envelope) +
+        "Found and returned 0 smart_blocks.\n[warn] something innocuous\n" +
+        evalAnswerLine(JSON.stringify(envelope)) +
         "\n",
       exitCode: 0,
     },
@@ -570,12 +585,12 @@ test("R3 single-spawn invariant on happy path + R14 LAST-`=> ` extraction; froze
   expect(getCount()).toBe(1);
   const argv = recorded[0]!.argv;
   const codeArg = argv[2]!.slice("code=".length);
-  expect(codeArg.startsWith("(async()=>{")).toBe(true);
-  expect(codeArg.endsWith("})()")).toBe(true);
   const match = /atob\('([A-Za-z0-9+/=]+)'\)/.exec(codeArg);
   expect(match).not.toBeNull();
   const rendered = JS_TEMPLATE.replace("__PAYLOAD_B64__", match![1]!);
-  expect(codeArg).toBe(rendered);
+  expect(rendered.startsWith("(async()=>{")).toBe(true);
+  expect(rendered.endsWith("})()")).toBe(true);
+  expect(codeArg).toBe(wrappedEvalCode(rendered));
 });
 
 // =====================================================================
@@ -630,20 +645,17 @@ test("BI-034: non-ASCII query (emoji) round-trips through base64 (FR-009)", asyn
 });
 
 // =====================================================================
-// R14 extraction fallbacks — no-preamble and no-marker (L84-85, L87)
+// Spec 080 — the tagged answer, wherever plugin output puts it
 // =====================================================================
 
-// No-preamble fallback: stdout is a single "=> "-prefixed line with no
-// leading "\n=> " marker (lastIndexOf("\n=> ") === -1 but startsWith("=> ")).
-// Exercises the `else if (result.stdout.startsWith("=> "))` branch (L84-85):
-// payload = result.stdout.slice(3).
-test("R14 no-preamble fallback: '=> '-prefixed single line (no '\\n=> ' marker) → ok:true", async () => {
+// No preamble: stdout is the single tagged answer line, with no trailing newline.
+test("no preamble: a lone tagged answer line → ok:true", async () => {
   const envelope = { ok: true, count: 2, matches: [
     { path: "A.md", headingPath: [], score: 0.9 },
     { path: "B.md", headingPath: ["H"], score: 0.8 },
   ] };
   const { spawnFn, getCount } = makeQueuedSpawn([
-    { stdout: "=> " + JSON.stringify(envelope), exitCode: 0 },
+    { stdout: "=> " + TEST_EVAL_TAG + JSON.stringify(envelope), exitCode: 0 },
   ]);
   const result = await executeSmartConnectionsQuery(
     { query: "x", vault: "Demo", limit: defaultLimit },
@@ -653,17 +665,76 @@ test("R14 no-preamble fallback: '=> '-prefixed single line (no '\\n=> ' marker) 
   expect(getCount()).toBe(1);
 });
 
-// No-marker fallback: bare JSON stdout with neither "\n=> " nor a "=> " prefix.
-// Exercises the final `else { payload = result.stdout }` branch (L87): the
-// whole stdout is the payload (no "Vault not found." prefix path).
-test("R14 no-marker fallback: bare JSON stdout (no '=> ' anywhere) → ok:true", async () => {
-  const { spawnFn, getCount } = makeQueuedSpawn([
-    { stdout: '{"ok":true,"count":0,"matches":[]}', exitCode: 0 },
-  ]);
-  const result = await executeSmartConnectionsQuery(
-    { query: "x", vault: "Demo", limit: defaultLimit },
-    deps(spawnFn),
-  );
-  expect(result).toEqual({ count: 0, matches: [] });
+// No marker: bare JSON is not this call's answer (contract §1 A14), so it is a json-parse failure.
+test("no marker: bare JSON stdout (no `=> ` anywhere) → CLI_REPORTED_ERROR stage:json-parse", async () => {
+  const stdout = '{"ok":true,"count":0,"matches":[]}';
+  const { spawnFn, getCount } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  const err = (await captureRejection(
+    executeSmartConnectionsQuery({ query: "x", vault: "Demo", limit: defaultLimit }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", stdout });
   expect(getCount()).toBe(1);
+});
+
+// US1: invented plugin lines before the answer.
+test("invented plugin lines before the tagged answer → normal result", async () => {
+  const envelope = { ok: true, count: 1, matches: [{ path: "A.md", headingPath: [], score: 0.9 }] };
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: `${INVENTED}${INVENTED}${evalAnswerLine(JSON.stringify(envelope))}\n`, exitCode: 0 },
+  ]);
+  const result = await executeSmartConnectionsQuery({ query: "x", vault: "Demo", limit: defaultLimit }, deps(spawnFn));
+  expect(result).toEqual({ count: 1, matches: envelope.matches });
+});
+
+// US4: plugin output after the answer — before this feature, the LAST-`=> ` read failed here.
+test("plugin output after the tagged answer → normal result", async () => {
+  const envelope = { ok: true, count: 1, matches: [{ path: "A.md", headingPath: [], score: 0.9 }] };
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: `${NOISE_BEFORE}${evalAnswerLine(JSON.stringify(envelope))}${NOISE_AFTER}\n`, exitCode: 0 },
+  ]);
+  const result = await executeSmartConnectionsQuery({ query: "x", vault: "Demo", limit: defaultLimit }, deps(spawnFn));
+  expect(result).toEqual({ count: 1, matches: envelope.matches });
+});
+
+// US3 checks 1–4.
+test("look-alikes before and after the tagged answer never win", async () => {
+  const real = { ok: true, count: 1, matches: [{ path: "A.md", headingPath: [], score: 0.9 }] };
+  const fake = JSON.stringify({ ok: true, count: 1, matches: [{ path: "Fake.md", headingPath: [], score: 0.1 }] });
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: `${lookalike(fake)}\n${evalAnswerLine(JSON.stringify(real))}\n${lookalike(fake)}\n`, exitCode: 0 },
+  ]);
+  const result = await executeSmartConnectionsQuery({ query: "x", vault: "Demo", limit: defaultLimit }, deps(spawnFn));
+  expect(result).toEqual({ count: 1, matches: real.matches });
+});
+
+test("a look-alike alone → json-parse failure with the raw output, never its result", async () => {
+  const fake = JSON.stringify({ ok: true, count: 1, matches: [{ path: "Fake.md", headingPath: [], score: 0.1 }] });
+  const stdout = `${NO_ANSWER}${lookalike(fake)}\n`;
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  const err = (await captureRejection(
+    executeSmartConnectionsQuery({ query: "x", vault: "Demo", limit: defaultLimit }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", stdout });
+});
+
+test("no answer → json-parse failure without stdoutTail", async () => {
+  const { spawnFn } = makeQueuedSpawn([{ stdout: NO_ANSWER, exitCode: 0 }]);
+  const err = (await captureRejection(
+    executeSmartConnectionsQuery({ query: "x", vault: "Demo", limit: defaultLimit }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.details).toEqual({ stage: "json-parse", stdout: NO_ANSWER });
+});
+
+test("long output with no answer → json-parse failure carrying stdoutTail", async () => {
+  const { spawnFn } = makeQueuedSpawn([{ stdout: LONG_NO_ANSWER, exitCode: 0 }]);
+  const err = (await captureRejection(
+    executeSmartConnectionsQuery({ query: "x", vault: "Demo", limit: defaultLimit }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.details).toEqual({
+    stage: "json-parse",
+    stdout: LONG_NO_ANSWER.slice(0, 500),
+    stdoutTail: LONG_NO_ANSWER.slice(-500),
+  });
 });

@@ -1,4 +1,4 @@
-// Original — no upstream. smart_connections_query handler — single invokeCli wrapper around the eval subcommand with the frozen JS template + base64 JSON payload (R6 anti-injection); R2/R3 single-call architecture branched at envelope-emission on a.total; a closed vault is brought up by the shared ADR-029 cold-start retry inside invokeCli, and a vault that cannot be brought up propagates as that retry's CLI_REPORTED_ERROR unchanged (spec 072); stage-1 extraction uses LAST-`=> ` strategy (R14) because the plugin's lookup API emits plugin-side console.log output BEFORE the `=> ` eval-return marker; two-stage parse (JSON.parse → smartConnectionsQueryEvalResponseSchema.safeParse); envelope ok:false → UpstreamError mapping per R13 — three envelope codes flatten the (code, reason) pair for parse-time discrimination; handler unflattens into CLI_REPORTED_ERROR(details.code='SMART_CONNECTIONS_NOT_READY', details.reason='api-missing'|'embed-failed') per ADR-015.
+// Original — no upstream. smart_connections_query handler — single invokeCli wrapper around the eval subcommand with the frozen JS template + base64 JSON payload (R6 anti-injection); R2/R3 single-call architecture branched at envelope-emission on a.total; a closed vault is brought up by the shared ADR-029 cold-start retry inside invokeCli, and a vault that cannot be brought up propagates as that retry's CLI_REPORTED_ERROR unchanged (spec 072); stage-1 extraction reads the call's tagged eval answer (spec 080, superseding the R14 LAST-`=> ` strategy) because the plugin's lookup API emits plugin-side console.log output around the `=> ` eval-return marker; two-stage parse (JSON.parse → smartConnectionsQueryEvalResponseSchema.safeParse); envelope ok:false → UpstreamError mapping per R13 — three envelope codes flatten the (code, reason) pair for parse-time discrimination; handler unflattens into CLI_REPORTED_ERROR(details.code='SMART_CONNECTIONS_NOT_READY', details.reason='api-missing'|'embed-failed') per ADR-015.
 import { JS_TEMPLATE } from "./_template.js";
 import {
   smartConnectionsQueryEvalResponseSchema,
@@ -8,6 +8,7 @@ import {
 } from "./schema.js";
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
+import { evalParseFailureStdout, parseEvalAnswer } from "../_active-file.js";
 import { composeEvalCode } from "../_shared.js";
 
 import type { Logger } from "../../logger.js";
@@ -41,32 +42,18 @@ export async function executeSmartConnectionsQuery(
     deps,
   );
 
-  // === Stage 1 — LAST-`=> ` extraction (R14) ===
+  // === Stages 1–2 — JSON.parse of the call's tagged eval answer ===
   // The plugin's lookup API emits plugin-side console.log lines
-  // ("Found and returned N smart_blocks.") AND `[warn]` lines on stdout BEFORE
-  // the `=> ` eval-return marker. BI-026's trimStart+startsWith strategy does
-  // not survive this; we anchor on the LAST `\n=> ` occurrence with fallbacks
-  // for the no-preamble and no-marker cases.
-  let payload: string;
-  const marker = "\n=> ";
-  const idx = result.stdout.lastIndexOf(marker);
-  if (idx >= 0) {
-    payload = result.stdout.slice(idx + marker.length);
-  } else if (result.stdout.startsWith("=> ")) {
-    payload = result.stdout.slice(3);
-  } else {
-    payload = result.stdout;
-  }
-
-  // === Stage 2 — JSON.parse ===
+  // ("Found and returned N smart_blocks.") AND `[warn]` lines on stdout around
+  // the `=> ` eval-return marker; the tagged answer (spec 080) is found among them.
   let parsedJson: unknown;
   try {
-    parsedJson = JSON.parse(payload);
+    parsedJson = parseEvalAnswer(result);
   } catch (err) {
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
       cause: err,
-      details: { stage: "json-parse", stdout: result.stdout.slice(0, 500) },
+      details: { stage: "json-parse", ...evalParseFailureStdout(result.stdout) },
       message: `smart_connections_query: eval response is not JSON: ${result.stdout.slice(0, 200)}`,
     });
   }
@@ -77,7 +64,7 @@ export async function executeSmartConnectionsQuery(
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
       cause: validated.error,
-      details: { stage: "envelope-parse", stdout: result.stdout.slice(0, 500) },
+      details: { stage: "envelope-parse", ...evalParseFailureStdout(result.stdout) },
       message: "smart_connections_query: eval response shape unexpected",
     });
   }

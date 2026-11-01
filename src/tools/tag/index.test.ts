@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTagTool, TAG_DESCRIPTION, TAG_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger, TEST_EVAL_TAG, EVAL_NONCE_SEAM } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 import { closedVaultNote } from "../_shared.js";
 
@@ -20,7 +20,7 @@ describe("createTagTool — descriptor", () => {
   it("publishes name = 'tag'", () => {
     const tool = createTagTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn: makeStubSpawn(),
     });
     expect(tool.descriptor.name).toBe(TAG_TOOL_NAME);
@@ -31,7 +31,7 @@ describe("createTagTool — descriptor", () => {
   it("publishes TAG_DESCRIPTION verbatim", () => {
     const tool = createTagTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn: makeStubSpawn(),
     });
     expect(tool.descriptor.description).toBe(TAG_DESCRIPTION);
@@ -49,9 +49,9 @@ describe("createTagTool — descriptor", () => {
 describe("createTagTool — handler closure (valid input)", () => {
   it("tool.handler runs the closure on valid input and returns a content array", async () => {
     const { spawnFn } = makeQueuedSpawn([
-      { stdout: '=> {"ok":true,"mode":"default","count":0,"paths":[]}\n', exitCode: 0 },
+      { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"mode":"default","count":0,"paths":[]}\n`, exitCode: 0 },
     ]);
-    const tool = createTagTool({ logger: silentLogger(), queue: createQueue(), spawnFn, env: {} });
+    const tool = createTagTool({ logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} });
     const result = await tool.handler({ tag: "foo" });
     expect(Array.isArray(result.content)).toBe(true);
     expect(result.content[0]).toMatchObject({ type: "text" });

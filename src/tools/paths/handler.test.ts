@@ -13,10 +13,24 @@ import {
 } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import {
+  captureRejection,
+  coldStartResponse,
+  EVAL_NONCE_SEAM,
+  evalAnswerLine,
+  LONG_NO_ANSWER,
+  lookalike,
+  makeQueuedSpawn,
+  NO_ANSWER,
+  NOISE_AFTER,
+  NOISE_BEFORE,
+  silentLogger,
+  TEST_EVAL_TAG,
+  wrappedEvalCode,
+} from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
-  return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
+  return { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} };
 }
 
 function decodePayload(argv: string[]): unknown {
@@ -28,11 +42,11 @@ function decodePayload(argv: string[]): unknown {
 }
 
 function okEnv(count: number, paths: string[]): string {
-  return `=> ${JSON.stringify({ ok: true, count, paths })}\n`;
+  return `=> ${TEST_EVAL_TAG}${JSON.stringify({ ok: true, count, paths })}\n`;
 }
 
 function errEnv(code: "FOLDER_NOT_FOUND" | "NOT_A_FOLDER", folder: string): string {
-  return `=> ${JSON.stringify({ ok: false, code, folder })}\n`;
+  return `=> ${TEST_EVAL_TAG}${JSON.stringify({ ok: false, code, folder })}\n`;
 }
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -538,7 +552,7 @@ test("US9 Q-22 adapter cap-kill: CLI_NON_ZERO_EXIT propagates unchanged", async 
 
 // stage-4 json-parse failure
 test("stage-4 json-parse: malformed JSON → CLI_REPORTED_ERROR(stage:'json-parse')", async () => {
-  const { spawnFn } = makeQueuedSpawn([{ stdout: "=> not-json{\n", exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: `=> ${TEST_EVAL_TAG}not-json{\n`, exitCode: 0 }]);
   const err = (await captureRejection(
     executePaths({ target_mode: "specific", vault: "Demo" }, deps(spawnFn)),
   )) as UpstreamError;
@@ -549,7 +563,7 @@ test("stage-4 json-parse: malformed JSON → CLI_REPORTED_ERROR(stage:'json-pars
 // stage-5 envelope-parse failure (wrong shape)
 test("stage-5 envelope-parse: wrong shape → CLI_REPORTED_ERROR(stage:'envelope-parse')", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"bogus":1}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"bogus":1}\n`, exitCode: 0 },
   ]);
   const err = (await captureRejection(
     executePaths({ target_mode: "specific", vault: "Demo" }, deps(spawnFn)),
@@ -558,15 +572,15 @@ test("stage-5 envelope-parse: wrong shape → CLI_REPORTED_ERROR(stage:'envelope
   expect(err.details.stage).toBe("envelope-parse");
 });
 
-// stage-1: missing `=> ` prefix still parses
-test("stage-3: missing '=> ' prefix → raw JSON tolerated", async () => {
+// spec 080: bare JSON with no tagged answer line is not this call's answer (contract §1 A14)
+test("stage-3: missing `=> ` answer line → json-parse failure with the raw output", async () => {
   const raw = JSON.stringify({ ok: true, count: 1, paths: ["x.md"] });
   const { spawnFn } = makeQueuedSpawn([{ stdout: raw + "\n", exitCode: 0 }]);
-  const result = await executePaths(
-    { target_mode: "specific", vault: "Demo" },
-    deps(spawnFn),
-  );
-  expect(result).toEqual({ count: 1, paths: ["x.md"] });
+  const err = (await captureRejection(
+    executePaths({ target_mode: "specific", vault: "Demo" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", stdout: raw + "\n" });
 });
 
 // =====================================================================
@@ -620,5 +634,68 @@ test("frozen template byte-stable across calls: only base64 region varies", asyn
   const codeB = recB[0]!.argv.find((a) => a.startsWith("code="))!;
   const replaceB64 = (s: string) => s.replace(/atob\('[A-Za-z0-9+/=]+'\)/, "atob('X')");
   expect(replaceB64(codeA)).toBe(replaceB64(codeB));
-  expect(codeA.startsWith("code=" + JS_TEMPLATE.split("__PAYLOAD_B64__")[0])).toBe(true);
+  expect(codeA.startsWith("code=" + wrappedEvalCode(JS_TEMPLATE).split("__PAYLOAD_B64__")[0])).toBe(true);
+});
+
+// =====================================================================
+// Spec 080 — plugin output around the tagged answer
+// =====================================================================
+
+const PATHS_INPUT = { target_mode: "specific" as const, vault: "Demo" };
+const PATHS_REAL = JSON.stringify({ ok: true, count: 1, paths: ["README.md"] });
+const PATHS_FAKE = JSON.stringify({ ok: true, count: 1, paths: ["fake.md"] });
+
+async function pathsRun(stdout: string) {
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  return executePaths(PATHS_INPUT, deps(spawnFn));
+}
+
+async function pathsFail(stdout: string, input: Parameters<typeof executePaths>[0] = PATHS_INPUT) {
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  return (await captureRejection(executePaths(input, deps(spawnFn)))) as UpstreamError;
+}
+
+test("spec 080 US1: plugin lines before the tagged answer → normal result", async () => {
+  expect(await pathsRun(`${NOISE_BEFORE}${evalAnswerLine(PATHS_REAL)}\n`)).toEqual({ count: 1, paths: ["README.md"] });
+});
+
+test("spec 080 US1: FOLDER_NOT_FOUND envelope behind plugin lines → its specific error", async () => {
+  const err = await pathsFail(`${NOISE_BEFORE}${errEnv("FOLDER_NOT_FOUND", "Missing")}`, {
+    target_mode: "specific",
+    vault: "Demo",
+    folder: "Missing",
+  });
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toMatchObject({ stage: "envelope-error", code: "FOLDER_NOT_FOUND" });
+});
+
+test("spec 080 US3: look-alikes before and after the tagged answer never win", async () => {
+  const stdout = `${lookalike(PATHS_FAKE)}\n${evalAnswerLine(PATHS_REAL)}\n${lookalike(PATHS_FAKE)}`;
+  expect(await pathsRun(stdout)).toEqual({ count: 1, paths: ["README.md"] });
+});
+
+test("spec 080 US3: a look-alike alone → json-parse failure with the raw output", async () => {
+  const stdout = NO_ANSWER + lookalike(PATHS_FAKE);
+  const err = await pathsFail(stdout);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", stdout });
+});
+
+test("spec 080 US3: no answer → json-parse failure without stdoutTail", async () => {
+  const err = await pathsFail(NO_ANSWER);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", stdout: NO_ANSWER });
+});
+
+test("spec 080 US3: long output with no answer → json-parse failure carrying stdoutTail", async () => {
+  const err = await pathsFail(LONG_NO_ANSWER);
+  expect(err.details).toEqual({
+    stage: "json-parse",
+    stdout: LONG_NO_ANSWER.slice(0, 500),
+    stdoutTail: LONG_NO_ANSWER.slice(-500),
+  });
+});
+
+test("spec 080 US4: plugin output after the tagged answer → normal result", async () => {
+  expect(await pathsRun(`${evalAnswerLine(PATHS_REAL)}${NOISE_AFTER}\n`)).toEqual({ count: 1, paths: ["README.md"] });
 });

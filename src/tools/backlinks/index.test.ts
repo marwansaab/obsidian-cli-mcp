@@ -12,7 +12,7 @@ import {
 } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger, TEST_EVAL_TAG, EVAL_NONCE_SEAM } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -23,7 +23,7 @@ describe("createBacklinksTool — descriptor", () => {
   it("publishes name = 'backlinks'", () => {
     const tool = createBacklinksTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn: makeStubSpawn(),
     });
     expect(tool.descriptor.name).toBe(BACKLINKS_TOOL_NAME);
@@ -36,7 +36,7 @@ describe("createBacklinksTool — descriptor", () => {
   it("description names 'backlinks', the sibling 'links', .md-only corpus, and the total cap-bypass", () => {
     const tool = createBacklinksTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn: makeStubSpawn(),
     });
     const desc = tool.descriptor.description;
@@ -88,9 +88,9 @@ describe("createBacklinksTool — handler closure executes on VALID input", () =
       backlinks: [{ source: "Notes/Alpha.md" }],
     };
     const { spawnFn } = makeQueuedSpawn([
-      { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+      { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
     ]);
-    const tool = createBacklinksTool({ logger: silentLogger(), queue: createQueue(), spawnFn });
+    const tool = createBacklinksTool({ logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn });
     const result = (await tool.handler({
       target_mode: "specific",
       vault: "Demo",

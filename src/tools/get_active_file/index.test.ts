@@ -16,7 +16,7 @@ import {
   createGetActiveFileTool,
 } from "./index.js";
 import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger, TEST_EVAL_TAG, EVAL_NONCE_SEAM } from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -27,7 +27,7 @@ function fakeRegistry(): VaultRegistry {
 function makeTool() {
   return createGetActiveFileTool({
     logger: silentLogger(),
-    queue: createQueue(),
+    queue: createQueue(), ...EVAL_NONCE_SEAM,
     vaultRegistry: fakeRegistry(),
   });
 }
@@ -98,11 +98,11 @@ describe("createGetActiveFileTool — schema-layer rejections route through the 
       active: { path: "Folder/note.md", name: "note.md", basename: "note", extension: "md" },
     };
     const { spawnFn } = makeQueuedSpawn([
-      { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+      { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
     ]);
     const tool = createGetActiveFileTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       vaultRegistry: fakeRegistry(),
       spawnFn,
     });
@@ -116,11 +116,11 @@ describe("createGetActiveFileTool — schema-layer rejections route through the 
 
   it("tool.handler wraps the { active: null } success as a non-error content envelope", async () => {
     const { spawnFn } = makeQueuedSpawn([
-      { stdout: `=> ${JSON.stringify({ active: null })}\n`, exitCode: 0 },
+      { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify({ active: null })}\n`, exitCode: 0 },
     ]);
     const tool = createGetActiveFileTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       vaultRegistry: fakeRegistry(),
       spawnFn,
     });

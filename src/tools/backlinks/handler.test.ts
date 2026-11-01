@@ -6,10 +6,22 @@ import { executeBacklinks } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import {
+  captureRejection,
+  EVAL_NONCE_SEAM,
+  evalAnswerLine,
+  lookalike,
+  makeQueuedSpawn,
+  NO_ANSWER,
+  NOISE_AFTER,
+  NOISE_BEFORE,
+  silentLogger,
+  TEST_EVAL_TAG,
+  wrappedEvalCode,
+} from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
-  return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
+  return { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} };
 }
 
 function decodePayload(argv: string[]): unknown {
@@ -39,7 +51,7 @@ test("specific + path + 3 sources: returns {count:3, backlinks:[3 entries]} (US1
     ],
   };
   const { spawnFn, recorded, getCount } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeBacklinks(
     { target_mode: "specific", vault: "Demo", path: "Projects/brief.md" },
@@ -73,7 +85,7 @@ test("with_counts:true: each entry carries positive count (US4)", async () => {
     ],
   };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeBacklinks(
     { target_mode: "specific", vault: "Demo", path: "x.md", with_counts: true },
@@ -95,7 +107,7 @@ test("with_counts:true: each entry carries positive count (US4)", async () => {
 test("total:true: returns {count:3, backlinks:[]} (US5)", async () => {
   const envelope = { ok: true, count: 3, backlinks: [] };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeBacklinks(
     { target_mode: "specific", vault: "Demo", path: "x.md", total: true },
@@ -120,7 +132,7 @@ test("active mode happy: argv has no vault= AND payload active=true (US2)", asyn
     backlinks: [{ source: "Notes/Beta.md" }],
   };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeBacklinks({ target_mode: "active" }, deps(spawnFn));
   expect(result.count).toBe(1);
@@ -141,7 +153,7 @@ test("active mode happy: argv has no vault= AND payload active=true (US2)", asyn
 test("specific + file (basename): payload carries file=<basename>, path=null", async () => {
   const envelope = { ok: true, count: 0, backlinks: [] };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeBacklinks(
     { target_mode: "specific", vault: "Demo", file: "brief" },
@@ -162,7 +174,7 @@ test("specific + file (basename): payload carries file=<basename>, path=null", a
 test("zero backlinks default: returns {count:0, backlinks:[]} (FR-009)", async () => {
   const envelope = { ok: true, count: 0, backlinks: [] };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeBacklinks(
     { target_mode: "specific", vault: "Demo", path: "isolate.md" },
@@ -175,7 +187,7 @@ test("zero backlinks default: returns {count:0, backlinks:[]} (FR-009)", async (
 test("zero backlinks with_counts:true: returns {count:0, backlinks:[]} (no error)", async () => {
   const envelope = { ok: true, count: 0, backlinks: [] };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeBacklinks(
     { target_mode: "specific", vault: "Demo", path: "isolate.md", with_counts: true },
@@ -188,7 +200,7 @@ test("zero backlinks with_counts:true: returns {count:0, backlinks:[]} (no error
 test("zero backlinks total:true: returns {count:0, backlinks:[]} (no error)", async () => {
   const envelope = { ok: true, count: 0, backlinks: [] };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeBacklinks(
     { target_mode: "specific", vault: "Demo", path: "isolate.md", total: true },
@@ -209,7 +221,7 @@ test("same source N references across N lines: ONE entry with count:N (FR-007)",
     backlinks: [{ source: "Notes/Beta.md", count: 4 }],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeBacklinks(
     { target_mode: "specific", vault: "Demo", path: "x.md", with_counts: true },
@@ -227,7 +239,7 @@ test("same source 2 refs on same line: ONE entry with count:2 (FR-007 / US4-3)",
     backlinks: [{ source: "Notes/Beta.md", count: 2 }],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeBacklinks(
     { target_mode: "specific", vault: "Demo", path: "x.md", with_counts: true },
@@ -244,7 +256,7 @@ test("aliased wikilink only: entry carries count:1 — alias text NEVER in respo
     backlinks: [{ source: "Notes/Beta.md", count: 1 }],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeBacklinks(
     { target_mode: "specific", vault: "Demo", path: "Target.md", with_counts: true },
@@ -265,7 +277,7 @@ test("frontmatter-only reference: source appears with count:1 (FR-016)", async (
     backlinks: [{ source: "Notes/FrontmatterOnly.md", count: 1 }],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeBacklinks(
     { target_mode: "specific", vault: "Demo", path: "Target.md", with_counts: true },
@@ -282,7 +294,7 @@ test("mixed body + frontmatter from one source: ONE entry with count summing bot
     backlinks: [{ source: "Notes/Mixed.md", count: 2 }],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeBacklinks(
     { target_mode: "specific", vault: "Demo", path: "Target.md", with_counts: true },
@@ -303,7 +315,7 @@ test("code-block-only reference excluded: source absent from response (FR-014)",
     backlinks: [{ source: "Notes/RealLink.md" }],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeBacklinks(
     { target_mode: "specific", vault: "Demo", path: "Target.md" },
@@ -321,7 +333,7 @@ test("self-reference: target's own path included in source list (FR-013)", async
     backlinks: [{ source: "Notes/Other.md" }, { source: "Target.md" }],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeBacklinks(
     { target_mode: "specific", vault: "Demo", path: "Target.md" },
@@ -338,7 +350,7 @@ test(".canvas source excluded under default mode (FR-020a / Q2)", async () => {
     backlinks: [{ source: "Notes/MarkdownSource.md" }],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeBacklinks(
     { target_mode: "specific", vault: "Demo", path: "Target.md" },
@@ -362,7 +374,7 @@ test("mixed .md + .canvas sources: only .md entries in response (FR-020a)", asyn
     ],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeBacklinks(
     { target_mode: "specific", vault: "Demo", path: "Target.md" },
@@ -377,7 +389,7 @@ test("target locator .pdf: envelope NOT_MARKDOWN → CLI_REPORTED_ERROR (FR-020)
   const { spawnFn } = makeQueuedSpawn([
     {
       stdout:
-        '=> {"ok":false,"code":"NOT_MARKDOWN","detail":"path: Notes/Manual.pdf extension: pdf"}\n',
+        `=> ${TEST_EVAL_TAG}{"ok":false,"code":"NOT_MARKDOWN","detail":"path: Notes/Manual.pdf extension: pdf"}\n`,
       exitCode: 0,
     },
   ]);
@@ -400,7 +412,7 @@ test("target locator .canvas: envelope NOT_MARKDOWN → CLI_REPORTED_ERROR (FR-0
   const { spawnFn } = makeQueuedSpawn([
     {
       stdout:
-        '=> {"ok":false,"code":"NOT_MARKDOWN","detail":"path: Sandbox/board.canvas extension: canvas"}\n',
+        `=> ${TEST_EVAL_TAG}{"ok":false,"code":"NOT_MARKDOWN","detail":"path: Sandbox/board.canvas extension: canvas"}\n`,
       exitCode: 0,
     },
   ]);
@@ -422,7 +434,7 @@ test("target locator .canvas: envelope NOT_MARKDOWN → CLI_REPORTED_ERROR (FR-0
 test("unresolved path: envelope FILE_NOT_FOUND → CLI_REPORTED_ERROR (FR-017)", async () => {
   const { spawnFn } = makeQueuedSpawn([
     {
-      stdout: '=> {"ok":false,"code":"FILE_NOT_FOUND","detail":"path: missing.md"}\n',
+      stdout: `=> ${TEST_EVAL_TAG}{"ok":false,"code":"FILE_NOT_FOUND","detail":"path: missing.md"}\n`,
       exitCode: 0,
     },
   ]);
@@ -444,7 +456,7 @@ test("unresolved path: envelope FILE_NOT_FOUND → CLI_REPORTED_ERROR (FR-017)",
 test("unresolved file (basename): envelope FILE_NOT_FOUND with wikilink: detail (FR-017)", async () => {
   const { spawnFn } = makeQueuedSpawn([
     {
-      stdout: '=> {"ok":false,"code":"FILE_NOT_FOUND","detail":"wikilink: ghost"}\n',
+      stdout: `=> ${TEST_EVAL_TAG}{"ok":false,"code":"FILE_NOT_FOUND","detail":"wikilink: ghost"}\n`,
       exitCode: 0,
     },
   ]);
@@ -467,7 +479,7 @@ test("active + no focused file: envelope NO_ACTIVE_FILE → ERR_NO_ACTIVE_FILE (
   const { spawnFn } = makeQueuedSpawn([
     {
       stdout:
-        '=> {"ok":false,"code":"NO_ACTIVE_FILE","detail":"No note focused; switch to specific mode or focus a note."}\n',
+        `=> ${TEST_EVAL_TAG}{"ok":false,"code":"NO_ACTIVE_FILE","detail":"No note focused; switch to specific mode or focus a note."}\n`,
       exitCode: 0,
     },
   ]);
@@ -494,7 +506,7 @@ test("unknown vault: 'Vault not found.' stdout → CLI_REPORTED_ERROR (R5)", asy
 
 // (24) stdout non-JSON → json-parse
 test("malformed JSON eval response → CLI_REPORTED_ERROR(stage:'json-parse')", async () => {
-  const { spawnFn } = makeQueuedSpawn([{ stdout: "=> not-valid-json{\n", exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: `=> ${TEST_EVAL_TAG}not-valid-json{\n`, exitCode: 0 }]);
   const err = (await captureRejection(
     executeBacklinks(
       { target_mode: "specific", vault: "Demo", path: "x.md" },
@@ -509,7 +521,7 @@ test("malformed JSON eval response → CLI_REPORTED_ERROR(stage:'json-parse')", 
 test("envelope shape unexpected → CLI_REPORTED_ERROR(stage:'envelope-parse')", async () => {
   const { spawnFn } = makeQueuedSpawn([
     {
-      stdout: '=> {"ok":true,"count":5,"backlinks":[],"surprise":"extra"}\n',
+      stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"count":5,"backlinks":[],"surprise":"extra"}\n`,
       exitCode: 0,
     },
   ]);
@@ -534,7 +546,7 @@ test("cap-and-truncate default cap: 1000 entries + truncated:true (FR-010)", asy
   }));
   const envelope = { ok: true, count: 1000, backlinks: entries, truncated: true };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeBacklinks(
     { target_mode: "specific", vault: "Demo", path: "Popular.md" },
@@ -550,7 +562,7 @@ test("cap-and-truncate limit:50: 50 entries + truncated:true; payload limit deco
   const entries = Array.from({ length: 50 }, (_, i) => ({ source: `Notes/${i}.md` }));
   const envelope = { ok: true, count: 50, backlinks: entries, truncated: true };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeBacklinks(
     { target_mode: "specific", vault: "Demo", path: "Popular.md", limit: 50 },
@@ -567,7 +579,7 @@ test("cap-and-truncate limit:50: 50 entries + truncated:true; payload limit deco
 test("cap-bypass under total:true: count:1500, backlinks:[], NO truncated (Q1 / FR-005a)", async () => {
   const envelope = { ok: true, count: 1500, backlinks: [] };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeBacklinks(
     { target_mode: "specific", vault: "Demo", path: "Popular.md", total: true },
@@ -603,10 +615,10 @@ test("byte-identical repeated call AND key-set invariant (FR-008 / SC-018 / FR-0
     backlinks: [{ source: "Notes/A.md" }, { source: "Notes/B.md" }],
   };
   const { spawnFn: spawn1 } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const { spawnFn: spawn2 } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const r1 = await executeBacklinks(
     { target_mode: "specific", vault: "Demo", path: "x.md" },
@@ -629,7 +641,7 @@ test("response keys when truncated: exactly [backlinks, count, truncated]", asyn
     truncated: true,
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeBacklinks(
     { target_mode: "specific", vault: "Demo", path: "x.md" },
@@ -646,7 +658,7 @@ test("response keys when truncated: exactly [backlinks, count, truncated]", asyn
 test("path-traversal '../../etc/passwd' → eval envelope FILE_NOT_FOUND; spawn called exactly once", async () => {
   const { spawnFn, getCount } = makeQueuedSpawn([
     {
-      stdout: '=> {"ok":false,"code":"FILE_NOT_FOUND","detail":"path: ../../etc/passwd"}\n',
+      stdout: `=> ${TEST_EVAL_TAG}{"ok":false,"code":"FILE_NOT_FOUND","detail":"path: ../../etc/passwd"}\n`,
       exitCode: 0,
     },
   ]);
@@ -671,7 +683,7 @@ test("path-traversal '../../etc/passwd' → eval envelope FILE_NOT_FOUND; spawn 
 test("R12 anti-injection: base64 round-trips verbatim; frozen template prefix/suffix; one spawn per request", async () => {
   const envelope = { ok: true, count: 0, backlinks: [] };
   const { spawnFn, recorded, getCount } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const hostilePath = "Sandbox/Tricky\"); doSomething(); //.md";
   await executeBacklinks(
@@ -683,12 +695,12 @@ test("R12 anti-injection: base64 round-trips verbatim; frozen template prefix/su
   expect(argv[0]).toBe("vault=Demo");
   expect(argv[1]).toBe("eval");
   const codeArg = argv[2]!.slice("code=".length);
-  expect(codeArg.startsWith("(()=>{")).toBe(true);
-  expect(codeArg.endsWith("})()")).toBe(true);
   const match = /atob\('([A-Za-z0-9+/=]+)'\)/.exec(codeArg);
   expect(match).not.toBeNull();
   const rendered = JS_TEMPLATE.replace("__PAYLOAD_B64__", match![1]!);
-  expect(codeArg).toBe(rendered);
+  expect(rendered.startsWith("(()=>{")).toBe(true);
+  expect(rendered.endsWith("})()")).toBe(true);
+  expect(codeArg).toBe(wrappedEvalCode(rendered));
   const payload = JSON.parse(Buffer.from(match![1]!, "base64").toString("utf-8"));
   expect(payload).toEqual({
     active: false,
@@ -709,7 +721,7 @@ test("R12 anti-injection: base64 round-trips verbatim; frozen template prefix/su
 test("BI-034: non-ASCII source path (CJK) preserved in payload", async () => {
   const envelope = { ok: true, count: 0, backlinks: [] };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   await executeBacklinks(
     { target_mode: "specific", vault: "Demo", path: "笔记/链接目标.md" },
@@ -717,4 +729,55 @@ test("BI-034: non-ASCII source path (CJK) preserved in payload", async () => {
   );
   const payload = decodePayload(recorded[0]!.argv) as { path: unknown };
   expect(payload.path).toBe("笔记/链接目标.md");
+});
+
+// =====================================================================
+// Spec 080 — plugin output around the tagged eval answer
+// =====================================================================
+
+const BACKLINKS_080 = [{ source: "Notes/Alpha.md" }];
+const ANSWER_080 = JSON.stringify({ ok: true, count: 1, backlinks: BACKLINKS_080 });
+const LOOKALIKE_080 = JSON.stringify({ ok: true, count: 1, backlinks: [{ source: "Fake.md" }] });
+const SPECIFIC_080 = { target_mode: "specific", vault: "Demo", path: "x.md" } as const;
+
+// US1 (T017)
+test("spec 080 US1: plugin lines before the answer → normal result", async () => {
+  const { spawnFn } = makeQueuedSpawn([{ stdout: `${NOISE_BEFORE}${evalAnswerLine(ANSWER_080)}\n`, exitCode: 0 }]);
+  const result = await executeBacklinks(SPECIFIC_080, deps(spawnFn));
+  expect(result).toEqual({ count: 1, backlinks: BACKLINKS_080 });
+});
+
+test("spec 080 US1: FILE_NOT_FOUND envelope behind plugin lines → CLI_REPORTED_ERROR envelope-error", async () => {
+  const { spawnFn } = makeQueuedSpawn([
+    {
+      stdout: `${NOISE_BEFORE}${evalAnswerLine('{"ok":false,"code":"FILE_NOT_FOUND","detail":"path: x.md"}')}\n`,
+      exitCode: 0,
+    },
+  ]);
+  const err = (await captureRejection(executeBacklinks(SPECIFIC_080, deps(spawnFn)))) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toMatchObject({ stage: "envelope-error", code: "FILE_NOT_FOUND", detail: "path: x.md" });
+});
+
+// US3 (T036) checks 1–2
+test("spec 080 US3: look-alikes before and after the answer never win", async () => {
+  const stdout = `${lookalike(LOOKALIKE_080)}\n${evalAnswerLine(ANSWER_080)}\n${lookalike(LOOKALIKE_080)}\n`;
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  const result = await executeBacklinks(SPECIFIC_080, deps(spawnFn));
+  expect(result).toEqual({ count: 1, backlinks: BACKLINKS_080 });
+});
+
+test("spec 080 US3: a look-alike alone → json-parse failure with the raw output", async () => {
+  const stdout = `${NO_ANSWER}${lookalike(LOOKALIKE_080)}`;
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  const err = (await captureRejection(executeBacklinks(SPECIFIC_080, deps(spawnFn)))) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", stdout });
+});
+
+// US4 (T040)
+test("spec 080 US4: plugin output after the answer → normal result", async () => {
+  const { spawnFn } = makeQueuedSpawn([{ stdout: `${evalAnswerLine(ANSWER_080)}${NOISE_AFTER}\n`, exitCode: 0 }]);
+  const result = await executeBacklinks(SPECIFIC_080, deps(spawnFn));
+  expect(result).toEqual({ count: 1, backlinks: BACKLINKS_080 });
 });

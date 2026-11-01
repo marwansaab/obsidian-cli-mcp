@@ -4,7 +4,7 @@
 // composeEvalCode(JS_TEMPLATE,{path,file,new_tab}) → ONE target_mode:"specific" eval with
 // vault=requested. Because `eval` honours vault= (B1 false, ADR-031) the eval runs in the requested
 // vault: it resolves the locator there and opens the file (switching focus to that vault) via the
-// explicit placement branch. decodeEvalEnvelope (strip "=> " + JSON.parse + safeParse) → on ok:true
+// explicit placement branch. decodeEvalEnvelope (tagged answer + JSON.parse + safeParse) → on ok:true
 // return typed { opened, vault, new_tab, placement }; on ok:false classify FILE_NOT_FOUND /
 // UNSUPPORTED_FILE_TYPE → UpstreamError. The open IS the contract (FR-017): the eval result is
 // classified, never best-effort-swallowed.
@@ -80,11 +80,11 @@ export async function executeOpenFile(
     deps,
   );
 
-  // Single-stage decode via the shared eval-envelope decoder: strip the "=> " echo
-  // → JSON.parse → openEvalResponseSchema.safeParse. A malformed result is an
+  // Single-stage decode via the shared eval-envelope decoder: the call's tagged eval
+  // answer → JSON.parse → openEvalResponseSchema.safeParse. A malformed result is an
   // INTERNAL_ERROR invariant violation (not the cohort's CLI_REPORTED_ERROR — open
   // owns the envelope contract), never a silent success.
-  const data = decodeEvalEnvelope(result.stdout, openEvalResponseSchema, {
+  const data = decodeEvalEnvelope(result, openEvalResponseSchema, {
     toolName: "open_file",
     malformedCode: "INTERNAL_ERROR",
   });

@@ -14,13 +14,7 @@ import { executePrepend } from "./handler.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import {
-  captureRejection,
-  coldStartResponse,
-  focusedFileResponse,
-  makeQueuedSpawn,
-  silentLogger,
-} from "../_handler-test-fixtures.js";
+import { captureRejection, coldStartResponse, focusedFileResponse, makeQueuedSpawn, silentLogger, EVAL_NONCE_SEAM } from "../_handler-test-fixtures.js";
 import { executeAppendNote, type ExecuteFs as AppendNoteFs } from "../append_note/handler.js";
 
 import type { FakeFsHandle } from "./_handler-fixtures.js";
@@ -178,7 +172,7 @@ describe("parity with append_note (spec 077 FR-004)", () => {
           { target_mode: "specific", vault: VAULT, path, content: "x", inline: false },
           {
             logger: silentLogger(),
-            queue: createQueue(),
+            queue: createQueue(), ...EVAL_NONCE_SEAM,
             vaultRegistry: fakeRegistry({ [VAULT]: VAULT_ROOT }),
             spawnFn: makeQueuedSpawn([]).spawnFn,
             env: {},

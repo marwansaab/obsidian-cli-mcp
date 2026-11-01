@@ -12,7 +12,7 @@ import {
 } from "./index.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import { silentLogger, TEST_EVAL_TAG, EVAL_NONCE_SEAM } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -21,7 +21,7 @@ afterEach(() => __resetInFlightRegistryForTests());
 describe("createFindByPropertyTool — descriptor", () => {
   // (a) Story 7 — descriptor name
   it("publishes name = 'find_by_property'", () => {
-    const tool = createFindByPropertyTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
+    const tool = createFindByPropertyTool({ logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn: makeStubSpawn() });
     expect(tool.descriptor.name).toBe(FIND_BY_PROPERTY_TOOL_NAME);
     expect(tool.descriptor.name).toBe("find_by_property");
     expect(tool.descriptor.description).toBe(FIND_BY_PROPERTY_DESCRIPTION);
@@ -29,7 +29,7 @@ describe("createFindByPropertyTool — descriptor", () => {
 
   // (c) Story 7 — descriptor description surfaces the output shape
   it("description surfaces the {count, paths} output shape", () => {
-    const tool = createFindByPropertyTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
+    const tool = createFindByPropertyTool({ logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn: makeStubSpawn() });
     const desc = tool.descriptor.description;
     expect(desc).toMatch(/count.*paths|paths.*count/i);
     expect(desc.length).toBeGreaterThan(0);
@@ -44,7 +44,7 @@ describe("createFindByPropertyTool — handler integration via registerTool", ()
       spawnCalled = true;
       throw new Error("spawnFn called on validation failure — FR-018 violation");
     };
-    const tool = createFindByPropertyTool({ logger: silentLogger(), queue: createQueue(), spawnFn: spawnSpy });
+    const tool = createFindByPropertyTool({ logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn: spawnSpy });
     const result = (await tool.handler({})) as {
       isError?: boolean;
       content: { type: string; text: string }[];
@@ -64,8 +64,8 @@ describe("createFindByPropertyTool — handler closure executes on VALID input",
   it("tool.handler(valid input) drives the closure → executeFindByProperty → { count, paths } envelope", async () => {
     const tool = createFindByPropertyTool({
       logger: silentLogger(),
-      queue: createQueue(),
-      spawnFn: makeStubSpawn({ stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 }),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
+      spawnFn: makeStubSpawn({ stdout: `=> ${TEST_EVAL_TAG}{"count":1,"paths":["x.md"]}\n`, exitCode: 0 }),
     });
     const result = (await tool.handler({
       vault: "Demo",
@@ -81,16 +81,16 @@ describe("createFindByPropertyTool — handler closure executes on VALID input",
 
 describe("createFindByPropertyTool — deprecated names (spec 073)", () => {
   type Result = { isError?: boolean; content: { text: string }[]; structuredContent?: Record<string, unknown> };
-  const stub = () => makeStubSpawn({ stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 });
+  const stub = () => makeStubSpawn({ stdout: `=> ${TEST_EVAL_TAG}{"count":1,"paths":["x.md"]}\n`, exitCode: 0 });
 
   it("O1: a new-name call carries no deprecated_parameters", async () => {
-    const tool = createFindByPropertyTool({ logger: silentLogger(), queue: createQueue(), spawnFn: stub() });
+    const tool = createFindByPropertyTool({ logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn: stub() });
     const result = (await tool.handler({ vault: "Demo", name: "id", value: "BI-030", array_match: true, case_sensitive: true })) as Result;
     expect(result.structuredContent).toEqual({ count: 1, paths: ["x.md"] });
   });
 
   it("O2: an old-name call gets today's result plus the notice, identical in text and structuredContent", async () => {
-    const tool = createFindByPropertyTool({ logger: silentLogger(), queue: createQueue(), spawnFn: stub() });
+    const tool = createFindByPropertyTool({ logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn: stub() });
     const result = (await tool.handler({ vault: "Demo", property: "id", value: "BI-030", arrayMatch: true, caseSensitive: true })) as Result;
     expect(result.isError).toBeUndefined();
     expect(result.structuredContent).toEqual({
@@ -111,7 +111,7 @@ describe("createFindByPropertyTool — deprecated names (spec 073)", () => {
       spawned = true;
       throw new Error("spawn on a rejected call");
     };
-    const tool = createFindByPropertyTool({ logger: silentLogger(), queue: createQueue(), spawnFn: spawnSpy });
+    const tool = createFindByPropertyTool({ logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn: spawnSpy });
     const result = (await tool.handler({ name: "id", property: "id", value: "x" })) as Result;
     expect(result.isError).toBe(true);
     const payload = JSON.parse(result.content[0]!.text);

@@ -12,7 +12,20 @@ import { executeGetActiveFile } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import {
+  captureRejection,
+  EVAL_NONCE_SEAM,
+  evalAnswerLine,
+  INVENTED,
+  lookalike,
+  makeQueuedSpawn,
+  NO_ANSWER,
+  NOISE_AFTER,
+  NOISE_BEFORE,
+  silentLogger,
+  TEST_EVAL_TAG,
+  wrappedEvalCode,
+} from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -40,7 +53,7 @@ function deps(
   vaultRegistry: VaultRegistry = fakeRegistry(),
   env: NodeJS.ProcessEnv = {},
 ) {
-  return { logger: silentLogger(), queue: createQueue(), vaultRegistry, spawnFn, env };
+  return { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, vaultRegistry, spawnFn, env };
 }
 
 function codeArg(argv: string[]): string {
@@ -61,7 +74,7 @@ test("active mode: returns { active: {path,name,basename,extension} }; argv is c
     active: { path: "Folder/note.md", name: "note.md", basename: "note", extension: "md" },
   };
   const { spawnFn, recorded, getCount } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeGetActiveFile({ target_mode: "active" }, deps(spawnFn));
   expect(result).toEqual({
@@ -73,7 +86,7 @@ test("active mode: returns { active: {path,name,basename,extension} }; argv is c
   expect(argv[0]).toBe("eval");
   expect(argv.some((a) => a.startsWith("vault="))).toBe(false);
   // The frozen template is passed verbatim as the code= parameter (no base64 payload).
-  expect(codeArg(argv)).toBe(ACTIVE_FILE_TEMPLATE);
+  expect(codeArg(argv)).toBe(wrappedEvalCode(ACTIVE_FILE_TEMPLATE));
 });
 
 // Field-shape characterisation driven through the mocked envelope (FR-002/003/004). The handler does not
@@ -100,7 +113,7 @@ const FIELD_SHAPES = [
 for (const shape of FIELD_SHAPES) {
   test(`active mode field shape (${shape.label}): the four fields pass through verbatim`, async () => {
     const { spawnFn } = makeQueuedSpawn([
-      { stdout: `=> ${JSON.stringify({ active: shape.active })}\n`, exitCode: 0 },
+      { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify({ active: shape.active })}\n`, exitCode: 0 },
     ]);
     const result = await executeGetActiveFile({ target_mode: "active" }, deps(spawnFn));
     expect(result.active).toEqual(shape.active);
@@ -116,7 +129,7 @@ for (const shape of FIELD_SHAPES) {
 
 test("no active file: { active: null } → { active: null } SUCCESS (not isError / not a throw) (US2)", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify({ active: null })}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify({ active: null })}\n`, exitCode: 0 },
   ]);
   const result = await executeGetActiveFile({ target_mode: "active" }, deps(spawnFn));
   expect(result).toEqual({ active: null });
@@ -125,11 +138,11 @@ test("no active file: { active: null } → { active: null } SUCCESS (not isError
 
 test("no active file is distinguishable from a present file via active === null (US2/FR-006)", async () => {
   const { spawnFn: sNull } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify({ active: null })}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify({ active: null })}\n`, exitCode: 0 },
   ]);
   const { spawnFn: sPresent } = makeQueuedSpawn([
     {
-      stdout: `=> ${JSON.stringify({ active: { path: "a.md", name: "a.md", basename: "a", extension: "md" } })}\n`,
+      stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify({ active: { path: "a.md", name: "a.md", basename: "a", extension: "md" } })}\n`,
       exitCode: 0,
     },
   ]);
@@ -147,7 +160,7 @@ test("no active file is distinguishable from a present file via active === null 
 test("echo convention: the result carries ONLY `active` — no vault / target_mode echo (US3/FR-015)", async () => {
   const { spawnFn } = makeQueuedSpawn([
     {
-      stdout: `=> ${JSON.stringify({ active: { path: "a.md", name: "a.md", basename: "a", extension: "md" } })}\n`,
+      stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify({ active: { path: "a.md", name: "a.md", basename: "a", extension: "md" } })}\n`,
       exitCode: 0,
     },
   ]);
@@ -161,7 +174,7 @@ test("path round-trip: active.path equals the envelope path verbatim (the value 
   const path = "Projects/Q2 Roadmap.md";
   const { spawnFn } = makeQueuedSpawn([
     {
-      stdout: `=> ${JSON.stringify({ active: { path, name: "Q2 Roadmap.md", basename: "Q2 Roadmap", extension: "md" } })}\n`,
+      stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify({ active: { path, name: "Q2 Roadmap.md", basename: "Q2 Roadmap", extension: "md" } })}\n`,
       exitCode: 0,
     },
   ]);
@@ -178,7 +191,7 @@ test("specific mode: argv carries vault=<name> + command 'eval'; returns the nam
     active: { path: "B-note.md", name: "B-note.md", basename: "B-note", extension: "md" },
   };
   const { spawnFn, recorded, getCount } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeGetActiveFile(
     { target_mode: "specific", vault: "B" },
@@ -190,7 +203,7 @@ test("specific mode: argv carries vault=<name> + command 'eval'; returns the nam
   // specific mode → assembleArgv prefixes vault= before the command.
   expect(argv[0]).toBe("vault=B");
   expect(argv[1]).toBe("eval");
-  expect(codeArg(argv)).toBe(ACTIVE_FILE_TEMPLATE);
+  expect(codeArg(argv)).toBe(wrappedEvalCode(ACTIVE_FILE_TEMPLATE));
 });
 
 test("specific mode, unregistered vault → CLI_REPORTED_ERROR / VAULT_NOT_FOUND / unknown, pre-eval (no spawn) (US4/FR-010)", async () => {
@@ -230,7 +243,7 @@ test("specific mode, app down + auto-launch opt-out → inherited CLI_NON_ZERO_E
 // =====================================================================
 
 test("malformed eval (non-JSON) → CLI_REPORTED_ERROR + details.stage:'json-parse'", async () => {
-  const { spawnFn } = makeQueuedSpawn([{ stdout: "=> not-valid-json{\n", exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: `=> ${TEST_EVAL_TAG}not-valid-json{\n`, exitCode: 0 }]);
   const err = (await captureRejection(
     executeGetActiveFile({ target_mode: "active" }, deps(spawnFn)),
   )) as UpstreamError;
@@ -240,7 +253,7 @@ test("malformed eval (non-JSON) → CLI_REPORTED_ERROR + details.stage:'json-par
 
 test("wrong-shape eval (active missing fields) → CLI_REPORTED_ERROR + details.stage:'envelope-parse'", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: '=> {"active":{"path":"a.md"}}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"active":{"path":"a.md"}}\n`, exitCode: 0 },
   ]);
   const err = (await captureRejection(
     executeGetActiveFile({ target_mode: "active" }, deps(spawnFn)),
@@ -258,4 +271,67 @@ test("CLI_BINARY_NOT_FOUND (ENOENT) propagates unchanged, never a fabricated suc
   )) as UpstreamError;
   expect(err).toBeInstanceOf(UpstreamError);
   expect(err.code).toBe("CLI_BINARY_NOT_FOUND");
+});
+
+// =====================================================================
+// Spec 080 — plugin output around the tagged eval answer
+// =====================================================================
+
+const ACTIVE_080 = { path: "Folder/note.md", name: "note.md", basename: "note", extension: "md" };
+const ANSWER_080 = JSON.stringify({ active: ACTIVE_080 });
+const LOOKALIKE_080 = JSON.stringify({
+  active: { path: "Other/fake.md", name: "fake.md", basename: "fake", extension: "md" },
+});
+
+// US1 (T018)
+test("spec 080 US1: plugin lines before the answer → normal result", async () => {
+  const { spawnFn } = makeQueuedSpawn([{ stdout: `${NOISE_BEFORE}${evalAnswerLine(ANSWER_080)}\n`, exitCode: 0 }]);
+  const result = await executeGetActiveFile({ target_mode: "active" }, deps(spawnFn));
+  expect(result).toEqual({ active: ACTIVE_080 });
+});
+
+// get_active_file has no ok:false envelope arm, so the error half is a wrong-shape answer.
+test("spec 080 US1: a wrong-shape answer behind plugin lines → CLI_REPORTED_ERROR envelope-parse", async () => {
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: `${NOISE_BEFORE}${evalAnswerLine('{"unexpected":true}')}\n`, exitCode: 0 },
+  ]);
+  const err = (await captureRejection(
+    executeGetActiveFile({ target_mode: "active" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details.stage).toBe("envelope-parse");
+});
+
+// US3 (T036) checks 1–2
+test("spec 080 US3: look-alikes before and after the answer never win", async () => {
+  const stdout = `${lookalike(LOOKALIKE_080)}\n${evalAnswerLine(ANSWER_080)}\n${lookalike(LOOKALIKE_080)}\n`;
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  const result = await executeGetActiveFile({ target_mode: "active" }, deps(spawnFn));
+  expect(result).toEqual({ active: ACTIVE_080 });
+});
+
+test("spec 080 US3: a look-alike alone → json-parse failure with the raw output", async () => {
+  const stdout = `${NO_ANSWER}${lookalike(LOOKALIKE_080)}`;
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  const err = (await captureRejection(
+    executeGetActiveFile({ target_mode: "active" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", stdout });
+});
+
+// US4 (T040)
+test("spec 080 US4: plugin output after the answer → normal result", async () => {
+  const { spawnFn } = makeQueuedSpawn([{ stdout: `${evalAnswerLine(ANSWER_080)}${NOISE_AFTER}\n`, exitCode: 0 }]);
+  const result = await executeGetActiveFile({ target_mode: "active" }, deps(spawnFn));
+  expect(result).toEqual({ active: ACTIVE_080 });
+});
+
+// US5 (T042)
+test("spec 080 US5: invented plugin output before and after the answer → normal result", async () => {
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: `${INVENTED}${evalAnswerLine(ANSWER_080)}\n${INVENTED}`, exitCode: 0 },
+  ]);
+  const result = await executeGetActiveFile({ target_mode: "active" }, deps(spawnFn));
+  expect(result).toEqual({ active: ACTIVE_080 });
 });

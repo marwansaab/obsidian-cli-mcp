@@ -16,6 +16,7 @@ import {
   type LaunchFn,
   type SpawnLike,
 } from "./cli-adapter.js";
+import { evalAnswerTag, wrapEvalCode } from "./eval-output.js";
 
 interface StubChildSpec {
   stdout?: string;
@@ -539,6 +540,50 @@ describe("invokeCli — BI-060 app-not-running recovery inheritance (T014)", () 
     expect(result).toEqual({ stdout: "# Note body\n", stderr: "" });
     expect(launches).toBe(1);
     expect(recorded).toHaveLength(2);
+  });
+});
+
+describe("invokeCli — eval answer tag (spec 080)", () => {
+  const NONCE = "33333333-3333-4333-8333-333333333333";
+  const TAG = evalAnswerTag(NONCE);
+  const CODE = "(()=>JSON.stringify({ok:true}))()";
+
+  it("an eval call's spawned code= is the template wrapped with the call's tag", async () => {
+    const { spawnFn, recorded } = makeStubSpawn({ stdout: `=> ${TAG}{"ok":true}\n`, exitCode: 0 });
+    await invokeCli(
+      { command: "eval", vault: "V", parameters: { code: CODE }, flags: [], target_mode: "specific" },
+      { ...defaultDeps({ spawnFn, env: {} }), evalNonce: () => NONCE },
+    );
+    expect(recorded[0]!.argv).toEqual(["vault=V", "eval", `code=${wrapEvalCode(CODE, TAG)}`]);
+  });
+
+  it("evalAnswer is the tagged answer, behind plugin lines and look-alikes", async () => {
+    const stdout = `plugin: ready\n=> {"ok":false}\n=> ${TAG}{"ok":true}\nplugin: done\n`;
+    const { spawnFn } = makeStubSpawn({ stdout, exitCode: 0 });
+    const result = await invokeCli(
+      { command: "eval", parameters: { code: CODE }, flags: [], target_mode: "active" },
+      { ...defaultDeps({ spawnFn, env: {} }), evalNonce: () => NONCE },
+    );
+    expect(result).toEqual({ stdout, stderr: "", evalAnswer: '{"ok":true}' });
+  });
+
+  it("an untagged => line gives evalAnswer: null", async () => {
+    const { spawnFn } = makeStubSpawn({ stdout: '=> {"ok":true}\n', exitCode: 0 });
+    const result = await invokeCli(
+      { command: "eval", parameters: { code: CODE }, flags: [], target_mode: "active" },
+      { ...defaultDeps({ spawnFn, env: {} }), evalNonce: () => NONCE },
+    );
+    expect(result.evalAnswer).toBeNull();
+  });
+
+  it("a non-eval call's argv and result are unchanged (no evalAnswer key)", async () => {
+    const { spawnFn, recorded } = makeStubSpawn({ stdout: "=> body\n", exitCode: 0 });
+    const result = await invokeCli(
+      { command: "read", vault: "V", parameters: { file: "Note" }, flags: [], target_mode: "specific" },
+      { ...defaultDeps({ spawnFn, env: {} }), evalNonce: () => NONCE },
+    );
+    expect(recorded[0]!.argv).toEqual(["vault=V", "read", "file=Note"]);
+    expect(result).toStrictEqual({ stdout: "=> body\n", stderr: "" });
   });
 });
 

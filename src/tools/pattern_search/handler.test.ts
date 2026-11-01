@@ -6,10 +6,23 @@ import { executePatternSearch } from "./handler.js";
 import { __resetInFlightRegistryForTests, COLD_START_PATTERN, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import {
+  captureRejection,
+  coldStartResponse,
+  EVAL_NONCE_SEAM,
+  evalAnswerLine,
+  LONG_NO_ANSWER,
+  lookalike,
+  makeQueuedSpawn,
+  NO_ANSWER,
+  NOISE_AFTER,
+  NOISE_BEFORE,
+  silentLogger,
+  TEST_EVAL_TAG,
+} from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
-  return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
+  return { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} };
 }
 
 function decodePayload(argv: string[]): unknown {
@@ -29,11 +42,11 @@ interface OkEnv {
 
 function okEnv(env: Omit<OkEnv, "ok">): string {
   const body: OkEnv = { ok: true, ...env };
-  return `=> ${JSON.stringify(body)}\n`;
+  return `=> ${TEST_EVAL_TAG}${JSON.stringify(body)}\n`;
 }
 
 function folderNotFoundEnv(folder: string): string {
-  return `=> ${JSON.stringify({ ok: false, code: "FOLDER_NOT_FOUND", folder })}\n`;
+  return `=> ${TEST_EVAL_TAG}${JSON.stringify({ ok: false, code: "FOLDER_NOT_FOUND", folder })}\n`;
 }
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -268,7 +281,7 @@ test("US1 (14) unknown vault: 'Vault not found.' stdout → CLI_REPORTED_ERROR p
 
 // (15) malformed JSON stdout → CLI_REPORTED_ERROR(stage: json-parse)
 test("US1 (15) stdout 'not valid json' → CLI_REPORTED_ERROR(stage:json-parse)", async () => {
-  const { spawnFn } = makeQueuedSpawn([{ stdout: "=> not valid json\n", exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: `=> ${TEST_EVAL_TAG}not valid json\n`, exitCode: 0 }]);
   const err = (await captureRejection(
     executePatternSearch({ pattern: "x", vault: "Demo" }, deps(spawnFn)),
   )) as UpstreamError;
@@ -279,7 +292,7 @@ test("US1 (15) stdout 'not valid json' → CLI_REPORTED_ERROR(stage:json-parse)"
 // (16) envelope-schema mismatch (unknown extra key) → CLI_REPORTED_ERROR(stage: envelope-parse)
 test("US1 (16) extra key in envelope → CLI_REPORTED_ERROR(stage:envelope-parse)", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"count":0,"matches":[],"surprise":"extra"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"count":0,"matches":[],"surprise":"extra"}\n`, exitCode: 0 },
   ]);
   const err = (await captureRejection(
     executePatternSearch({ pattern: "x", vault: "Demo" }, deps(spawnFn)),
@@ -590,4 +603,72 @@ test("dispatch shape: argv contains 'eval', vault=Demo, code= with atob", async 
   expect(recorded[0]!.argv).toContain("vault=Demo");
   const codeArg = recorded[0]!.argv.find((a) => a.startsWith("code="))!;
   expect(codeArg).toContain("atob");
+});
+
+// =====================================================================
+// Spec 080 — plugin output around the tagged answer
+// =====================================================================
+
+const PS_INPUT = { pattern: "foo", vault: "Demo" };
+const PS_MATCHES = [{ path: "a.md", line: 1, offset: 0, match: "foo", text: "foo" }];
+const PS_REAL = JSON.stringify({ ok: true, count: 1, matches: PS_MATCHES });
+const PS_FAKE = JSON.stringify({
+  ok: true,
+  count: 1,
+  matches: [{ path: "fake.md", line: 9, offset: 0, match: "foo", text: "fake foo" }],
+});
+
+async function psRun(stdout: string) {
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  return executePatternSearch(PS_INPUT, deps(spawnFn));
+}
+
+async function psFail(stdout: string, input: Parameters<typeof executePatternSearch>[0] = PS_INPUT) {
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  return (await captureRejection(executePatternSearch(input, deps(spawnFn)))) as UpstreamError;
+}
+
+test("spec 080 US1: plugin lines before the tagged answer → normal result", async () => {
+  expect(await psRun(`${NOISE_BEFORE}${evalAnswerLine(PS_REAL)}\n`)).toEqual({ count: 1, matches: PS_MATCHES });
+});
+
+test("spec 080 US1: FOLDER_NOT_FOUND envelope behind plugin lines → its specific error", async () => {
+  const err = await psFail(`${NOISE_BEFORE}${folderNotFoundEnv("NoSuchFolder")}`, {
+    pattern: "x",
+    folder: "NoSuchFolder",
+    vault: "Demo",
+  });
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toMatchObject({ code: "FOLDER_NOT_FOUND", folder: "NoSuchFolder", stage: "handler-stage-3" });
+});
+
+test("spec 080 US3: look-alikes before and after the tagged answer never win", async () => {
+  const stdout = `${lookalike(PS_FAKE)}\n${evalAnswerLine(PS_REAL)}\n${lookalike(PS_FAKE)}`;
+  expect(await psRun(stdout)).toEqual({ count: 1, matches: PS_MATCHES });
+});
+
+test("spec 080 US3: a look-alike alone → json-parse failure with the raw output", async () => {
+  const stdout = NO_ANSWER + lookalike(PS_FAKE);
+  const err = await psFail(stdout);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", stdout });
+});
+
+test("spec 080 US3: no answer → json-parse failure without stdoutTail", async () => {
+  const err = await psFail(NO_ANSWER);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", stdout: NO_ANSWER });
+});
+
+test("spec 080 US3: long output with no answer → json-parse failure carrying stdoutTail", async () => {
+  const err = await psFail(LONG_NO_ANSWER);
+  expect(err.details).toEqual({
+    stage: "json-parse",
+    stdout: LONG_NO_ANSWER.slice(0, 500),
+    stdoutTail: LONG_NO_ANSWER.slice(-500),
+  });
+});
+
+test("spec 080 US4: plugin output after the tagged answer → normal result", async () => {
+  expect(await psRun(`${evalAnswerLine(PS_REAL)}${NOISE_AFTER}\n`)).toEqual({ count: 1, matches: PS_MATCHES });
 });

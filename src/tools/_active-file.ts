@@ -1,4 +1,4 @@
-// Original — no upstream. Shared active/specific locator resolution for the write + vault-scan tool cohorts (F1 of the thermo-nuclear code-quality review). Centralises the focused-file / focused-vault `obsidian eval` round-trip, the `"=> "` stdout strip, the cohort-uniform ERR_NO_ACTIVE_FILE message, the registry VALIDATION_ERROR -> CLI_REPORTED_ERROR/VAULT_NOT_FOUND remap, the `obsidian file` TSV path resolver, the canonical-path / PATH_ESCAPES_VAULT guard, and the reverse vault display-name lookup that were previously copy-pasted across write_note, append_note, prepend, patch_block, patch_heading, find_and_replace, and query_base. Every helper preserves the prior inlined behaviour byte-for-byte (template strings, error codes, messages, and `details` shapes); divergences between consumers (tool name in messages, the no-active-file label, the per-note attempted-path label) surface as explicit parameters rather than forked copies. It also hosts `decodeEvalEnvelope` — the eval-composed cohort's shared `parseEvalStdout` + `safeParse` envelope decoder (backlinks, links, open_file), with the per-tool malformed-eval code (CLI_REPORTED_ERROR vs INTERNAL_ERROR) as an explicit parameter.
+// Original — no upstream. Shared active/specific locator resolution for the write + vault-scan tool cohorts (F1 of the thermo-nuclear code-quality review). Centralises the focused-file / focused-vault `obsidian eval` round-trip, the tagged-answer parse (`parseEvalAnswer`, spec 080), the cohort-uniform ERR_NO_ACTIVE_FILE message, the registry VALIDATION_ERROR -> CLI_REPORTED_ERROR/VAULT_NOT_FOUND remap, the `obsidian file` TSV path resolver, the canonical-path / PATH_ESCAPES_VAULT guard, and the reverse vault display-name lookup that were previously copy-pasted across write_note, append_note, prepend, patch_block, patch_heading, find_and_replace, and query_base. Every helper preserves the prior inlined behaviour byte-for-byte (template strings, error codes, messages, and `details` shapes); divergences between consumers (tool name in messages, the no-active-file label, the per-note attempted-path label) surface as explicit parameters rather than forked copies. It also hosts `decodeEvalEnvelope` — the eval-composed cohort's shared `parseEvalAnswer` + `safeParse` envelope decoder (backlinks, links, open_file), with the per-tool malformed-eval code (CLI_REPORTED_ERROR vs INTERNAL_ERROR) as an explicit parameter.
 
 import { invokeCli, type SpawnLike, type CallScope } from "../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../errors.js";
@@ -43,13 +43,19 @@ export interface EvalDeps extends CallScope {
   env?: NodeJS.ProcessEnv;
 }
 
+/** The part of an `invokeCli` eval result the answer readers consume. */
+export interface EvalResult {
+  stdout: string;
+  evalAnswer?: string | null;
+}
+
 /**
  * Run `code` through `obsidian eval` in the named vault (`vault=` on the argv, specific mode),
- * or in the focused vault when `vault` is undefined (active mode). Resolves to the raw stdout;
- * CLI failures reject as the adapter's UpstreamError.
+ * or in the focused vault when `vault` is undefined (active mode). Resolves to the `invokeCli`
+ * result (raw stdout plus the tagged `evalAnswer`); CLI failures reject as the adapter's UpstreamError.
  */
-export async function evalInVault(deps: EvalDeps, code: string, vault: string | undefined): Promise<string> {
-  const { stdout } = await invokeCli(
+export async function evalInVault(deps: EvalDeps, code: string, vault: string | undefined): Promise<EvalResult> {
+  return invokeCli(
     {
       command: "eval",
       vault,
@@ -59,46 +65,54 @@ export async function evalInVault(deps: EvalDeps, code: string, vault: string | 
     },
     deps,
   );
-  return stdout;
 }
 
 /**
- * Strip the eval echo prefix (`"=> "`) and JSON.parse the remainder. The `obsidian
- * eval` subcommand prints the expression value as text prefixed with `"=> "`;
- * everything downstream re-parses that body as JSON. Throws on invalid JSON — the
- * caller decides how to wrap the failure (the stage discriminator differs per
- * consumer, so wrapping stays at the call site).
+ * JSON.parse this call's tagged eval answer (`invokeCli`'s `evalAnswer`, spec 080). Plugin lines
+ * and look-alike `=> ` lines around it never reach this parse. Throws a SyntaxError when the call
+ * carries no answer, and on invalid JSON — the caller decides how to wrap the failure (the stage
+ * discriminator differs per consumer, so wrapping stays at the call site).
  */
-export function parseEvalStdout(stdout: string): unknown {
-  const trimmed = stdout.trimStart();
-  const body = trimmed.startsWith("=> ") ? trimmed.slice(3) : trimmed;
-  return JSON.parse(body);
+export function parseEvalAnswer(result: EvalResult): unknown {
+  if (typeof result.evalAnswer !== "string") {
+    throw new SyntaxError("eval output carries no answer for this call");
+  }
+  return JSON.parse(result.evalAnswer);
 }
 
 /**
- * Decode the stdout of an eval-composed tool's `obsidian eval` round-trip into its
- * validated discriminated envelope. Strips the `"=> "` echo + JSON.parse (via
- * {@link parseEvalStdout}), then `schema.safeParse`. On either failure throws an
- * UpstreamError carrying `details.stage` ("json-parse" | "envelope-parse") + `stdout`
- * (sliced to 500). `malformedCode` lets each caller keep its existing top-level
- * classification: the eval-composed cohort historically uses CLI_REPORTED_ERROR
- * (backlinks/links — a malformed eval reads as an upstream report), while open_file
- * uses INTERNAL_ERROR (a malformed envelope is an internal invariant violation).
- * Byte-identical to the three prior inlined copies.
+ * The raw-output `details` of a bounded eval parse failure (spec 080 FR-014): the first 500
+ * characters as `stdout`, plus the last 500 as `stdoutTail` only when the output is longer.
+ */
+export function evalParseFailureStdout(stdout: string): { stdout: string; stdoutTail?: string } {
+  return stdout.length > 500 ? { stdout: stdout.slice(0, 500), stdoutTail: stdout.slice(-500) } : { stdout };
+}
+
+/**
+ * Decode an eval-composed tool's `obsidian eval` result into its validated discriminated
+ * envelope: JSON.parse of the tagged answer (via {@link parseEvalAnswer}), then
+ * `schema.safeParse`. On either failure throws an UpstreamError carrying `details.stage`
+ * ("json-parse" | "envelope-parse") + `stdout` (the raw output, sliced to 500, plus
+ * `stdoutTail` when longer — {@link evalParseFailureStdout}). `malformedCode`
+ * lets each caller keep its existing top-level classification: the eval-composed cohort
+ * historically uses CLI_REPORTED_ERROR (backlinks/links — a malformed eval reads as an upstream
+ * report), while open_file uses INTERNAL_ERROR (a malformed envelope is an internal invariant
+ * violation).
  */
 export function decodeEvalEnvelope<T>(
-  stdout: string,
+  result: EvalResult,
   schema: ZodType<T>,
   opts: { toolName: string; malformedCode: "CLI_REPORTED_ERROR" | "INTERNAL_ERROR" },
 ): T {
+  const { stdout } = result;
   let parsed: unknown;
   try {
-    parsed = parseEvalStdout(stdout);
+    parsed = parseEvalAnswer(result);
   } catch (err) {
     throw new UpstreamError({
       code: opts.malformedCode,
       cause: err,
-      details: { stage: "json-parse", stdout: stdout.slice(0, 500) },
+      details: { stage: "json-parse", ...evalParseFailureStdout(stdout) },
       message: `${opts.toolName}: eval response is not JSON: ${stdout.slice(0, 200)}`,
     });
   }
@@ -107,7 +121,7 @@ export function decodeEvalEnvelope<T>(
     throw new UpstreamError({
       code: opts.malformedCode,
       cause: validated.error,
-      details: { stage: "envelope-parse", stdout: stdout.slice(0, 500) },
+      details: { stage: "envelope-parse", ...evalParseFailureStdout(stdout) },
       message: `${opts.toolName}: eval response shape unexpected`,
     });
   }
@@ -127,17 +141,18 @@ export type FocusedVaultParse =
 
 /**
  * Vault-cohort focused-vault parse: the double-decode + shape-check shared by find_and_replace and
- * query_base. The `obsidian eval` of FOCUSED_VAULT_TEMPLATE lands as `=> "{\"path\":...,\"base\":...}"`
- * — a JSON-encoded STRING — so after the outer {@link parseEvalStdout} an inner `JSON.parse` re-decodes
- * the string form; the bare-object form is accepted too. Returns the failure STAGE rather than throwing,
+ * query_base. The tagged answer of FOCUSED_VAULT_TEMPLATE is the JSON text `{"path":...,"base":...}`
+ * (the 080 T0 probe, 2026-11-01, observed the raw form `=> <tag>{...}`); an answer that is itself a
+ * JSON-encoded STRING is re-decoded by an inner `JSON.parse` after the outer {@link parseEvalAnswer},
+ * so both forms are accepted. Returns the failure STAGE rather than throwing,
  * so each caller maps it to its own error contract: find_and_replace keeps the `json-parse` /
  * `envelope-parse` distinction and the cause; query_base collapses both into its single
  * `focused-vault-resolve` stage and discards the cause.
  */
-export function parseFocusedVault(stdout: string): FocusedVaultParse {
+export function parseFocusedVault(result: EvalResult): FocusedVaultParse {
   let outer: unknown;
   try {
-    outer = parseEvalStdout(stdout);
+    outer = parseEvalAnswer(result);
   } catch (cause) {
     return { ok: false, stage: "json-parse", cause };
   }
@@ -191,7 +206,7 @@ export async function resolveActiveFocusedFile(
   );
   let parsed: unknown;
   try {
-    parsed = parseEvalStdout(focused.stdout);
+    parsed = parseEvalAnswer(focused);
   } catch (e) {
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",

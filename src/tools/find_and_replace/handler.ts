@@ -18,6 +18,7 @@ import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli
 import { UpstreamError } from "../../errors.js";
 import {
   assertCanonicalPath,
+  evalParseFailureStdout,
   FOCUSED_VAULT_TEMPLATE,
   parseFocusedVault,
   resolveActiveFocusedFile,
@@ -199,12 +200,12 @@ async function defaultInvokeEval(deps: ExecuteDeps): Promise<FocusedVaultRespons
   );
   // Shared double-decode + shape-check; find_and_replace keeps the json-parse /
   // envelope-parse stage distinction (and the cause) the helper surfaces.
-  const out = parseFocusedVault(result.stdout);
+  const out = parseFocusedVault(result);
   if (!out.ok) {
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
       cause: out.cause,
-      details: { stage: out.stage, stdout: result.stdout.slice(0, 500) },
+      details: { stage: out.stage, ...evalParseFailureStdout(result.stdout) },
       message: "find_and_replace: focused-vault eval returned unparseable response",
     });
   }

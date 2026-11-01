@@ -12,7 +12,7 @@ import {
 } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger, TEST_EVAL_TAG, EVAL_NONCE_SEAM } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 import { closedVaultNote } from "../_shared.js";
 
@@ -24,7 +24,7 @@ describe("createSmartConnectionsSimilarTool — descriptor", () => {
   it("publishes name = 'smart_connections_similar' (ADR-013 plugin-namespace)", () => {
     const tool = createSmartConnectionsSimilarTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn: makeStubSpawn(),
     });
     expect(tool.descriptor.name).toBe(SMART_CONNECTIONS_SIMILAR_TOOL_NAME);
@@ -36,7 +36,7 @@ describe("createSmartConnectionsSimilarTool — descriptor", () => {
   it("description references plugin-lifecycle codes, headingPath, limit/total, and repeats no target-mode rule", () => {
     const tool = createSmartConnectionsSimilarTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn: makeStubSpawn(),
     });
     const desc = tool.descriptor.description;
@@ -62,11 +62,11 @@ describe("createSmartConnectionsSimilarTool — descriptor", () => {
 describe("createSmartConnectionsSimilarTool — handler closure (valid input)", () => {
   it("tool.handler runs the closure on valid input and returns a content array", async () => {
     const { spawnFn } = makeQueuedSpawn([
-      { stdout: '=> {"ok":true,"count":0,"matches":[]}\n', exitCode: 0 },
+      { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"count":0,"matches":[]}\n`, exitCode: 0 },
     ]);
     const tool = createSmartConnectionsSimilarTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn,
       env: {},
     });

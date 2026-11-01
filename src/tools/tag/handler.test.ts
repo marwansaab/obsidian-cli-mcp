@@ -10,10 +10,25 @@ import {
 } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import {
+  captureRejection,
+  coldStartResponse,
+  EVAL_NONCE_SEAM,
+  evalAnswerLine,
+  INVENTED,
+  LONG_NO_ANSWER,
+  lookalike,
+  makeQueuedSpawn,
+  NO_ANSWER,
+  NOISE_AFTER,
+  NOISE_BEFORE,
+  silentLogger,
+  TEST_EVAL_TAG,
+  wrappedEvalCode,
+} from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
-  return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
+  return { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} };
 }
 
 function decodePayload(argv: string[]): unknown {
@@ -26,10 +41,10 @@ function decodePayload(argv: string[]): unknown {
 
 // Envelope helpers — produce stdout in the BI-026 trimStart+startsWith shape.
 function defaultEnv(paths: string[]): string {
-  return `=> ${JSON.stringify({ ok: true, mode: "default", count: paths.length, paths })}\n`;
+  return `=> ${TEST_EVAL_TAG}${JSON.stringify({ ok: true, mode: "default", count: paths.length, paths })}\n`;
 }
 function countOnlyEnv(total: number): string {
-  return `=> ${JSON.stringify({ ok: true, mode: "count-only", total })}\n`;
+  return `=> ${TEST_EVAL_TAG}${JSON.stringify({ ok: true, mode: "count-only", total })}\n`;
 }
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -69,8 +84,8 @@ test("argv: code= parameter contains the frozen template prefix", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: defaultEnv([]), exitCode: 0 }]);
   await executeTag({ tag: "foo" }, deps(spawnFn));
   const codeArg = recorded[0]!.argv.find((a) => a.startsWith("code="))!;
-  // Frozen-template stable prefix (first IIFE wrapper).
-  expect(codeArg.startsWith("code=(()=>{")).toBe(true);
+  // Frozen-template stable prefix (first IIFE wrapper), inside the answer-tag wrapper.
+  expect(codeArg.startsWith(`code=(async()=>{return ${JSON.stringify(TEST_EVAL_TAG)}+(await ((()=>{`)).toBe(true);
 });
 
 // (5) base64 payload decodes to {query, total}
@@ -247,7 +262,7 @@ test("named vault, non-empty stdout: single spawn", async () => {
 
 // (18) Stage-2 json-parse failure
 test("stage-2 json-parse: malformed JSON → CLI_REPORTED_ERROR(stage:'json-parse')", async () => {
-  const { spawnFn } = makeQueuedSpawn([{ stdout: "=> not-json{\n", exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: `=> ${TEST_EVAL_TAG}not-json{\n`, exitCode: 0 }]);
   const err = (await captureRejection(executeTag({ tag: "foo" }, deps(spawnFn)))) as UpstreamError;
   expect(err.code).toBe("CLI_REPORTED_ERROR");
   expect(err.details.stage).toBe("json-parse");
@@ -255,18 +270,19 @@ test("stage-2 json-parse: malformed JSON → CLI_REPORTED_ERROR(stage:'json-pars
 
 // (19) Stage-3 envelope-parse failure (wrong shape)
 test("stage-3 envelope-parse: wrong shape → CLI_REPORTED_ERROR(stage:'envelope-parse')", async () => {
-  const { spawnFn } = makeQueuedSpawn([{ stdout: '=> {"ok":true,"bogus":1}\n', exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"bogus":1}\n`, exitCode: 0 }]);
   const err = (await captureRejection(executeTag({ tag: "foo" }, deps(spawnFn)))) as UpstreamError;
   expect(err.code).toBe("CLI_REPORTED_ERROR");
   expect(err.details.stage).toBe("envelope-parse");
 });
 
-// (20) Missing `=> ` prefix still passes (trimStart + startsWith handles both forms)
-test("stage-1: missing '=> ' prefix still parses (raw JSON tolerated)", async () => {
+// (20) Spec 080: bare JSON with no tagged answer line is not this call's answer (contract §1 A14)
+test("stage-1: missing `=> ` answer line → json-parse failure with the raw output", async () => {
   const raw = JSON.stringify({ ok: true, mode: "default", count: 1, paths: ["x.md"] });
   const { spawnFn } = makeQueuedSpawn([{ stdout: raw + "\n", exitCode: 0 }]);
-  const result = await executeTag({ tag: "x" }, deps(spawnFn));
-  expect(result).toEqual({ count: 1, paths: ["x.md"] });
+  const err = (await captureRejection(executeTag({ tag: "x" }, deps(spawnFn)))) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", stdout: raw + "\n" });
 });
 
 // =====================================================================
@@ -276,7 +292,7 @@ test("stage-1: missing '=> ' prefix still parses (raw JSON tolerated)", async ()
 // (21) ok:false → CLI_REPORTED_ERROR(stage:'envelope-error', code:<as-emitted>)
 test("stage-4 envelope-error: ok:false → CLI_REPORTED_ERROR(stage:'envelope-error', code)", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: '=> {"ok":false,"code":"CACHE_NOT_READY"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":false,"code":"CACHE_NOT_READY"}\n`, exitCode: 0 },
   ]);
   const err = (await captureRejection(executeTag({ tag: "foo" }, deps(spawnFn)))) as UpstreamError;
   expect(err.code).toBe("CLI_REPORTED_ERROR");
@@ -290,7 +306,7 @@ test("stage-4 envelope-error: ok:false → CLI_REPORTED_ERROR(stage:'envelope-er
 test("stage-4 envelope-error: with detail field passes safeParse", async () => {
   const { spawnFn } = makeQueuedSpawn([
     {
-      stdout: '=> {"ok":false,"code":"CACHE_NOT_READY","detail":"app warming up"}\n',
+      stdout: `=> ${TEST_EVAL_TAG}{"ok":false,"code":"CACHE_NOT_READY","detail":"app warming up"}\n`,
       exitCode: 0,
     },
   ]);
@@ -380,7 +396,7 @@ test("frozen template byte-stable: two calls differ only in the substituted base
   const replaceB64 = (s: string) => s.replace(/atob\('[A-Za-z0-9+/=]+'\)/, "atob('X')");
   expect(replaceB64(codeA)).toBe(replaceB64(codeB));
   // Confirm template includes the JS_TEMPLATE prefix verbatim (modulo placeholder)
-  expect(codeA.startsWith("code=" + JS_TEMPLATE.split("__PAYLOAD_B64__")[0])).toBe(true);
+  expect(codeA.startsWith("code=" + wrappedEvalCode(JS_TEMPLATE).split("__PAYLOAD_B64__")[0])).toBe(true);
 });
 
 // =====================================================================
@@ -483,4 +499,76 @@ test("BI-034: non-ASCII tag query (emoji) round-trips through base64 (FR-009)", 
   await executeTag({ vault: "Demo", tag: "🎉-launch" }, deps(spawnFn));
   const payload = decodePayload(recorded[0]!.argv) as { query: unknown };
   expect(payload.query).toBe("🎉-launch");
+});
+
+// =====================================================================
+// Spec 080 — plugin output around the tagged eval answer
+// =====================================================================
+
+const ANSWER_080 = JSON.stringify({ ok: true, mode: "default", count: 1, paths: ["a.md"] });
+const LOOKALIKE_080 = JSON.stringify({ ok: true, mode: "default", count: 1, paths: ["fake.md"] });
+
+// US1 (T015)
+test("spec 080 US1: plugin lines before the answer → normal result", async () => {
+  const { spawnFn } = makeQueuedSpawn([{ stdout: `${NOISE_BEFORE}${evalAnswerLine(ANSWER_080)}\n`, exitCode: 0 }]);
+  const result = await executeTag({ tag: "foo" }, deps(spawnFn));
+  expect(result).toEqual({ count: 1, paths: ["a.md"] });
+});
+
+test("spec 080 US1: envelope ok:false behind plugin lines → its envelope-error", async () => {
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: `${NOISE_BEFORE}${evalAnswerLine('{"ok":false,"code":"CACHE_NOT_READY"}')}\n`, exitCode: 0 },
+  ]);
+  const err = (await captureRejection(executeTag({ tag: "foo" }, deps(spawnFn)))) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toMatchObject({ stage: "envelope-error", code: "CACHE_NOT_READY" });
+});
+
+// US3 (T032) checks 1–4
+test("spec 080 US3: look-alikes before and after the answer never win", async () => {
+  const stdout = `${lookalike(LOOKALIKE_080)}\n${evalAnswerLine(ANSWER_080)}\n${lookalike(LOOKALIKE_080)}\n`;
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  const result = await executeTag({ tag: "foo" }, deps(spawnFn));
+  expect(result).toEqual({ count: 1, paths: ["a.md"] });
+});
+
+test("spec 080 US3: a look-alike alone → json-parse failure with the raw output", async () => {
+  const stdout = `${NO_ANSWER}${lookalike(LOOKALIKE_080)}`;
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  const err = (await captureRejection(executeTag({ tag: "foo" }, deps(spawnFn)))) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", stdout });
+});
+
+test("spec 080 US3: no answer → json-parse failure without stdoutTail", async () => {
+  const { spawnFn } = makeQueuedSpawn([{ stdout: NO_ANSWER, exitCode: 0 }]);
+  const err = (await captureRejection(executeTag({ tag: "foo" }, deps(spawnFn)))) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", stdout: NO_ANSWER });
+});
+
+test("spec 080 US3: long output with no answer → json-parse failure carrying stdoutTail", async () => {
+  const { spawnFn } = makeQueuedSpawn([{ stdout: LONG_NO_ANSWER, exitCode: 0 }]);
+  const err = (await captureRejection(executeTag({ tag: "foo" }, deps(spawnFn)))) as UpstreamError;
+  expect(err.details).toEqual({
+    stage: "json-parse",
+    stdout: LONG_NO_ANSWER.slice(0, 500),
+    stdoutTail: LONG_NO_ANSWER.slice(-500),
+  });
+});
+
+// US4 (T040)
+test("spec 080 US4: plugin output after the answer → normal result", async () => {
+  const { spawnFn } = makeQueuedSpawn([{ stdout: `${evalAnswerLine(ANSWER_080)}${NOISE_AFTER}\n`, exitCode: 0 }]);
+  const result = await executeTag({ tag: "foo" }, deps(spawnFn));
+  expect(result).toEqual({ count: 1, paths: ["a.md"] });
+});
+
+// US5 (T042)
+test("spec 080 US5: invented plugin output before and after the answer → normal result", async () => {
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: `${INVENTED}${evalAnswerLine(ANSWER_080)}\n${INVENTED}`, exitCode: 0 },
+  ]);
+  const result = await executeTag({ tag: "foo" }, deps(spawnFn));
+  expect(result).toEqual({ count: 1, paths: ["a.md"] });
 });

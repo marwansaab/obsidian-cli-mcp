@@ -280,6 +280,48 @@ describe("invokeBoundedCli — ADR-029 cold-start retry inheritance", () => {
   });
 });
 
+// Spec 080 contract §2 E9: the obsidian_exec facade sends eval code unwrapped and untagged, so
+// its eval output inherits the eval-only error recognition through the untagged answer test.
+describe("invokeBoundedCli — eval error recognition, untagged (spec 080 E9)", () => {
+  const COLD = 'Error: Command "eval" not found. It may require a plugin to be enabled.\n';
+  const call = (spawnFn: SpawnLike) =>
+    invokeBoundedCli(
+      { command: "eval", parameters: { code: "app.vault.getName()" } },
+      {},
+      { spawnFn, env: {}, logger: captureLines().logger, queue: createQueue(), resolveBinary: stubResolveBinary },
+    );
+
+  it("eval code reaches the argv unwrapped", async () => {
+    const { spawnFn, recorded } = makeStubSpawn({ stdout: "=> Work\n", exitCode: 0 });
+    await call(spawnFn);
+    expect(recorded[0]!.argv).toEqual(["eval", "code=app.vault.getName()"]);
+  });
+
+  it("a plugin line then 'Error: boom' → CLI_REPORTED_ERROR", async () => {
+    const { spawnFn } = makeStubSpawn({ stdout: "p1\nError: boom\n", exitCode: 0 });
+    const err = await pendingRejection(call(spawnFn));
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.details.message).toBe("Error: boom");
+  });
+
+  it("a plugin line then the cold-start line → one retry", async () => {
+    const { spawnFn, recorded } = makeScriptedSpawn([
+      { stdout: `p1\n${COLD}`, exitCode: 0 },
+      { stdout: "=> Work\n", exitCode: 0 },
+    ]);
+    const out = await call(spawnFn);
+    expect(out.stdout).toBe("=> Work\n");
+    expect(recorded).toHaveLength(2);
+  });
+
+  it("an Error: line before an answer line → success with verbatim stdout", async () => {
+    const stdout = 'Error: x\n=> {"a":1}\n';
+    const { spawnFn } = makeStubSpawn({ stdout, exitCode: 0 });
+    const out = await call(spawnFn);
+    expect(out.stdout).toBe(stdout);
+  });
+});
+
 describe("invokeBoundedCli — BI-060 app-not-running recovery inheritance (T014)", () => {
   // The escape-hatch facade inherits the dispatch-layer recovery with zero adaptation: app-down on
   // call 1 → launch (injected) → success on call 2 → invokeBoundedCli resolves; exactly one launch.

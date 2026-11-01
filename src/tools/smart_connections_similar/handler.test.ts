@@ -6,10 +6,24 @@ import { executeSmartConnectionsSimilar } from "./handler.js";
 import { __resetInFlightRegistryForTests, COLD_START_PATTERN, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import {
+  captureRejection,
+  coldStartResponse,
+  EVAL_NONCE_SEAM,
+  evalAnswerLine,
+  LONG_NO_ANSWER,
+  lookalike,
+  makeQueuedSpawn,
+  NO_ANSWER,
+  NOISE_AFTER,
+  NOISE_BEFORE,
+  silentLogger,
+  TEST_EVAL_TAG,
+  wrappedEvalCode,
+} from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
-  return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
+  return { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} };
 }
 
 function decodePayload(argv: string[]): unknown {
@@ -44,7 +58,7 @@ test("specific + path + mixed block-level matches: multi-entry response with cor
     ],
   };
   const { spawnFn, recorded, getCount } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeSmartConnectionsSimilar(
     { target_mode: "specific", vault: "Demo", path: "Source/Note.md", limit: defaultLimit },
@@ -69,7 +83,7 @@ test("specific + path + mixed block-level matches: multi-entry response with cor
 test("specific + file (basename): payload carries file=<basename>, path=null", async () => {
   const envelope = { ok: true, count: 0, matches: [] };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeSmartConnectionsSimilar(
     { target_mode: "specific", vault: "Demo", file: "brief", limit: defaultLimit },
@@ -89,7 +103,7 @@ test("specific + file (basename): payload carries file=<basename>, path=null", a
 test("specific + path + total:true: returns {count:N, matches:[]} (US4)", async () => {
   const envelope = { ok: true, count: 7, matches: [] };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeSmartConnectionsSimilar(
     {
@@ -115,7 +129,7 @@ test("specific + path + total:true: returns {count:N, matches:[]} (US4)", async 
 test("specific + path + empty matches envelope: returns {count:0, matches:[]} no error (FR-011)", async () => {
   const envelope = { ok: true, count: 0, matches: [] };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeSmartConnectionsSimilar(
     { target_mode: "specific", vault: "Demo", path: "empty.md", limit: defaultLimit },
@@ -132,7 +146,7 @@ test("active + focused-file: argv has no vault= AND payload active=true (US2)", 
     matches: [{ path: "Other.md", headingPath: [], score: 0.6 }],
   };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeSmartConnectionsSimilar(
     { target_mode: "active", limit: defaultLimit },
@@ -155,7 +169,7 @@ test("active + focused-file: argv has no vault= AND payload active=true (US2)", 
 test("active + total:true: count-only response (US4)", async () => {
   const envelope = { ok: true, count: 12, matches: [] };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeSmartConnectionsSimilar(
     { target_mode: "active", limit: defaultLimit, total: true },
@@ -184,7 +198,7 @@ test("source-level match: headingPath:[] (R7/F4)", async () => {
     matches: [{ path: "Folder/Note.md", headingPath: [], score: 0.85 }],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeSmartConnectionsSimilar(
     { target_mode: "specific", vault: "Demo", path: "x.md", limit: defaultLimit },
@@ -205,7 +219,7 @@ test("single-segment heading match: headingPath:['Heading'] (R7/F4)", async () =
     matches: [{ path: "Folder/Note.md", headingPath: ["Heading"], score: 0.8 }],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeSmartConnectionsSimilar(
     { target_mode: "specific", vault: "Demo", path: "x.md", limit: defaultLimit },
@@ -222,7 +236,7 @@ test("multi-segment heading match: headingPath:['H1','H2','H3'] (R7/F4)", async 
     matches: [{ path: "Folder/Note.md", headingPath: ["H1", "H2", "H3"], score: 0.75 }],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeSmartConnectionsSimilar(
     { target_mode: "specific", vault: "Demo", path: "x.md", limit: defaultLimit },
@@ -241,7 +255,7 @@ test("frontmatter-block match: headingPath preserves '---frontmatter---' sentine
     ],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeSmartConnectionsSimilar(
     { target_mode: "specific", vault: "Demo", path: "x.md", limit: defaultLimit },
@@ -262,7 +276,7 @@ test("non-finite-score entry in envelope: envelope-parse failure (R10/Q2 — eva
     matches: [{ path: "Folder/Note.md", headingPath: [], score: null }],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const err = (await captureRejection(
     executeSmartConnectionsSimilar(
@@ -282,7 +296,7 @@ test("per-match three-field exhaustive shape: only path / headingPath / score ke
     matches: [{ path: "Folder/Note.md", headingPath: ["H1"], score: 0.9 }],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeSmartConnectionsSimilar(
     { target_mode: "specific", vault: "Demo", path: "x.md", limit: defaultLimit },
@@ -309,7 +323,7 @@ test("score-tie: response orders by path byte-asc (secondary tiebreak / FR-008)"
     ],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeSmartConnectionsSimilar(
     { target_mode: "specific", vault: "Demo", path: "x.md", limit: defaultLimit },
@@ -329,7 +343,7 @@ test("score-tie + path-tie: response orders by headingPath.join('#') byte-asc (t
     ],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeSmartConnectionsSimilar(
     { target_mode: "specific", vault: "Demo", path: "x.md", limit: defaultLimit },
@@ -350,7 +364,7 @@ test("self-exclusion source-level: source entry absent from response (R9/FR-010)
     matches: [{ path: "Other.md", headingPath: [], score: 0.5 }],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeSmartConnectionsSimilar(
     { target_mode: "specific", vault: "Demo", path: "Source.md", limit: defaultLimit },
@@ -371,7 +385,7 @@ test("self-exclusion block-inside-source: all entries with path === sourcePath a
     ],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeSmartConnectionsSimilar(
     { target_mode: "specific", vault: "Demo", path: "Source.md", limit: defaultLimit },
@@ -401,10 +415,10 @@ test("cross-mode invariant: count_false === count_true on identical fixture (FR-
   };
   const envelopeTotal = { ok: true, count: N, matches: [] };
   const { spawnFn: spawn1 } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelopeFull)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelopeFull)}\n`, exitCode: 0 },
   ]);
   const { spawnFn: spawn2 } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelopeTotal)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelopeTotal)}\n`, exitCode: 0 },
   ]);
   const r1 = await executeSmartConnectionsSimilar(
     { target_mode: "specific", vault: "Demo", path: "x.md", limit: defaultLimit, total: false },
@@ -434,7 +448,7 @@ test("limit:5: payload carries limit:5 (FR-006 / SC-017)", async () => {
     ],
   };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeSmartConnectionsSimilar(
     { target_mode: "specific", vault: "Demo", path: "x.md", limit: 5 },
@@ -449,7 +463,7 @@ test("limit:5: payload carries limit:5 (FR-006 / SC-017)", async () => {
 test("limit:100 (upper boundary): payload carries limit:100", async () => {
   const envelope = { ok: true, count: 0, matches: [] };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   await executeSmartConnectionsSimilar(
     { target_mode: "specific", vault: "Demo", path: "x.md", limit: 100 },
@@ -487,7 +501,7 @@ test("closed vault recovers via cold-start retry: normal result, two eval spawns
   };
   const { spawnFn, recorded, getCount } = makeQueuedSpawn([
     coldStartResponse("eval"),
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeSmartConnectionsSimilar(
     { target_mode: "specific", vault: "Closed", path: "x.md", limit: defaultLimit },
@@ -543,7 +557,7 @@ test("empty answer with a named vault: CLI_REPORTED_ERROR(stage:'json-parse'), s
 test("unresolved path: envelope FILE_NOT_FOUND → CLI_REPORTED_ERROR (R13)", async () => {
   const { spawnFn } = makeQueuedSpawn([
     {
-      stdout: '=> {"ok":false,"code":"FILE_NOT_FOUND","detail":"path: missing.md"}\n',
+      stdout: `=> ${TEST_EVAL_TAG}{"ok":false,"code":"FILE_NOT_FOUND","detail":"path: missing.md"}\n`,
       exitCode: 0,
     },
   ]);
@@ -565,7 +579,7 @@ test("unresolved path: envelope FILE_NOT_FOUND → CLI_REPORTED_ERROR (R13)", as
 test("unresolved file (basename): envelope FILE_NOT_FOUND with wikilink: detail (R13)", async () => {
   const { spawnFn } = makeQueuedSpawn([
     {
-      stdout: '=> {"ok":false,"code":"FILE_NOT_FOUND","detail":"wikilink: ghost"}\n',
+      stdout: `=> ${TEST_EVAL_TAG}{"ok":false,"code":"FILE_NOT_FOUND","detail":"wikilink: ghost"}\n`,
       exitCode: 0,
     },
   ]);
@@ -588,7 +602,7 @@ test("non-.md target: envelope NOT_MARKDOWN → CLI_REPORTED_ERROR (R13)", async
   const { spawnFn } = makeQueuedSpawn([
     {
       stdout:
-        '=> {"ok":false,"code":"NOT_MARKDOWN","detail":"path: Sandbox/board.canvas extension: canvas"}\n',
+        `=> ${TEST_EVAL_TAG}{"ok":false,"code":"NOT_MARKDOWN","detail":"path: Sandbox/board.canvas extension: canvas"}\n`,
       exitCode: 0,
     },
   ]);
@@ -612,7 +626,7 @@ test("plugin not installed: envelope SMART_CONNECTIONS_NOT_INSTALLED → CLI_REP
   const { spawnFn } = makeQueuedSpawn([
     {
       stdout:
-        '=> {"ok":false,"code":"SMART_CONNECTIONS_NOT_INSTALLED","detail":"plugin not loaded in vault: Demo"}\n',
+        `=> ${TEST_EVAL_TAG}{"ok":false,"code":"SMART_CONNECTIONS_NOT_INSTALLED","detail":"plugin not loaded in vault: Demo"}\n`,
       exitCode: 0,
     },
   ]);
@@ -634,7 +648,7 @@ test("plugin not ready: envelope SMART_CONNECTIONS_NOT_READY → CLI_REPORTED_ER
   const { spawnFn } = makeQueuedSpawn([
     {
       stdout:
-        '=> {"ok":false,"code":"SMART_CONNECTIONS_NOT_READY","detail":"env.smart_sources unavailable"}\n',
+        `=> ${TEST_EVAL_TAG}{"ok":false,"code":"SMART_CONNECTIONS_NOT_READY","detail":"env.smart_sources unavailable"}\n`,
       exitCode: 0,
     },
   ]);
@@ -655,7 +669,7 @@ test("plugin not ready: envelope SMART_CONNECTIONS_NOT_READY → CLI_REPORTED_ER
 test("source not indexed: envelope SOURCE_NOT_INDEXED → CLI_REPORTED_ERROR (FR-014 / SC-009)", async () => {
   const { spawnFn } = makeQueuedSpawn([
     {
-      stdout: '=> {"ok":false,"code":"SOURCE_NOT_INDEXED","detail":"Folder/Note.md"}\n',
+      stdout: `=> ${TEST_EVAL_TAG}{"ok":false,"code":"SOURCE_NOT_INDEXED","detail":"Folder/Note.md"}\n`,
       exitCode: 0,
     },
   ]);
@@ -677,7 +691,7 @@ test("active + no focused file: envelope NO_ACTIVE_FILE → ERR_NO_ACTIVE_FILE (
   const { spawnFn } = makeQueuedSpawn([
     {
       stdout:
-        '=> {"ok":false,"code":"NO_ACTIVE_FILE","detail":"No note focused; switch to specific mode or focus a note."}\n',
+        `=> ${TEST_EVAL_TAG}{"ok":false,"code":"NO_ACTIVE_FILE","detail":"No note focused; switch to specific mode or focus a note."}\n`,
       exitCode: 0,
     },
   ]);
@@ -697,7 +711,7 @@ test("active + no focused file: envelope NO_ACTIVE_FILE → ERR_NO_ACTIVE_FILE (
 
 // (29) malformed eval stdout (non-JSON) → CLI_REPORTED_ERROR(stage:json-parse)
 test("malformed JSON eval response → CLI_REPORTED_ERROR(stage:'json-parse')", async () => {
-  const { spawnFn } = makeQueuedSpawn([{ stdout: "=> not-valid-json{\n", exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: `=> ${TEST_EVAL_TAG}not-valid-json{\n`, exitCode: 0 }]);
   const err = (await captureRejection(
     executeSmartConnectionsSimilar(
       { target_mode: "specific", vault: "Demo", path: "x.md", limit: defaultLimit },
@@ -712,7 +726,7 @@ test("malformed JSON eval response → CLI_REPORTED_ERROR(stage:'json-parse')", 
 test("envelope shape unexpected → CLI_REPORTED_ERROR(stage:'envelope-parse')", async () => {
   const { spawnFn } = makeQueuedSpawn([
     {
-      stdout: '=> {"ok":true,"count":5,"matches":[],"surprise":"extra"}\n',
+      stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"count":5,"matches":[],"surprise":"extra"}\n`,
       exitCode: 0,
     },
   ]);
@@ -739,7 +753,7 @@ test("precedence: SMART_CONNECTIONS_NOT_INSTALLED wins over FILE_NOT_FOUND", asy
   const { spawnFn } = makeQueuedSpawn([
     {
       stdout:
-        '=> {"ok":false,"code":"SMART_CONNECTIONS_NOT_INSTALLED","detail":"plugin not loaded"}\n',
+        `=> ${TEST_EVAL_TAG}{"ok":false,"code":"SMART_CONNECTIONS_NOT_INSTALLED","detail":"plugin not loaded"}\n`,
       exitCode: 0,
     },
   ]);
@@ -761,7 +775,7 @@ test("precedence: SMART_CONNECTIONS_NOT_INSTALLED wins over FILE_NOT_FOUND", asy
 test("precedence: FILE_NOT_FOUND wins over NOT_MARKDOWN", async () => {
   const { spawnFn } = makeQueuedSpawn([
     {
-      stdout: '=> {"ok":false,"code":"FILE_NOT_FOUND","detail":"path: nonexistent.canvas"}\n',
+      stdout: `=> ${TEST_EVAL_TAG}{"ok":false,"code":"FILE_NOT_FOUND","detail":"path: nonexistent.canvas"}\n`,
       exitCode: 0,
     },
   ]);
@@ -789,7 +803,7 @@ test("precedence: NOT_MARKDOWN wins over SMART_CONNECTIONS_NOT_READY", async () 
   const { spawnFn } = makeQueuedSpawn([
     {
       stdout:
-        '=> {"ok":false,"code":"NOT_MARKDOWN","detail":"path: board.canvas extension: canvas"}\n',
+        `=> ${TEST_EVAL_TAG}{"ok":false,"code":"NOT_MARKDOWN","detail":"path: board.canvas extension: canvas"}\n`,
       exitCode: 0,
     },
   ]);
@@ -811,7 +825,7 @@ test("precedence: SMART_CONNECTIONS_NOT_READY wins over SOURCE_NOT_INDEXED", asy
   const { spawnFn } = makeQueuedSpawn([
     {
       stdout:
-        '=> {"ok":false,"code":"SMART_CONNECTIONS_NOT_READY","detail":"env.smart_sources unavailable"}\n',
+        `=> ${TEST_EVAL_TAG}{"ok":false,"code":"SMART_CONNECTIONS_NOT_READY","detail":"env.smart_sources unavailable"}\n`,
       exitCode: 0,
     },
   ]);
@@ -835,7 +849,7 @@ test("precedence: SMART_CONNECTIONS_NOT_READY wins over SOURCE_NOT_INDEXED", asy
 test("R6 anti-injection: base64 payload round-trips verbatim incl. hostile bytes", async () => {
   const envelope = { ok: true, count: 0, matches: [] };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const hostilePath = "Sandbox/Tricky\"); doSomething(); //.md";
   await executeSmartConnectionsSimilar(
@@ -864,7 +878,7 @@ test("R6 anti-injection: base64 payload round-trips verbatim incl. hostile bytes
 test("R3 single-call invariant: one spawn per request; frozen template prefix/suffix; only b64 region varies", async () => {
   const envelope = { ok: true, count: 0, matches: [] };
   const { spawnFn, recorded, getCount } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   await executeSmartConnectionsSimilar(
     { target_mode: "specific", vault: "Demo", path: "x.md", limit: defaultLimit },
@@ -873,15 +887,15 @@ test("R3 single-call invariant: one spawn per request; frozen template prefix/su
   expect(getCount()).toBe(1);
   const argv = recorded[0]!.argv;
   const codeArg = argv[2]!.slice("code=".length);
-  // Frozen template prefix (async IIFE)
-  expect(codeArg.startsWith("(async()=>{")).toBe(true);
-  expect(codeArg.endsWith("})()")).toBe(true);
   // The rendered code differs from JS_TEMPLATE only by the b64 substitution
   const match = /atob\('([A-Za-z0-9+/=]+)'\)/.exec(codeArg);
   expect(match).not.toBeNull();
   expect(/^[A-Za-z0-9+/=]+$/.test(match![1]!)).toBe(true);
+  // Frozen template prefix (async IIFE), wrapped verbatim with the answer tag
   const rendered = JS_TEMPLATE.replace("__PAYLOAD_B64__", match![1]!);
-  expect(codeArg).toBe(rendered);
+  expect(rendered.startsWith("(async()=>{")).toBe(true);
+  expect(rendered.endsWith("})()")).toBe(true);
+  expect(codeArg).toBe(wrappedEvalCode(rendered));
 });
 
 // =====================================================================
@@ -895,7 +909,7 @@ test("BI-027 ripple: details.reason:'api-missing' on env.smart_sources undefined
   const { spawnFn } = makeQueuedSpawn([
     {
       stdout:
-        '=> {"ok":false,"code":"SMART_CONNECTIONS_NOT_READY","detail":"env.smart_sources unavailable"}\n',
+        `=> ${TEST_EVAL_TAG}{"ok":false,"code":"SMART_CONNECTIONS_NOT_READY","detail":"env.smart_sources unavailable"}\n`,
       exitCode: 0,
     },
   ]);
@@ -920,7 +934,7 @@ test("BI-027 ripple: details.reason:'api-missing' on find_connections method-mis
   const { spawnFn } = makeQueuedSpawn([
     {
       stdout:
-        '=> {"ok":false,"code":"SMART_CONNECTIONS_NOT_READY","detail":"smart_sources.items[<key>].find_connections not a function"}\n',
+        `=> ${TEST_EVAL_TAG}{"ok":false,"code":"SMART_CONNECTIONS_NOT_READY","detail":"smart_sources.items[<key>].find_connections not a function"}\n`,
       exitCode: 0,
     },
   ]);
@@ -942,7 +956,7 @@ test("BI-027 ripple: details.reason:'api-missing' on find_connections method-mis
 test("BI-034: non-ASCII path 'café-target.md' round-trips through base64 (FR-009)", async () => {
   const envelope = { ok: true, count: 0, matches: [] };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   await executeSmartConnectionsSimilar(
     { target_mode: "specific", vault: "Demo", path: "Sandbox/unicode/café-target.md", limit: defaultLimit },
@@ -955,7 +969,7 @@ test("BI-034: non-ASCII path 'café-target.md' round-trips through base64 (FR-00
 test("BI-034: non-ASCII file wikilink (CJK) round-trips through base64 (FR-009)", async () => {
   const envelope = { ok: true, count: 0, matches: [] };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   await executeSmartConnectionsSimilar(
     { target_mode: "specific", vault: "Demo", file: "笔记", limit: defaultLimit },
@@ -963,4 +977,66 @@ test("BI-034: non-ASCII file wikilink (CJK) round-trips through base64 (FR-009)"
   );
   const payload = decodePayload(recorded[0]!.argv) as { file: unknown };
   expect(payload.file).toBe("笔记");
+});
+
+// =====================================================================
+// Spec 080 — plugin output around the tagged answer
+// =====================================================================
+
+const SCS_INPUT = { target_mode: "specific" as const, vault: "Demo", path: "Source/Note.md", limit: defaultLimit };
+const SCS_MATCHES = [{ path: "Topics/AI.md", headingPath: ["Overview"], score: 0.91 }];
+const SCS_REAL = JSON.stringify({ ok: true, count: 1, matches: SCS_MATCHES });
+const SCS_FAKE = JSON.stringify({ ok: true, count: 1, matches: [{ path: "Fake.md", headingPath: [], score: 0.1 }] });
+
+async function scsRun(stdout: string) {
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  return executeSmartConnectionsSimilar(SCS_INPUT, deps(spawnFn));
+}
+
+async function scsFail(stdout: string): Promise<UpstreamError> {
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  return (await captureRejection(executeSmartConnectionsSimilar(SCS_INPUT, deps(spawnFn)))) as UpstreamError;
+}
+
+test("spec 080 US1: plugin lines before the tagged answer → normal result", async () => {
+  expect(await scsRun(`${NOISE_BEFORE}${evalAnswerLine(SCS_REAL)}\n`)).toEqual({ count: 1, matches: SCS_MATCHES });
+});
+
+test("spec 080 US1: SOURCE_NOT_INDEXED envelope behind plugin lines → its specific error", async () => {
+  const err = await scsFail(
+    `${NOISE_BEFORE}${evalAnswerLine('{"ok":false,"code":"SOURCE_NOT_INDEXED","detail":"Source/Note.md"}')}\n`,
+  );
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toMatchObject({ stage: "envelope-error", code: "SOURCE_NOT_INDEXED" });
+});
+
+test("spec 080 US3: look-alikes before and after the tagged answer never win", async () => {
+  const stdout = `${lookalike(SCS_FAKE)}\n${evalAnswerLine(SCS_REAL)}\n${lookalike(SCS_FAKE)}`;
+  expect(await scsRun(stdout)).toEqual({ count: 1, matches: SCS_MATCHES });
+});
+
+test("spec 080 US3: a look-alike alone → json-parse failure with the raw output", async () => {
+  const stdout = NO_ANSWER + lookalike(SCS_FAKE);
+  const err = await scsFail(stdout);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", stdout });
+});
+
+test("spec 080 US3: no answer → json-parse failure without stdoutTail", async () => {
+  const err = await scsFail(NO_ANSWER);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", stdout: NO_ANSWER });
+});
+
+test("spec 080 US3: long output with no answer → json-parse failure carrying stdoutTail", async () => {
+  const err = await scsFail(LONG_NO_ANSWER);
+  expect(err.details).toEqual({
+    stage: "json-parse",
+    stdout: LONG_NO_ANSWER.slice(0, 500),
+    stdoutTail: LONG_NO_ANSWER.slice(-500),
+  });
+});
+
+test("spec 080 US4: plugin output after the tagged answer → normal result", async () => {
+  expect(await scsRun(`${evalAnswerLine(SCS_REAL)}${NOISE_AFTER}\n`)).toEqual({ count: 1, matches: SCS_MATCHES });
 });

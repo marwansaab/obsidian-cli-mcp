@@ -49,7 +49,7 @@ export async function executeBacklinks(
     deps,
   );
 
-  const validated = decodeEvalEnvelope(result.stdout, backlinksEvalResponseSchema, {
+  const validated = decodeEvalEnvelope(result, backlinksEvalResponseSchema, {
     toolName: "backlinks",
     malformedCode: "CLI_REPORTED_ERROR",
   });

@@ -18,6 +18,7 @@ import { EventEmitter } from "node:events";
 import { Readable, Writable } from "node:stream";
 
 import { type SpawnLike } from "../cli-adapter/_dispatch.js";
+import { evalAnswerTag, wrapEvalCode } from "../cli-adapter/eval-output.js";
 import { createLogger, type Logger } from "../logger.js";
 import { confirmFromResponse } from "./_confirm.js";
 
@@ -165,9 +166,52 @@ export function fileTsvResponse(relPath: string): StubResponse {
   return { stdout: `path\t${relPath}\nname\tx\n`, exitCode: 0 };
 }
 
+/** The eval answer-tag nonce handler tests inject through the `evalNonce` deps seam (spec 080). */
+export const TEST_EVAL_NONCE = "00000000-0000-4000-8000-000000000080";
+
+/** The answer tag `invokeCli` wraps eval code with when `evalNonce` returns {@link TEST_EVAL_NONCE}. */
+export const TEST_EVAL_TAG = evalAnswerTag(TEST_EVAL_NONCE);
+
+/**
+ * The `evalNonce` seam returning {@link TEST_EVAL_NONCE}, to spread into a handler's or tool's deps.
+ * The seam is an `InvokeCliDeps` field that the handler deps types do not declare, so it is typed
+ * `object`: the spread adds it at runtime (deps reach `invokeCli` as passed) without an excess-property error.
+ */
+export const EVAL_NONCE_SEAM: object = { evalNonce: (): string => TEST_EVAL_NONCE };
+
+/** The line Obsidian prints for an eval whose tagged answer is `value` (no trailing newline). */
+export function evalAnswerLine(value: string): string {
+  return `=> ${TEST_EVAL_TAG}${value}`;
+}
+
+/** The `code=` value `invokeCli` spawns for eval `code` under {@link TEST_EVAL_NONCE}. */
+export function wrappedEvalCode(code: string): string {
+  return wrapEvalCode(code, TEST_EVAL_TAG);
+}
+
+/** Plugin output printed before an eval's answer line (spec 080 test vocabulary). */
+export const NOISE_BEFORE = "Found and returned 3 smart_blocks.\n[warn] plugin x: cache warm\n\n";
+
+/** Plugin output printed after an eval's answer line. */
+export const NOISE_AFTER = "\nplugin y: done";
+
+/** Plugin output no known plugin prints. */
+export const INVENTED = "§§ zz-unknown-plugin ¤ 42 :: {not json} [[x]]\n";
+
+/** Plugin output with no answer line at all. */
+export const NO_ANSWER = "plugin z: starting\nplugin z: ready\n";
+
+/** {@link NO_ANSWER} padded past the 500-character bounded `details.stdout`. */
+export const LONG_NO_ANSWER = NO_ANSWER + "x".repeat(600);
+
+/** An untagged look-alike answer line carrying `value` — never this call's answer. */
+export function lookalike(value: string): string {
+  return `=> ${value}`;
+}
+
 /** The focused-file eval reply (FOCUSED_FILE_TEMPLATE): `relPath` (or no focused file) in the vault at `base`. */
 export function focusedFileResponse(relPath: string | null, base = "/vaults/MyVault"): StubResponse {
-  return { stdout: `=> ${JSON.stringify({ path: relPath, base })}\n`, exitCode: 0 };
+  return { stdout: `${evalAnswerLine(JSON.stringify({ path: relPath, base }))}\n`, exitCode: 0 };
 }
 
 /** The shim's answer for a registered vault that is not open yet (ADR-029 cold start), for subcommand `command`. */

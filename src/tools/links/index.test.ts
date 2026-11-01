@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createLinksTool, LINKS_DESCRIPTION, LINKS_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger, TEST_EVAL_TAG, EVAL_NONCE_SEAM } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -19,7 +19,7 @@ describe("createLinksTool — descriptor", () => {
   it("publishes name = 'links'", () => {
     const tool = createLinksTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn: makeStubSpawn(),
     });
     expect(tool.descriptor.name).toBe(LINKS_TOOL_NAME);
@@ -31,7 +31,7 @@ describe("createLinksTool — descriptor", () => {
   it("description names 'links', the closed kind enum, and the count-only mode", () => {
     const tool = createLinksTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn: makeStubSpawn(),
     });
     const desc = tool.descriptor.description;
@@ -55,11 +55,11 @@ describe("createLinksTool — descriptor", () => {
       links: [{ target: "Other-Note", line: 1, kind: "wikilink" }],
     };
     const { spawnFn } = makeQueuedSpawn([
-      { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+      { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
     ]);
     const tool = createLinksTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn,
     });
     const result = await tool.handler({

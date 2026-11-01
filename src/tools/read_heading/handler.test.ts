@@ -5,10 +5,22 @@ import { executeReadHeading } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import {
+  captureRejection,
+  EVAL_NONCE_SEAM,
+  evalAnswerLine,
+  LONG_NO_ANSWER,
+  lookalike,
+  makeQueuedSpawn,
+  NO_ANSWER,
+  NOISE_AFTER,
+  NOISE_BEFORE,
+  silentLogger,
+  TEST_EVAL_TAG,
+} from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
-  return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
+  return { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} };
 }
 
 function decodePayload(argv: string[]): unknown {
@@ -25,7 +37,7 @@ afterEach(() => __resetInFlightRegistryForTests());
 // (21) US1 — specific + path + 2-segment heading
 test("specific + path + 2-segment heading: returns body verbatim (US1 AC#1)", async () => {
   const { spawnFn, recorded, getCount } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"content":"Use kebab-case.\\n"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"content":"Use kebab-case.\\n"}\n`, exitCode: 0 },
   ]);
   const result = await executeReadHeading(
     { target_mode: "specific", vault: "Demo", path: "x.md", heading: "Best Practices::Naming" },
@@ -48,7 +60,7 @@ test("specific + path + 2-segment heading: returns body verbatim (US1 AC#1)", as
 // (22) US1 — specific + path + 3-segment nested heading
 test("specific + path + 3-segment heading: payload segments preserve nesting (US1 AC#2)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"content":"Use lowercase.\\n"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"content":"Use lowercase.\\n"}\n`, exitCode: 0 },
   ]);
   const result = await executeReadHeading(
     {
@@ -67,7 +79,7 @@ test("specific + path + 3-segment heading: payload segments preserve nesting (US
 // (23) US1 — specific + file (wikilink)
 test("specific + file (wikilink): payload carries file=<wikilink>, path=null", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"content":"x"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"content":"x"}\n`, exitCode: 0 },
   ]);
   const result = await executeReadHeading(
     { target_mode: "specific", vault: "Demo", file: "best-practices", heading: "A::B" },
@@ -85,7 +97,7 @@ test("specific + file (wikilink): payload carries file=<wikilink>, path=null", a
 // (24) US2 — active mode
 test("active mode: argv has no vault= AND payload active=true (US2 AC#1)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"content":"Hello.\\n"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"content":"Hello.\\n"}\n`, exitCode: 0 },
   ]);
   const result = await executeReadHeading(
     { target_mode: "active", heading: "A::B" },
@@ -106,7 +118,7 @@ test("active mode: argv has no vault= AND payload active=true (US2 AC#1)", async
 // (25) Sibling-level terminator
 test("body terminator at sibling-level heading: wrapper passes body slice through verbatim", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"content":"Section A prose only.\\n"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"content":"Section A prose only.\\n"}\n`, exitCode: 0 },
   ]);
   const result = await executeReadHeading(
     { target_mode: "specific", vault: "Demo", path: "x.md", heading: "Outer::Section A" },
@@ -118,7 +130,7 @@ test("body terminator at sibling-level heading: wrapper passes body slice throug
 // (26) Higher-level terminator
 test("body terminator at higher-level heading: wrapper passes body slice through verbatim", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"content":"Inner prose only.\\n"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"content":"Inner prose only.\\n"}\n`, exitCode: 0 },
   ]);
   const result = await executeReadHeading(
     { target_mode: "specific", vault: "Demo", path: "x.md", heading: "Outer::Inner" },
@@ -130,7 +142,7 @@ test("body terminator at higher-level heading: wrapper passes body slice through
 // (27) Child-level terminator (US1 AC#2 — child subtree exclusion)
 test("body terminator at child heading: child subtree excluded from body slice (US1 AC#2)", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"content":"Parent prose only.\\n"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"content":"Parent prose only.\\n"}\n`, exitCode: 0 },
   ]);
   const result = await executeReadHeading(
     { target_mode: "specific", vault: "Demo", path: "x.md", heading: "Outer::Parent" },
@@ -142,7 +154,7 @@ test("body terminator at child heading: child subtree excluded from body slice (
 // (28) EOF terminator
 test("body terminator at EOF: body slice extends to text.length", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"content":"Last section prose to end of file.\\n"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"content":"Last section prose to end of file.\\n"}\n`, exitCode: 0 },
   ]);
   const result = await executeReadHeading(
     { target_mode: "specific", vault: "Demo", path: "x.md", heading: "Outer::Last" },
@@ -154,7 +166,7 @@ test("body terminator at EOF: body slice extends to text.length", async () => {
 // (29) US1 AC#4 — empty body
 test("empty body (heading followed directly by next heading): { content: '' } no error (US1 AC#4 / FR-011)", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"content":""}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"content":""}\n`, exitCode: 0 },
   ]);
   const result = await executeReadHeading(
     { target_mode: "specific", vault: "Demo", path: "x.md", heading: "Outer::Empty" },
@@ -168,7 +180,7 @@ test("fenced code block opacity: fence text included as content (US5 AC#2)", asy
   const fenceBody = "intro prose.\n```markdown\n## Heading-like inside fence\n```\ntrailing prose.\n";
   const stubJson = JSON.stringify({ ok: true, content: fenceBody });
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${stubJson}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${stubJson}\n`, exitCode: 0 },
   ]);
   const result = await executeReadHeading(
     { target_mode: "specific", vault: "Demo", path: "x.md", heading: "Outer::ATX Section" },
@@ -182,7 +194,7 @@ test("Setext-as-content (R14 defence-in-depth): underlines pass through as body 
   const setextBody = "Some prose.\n\nA line that looks like Setext H2\n---------------------------------\n\nMore body content.\n";
   const stubJson = JSON.stringify({ ok: true, content: setextBody });
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${stubJson}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${stubJson}\n`, exitCode: 0 },
   ]);
   const result = await executeReadHeading(
     { target_mode: "specific", vault: "Demo", path: "x.md", heading: "Outer::ATX Section" },
@@ -194,7 +206,7 @@ test("Setext-as-content (R14 defence-in-depth): underlines pass through as body 
 // (32) FR-017 — duplicate heading paths first-match
 test("duplicate heading paths: wrapper passes first-document-order match through (FR-017)", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"content":"First occurrence body.\\n"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"content":"First occurrence body.\\n"}\n`, exitCode: 0 },
   ]);
   const result = await executeReadHeading(
     { target_mode: "specific", vault: "Demo", path: "x.md", heading: "Outer::Duplicate" },
@@ -206,7 +218,7 @@ test("duplicate heading paths: wrapper passes first-document-order match through
 // (33) Closing-ATX form: payload preserves segment text verbatim (no closing-ATX strip in wrapper)
 test("closing-ATX segment: payload segments preserve text verbatim (FR-028)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"content":"Closing ATX prose.\\n"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"content":"Closing ATX prose.\\n"}\n`, exitCode: 0 },
   ]);
   await executeReadHeading(
     {
@@ -224,7 +236,7 @@ test("closing-ATX segment: payload segments preserve text verbatim (FR-028)", as
 // (34) Surrounding whitespace: payload segments preserved verbatim (no trim in wrapper)
 test("surrounding-whitespace segment: payload segments verbatim (FR-028)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"content":"prose."}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"content":"prose."}\n`, exitCode: 0 },
   ]);
   await executeReadHeading(
     {
@@ -242,7 +254,7 @@ test("surrounding-whitespace segment: payload segments verbatim (FR-028)", async
 // (35) Inline markdown survives: ** chars preserved in payload AND mis-spelled fails
 test("inline markdown segment survives in payload; without ** returns HEADING_NOT_FOUND (FR-028)", async () => {
   const { spawnFn: spawnA, recorded: recordedA } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"content":"prose."}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"content":"prose."}\n`, exitCode: 0 },
   ]);
   await executeReadHeading(
     { target_mode: "specific", vault: "Demo", path: "x.md", heading: "Outer::My **Bold** Heading" },
@@ -254,7 +266,7 @@ test("inline markdown segment survives in payload; without ** returns HEADING_NO
   const { spawnFn: spawnB } = makeQueuedSpawn([
     {
       stdout:
-        '=> {"ok":false,"code":"HEADING_NOT_FOUND","detail":"segments: Outer::My Bold Heading not found in x.md"}\n',
+        `=> ${TEST_EVAL_TAG}{"ok":false,"code":"HEADING_NOT_FOUND","detail":"segments: Outer::My Bold Heading not found in x.md"}\n`,
       exitCode: 0,
     },
   ]);
@@ -271,7 +283,7 @@ test("inline markdown segment survives in payload; without ** returns HEADING_NO
 // (36) Anchor survives: ^anchor-id preserved in payload AND without it fails
 test("anchor segment ^anchor-id survives in payload; without anchor returns HEADING_NOT_FOUND (FR-028)", async () => {
   const { spawnFn: spawnA, recorded: recordedA } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"content":"prose."}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"content":"prose."}\n`, exitCode: 0 },
   ]);
   await executeReadHeading(
     { target_mode: "specific", vault: "Demo", path: "x.md", heading: "Outer::Section ^my-anchor" },
@@ -283,7 +295,7 @@ test("anchor segment ^anchor-id survives in payload; without anchor returns HEAD
   const { spawnFn: spawnB } = makeQueuedSpawn([
     {
       stdout:
-        '=> {"ok":false,"code":"HEADING_NOT_FOUND","detail":"segments: Outer::Section not found in x.md"}\n',
+        `=> ${TEST_EVAL_TAG}{"ok":false,"code":"HEADING_NOT_FOUND","detail":"segments: Outer::Section not found in x.md"}\n`,
       exitCode: 0,
     },
   ]);
@@ -302,7 +314,7 @@ test("mis-cased segment returns HEADING_NOT_FOUND (FR-028 case-sensitive)", asyn
   const { spawnFn } = makeQueuedSpawn([
     {
       stdout:
-        '=> {"ok":false,"code":"HEADING_NOT_FOUND","detail":"segments: Outer::heading not found in x.md"}\n',
+        `=> ${TEST_EVAL_TAG}{"ok":false,"code":"HEADING_NOT_FOUND","detail":"segments: Outer::heading not found in x.md"}\n`,
       exitCode: 0,
     },
   ]);
@@ -319,7 +331,7 @@ test("mis-cased segment returns HEADING_NOT_FOUND (FR-028 case-sensitive)", asyn
 // (38) CRLF round-trip
 test("CRLF line endings round-trip byte-faithfully", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"content":"Line 1\\r\\nLine 2\\r\\n"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"content":"Line 1\\r\\nLine 2\\r\\n"}\n`, exitCode: 0 },
   ]);
   const result = await executeReadHeading(
     { target_mode: "specific", vault: "Demo", path: "x.md", heading: "A::B" },
@@ -331,7 +343,7 @@ test("CRLF line endings round-trip byte-faithfully", async () => {
 // (39) LF round-trip
 test("LF line endings round-trip byte-faithfully (no CRLF expansion)", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"content":"Line 1\\nLine 2\\n"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"content":"Line 1\\nLine 2\\n"}\n`, exitCode: 0 },
   ]);
   const result = await executeReadHeading(
     { target_mode: "specific", vault: "Demo", path: "x.md", heading: "A::B" },
@@ -343,7 +355,7 @@ test("LF line endings round-trip byte-faithfully (no CRLF expansion)", async () 
 // (40) Envelope ok:false FILE_NOT_FOUND → CLI_REPORTED_ERROR (R13)
 test("envelope FILE_NOT_FOUND → CLI_REPORTED_ERROR with details.code=FILE_NOT_FOUND (R13)", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: '=> {"ok":false,"code":"FILE_NOT_FOUND","detail":"path: x.md"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":false,"code":"FILE_NOT_FOUND","detail":"path: x.md"}\n`, exitCode: 0 },
   ]);
   const err = (await captureRejection(
     executeReadHeading(
@@ -365,7 +377,7 @@ test("envelope HEADING_NOT_FOUND → CLI_REPORTED_ERROR with details.code=HEADIN
   const { spawnFn } = makeQueuedSpawn([
     {
       stdout:
-        '=> {"ok":false,"code":"HEADING_NOT_FOUND","detail":"segments: A::B not found in x.md"}\n',
+        `=> ${TEST_EVAL_TAG}{"ok":false,"code":"HEADING_NOT_FOUND","detail":"segments: A::B not found in x.md"}\n`,
       exitCode: 0,
     },
   ]);
@@ -385,7 +397,7 @@ test("envelope HEADING_NOT_FOUND → CLI_REPORTED_ERROR with details.code=HEADIN
 // (42) Envelope ok:false NO_ACTIVE_FILE → ERR_NO_ACTIVE_FILE (R13 mapping)
 test("envelope NO_ACTIVE_FILE → ERR_NO_ACTIVE_FILE (R13)", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: '=> {"ok":false,"code":"NO_ACTIVE_FILE","detail":"No note focused..."}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":false,"code":"NO_ACTIVE_FILE","detail":"No note focused..."}\n`, exitCode: 0 },
   ]);
   const err = (await captureRejection(
     executeReadHeading({ target_mode: "active", heading: "A::B" }, deps(spawnFn)),
@@ -397,7 +409,7 @@ test("envelope NO_ACTIVE_FILE → ERR_NO_ACTIVE_FILE (R13)", async () => {
 // (43) JSON parse failure → CLI_REPORTED_ERROR (stage: json-parse)
 test("malformed JSON eval response → CLI_REPORTED_ERROR (stage: json-parse)", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: "=> not-valid-json{\n", exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}not-valid-json{\n`, exitCode: 0 },
   ]);
   const err = (await captureRejection(
     executeReadHeading(
@@ -412,7 +424,7 @@ test("malformed JSON eval response → CLI_REPORTED_ERROR (stage: json-parse)", 
 // (44) Envelope schema-parse failure → CLI_REPORTED_ERROR (stage: envelope-parse)
 test("envelope shape unexpected → CLI_REPORTED_ERROR (stage: envelope-parse)", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true}\n`, exitCode: 0 },
   ]);
   const err = (await captureRejection(
     executeReadHeading(
@@ -468,7 +480,7 @@ test("dispatch kill (output cap) → CLI_NON_ZERO_EXIT (FR-020)", async () => {
 // (48) Argv shape in specific mode
 test("argv shape in specific mode: [vault=Demo, eval, code=...] (R6/R12)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"content":""}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"content":""}\n`, exitCode: 0 },
   ]);
   await executeReadHeading(
     { target_mode: "specific", vault: "Demo", path: "x.md", heading: "A::B" },
@@ -486,7 +498,7 @@ test("argv shape in specific mode: [vault=Demo, eval, code=...] (R6/R12)", async
 // (49) Argv shape in active mode
 test("argv shape in active mode: [eval, code=...] no vault= (R6/R12)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"content":""}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"content":""}\n`, exitCode: 0 },
   ]);
   await executeReadHeading({ target_mode: "active", heading: "A::B" }, deps(spawnFn));
   const argv = recorded[0]!.argv;
@@ -502,7 +514,7 @@ test("argv shape in active mode: [eval, code=...] no vault= (R6/R12)", async () 
 test("BI-034 US1 (a): em-dash single-segment heading round-trips verbatim (FR-009)", async () => {
   const heading = "TC-108 Round Trip Fixture — 5 KB";
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"content":"em-dash body."}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"content":"em-dash body."}\n`, exitCode: 0 },
   ]);
   const result = await executeReadHeading(
     { target_mode: "specific", vault: "Demo", path: "x.md", heading },
@@ -517,7 +529,7 @@ test("BI-034 US1 (a): em-dash single-segment heading round-trips verbatim (FR-00
 test("BI-034 US1 (b): accented-letter single-segment heading round-trips verbatim (FR-009)", async () => {
   const heading = "café";
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"content":"accented body."}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"content":"accented body."}\n`, exitCode: 0 },
   ]);
   const result = await executeReadHeading(
     { target_mode: "specific", vault: "Demo", path: "x.md", heading },
@@ -532,7 +544,7 @@ test("BI-034 US1 (b): accented-letter single-segment heading round-trips verbati
 test("BI-034 US1 (c): CJK single-segment heading round-trips verbatim (FR-009)", async () => {
   const heading = "你好世界";
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"content":"cjk body."}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"content":"cjk body."}\n`, exitCode: 0 },
   ]);
   const result = await executeReadHeading(
     { target_mode: "specific", vault: "Demo", path: "x.md", heading },
@@ -547,7 +559,7 @@ test("BI-034 US1 (c): CJK single-segment heading round-trips verbatim (FR-009)",
 test("BI-034 US1 (d): emoji single-segment heading round-trips verbatim (FR-009)", async () => {
   const heading = "👋🌍 greetings";
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"content":"emoji body."}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"content":"emoji body."}\n`, exitCode: 0 },
   ]);
   const result = await executeReadHeading(
     { target_mode: "specific", vault: "Demo", path: "x.md", heading },
@@ -561,7 +573,7 @@ test("BI-034 US1 (d): emoji single-segment heading round-trips verbatim (FR-009)
 // (BI-034 US1) Nested path mixing ASCII + non-ASCII segments
 test("BI-034 US1 (e): nested ASCII-then-non-ASCII path round-trips verbatim (FR-009)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"ok":true,"content":"nested body."}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"content":"nested body."}\n`, exitCode: 0 },
   ]);
   await executeReadHeading(
     {
@@ -582,7 +594,7 @@ test("R6 anti-injection: hostile heading segments survive base64 round-trip exac
   const { spawnFn, recorded } = makeQueuedSpawn([
     {
       stdout:
-        '=> {"ok":false,"code":"HEADING_NOT_FOUND","detail":"segments not found"}\n',
+        `=> ${TEST_EVAL_TAG}{"ok":false,"code":"HEADING_NOT_FOUND","detail":"segments not found"}\n`,
       exitCode: 0,
     },
   ]);
@@ -600,4 +612,69 @@ test("R6 anti-injection: hostile heading segments survive base64 round-trip exac
     segments: unknown;
   };
   expect(payload.segments).toEqual(["Outer", 'Inner"); doSomething(); //']);
+});
+
+// =====================================================================
+// Spec 080 — plugin output around the tagged answer
+// =====================================================================
+
+const RH_INPUT = { target_mode: "specific" as const, vault: "Demo", path: "x.md", heading: "A::B" };
+const RH_REAL = '{"ok":true,"content":"real body"}';
+const RH_FAKE = '{"ok":true,"content":"look-alike body"}';
+
+async function rhRun(stdout: string) {
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  return executeReadHeading(RH_INPUT, deps(spawnFn));
+}
+
+async function rhFail(stdout: string): Promise<UpstreamError> {
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  return (await captureRejection(executeReadHeading(RH_INPUT, deps(spawnFn)))) as UpstreamError;
+}
+
+test("spec 080 US1: plugin lines before the tagged answer → normal result", async () => {
+  expect(await rhRun(`${NOISE_BEFORE}${evalAnswerLine(RH_REAL)}\n`)).toEqual({ content: "real body" });
+});
+
+test("spec 080 US1: envelope ok:false behind plugin lines → its specific error", async () => {
+  const err = await rhFail(
+    `${NOISE_BEFORE}${evalAnswerLine('{"ok":false,"code":"FILE_NOT_FOUND","detail":"path: x.md"}')}\n`,
+  );
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "envelope-error", code: "FILE_NOT_FOUND", detail: "path: x.md" });
+});
+
+test("spec 080 US2: an Error:-looking plugin line before the tagged answer → normal result", async () => {
+  expect(await rhRun(`Error: plugin says hi\n${evalAnswerLine(RH_REAL)}\n`)).toEqual({ content: "real body" });
+});
+
+test("spec 080 US3: look-alikes before and after the tagged answer never win", async () => {
+  const stdout = `${lookalike(RH_FAKE)}\n${evalAnswerLine(RH_REAL)}\n${lookalike(RH_FAKE)}`;
+  expect(await rhRun(stdout)).toEqual({ content: "real body" });
+});
+
+test("spec 080 US3: a look-alike alone → json-parse failure with the raw output", async () => {
+  const stdout = NO_ANSWER + lookalike(RH_FAKE);
+  const err = await rhFail(stdout);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", stdout });
+});
+
+test("spec 080 US3: no answer → json-parse failure without stdoutTail", async () => {
+  const err = await rhFail(NO_ANSWER);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", stdout: NO_ANSWER });
+});
+
+test("spec 080 US3: long output with no answer → json-parse failure carrying stdoutTail", async () => {
+  const err = await rhFail(LONG_NO_ANSWER);
+  expect(err.details).toEqual({
+    stage: "json-parse",
+    stdout: LONG_NO_ANSWER.slice(0, 500),
+    stdoutTail: LONG_NO_ANSWER.slice(-500),
+  });
+});
+
+test("spec 080 US4: plugin output after the tagged answer → normal result", async () => {
+  expect(await rhRun(`${evalAnswerLine(RH_REAL)}${NOISE_AFTER}\n`)).toEqual({ content: "real body" });
 });

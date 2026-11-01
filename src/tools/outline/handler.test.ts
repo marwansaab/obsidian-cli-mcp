@@ -5,16 +5,10 @@ import { EMPTY_OUTLINE_SENTINEL, executeOutline } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import {
-  captureRejection,
-  fileTsvResponse,
-  focusedFileResponse,
-  makeQueuedSpawn,
-  silentLogger,
-} from "../_handler-test-fixtures.js";
+import { captureRejection, fileTsvResponse, focusedFileResponse, makeQueuedSpawn, silentLogger, EVAL_NONCE_SEAM } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
-  return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
+  return { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} };
 }
 
 beforeEach(() => __resetInFlightRegistryForTests());

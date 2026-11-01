@@ -4,20 +4,14 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createReadTool, READ_DESCRIPTION, READ_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import {
-  fileTsvResponse,
-  focusedFileResponse,
-  makeQueuedSpawn,
-  silentLogger,
-  stubVaultRegistry,
-} from "../_handler-test-fixtures.js";
+import { fileTsvResponse, focusedFileResponse, makeQueuedSpawn, silentLogger, stubVaultRegistry, EVAL_NONCE_SEAM } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 
 /** Boot deps with a vault registry and an fs stub whose readFile returns `disk` (the note's bytes on disk). */
 function readDeps(disk = "") {
   return {
     logger: silentLogger(),
-    queue: createQueue(),
+    queue: createQueue(), ...EVAL_NONCE_SEAM,
     vaultRegistry: stubVaultRegistry("MyVault", "/registry/MyVault"),
     fs: { readFile: async () => Buffer.from(disk) },
   };

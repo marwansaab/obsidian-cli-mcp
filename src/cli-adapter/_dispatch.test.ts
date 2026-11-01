@@ -26,6 +26,7 @@ import {
   type LaunchFn,
   type SpawnLike,
 } from "./_dispatch.js";
+import { evalAnswerTag } from "./eval-output.js";
 
 interface StubChildSpec {
   stdout?: string;
@@ -1052,6 +1053,134 @@ describe("dispatchCli — ADR-029 cold-start single retry", () => {
     expect(String(err.details.stdout)).toMatch(COLD_START_PATTERN);
     expect(calls()).toBe(1);
     expect(cap.lines().filter((l) => JSON.parse(l).event === "dispatch.retry")).toEqual([]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Spec 080 — eval-only error recognition behind plugin output (contract §2 E1–E8; the ADR-029
+// amendment of 2026-11-01). E9 (the untagged obsidian_exec facade) is in invoke-bounded-cli.test.ts.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("dispatchCli — eval error recognition behind plugin lines (spec 080)", () => {
+  const TAG = evalAnswerTag("44444444-4444-4444-8444-444444444444");
+  const ANSWER = `=> ${TAG}{"ok":true}\n`;
+  const evalInput = (): DispatchInput => baseInput({ command: "eval", evalAnswerTag: TAG });
+  const run = (specs: StubChildSpec[], input: DispatchInput = evalInput()) => {
+    const { spawnFn, calls } = makeScriptedSpawn(specs);
+    const out = dispatchCli(input, { spawnFn, env: {}, logger: captureLines().logger, resolveBinary: stubResolveBinary });
+    return { out, calls };
+  };
+
+  it("E1: plugin line then the cold-start line → one retry; the retry's answer is final", async () => {
+    const { out, calls } = run([
+      { stdout: `p1\n${COLD_START_STDOUT_PLUGIN}`, exitCode: 0 },
+      { stdout: ANSWER, exitCode: 0 },
+    ]);
+    expect((await out).stdout).toBe(ANSWER);
+    expect(calls()).toBe(2);
+  });
+
+  it("E2: the E1 output on both attempts → CLI_REPORTED_ERROR from attempt 2; no third attempt", async () => {
+    const stdout = `p1\n${COLD_START_STDOUT_PLUGIN}`;
+    const { out, calls } = run([
+      { stdout, exitCode: 0 },
+      { stdout, exitCode: 0 },
+    ]);
+    const err = await captureRejection(out);
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.details).toMatchObject({ command: "eval", stdout, message: COLD_START_STDOUT_PLUGIN.trim() });
+    expect(calls()).toBe(2);
+  });
+
+  it("E3: plugin line then 'Error: No active file.' → ERR_NO_ACTIVE_FILE carrying that line", async () => {
+    const stdout = "p1\nError: No active file.\n";
+    const { out, calls } = run([{ stdout, exitCode: 0 }]);
+    const err = await captureRejection(out);
+    expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
+    expect(err.message).toBe(
+      'No active file in Obsidian. Open a note in the editor, or call this tool with target_mode: "specific" and an explicit vault/file.',
+    );
+    expect(err.details).toMatchObject({ command: "eval", stdout, exitCode: 0, message: "Error: No active file." });
+    expect(calls()).toBe(1);
+  });
+
+  it("E4: plugin line then 'Error: boom' → CLI_REPORTED_ERROR with that line and the full stdout", async () => {
+    const stdout = "p1\nError: boom\n";
+    const { out, calls } = run([{ stdout, exitCode: 0 }]);
+    const err = await captureRejection(out);
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.details).toMatchObject({ command: "eval", stdout, exitCode: 0, message: "Error: boom" });
+    expect(calls()).toBe(1);
+  });
+
+  it("E4 (last line): several Error: lines → the last one is reported", async () => {
+    const { out } = run([{ stdout: "Error: plugin says hi\np1\nError: boom\n", exitCode: 0 }]);
+    expect((await captureRejection(out)).details.message).toBe("Error: boom");
+  });
+
+  it("E5: an Error:-looking plugin line before the tagged answer → success (the answer wins)", async () => {
+    const stdout = `Error: plugin says hi\n${ANSWER}`;
+    const { out, calls } = run([{ stdout, exitCode: 0 }]);
+    expect((await out).stdout).toBe(stdout);
+    expect(calls()).toBe(1);
+  });
+
+  it("E5b: a look-alike answer before the cold-start line is not an answer → one retry", async () => {
+    const { out, calls } = run([
+      { stdout: `=> {"ok":true}\n${COLD_START_STDOUT_PLUGIN}`, exitCode: 0 },
+      { stdout: ANSWER, exitCode: 0 },
+    ]);
+    expect((await out).stdout).toBe(ANSWER);
+    expect(calls()).toBe(2);
+  });
+
+  it("E6: the cold-start line alone (no plugin lines) → CLI_REPORTED_ERROR, then one retry, as before", async () => {
+    const { out, calls } = run([
+      { stdout: COLD_START_STDOUT_PLUGIN, exitCode: 0 },
+      { stdout: COLD_START_STDOUT_PLUGIN, exitCode: 0 },
+    ]);
+    expect((await captureRejection(out)).code).toBe("CLI_REPORTED_ERROR");
+    expect(calls()).toBe(2);
+  });
+
+  it("eval output with neither an answer nor an Error: line → success, left for the reader to reject", async () => {
+    const { out } = run([{ stdout: "p1\np2\n", exitCode: 0 }]);
+    expect((await out).stdout).toBe("p1\np2\n");
+  });
+
+  it("E7: a non-eval command with a plugin line then 'Error: boom' → success, verbatim stdout (unchanged)", async () => {
+    const stdout = "p1\nError: boom\n";
+    const { out, calls } = run([{ stdout, exitCode: 0 }], baseInput({ command: "read" }));
+    expect((await out).stdout).toBe(stdout);
+    expect(calls()).toBe(1);
+  });
+
+  it("E7 (cold start): a non-eval command with a plugin line before the cold-start line → no retry", async () => {
+    const stdout = `p1\n${COLD_START_STDOUT}`;
+    const { out, calls } = run(
+      [
+        { stdout, exitCode: 0 },
+        { stdout: "should-not-run\n", exitCode: 0 },
+      ],
+      baseInput({ command: "read" }),
+    );
+    expect((await out).stdout).toBe(stdout);
+    expect(calls()).toBe(1);
+  });
+
+  it("E8: a non-eval command whose stdout starts 'Error: boom' → CLI_REPORTED_ERROR (unchanged)", async () => {
+    const { out } = run([{ stdout: "Error: boom\n", exitCode: 0 }], baseInput({ command: "read" }));
+    const err = await captureRejection(out);
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.details.message).toBe("Error: boom");
+  });
+
+  it("FR-013: no new code or details.reason across E1–E6", async () => {
+    const known = new Set(["CLI_REPORTED_ERROR", "ERR_NO_ACTIVE_FILE"]);
+    for (const stdout of [`p1\n${COLD_START_STDOUT_PLUGIN}`, "p1\nError: No active file.\n", "p1\nError: boom\n"]) {
+      const err = await captureRejection(run([{ stdout, exitCode: 0 }]).out);
+      expect(known.has(err.code)).toBe(true);
+      expect(err.details.reason).toBeUndefined();
+    }
   });
 });
 

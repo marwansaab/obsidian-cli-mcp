@@ -6,10 +6,23 @@ import { executeLinks } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import {
+  captureRejection,
+  EVAL_NONCE_SEAM,
+  evalAnswerLine,
+  LONG_NO_ANSWER,
+  lookalike,
+  makeQueuedSpawn,
+  NO_ANSWER,
+  NOISE_AFTER,
+  NOISE_BEFORE,
+  silentLogger,
+  TEST_EVAL_TAG,
+  wrappedEvalCode,
+} from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
-  return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
+  return { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} };
 }
 
 function decodePayload(argv: string[]): unknown {
@@ -40,7 +53,7 @@ test("specific + path + mixed-link envelope: 4-entry response with correct kinds
     ],
   };
   const { spawnFn, recorded, getCount } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeLinks(
     { target_mode: "specific", vault: "Demo", path: "Projects/brief.md" },
@@ -64,7 +77,7 @@ test("specific + path + mixed-link envelope: 4-entry response with correct kinds
 test("specific + file (basename): payload carries file=<basename>, path=null", async () => {
   const envelope = { ok: true, count: 0, links: [] };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeLinks(
     { target_mode: "specific", vault: "Demo", file: "brief" },
@@ -83,7 +96,7 @@ test("specific + file (basename): payload carries file=<basename>, path=null", a
 test("specific + path + total:true: returns {count:N, links:[]} (US4)", async () => {
   const envelope = { ok: true, count: 7, links: [] };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeLinks(
     { target_mode: "specific", vault: "Demo", path: "x.md", total: true },
@@ -102,7 +115,7 @@ test("specific + path + total:true: returns {count:N, links:[]} (US4)", async ()
 test("specific + path + empty cache: returns {count:0, links:[]} (FR-009 / R9)", async () => {
   const envelope = { ok: true, count: 0, links: [] };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeLinks(
     { target_mode: "specific", vault: "Demo", path: "empty.md" },
@@ -119,7 +132,7 @@ test("active + focused-file: argv has no vault= AND payload active=true (US2)", 
     links: [{ target: "X", line: 2, kind: "wikilink" }],
   };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeLinks({ target_mode: "active" }, deps(spawnFn));
   expect(result.count).toBe(1);
@@ -138,7 +151,7 @@ test("active + focused-file: argv has no vault= AND payload active=true (US2)", 
 test("active + total:true: count-only response (US4)", async () => {
   const envelope = { ok: true, count: 12, links: [] };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeLinks({ target_mode: "active", total: true }, deps(spawnFn));
   expect(result).toEqual({ count: 12, links: [] });
@@ -162,7 +175,7 @@ test("bare wikilink entry: response carries no displayText field (Q1)", async ()
     links: [{ target: "Roadmap", line: 3, kind: "wikilink" }],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeLinks(
     { target_mode: "specific", vault: "Demo", path: "x.md" },
@@ -180,7 +193,7 @@ test("aliased wikilink entry: response carries displayText='Terms' (Q1)", async 
     links: [{ target: "Glossary", line: 3, kind: "wikilink", displayText: "Terms" }],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeLinks(
     { target_mode: "specific", vault: "Demo", path: "x.md" },
@@ -202,7 +215,7 @@ test("wiki embed entry: kind='embed', no displayText", async () => {
     links: [{ target: "diagrams/system.png", line: 4, kind: "embed" }],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeLinks(
     { target_mode: "specific", vault: "Demo", path: "x.md" },
@@ -220,7 +233,7 @@ test("markdown embed entry: kind='embed', displayText='alt'", async () => {
     links: [{ target: "image.png", line: 4, kind: "embed", displayText: "alt" }],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeLinks(
     { target_mode: "specific", vault: "Demo", path: "x.md" },
@@ -242,7 +255,7 @@ test("markdown link entry: kind='markdown', displayText='Note'", async () => {
     links: [{ target: "Other-Note.md", line: 6, kind: "markdown", displayText: "Note" }],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeLinks(
     { target_mode: "specific", vault: "Demo", path: "x.md" },
@@ -264,7 +277,7 @@ test("wikilink with heading fragment: target='Target#Heading' byte-faithful (Q2)
     links: [{ target: "Target#Heading", line: 2, kind: "wikilink" }],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeLinks(
     { target_mode: "specific", vault: "Demo", path: "x.md" },
@@ -281,7 +294,7 @@ test("wikilink with block fragment: target='Target#^block-id' byte-faithful (Q2)
     links: [{ target: "Target#^block-id", line: 2, kind: "wikilink" }],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeLinks(
     { target_mode: "specific", vault: "Demo", path: "x.md" },
@@ -298,7 +311,7 @@ test("frontmatter entry: line=1, kind='wikilink', no displayText (Q4)", async ()
     links: [{ target: "Other-Note", line: 1, kind: "wikilink" }],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeLinks(
     { target_mode: "specific", vault: "Demo", path: "x.md" },
@@ -323,7 +336,7 @@ test("same target on different lines: 2 entries in line-ascending order (FR-007)
     ],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeLinks(
     { target_mode: "specific", vault: "Demo", path: "x.md" },
@@ -343,7 +356,7 @@ test("same target on same line: 2 entries in column-ascending order (FR-008 / R8
     ],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeLinks(
     { target_mode: "specific", vault: "Demo", path: "x.md" },
@@ -366,7 +379,7 @@ test("mixed body+frontmatter: frontmatter entries appear first (line=1) ahead of
     ],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeLinks(
     { target_mode: "specific", vault: "Demo", path: "x.md" },
@@ -385,7 +398,7 @@ test("emitted entries do not carry a column or _col field (Q5)", async () => {
     links: [{ target: "Roadmap", line: 3, kind: "wikilink" }],
   };
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeLinks(
     { target_mode: "specific", vault: "Demo", path: "x.md" },
@@ -419,10 +432,10 @@ test("cross-mode invariant: count_false === count_true on identical fixture (FR-
   };
   const envelopeTotal = { ok: true, count: N, links: [] };
   const { spawnFn: spawn1 } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelopeFull)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelopeFull)}\n`, exitCode: 0 },
   ]);
   const { spawnFn: spawn2 } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelopeTotal)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelopeTotal)}\n`, exitCode: 0 },
   ]);
   const r1 = await executeLinks(
     { target_mode: "specific", vault: "Demo", path: "x.md", total: false },
@@ -460,7 +473,7 @@ test("unknown vault: 'Vault not found.' stdout → CLI_REPORTED_ERROR (R5 / F7)"
 test("unresolved path: envelope FILE_NOT_FOUND → CLI_REPORTED_ERROR (R13)", async () => {
   const { spawnFn } = makeQueuedSpawn([
     {
-      stdout: '=> {"ok":false,"code":"FILE_NOT_FOUND","detail":"path: missing.md"}\n',
+      stdout: `=> ${TEST_EVAL_TAG}{"ok":false,"code":"FILE_NOT_FOUND","detail":"path: missing.md"}\n`,
       exitCode: 0,
     },
   ]);
@@ -482,7 +495,7 @@ test("unresolved path: envelope FILE_NOT_FOUND → CLI_REPORTED_ERROR (R13)", as
 test("unresolved file (basename): envelope FILE_NOT_FOUND with wikilink: detail (R13)", async () => {
   const { spawnFn } = makeQueuedSpawn([
     {
-      stdout: '=> {"ok":false,"code":"FILE_NOT_FOUND","detail":"wikilink: ghost"}\n',
+      stdout: `=> ${TEST_EVAL_TAG}{"ok":false,"code":"FILE_NOT_FOUND","detail":"wikilink: ghost"}\n`,
       exitCode: 0,
     },
   ]);
@@ -505,7 +518,7 @@ test("non-.md target: envelope NOT_MARKDOWN → CLI_REPORTED_ERROR (F9 / R13)", 
   const { spawnFn } = makeQueuedSpawn([
     {
       stdout:
-        '=> {"ok":false,"code":"NOT_MARKDOWN","detail":"path: Sandbox/board.canvas extension: canvas"}\n',
+        `=> ${TEST_EVAL_TAG}{"ok":false,"code":"NOT_MARKDOWN","detail":"path: Sandbox/board.canvas extension: canvas"}\n`,
       exitCode: 0,
     },
   ]);
@@ -527,7 +540,7 @@ test("active + no focused file: envelope NO_ACTIVE_FILE → ERR_NO_ACTIVE_FILE (
   const { spawnFn } = makeQueuedSpawn([
     {
       stdout:
-        '=> {"ok":false,"code":"NO_ACTIVE_FILE","detail":"No note focused; switch to specific mode or focus a note."}\n',
+        `=> ${TEST_EVAL_TAG}{"ok":false,"code":"NO_ACTIVE_FILE","detail":"No note focused; switch to specific mode or focus a note."}\n`,
       exitCode: 0,
     },
   ]);
@@ -540,7 +553,7 @@ test("active + no focused file: envelope NO_ACTIVE_FILE → ERR_NO_ACTIVE_FILE (
 
 // (25) malformed eval stdout (non-JSON) → CLI_REPORTED_ERROR(stage:json-parse)
 test("malformed JSON eval response → CLI_REPORTED_ERROR(stage:'json-parse')", async () => {
-  const { spawnFn } = makeQueuedSpawn([{ stdout: "=> not-valid-json{\n", exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: `=> ${TEST_EVAL_TAG}not-valid-json{\n`, exitCode: 0 }]);
   const err = (await captureRejection(
     executeLinks(
       { target_mode: "specific", vault: "Demo", path: "x.md" },
@@ -555,7 +568,7 @@ test("malformed JSON eval response → CLI_REPORTED_ERROR(stage:'json-parse')", 
 test("envelope shape unexpected → CLI_REPORTED_ERROR(stage:'envelope-parse')", async () => {
   const { spawnFn } = makeQueuedSpawn([
     {
-      stdout: '=> {"ok":true,"count":5,"links":[],"surprise":"extra"}\n',
+      stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"count":5,"links":[],"surprise":"extra"}\n`,
       exitCode: 0,
     },
   ]);
@@ -591,7 +604,7 @@ test("dispatch kill (output cap) → CLI_NON_ZERO_EXIT (R10)", async () => {
 test("R6 anti-injection + R3 single-call invariant: base64 round-trips verbatim; frozen template prefix/suffix; one spawn per request", async () => {
   const envelope = { ok: true, count: 0, links: [] };
   const { spawnFn, recorded, getCount } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const hostilePath = "Sandbox/Tricky\"); doSomething(); //.md";
   await executeLinks(
@@ -604,17 +617,16 @@ test("R6 anti-injection + R3 single-call invariant: base64 round-trips verbatim;
   expect(argv[1]).toBe("eval");
   const codeArg = argv[2]!.slice("code=".length);
 
-  // Frozen template prefix (sync IIFE — no async)
-  expect(codeArg.startsWith("(()=>{")).toBe(true);
-  expect(codeArg.endsWith("})()")).toBe(true);
-
   // The rendered code differs from the JS_TEMPLATE only by the b64 substitution
   const match = /atob\('([A-Za-z0-9+/=]+)'\)/.exec(codeArg);
   expect(match).not.toBeNull();
   expect(/^[A-Za-z0-9+/=]+$/.test(match![1]!)).toBe(true);
 
+  // Frozen template prefix (sync IIFE — no async), wrapped verbatim with the answer tag
   const rendered = JS_TEMPLATE.replace("__PAYLOAD_B64__", match![1]!);
-  expect(codeArg).toBe(rendered);
+  expect(rendered.startsWith("(()=>{")).toBe(true);
+  expect(rendered.endsWith("})()")).toBe(true);
+  expect(codeArg).toBe(wrappedEvalCode(rendered));
 
   // Round-trip the payload
   const payload = JSON.parse(Buffer.from(match![1]!, "base64").toString("utf-8"));
@@ -634,7 +646,7 @@ test("BI-034: non-ASCII wikilink target ('café-target') round-trips through bas
     links: [{ target: "café-target", line: 3, kind: "wikilink" }],
   };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   const result = await executeLinks(
     { target_mode: "specific", vault: "Demo", path: "Sandbox/unicode/links-from.md" },
@@ -648,7 +660,7 @@ test("BI-034: non-ASCII wikilink target ('café-target') round-trips through bas
 test("BI-034: non-ASCII source path (CJK) preserved in payload (FR-009)", async () => {
   const envelope = { ok: true, count: 0, links: [] };
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
   ]);
   await executeLinks(
     { target_mode: "specific", vault: "Demo", path: "笔记/链接源.md" },
@@ -656,4 +668,80 @@ test("BI-034: non-ASCII source path (CJK) preserved in payload (FR-009)", async 
   );
   const payload = decodePayload(recorded[0]!.argv) as { path: unknown };
   expect(payload.path).toBe("笔记/链接源.md");
+});
+
+// =====================================================================
+// Spec 080 — plugin output around the tagged eval answer
+// =====================================================================
+
+const LINKS_080 = [{ target: "Other-Note", line: 1, kind: "wikilink" }];
+const ANSWER_080 = JSON.stringify({ ok: true, count: 1, links: LINKS_080 });
+const LOOKALIKE_080 = JSON.stringify({ ok: true, count: 1, links: [{ target: "Fake", line: 9, kind: "wikilink" }] });
+const SPECIFIC_080 = { target_mode: "specific", vault: "Demo", path: "x.md" } as const;
+
+// US1 (T017)
+test("spec 080 US1: plugin lines before the answer → normal result", async () => {
+  const { spawnFn } = makeQueuedSpawn([{ stdout: `${NOISE_BEFORE}${evalAnswerLine(ANSWER_080)}\n`, exitCode: 0 }]);
+  const result = await executeLinks(SPECIFIC_080, deps(spawnFn));
+  expect(result).toEqual({ count: 1, links: LINKS_080 });
+});
+
+test("spec 080 US1: FILE_NOT_FOUND envelope behind plugin lines → CLI_REPORTED_ERROR envelope-error", async () => {
+  const { spawnFn } = makeQueuedSpawn([
+    {
+      stdout: `${NOISE_BEFORE}${evalAnswerLine('{"ok":false,"code":"FILE_NOT_FOUND","detail":"path: x.md"}')}\n`,
+      exitCode: 0,
+    },
+  ]);
+  const err = (await captureRejection(executeLinks(SPECIFIC_080, deps(spawnFn)))) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toMatchObject({ stage: "envelope-error", code: "FILE_NOT_FOUND", detail: "path: x.md" });
+});
+
+// US2 (T025) — spec US2 scenario 4
+test("spec 080 US2: active mode, plugin lines then 'Error: No active file.' with no answer → ERR_NO_ACTIVE_FILE", async () => {
+  const { spawnFn } = makeQueuedSpawn([{ stdout: `${NOISE_BEFORE}Error: No active file.\n`, exitCode: 0 }]);
+  const err = (await captureRejection(executeLinks({ target_mode: "active" }, deps(spawnFn)))) as UpstreamError;
+  expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
+  expect(err.details.message).toBe("Error: No active file.");
+});
+
+// US3 (T036) checks 1–4
+test("spec 080 US3: look-alikes before and after the answer never win", async () => {
+  const stdout = `${lookalike(LOOKALIKE_080)}\n${evalAnswerLine(ANSWER_080)}\n${lookalike(LOOKALIKE_080)}\n`;
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  const result = await executeLinks(SPECIFIC_080, deps(spawnFn));
+  expect(result).toEqual({ count: 1, links: LINKS_080 });
+});
+
+test("spec 080 US3: a look-alike alone → json-parse failure with the raw output", async () => {
+  const stdout = `${NO_ANSWER}${lookalike(LOOKALIKE_080)}`;
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  const err = (await captureRejection(executeLinks(SPECIFIC_080, deps(spawnFn)))) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", stdout });
+});
+
+test("spec 080 US3: no answer → json-parse failure without stdoutTail", async () => {
+  const { spawnFn } = makeQueuedSpawn([{ stdout: NO_ANSWER, exitCode: 0 }]);
+  const err = (await captureRejection(executeLinks(SPECIFIC_080, deps(spawnFn)))) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", stdout: NO_ANSWER });
+});
+
+test("spec 080 US3: long output with no answer → json-parse failure carrying stdoutTail", async () => {
+  const { spawnFn } = makeQueuedSpawn([{ stdout: LONG_NO_ANSWER, exitCode: 0 }]);
+  const err = (await captureRejection(executeLinks(SPECIFIC_080, deps(spawnFn)))) as UpstreamError;
+  expect(err.details).toEqual({
+    stage: "json-parse",
+    stdout: LONG_NO_ANSWER.slice(0, 500),
+    stdoutTail: LONG_NO_ANSWER.slice(-500),
+  });
+});
+
+// US4 (T040)
+test("spec 080 US4: plugin output after the answer → normal result", async () => {
+  const { spawnFn } = makeQueuedSpawn([{ stdout: `${evalAnswerLine(ANSWER_080)}${NOISE_AFTER}\n`, exitCode: 0 }]);
+  const result = await executeLinks(SPECIFIC_080, deps(spawnFn));
+  expect(result).toEqual({ count: 1, links: LINKS_080 });
 });

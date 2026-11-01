@@ -10,7 +10,7 @@ import { resolve, sep } from "node:path";
 
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { makeStubSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { EVAL_NONCE_SEAM, makeStubSpawn, silentLogger, TEST_EVAL_TAG } from "../_handler-test-fixtures.js";
 import { type ExecuteDeps, type ExecuteFs } from "./handler.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
@@ -172,6 +172,7 @@ export function baseDeps(over: Partial<ExecuteDeps> = {}): ExecuteDeps {
   return {
     logger: over.logger ?? silentLogger(),
     queue: over.queue ?? createQueue(),
+    ...EVAL_NONCE_SEAM,
     vaultRegistry: over.vaultRegistry ?? fakeRegistry({ V: VAULT_ROOT }),
     fs: over.fs,
     randomUUID: over.randomUUID ?? (() => "00000000-0000-0000-0000-000000000000"),
@@ -179,7 +180,7 @@ export function baseDeps(over: Partial<ExecuteDeps> = {}): ExecuteDeps {
     env: over.env ?? {},
     // Default answers the per-note commit metadata refresh (spec 068 FR-001), so a
     // commit test never spawns the real CLI.
-    spawnFn: over.spawnFn ?? makeStubSpawn({ stdout: "=> ok\n", exitCode: 0 }).spawnFn,
+    spawnFn: over.spawnFn ?? makeStubSpawn({ stdout: `=> ${TEST_EVAL_TAG}ok\n`, exitCode: 0 }).spawnFn,
     warn: over.warn,
   };
 }
@@ -190,6 +191,6 @@ export const FILE_TSV_OK = (relPath: string): { stdout: string; exitCode: number
 });
 
 export const ACTIVE_EVAL = (relPath: string | null): { stdout: string; exitCode: number } => ({
-  stdout: "=> " + JSON.stringify({ path: relPath, base: VAULT_ROOT }),
+  stdout: "=> " + TEST_EVAL_TAG + JSON.stringify({ path: relPath, base: VAULT_ROOT }),
   exitCode: 0,
 });

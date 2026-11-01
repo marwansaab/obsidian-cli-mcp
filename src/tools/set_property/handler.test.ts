@@ -5,10 +5,23 @@ import { executeWriteProperty } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, makeQueuedSpawn, silentLogger, type StubResponse } from "../_handler-test-fixtures.js";
+import {
+  captureRejection,
+  EVAL_NONCE_SEAM,
+  evalAnswerLine,
+  LONG_NO_ANSWER,
+  lookalike,
+  makeQueuedSpawn,
+  NO_ANSWER,
+  NOISE_AFTER,
+  NOISE_BEFORE,
+  silentLogger,
+  TEST_EVAL_TAG,
+  type StubResponse,
+} from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
-  return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
+  return { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} };
 }
 
 const SET_OK = (name: string, value: string): StubResponse => ({ stdout: `Set ${name}: ${value}\n`, exitCode: 0 });
@@ -184,7 +197,7 @@ test("specific+file response.path = canonical from Call A (not the input wikilin
 // (13) active mode happy — TWO spawns (eval → property:set); resolved path+vault land in response (US2#1, SC-013)
 test("active happy — TWO spawns (eval resolves {path, vault} → property:set lands at resolved locator)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"path":"focused/note.md","vault":"FocusedVault"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"path":"focused/note.md","vault":"FocusedVault"}\n`, exitCode: 0 },
     SET_OK("status", "review"),
   ]);
   const result = await executeWriteProperty(
@@ -211,7 +224,7 @@ test("active happy — TWO spawns (eval resolves {path, vault} → property:set 
 // (14) active no-focused-file — ONE spawn (eval only); ERR_NO_ACTIVE_FILE thrown (US2#2, FR-024)
 test("active no-focused-file — ONE spawn (eval returns path:null); ERR_NO_ACTIVE_FILE thrown; property:set short-circuited", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"path":null,"vault":"V"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"path":null,"vault":"V"}\n`, exitCode: 0 },
   ]);
   const err = (await captureRejection(
     executeWriteProperty({ target_mode: "active", name: "status", value: "v" }, deps(spawnFn)),
@@ -224,7 +237,7 @@ test("active no-focused-file — ONE spawn (eval returns path:null); ERR_NO_ACTI
 // (15) active TOCTOU — eval resolves the focused path at step 1; response reports that path (CONCURRENCY edge case)
 test("active TOCTOU — response.path is the path resolved at Call A (no second resolve before write)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"path":"resolved-at-step-1.md","vault":"V"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"path":"resolved-at-step-1.md","vault":"V"}\n`, exitCode: 0 },
     SET_OK("k", "v"),
   ]);
   const result = await executeWriteProperty(
@@ -239,7 +252,7 @@ test("active TOCTOU — response.path is the path resolved at Call A (no second 
 // (15a) active cross-type retype — string value flips a number property to text in active mode (US2#4, FR-033, SC-021)
 test("active cross-type retype — pre-state count:7 (number) + value:'abc' (no explicit type) → argv carries type=text", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"path":"focused.md","vault":"V"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"path":"focused.md","vault":"V"}\n`, exitCode: 0 },
     SET_OK("count", "abc"),
   ]);
   const result = await executeWriteProperty(
@@ -517,11 +530,11 @@ test("specific+file — file subcommand stdout lacks a path line → CLI_REPORTE
 
 // (36) active — Call A eval stdout body is unparseable JSON → CLI_REPORTED_ERROR stage "json-parse"
 test("active — eval stdout body is unparseable JSON → CLI_REPORTED_ERROR stage 'json-parse'", async () => {
-  // "=> " prefix is stripped by parseEvalResponse; the remaining body "not-json{{{" fails JSON.parse.
+  // The tagged answer "not-json{{{" is read by parseEvalAnswer and fails JSON.parse.
   // Head does not start with "Error:" / "Vault not found.", so classification stays at exit-0 success
   // and the handler's own json-parse guard is the throw site.
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: "=> not-json{{{\n", exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}not-json{{{\n`, exitCode: 0 },
   ]);
   const err = (await captureRejection(
     executeWriteProperty({ target_mode: "active", name: "status", value: "review" }, deps(spawnFn)),
@@ -539,7 +552,7 @@ test("active — eval stdout is valid JSON of unexpected shape → CLI_REPORTED_
   // Valid JSON parses cleanly (past the json-parse guard) but path:123 is neither string nor null,
   // so isFocusedFileResponse returns false and the envelope-parse guard throws.
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"path":123,"vault":"V"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"path":123,"vault":"V"}\n`, exitCode: 0 },
   ]);
   const err = (await captureRejection(
     executeWriteProperty({ target_mode: "active", name: "status", value: "review" }, deps(spawnFn)),
@@ -550,4 +563,69 @@ test("active — eval stdout is valid JSON of unexpected shape → CLI_REPORTED_
   expect(err.details.parsed).toEqual({ path: 123, vault: "V" });
   // property:set short-circuited — only Call A (eval) was spawned.
   expect(recorded).toHaveLength(1);
+});
+
+// =====================================================================
+// Spec 080 — plugin output around the tagged focused-file eval answer
+// =====================================================================
+
+const FOCUSED_080 = JSON.stringify({ path: "focused/note.md", vault: "FocusedVault" });
+const LOOKALIKE_080 = JSON.stringify({ path: "other/fake.md", vault: "OtherVault" });
+const ACTIVE_080 = { target_mode: "active", name: "status", value: "review" } as const;
+const ACTIVE_RESULT_080 = { written: true, path: "focused/note.md", name: "status" };
+
+// US1 (T016)
+test("spec 080 US1: active mode, plugin lines before the focused-file answer → normal write", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    { stdout: `${NOISE_BEFORE}${evalAnswerLine(FOCUSED_080)}\n`, exitCode: 0 },
+    SET_OK("status", "review"),
+  ]);
+  const result = await executeWriteProperty(ACTIVE_080, deps(spawnFn));
+  expect(result).toEqual(ACTIVE_RESULT_080);
+  expect(recorded[1]!.argv).toContain("vault=FocusedVault");
+});
+
+// US3 (T033) checks 1–4 at the json-parse site
+test("spec 080 US3: look-alikes before and after the focused-file answer never win", async () => {
+  const stdout = `${lookalike(LOOKALIKE_080)}\n${evalAnswerLine(FOCUSED_080)}\n${lookalike(LOOKALIKE_080)}\n`;
+  const { spawnFn, recorded } = makeQueuedSpawn([{ stdout, exitCode: 0 }, SET_OK("status", "review")]);
+  const result = await executeWriteProperty(ACTIVE_080, deps(spawnFn));
+  expect(result).toEqual(ACTIVE_RESULT_080);
+  expect(recorded[1]!.argv).toContain("vault=FocusedVault");
+});
+
+test("spec 080 US3: a look-alike alone → json-parse failure with the raw output; nothing written", async () => {
+  const stdout = `${NO_ANSWER}${lookalike(LOOKALIKE_080)}`;
+  const { spawnFn, recorded } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  const err = (await captureRejection(executeWriteProperty(ACTIVE_080, deps(spawnFn)))) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", stdout });
+  expect(recorded).toHaveLength(1);
+});
+
+test("spec 080 US3: no answer → json-parse failure without stdoutTail", async () => {
+  const { spawnFn } = makeQueuedSpawn([{ stdout: NO_ANSWER, exitCode: 0 }]);
+  const err = (await captureRejection(executeWriteProperty(ACTIVE_080, deps(spawnFn)))) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", stdout: NO_ANSWER });
+});
+
+test("spec 080 US3: long output with no answer → json-parse failure carrying stdoutTail", async () => {
+  const { spawnFn } = makeQueuedSpawn([{ stdout: LONG_NO_ANSWER, exitCode: 0 }]);
+  const err = (await captureRejection(executeWriteProperty(ACTIVE_080, deps(spawnFn)))) as UpstreamError;
+  expect(err.details).toEqual({
+    stage: "json-parse",
+    stdout: LONG_NO_ANSWER.slice(0, 500),
+    stdoutTail: LONG_NO_ANSWER.slice(-500),
+  });
+});
+
+// US4 (T040)
+test("spec 080 US4: plugin output after the focused-file answer → normal write", async () => {
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: `${evalAnswerLine(FOCUSED_080)}${NOISE_AFTER}\n`, exitCode: 0 },
+    SET_OK("status", "review"),
+  ]);
+  const result = await executeWriteProperty(ACTIVE_080, deps(spawnFn));
+  expect(result).toEqual(ACTIVE_RESULT_080);
 });

@@ -9,7 +9,7 @@ import { executePatchHeading } from "./handler.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createLogger } from "../../logger.js";
-import { makeQueuedSpawn, type StubResponse } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, type StubResponse, TEST_EVAL_TAG } from "../_handler-test-fixtures.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -704,7 +704,7 @@ describe("US2 HEADING_RACE", () => {
 describe("US3 active mode", () => {
   test("focused file resolves; patch lands at the resolved path; envelope reflects display name", async () => {
     const focusedResp: StubResponse = {
-      stdout: `=> {"path":"Daily Notes/today.md","base":${JSON.stringify(VAULT_ROOT)}}\n`,
+      stdout: `=> ${TEST_EVAL_TAG}{"path":"Daily Notes/today.md","base":${JSON.stringify(VAULT_ROOT)}}\n`,
       exitCode: 0,
     };
     const fs = fakeFs();
@@ -725,7 +725,7 @@ describe("US3 active mode", () => {
   test("envelope falls back to basePath when reverse-lookup returns null", async () => {
     const FALLBACK_ROOT = resolve("/unknown-vault-root");
     const focusedResp: StubResponse = {
-      stdout: `=> {"path":"today.md","base":${JSON.stringify(FALLBACK_ROOT)}}\n`,
+      stdout: `=> ${TEST_EVAL_TAG}{"path":"today.md","base":${JSON.stringify(FALLBACK_ROOT)}}\n`,
       exitCode: 0,
     };
     const enoent = (): NodeJS.ErrnoException => {
@@ -758,7 +758,7 @@ describe("US3 active mode", () => {
   test("metadata refresh runs in the open vault: no vault= on its argv, never the folder path (068 FR-002 / R13)", async () => {
     const FALLBACK_ROOT = resolve("/unknown-vault-root");
     const focusedResp: StubResponse = {
-      stdout: `=> {"path":"today.md","base":${JSON.stringify(FALLBACK_ROOT)}}\n`,
+      stdout: `=> ${TEST_EVAL_TAG}{"path":"today.md","base":${JSON.stringify(FALLBACK_ROOT)}}\n`,
       exitCode: 0,
     };
     const fs = fakeFs({ content: "# Top\n## A\nbody\n" }, { realpath: vi.fn(async (p: string) => p) });
@@ -775,7 +775,7 @@ describe("US3 active mode", () => {
 
   test("no focused file (path: null) → ERR_NO_ACTIVE_FILE, no fs touched", async () => {
     const focusedResp: StubResponse = {
-      stdout: `=> {"path":null,"base":${JSON.stringify(VAULT_ROOT)}}\n`,
+      stdout: `=> ${TEST_EVAL_TAG}{"path":null,"base":${JSON.stringify(VAULT_ROOT)}}\n`,
       exitCode: 0,
     };
     const fs = fakeFs();
@@ -796,7 +796,7 @@ describe("US3 active mode", () => {
   });
 
   test("invalid JSON in eval response → CLI_REPORTED_ERROR + stage='json-parse'", async () => {
-    const focusedResp: StubResponse = { stdout: "=> not valid json\n", exitCode: 0 };
+    const focusedResp: StubResponse = { stdout: `=> ${TEST_EVAL_TAG}not valid json\n`, exitCode: 0 };
     const fs = fakeFs();
     const { spawnFn } = makeQueuedSpawn([focusedResp]);
     const err = await executePatchHeading(
@@ -813,7 +813,7 @@ describe("US3 active mode", () => {
   });
 
   test("unexpected envelope shape → CLI_REPORTED_ERROR + stage='envelope-parse'", async () => {
-    const focusedResp: StubResponse = { stdout: `=> {"unexpected":"shape"}\n`, exitCode: 0 };
+    const focusedResp: StubResponse = { stdout: `=> ${TEST_EVAL_TAG}{"unexpected":"shape"}\n`, exitCode: 0 };
     const fs = fakeFs();
     const { spawnFn } = makeQueuedSpawn([focusedResp]);
     const err = await executePatchHeading(

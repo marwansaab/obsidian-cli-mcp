@@ -23,6 +23,8 @@ Spec 078-refuse-oversized-text.
 
 Spec 079-clarify-heading-paths.
 
+Spec 080-tolerate-plugin-noise (BI-0135).
+
 ### Added
 
 - **`write_note` reports `bytes_written`**, with the same meaning, counting a new note's old size as 0. If the existing note's size cannot be read before an overwrite, the call fails with `FS_WRITE_FAILED` before anything is written. Its `details` shape is unchanged; `details.syscall` now reads `"stat"` where the old existence probe reported `"realpath"`.
@@ -39,6 +41,9 @@ Spec 079-clarify-heading-paths.
 - **`bytes_written` means the size change on every single-note text writer** (`append_note`, `prepend`, `patch_heading`, `patch_block`, `write_note`). `patch_heading` and `patch_block` now report the note's size after the edit minus its size before, instead of its total size; the value is 0 for a same-size edit and negative when the note shrinks. *Migration*: a check that compared `bytes_written` with the note's total size should compare it with the intended size change instead, or read the note to get its size. `append_note` and `prepend` are unchanged.
 - **`prepend` refuses content over 3072 UTF-8 bytes** (spec 078). Content within the 3072-character limit but over 3072 bytes, typically non-Latin text (1,024 CJK characters or 768 emoji reach it), is refused before Obsidian is called with `VALIDATION_ERROR`, `details.code: CONTENT_TOO_LARGE`, `details.reason: "bytes"`, `contentBytes` and `maxBytes`, instead of reaching the Obsidian CLI defect that crashes Obsidian. The character-limit error is unchanged and still has no `reason`. Some non-Latin calls between 3072 bytes and about 4 KB that succeeded before are now refused; use `write_note` for them.
 - **`read_heading` and `patch_heading` document the heading-path rule.** Their descriptions, parameter descriptions and reference pages now state that a path starts at the note's level-1 heading and names one heading per level. They list the sections no path can reach (no level-1 heading, a skipped level, a level-1 section by itself) with the whole-note alternative, and name the most common cause of `HEADING_NOT_FOUND`. Behaviour, error codes and messages are unchanged.
+- **Typed in-Obsidian queries carry a per-call answer tag** (spec 080, internal). The server wraps the code of every `eval` it sends for a typed tool so the printed answer starts with a random per-call tag, and reads only the line carrying that tag. Templates, tool descriptions and schemas are unchanged; `obsidian_exec` code is sent as given.
+- **Long parse failures add `details.stdoutTail`** (spec 080). Where an in-Obsidian query's parse failure keeps the first 500 characters of the output in `details.stdout`, an output longer than that also carries its last 500 characters in `details.stdoutTail`. `details.stdout`, codes, stages and messages are unchanged.
+- **`obsidian_exec` with `eval` recognises Obsidian's errors behind plugin lines** (spec 080, the ADR-029 amendment of 2026-11-01). An output with plugin lines, then an `Error:` line, and no `=> ` answer line now returns `CLI_REPORTED_ERROR` (or `ERR_NO_ACTIVE_FILE`, or the single cold-start retry) where it used to return a verbatim success. Its success output is unchanged.
 
 ### Deprecated
 
@@ -54,6 +59,8 @@ Spec 079-clarify-heading-paths.
 - **`read` now returns a file's exact text.** It no longer adds a final line break to a file that does not end with one, and it keeps a leading byte-order mark that the Obsidian CLI drops. A failed confirmation read reports `FS_WRITE_FAILED` with `reason: "read"`.
 - **`prepend` on an empty note, or a note with only a properties block, no longer adds a trailing line break** (spec 076). The note ends with exactly the supplied content, and `bytes_written` equals the content's size in bytes. If removing the extra line break fails, the call reports `FS_WRITE_FAILED` with the new `reason: "extra-trailing-newline"`.
 - **`prepend` on a missing note now reports `CLI_REPORTED_ERROR` with `details.code: NOTE_NOT_FOUND`**, `details.path`, `details.vault` and the message `Note "<path>" not found in vault.`, the same as `append_note` in specific mode (spec 077; in active mode `prepend` echoes the focused vault's name, `append_note` echoes `null`). Previously it returned a generic upstream error with `details.stage: "prepend-cli"`. A note missing on disk is now reported before Obsidian is called.
+- **In-Obsidian query tools no longer report a parse failure when plugins print to the output** (spec 080). Lines a plugin prints before or after the answer, including text that looks like an answer, are ignored: `read_heading`, `pattern_search`, `find_by_property`, `smart_connections_similar`, `smart_connections_query`, `paths`, `tag`, `links`, `backlinks`, `open_file`, `get_active_file`, `views_base`, `find_and_replace`, `query_base`, `set_property` and the active-mode lookups of the file tools return their normal result. Output with no answer still fails with the same code and stage, and a look-alike alone is never taken as the answer.
+- **A cold start behind plugin start-up lines gets its single retry** (spec 080). When plugins print before Obsidian's `Error: Command "eval" not found.` line, the automatic retry now runs; `Error: No active file.` behind plugin lines maps to `ERR_NO_ACTIVE_FILE`. Non-eval commands are classified as before.
 
 ## [0.9.0] - 2026-10-30
 

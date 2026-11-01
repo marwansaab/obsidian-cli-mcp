@@ -13,7 +13,7 @@ import {
 import { readHeadingInputSchema } from "./schema.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger, TEST_EVAL_TAG, EVAL_NONCE_SEAM } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -24,7 +24,7 @@ describe("createReadHeadingTool — descriptor", () => {
   it("publishes name = 'read_heading'", () => {
     const tool = createReadHeadingTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn: makeStubSpawn(),
     });
     expect(tool.descriptor.name).toBe(READ_HEADING_TOOL_NAME);
@@ -36,7 +36,7 @@ describe("createReadHeadingTool — descriptor", () => {
   it("description surfaces the heading-path requirement", () => {
     const tool = createReadHeadingTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn: makeStubSpawn(),
     });
     const desc = tool.descriptor.description;
@@ -56,7 +56,7 @@ describe("createReadHeadingTool — handler integration via registerTool", () =>
     };
     const tool = createReadHeadingTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn: spawnSpy,
     });
     const result = (await tool.handler({ target_mode: "active", heading: "single-segment" })) as {
@@ -77,11 +77,11 @@ describe("createReadHeadingTool — handler integration via registerTool", () =>
   // returns a JSON success envelope. Reuses handler.test.ts's ok envelope stdout.
   it("VALID input drives the handler closure to a success envelope", async () => {
     const { spawnFn } = makeQueuedSpawn([
-      { stdout: '=> {"ok":true,"content":"body."}\n', exitCode: 0 },
+      { stdout: `=> ${TEST_EVAL_TAG}{"ok":true,"content":"body."}\n`, exitCode: 0 },
     ]);
     const tool = createReadHeadingTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       spawnFn,
     });
     const result = (await tool.handler({ target_mode: "active", heading: "A::B" })) as {

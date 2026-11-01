@@ -6,10 +6,22 @@ import { findByPropertyInputSchema } from "./schema.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn, silentLogger, captureRejection } from "../_handler-test-fixtures.js";
+import {
+  captureRejection,
+  EVAL_NONCE_SEAM,
+  evalAnswerLine,
+  LONG_NO_ANSWER,
+  lookalike,
+  makeQueuedSpawn,
+  NO_ANSWER,
+  NOISE_AFTER,
+  NOISE_BEFORE,
+  silentLogger,
+  TEST_EVAL_TAG,
+} from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
-  return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
+  return { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} };
 }
 
 function decodePayload(argv: string[]): unknown {
@@ -26,7 +38,7 @@ afterEach(() => __resetInFlightRegistryForTests());
 // (1) US1 AC#1 — scalar string happy path
 test("scalar string happy-path: { count: 1, paths: ['backlog/BI-030.md'] } (US1 AC#1)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"count":1,"paths":["backlog/BI-030.md"]}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"count":1,"paths":["backlog/BI-030.md"]}\n`, exitCode: 0 },
   ]);
   const result = await executeFindByProperty(
     { vault: "Demo", name: "id", value: "BI-030", array_match: true, case_sensitive: true },
@@ -50,7 +62,7 @@ test("scalar string happy-path: { count: 1, paths: ['backlog/BI-030.md'] } (US1 
 // (2) US1 AC#4 — type-faithful number
 test("type-faithful number value: payload encodes 7 as JSON number (US1 AC#4)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"count":1,"paths":["x.md"]}\n`, exitCode: 0 },
   ]);
   await executeFindByProperty(
     { vault: "Demo", name: "count", value: 7, array_match: true, case_sensitive: true },
@@ -64,7 +76,7 @@ test("type-faithful number value: payload encodes 7 as JSON number (US1 AC#4)", 
 // (3) US1 AC#5 — type-faithful boolean
 test("type-faithful boolean value: payload encodes true as JSON boolean (US1 AC#5)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"count":1,"paths":["x.md"]}\n`, exitCode: 0 },
   ]);
   await executeFindByProperty(
     { vault: "Demo", name: "archived", value: true, array_match: true, case_sensitive: true },
@@ -77,7 +89,7 @@ test("type-faithful boolean value: payload encodes true as JSON boolean (US1 AC#
 // (4) FR-014 — explicit-null query
 test("explicit-null query: payload encodes null as JSON null (FR-014)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"count":2,"paths":["a.md","b.md"]}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"count":2,"paths":["a.md","b.md"]}\n`, exitCode: 0 },
   ]);
   const result = await executeFindByProperty(
     { vault: "Demo", name: "explicit_null", value: null, array_match: true, case_sensitive: true },
@@ -91,7 +103,7 @@ test("explicit-null query: payload encodes null as JSON null (FR-014)", async ()
 // (5) US1 AC#3 — no-match returns {count:0, paths:[]}, no error
 test("no-match: returns { count: 0, paths: [] } without error (US1 AC#3)", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: '=> {"count":0,"paths":[]}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"count":0,"paths":[]}\n`, exitCode: 0 },
   ]);
   const result = await executeFindByProperty(
     { vault: "Demo", name: "id", value: "missing", array_match: true, case_sensitive: true },
@@ -103,7 +115,7 @@ test("no-match: returns { count: 0, paths: [] } without error (US1 AC#3)", async
 // (6) US1 AC#2 — multi-match
 test("multi-match: count and paths.length agree (US1 AC#2)", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: '=> {"count":3,"paths":["a.md","b.md","c.md"]}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"count":3,"paths":["a.md","b.md","c.md"]}\n`, exitCode: 0 },
   ]);
   const result = await executeFindByProperty(
     { vault: "Demo", name: "status", value: "queued", array_match: true, case_sensitive: true },
@@ -116,7 +128,7 @@ test("multi-match: count and paths.length agree (US1 AC#2)", async () => {
 // (7) US2 AC#1 — folder-narrow happy-path
 test("folder-narrow: payload carries folder='backlog' (US2 AC#1)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"count":1,"paths":["backlog/BI-030.md"]}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"count":1,"paths":["backlog/BI-030.md"]}\n`, exitCode: 0 },
   ]);
   await executeFindByProperty(
     { vault: "Demo", name: "id", value: "BI-030", folder: "backlog", array_match: true, case_sensitive: true },
@@ -129,7 +141,7 @@ test("folder-narrow: payload carries folder='backlog' (US2 AC#1)", async () => {
 // (8) US2 AC#2 — folder-exclude returns no-match
 test("folder-exclude: payload carries folder='archive' AND no-match envelope (US2 AC#2)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"count":0,"paths":[]}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"count":0,"paths":[]}\n`, exitCode: 0 },
   ]);
   const result = await executeFindByProperty(
     { vault: "Demo", name: "id", value: "BI-030", folder: "archive", array_match: true, case_sensitive: true },
@@ -143,7 +155,7 @@ test("folder-exclude: payload carries folder='archive' AND no-match envelope (US
 // (9) US3 AC#1 — array_match: true (default) — payload check
 test("array_match: true defaulted in payload (US3 AC#1)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"count":1,"paths":["x.md"]}\n`, exitCode: 0 },
   ]);
   await executeFindByProperty(
     { vault: "Demo", name: "tags", value: "alpha", array_match: true, case_sensitive: true },
@@ -157,7 +169,7 @@ test("array_match: true defaulted in payload (US3 AC#1)", async () => {
 // (10) US3 AC#3 — array_match: false with array value — payload check
 test("array_match: false with array value: payload preserves array exactly (US3 AC#3)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"count":1,"paths":["x.md"]}\n`, exitCode: 0 },
   ]);
   await executeFindByProperty(
     { vault: "Demo", name: "tags", value: ["alpha", "beta"], array_match: false, case_sensitive: true },
@@ -171,7 +183,7 @@ test("array_match: false with array value: payload preserves array exactly (US3 
 // (11) US4 AC#2 — case_sensitive: false — payload check
 test("case_sensitive: false propagates into payload (US4 AC#2)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"count":1,"paths":["x.md"]}\n`, exitCode: 0 },
   ]);
   await executeFindByProperty(
     { vault: "Demo", name: "tag", value: "alpha", array_match: true, case_sensitive: false },
@@ -184,7 +196,7 @@ test("case_sensitive: false propagates into payload (US4 AC#2)", async () => {
 // (12) FR-003 — vault omitted → no vault= in argv (active-mode mapping)
 test("vault omitted: argv has no vault= prefix (R4 active-mode mapping, FR-003)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"count":1,"paths":["x.md"]}\n`, exitCode: 0 },
   ]);
   await executeFindByProperty(
     { name: "id", value: "BI-030", array_match: true, case_sensitive: true },
@@ -205,7 +217,7 @@ test("vault omitted: argv has no vault= prefix (R4 active-mode mapping, FR-003)"
 // (13) FR-003 — vault supplied → vault= in argv (specific-mode mapping)
 test("vault supplied: argv[0] starts with vault= (R4 specific-mode mapping)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"count":0,"paths":[]}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"count":0,"paths":[]}\n`, exitCode: 0 },
   ]);
   await executeFindByProperty(
     { vault: "MyVault", name: "id", value: "x", array_match: true, case_sensitive: true },
@@ -276,22 +288,24 @@ test("dispatch kill (output cap) → CLI_NON_ZERO_EXIT (FR-012, FR-019)", async 
   expect(err.code).toBe("CLI_NON_ZERO_EXIT");
 });
 
-// (18) Tolerant parse — eval response without `=> ` prefix parses anyway
-test("eval response without '=> ' prefix parses as bare JSON", async () => {
-  const { spawnFn } = makeQueuedSpawn([
-    { stdout: '{"count":1,"paths":["x.md"]}\n', exitCode: 0 },
-  ]);
-  const result = await executeFindByProperty(
-    { vault: "Demo", name: "id", value: "x", array_match: true, case_sensitive: true },
-    deps(spawnFn),
-  );
-  expect(result).toEqual({ count: 1, paths: ["x.md"] });
+// (18) Spec 080: bare JSON with no tagged answer line is not this call's answer (contract §1 A14)
+test("eval response without a `=> ` answer line → json-parse failure with the full raw output", async () => {
+  const stdout = '{"count":1,"paths":["x.md"]}\n';
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  const err = (await captureRejection(
+    executeFindByProperty(
+      { vault: "Demo", name: "id", value: "x", array_match: true, case_sensitive: true },
+      deps(spawnFn),
+    ),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stdout, stage: "json-parse" });
 });
 
 // (19) Malformed JSON → CLI_REPORTED_ERROR with stage='json-parse'
 test("malformed JSON eval response → CLI_REPORTED_ERROR (stage: json-parse)", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: "=> not-valid-json\n", exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}not-valid-json\n`, exitCode: 0 },
   ]);
   const err = (await captureRejection(
     executeFindByProperty(
@@ -306,7 +320,7 @@ test("malformed JSON eval response → CLI_REPORTED_ERROR (stage: json-parse)", 
 // (20) Schema-violating shape → CLI_REPORTED_ERROR with stage='schema-parse'
 test("eval response shape violates output schema → CLI_REPORTED_ERROR (stage: schema-parse)", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: '=> {"wrong":"shape"}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"wrong":"shape"}\n`, exitCode: 0 },
   ]);
   const err = (await captureRejection(
     executeFindByProperty(
@@ -321,7 +335,7 @@ test("eval response shape violates output schema → CLI_REPORTED_ERROR (stage: 
 // (20b) count !== paths.length → CLI_REPORTED_ERROR with stage='count-paths-mismatch' (JS template invariant)
 test("count !== paths.length → CLI_REPORTED_ERROR (stage: count-paths-mismatch)", async () => {
   const { spawnFn } = makeQueuedSpawn([
-    { stdout: '=> {"count":2,"paths":["a.md"]}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"count":2,"paths":["a.md"]}\n`, exitCode: 0 },
   ]);
   const err = (await captureRejection(
     executeFindByProperty(
@@ -339,7 +353,7 @@ test("count !== paths.length → CLI_REPORTED_ERROR (stage: count-paths-mismatch
 test("anti-injection (R6): hostile value survives base64 round-trip exactly (SC-017)", async () => {
   const hostile = "'; alert(1); //";
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"count":0,"paths":[]}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"count":0,"paths":[]}\n`, exitCode: 0 },
   ]);
   await executeFindByProperty(
     { vault: "Demo", name: "key", value: hostile, array_match: true, case_sensitive: true },
@@ -358,7 +372,7 @@ test("anti-injection (R6): hostile value survives base64 round-trip exactly (SC-
 test("anti-injection (R6): hostile property survives base64 round-trip exactly", async () => {
   const hostile = "name'; drop";
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"count":0,"paths":[]}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"count":0,"paths":[]}\n`, exitCode: 0 },
   ]);
   await executeFindByProperty(
     { vault: "Demo", name: hostile, value: "x", array_match: true, case_sensitive: true },
@@ -372,7 +386,7 @@ test("anti-injection (R6): hostile property survives base64 round-trip exactly",
 test("BI-034 US3 (a): em-dash + accented value round-trips through base64 (FR-009)", async () => {
   const value = "café — naïve";
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"count":1,"paths":["Fixtures/BI-038/tc-mojibake-fbp.md"]}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"count":1,"paths":["Fixtures/BI-038/tc-mojibake-fbp.md"]}\n`, exitCode: 0 },
   ]);
   const result = await executeFindByProperty(
     { vault: "Demo", name: "unicode_marker", value, array_match: true, case_sensitive: true },
@@ -387,7 +401,7 @@ test("BI-034 US3 (a): em-dash + accented value round-trips through base64 (FR-00
 test("BI-034 US3 (b): CJK value round-trips through base64 (FR-009)", async () => {
   const value = "你好世界";
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"count":1,"paths":["x.md"]}\n`, exitCode: 0 },
   ]);
   await executeFindByProperty(
     { vault: "Demo", name: "marker", value, array_match: true, case_sensitive: true },
@@ -401,7 +415,7 @@ test("BI-034 US3 (b): CJK value round-trips through base64 (FR-009)", async () =
 test("BI-034 US3 (c): emoji value round-trips through base64 (FR-009)", async () => {
   const value = "🎉 launch";
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"count":1,"paths":["x.md"]}\n`, exitCode: 0 },
   ]);
   await executeFindByProperty(
     { vault: "Demo", name: "marker", value, array_match: true, case_sensitive: true },
@@ -415,7 +429,7 @@ test("BI-034 US3 (c): emoji value round-trips through base64 (FR-009)", async ()
 test("BI-034 US3 (d): interleaved ASCII + non-ASCII value preserved verbatim (FR-009)", async () => {
   const value = "Release v1.0 — résumé draft";
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"count":1,"paths":["x.md"]}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"count":1,"paths":["x.md"]}\n`, exitCode: 0 },
   ]);
   await executeFindByProperty(
     { vault: "Demo", name: "title", value, array_match: true, case_sensitive: true },
@@ -428,7 +442,7 @@ test("BI-034 US3 (d): interleaved ASCII + non-ASCII value preserved verbatim (FR
 // (BI-034 US3) Selectivity — non-ASCII value differs from ASCII fallback
 test("BI-034 US3 (e): selectivity — non-ASCII value payload distinct from ASCII variant (FR-009)", async () => {
   const { spawnFn: spawnA, recorded: recordedA } = makeQueuedSpawn([
-    { stdout: '=> {"count":1,"paths":["café-note.md"]}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"count":1,"paths":["café-note.md"]}\n`, exitCode: 0 },
   ]);
   await executeFindByProperty(
     { vault: "Demo", name: "marker", value: "café", array_match: true, case_sensitive: true },
@@ -438,7 +452,7 @@ test("BI-034 US3 (e): selectivity — non-ASCII value payload distinct from ASCI
   expect(payloadA.value).toBe("café");
 
   const { spawnFn: spawnB, recorded: recordedB } = makeQueuedSpawn([
-    { stdout: '=> {"count":1,"paths":["cafe-note.md"]}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"count":1,"paths":["cafe-note.md"]}\n`, exitCode: 0 },
   ]);
   await executeFindByProperty(
     { vault: "Demo", name: "marker", value: "cafe", array_match: true, case_sensitive: true },
@@ -452,7 +466,7 @@ test("BI-034 US3 (e): selectivity — non-ASCII value payload distinct from ASCI
 // (23) FR-023 — hierarchical-tag rollup not performed (wrapper-side non-transformation lock)
 test("FR-023: wrapper does not transform value 'work' to a rollup query", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"count":0,"paths":[]}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"count":0,"paths":[]}\n`, exitCode: 0 },
   ]);
   const result = await executeFindByProperty(
     { vault: "Demo", name: "tags", value: "work", array_match: true, case_sensitive: true },
@@ -467,7 +481,7 @@ test("FR-023: wrapper does not transform value 'work' to a rollup query", async 
 // (24) FR-024 — list-of-mappings query yields no-match envelope (no defensive type check at handler)
 test("FR-024: scalar query against list-of-mappings property surfaces as no-match", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: '=> {"count":0,"paths":[]}\n', exitCode: 0 },
+    { stdout: `=> ${TEST_EVAL_TAG}{"count":0,"paths":[]}\n`, exitCode: 0 },
   ]);
   const result = await executeFindByProperty(
     { vault: "Demo", name: "entries", value: "x", array_match: true, case_sensitive: true },
@@ -487,10 +501,67 @@ test("spec 073: name / array_match / case_sensitive (new or deprecated names) re
     { vault: "Demo", name: "tags", value: ["a", "b"], folder: "Projects", array_match: false, case_sensitive: false },
     { vault: "Demo", property: "tags", value: ["a", "b"], folder: "Projects", arrayMatch: false, caseSensitive: false },
   ]) {
-    const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: '=> {"count":0,"paths":[]}\n', exitCode: 0 }]);
+    const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: `=> ${TEST_EVAL_TAG}{"count":0,"paths":[]}\n`, exitCode: 0 }]);
     await executeFindByProperty(findByPropertyInputSchema.parse(raw), deps(spawnFn));
     expect(decodePayload(recorded[0]!.argv)).toEqual(expected);
     argvs.push(recorded[0]!.argv);
   }
   expect(argvs[1]).toEqual(argvs[0]);
+});
+
+// =====================================================================
+// Spec 080 — plugin output around the tagged answer. find_by_property has no ok:false
+// envelope, so US1 has no envelope-error case; it attaches the full raw output on a parse
+// failure, so it never carries stdoutTail (contract §3).
+// =====================================================================
+
+const FBP_INPUT = { vault: "Demo", name: "id", value: "BI-030", array_match: true, case_sensitive: true };
+const FBP_REAL = '{"count":1,"paths":["backlog/BI-030.md"]}';
+const FBP_FAKE = '{"count":1,"paths":["elsewhere/fake.md"]}';
+
+async function fbpRun(stdout: string) {
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  return executeFindByProperty(FBP_INPUT, deps(spawnFn));
+}
+
+async function fbpFail(stdout: string): Promise<UpstreamError> {
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  return (await captureRejection(executeFindByProperty(FBP_INPUT, deps(spawnFn)))) as UpstreamError;
+}
+
+test("spec 080 US1: plugin lines before the tagged answer → normal result", async () => {
+  expect(await fbpRun(`${NOISE_BEFORE}${evalAnswerLine(FBP_REAL)}\n`)).toEqual({
+    count: 1,
+    paths: ["backlog/BI-030.md"],
+  });
+});
+
+test("spec 080 US3: look-alikes before and after the tagged answer never win", async () => {
+  const stdout = `${lookalike(FBP_FAKE)}\n${evalAnswerLine(FBP_REAL)}\n${lookalike(FBP_FAKE)}`;
+  expect(await fbpRun(stdout)).toEqual({ count: 1, paths: ["backlog/BI-030.md"] });
+});
+
+test("spec 080 US3: a look-alike alone → json-parse failure with the full raw output", async () => {
+  const stdout = NO_ANSWER + lookalike(FBP_FAKE);
+  const err = await fbpFail(stdout);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stdout, stage: "json-parse" });
+});
+
+test("spec 080 US3: no answer → json-parse failure without stdoutTail", async () => {
+  const err = await fbpFail(NO_ANSWER);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stdout: NO_ANSWER, stage: "json-parse" });
+});
+
+test("spec 080 US3: long output with no answer → the full stdout, still no stdoutTail", async () => {
+  const err = await fbpFail(LONG_NO_ANSWER);
+  expect(err.details).toEqual({ stdout: LONG_NO_ANSWER, stage: "json-parse" });
+});
+
+test("spec 080 US4: plugin output after the tagged answer → normal result", async () => {
+  expect(await fbpRun(`${evalAnswerLine(FBP_REAL)}${NOISE_AFTER}\n`)).toEqual({
+    count: 1,
+    paths: ["backlog/BI-030.md"],
+  });
 });

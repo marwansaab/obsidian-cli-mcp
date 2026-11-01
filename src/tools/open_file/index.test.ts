@@ -16,7 +16,7 @@ import {
   createOpenFileTool,
 } from "./index.js";
 import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger, TEST_EVAL_TAG, EVAL_NONCE_SEAM } from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -29,7 +29,7 @@ function fakeRegistry(): VaultRegistry {
 function makeTool() {
   return createOpenFileTool({
     logger: silentLogger(),
-    queue: createQueue(),
+    queue: createQueue(), ...EVAL_NONCE_SEAM,
     vaultRegistry: fakeRegistry(),
   });
 }
@@ -91,11 +91,11 @@ describe("createOpenFileTool — schema-layer rejections route through the regis
   it("tool.handler runs the executeOpenFile closure on VALID input and returns a content envelope", async () => {
     const envelope = { ok: true, opened: "Projects/Roadmap.md", new_tab: false, placement: "active_tab_used" };
     const { spawnFn } = makeQueuedSpawn([
-      { stdout: `=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+      { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(envelope)}\n`, exitCode: 0 },
     ]);
     const tool = createOpenFileTool({
       logger: silentLogger(),
-      queue: createQueue(),
+      queue: createQueue(), ...EVAL_NONCE_SEAM,
       vaultRegistry: { resolveVaultPath: async () => "/vaults/Work" },
       spawnFn,
     });

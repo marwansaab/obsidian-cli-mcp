@@ -5,19 +5,12 @@ import { executeRenameNote } from "./handler.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import {
-  captureRejection,
-  fileTsvResponse,
-  focusedFileResponse,
-  makeQueuedSpawn,
-  makeStubSpawn,
-  silentLogger,
-} from "../_handler-test-fixtures.js";
+import { captureRejection, fileTsvResponse, focusedFileResponse, makeQueuedSpawn, makeStubSpawn, silentLogger, EVAL_NONCE_SEAM } from "../_handler-test-fixtures.js";
 
 import type { SpawnLike } from "../../cli-adapter/_dispatch.js";
 
 function deps(spawnFn: SpawnLike) {
-  return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
+  return { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} };
 }
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -35,7 +28,7 @@ test("specific+path+name='Fixed' → argv has name=Fixed.md, fromPath/toPath ext
   });
   const result = await executeRenameNote(
     { target_mode: "specific", vault: "MyVault", path: "Inbox/Typo.md", name: "Fixed" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} },
   );
   expect(result).toEqual({
     renamed: true,
@@ -58,7 +51,7 @@ test("appendMdIfMissing baseline: name='Fixed' produces argv token 'name=Fixed.m
   });
   await executeRenameNote(
     { target_mode: "specific", vault: "V", path: "Inbox/Old.md", name: "Fixed" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} },
   );
   expect(recorded[0]!.argv).toContain("name=Fixed.md");
 });
@@ -71,7 +64,7 @@ test("parseRenameResponse against F2 pattern → byte-perfect fromPath/toPath", 
   });
   const result = await executeRenameNote(
     { target_mode: "specific", vault: "V", path: "Inbox/Has Space.md", name: "New Name" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} },
   );
   expect(result.fromPath).toBe("Inbox/Has Space.md");
   expect(result.toPath).toBe("Inbox/New Name.md");
@@ -85,7 +78,7 @@ test("R9 single-spawn invariant: specific+path → spawnFn.callCount === 1", asy
   });
   await executeRenameNote(
     { target_mode: "specific", vault: "V", path: "Inbox/Old.md", name: "Fixed" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} },
   );
   expect(recorded).toHaveLength(1);
 });
@@ -98,7 +91,7 @@ test("specific+path: argv has 'vault=V' as discrete token (PSR-3 vault hoist)", 
   });
   await executeRenameNote(
     { target_mode: "specific", vault: "V", path: "P.md", name: "Q" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} },
   );
   // vault=V appears BEFORE 'rename' in the dispatch argv order
   expect(recorded[0]!.argv[0]).toBe("vault=V");
@@ -117,7 +110,7 @@ test("specific+file+name → argv has file= and no path= (Story 2 IT)", async ()
   ]);
   const result = await executeRenameNote(
     { target_mode: "specific", vault: "V", file: "QuickNote", name: "Quick Note" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} },
   );
   expect(result).toEqual({
     renamed: true,
@@ -138,7 +131,7 @@ test("specific+file+UTF-8 name: byte-perfect tokens (no transcoding/normalisatio
   ]);
   await executeRenameNote(
     { target_mode: "specific", vault: "V", file: "笔记", name: "日記" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} },
   );
   expect(recorded[1]!.argv).toContain("file=笔记");
   expect(recorded[1]!.argv).toContain("name=日記.md");
@@ -157,7 +150,7 @@ test("active+name → focused-file eval, then 'rename path=<focused> name=Today.
   ]);
   const result = await executeRenameNote(
     { target_mode: "active", name: "Today" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} },
   );
   expect(result).toEqual({
     renamed: true,
@@ -177,7 +170,7 @@ test("active mode no-active-file → ERR_NO_ACTIVE_FILE propagates (Story 5 AC#3
   const err = (await captureRejection(
     executeRenameNote(
       { target_mode: "active", name: "Today" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} },
     ),
   )) as UpstreamError;
   expect(err).toBeInstanceOf(UpstreamError);
@@ -198,7 +191,7 @@ test("source-not-found → CLI_REPORTED_ERROR with F6 verbatim wording (Story 4 
   const err = (await captureRejection(
     executeRenameNote(
       { target_mode: "specific", vault: "V", path: "Sandbox/Missing.md", name: "Anything" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} },
     ),
   )) as UpstreamError;
   expect(err.code).toBe("CLI_REPORTED_ERROR");
@@ -214,7 +207,7 @@ test("destination-collision → CLI_REPORTED_ERROR with F7 verbatim wording (Sto
   const err = (await captureRejection(
     executeRenameNote(
       { target_mode: "specific", vault: "V", path: "Sandbox/a.md", name: "b" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} },
     ),
   )) as UpstreamError;
   expect(err.code).toBe("CLI_REPORTED_ERROR");
@@ -232,7 +225,7 @@ test("ENOENT on spawn → CLI_BINARY_NOT_FOUND (Story 7 AC#1)", async () => {
   const err = (await captureRejection(
     executeRenameNote(
       { target_mode: "specific", vault: "V", path: "P.md", name: "Q" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} },
     ),
   )) as UpstreamError;
   expect(err).toBeInstanceOf(UpstreamError);
@@ -245,7 +238,7 @@ test("non-zero exit + stderr → CLI_NON_ZERO_EXIT (Story 7 AC#2)", async () => 
   const err = (await captureRejection(
     executeRenameNote(
       { target_mode: "specific", vault: "V", path: "P.md", name: "Q" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} },
     ),
   )) as UpstreamError;
   expect(err.code).toBe("CLI_NON_ZERO_EXIT");
@@ -262,7 +255,7 @@ test("exit-0 stdout 'Error: <msg>' → CLI_REPORTED_ERROR (Story 7 AC#3)", async
   const err = (await captureRejection(
     executeRenameNote(
       { target_mode: "specific", vault: "V", path: "P.md", name: "Q" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} },
     ),
   )) as UpstreamError;
   expect(err.code).toBe("CLI_REPORTED_ERROR");
@@ -278,7 +271,7 @@ test("unknown-vault stdout 'Vault not found.' → CLI_REPORTED_ERROR (011-R5 inh
   const err = (await captureRejection(
     executeRenameNote(
       { target_mode: "specific", vault: "DoesNotExist", path: "P.md", name: "Q" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} },
     ),
   )) as UpstreamError;
   expect(err.code).toBe("CLI_REPORTED_ERROR");
@@ -292,7 +285,7 @@ test("non-UpstreamError exception is re-thrown verbatim (Story 7 AC#4)", async (
   const rejection = await captureRejection(
     executeRenameNote(
       { target_mode: "specific", vault: "V", path: "P.md", name: "Q" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} },
     ),
   );
   expect(rejection).toBe(synthetic);
@@ -308,7 +301,7 @@ test("parseRenameResponse failure: unparseable stdout → CLI_REPORTED_ERROR wit
   const err = (await captureRejection(
     executeRenameNote(
       { target_mode: "specific", vault: "V", path: "P.md", name: "Q" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} },
     ),
   )) as UpstreamError;
   expect(err).toBeInstanceOf(UpstreamError);
@@ -328,7 +321,7 @@ test("name='Fixed.md' → argv name=Fixed.md (no double-append) (Story 3 b2)", a
   });
   await executeRenameNote(
     { target_mode: "specific", vault: "V", path: "Inbox/Old.md", name: "Fixed.md" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} },
   );
   expect(recorded[0]!.argv).toContain("name=Fixed.md");
   expect(recorded[0]!.argv.some((t) => t === "name=Fixed.md.md")).toBe(false);
@@ -342,7 +335,7 @@ test("name='Renamed.MD' → argv name=Renamed.MD.md (case-sensitive .MD ≠ .md)
   });
   await executeRenameNote(
     { target_mode: "specific", vault: "V", path: "Old.md", name: "Renamed.MD" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} },
   );
   expect(recorded[0]!.argv).toContain("name=Renamed.MD.md");
 });
@@ -355,7 +348,7 @@ test("name='Doc.v1.draft' → argv name=Doc.v1.draft.md (internal periods preser
   });
   await executeRenameNote(
     { target_mode: "specific", vault: "V", path: "Old.md", name: "Doc.v1.draft" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} },
   );
   expect(recorded[0]!.argv).toContain("name=Doc.v1.draft.md");
 });
@@ -367,7 +360,7 @@ test("name='Sketch.canvas' on a note → UNSUPPORTED_FILE_TYPE / type-change, no
   const err = (await captureRejection(
     executeRenameNote(
       { target_mode: "specific", vault: "V", path: "Old.md", name: "Sketch.canvas" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} },
     ),
   )) as UpstreamError;
   expect(err.code).toBe("VALIDATION_ERROR");
@@ -387,7 +380,7 @@ test("same-name rename: response carries renamed:true AND fromPath===toPath (Sto
   });
   const result = await executeRenameNote(
     { target_mode: "specific", vault: "V", path: "Inbox/Note.md", name: "Note" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), ...EVAL_NONCE_SEAM, spawnFn, env: {} },
   );
   expect(result).toEqual({
     renamed: true,
