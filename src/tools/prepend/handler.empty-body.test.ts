@@ -3,7 +3,14 @@
 // check against append_note (FR-005). Shared fixtures live in _handler-fixtures.ts.
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
-import { deps, fakeFs, fakeRegistry, PREPEND_OK, VAULT_ROOT } from "./_handler-fixtures.js";
+import {
+  deps,
+  errnoError,
+  fakeFs,
+  fakeRegistry,
+  PREPEND_OK,
+  VAULT_ROOT,
+} from "./_handler-fixtures.js";
 import { executePrepend, type ExecuteFs } from "./handler.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
@@ -26,13 +33,6 @@ const PATH = "Sandbox/empty.md";
 const EVAL_OK: StubResponse = { stdout: "=> ok\n", exitCode: 0 };
 const PROPS = "---\nkey: v\n---\n";
 const PROPS_CRLF = "---\r\nkey: v\r\n---\r\n";
-
-function errnoError(code: string): NodeJS.ErrnoException {
-  const e = new Error(code) as NodeJS.ErrnoException;
-  e.code = code;
-  e.syscall = "open";
-  return e;
-}
 
 const bytes = (s: string): number => Buffer.byteLength(s, "utf8");
 
@@ -223,7 +223,8 @@ describe("spec 076 §4 — failures", () => {
       after: "",
       content: "first",
       sizes: [0, 0],
-      responses: [{ stdout: "Error: Note not found.\n", exitCode: 0 }],
+      // Obsidian's real missing-note line (spec 077 research F2), not a placeholder wording.
+      responses: [{ stdout: `Error: File "${PATH}" not found.\n`, exitCode: 0 }],
     });
     const err = (await captureRejection(promise)) as UpstreamError;
     expect(err.code).toBe("CLI_REPORTED_ERROR");

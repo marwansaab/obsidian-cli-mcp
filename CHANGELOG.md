@@ -47,7 +47,7 @@ Spec 077-fix-prepend-not-found.
 
 - **`read` now returns a file's exact text.** It no longer adds a final line break to a file that does not end with one, and it keeps a leading byte-order mark that the Obsidian CLI drops. A failed confirmation read reports `FS_WRITE_FAILED` with `reason: "read"`.
 - **`prepend` on an empty note, or a note with only a properties block, no longer adds a trailing line break** (spec 076). The note ends with exactly the supplied content, and `bytes_written` equals the content's size in bytes. If removing the extra line break fails, the call reports `FS_WRITE_FAILED` with the new `reason: "extra-trailing-newline"`.
-- **`prepend` on a missing note now reports `CLI_REPORTED_ERROR` with `details.code: NOTE_NOT_FOUND`**, `details.path`, `details.vault` and the message `Note "<path>" not found in vault.`, the same as `append_note` (spec 077). Previously it returned a generic upstream error with `details.stage: "prepend-cli"`. A note missing on disk is now reported before Obsidian is called.
+- **`prepend` on a missing note now reports `CLI_REPORTED_ERROR` with `details.code: NOTE_NOT_FOUND`**, `details.path`, `details.vault` and the message `Note "<path>" not found in vault.`, the same as `append_note` in specific mode (spec 077; in active mode `prepend` echoes the focused vault's name, `append_note` echoes `null`). Previously it returned a generic upstream error with `details.stage: "prepend-cli"`. A note missing on disk is now reported before Obsidian is called.
 
 ## [0.9.0] - 2026-10-30
 

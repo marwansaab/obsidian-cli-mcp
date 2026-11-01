@@ -8,7 +8,7 @@ import { UpstreamError } from "../../errors.js";
 import { assertSupportedFileType, type SupportDeclaration } from "../../file-type/file-type.js";
 import { assertCanonicalPath } from "../_active-file.js";
 import { resolveFsTarget } from "../_file-target.js";
-import { getErrno, mapFsWriteError } from "../_fs-errors.js";
+import { getErrno, mapFsWriteError, noteNotFound } from "../_fs-errors.js";
 import { invalidateMetadataCache, sizeChange, writeAtomic } from "../_note-io.js";
 
 import type { AppendNoteInput, AppendNoteOutput } from "./schema.js";
@@ -76,19 +76,7 @@ export async function executeAppendNote(
   try {
     existingContent = await fs.readFile(absPath, "utf8");
   } catch (e) {
-    const errno = getErrno(e) ?? "UNKNOWN";
-    if (errno === "ENOENT") {
-      throw new UpstreamError({
-        code: "CLI_REPORTED_ERROR",
-        cause: e,
-        details: {
-          code: "NOTE_NOT_FOUND",
-          path: relPath,
-          vault: input.vault ?? null,
-        },
-        message: `Note "${relPath}" not found in vault.`,
-      });
-    }
+    if (getErrno(e) === "ENOENT") throw noteNotFound(relPath, input.vault ?? null, e);
     throw mapWriteErr(e);
   }
 

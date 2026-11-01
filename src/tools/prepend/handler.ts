@@ -8,7 +8,7 @@ import { UpstreamError, stringDetail } from "../../errors.js";
 import { assertSupportedFileType, type SupportDeclaration } from "../../file-type/file-type.js";
 import { assertCanonicalPath } from "../_active-file.js";
 import { resolveFsTarget } from "../_file-target.js";
-import { getErrno } from "../_fs-errors.js";
+import { getErrno, noteNotFound } from "../_fs-errors.js";
 import { invalidateMetadataCache, writeAtomic } from "../_note-io.js";
 
 import type { PrependInput, PrependOutput } from "./schema.js";
@@ -80,20 +80,6 @@ function matchesAny(haystack: string, patterns: RegExp[]): boolean {
 function extractErrno(haystack: string): string | undefined {
   const m = haystack.match(/\b(EBUSY|EPERM|EACCES)\b/);
   return m ? m[1] : undefined;
-}
-
-/** Spec 077 — the missing-note failure, same shape as append_note's (FR-002 – FR-004). */
-function noteNotFound(
-  relPath: string,
-  vaultDisplayName: string | null,
-  cause: unknown,
-): UpstreamError {
-  return new UpstreamError({
-    code: "CLI_REPORTED_ERROR",
-    cause,
-    details: { code: "NOTE_NOT_FOUND", path: relPath, vault: vaultDisplayName },
-    message: `Note "${relPath}" not found in vault.`,
-  });
 }
 
 function classifyUpstreamFailure(

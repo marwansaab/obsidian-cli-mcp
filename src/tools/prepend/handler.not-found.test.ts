@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import {
   deps,
+  errnoError,
   fakeFs,
   fakeRegistry,
   FILE_TSV_OK,
@@ -32,10 +33,15 @@ afterEach(() => __resetInFlightRegistryForTests());
 const VAULT = "TestVault";
 const MISSING = "Sandbox/missing.md";
 
-function enoent(): NodeJS.ErrnoException {
-  const e = new Error("ENOENT: no such file or directory") as NodeJS.ErrnoException;
-  e.code = "ENOENT";
-  return e;
+/** A note that is not on disk: the pre-call stat throws `thrown`. */
+function missingNoteFs(thrown: Error = errnoError("ENOENT")): FakeFsHandle {
+  return fakeFs({
+    over: {
+      stat: async () => {
+        throw thrown;
+      },
+    },
+  });
 }
 
 /** Run prepend in specific mode against `fs`, answering spawns with `responses`. */
@@ -45,14 +51,14 @@ function runPrepend(opts: {
   responses: StubResponse[];
 }) {
   const queued = makeQueuedSpawn(opts.responses);
-  const input = {
+  const input: PrependInput = {
     target_mode: "specific",
     vault: VAULT,
     path: MISSING,
     content: "x",
     inline: false,
     ...opts.input,
-  } as PrependInput;
+  };
   const promise = executePrepend(
     input,
     deps({
@@ -84,14 +90,8 @@ describe("pre-call check (spec 077 FR-001a)", () => {
   ])(
     "%s — NOTE_NOT_FOUND, Obsidian not called, nothing read or written",
     async (_label, path, inline) => {
-      const thrown = enoent();
-      const fs = fakeFs({
-        over: {
-          stat: async () => {
-            throw thrown;
-          },
-        },
-      });
+      const thrown = errnoError("ENOENT");
+      const fs = missingNoteFs(thrown);
       const { queued, promise } = runPrepend({
         input: { path, inline },
         fs,
@@ -106,16 +106,10 @@ describe("pre-call check (spec 077 FR-001a)", () => {
   );
 
   test("E11: active mode, focused note gone — focused path and resolved vault name, only the eval spawned", async () => {
-    const fs = fakeFs({
-      over: {
-        stat: async () => {
-          throw enoent();
-        },
-      },
-    });
+    const fs = missingNoteFs();
     const queued = makeQueuedSpawn([focusedFileResponse("gone.md", VAULT_ROOT), PREPEND_OK]);
     const promise = executePrepend(
-      { target_mode: "active", content: "x", inline: false } as PrependInput,
+      { target_mode: "active", content: "x", inline: false },
       deps({ spawnFn: queued.spawnFn, vaultRegistry: fakeRegistry({ Knowledge: VAULT_ROOT }), fs }),
     );
     expectNoteNotFound(await captureRejection(promise), "gone.md", "Knowledge");
@@ -124,13 +118,7 @@ describe("pre-call check (spec 077 FR-001a)", () => {
   });
 
   test("file-addressed note that resolves but is missing — resolved path echoed, only the resolver spawned", async () => {
-    const fs = fakeFs({
-      over: {
-        stat: async () => {
-          throw enoent();
-        },
-      },
-    });
+    const fs = missingNoteFs();
     const { queued, promise } = runPrepend({
       input: { path: undefined, file: "ghost" },
       fs,
@@ -168,13 +156,7 @@ describe("parity with append_note (spec 077 FR-004)", () => {
   test.each([MISSING, "Sandbox/nofolder/missing.md"])(
     "%s: same code, details and message",
     async (path) => {
-      const fs = fakeFs({
-        over: {
-          stat: async () => {
-            throw enoent();
-          },
-        },
-      });
+      const fs = missingNoteFs();
       const prependErr = await captureRejection(
         runPrepend({ input: { path }, fs, responses: [PREPEND_OK] }).promise,
       );
@@ -182,10 +164,10 @@ describe("parity with append_note (spec 077 FR-004)", () => {
       const appendFs: AppendNoteFs = {
         realpath: async (p: string) => {
           if (p === VAULT_ROOT) return VAULT_ROOT;
-          throw enoent();
+          throw errnoError("ENOENT");
         },
         readFile: async () => {
-          throw enoent();
+          throw errnoError("ENOENT");
         },
         writeFile: async () => {},
         rename: async () => {},

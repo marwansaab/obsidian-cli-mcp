@@ -221,47 +221,10 @@ describe("US1 PATH_ESCAPES_VAULT", () => {
 // US1 EXTERNAL_EDITOR_CONFLICT (FR-022) — folded in
 // ─────────────────────────────────────────────────────────────────────
 
-describe("US1 pre-stat errno handling (FR-016 absent-target)", () => {
-  test("pre-stat ENOENT → NOTE_NOT_FOUND before Obsidian is called (spec 077 FR-001a)", async () => {
-    // Spec 077: a missing note fails at the pre-call stat, as append_note's pre-write read does.
-    let statIdx = 0;
-    const fs = fakeFs({
-      over: {
-        stat: vi.fn(async (_p: string) => {
-          statIdx += 1;
-          if (statIdx === 1) {
-            const e = new Error("ENOENT: no such file or directory") as NodeJS.ErrnoException;
-            e.code = "ENOENT";
-            throw e;
-          }
-          return { size: 42 };
-        }),
-      },
-    });
-    const { spawnFn, recorded } = makeQueuedSpawn([PREPEND_OK]);
-    const err = await executePrepend(
-      {
-        target_mode: "specific",
-        vault: "TestVault",
-        path: "Sandbox/new-note.md",
-        content: "Lead",
-        inline: false,
-      },
-      deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
-    ).catch((e) => e);
-    expect(err).toBeInstanceOf(UpstreamError);
-    expect((err as UpstreamError).code).toBe("CLI_REPORTED_ERROR");
-    expect((err as UpstreamError).details).toMatchObject({
-      code: "NOTE_NOT_FOUND",
-      path: "Sandbox/new-note.md",
-      vault: "TestVault",
-    });
-    expect(recorded.length).toBe(0);
-  });
-
+describe("US1 pre-stat errno handling (ENOENT: handler.not-found.test.ts)", () => {
   test("pre-stat non-ENOENT errno (EACCES) → re-thrown verbatim (not swallowed, not reclassified)", async () => {
     // A pre-call stat failure with any errno other than ENOENT is unexpected;
-    // the handler re-throws it verbatim (L170 `throw e`) rather than defaulting
+    // the handler re-throws it verbatim (the pre-call stat's `throw e`) rather than defaulting
     // preCallSize. The raw NodeJS.ErrnoException surfaces — not an UpstreamError.
     const fs = fakeFs({
       over: {
