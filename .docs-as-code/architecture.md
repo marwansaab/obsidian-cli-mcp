@@ -599,7 +599,8 @@ Throwing Two-Step Handed to the Handler).
   cannot be sent does not fail the call. Both fields are `CallScope`
   (`src/cli-adapter/_dispatch.ts`), which every tool's `ExecuteDeps` and both
   facades' deps extend. Handlers pass their deps whole to `invokeCli` and
-  `evalInVault`, so every CLI call is cancellable with no per-handler code.
+  `invokeEval` (which replaced `evalInVault` in PR #109), so every CLI call
+  is cancellable with no per-handler code.
   (`detectIfClosed` took them the same way until PR #100 deleted it.) `create*Tool` takes `BootDeps<ExecuteDeps>`, the same type
   without `CallScope`.
 - **Confirmation is the handler's third argument**, a `Confirmation`
@@ -672,6 +673,39 @@ mode, as defence in depth behind the schema. And it reclassifies the CLI's
 exit-0 `Vault not found.` stdout as `CLI_REPORTED_ERROR`, so every typed tool
 gets the same unknown-vault failure.
 
+**Typed evals go through `invokeEval`** (PR #109, spec 080;
+[ADR-052](decisions/ADR-052-typed-evals-are-answered-only-by-a-per-call-tag.md),
+Typed Evals Are Answered Only by the Line Carrying a Per-Call Tag).
+`invokeEval({ code, vault? }, deps)` in
+[src/cli-adapter/cli-adapter.ts](../src/cli-adapter/cli-adapter.ts) is not a
+third facade with bounds of its own: it shares `invokeCli`'s route (locator
+strip, 10 s / 10 MiB, queue, dispatch, unknown-vault check). `vault`
+undefined means active mode. It wraps the code so the printed value starts
+with a per-call tag, `obsidian-cli-mcp:<randomUUID>:`, and returns
+`{ stdout, stderr, answer }`, where `answer` is the text after the tag on its
+`=> ` line, or `null` when no line carries the tag or tagged lines disagree.
+Plugins print into the same stdout, and research F8 showed that a plugin's
+look-alike `=> {…}` line cannot be told apart from the answer by position or
+by schema, only by content the plugin cannot know. The wrapper, the tag and
+the line scans live in
+[src/cli-adapter/eval-output.ts](../src/cli-adapter/eval-output.ts), which
+only `_dispatch.ts` and `cli-adapter.ts` import in production; tools see
+only `answer`. `obsidian_exec`'s `invokeBoundedCli` adds no tag, and its
+`eval` code is sent as the caller wrote it.
+
+```mermaid
+flowchart LR
+  h["handler: invokeEval({ code, vault })"] --> w["wrap: (async()=>{return tag+(await (code))})()"]
+  w --> d["dispatchOnce (via queue)"]
+  d --> s{"a => line starts with this call's tag?<br/>(raw, or JSON-quoted)"}
+  s -- "yes, all tagged lines agree" --> ok["success, answer = text after tag"]
+  s -- "tagged lines disagree" --> nul["success, answer = null → handler json-parse failure"]
+  s -- "no tagged line" --> e{"last Error: line anywhere?"}
+  e -- "Error: No active file" --> na["ERR_NO_ACTIVE_FILE"]
+  e -- "other Error:" --> cre["CLI_REPORTED_ERROR (cold start → one retry)"]
+  e -- "none" --> nul
+```
+
 `createQueue()` ([src/queue.ts](../src/queue.ts)) is a FIFO single-flight
 queue: at most one CLI child runs at a time, in arrival order. On shutdown it
 rejects everything still pending and reports how many were dropped.
@@ -717,6 +751,13 @@ sequenceDiagram
   exactly one re-spawn whose result is final. `Stream closed` is deliberately
   **not** retried: a dropped pipe gives no evidence of whether a write had
   already landed, so retrying it could apply a mutation twice.
+  For non-eval commands the signature must start the output
+  (`COLD_START_PATTERN`). Since PR #109, for `eval` only, it may start any
+  line (`COLD_START_LINE_PATTERN`), because plugin start-up lines can come
+  before Obsidian's own line; the authority is the ADR-029 amendment of
+  2026-11-01 (spec 080 Clarification Q2). The retry is still a single one,
+  and a look-alike answer line before the cold-start line does not hide it,
+  since only a tagged line counts as an answer.
   Since PR #100 this retry is the server's only closed-vault handling
   ([ADR-045](decisions/ADR-045-closed-vaults-recovered-only-by-the-dispatch-retry.md),
   Closed Vaults Are Recovered Only by the Dispatch Retry). When the second
@@ -753,7 +794,10 @@ There are exactly two places in the codebase that may spawn a process:
 facades may import `dispatchCli`.
 [src/cli-adapter/architecture.test.ts](../src/cli-adapter/architecture.test.ts)
 enforces both rules, so a tool that tried to reach the CLI without the retry
-and recovery layers would fail the build rather than a review.
+and recovery layers would fail the build rather than a review. Since PR #109
+it has a third rule: only the two facade files may spell `command: "eval"`,
+so a tool that hand-built an eval call through `invokeCli`, and so lost the
+answer tag, fails the build too.
 
 The CLI binary is found by a three-tier resolver
 ([src/binary-resolver/](../src/binary-resolver/), PR #19): `OBSIDIAN_BIN`,
@@ -781,6 +825,16 @@ Dispatch classifies a finished child in a fixed priority order:
 | (b) | exit 0, stdout starts `Error: No active file` (case-insensitive) | `ERR_NO_ACTIVE_FILE` |
 | (c) | exit 0, stdout starts `Error:` | `CLI_REPORTED_ERROR` |
 | (d) | otherwise | success |
+
+For `eval` (PR #109, the ADR-029 amendment of 2026-11-01) rows (b) and (c)
+read differently, because plugins print into the same stdout: they apply only
+when the output carries no answer, and then they test the **last** line that
+starts `Error:`, anywhere in the output, which also becomes
+`details.message`. A typed eval's answer is its tagged line; for an untagged
+eval (`obsidian_exec`) any `=> ` line counts. So an `Error:`-looking plugin
+line never overrides a real answer. One shared function,
+`exitZeroReportedError` in `_dispatch.ts`, decides both readings, and
+non-eval commands are classified exactly as before.
 
 Alongside those: `CLI_TIMEOUT`, `CLI_OUTPUT_TOO_LARGE`, `CLI_BINARY_NOT_FOUND`
 from dispatch; `VALIDATION_ERROR`, `INTERNAL_ERROR` from registration
@@ -1104,10 +1158,36 @@ them:
   `atob()` alone returns Latin-1 and broke non-ASCII note names (BI-034,
   PR #36).
 - The template returns a single JSON envelope, `{ ok: true, … }` or
-  `{ ok: false, code, detail }`. The handler parses it in stages — strip the
-  `=> ` prefix the CLI adds, `JSON.parse`, zod `safeParse` against the
-  envelope schema, branch on `ok` — and maps `ok: false` codes onto
-  `CLI_REPORTED_ERROR` with `details.code`.
+  `{ ok: false, code, detail }`. The handler sends it through `invokeEval`
+  and parses the result in stages — take the call's tagged answer
+  (`parseEvalAnswer`), `JSON.parse`, zod `safeParse` against the envelope
+  schema, branch on `ok` — and maps `ok: false` codes onto
+  `CLI_REPORTED_ERROR` with `details.code`. Most tools use the shared
+  `decodeEvalEnvelope` for the middle two stages; since PR #109 that
+  includes `paths`, `read_heading`, `tag` and both Smart Connections tools,
+  whose own copies were byte-identical. `find_by_property`, `pattern_search`
+  and `set_property` keep their own parse because their messages, stages or
+  output bounds differ.
+
+  Until PR #109 the first stage was "strip the `=> ` prefix at the start of
+  stdout", and bare JSON with no prefix was accepted as well. Any plugin line
+  printed before the answer then broke the parse, and a plugin's look-alike
+  `=> {…}` line could have been read as the answer. The answer is now only
+  the `=> ` line carrying this call's tag
+  ([runtime spine](#runtime-spine);
+  [ADR-052](decisions/ADR-052-typed-evals-are-answered-only-by-a-per-call-tag.md)).
+  Plugin lines before, between or after are ignored, and output with no
+  tagged line, bare JSON included, is a `json-parse` failure.
+- **Long parse failures keep both ends.** A failure at a `json-parse` or
+  `envelope-parse` stage carries the first 500 characters of the raw output
+  as `details.stdout`, as before. Since PR #109, when the output is longer,
+  the bounded sites also carry the last 500 as `details.stdoutTail`
+  (`evalParseFailureStdout` in `_active-file.ts`; spec 080 Clarification Q3),
+  because plugin lines at the start can push the answer, or Obsidian's own
+  line, past the first 500.
+  It is an additive `details` key, not a code or a `details.reason`. Sites
+  that already attach the whole output, such as `resolveActiveFocusedFile`,
+  are unchanged.
 - **A closed vault is the dispatch layer's job, not the template's.** A
   registered vault that is not open answers `eval` with
   `Error: Command "eval" not found.` on exit 0, and the ADR-029
@@ -1135,11 +1215,15 @@ them:
   focused-file and focused-vault templates and the remapping helpers they
   need. They were extracted in the code-quality pass (PR #58) and the
   eval-cohort de-duplication (PR #62), byte-for-byte from the copies that had
-  grown in each tool. Its `evalInVault(deps, code, vault)` (PR #87) is the one
-  place that builds an `eval` call for a named vault: `vault=` in specific
-  mode when a vault is given, active mode otherwise. The write cohort's two
-  post-write evals, the metadata refresh and `write_note`'s editor open, both
-  go through it.
+  grown in each tool. From PR #87 its `evalInVault(deps, code, vault)` was
+  the one place that built an `eval` call for a named vault. PR #109 deleted
+  it: `invokeEval` now does the same job (`vault=` in specific mode when a
+  vault is given, active mode otherwise) for every typed eval, not only the
+  write cohort's. The write cohort's two post-write evals, the metadata
+  refresh and `write_note`'s editor open, go through it from
+  `src/tools/_note-io.ts`. The refresh now compares the tagged answer with
+  `ok` and `missing` instead of the whole output with `=> ok`, so a plugin
+  line no longer turns a good refresh into a logged `unexpected-output`.
 - **Testing a template.** Handler tests mock `invokeCli` and hand back a
   ready-made envelope, so they never run the template's JavaScript. The only
   in-process check on what a template computes is a template-execution test.

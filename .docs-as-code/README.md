@@ -138,3 +138,9 @@ applies. Records written since:
   checked in the schema and reported as `CONTENT_TOO_LARGE` with
   `details.reason: "bytes"`; the character limit wins through zod's `abort`
   flag, the placement review argued the PR into (PR #106).
+- [decisions/ADR-052-typed-evals-are-answered-only-by-a-per-call-tag.md](decisions/ADR-052-typed-evals-are-answered-only-by-a-per-call-tag.md)
+  — every typed eval's code is wrapped with a per-call
+  `obsidian-cli-mcp:<uuid>:` tag and only the `=> ` line carrying it is the
+  answer, so plugin lines and look-alikes are ignored; dispatch reads `eval`
+  errors and the cold start from any line when no answer came; the tag lives
+  in the `invokeEval` facade, the place review argued the PR into (PR #109).

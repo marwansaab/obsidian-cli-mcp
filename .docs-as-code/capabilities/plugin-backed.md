@@ -29,8 +29,17 @@ They use the standard `eval` template pattern
 with two differences:
 
 - **The plugin writes to the console first.** Its API logs before the `=> `
-  marker the CLI puts in front of an `eval` result, so these handlers take
-  the **last** `=> ` in stdout, not the first.
+  marker the CLI puts in front of an `eval` result. Until PR #109 that was
+  handled here alone: `smart_connections_query` took the **last** `=> ` in
+  stdout (its R14 fallback also accepted bare JSON), and
+  `smart_connections_similar` the first. Taking the last line was wrong too:
+  plugin output printed after the answer made the call fail, and a plugin's
+  look-alike `=> {…}` line after the answer would have been read in its
+  place. Since PR #109 both tools read only the line carrying the call's
+  answer tag through the shared `decodeEvalEnvelope`, like every other eval
+  tool ([architecture](../architecture.md#reaching-obsidian-internals-the-eval-template-pattern);
+  [ADR-052](../decisions/ADR-052-typed-evals-are-answered-only-by-a-per-call-tag.md)).
+  Bare JSON with no answer line is now a `json-parse` failure.
 - **Closed-vault detection started here, and ended here.** A per-tool
   closed-vault stage was written for `smart_connections_similar`, extracted
   into `src/tools/_eval-vault-closed-detection/` for

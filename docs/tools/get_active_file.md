@@ -121,7 +121,7 @@ Every failure routes through `UpstreamError`. The no-active-file state is **not*
 |--------|-----------|---------|----------|
 | `VALIDATION_ERROR` | `issues[].path` | Missing `vault` in `specific` mode; `vault` supplied in `active` mode; any `file`/`path` locator; unknown field. Fires before any eval. | Fix the flagged field; supply `vault` only in `specific` mode; drop any locator. |
 | `CLI_REPORTED_ERROR` | `code: "VAULT_NOT_FOUND"`, `reason: "unknown"`, `vault` | `vault` matches no registered Obsidian vault — the sole hard vault error. Never `{ active: null }`, never another vault's data. | Use `vaults` to list registered names; correct the typo. |
-| `CLI_REPORTED_ERROR` | `stage: "json-parse" \| "envelope-parse"`, `stdout` | The eval returned a body the handler cannot interpret. Should not occur in normal operation. | Report with the payload; retry once for a transient failure. |
+| `CLI_REPORTED_ERROR` | `stage: "json-parse" \| "envelope-parse"`, `stdout`, `stdoutTail` (only when the output is longer than 500 characters) | The eval returned a body the handler cannot interpret. Should not occur in normal operation. | Report with the payload; retry once for a transient failure. |
 | `CLI_NON_ZERO_EXIT` | `reason: "obsidian-not-running"` | Obsidian is down and could not be launched within the bound — e.g. auto-launch is disabled (`OBSIDIAN_AUTO_LAUNCH=0`). | Start Obsidian (or enable auto-launch), then retry. |
 | `CLI_BINARY_NOT_FOUND` | — | The `obsidian` CLI binary could not be found. | Install / expose the Obsidian CLI on `PATH` (or set `OBSIDIAN_BIN`); retry. |
 
