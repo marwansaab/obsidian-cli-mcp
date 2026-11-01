@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedFromBranch": "079-clarify-heading-paths",
+  "generatedFromBranch": "081-classify-malformed-base",
   "generatedAt": "2026-11-01",
   "tools": [
     {
@@ -269,7 +269,7 @@
     },
     {
       "name": "views_base",
-      "descriptionFingerprint": "e974da697cb4b500982a6fe33b5cb8e180b84511b54899f09c28c79d82179e96",
+      "descriptionFingerprint": "c9606c00b1981cb939b2476e088328a6b539a77c29f37baf9646dfe4ff6b4d4a",
       "schemaFingerprint": "4022b9c25a31b7f47d652a112123198d3154029ff320df3fed86314966b9a2d7",
       "titleFingerprint": "85b3373749c11643fd6f2def6eb84e8729f56065e6538f5046e008e8bfb5c25e",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",

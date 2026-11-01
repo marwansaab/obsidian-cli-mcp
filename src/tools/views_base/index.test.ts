@@ -91,4 +91,16 @@ describe("createViewsBaseTool — descriptor", () => {
     expect(body.views).toEqual(["All", "Active"]);
     expect(body.count).toBe(2);
   });
+
+  it("081 M16: an invalid locator is a VALIDATION_ERROR result, distinct from every CLI_REPORTED_ERROR cause", async () => {
+    const result = await makeTool().handler({ base_path: "Notes/x.md" });
+
+    expect("isError" in result).toBe(true);
+    const payload = JSON.parse(result.content[0]!.text) as {
+      code: string;
+      details: { issues: Array<{ message: string }> };
+    };
+    expect(payload.code).toBe("VALIDATION_ERROR");
+    expect(payload.details.issues[0]!.message.startsWith("INVALID_BASE_PATH/wrong-extension")).toBe(true);
+  });
 });

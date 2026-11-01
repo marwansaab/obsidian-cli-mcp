@@ -1,4 +1,4 @@
-// Original — no upstream. query_base handler — wraps the native `obsidian base:query` subcommand (R1) returning a structured `{columns, rows, truncated, total_rows?}` envelope; staged pipeline: vault root resolve → Layer-2 canonical-path check → fs.stat pre-flight (BASE_NOT_FOUND / BASE_MALFORMED/empty) → invokeCli → stderr/stdout error classification (R4) → JSON.parse → wire envelope safeParse → row post-process (reserved `path` injection + collision rename to `path_view` + columns vector synthesis) → 1000-row cap with `truncated` / `total_rows` signal (FR-013) → output schema parse. Zero new top-level error codes; new states surface via `details.code` sub-discrimination per ADR-015 (Principle IV streak: sixteenth tool).
+// Original — no upstream. query_base handler — wraps the native `obsidian base:query` subcommand (R1) returning a structured `{columns, rows, truncated, total_rows?}` envelope; staged pipeline: vault root resolve → Layer-2 canonical-path check → fs.stat pre-flight (BASE_NOT_FOUND / BASE_MALFORMED/empty) → invokeCli → stderr/stdout error classification (R4) → JSON.parse → wire envelope safeParse → row post-process (reserved `path` injection + collision rename to `path_view` + columns vector synthesis) → 1000-row cap with `truncated` / `total_rows` signal (FR-013) → output schema parse. The invalid-yaml classifier pattern is shared with views_base (spec 081, `_base-malformed.ts`). Zero new top-level error codes; new states surface via `details.code` sub-discrimination per ADR-015 (Principle IV streak: sixteenth tool).
 import * as nodeFs from "node:fs/promises";
 
 import {
@@ -18,6 +18,7 @@ import {
   parseFocusedVault,
   remapVaultNotFound,
 } from "../_active-file.js";
+import { INVALID_YAML_PATTERN } from "../_base-malformed.js";
 import { stdoutDetails } from "../_eval-parse.js";
 
 import type { SupportDeclaration } from "../../file-type/file-type.js";
@@ -115,15 +116,9 @@ const CLASSIFIER_PATTERNS: ReadonlyArray<{
     pattern: /\bview\b[^.]*\b(not\s+found|unknown|does\s+not\s+exist|no\s+such)\b/i,
     classify: () => ({ kind: "VIEW_NOT_FOUND" }),
   },
-  // BASE_MALFORMED/invalid-yaml — YAML parser failures. The js-yaml structural
-  // phrases (sufficiently indented / flow|block collection / bad indentation /
-  // duplicated mapping key / …) were added from a live T0 probe (2026-05-29,
-  // BI-057): a broken `.base` surfaced as "Flow sequence in block collection must
-  // be sufficiently indented and end with a ]", which carries no literal "yaml"
-  // token and previously fell through to the verbatim-message `unknown` path.
+  // BASE_MALFORMED/invalid-yaml — YAML parser failures (shared with views_base: see _base-malformed.ts).
   {
-    pattern:
-      /\b(yaml(?:exception)?|yaml\s+parse|invalid\s+yaml|unexpected\s+token\s+at\s+line|sufficiently\s+indented|flow\s+(?:sequence|mapping)|block\s+(?:mapping|collection|sequence)|(?:bad|deficient)\s+indentation|duplicated\s+mapping\s+key|could\s+not\s+find\s+expected|mapping\s+values\s+are\s+not\s+allowed|tab\s+characters\s+must\s+not\s+be\s+used)\b/i,
+    pattern: INVALID_YAML_PATTERN,
     classify: () => ({ kind: "BASE_MALFORMED", reason: "invalid-yaml" }),
   },
   // BASE_MALFORMED/missing-required-key — schema-required key absent.
