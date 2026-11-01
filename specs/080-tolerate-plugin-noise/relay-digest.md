@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-11-01T05:24:19.958Z |
 | Finished | not yet |
-| Elapsed | 25 min 40 s |
+| Elapsed | 51 min 3 s |
 | Questions | 4 (0 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 0 |
@@ -53,6 +53,7 @@
 ### pre-implementation (`3b8276a1-10d7-49f8-a568-bac62a4c6ddf`)
 
 - Condition `shell-exit-0` (run_when): met. "node -e "process.exit('' === '' ? 0 : 1)"" exited 0.
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\specs\080-tolerate-plugin-noise\tasks.md exists.
 
 - **specify**: done, 18 turns.
 
@@ -85,16 +86,28 @@
 
 > I applied the owner's F3 ruling, Option A. The shared closedVaultNote wording in the tool descriptions stays unchanged, because it is exact when no plugin prints anything. A new plan.md Spec alignment note records the ruling, citing ADR-005 progressive disclosure and noting that query_base and the baseline are untouched. T036 in tasks.md now adds a caveat sentence to the docs pages of the five eval tools (paths, tag, pattern_search, smart_connections_query, smart_connections_similar) and says not to edit closedVaultNote, any tool description, or query_base.md. With this, F1 to F4 from the analysis are all resolved in the spec, plan, tasks, contract and data-model. No ADR conflicts came up. Nothing is committed, and the next step is /speckit-implement.
 
-- **resolve-analysis**: in progress.
+- **resolve-analysis**: done, 15 turns.
+
+> Every analysis finding is resolved. This round applied F5–F8, all settled by the existing spec, plan and constitution. F5: T040 now also checks that logger.ts is unchanged (FR-014). F6: T006 adds a sweep for test fixtures with more than one `=> ` line and converts them to function-form stdout. F7: T021 adds a guard test that every eval template is a single expression once wrapped (data-model R8). F8: spec Assumptions now record that the bare-JSON fallback is dropped and fix the old "one exception" wording to match FR-010 (a) and (b). F1–F4 were fixed earlier, F3 through the owner's Option A ruling. I committed the whole feature folder as 2965fc0 on 080-tolerate-plugin-noise, with a CONTRIBUTING.md-style message, and did not push. The commit includes the Relay files relay-digest.md and relay-qa-log.md that were already in the folder. CLAUDE.md (plan pointer moved to 080) and .specify/feature.json are left uncommitted because the step asked for the feature folder only; in 079 those went in a separate chore commit. No findings remain open.
+
 
 ### continue
 
-- **prepare**: not run.
+Skipped.
 
-### implementation
+- Condition `shell-exit-0` (run_when): not met. "node -e "process.exit('' === '' ? 1 : 0)"" exited 1.
 
-- **implement**: not run.
-- **open-pr**: not run.
+- **prepare**: skipped.
+
+### implementation (`175c3969-9dde-42d3-a6e5-7f51fb93c13c`)
+
+- Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\specs\080-tolerate-plugin-noise\tasks.md exists.
+
+- **implement**: done, 219 turns.
+
+> All 41 tasks of spec 080 (tolerate plugin noise) are implemented and checked off in tasks.md, in 3 commits. invokeCli now wraps each typed eval's code with an answer tag minted for that call and returns the tagged line's contents as `answer`. For eval only, dispatch treats an answer line as success and recognises the no-active-file, Error: and cold-start lines at the start of any line. Every eval-composed tool parses the answer through a shared parseEvalAnswer, and its parse errors carry a head-and-tail stdout excerpt plus stdoutLength. Typecheck, lint and the full suite (4074 tests) pass. Published tool fingerprints are unchanged; there is no new error code, stage or log event. The new _plugin-noise.test.ts covers all 24 affected tools against contract cases N1–N13, the long-output excerpt (E4) and seeded random noise; two deliberate regressions confirmed it catches failures. Docs and CHANGELOG are updated. T0 probes P1, P2 and P4 passed against the real CLI. P3 (cold start) was not run live because closing the test vault needs GUI interaction; unit tests cover that path. Six live end-to-end calls succeeded against the built server, and the sandbox fixtures were cleaned up. Results are in contracts/t0-probe-findings.md. The optional after_implement commit hook was skipped. Three files modified before this step (.specify/feature.json, CLAUDE.md, relay-digest.md) were left uncommitted.
+
+- **open-pr**: in progress.
 
 ### review
 
