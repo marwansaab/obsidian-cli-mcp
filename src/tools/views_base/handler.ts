@@ -8,7 +8,11 @@
 // is delivered by focus-then-active (T0 P3: reliable), NOT a path= call. Zero new top-level error
 // codes (Principle IV); BASE_NOT_FOUND gains an additive details.reason (named-missing | not-open) per
 // ADR-015 so the two base-not-found states stay distinguishable under one code, cohort-consistent with
-// query_base. No silent open-Base substitution on any named-path failure (FR-009).
+// query_base. No silent open-Base substitution on any named-path failure (FR-009). Spec 081: a YAML
+// parser complaint (the shared INVALID_YAML_PATTERN, the one query_base uses) on the failure or the
+// clean-exit path is checked ahead of the not-a-base check and becomes BASE_MALFORMED/invalid-yaml in
+// both modes; the named-mode not-a-base report is BASE_MALFORMED/unknown. The upstream report is kept
+// bounded in details.message / messageLength (spec 080 rule).
 import { FOCUS_BASE_TEMPLATE } from "./_template.js";
 import {
   focusBaseEvalResponseSchema,
@@ -19,6 +23,8 @@ import {
 import { invokeCli, invokeEval, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError, stringDetail } from "../../errors.js";
 import { decodeEvalEnvelope, resolveVaultRootOrRemap } from "../_active-file.js";
+import { INVALID_YAML_PATTERN, upstreamReport } from "../_base-malformed.js";
+import { boundedExcerpt } from "../_eval-parse.js";
 import { composeEvalCode } from "../_shared.js";
 
 import type { SupportDeclaration } from "../../file-type/file-type.js";
@@ -69,52 +75,107 @@ function stripTypeLabel(line: string): string {
   return KNOWN_VIEW_TYPES.has(type) ? line.slice(0, tab) : line;
 }
 
+/** A `<name>\t<type>` listing line: its trailing tab-delimited token is a known view type. */
+function isViewLine(line: string): boolean {
+  return stripTypeLabel(line) !== line;
+}
+
 /**
- * Parse `base:views` stdout into the clean view-name list. Lines are NOT trimmed
- * (that would drop legitimate trailing characters of a name); only a trailing CR is
- * stripped (CRLF artifact) and empty lines (the trailing newline) filtered.
+ * Split `base:views` stdout into its lines. Lines are NOT trimmed (that would drop
+ * legitimate trailing characters of a name); only a trailing CR is stripped (CRLF
+ * artifact) and empty lines (the trailing newline) filtered.
  */
-function parseViews(stdout: string): string[] {
+function stdoutLines(stdout: string): string[] {
   return stdout
     .split("\n")
     .map((line) => (line.endsWith("\r") ? line.slice(0, -1) : line))
-    .filter((line) => line.length > 0)
-    .map(stripTypeLabel);
+    .filter((line) => line.length > 0);
 }
 
-function adapterDeps(deps: ExecuteDeps) {
-  return deps;
+/** What a focused Base's `base:views` report is recognised as. */
+type FocusedBaseFailure = "invalid-yaml" | "not-a-base";
+
+/**
+ * A YAML parser complaint in `report` wins (spec 081); otherwise a "not a base file" report in
+ * `notABaseText`. `notABaseText` is null where the not-a-base rule does not apply (a non-zero
+ * exit keeps its pre-081 scope: only the YAML check widened to it).
+ */
+function recogniseFailure(report: string, notABaseText: string | null): FocusedBaseFailure | null {
+  if (INVALID_YAML_PATTERN.test(report)) return "invalid-yaml";
+  if (notABaseText !== null && NOT_A_BASE_FILE_PATTERN.test(notABaseText)) return "not-a-base";
+  return null;
 }
 
 /**
- * Run active-mode `base:views` and return the clean `{views, count}` envelope.
- * A "not a base file" report (on either the dispatch-error path or the clean-exit
- * success path) is routed to `onNotABase`, which throws the branch-appropriate typed
- * error (open mode → BASE_NOT_FOUND/not-open; named mode → BASE_MALFORMED). `cause`
- * is the originating dispatch error on the catch path, or null on the success path.
+ * The typed error for a recognised failure. Open mode (`basePath` undefined): not-a-base means
+ * no Base is open → BASE_NOT_FOUND/not-open. Otherwise the `.base` is there but unusable →
+ * BASE_MALFORMED with reason invalid-yaml or unknown, the named path, and the report bounded by
+ * the spec 080 rule. `cause` is the originating dispatch error, or null on a clean exit.
  */
-async function listFocusedViews(
-  deps: ExecuteDeps,
-  onNotABase: (cause: unknown) => never,
-): Promise<ViewsBaseOutput> {
+function focusedBaseError(
+  basePath: string | undefined,
+  failure: FocusedBaseFailure,
+  cause: unknown,
+  report: string,
+): UpstreamError {
+  if (basePath === undefined && failure === "not-a-base") {
+    return new UpstreamError({
+      code: "CLI_REPORTED_ERROR",
+      cause,
+      details: { code: "BASE_NOT_FOUND", reason: "not-open" },
+      message: "views_base: active file is not a base file",
+    });
+  }
+  const base = basePath === undefined ? "the open base file" : `base file at "${basePath}"`;
+  return new UpstreamError({
+    code: "CLI_REPORTED_ERROR",
+    cause,
+    details: {
+      code: "BASE_MALFORMED",
+      reason: failure === "invalid-yaml" ? "invalid-yaml" : "unknown",
+      ...(basePath === undefined ? {} : { base_path: basePath }),
+      message: boundedExcerpt(report),
+      messageLength: report.length,
+    },
+    message:
+      failure === "invalid-yaml"
+        ? `views_base: ${base} is malformed: its YAML cannot be parsed`
+        : `views_base: ${base} is structurally unusable`,
+  });
+}
+
+/**
+ * Run active-mode `base:views` and return the clean `{views, count}` envelope. A recognised
+ * failure on the dispatch-error path (CLI_REPORTED_ERROR / CLI_NON_ZERO_EXIT) or the
+ * clean-exit path throws `focusedBaseError`; anything else is rethrown unchanged. On the
+ * clean-exit path view lines are left out of the YAML scan, so a view named "YAML notes"
+ * never trips it.
+ */
+async function listFocusedViews(deps: ExecuteDeps, basePath: string | undefined): Promise<ViewsBaseOutput> {
   let cliResult: { stdout: string; stderr: string };
   try {
     cliResult = await invokeCli(
       { command: "base:views", parameters: {}, flags: [], target_mode: "active" },
-      adapterDeps(deps),
+      deps,
     );
   } catch (err) {
-    if (err instanceof UpstreamError && err.code === "CLI_REPORTED_ERROR") {
-      const combined = `${stringDetail(err.details, "stdout")}\n${stringDetail(err.details, "stderr")}`;
-      if (NOT_A_BASE_FILE_PATTERN.test(combined)) onNotABase(err);
+    if (err instanceof UpstreamError && (err.code === "CLI_REPORTED_ERROR" || err.code === "CLI_NON_ZERO_EXIT")) {
+      const report = upstreamReport(stringDetail(err.details, "stderr"), stringDetail(err.details, "stdout"));
+      const failure = recogniseFailure(report, err.code === "CLI_REPORTED_ERROR" ? report : null);
+      if (failure !== null) throw focusedBaseError(basePath, failure, err, report);
     }
     throw err;
   }
 
-  const combined = `${cliResult.stdout}\n${cliResult.stderr}`;
-  if (NOT_A_BASE_FILE_PATTERN.test(combined)) onNotABase(null);
+  const lines = stdoutLines(cliResult.stdout);
+  const report = upstreamReport(cliResult.stderr, lines.filter((line) => !isViewLine(line)).join("\n"));
+  // Unlike the YAML check, the not-a-base check reads the raw output, view lines included.
+  // Reading `report` instead would change clean-exit listing (a view named "Active file is not
+  // a base file" would list), which spec 081 leaves as shipped (FR-012, BI-0137 Out of scope).
+  const failure = recogniseFailure(report, `${cliResult.stdout}\n${cliResult.stderr}`);
+  if (failure !== null) throw focusedBaseError(basePath, failure, null, report);
 
-  const views = parseViews(cliResult.stdout);
+  const views = lines.map(stripTypeLabel);
   return viewsBaseOutputSchema.parse({ views, count: views.length });
 }
 
@@ -134,7 +195,7 @@ export async function executeViewsBase(
     // recovery (closed vault cold-launch) inherited from dispatchCli — else in the
     // focused vault (target_mode:"active"). composeEvalCode base64-wraps the locator.
     const code = composeEvalCode(FOCUS_BASE_TEMPLATE, { path: input.base_path });
-    const focusResult = await invokeEval({ code, vault: input.vault }, adapterDeps(deps));
+    const focusResult = await invokeEval({ code, vault: input.vault }, deps);
 
     const decoded = decodeEvalEnvelope(focusResult, focusBaseEvalResponseSchema, {
       toolName: TOOL_NAME,
@@ -152,26 +213,11 @@ export async function executeViewsBase(
         message: `views_base: no base file found at "${input.base_path}"`,
       });
     }
-
-    // The named `.base` is now focused → list its views. A post-focus "not a base
-    // file" report means the `.base` exists but Obsidian cannot use it → BASE_MALFORMED.
-    return listFocusedViews(deps, (cause) => {
-      throw new UpstreamError({
-        code: "CLI_REPORTED_ERROR",
-        cause,
-        details: { code: "BASE_MALFORMED", base_path: input.base_path },
-        message: `views_base: base file at "${input.base_path}" is structurally unusable`,
-      });
-    });
+    // The named `.base` is now focused; a recognised failure from here on means it exists
+    // but Obsidian cannot use it → BASE_MALFORMED (see focusedBaseError).
   }
 
-  // ── Open-Base mode (unchanged behaviour + additive details.reason) ───────────
-  return listFocusedViews(deps, (cause) => {
-    throw new UpstreamError({
-      code: "CLI_REPORTED_ERROR",
-      cause,
-      details: { code: "BASE_NOT_FOUND", reason: "not-open" },
-      message: "views_base: active file is not a base file",
-    });
-  });
+  // Both modes list the focused Base's views; open mode (no base_path) reads whatever
+  // Base is focused.
+  return listFocusedViews(deps, input.base_path);
 }

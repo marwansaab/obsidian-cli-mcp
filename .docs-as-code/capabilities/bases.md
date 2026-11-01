@@ -29,7 +29,9 @@ traversing or wrong-extension path fails identically everywhere
 3. Call `base:query`. Classify a failure from stdout or stderr: an unknown
    view is `VIEW_NOT_FOUND`, invalid YAML is `BASE_MALFORMED`. The YAML
    classifier was broadened in PR #59 to match js-yaml's structural error
-   wording.
+   wording. Since PR #111 that pattern is `INVALID_YAML_PATTERN` in
+   `src/tools/_base-malformed.ts`, shared with `views_base`; it moved
+   unchanged, so `query_base`'s classification did not change.
 4. Parse and validate the JSON, then post-process the rows. A reserved `path`
    column (the source note's vault-relative path) always sits at
    `columns[0]`. A view column also called `path` is renamed `path_view`.
@@ -40,7 +42,33 @@ traversing or wrong-extension path fails identically everywhere
 it focuses that Base through `eval`, then reads its views with the CLI's
 active-Base subcommand. That works cross-vault, and the named Base wins over
 whatever was open. Without `base_path`, it reads the Base already focused in
-Obsidian.
+Obsidian. Both modes end in one `listFocusedViews` call, and one builder,
+`focusedBaseError`, makes every typed failure it raises.
+
+**A malformed Base is classified, not passed through** (spec 081, PR #111).
+Until PR #111 `views_base` recognised only Obsidian's "Active file is not a
+base file" report. A `.base` whose YAML Obsidian could not parse reached the
+agent as the dispatch layer's generic `CLI_REPORTED_ERROR`, with the raw,
+unbounded parser output, though the description advertised `BASE_MALFORMED`.
+The T0 probes for PR #111 showed what `base:views` actually does with such a
+file: focusing it succeeds, and the complaint (`Error: Flow sequence in block
+collection must be sufficiently indented …`) arrives on stdout with exit 0
+and empty stderr, in both modes. `listFocusedViews` now checks the report
+against `query_base`'s `INVALID_YAML_PATTERN` before the not-a-base check:
+
+- on the dispatch-error path (`CLI_REPORTED_ERROR` or `CLI_NON_ZERO_EXIT`), it
+  scans the trimmed stderr and stdout (`upstreamReport`, also shared with
+  `query_base` since PR #111);
+- on the clean-exit path, it scans stderr plus the stdout lines that are not
+  `<name>\t<type>` view lines, so a view named "YAML notes" still lists.
+
+The not-a-base check keeps its pre-081 scope. On a non-zero exit it does not
+apply; on a clean exit it still reads the raw stdout and stderr, view lines
+included. Review of PR #111 asked whether to read the report there too, and
+the owner kept the raw text: reading the report would let a view named
+"Active file is not a base file" list instead of failing, which changes
+clean-exit listing that spec 081 (FR-012) leaves as shipped. A comment at the
+call site carries that reason.
 
 `bases` keeps only clean-exit stdout lines ending in `.base`. BI-065 (PR #72)
 added that filter after an empty vault returned the CLI's "no bases" message
@@ -96,6 +124,28 @@ character cap can still reach the size at which Obsidian's command line
 fails; spec 078's plan leaves that to its own item
 ([mutate](mutate.md#prepends-two-content-limits)).
 
+`views_base`'s `BASE_MALFORMED` carries a closed `details.reason` set since
+PR #111, a subset of `query_base`'s (ADR-015, Sub-Discriminators via
+details.reason for Multi-State Error Codes):
+
+| `details.reason` | Mode | Raised when |
+| --- | --- | --- |
+| `invalid-yaml` | named or open | the report matches `INVALID_YAML_PATTERN` |
+| `unknown` | named only | after focus, Obsidian says the file is not a base file, with no YAML complaint |
+
+In open mode the not-a-base report stays `BASE_NOT_FOUND` / `not-open`
+(FR-007): with nothing named, it means no Base is focused. `base_path` is
+present only in named mode. Both reasons put the report in `details.message`,
+bounded by `boundedExcerpt` (the spec 080 rule from
+[architecture](../architecture.md#reaching-obsidian-internals-the-eval-template-pattern): first and last 500
+characters around `[… cut …]` when over 1,000), with the raw length in
+`details.messageLength`. The headline names the Base and carries no parser
+text, and the dispatch error stays as `cause`, which is not serialised. The
+`unknown` reason, `message` and `messageLength` on the named-mode not-a-base
+error are additions; its headline and `base_path` did not change. A failure
+that matches neither pattern is rethrown unchanged, and the `No views defined`
+reply never becomes `BASE_MALFORMED` (FR-009, FR-015).
+
 `query_base` on a closed registered vault returns its normal result. In the
 T0 check for PR #100, `base:query` answered a closed vault on its first
 attempt; where it answers `Error: Command "base:query" not found.` instead,
@@ -121,6 +171,13 @@ These are inherited from the CLI and documented in each tool's description:
   does not exist. On a name collision the CLI auto-increments the new note's
   name, and the response reports the actual name.
 - `views_base` with `base_path` changes Obsidian's focus as a side effect.
+- The two tools bound `BASE_MALFORMED`'s `details.message` differently.
+  `views_base` bounds it and adds `messageLength` (PR #111); `query_base`
+  still returns the whole report, unbounded, with no `messageLength`. Review
+  of PR #111 raised this, and the owner kept `query_base` unchanged, because
+  BI-0137 rules out changing it. The difference is stated in
+  [docs/tools/query_base.md](../../docs/tools/query_base.md#error-roster);
+  bounding it is a candidate backlog item for cohort parity.
 - Since PR #90 the `vault` field descriptions of `bases` and `create_base` say
   it is accepted but ignored by the CLI. `create_base`'s `content` ("Default:
   none") and `view` ("omit for the default") descriptions are hedged, because

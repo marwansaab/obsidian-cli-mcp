@@ -56,12 +56,15 @@ The native `base:views` subcommand emits each line as `<view name>\t<view type>`
 | `VALIDATION_ERROR`   | —                  | `params.code: "INVALID_BASE_PATH"` (`empty` / `too-long` / `path-traversal` / `wrong-extension`) | `base_path` is malformed (empty, > 1000 units, traversal shape, or not ending in `.base`) | Fix the `base_path` value. A non-`.base` path is a validation failure, distinct from "named Base not found". |
 | `CLI_REPORTED_ERROR` | `BASE_NOT_FOUND`   | `named-missing`  | A named `.base` does not exist at `base_path` in the resolved vault | Check the path with `bases`; the named Base is not substituted by the open one. |
 | `CLI_REPORTED_ERROR` | `BASE_NOT_FOUND`   | `not-open`       | Open-Base mode: the focused file is not a `.base`, or nothing is focused | Focus a `.base` in Obsidian, or pass `base_path`. |
-| `CLI_REPORTED_ERROR` | `BASE_MALFORMED`   | —                | The named `.base` exists but Obsidian cannot use it | Repair the `.base` file. |
+| `CLI_REPORTED_ERROR` | `BASE_MALFORMED`   | `invalid-yaml`   | Named or open mode: Obsidian cannot parse the `.base` file's YAML | Repair the YAML in the `.base` file (the bounded parser report is in `details.message`). |
+| `CLI_REPORTED_ERROR` | `BASE_MALFORMED`   | `unknown`        | Named mode: the `.base` exists but Obsidian reports it is not usable as a Base, with no parser complaint | Open the file in Obsidian and investigate. |
 | `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND`  | `unknown`        | The `vault` display name is not registered with Obsidian | Check the name with `vaults`. A vault added after the server started is found without a restart. |
 | `CLI_REPORTED_ERROR` | —                  | —                | Other upstream CLI failure / app down / binary missing | Retry; confirm Obsidian is running. |
 | `UPSTREAM_TIMEOUT`   | —                  | —                | Subprocess exceeded 10 s | Retry. |
 
 `BASE_NOT_FOUND` carries a `details.reason` so "named Base not found" (`named-missing`) and "no Base open" (`not-open`) stay distinguishable under one code. No named-path failure is ever resolved by returning the views of whatever Base happened to be focused.
+
+`BASE_MALFORMED`'s `details.reason` set is closed (`invalid-yaml` | `unknown`, a subset of `query_base`'s), and `details.message` / `details.messageLength` carry the upstream report, bounded to its first and last 500 characters when it is longer than 1,000.
 
 ## Worked examples
 
@@ -128,3 +131,21 @@ with a non-`.base` note focused returns `CLI_REPORTED_ERROR` with `details.code:
 ```
 
 Returns `VALIDATION_ERROR` with `params.code: "INVALID_BASE_PATH"`, `params.reason: "wrong-extension"` — distinct from "named Base not found".
+
+### Example 7 — Malformed Base (YAML Obsidian cannot parse)
+
+```json
+{ "name": "views_base", "arguments": { "base_path": "Projects/Broken.base" } }
+```
+
+```json
+{
+  "isError": true,
+  "content": [{
+    "type": "text",
+    "text": "{\"code\":\"CLI_REPORTED_ERROR\",\"message\":\"views_base: base file at \\\"Projects/Broken.base\\\" is malformed: its YAML cannot be parsed\",\"details\":{\"code\":\"BASE_MALFORMED\",\"reason\":\"invalid-yaml\",\"base_path\":\"Projects/Broken.base\",\"message\":\"Error: Flow sequence in block collection must be sufficiently indented and end with a ] at line 4, column 1:\\n\\n    name: [a, b\\n\\n^\",\"messageLength\":128}}"
+  }]
+}
+```
+
+The headline names the Base and carries no parser text; the parser report is in `details.message`. In open-Base mode the same file fails with the same `details.code` and `details.reason`, no `base_path`, and the headline `views_base: the open base file is malformed: its YAML cannot be parsed`.

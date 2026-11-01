@@ -287,6 +287,12 @@ test("US3 malformed: post-focus 'not a base file' on a named Base → BASE_MALFO
     expect(ue.code).toBe("CLI_REPORTED_ERROR");
     expect(ue.details.code).toBe("BASE_MALFORMED");
     expect(ue.details.base_path).toBe("Broken.base");
+    // 081 M6: the not-a-base report carries reason "unknown" and the bounded report.
+    const report = "Error: Active file is not a base file: Broken.base";
+    expect(ue.details.reason).toBe("unknown");
+    expect(ue.details.message).toBe(report);
+    expect(ue.details.messageLength).toBe(report.length);
+    expect(ue.message).toBe('views_base: base file at "Broken.base" is structurally unusable');
   }
 });
 
@@ -311,4 +317,130 @@ test("US3 upstream CLI failure surfaces as UpstreamError (open mode)", async () 
   const { deps } = makeDeps([{ stdout: "", exitCode: 1, stderr: "Error: something failed" }]);
 
   await expect(executeViewsBase({}, deps)).rejects.toThrow(UpstreamError);
+});
+
+// ─────────────── spec 081 — malformed Base (YAML parser complaint) ───────────────
+
+// The live T0 shape (contracts/t0-probe-findings.md): stdout, `Error:` prefix, exit 0.
+const YAML_COMPLAINT =
+  "Error: Flow sequence in block collection must be sufficiently indented and end with a ] at line 3, column 5:\n    - [a, b\n    ^";
+const NAMED_MALFORMED_HEADLINE = 'views_base: base file at "Broken.base" is malformed: its YAML cannot be parsed';
+const OPEN_MALFORMED_HEADLINE = "views_base: the open base file is malformed: its YAML cannot be parsed";
+
+function expectInvalidYaml(ue: UpstreamError, basePath: string | undefined): void {
+  expect(ue.code).toBe("CLI_REPORTED_ERROR");
+  expect(ue.details.code).toBe("BASE_MALFORMED");
+  expect(ue.details.reason).toBe("invalid-yaml");
+  if (basePath === undefined) expect("base_path" in ue.details).toBe(false);
+  else expect(ue.details.base_path).toBe(basePath);
+}
+
+// Every YAML-complaint setup (M1–M5, M15; M8's whole-report rule rides on each row): the exact
+// reason, headline (an exact headline also proves SC-004: no parser internals), cause and the
+// whole (≤ 1,000 characters) report. [label, input, base:views response, report, clean exit?]
+const INVALID_YAML_CASES: Array<[string, { base_path?: string }, StubResponse, string, boolean]> = [
+  ["M1 named, stdout via the dispatch Error: path", { base_path: "Broken.base" }, { stdout: YAML_COMPLAINT, exitCode: 0 }, YAML_COMPLAINT, false],
+  ["M2 named, non-zero exit with the complaint on stderr", { base_path: "Broken.base" }, { stdout: "", stderr: YAML_COMPLAINT, exitCode: 1 }, YAML_COMPLAINT, false],
+  ["M3 named, clean exit with the complaint on stderr", { base_path: "Broken.base" }, { stdout: "", stderr: YAML_COMPLAINT, exitCode: 0 }, YAML_COMPLAINT, true],
+  [
+    "M15 named, clean-exit stdout complaint with no Error: prefix",
+    { base_path: "Broken.base" },
+    { stdout: "YAMLException: bad indentation of a mapping entry (3:5)\n", stderr: "", exitCode: 0 },
+    "YAMLException: bad indentation of a mapping entry (3:5)",
+    true,
+  ],
+  ["M4 open, stdout via the dispatch Error: path", {}, { stdout: YAML_COMPLAINT, exitCode: 0 }, YAML_COMPLAINT, false],
+  [
+    "M5 open, a YAML complaint wins over a simultaneous not-a-base report",
+    {},
+    { stdout: "Error: Active file is not a base file\nYAMLException: bad indentation of a mapping entry (3:5)", exitCode: 0 },
+    "Error: Active file is not a base file\nYAMLException: bad indentation of a mapping entry (3:5)",
+    false,
+  ],
+];
+
+test.each(INVALID_YAML_CASES)(
+  "081 %s → BASE_MALFORMED/invalid-yaml",
+  async (_label, input, response, report, cleanExit) => {
+    const responses = input.base_path === undefined ? [response] : [evalOk(input.base_path), response];
+
+    const ue = await expectErr(executeViewsBase(input, makeDeps(responses).deps));
+
+    expectInvalidYaml(ue, input.base_path);
+    expect(ue.message).toBe(input.base_path === undefined ? OPEN_MALFORMED_HEADLINE : NAMED_MALFORMED_HEADLINE);
+    expect(ue.details.message).toBe(report);
+    expect(ue.details.messageLength).toBe(report.length);
+    expect(ue.cause === null).toBe(cleanExit);
+  },
+);
+
+test("081 M12: named, an unrecognised Error: report is rethrown unchanged (no details.code)", async () => {
+  const { deps } = makeDeps([evalOk("Broken.base"), { stdout: "Error: something unrelated", exitCode: 0 }]);
+
+  const ue = await expectErr(executeViewsBase({ base_path: "Broken.base" }, deps));
+
+  expect(ue.code).toBe("CLI_REPORTED_ERROR");
+  expect(ue.details.code).toBeUndefined();
+  expect(ue.details.stdout).toBe("Error: something unrelated");
+});
+
+test("081 M9: open, view names carrying YAML terms are view lines, not a complaint", async () => {
+  const { deps } = makeDeps([{ stdout: "YAML notes\ttable\nBlock mapping\tcards\n", exitCode: 0 }]);
+
+  const result = await executeViewsBase({}, deps);
+
+  expect(result).toEqual({ views: ["YAML notes", "Block mapping"], count: 2 });
+});
+
+test("081 M10: open, 'No views defined' is never BASE_MALFORMED (rethrown unchanged)", async () => {
+  const { deps } = makeDeps([{ stdout: "Error: No views defined", exitCode: 0 }]);
+
+  const ue = await expectErr(executeViewsBase({}, deps));
+
+  expect(ue.code).toBe("CLI_REPORTED_ERROR");
+  expect(ue.details.code).not.toBe("BASE_MALFORMED");
+});
+
+test("081 M11: open, a materialised default view lists as success", async () => {
+  const { deps } = makeDeps([{ stdout: "Table\ttable\n", exitCode: 0 }]);
+
+  const result = await executeViewsBase({}, deps);
+
+  expect(result).toEqual({ views: ["Table"], count: 1 });
+});
+
+test("081 M13: malformed, named-missing, not-open and unknown vault are pairwise-distinct", async () => {
+  const rejections = [
+    await expectErr(
+      executeViewsBase(
+        { base_path: "Broken.base" },
+        makeDeps([evalOk("Broken.base"), { stdout: YAML_COMPLAINT, exitCode: 0 }]).deps,
+      ),
+    ),
+    await expectErr(executeViewsBase({ base_path: "Missing.base" }, makeDeps([evalMissing]).deps)),
+    await expectErr(
+      executeViewsBase({}, makeDeps([{ stdout: "Error: Active file is not a base file: x.md", exitCode: 0 }]).deps),
+    ),
+    await expectErr(executeViewsBase({ base_path: "Tasks.base", vault: "NoSuchVault" }, makeDeps([]).deps)),
+  ];
+
+  const triples = rejections.map((ue) => `${ue.code}|${String(ue.details.code)}|${String(ue.details.reason)}`);
+  expect(new Set(triples).size).toBe(4);
+});
+
+test("081 M7: a 5,000-character report is bounded to head 500 + marker + tail 500", async () => {
+  // Exactly 5,000 characters, no leading or trailing whitespace, via the dispatch `Error:` path.
+  const prefix = "Error: YAMLException: bad indentation ";
+  const longComplaint = prefix + "x".repeat(5000 - prefix.length);
+  const { deps } = makeDeps([evalOk("Broken.base"), { stdout: longComplaint, stderr: "", exitCode: 0 }]);
+
+  const ue = await expectErr(executeViewsBase({ base_path: "Broken.base" }, deps));
+
+  expectInvalidYaml(ue, "Broken.base");
+  const message = ue.details.message as string;
+  expect(ue.details.messageLength).toBe(5000);
+  expect(message.length).toBe(500 + "\n[… cut …]\n".length + 500);
+  expect(message.startsWith(longComplaint.slice(0, 500))).toBe(true);
+  expect(message.endsWith(longComplaint.slice(-500))).toBe(true);
+  expect(message.includes("[… cut …]")).toBe(true);
 });
