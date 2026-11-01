@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-11-01T03:04:49.303Z |
 | Finished | not yet |
-| Elapsed | 13 min 11 s |
+| Elapsed | 18 min 44 s |
 | Questions | 2 (0 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 0 |
@@ -53,6 +53,7 @@
 ### pre-implementation (`a838ef3f-c08e-45ec-91b9-a9bad03a4260`)
 
 - Condition `shell-exit-0` (run_when): met. "node -e "process.exit('' === '' ? 0 : 1)"" exited 0.
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\specs\079-clarify-heading-paths\tasks.md exists.
 
 - **specify**: done, 20 turns.
 
@@ -84,16 +85,45 @@
 >
 > No source code was changed.
 
-- **resolve-analysis**: in progress.
+- **resolve-analysis**: done, 9 turns.
+
+> No CRITICAL or HIGH finding is open, and the feature folder is committed on 079-clarify-heading-paths as 7a93a22. Nothing is pushed.
+>
+> All seven findings from the analysis report are fixed in the spec artifacts:
+> - **I1 (HIGH)**: help pages may quote the frozen "top-level headings are out of scope" message only verbatim, immediately followed by a note that every path still starts at the level-1 heading.
+> - **I2 (MEDIUM)**: quickstart case 7 now calls help with `tool_name`.
+> - **G1 (MEDIUM)**: SC-001, SC-003 and SC-004 are now checks a reviewer makes against the published text, covered by review task T034; no agent trials were added.
+> - **U1, F1, F2, U2 (LOW)**: all fixed as you specified.
+>
+> This turn I also cleaned up leftovers so the artifacts agree with those decisions:
+> - FR-004 in spec.md now states the same quote exception as the contract.
+> - research.md says "no runtime behaviour change" instead of "documentation only".
+> - The out-of-date note in checklists/requirements.md now records the Q1 = A decision and the SC-001/003/004 rewording.
+>
+> No finding needed a product or scope decision, so I asked no questions.
+>
+> The commit includes the whole feature folder, including the Relay files relay-digest.md and relay-qa-log.md, as in 078. No code changed and no tests were run.
+>
+> Left open: CLAUDE.md (plan pointer moved to 079) and .specify/feature.json (points at 079) are modified but not committed, because they sit outside the feature folder you asked me to commit. In 078 these went in a separate chore commit.
+
 
 ### continue
 
-- **prepare**: not run.
+Skipped.
 
-### implementation
+- Condition `shell-exit-0` (run_when): not met. "node -e "process.exit('' === '' ? 1 : 0)"" exited 1.
 
-- **implement**: not run.
-- **open-pr**: not run.
+- **prepare**: skipped.
+
+### implementation (`6e1c642e-05bd-4a7b-8dcb-faff7a695adb`)
+
+- Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\specs\079-clarify-heading-paths\tasks.md exists.
+
+- **implement**: done, 84 turns.
+
+> Implemented all 38 tasks for 079-clarify-heading-paths. read_heading and patch_heading descriptions, heading parameter descriptions and help pages now state the level-1-first, one-level-per-segment rule, list unreachable sections with the whole-note alternative (read / write_note), and name the missing level-1 heading or skipped level as the usual heading-not-found cause, before outline. Runtime text and logic unchanged. Added 5 walkHeadings characterisation cases and FR-013 wording tests (each failed before its text change); regenerated the baseline (only the two tools' description/schema fingerprints moved); added a CHANGELOG entry. Full gate green (3611 tests passed); live check against TestVault 9/9 passed, fixtures cleaned up. The sweep also fixed a stale read_note in READ_HEADING_DESCRIPTION's opening sentence. SC review and run records are in the tasks.md Notes. The optional after_implement commit hook was skipped, so nothing is committed.
+
+- **open-pr**: in progress.
 
 ### review
 
