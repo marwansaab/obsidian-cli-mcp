@@ -253,3 +253,44 @@ Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0
 > - Skip the `.canvas` case: non-`.md` filetypes are BI-0060's scope, not this BI's.
 >
 > Then proceed to /speckit-implement.
+
+## 6. record / record-in-vault (2026-11-01T02:59:11.748Z)
+
+**Question (verbatim):**
+
+> The work for job BI-0123 is now a reviewed, documented pull request. Record that on the job's note, following the vault's conventions for backlog items:
+> - the spec branch: 078-refuse-oversized-text
+> - the feature folder in the code repository: specs/078-refuse-oversized-text
+> - the pull request: https://github.com/marwansaab/obsidian-cli-mcp/pull/106 (number 106)
+> - the status that means "in review" in this vault (if the vault has no such status, escalate `decision` with up to 3 choices)
+> - a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0123-2026-11-01 produced it.
+>
+> Dry run: no. In a dry run, change nothing: list each edit you would make in `vault_edits`, starting its change with "Would". Otherwise list each edit you made.
+
+**Advisor** (escalate: none):
+
+> Recorded on `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0123 - Add UTF-8 Byte Budget Cap.md`, following the same convention as the sibling Relay-run BIs (BI-0039 to BI-0119):
+> - `status` changed from planned to `in-review`. That is the vault's "in review" value for `backlog-item`, per the Vault Frontmatter Convention's Status overrides.
+> - `spec_branch` set to `078-refuse-oversized-text`.
+> - `updated` set to 2026-11-01.
+> - An HTML comment dated 2026-11-01 was appended. It names Relay run obsidian-cli-mcp-bi-0123-2026-11-01, PR https://github.com/marwansaab/obsidian-cli-mcp/pull/106 (#106), spec branch `078-refuse-oversized-text` and feature folder `specs/078-refuse-oversized-text`, and says the work is reviewed, documented and awaiting the owner's merge.
+>
+> The vault has no frontmatter key for the PR or the feature folder (no BI uses one), so both are recorded in the comment, as the siblings do. All three frontmatter values were read back after the write and are correct.
+
+Sources: `000-Meta/Vault Frontmatter Convention.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0119 - Add NOTE_NOT_FOUND Discriminator To Prepend Error Roster.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0123 - Add UTF-8 Byte Budget Cap.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0123 - Add UTF-8 Byte Budget Cap.md`: Frontmatter status: planned → in-review.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0123 - Add UTF-8 Byte Budget Cap.md`: Frontmatter spec_branch: "" → 078-refuse-oversized-text.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0123 - Add UTF-8 Byte Budget Cap.md`: Frontmatter updated: 2026-10-31 → 2026-11-01.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0123 - Add UTF-8 Byte Budget Cap.md`: Appended a 2026-11-01 HTML comment: Relay run obsidian-cli-mcp-bi-0123-2026-11-01 produced PR #106, spec branch 078-refuse-oversized-text, feature folder specs/078-refuse-oversized-text, awaiting owner merge.
+
+**Sent to the step:**
+
+> Recorded on `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0123 - Add UTF-8 Byte Budget Cap.md`, following the same convention as the sibling Relay-run BIs (BI-0039 to BI-0119):
+> - `status` changed from planned to `in-review`. That is the vault's "in review" value for `backlog-item`, per the Vault Frontmatter Convention's Status overrides.
+> - `spec_branch` set to `078-refuse-oversized-text`.
+> - `updated` set to 2026-11-01.
+> - An HTML comment dated 2026-11-01 was appended. It names Relay run obsidian-cli-mcp-bi-0123-2026-11-01, PR https://github.com/marwansaab/obsidian-cli-mcp/pull/106 (#106), spec branch `078-refuse-oversized-text` and feature folder `specs/078-refuse-oversized-text`, and says the work is reviewed, documented and awaiting the owner's merge.
+>
+> The vault has no frontmatter key for the PR or the feature folder (no BI uses one), so both are recorded in the comment, as the siblings do. All three frontmatter values were read back after the write and are correct.

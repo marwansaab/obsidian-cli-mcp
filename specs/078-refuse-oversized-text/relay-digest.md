@@ -4,14 +4,14 @@
 |---|---|
 | Run | `obsidian-cli-mcp-bi-0123-2026-11-01` |
 | Project | obsidian-cli-mcp (pack speckit) |
-| Status | running |
+| Status | done |
 | Started | 2026-11-01T02:27:20.284Z |
-| Finished | not yet |
-| Elapsed | 21 min 21 s |
+| Finished | 2026-11-01T02:59:45.811Z |
+| Elapsed | 32 min 26 s |
 | Questions | 3 (0 needed the owner) |
-| Requests to the advisor | 2 (0 needed the owner) |
+| Requests to the advisor | 3 (0 needed the owner) |
 | Escalations | 0 |
-| Edits by the advisor | 2 |
+| Edits by the advisor | 6 |
 
 ## Inputs
 
@@ -174,25 +174,53 @@ Skipped.
 ### implementation (`a4cfbd2c-da33-4758-9f0c-27941e9dba15`)
 
 - Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\specs\078-refuse-oversized-text\tasks.md exists.
+- Condition `gh-pr-open` (done_when): met. Pull request #106 is open.
 
 - **implement**: done, 16 turns.
 
 > All 23 tasks in specs/078-refuse-oversized-text/tasks.md were already marked [X] from the earlier implementation work; this run re-checked them. Requirements checklist: 16/16 done. Typecheck and lint are clean. Full tests: 166 test files passed (1 skipped), 3,599 tests passed (6 skipped), statement coverage 96.91%. In the tool fingerprint baseline only prepend's description and schema fingerprints changed. src/errors.ts, src/server.ts, src/tools/_register.ts and src/tools/prepend/handler.ts are unchanged. The production diff matches the spec: MAX_CONTENT_BYTES = 3072, a refine that marks the size-limit issue, the mapper returns CONTENT_TOO_LARGE with reason "bytes", and the character-limit error takes precedence when both limits are broken. npm run format:check fails across the repo (1,168 files, not caused by this change), so it was not treated as a blocker. The optional pre- and post-implement git commit hooks were skipped, so the changes are still uncommitted.
 
-- **open-pr**: in progress.
+- **open-pr**: done, 19 turns.
 
-### review
+> The 078 work is committed on 078-refuse-oversized-text in two commits with CONTRIBUTING.md-style messages: 8c23650 (fix: code, tests, fingerprint baseline, docs, CHANGELOG) and 297bbe2 (chore: spec-kit pointer and Relay digest). Lint, type check and build pass; the full test suite passes with 3,599 passed and 6 skipped (96.91% statement coverage). The branch is pushed to origin and PR #106 is open into main, not a draft and not merged. The repo has no PR template, so the description copies PR #105's layout, including the Constitution Compliance table (all rows Y or N/A, no kernel nodes touched). npm run format:check fails across the repo on this Windows checkout because of line endings; it already failed before this branch, and the PR description says so. The working tree is clean.
 
-- **code-review**: not run.
-- **fix**: not run.
 
-### docs
+### review (`eeae5e7d-d9bd-4aad-9c76-025e98567aed`)
 
-- **document**: not run.
+- Condition `gh-pr-open` (start_when): met. Pull request #106 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #106 is open.
 
-### record
+- **code-review**: done, 10 turns.
 
-- **record-in-vault**: not run.
+> Thermo-nuclear code-quality review of PR #106 (prepend UTF-8 size limit). Verdict: changes requested. Nothing got structurally worse: no file passes 1k lines and no kernel nodes are touched. Findings: F1 (high) — the mapper's two-loop too_big-then-custom precedence can go: `.max(MAX_CONTENT_LENGTH, { abort: true })` stops the byte refine when the length check fails. I tested this against zod 4: an input over both limits gives only too_big, the bytes issue still fires on its own, and the JSON Schema is unchanged. It departs from research D2 and flips one schema test, so it needs owner approval. F2 (medium) — bytes are measured twice (schema refine plus the mapper re-reading rawArgs), the message text is written twice, and the `: 0` fallback can never run; superRefine with params.contentBytes and the full message gives one measurement and one message. F3 — the `(issue as {params?})` casts and the schema.test `subReasonOf` helper are unnecessary, because checking `issue.code === "custom"` already types `params`. F4 — test duplication (the 'both share details.code' test, a repeated maxLength check, character-limit tests split across handler.test.ts and index.byte-cap.test.ts). Nit: `MAX_CONTENT_BYTES / 3` in the description. I changed no code and added a durable entry (item 39) to .memory/refactor-decisions.md.
+
+- **fix**: done, 41 turns.
+
+> Applied every fix from the PR #106 review in commit 00cccae and pushed it to 078-refuse-oversized-text. No fix changes behaviour the spec requires: B1–B16 return the same errors, and the published-surface fingerprint check passed without regenerating the baseline. So no question was needed. F1: `.max(MAX_CONTENT_LENGTH, { abort: true })` makes the schema report only `too_big` when text breaks both limits, so the mapper checks both limits in one loop; the second loop and its ordering comment are gone. F2: the size check is now a superRefine that measures once and puts the final message and contentBytes on the issue. The mapper reuses them instead of measuring again behind a `: 0` fallback that could never run, and the character-limit branch is back to its form on main. F3: dropped the `params` cast in index.ts and the `subReasonOf` helper in schema.test.ts; tests now use toMatchObject, which also checks contentBytes. F4: deleted the redundant 'both errors share details.code' test and a repeated maxLength check. Moved the registered-path character-limit tests from handler.test.ts into index.byte-cap.test.ts; only the cap×10 case was new, the other two were already covered by B5/B7. Nit: the description's CJK example now uses Math.floor; the text is unchanged (1024). research.md D1/D2/D4 and F3 were amended to match. Gates: lint, typecheck and build clean; 3596 tests pass (6 skipped); coverage 96.9% statements. Left on purpose: the description toContain checks in index.test.ts, because task T015 requires them. The relay-digest.md change that was already in the working tree was not committed.
+
+
+### docs (`86290117-b310-4bca-b359-6c28cde3afaf`)
+
+- Condition `gh-pr-open` (start_when): met. Pull request #106 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #106 is open.
+
+- **document**: done, 40 turns.
+
+> Docs-as-code pass for PR #106 (OPEN, 078-refuse-oversized-text -> main). Commit 3090cea is pushed onto the PR branch. It updates .docs-as-code/capabilities/mutate.md (new section on prepend's two content limits, plus known-incomplete entries), architecture.md (CONTENT_TOO_LARGE's two sub-states and the byte cap), capabilities/bases.md (create_base has no byte limit) and .docs-as-code/README.md. It adds ADR-051, which records the byte limit, the details.reason "bytes" sub-state and the two-pass mapper that review replaced with zod's abort flag, and corrects the prepend row in the root README's Tool inventory. docs/tools/** needed no change and CHANGELOG already has an entry. A ## Documentation section was added to the PR body. Follow-ups: the PR body's Summary still describes the pre-review mapper, so the pages follow the diff at 00cccae; .decisions/Decision Log.md needs an ADR-051 entry. The skill says to stop on a dirty tree, but the run carried on: the only change was Relay's own relay-digest.md, the PR branch was already checked out and only docs were staged. That file was left uncommitted.
+
+
+### record (`38792209-3e88-4503-9dff-e15719b72a44`)
+
+- **record-in-vault**: done.
+
+> Recorded on `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0123 - Add UTF-8 Byte Budget Cap.md`, following the same convention as the sibling Relay-run BIs (BI-0039 to BI-0119):
+> - `status` changed from planned to `in-review`. That is the vault's "in review" value for `backlog-item`, per the Vault Frontmatter Convention's Status overrides.
+> - `spec_branch` set to `078-refuse-oversized-text`.
+> - `updated` set to 2026-11-01.
+> - An HTML comment dated 2026-11-01 was appended. It names Relay run obsidian-cli-mcp-bi-0123-2026-11-01, PR https://github.com/marwansaab/obsidian-cli-mcp/pull/106 (#106), spec branch `078-refuse-oversized-text` and feature folder `specs/078-refuse-oversized-text`, and says the work is reviewed, documented and awaiting the owner's merge.
+>
+> The vault has no frontmatter key for the PR or the feature folder (no BI uses one), so both are recorded in the comment, as the siblings do. All three frontmatter values were read back after the write and are correct.
+
 
 ## Escalations
 
@@ -205,6 +233,10 @@ None.
 |---|---|---|
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0123 - Add UTF-8 Byte Budget Cap.md` | Appended a dated audit comment recording the clarify answer to Q1: the safe size is 3072 UTF-8 bytes, keeping BI-0120's ~1 KB margin. | pre-implementation / clarify: Question 1: Safe size value |
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0123 - Add UTF-8 Byte Budget Cap.md` | Appended a dated audit comment recording the plan decision: the byte cap reuses CONTENT_TOO_LARGE with details.reason "bytes" per ADR-015; the character-cap error is unchanged. | pre-implementation / plan: Plan decision: shape of the size-limit error (spec FR-003 vs ADR-015) |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0123 - Add UTF-8 Byte Budget Cap.md` | Frontmatter status: planned → in-review. | record / record-in-vault: The work for job BI-0123 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0123 - Add UTF-8 Byte Budget Cap.md` | Frontmatter spec_branch: "" → 078-refuse-oversized-text. | record / record-in-vault: The work for job BI-0123 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0123 - Add UTF-8 Byte Budget Cap.md` | Frontmatter updated: 2026-10-31 → 2026-11-01. | record / record-in-vault: The work for job BI-0123 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0123 - Add UTF-8 Byte Budget Cap.md` | Appended a 2026-11-01 HTML comment: Relay run obsidian-cli-mcp-bi-0123-2026-11-01 produced PR #106, spec branch 078-refuse-oversized-text, feature folder specs/078-refuse-oversized-text, awaiting owner merge. | record / record-in-vault: The work for job BI-0123 is now a reviewed, documented pull request. Record that on the job's note,  |
 
 ## Files
 
