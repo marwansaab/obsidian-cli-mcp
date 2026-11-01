@@ -4,14 +4,14 @@
 |---|---|
 | Run | `obsidian-cli-mcp-bi-0138-2026-11-01` |
 | Project | obsidian-cli-mcp (pack speckit) |
-| Status | running |
+| Status | done |
 | Started | 2026-11-01T07:57:56.035Z |
-| Finished | not yet |
-| Elapsed | 20 min 24 s |
+| Finished | 2026-11-01T08:28:09.831Z |
+| Elapsed | 30 min 14 s |
 | Questions | 6 (0 needed the owner) |
-| Requests to the advisor | 2 (0 needed the owner) |
+| Requests to the advisor | 3 (0 needed the owner) |
 | Escalations | 1 |
-| Edits by the advisor | 0 |
+| Edits by the advisor | 5 |
 
 ## Inputs
 
@@ -125,26 +125,59 @@ Skipped.
 
 - Condition `ready-to-implement` (start_when): not met. Obsidian has Game-Server-Vault focused, but the live checks need TestVault-Obsidian-CLI-MCP. Focus it in Obsidian (keep the advisor's vault open too), then check again.
 - Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\specs\082-fix-active-file-messaging\tasks.md exists, and Obsidian has TestVault-Obsidian-CLI-MCP focused.
+- Condition `gh-pr-open` (done_when): met. Pull request #112 is open.
 
 - **implement**: done, 66 turns.
 
 > Implemented 082-fix-active-file-messaging; T001–T016 are marked [X] in tasks.md. applyTargetModeRefinementForFolderScoped takes an optional locatorMessage. Its private default keeps the folder-scoped text, so files and paths are unchanged. get_active_file/schema.ts passes its own message: "<key> is not allowed: the active file is the implicit target, so no note may be named". The tool description, docs/tools/get_active_file.md and two internal comments now give name as basename + "." + extension (just basename when extension is ""). The frozen template string is unchanged. New tests cover U4/U5 in target-mode.test.ts, A1–A9 in get_active_file/schema.test.ts, A2 on the wire plus F1–F3 in index.test.ts, and U1/U2 in files/schema.test.ts. Each new assertion was seen failing before its fix, except the pins expected to pass both before and after (U4, U1/U2, A9, F3). Re-running the baseline generator moved only get_active_file's descriptionFingerprint, plus the generatedFromBranch field it always rewrites. Added the CHANGELOG entry. typecheck and lint pass, and the full vitest run passes (4111 passed, 6 skipped). format:check fails on 1230 files on this Windows checkout, including files this change does not touch, because core.autocrlf=true checks them out with CRLF line endings. The lines this change added pass Prettier when line endings are ignored, and the Prettier issues left in these files were already there at HEAD. The post-implement structural check passed on all four points and is recorded in post-implement.md. The optional T017 live check and the optional git-commit hooks were skipped, so nothing has been committed.
 
-- **open-pr**: in progress.
+- **open-pr**: done, 12 turns.
 
-### review
+> Committed all 082 work on 082-fix-active-file-messaging in three CONTRIBUTING.md-style commits. bc3a9f2 is the feat (code, tests, description, baseline), 5726805 the docs (help page, CHANGELOG, post-implement, tasks) and 6a4534a the chore (pointers, Relay records). The working tree is clean. Before committing: typecheck, lint and build pass, and the full test suite passes (vitest with coverage, 4111 passed and 6 skipped, against 4103 at the branch base), with 96.9% statement coverage. format:check fails locally on 1,230 files, including files this PR does not touch, because Git checks files out here with Windows line endings (core.autocrlf=true). The added lines pass Prettier when line endings are ignored, and the PR says the Linux CI run settles this check. Pushed to origin and opened PR #112 into main, not as a draft, since dry run was no. The repo has no PR template, so the description follows PR #111's layout and includes the Constitution Compliance table. Not merged.
 
-- **code-review**: not run.
-- **fix**: not run.
 
-### docs
+### review (`02e19fdb-a7ed-4257-9fa7-687618172926`)
 
-- **document**: not run.
-- **ci**: not run.
+- Condition `gh-pr-open` (start_when): met. Pull request #112 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #112 is open.
 
-### record
+- **code-review**: done, 11 turns.
 
-- **record-in-vault**: not run.
+> I reviewed PR #112 (082-fix-active-file-messaging against main) and approve it: no blockers. The change adds an optional `locatorMessage(key)` parameter to `applyTargetModeRefinementForFolderScoped`. Its default returns the exact old text, so `files` and `paths` produce the same messages as before; only `get_active_file` passes its own wording. That is the smallest change that works: no new branch, no third refinement, and the vault rules are not copied again. Research §F1 had already weighed the alternatives (a tool-local superRefine, a third refinement, remapping in mapValidationError) and rejected them; I agree, and the change fits ADR-038. No file-size or spaghetti problems, and the tests pin the exact message text. Touched suites pass (13 files, 381 tests) and eslint is clean on the touched folders. Non-blocking notes: (1) get_active_file/schema.ts lines 6 and 32 are comment lines left over-long (166 and 135 chars) by the reflow, while the rest of the file wraps near 110; (2) the real misnomer is that get_active_file uses the `folderScoped*` primitive although it is not folder-scoped. Renaming the primitive by its rule would be more accurate but deletes no logic, so it belongs in its own change, not this messaging fix. I added this as item 43 in .memory/refactor-decisions.md (gitignored).
+
+- **fix**: done, 13 turns.
+
+> Fixed: the review's one actionable issue. Two comment lines in src/tools/get_active_file/schema.ts (lines 6 and 32, at 166 and 135 characters) are rewrapped to match the file's ~110-character width. The change is to comments only, so no behaviour the 082 spec requires is affected. Committed as cbd6ec9 ("chore(082): rewrap two over-long comments in get_active_file schema", body and trailer per CONTRIBUTING.md) and pushed to 082-fix-active-file-messaging; it is now on PR #112. Gates: lint clean, typecheck clean, prettier clean on the file, full suite 4111 passed / 6 skipped (unchanged), coverage 96.9% statements. Left on purpose: (1) get_active_file still uses the folderScoped* target-mode primitive although it is not folder-scoped. The review itself called this a non-blocking follow-up: a rename would touch three schemas, their tests and ADR-003's vocabulary while deleting no logic, so it belongs in its own change. (2) The locatorMessage parameter design was approved as is, so nothing to fix there. Not committed: specs/082-fix-active-file-messaging/relay-digest.md, which was already modified before this step and is not part of the review fixes.
+
+
+### docs (`25048b96-1f87-4e59-ade5-8dc580ab4a87`)
+
+- Condition `gh-pr-open` (start_when): met. Pull request #112 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #112 is open.
+
+- **document**: done, 18 turns.
+
+> PR #112 (OPEN, 082-fix-active-file-messaging -> main): docs committed d71a788 and pushed. Pages: .docs-as-code/architecture.md (targeting section: folder-scoped refinement's optional locatorMessage, default keeps files/paths byte-identical; corrected claim that paths publishes file/path), capabilities/search-and-discovery.md (get_active_file's own locator reason, dotted name formula), capabilities/list-and-inventory.md (corrected: files rejects published locators via refinement, paths omits them → unrecognized_keys, pinned U1–U3). PR body Documentation section extended. CI re-running. No docs/tools edits by this pass (PR already corrected get_active_file.md), so npm test not needed; CHANGELOG entry present; no new ADR. Notes: working tree had Relay's uncommitted specs/082-fix-active-file-messaging/relay-digest.md — no branch switch was needed, so it was left unstaged and untouched. Stale dot-less formula 'name = basename + extension' remains in two comments/test names in src/tools/get_active_file/_template.test.ts (lines 3, 24) — product code, not changed by a docs pass.
+
+- **ci**: done, 4 turns.
+
+> CI passed on PR #112's latest commit d71a788 (run 41288684530), with no fixes needed. All four jobs passed: Lint / Typecheck / Test / Build on ubuntu-latest Node 22 (1m3s), ubuntu-latest Node 24 (1m38s), windows-latest Node 22 (2m42s) and windows-latest Node 24 (1m33s). Nothing was committed or pushed in this step.
+
+
+### record (`95afe4d4-4423-4ffe-bf6d-b2294b59211a`)
+
+- **record-in-vault**: done.
+
+> BI-0138 is now recorded as in review, following the BI-0039 pattern for backlog items. I read the note back after the edits and checked them.
+>
+> - **Status:** frontmatter `status` changed from `planned` to `in-review`. `in-review` is in the `backlog-item` status list in the Vault Frontmatter Convention.
+> - **Spec branch:** frontmatter `spec_branch` set to `082-fix-active-file-messaging`.
+> - **Updated date:** frontmatter `updated` set to 2026-11-01.
+> - **Status section:** a new first paragraph reads "**In review — 2026-11-01.**". It links PR [marwansaab/obsidian-cli-mcp#112](https://github.com/marwansaab/obsidian-cli-mcp/pull/112), names the spec branch `082-fix-active-file-messaging` and the feature folder `specs/082-fix-active-file-messaging`, and ends "Awaiting owner merge." The paragraphs that were already there are unchanged.
+> - **Comment:** a dated HTML comment was added at the end of the note. It says Relay run obsidian-cli-mcp-bi-0138-2026-11-01 produced PR #112 and names the branch, the feature folder and the status change.
+>
+> `npm_version_shipped` is still empty because the PR is not merged yet.
+
 
 ## Escalations
 
@@ -154,7 +187,13 @@ Skipped.
 
 ## Edits made by the advisor
 
-None.
+| File | Change | Triggered by |
+|---|---|---|
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0138 - Fix Active File Messaging.md` | Frontmatter status: planned → in-review. | record / record-in-vault: The work for job BI-0138 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0138 - Fix Active File Messaging.md` | Frontmatter spec_branch set to 082-fix-active-file-messaging. | record / record-in-vault: The work for job BI-0138 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0138 - Fix Active File Messaging.md` | Frontmatter updated: 2026-10-31 → 2026-11-01. | record / record-in-vault: The work for job BI-0138 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0138 - Fix Active File Messaging.md` | Added an 'In review — 2026-11-01' paragraph at the top of ## Status, with the PR #112 link, the spec branch and the feature folder. | record / record-in-vault: The work for job BI-0138 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0138 - Fix Active File Messaging.md` | Added a dated HTML comment at the end of the note: Relay run obsidian-cli-mcp-bi-0138-2026-11-01 produced PR #112. | record / record-in-vault: The work for job BI-0138 is now a reviewed, documented pull request. Record that on the job's note,  |
 
 ## Files
 

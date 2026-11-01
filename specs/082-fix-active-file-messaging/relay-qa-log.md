@@ -305,3 +305,49 @@ Sources: `220-Planning/Session Handover.md`, `421-Custom Connectors/Obsidian CLI
 > A
 >
 > Rationale: a committed research.md should not cite gitignored `.memory` notes, because readers of the repo cannot open them. Under owner decision D2 (Session Handover, Recent direction changes), the authority on as-built behaviour is the committed repo docs. Option A drops those citations and fixes the copy count in one edit, and B leaves an unreproducible citation in place. Keep the ADR-038 sentence as precedent only. It must not become a new decision: the vault records ADR-038 as still to be imported, with status `proposed`.
+
+## 9. record / record-in-vault (2026-11-01T08:27:20.334Z)
+
+**Question (verbatim):**
+
+> The work for job BI-0138 is now a reviewed, documented pull request. Record that on the job's note, following the vault's conventions for backlog items:
+> - the spec branch: 082-fix-active-file-messaging
+> - the feature folder in the code repository: specs/082-fix-active-file-messaging
+> - the pull request: https://github.com/marwansaab/obsidian-cli-mcp/pull/112 (number 112)
+> - the status that means "in review" in this vault (if the vault has no such status, escalate `decision` with up to 3 choices)
+> - a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0138-2026-11-01 produced it.
+>
+> Dry run: no. In a dry run, change nothing: list each edit you would make in `vault_edits`, starting its change with "Would". Otherwise list each edit you made.
+
+**Advisor** (escalate: none):
+
+> BI-0138 is now recorded as in review, following the BI-0039 pattern for backlog items. I read the note back after the edits and checked them.
+>
+> - **Status:** frontmatter `status` changed from `planned` to `in-review`. `in-review` is in the `backlog-item` status list in the Vault Frontmatter Convention.
+> - **Spec branch:** frontmatter `spec_branch` set to `082-fix-active-file-messaging`.
+> - **Updated date:** frontmatter `updated` set to 2026-11-01.
+> - **Status section:** a new first paragraph reads "**In review — 2026-11-01.**". It links PR [marwansaab/obsidian-cli-mcp#112](https://github.com/marwansaab/obsidian-cli-mcp/pull/112), names the spec branch `082-fix-active-file-messaging` and the feature folder `specs/082-fix-active-file-messaging`, and ends "Awaiting owner merge." The paragraphs that were already there are unchanged.
+> - **Comment:** a dated HTML comment was added at the end of the note. It says Relay run obsidian-cli-mcp-bi-0138-2026-11-01 produced PR #112 and names the branch, the feature folder and the status change.
+>
+> `npm_version_shipped` is still empty because the PR is not merged yet.
+
+Sources: `000-Meta/Vault Frontmatter Convention.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0039 - Disambiguate Read Heading Leading Line Terminator.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0138 - Fix Active File Messaging.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0138 - Fix Active File Messaging.md`: Frontmatter status: planned → in-review.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0138 - Fix Active File Messaging.md`: Frontmatter spec_branch set to 082-fix-active-file-messaging.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0138 - Fix Active File Messaging.md`: Frontmatter updated: 2026-10-31 → 2026-11-01.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0138 - Fix Active File Messaging.md`: Added an 'In review — 2026-11-01' paragraph at the top of ## Status, with the PR #112 link, the spec branch and the feature folder.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0138 - Fix Active File Messaging.md`: Added a dated HTML comment at the end of the note: Relay run obsidian-cli-mcp-bi-0138-2026-11-01 produced PR #112.
+
+**Sent to the step:**
+
+> BI-0138 is now recorded as in review, following the BI-0039 pattern for backlog items. I read the note back after the edits and checked them.
+>
+> - **Status:** frontmatter `status` changed from `planned` to `in-review`. `in-review` is in the `backlog-item` status list in the Vault Frontmatter Convention.
+> - **Spec branch:** frontmatter `spec_branch` set to `082-fix-active-file-messaging`.
+> - **Updated date:** frontmatter `updated` set to 2026-11-01.
+> - **Status section:** a new first paragraph reads "**In review — 2026-11-01.**". It links PR [marwansaab/obsidian-cli-mcp#112](https://github.com/marwansaab/obsidian-cli-mcp/pull/112), names the spec branch `082-fix-active-file-messaging` and the feature folder `specs/082-fix-active-file-messaging`, and ends "Awaiting owner merge." The paragraphs that were already there are unchanged.
+> - **Comment:** a dated HTML comment was added at the end of the note. It says Relay run obsidian-cli-mcp-bi-0138-2026-11-01 produced PR #112 and names the branch, the feature folder and the status change.
+>
+> `npm_version_shipped` is still empty because the PR is not merged yet.
