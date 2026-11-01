@@ -205,6 +205,42 @@ predicates, `isSingleNoteScope` and `effectiveFolder`, are shared by the
 confirmation gate and `resolveScope` since the PR #92 review (commit
 `ca25c67`), which had found the checks written twice.
 
+## Heading paths
+
+`patch_heading` finds its section with `walkHeadings`
+(`src/tools/patch_heading/heading-walk.ts`), a pure scan over the note's ATX
+headings. A heading matches the next segment only when its level is one below
+the last matched heading and its ancestors are exactly the headings already
+matched, so a `#`-separated `heading_path` starts at the note's level-1
+heading and names one heading per level (`Project#Tasks#Today` for a level-3
+target). `read_heading` resolves its `::` paths by the same rule
+([read](read.md#known-limits)).
+
+Until PR #107 the published text did not say so. It said "Minimum two
+segments — top-level headings are out of scope", which agents read as "leave
+the level-1 heading out": they wrote `Tasks#Today` and got `HEADING_NOT_FOUND`
+although both headings exist. The help page also advised wrapping a top-level
+heading in a parent, which cannot work, because the parent would then be the
+level-1 heading. PR #107 replaced that sentence in the description, the
+`heading_path` parameter description and `docs/tools/patch_heading.md` with the
+rule, the sections no path can reach (a level-1 section by itself, any section
+in a note with no level-1 heading, any section below a skipped level), each
+with `write_note` as the whole-note alternative, and the usual cause of
+heading-not-found before the advice to call `outline`. The code, the codes and
+every runtime message are unchanged (spec 079 Clarifications Q1). The frozen
+one-segment validation message still says "top-level headings are out of
+scope"; the help page quotes it verbatim and follows each quote with a note
+that it refers to a one-segment path. Five characterisation cases in
+`heading-walk.test.ts` pin the rule: `null` for a left-out level 1, a skipped
+level and a note with no level-1 heading; a match when the skip is below the
+target and when the path starts at a second level-1 heading.
+
+The two tools still use different separators (`#` and `::`), kept apart on
+purpose ([ADR-NNN](../decisions/ADR-NNN-shared-parameter-names-within-a-tool-family.md),
+first exception). Aligning them, a
+runtime hint in the heading-not-found message, and reaching the unreachable
+sections are spec 079 plan Follow-ups.
+
 ## Confirmation before irreversible changes
 
 Since PR #92 (068 US14, FR-047 to FR-050, research R12) two actions in this
