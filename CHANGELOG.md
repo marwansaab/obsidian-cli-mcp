@@ -27,6 +27,8 @@ Spec 080-tolerate-plugin-noise (BI-0135).
 
 Spec 081-classify-malformed-base (BI-0137).
 
+Spec 082-fix-active-file-messaging.
+
 ### Added
 
 - **`write_note` reports `bytes_written`**, with the same meaning, counting a new note's old size as 0. If the existing note's size cannot be read before an overwrite, the call fails with `FS_WRITE_FAILED` before anything is written. Its `details` shape is unchanged; `details.syscall` now reads `"stat"` where the old existence probe reported `"realpath"`.
@@ -61,6 +63,7 @@ Spec 081-classify-malformed-base (BI-0137).
 - **`prepend` on a missing note now reports `CLI_REPORTED_ERROR` with `details.code: NOTE_NOT_FOUND`**, `details.path`, `details.vault` and the message `Note "<path>" not found in vault.`, the same as `append_note` in specific mode (spec 077; in active mode `prepend` echoes the focused vault's name, `append_note` echoes `null`). Previously it returned a generic upstream error with `details.stage: "prepend-cli"`. A note missing on disk is now reported before Obsidian is called.
 - **Eval-composed tools ignore other plugins' output around their answer** (spec 080, ADR-029 2026-11-01 amendment). Each typed `eval` now tags its answer line with a tag minted for the call, so lines that other Obsidian plugins print before or after it, including look-alike `=> ` lines and `Error:` lines, no longer turn a success into a parse error or pick up the wrong data. A cold start whose `Error: Command "eval" not found.` line follows plugin start-up lines is now recognised and retried once, as at the head of the output. Other commands, and `obsidian_exec`'s raw output, are unchanged; for `obsidian_exec` an `eval` that prints a `=> ` line is a success even after an `Error:` line.
 - **`views_base` reports a malformed Base as `BASE_MALFORMED`** (spec 081). A `.base` whose YAML Obsidian cannot parse now fails, named or open, with `CLI_REPORTED_ERROR`, `details.code: "BASE_MALFORMED"` and `details.reason: "invalid-yaml"`, instead of a generic upstream error carrying the raw parser output. The headline names the Base; the parser report is kept in `details.message`, bounded to its first and last 500 characters when longer than 1,000, with `details.messageLength`. The named-mode "not a base file" failure now carries `details.reason: "unknown"`. `query_base` is unchanged.
+- **`get_active_file` names the right reason when a note locator is supplied.** A `file` or `path` locator is still rejected in both modes, with the message "`<key>` is not allowed: the active file is the implicit target, so no note may be named" in place of the folder-scoped wording, and the description and help page now state `name` as `basename + "." + extension` (just `basename` with no extension). `files` and `paths` are unchanged.
 
 ## [0.9.0] - 2026-10-30
 
