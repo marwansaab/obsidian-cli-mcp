@@ -1,7 +1,7 @@
 // Original — no upstream. Tests for the shared eval answer parse and parse-error excerpt (spec 080 FR-002, FR-013; contract §4 E1–E4).
 import { describe, expect, it } from "vitest";
 
-import { EXCERPT_CUT_MARKER, parseEvalAnswer, stdoutDetails } from "./_eval-parse.js";
+import { EXCERPT_CUT_MARKER, boundedExcerpt, parseEvalAnswer, stdoutDetails } from "./_eval-parse.js";
 
 describe("parseEvalAnswer", () => {
   it("throws a SyntaxError when there is no answer", () => {
@@ -25,6 +25,15 @@ describe("parseEvalAnswer", () => {
     expect(parseEvalAnswer("false")).toBe(false);
     expect(parseEvalAnswer("[]")).toEqual([]);
     expect(parseEvalAnswer("0")).toBe(0);
+  });
+});
+
+describe("boundedExcerpt", () => {
+  it("keeps text of at most 1,000 characters whole and cuts longer text to its two ends", () => {
+    expect(boundedExcerpt("x".repeat(1000))).toBe("x".repeat(1000));
+    expect(boundedExcerpt("h".repeat(500) + "m" + "t".repeat(500))).toBe(
+      "h".repeat(500) + EXCERPT_CUT_MARKER + "t".repeat(500),
+    );
   });
 });
 

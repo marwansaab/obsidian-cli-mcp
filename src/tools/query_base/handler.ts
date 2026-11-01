@@ -1,4 +1,4 @@
-// Original — no upstream. query_base handler — wraps the native `obsidian base:query` subcommand (R1) returning a structured `{columns, rows, truncated, total_rows?}` envelope; staged pipeline: vault root resolve → Layer-2 canonical-path check → fs.stat pre-flight (BASE_NOT_FOUND / BASE_MALFORMED/empty) → invokeCli → stderr/stdout error classification (R4) → JSON.parse → wire envelope safeParse → row post-process (reserved `path` injection + collision rename to `path_view` + columns vector synthesis) → 1000-row cap with `truncated` / `total_rows` signal (FR-013) → output schema parse. The invalid-yaml classifier pattern is shared with views_base (spec 081, `_base-malformed.ts`). Zero new top-level error codes; new states surface via `details.code` sub-discrimination per ADR-015 (Principle IV streak: sixteenth tool).
+// Original — no upstream. query_base handler — wraps the native `obsidian base:query` subcommand (R1) returning a structured `{columns, rows, truncated, total_rows?}` envelope; staged pipeline: vault root resolve → Layer-2 canonical-path check → fs.stat pre-flight (BASE_NOT_FOUND / BASE_MALFORMED/empty) → invokeCli → stderr/stdout error classification (R4) → JSON.parse → wire envelope safeParse → row post-process (reserved `path` injection + collision rename to `path_view` + columns vector synthesis) → 1000-row cap with `truncated` / `total_rows` signal (FR-013) → output schema parse. The invalid-yaml classifier pattern and the upstream-report composition are shared with views_base (spec 081, `_base-malformed.ts`). Zero new top-level error codes; new states surface via `details.code` sub-discrimination per ADR-015 (Principle IV streak: sixteenth tool).
 import * as nodeFs from "node:fs/promises";
 
 import {
@@ -18,7 +18,7 @@ import {
   parseFocusedVault,
   remapVaultNotFound,
 } from "../_active-file.js";
-import { INVALID_YAML_PATTERN } from "../_base-malformed.js";
+import { INVALID_YAML_PATTERN, upstreamReport } from "../_base-malformed.js";
 import { stdoutDetails } from "../_eval-parse.js";
 
 import type { SupportDeclaration } from "../../file-type/file-type.js";
@@ -157,16 +157,11 @@ function classifyAndThrow(
   input: QueryBaseInput,
   cause: unknown,
 ): void {
-  const stderrTrimmed = stderr.trim();
-  const stdoutTrimmed = stdout.trim();
-  const upstreamMessage =
-    stderrTrimmed.length > 0 && stdoutTrimmed.length > 0
-      ? `${stderrTrimmed}\n${stdoutTrimmed}`
-      : (stderrTrimmed.length > 0 ? stderrTrimmed : stdoutTrimmed);
+  const upstreamMessage = upstreamReport(stderr, stdout);
   if (
     upstreamMessage.length === 0 ||
     upstreamMessage.startsWith("[") ||
-    stdoutTrimmed.startsWith("[")
+    stdout.trim().startsWith("[")
   ) {
     return;
   }
