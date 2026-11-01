@@ -4,14 +4,14 @@
 |---|---|
 | Run | `obsidian-cli-mcp-bi-0119-2026-11-01` |
 | Project | obsidian-cli-mcp (pack speckit) |
-| Status | running |
+| Status | done |
 | Started | 2026-11-01T00:42:59.872Z |
-| Finished | not yet |
-| Elapsed | 1 h 13 min |
-| Questions | 1 (0 needed the owner) |
-| Requests to the advisor | 2 (0 needed the owner) |
+| Finished | 2026-11-01T02:07:26.086Z |
+| Elapsed | 1 h 24 min |
+| Questions | 2 (0 needed the owner) |
+| Requests to the advisor | 3 (0 needed the owner) |
 | Escalations | 1 |
-| Edits by the advisor | 1 |
+| Edits by the advisor | 7 |
 
 ## Inputs
 
@@ -96,6 +96,7 @@ Skipped.
 ### implementation (`9b61df0d-2b94-4ba6-9c73-0b2ef92b0919`)
 
 - Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\specs\077-fix-prepend-not-found\tasks.md exists.
+- Condition `gh-pr-open` (done_when): met. Pull request #105 is open.
 
 - **implement**: done, 76 turns.
 
@@ -110,20 +111,57 @@ Skipped.
 >
 > Earlier results stand: the full suite passes (3569 passed, 6 skipped), typecheck and lint are clean, no tool fingerprints moved in the baseline, and the CodeGraph structural check passed. Repo-wide `npm run format:check` already failed at HEAD and still does. When the PR is opened, its description needs the structural-check result and the raw Obsidian lines above. Nothing is committed; I skipped the optional commit hook.
 
-- **open-pr**: in progress.
+- **open-pr**: done, 14 turns.
 
-### review
+> The spec 077 work is committed, pushed and open as PR #105 into main (not a draft, since dry run is no); I have not merged it.
+>
+> Before committing I re-ran the gates: lint, typecheck and build pass, and `npm test` gives 3569 passed and 6 skipped (was 3556: 13 new tests, 1 rewritten, no regressions; 96.9% statement coverage). `npm run format:check` still fails across most of the repo on this Windows checkout, as it already did at HEAD.
+>
+> There are two commits, following CONTRIBUTING.md's convention:
+> - b12d1ce `chore(077)`: points the spec-kit pointer and the CLAUDE.md plan link at 077, and updates the Relay digest.
+> - 00c1365 `fix(077)`: the handler fix, the new and rewritten tests, `docs/tools/prepend.md`, the CHANGELOG entry and tasks.md.
+>
+> The repo has no pull request template file, so the description follows the layout of PR #104: Summary (with the before/after table), Evidence, Test results and the Constitution Compliance table. Compliance is marked Y for all five principles, ADR-009, ADR-015, the MCP Tool Surface Standards, the Security Defaults and CI, and N/A for ADR-010, ADR-013 and ADR-014. The description also covers the kernel-node touch (`UpstreamError` only), the T016 structural check and the T017 live-check results with Obsidian's raw lines quoted.
+>
+> The working tree is clean. The next lifecycle steps are `/code-review` and `/speckit-docs-as-code 105`.
 
-- **code-review**: not run.
-- **fix**: not run.
 
-### docs
+### review (`df3b32d8-97ba-466c-9c8e-18f817fb6a03`)
 
-- **document**: not run.
+- Condition `gh-pr-open` (start_when): met. Pull request #105 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #105 is open.
 
-### record
+- **code-review**: done, 14 turns.
 
-- **record-in-vault**: not run.
+> Thermo-nuclear review of PR #105 (077-fix-prepend-not-found). Core fix is small and in the right layer: the pre-call stat now reports ENOENT as NOTE_NOT_FOUND, and the confirmed `Error: File "<path>" not found.` regex is added. No file goes over 1k lines (handler.ts 317, handler.test.ts 889), no new error codes, no kernel touch, and the prepend + append_note suites pass (260/260). Verdict: request changes, all small. (1) NOTE_NOT_FOUND is now built in three handlers (append_note inline, patch_block inline, prepend local `noteNotFound`), each with a different vault policy. Parity rests on a cross-tool test rather than one shared builder: suggest a shared `noteNotFound(relPath, vault, cause)` in `_fs-errors.ts`, with each caller passing its own vault value (owner call, since it touches other tools). (2) The pre-read ENOENT branch is now race-only and still spawns Obsidian just to string-match its report. Mapping it to `noteNotFound` would make both catches the same, but research D1 decided against that, so it is an owner ruling. Either way, the race test in handler.empty-body.test.ts:220 still uses the made-up `Error: Note not found.` wording that research says hid the defect. (3) The rewritten handler.test.ts test is a weaker duplicate of E1, with a dead statIdx/`{size:42}` branch and a describe title that is no longer accurate: delete or simplify it. (4) Test helpers: an `enoent()`/`errnoError` copy and a 5× repeated missing-stat fakeFs belong in prepend's `_handler-fixtures.ts`. (5) Two avoidable `as PrependInput` casts. (6) CHANGELOG and prepend.md say 'the same as append_note' with no caveat, but per the spec's Assumptions it differs in active mode. Added item 38 to .memory/refactor-decisions.md.
+
+- **fix**: done, 36 turns, 1 questions.
+
+> PR #105 review fixes are finished. The owner chose option A: keep the pre-read readFile ENOENT handling as built. Clarify Q1 (BI-0119) puts the deletion-race window on recognising Obsidian's not-found line, as FR-001b and research D1 say, so no code, spec or test changed for it. Already pushed in commit cdbd8af: the shared noteNotFound builder in src/tools/_fs-errors.ts, now used by append_note, patch_block and prepend, each still passing its own vault value. The race test uses Obsidian's real `Error: File "<path>" not found.` line. The duplicate pre-stat ENOENT test is removed. errnoError and missingNoteFs replace the copied test setup. Both `as PrependInput` casts are gone. CHANGELOG and prepend.md note the active-mode difference. Gates: lint, typecheck and build clean; 3569/3569 tests pass (6 skipped); 96.9% statement coverage; fingerprint unchanged. Item 38 in .memory/refactor-decisions.md now records the ruling so later reviews don't raise it again. relay-digest.md had changes from before this session and is still uncommitted.
+
+
+### docs (`035201a0-9b13-41d0-803a-fd9155252e3c`)
+
+- Condition `gh-pr-open` (start_when): met. Pull request #105 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #105 is open.
+
+- **document**: done, 30 turns.
+
+> Documented PR #105 (OPEN, 077-fix-prepend-not-found -> main). New ADR-050 records the two-point missing-note detection for prepend and the review-driven move of noteNotFound into src/tools/_fs-errors.ts. capabilities/mutate.md gains a "prepend on a missing note" section, corrects a stale claim and adds three known limits; architecture.md's error model and CLI-path section now name the shared builder; .docs-as-code/README.md indexes ADR-050. Commit 51677dc pushed to the PR branch, and a Documentation section was appended to the PR body. The PR body still calls noteNotFound module-private, but the diff shows it shared; the pages follow the diff. .decisions/Decision Log.md needs an ADR-050 entry. The CHANGELOG entry exists. No docs/tools change, so npm test was not run. The relay-digest.md and relay-qa-log.md files were already uncommitted before the run and were left out of the commit.
+
+
+### record (`34fadc4d-9270-472e-8ec4-45a9c3d587ac`)
+
+- **record-in-vault**: done.
+
+> BI-0119 is now recorded as in review, following the vault's backlog-item conventions. The sibling BI-0118 / PR #104 record served as the precedent.
+> - `status`: planned → `in-review`. That value is in the backlog-item vocabulary in the Vault Frontmatter Convention.
+> - `spec_branch`: `077-fix-prepend-not-found`.
+> - `updated`: `2026-11-01`.
+> - Status section: a new lead paragraph says "In review — 2026-11-01". It links PR [#105](https://github.com/marwansaab/obsidian-cli-mcp/pull/105) and names the spec branch and the feature folder `specs/077-fix-prepend-not-found`, awaiting owner merge.
+> - A dated HTML comment at the end of the note says Relay run obsidian-cli-mcp-bi-0119-2026-11-01 produced PR #105.
+> I read back the Status section and the `updated` field, and both are correct.
+
 
 ## Escalations
 
@@ -140,6 +178,12 @@ Checks: the full suite passes (3569 passed, 6 skipped), and typecheck and lint a
 | File | Change | Triggered by |
 |---|---|---|
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0119 - Add NOTE_NOT_FOUND Discriminator To Prepend Error Roster.md` | Appended a 2026-11-01 clarify audit comment recording the Q1 answer: option A (pre-call ENOENT check plus recognition of Obsidian's not-found wording; FR-009 applies to the second layer). | pre-implementation / clarify: Question 1: Where the missing note is detected |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0119 - Add NOTE_NOT_FOUND Discriminator To Prepend Error Roster.md` | Appended a 2026-11-01 audit comment for PR #105 review finding 2: the pre-read ENOENT stays ignored, so Obsidian's report covers the deletion race (option A). | review / fix: PR #105 review, finding 2: `prepend` checks the note exists with a stat, then (in default mode) read |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0119 - Add NOTE_NOT_FOUND Discriminator To Prepend Error Roster.md` | Frontmatter status planned → in-review. | record / record-in-vault: The work for job BI-0119 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0119 - Add NOTE_NOT_FOUND Discriminator To Prepend Error Roster.md` | Frontmatter spec_branch set to 077-fix-prepend-not-found. | record / record-in-vault: The work for job BI-0119 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0119 - Add NOTE_NOT_FOUND Discriminator To Prepend Error Roster.md` | Frontmatter updated bumped to 2026-11-01. | record / record-in-vault: The work for job BI-0119 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0119 - Add NOTE_NOT_FOUND Discriminator To Prepend Error Roster.md` | Prepended an 'In review — 2026-11-01' paragraph to ## Status, linking PR #105, the spec branch and the feature folder specs/077-fix-prepend-not-found. | record / record-in-vault: The work for job BI-0119 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0119 - Add NOTE_NOT_FOUND Discriminator To Prepend Error Roster.md` | Appended a dated 2026-11-01 HTML comment saying Relay run obsidian-cli-mcp-bi-0119-2026-11-01 produced PR #105 (branch, folder, status flip). | record / record-in-vault: The work for job BI-0119 is now a reviewed, documented pull request. Record that on the job's note,  |
 
 ## Files
 

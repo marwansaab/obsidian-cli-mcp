@@ -182,3 +182,75 @@ Edits:
 > 1. A
 >
 > Pre-call ENOENT → `NOTE_NOT_FOUND` matches `append_note` (feature page step 5: readFile ENOENT → NOTE_NOT_FOUND) and the `query_base` pre-flight `BASE_NOT_FOUND` precedent. Also recognising Obsidian's `Error: File "<path>" not found.` keeps both cases under the BI's cohort-parity contract. Stays within `CLI_REPORTED_ERROR` with zero new top-level codes (Constitution IV).
+
+## 4. review / fix (2026-11-01T02:03:35.505Z)
+
+**Question (verbatim):**
+
+> PR #105 review, finding 2: `prepend` checks the note exists with a stat, then (in default mode) reads its text. If the note is deleted between those two steps, the read fails with ENOENT. Today that error is ignored: Obsidian is still called, and its `Error: File "<path>" not found.` line is recognised as NOTE_NOT_FOUND. Research D1 kept this on purpose, and spec FR-001b says the 'removed in between' case is "recognised from Obsidian's report". Should the read's ENOENT report NOTE_NOT_FOUND directly instead?
+>
+> | Option | What changes | Trade-off |
+> |---|---|---|
+> | A (recommended) | Leave it as it is. | Matches spec FR-001b and research D1 word for word. Costs one extra branch, plus a comment, for a timing window that is very hard to hit. |
+> | B | The read's ENOENT throws `noteNotFound(relPath, vaultDisplayName, e)`, the same as the stat. | Both checks share one rule, and Obsidian is not called in that window. The agent sees the same code, `details` and message. Only `cause` changes (the file-system error instead of Obsidian's error), and there is one spawn fewer. Needs FR-001b, research D1 and the handler.empty-body.test.ts "pre-read ENOENT" test updated. |
+>
+> Recommendation: A. The two options look the same to an agent, the window is a race that is very hard to hit, and B changes a requirement the spec states outright for a very small simplification.
+
+**Advisor** (escalate: none):
+
+> A
+>
+> Keep as built. Clarify Q1 (recorded in the BI-0119 note) assigned the deletion-race window to layer 2, the recognition of Obsidian's not-found line, which FR-001b and research D1 encode. The agent-visible contract is the same either way, so there is no reason to change the spec.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0119 - Add NOTE_NOT_FOUND Discriminator To Prepend Error Roster.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0119 - Add NOTE_NOT_FOUND Discriminator To Prepend Error Roster.md`: Appended a 2026-11-01 audit comment for PR #105 review finding 2: the pre-read ENOENT stays ignored, so Obsidian's report covers the deletion race (option A).
+
+**Sent to the step:**
+
+> A
+>
+> Keep as built. Clarify Q1 (recorded in the BI-0119 note) assigned the deletion-race window to layer 2, the recognition of Obsidian's not-found line, which FR-001b and research D1 encode. The agent-visible contract is the same either way, so there is no reason to change the spec.
+
+## 5. record / record-in-vault (2026-11-01T02:06:50.304Z)
+
+**Question (verbatim):**
+
+> The work for job BI-0119 is now a reviewed, documented pull request. Record that on the job's note, following the vault's conventions for backlog items:
+> - the spec branch: 077-fix-prepend-not-found
+> - the feature folder in the code repository: specs/077-fix-prepend-not-found
+> - the pull request: https://github.com/marwansaab/obsidian-cli-mcp/pull/105 (number 105)
+> - the status that means "in review" in this vault (if the vault has no such status, escalate `decision` with up to 3 choices)
+> - a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0119-2026-11-01 produced it.
+>
+> Dry run: no. In a dry run, change nothing: list each edit you would make in `vault_edits`, starting its change with "Would". Otherwise list each edit you made.
+
+**Advisor** (escalate: none):
+
+> BI-0119 is now recorded as in review, following the vault's backlog-item conventions. The sibling BI-0118 / PR #104 record served as the precedent.
+> - `status`: planned → `in-review`. That value is in the backlog-item vocabulary in the Vault Frontmatter Convention.
+> - `spec_branch`: `077-fix-prepend-not-found`.
+> - `updated`: `2026-11-01`.
+> - Status section: a new lead paragraph says "In review — 2026-11-01". It links PR [#105](https://github.com/marwansaab/obsidian-cli-mcp/pull/105) and names the spec branch and the feature folder `specs/077-fix-prepend-not-found`, awaiting owner merge.
+> - A dated HTML comment at the end of the note says Relay run obsidian-cli-mcp-bi-0119-2026-11-01 produced PR #105.
+> I read back the Status section and the `updated` field, and both are correct.
+
+Sources: `000-Meta/Vault Frontmatter Convention.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0118 - Fix Prepend Empty File FR-009 Divergence.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0119 - Add NOTE_NOT_FOUND Discriminator To Prepend Error Roster.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0119 - Add NOTE_NOT_FOUND Discriminator To Prepend Error Roster.md`: Frontmatter status planned → in-review.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0119 - Add NOTE_NOT_FOUND Discriminator To Prepend Error Roster.md`: Frontmatter spec_branch set to 077-fix-prepend-not-found.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0119 - Add NOTE_NOT_FOUND Discriminator To Prepend Error Roster.md`: Frontmatter updated bumped to 2026-11-01.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0119 - Add NOTE_NOT_FOUND Discriminator To Prepend Error Roster.md`: Prepended an 'In review — 2026-11-01' paragraph to ## Status, linking PR #105, the spec branch and the feature folder specs/077-fix-prepend-not-found.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0119 - Add NOTE_NOT_FOUND Discriminator To Prepend Error Roster.md`: Appended a dated 2026-11-01 HTML comment saying Relay run obsidian-cli-mcp-bi-0119-2026-11-01 produced PR #105 (branch, folder, status flip).
+
+**Sent to the step:**
+
+> BI-0119 is now recorded as in review, following the vault's backlog-item conventions. The sibling BI-0118 / PR #104 record served as the precedent.
+> - `status`: planned → `in-review`. That value is in the backlog-item vocabulary in the Vault Frontmatter Convention.
+> - `spec_branch`: `077-fix-prepend-not-found`.
+> - `updated`: `2026-11-01`.
+> - Status section: a new lead paragraph says "In review — 2026-11-01". It links PR [#105](https://github.com/marwansaab/obsidian-cli-mcp/pull/105) and names the spec branch and the feature folder `specs/077-fix-prepend-not-found`, awaiting owner merge.
+> - A dated HTML comment at the end of the note says Relay run obsidian-cli-mcp-bi-0119-2026-11-01 produced PR #105.
+> I read back the Status section and the `updated` field, and both are correct.
