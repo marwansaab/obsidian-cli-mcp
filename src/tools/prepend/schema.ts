@@ -1,4 +1,4 @@
-// Original — no upstream. prepend input/output schemas per BI-045 — content non-empty (FR-013) producing the cohort's Zod `too_small` issue with details.code: CONTENT_EMPTY (reused from BI-044 unchanged); content max-length 24576 UTF-16 code units (FR-018) producing Zod `too_big` with details.code: CONTENT_TOO_LARGE (NEW single-state sub-discriminator per ADR-015); file-field structural-path-safety + wikilink-form bracket rejection (FR-001a, byte-stable with BI-044's safeFileField); path-field structural-path-safety; inline boolean default false; target-mode primitive (no active-mode opt-in flag per FR-004a — deliberate cohort exception to write_note's overwrite:true, justified by prepend's additive-not-destructive safety profile, inherited from BI-044). 075: bytes_written described by the shared BYTES_WRITTEN_DESCRIPTION (bound unchanged).
+// Original — no upstream. prepend input/output schemas per BI-045 — content non-empty (FR-013) producing the cohort's Zod `too_small` issue with details.code: CONTENT_EMPTY (reused from BI-044 unchanged); content max-length 3072 UTF-16 code units (FR-018, lowered from 24576 by BI-047) producing Zod `too_big` with details.code: CONTENT_TOO_LARGE (NEW single-state sub-discriminator per ADR-015); spec 078: content also capped at MAX_CONTENT_BYTES (3072) UTF-8 bytes via a refine whose custom issue carries params.subReason "bytes"; file-field structural-path-safety + wikilink-form bracket rejection (FR-001a, byte-stable with BI-044's safeFileField); path-field structural-path-safety; inline boolean default false; target-mode primitive (no active-mode opt-in flag per FR-004a — deliberate cohort exception to write_note's overwrite:true, justified by prepend's additive-not-destructive safety profile, inherited from BI-044). 075: bytes_written described by the shared BYTES_WRITTEN_DESCRIPTION (bound unchanged).
 import { z } from "zod";
 
 import {
@@ -33,6 +33,14 @@ import { BYTES_WRITTEN_DESCRIPTION } from "../_shared.js";
 // Lowering further is also safe — the structural enforcement is the schema's
 // `.max()` call.
 export const MAX_CONTENT_LENGTH = 3072;
+
+// Spec 078 — the size limit, in UTF-8 bytes (`Buffer.byteLength(content, "utf8")`).
+// The Obsidian CLI fault above depends on the content's UTF-8 size, not its
+// character count: 1,500 CJK characters (4,500 bytes) crashed Obsidian while
+// inside MAX_CONTENT_LENGTH (BI-0123). 3072 keeps the ~1 KB headroom the
+// character limit was chosen for, now counted in bytes. Deliberately a separate
+// constant from MAX_CONTENT_LENGTH: the two limits measure different things.
+export const MAX_CONTENT_BYTES = 3072;
 
 const WIKILINK_BRACKET_REJECTION_MESSAGE =
   "wikilink-form locator MUST NOT contain `[[` or `]]` brackets — supply the bare note name (e.g. `My Note` not `[[My Note]]`)";
@@ -70,12 +78,19 @@ export const prependInputSchema = applyTargetModeRefinement(
     // schema layer (single-state details.code: CONTENT_EMPTY, reused from BI-044).
     // FR-018 — oversized content is rejected with Zod's `too_big` issue
     // (single-state details.code: CONTENT_TOO_LARGE, NEW in BI-045 per ADR-015).
+    // Spec 078 — content over MAX_CONTENT_BYTES UTF-8 bytes raises a `custom` issue
+    // with params.subReason "bytes", mapped to CONTENT_TOO_LARGE / reason "bytes" in
+    // index.ts (ADR-015).
     content: z
       .string()
       .min(1)
       .max(MAX_CONTENT_LENGTH)
+      .refine((value) => Buffer.byteLength(value, "utf8") <= MAX_CONTENT_BYTES, {
+        message: `content exceeds maximum size of ${MAX_CONTENT_BYTES} UTF-8 bytes`,
+        params: { subReason: "bytes" },
+      })
       .describe(
-        `Text to add at the top of the note (after any frontmatter), written byte-for-byte; 1 to ${MAX_CONTENT_LENGTH} characters.`,
+        `Text to add at the top of the note (after any frontmatter), written byte-for-byte; 1 to ${MAX_CONTENT_LENGTH} characters and at most ${MAX_CONTENT_BYTES} bytes as UTF-8 (most non-Latin characters take 2 to 4 bytes).`,
       ),
     // FR-007 — inline opt-in defaults to false (FR-006 default-separator
     // behaviour fires when omitted).

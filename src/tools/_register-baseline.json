@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "generatedFromBranch": "075-unify-size-reporting",
-  "generatedAt": "2026-10-31",
+  "generatedFromBranch": "078-refuse-oversized-text",
+  "generatedAt": "2026-11-01",
   "tools": [
     {
       "name": "append_note",
@@ -165,8 +165,8 @@
     },
     {
       "name": "prepend",
-      "descriptionFingerprint": "79deadac98eb14e6295f8684e36437780ff3e06a39143b8376cc34d3597fcc5c",
-      "schemaFingerprint": "367ef00fb171150d7fd0368b91aa70f7360da3c71b06002afa92fec465a2512d",
+      "descriptionFingerprint": "9b70c33eac7b5d8fa434a5d574a5ca61b7b0c67de720b0e7e8b469b67fab6302",
+      "schemaFingerprint": "501c53709974cf77b4cc83832613a47530de1e5ab3cdef621669dae4dc8107b1",
       "titleFingerprint": "90c4e4916a771305bcaa026b908457c81069b20bbf34f54007f4ddd29dbf8297",
       "annotationsFingerprint": "d72d3cb182e3d7fcf0b1c6782251eee772cdf2a99470e1a4bd6a006b5c8f4e25",
       "outputSchemaFingerprint": "16752ec021c03a03d408166c137b1ac0ec3aaf3835287c55b8fd644d8660e2d3"

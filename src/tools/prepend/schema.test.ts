@@ -1,10 +1,20 @@
-// Original — no upstream. prepend schema-validation cohort per BI-045 / Principle II — happy paths × target-mode primitive interaction × CONTENT_EMPTY (FR-013) × CONTENT_TOO_LARGE (FR-018, NEW) × wikilink-form bracket rejection (FR-001a, single-bracket acceptance) × locator-mutex × unknown-extra-field × inline boolean × output strict-shape.
+// Original — no upstream. prepend schema-validation cohort per BI-045 / Principle II — happy paths × target-mode primitive interaction × CONTENT_EMPTY (FR-013) × CONTENT_TOO_LARGE (FR-018, NEW) × spec 078 size limit (MAX_CONTENT_BYTES UTF-8 bytes, custom issue with params.subReason "bytes") × wikilink-form bracket rejection (FR-001a, single-bracket acceptance) × locator-mutex × unknown-extra-field × inline boolean × output strict-shape.
 import { performance } from "node:perf_hooks";
 
 import { describe, expect, it } from "vitest";
 
 import { targetModeWiringCases } from "../_target-mode-test-cases.js";
-import { MAX_CONTENT_LENGTH, prependInputSchema, prependOutputSchema } from "./schema.js";
+import {
+  MAX_CONTENT_BYTES,
+  MAX_CONTENT_LENGTH,
+  prependInputSchema,
+  prependOutputSchema,
+} from "./schema.js";
+
+/** The `params.subReason` a spec 078 size-limit issue carries. */
+function subReasonOf(issue: object): string | undefined {
+  return (issue as { params?: { subReason?: string } }).params?.subReason;
+}
 
 describe("prependInputSchema — happy paths", () => {
   it("accepts specific mode with vault + path + content", () => {
@@ -131,15 +141,21 @@ describe("prependInputSchema — CONTENT_TOO_LARGE (FR-018, NEW in BI-045)", () 
     expect(parsed.success).toBe(true);
   });
 
-  it("multi-byte content exactly at cap (MAX_CONTENT_LENGTH UTF-16 code units of emojis) → ACCEPTED", () => {
-    // Each "🚀" is 2 UTF-16 code units (surrogate pair). MAX_CONTENT_LENGTH / 2 emojis = MAX_CONTENT_LENGTH code units.
+  it("multi-byte content at the character limit but over MAX_CONTENT_BYTES → REJECTED by the size limit (spec 078)", () => {
+    // Each "🚀" is 2 UTF-16 code units and 4 UTF-8 bytes. MAX_CONTENT_LENGTH / 2 emojis =
+    // MAX_CONTENT_LENGTH code units (inside the character limit) but 6,144 bytes.
     const parsed = prependInputSchema.safeParse({
       target_mode: "specific",
       vault: "Knowledge",
       path: "n.md",
       content: "🚀".repeat(MAX_CONTENT_LENGTH / 2),
     });
-    expect(parsed.success).toBe(true);
+    expect(parsed.success).toBe(false);
+    if (parsed.success) return;
+    const issues = parsed.error.issues.filter((i) => i.path.join(".") === "content");
+    expect(issues).toHaveLength(1);
+    expect(issues[0]!.code).toBe("custom");
+    expect(subReasonOf(issues[0]!)).toBe("bytes");
   });
 
   it("multi-byte content one emoji over cap → REJECTED (verifies code-unit measurement per R3)", () => {
@@ -172,6 +188,54 @@ describe("prependInputSchema — CONTENT_TOO_LARGE (FR-018, NEW in BI-045)", () 
     const issue = parsed.error.issues.find((i) => i.path.join(".") === "content");
     expect(issue?.code).toBe("too_big");
     expect(elapsedMs).toBeLessThan(1_000);
+  });
+});
+
+describe("prependInputSchema — size limit (spec 078)", () => {
+  const parse = (content: string) =>
+    prependInputSchema.safeParse({
+      target_mode: "specific",
+      vault: "Knowledge",
+      path: "n.md",
+      content,
+    });
+
+  it.each([
+    { label: "1,025 CJK characters (3,075 bytes)", content: "中".repeat(1025) },
+    { label: "one 2-byte character over (3,073 bytes)", content: "a".repeat(3071) + "é" },
+    {
+      label: "lone surrogate counted as U+FFFD (3,073 bytes)",
+      content: "\uD800" + "a".repeat(3070),
+    },
+    { label: "CRLF counted as 2 bytes (3,073 bytes)", content: "中".repeat(1023) + "\r\n" + "ab" },
+  ])("$label → REJECTED with the single custom / subReason bytes issue", ({ content }) => {
+    const parsed = parse(content);
+    expect(parsed.success).toBe(false);
+    if (parsed.success) return;
+    const issues = parsed.error.issues.filter((i) => i.path.join(".") === "content");
+    expect(issues).toHaveLength(1);
+    expect(issues[0]!.code).toBe("custom");
+    expect(subReasonOf(issues[0]!)).toBe("bytes");
+  });
+
+  it.each([
+    { label: "1,024 CJK characters", content: "中".repeat(1024) },
+    { label: "1,536 two-byte characters", content: "é".repeat(1536) },
+    { label: "768 emoji", content: "😀".repeat(768) },
+    { label: "mixed script", content: "a".repeat(3000) + "中".repeat(24) },
+    { label: "CRLF boundary", content: "a".repeat(3070) + "\r\n" },
+  ])("$label (exactly MAX_CONTENT_BYTES) → ACCEPTED", ({ content }) => {
+    expect(Buffer.byteLength(content, "utf8")).toBe(MAX_CONTENT_BYTES);
+    expect(parse(content).success).toBe(true);
+  });
+
+  it("over both limits → both a too_big and a custom / subReason bytes issue (why the mapper must not rely on order)", () => {
+    const parsed = parse("🚀".repeat(1537));
+    expect(parsed.success).toBe(false);
+    if (parsed.success) return;
+    const issues = parsed.error.issues.filter((i) => i.path.join(".") === "content");
+    expect(issues.some((i) => i.code === "too_big")).toBe(true);
+    expect(issues.some((i) => i.code === "custom" && subReasonOf(i) === "bytes")).toBe(true);
   });
 });
 
