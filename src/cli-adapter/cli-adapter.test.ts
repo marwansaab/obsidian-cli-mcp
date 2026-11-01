@@ -1,9 +1,9 @@
-// Original — no upstream. Co-located vitest cases for the invokeCli typed-tool facade — argv assembly via dispatchCli, locator-strip, queue-serialization, fixed bounds.
+// Original — no upstream. Co-located vitest cases for the invokeCli typed-tool facade — argv assembly via dispatchCli, locator-strip, queue-serialization, fixed bounds; spec 080: the per-call eval answer tag, the returned answer and the unknown-vault check skipped when an answer exists.
 import { type SpawnOptions } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { Readable, Writable } from "node:stream";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createLogger } from "../logger.js";
 import { createQueue } from "../queue.js";
@@ -13,12 +13,15 @@ import {
   TYPED_TOOL_OUTPUT_CAP_BYTES,
   TYPED_TOOL_TIMEOUT_MS,
   UpstreamError,
+  type InvokeCliInput,
   type LaunchFn,
   type SpawnLike,
 } from "./cli-adapter.js";
 
 interface StubChildSpec {
   stdout?: string;
+  /** Spec 080: stdout computed from the spawn's argv (for answers that must carry the call's tag). */
+  stdoutFn?: (argv: string[]) => string;
   stderr?: string;
   exitCode?: number | null;
   signal?: NodeJS.Signals | null;
@@ -53,8 +56,9 @@ function makeStubSpawn(spec: StubChildSpec): { spawnFn: SpawnLike; recorded: Spa
       setImmediate(() => child.emit("exit", null, signal ?? "SIGTERM"));
       return true;
     };
+    const stdout = spec.stdoutFn ? spec.stdoutFn([...argv]) : spec.stdout;
     setImmediate(() => {
-      if (spec.stdout) child.stdout.push(Buffer.from(spec.stdout, "utf8"));
+      if (stdout) child.stdout.push(Buffer.from(stdout, "utf8"));
       child.stdout.push(null);
       if (spec.stderr) child.stderr.push(Buffer.from(spec.stderr, "utf8"));
       child.stderr.push(null);
@@ -423,6 +427,96 @@ describe("invokeCli — classification routes through dispatchCli", () => {
       exitCode: 0,
       message: "Vault not found.",
     });
+  });
+});
+
+describe("invokeCli — eval answer tag (spec 080, contract A1–A5, C5)", () => {
+  const WRAPPED = /^code=\(async\(\)=>'<<(ocm-[0-9a-f-]{36})>>'\+\(await \((.*)\)\)\)\(\)$/;
+  const evalInput = (code = "app.vault.getName()"): InvokeCliInput =>
+    ({ command: "eval", vault: "V", parameters: { code }, flags: [], target_mode: "specific" });
+  /** The tag in a recorded argv's wrapped code= element. */
+  const tagOf = (argv: string[]): string => WRAPPED.exec(argv.find((a) => a.startsWith("code="))!)![1]!;
+
+  it("wraps eval code with a fresh ocm- tag around the unchanged code", async () => {
+    const { spawnFn, recorded } = makeStubSpawn({ stdout: "" });
+    await invokeCli(evalInput(), defaultDeps({ spawnFn, env: {} }));
+    const code = recorded[0]!.argv.find((a) => a.startsWith("code="))!;
+    expect(code).toMatch(WRAPPED);
+    expect(WRAPPED.exec(code)![2]).toBe("app.vault.getName()");
+    expect(recorded[0]!.argv.slice(0, 2)).toEqual(["vault=V", "eval"]);
+  });
+
+  it("mints a different tag for each call", async () => {
+    const { spawnFn, recorded } = makeStubSpawn({ stdout: "" });
+    await invokeCli(evalInput(), defaultDeps({ spawnFn, env: {} }));
+    await invokeCli(evalInput(), defaultDeps({ spawnFn, env: {} }));
+    expect(tagOf(recorded[0]!.argv)).not.toBe(tagOf(recorded[1]!.argv));
+  });
+
+  it("returns the tagged answer after leading noise, an Error: line and a look-alike, with the raw stdout", async () => {
+    let stdout = "";
+    const { spawnFn } = makeStubSpawn({
+      stdoutFn: (argv) => (stdout = `plugin\nError: plugin says no\n=> {"a":0}\n=> <<${tagOf(argv)}>>{"a":1}\ntail\n`),
+    });
+    const result = await invokeCli(evalInput(), defaultDeps({ spawnFn, env: {} }));
+    expect(result).toEqual({ stdout, stderr: "", answer: '{"a":1}' });
+  });
+
+  it("an untagged look-alike is not the call's answer: success with no answer key", async () => {
+    const { spawnFn } = makeStubSpawn({ stdout: 'noise\n=> {"a":1}\n' });
+    const result = await invokeCli(evalInput(), defaultDeps({ spawnFn, env: {} }));
+    expect(result).toEqual({ stdout: 'noise\n=> {"a":1}\n', stderr: "" });
+    expect("answer" in result).toBe(false);
+  });
+
+  it("non-eval calls are not wrapped and return no answer, even with a code parameter and => lines", async () => {
+    const { spawnFn, recorded } = makeStubSpawn({ stdout: "=> 1\n" });
+    const result = await invokeCli(
+      { command: "read", vault: "V", parameters: { file: "a", code: "x" }, flags: [], target_mode: "specific" },
+      defaultDeps({ spawnFn, env: {} }),
+    );
+    expect(recorded[0]!.argv).toContain("code=x");
+    expect(result).toEqual({ stdout: "=> 1\n", stderr: "" });
+  });
+
+  it("C5: 'Vault not found.' ahead of the tagged answer is noise → success with the answer", async () => {
+    const { spawnFn } = makeStubSpawn({ stdoutFn: (argv) => `Vault not found.\n=> <<${tagOf(argv)}>>"ok"\n` });
+    const result = await invokeCli(evalInput(), defaultDeps({ spawnFn, env: {} }));
+    expect(result.answer).toBe('"ok"');
+  });
+
+  it("C5: 'Vault not found.' with no tagged answer is still CLI_REPORTED_ERROR", async () => {
+    const { spawnFn } = makeStubSpawn({ stdout: 'Vault not found.\n=> "ok"\n' });
+    const err = await captureRejection(invokeCli(evalInput(), defaultDeps({ spawnFn, env: {} })));
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.message).toBe("Vault not found.");
+  });
+
+  it("FR-010 (b): a typed eval timeout keeps its details keys; argv carries the wrapper around the original code", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const { spawnFn } = makeStubSpawn({ hold: true });
+      const pending = captureRejection(invokeCli(evalInput(), defaultDeps({ spawnFn, env: {} })));
+      await vi.advanceTimersByTimeAsync(TYPED_TOOL_TIMEOUT_MS);
+      const err = await pending;
+      expect(err.code).toBe("CLI_TIMEOUT");
+      expect(Object.keys(err.details).sort()).toEqual(["argv", "partialStderr", "partialStdout", "timeoutMs"]);
+      const code = (err.details.argv as string[]).find((a) => a.startsWith("code="))!;
+      expect(WRAPPED.exec(code)![2]).toBe("app.vault.getName()");
+
+      const { spawnFn: readSpawn } = makeStubSpawn({ hold: true });
+      const readPending = captureRejection(
+        invokeCli(
+          { command: "read", vault: "V", parameters: { file: "a" }, flags: [], target_mode: "specific" },
+          defaultDeps({ spawnFn: readSpawn, env: {} }),
+        ),
+      );
+      await vi.advanceTimersByTimeAsync(TYPED_TOOL_TIMEOUT_MS);
+      const readErr = await readPending;
+      expect((readErr.details.argv as string[]).slice(1)).toEqual(["vault=V", "read", "file=a"]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -18,6 +18,7 @@ import {
   parseFocusedVault,
   remapVaultNotFound,
 } from "../_active-file.js";
+import { stdoutDetails } from "../_eval-parse.js";
 
 import type { SupportDeclaration } from "../../file-type/file-type.js";
 import type { Logger } from "../../logger.js";
@@ -68,12 +69,12 @@ async function defaultInvokeEval(deps: ExecuteDeps): Promise<FocusedVaultRespons
   );
   // Shared double-decode + shape-check; query_base collapses both failure stages
   // into its single focused-vault-resolve stage and discards the cause.
-  const out = parseFocusedVault(result.stdout);
+  const out = parseFocusedVault(result);
   if (!out.ok) {
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
       cause: null,
-      details: { stage: "focused-vault-resolve", stdout: result.stdout.slice(0, 500) },
+      details: { stage: "focused-vault-resolve", ...stdoutDetails(result.stdout) },
       message: "query_base: focused-vault eval returned unparseable response",
     });
   }

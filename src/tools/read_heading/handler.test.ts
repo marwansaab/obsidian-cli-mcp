@@ -5,7 +5,7 @@ import { executeReadHeading } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { captureRejection, makeQueuedSpawn, silentLogger, unwrapEvalCode } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
@@ -478,7 +478,7 @@ test("argv shape in specific mode: [vault=Demo, eval, code=...] (R6/R12)", async
   expect(argv[0]).toBe("vault=Demo");
   expect(argv[1]).toBe("eval");
   expect(argv[2]!.startsWith("code=")).toBe(true);
-  const codeArg = argv[2]!.slice("code=".length);
+  const codeArg = unwrapEvalCode(argv[2]!);
   expect(codeArg.startsWith("(async()=>{")).toBe(true);
   expect(codeArg.endsWith("})()")).toBe(true);
 });
@@ -493,7 +493,7 @@ test("argv shape in active mode: [eval, code=...] no vault= (R6/R12)", async () 
   expect(argv.some((a) => a.startsWith("vault="))).toBe(false);
   expect(argv[0]).toBe("eval");
   expect(argv[1]!.startsWith("code=")).toBe(true);
-  const codeArg = argv[1]!.slice("code=".length);
+  const codeArg = unwrapEvalCode(argv[1]!);
   expect(codeArg.startsWith("(async()=>{")).toBe(true);
   expect(codeArg.endsWith("})()")).toBe(true);
 });

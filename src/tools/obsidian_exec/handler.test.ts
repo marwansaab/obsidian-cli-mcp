@@ -321,6 +321,18 @@ describe("executeObsidianExec — COMMAND_BLOCKED gate (068 FR-010..FR-013)", ()
     expect(recorded).toHaveLength(1);
   });
 
+  it("spec 080 (FR-012): an eval with plugin noise and an Error: line before its => answer succeeds, stdout raw, code not wrapped", async () => {
+    const stdout = "noise\nError: plugin\n=> 42\n";
+    const { spawnFn } = makeMockSpawn({ stdoutChunks: [Buffer.from(stdout, "utf8")], exitCode: 0 });
+    const result = await executeObsidianExec(
+      { command: "eval", parameters: { code: "6*7" } },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, allowEval: true },
+    );
+    expect(Object.keys(result).sort()).toEqual(["argv", "exitCode", "stderr", "stdout"]);
+    expect(result.stdout).toBe(stdout);
+    expect(result.argv).toEqual(["obsidian", "eval", "code=6*7"]);
+  });
+
   it.each(["plugin:reload", "command"])("%j is allowed by default (accepted residual risk)", async (command) => {
     const { spawnFn, recorded } = makeMockSpawn({ exitCode: 0 });
     const result = await executeObsidianExec(

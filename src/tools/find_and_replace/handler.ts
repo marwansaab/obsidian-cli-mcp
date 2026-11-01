@@ -26,6 +26,7 @@ import {
   resolveVaultRootOrRemap,
 } from "../_active-file.js";
 import { NON_INTERACTIVE_CALL } from "../_confirm.js";
+import { stdoutDetails } from "../_eval-parse.js";
 import { getSyscall } from "../_fs-errors.js";
 import { invalidateMetadataCache, writeAtomic } from "../_note-io.js";
 
@@ -199,12 +200,12 @@ async function defaultInvokeEval(deps: ExecuteDeps): Promise<FocusedVaultRespons
   );
   // Shared double-decode + shape-check; find_and_replace keeps the json-parse /
   // envelope-parse stage distinction (and the cause) the helper surfaces.
-  const out = parseFocusedVault(result.stdout);
+  const out = parseFocusedVault(result);
   if (!out.ok) {
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
       cause: out.cause,
-      details: { stage: out.stage, stdout: result.stdout.slice(0, 500) },
+      details: { stage: out.stage, ...stdoutDetails(result.stdout) },
       message: "find_and_replace: focused-vault eval returned unparseable response",
     });
   }

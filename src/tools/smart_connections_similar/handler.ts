@@ -8,6 +8,7 @@ import {
 } from "./schema.js";
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
+import { parseEvalAnswer, stdoutDetails } from "../_eval-parse.js";
 import { composeEvalCode } from "../_shared.js";
 
 import type { SupportDeclaration } from "../../file-type/file-type.js";
@@ -47,19 +48,17 @@ export async function executeSmartConnectionsSimilar(
     deps,
   );
 
-  // === Stage 1 — strip the `=> ` prefix that eval prepends to its return value ===
-  let stdout = result.stdout.trimStart();
-  if (stdout.startsWith("=> ")) stdout = stdout.slice(3);
+  // === Stage 1 — invokeCli returns this call's tagged eval answer as `answer`; other plugins' output is ignored (spec 080) ===
 
   // === Stage 2 — JSON.parse ===
   let parsedJson: unknown;
   try {
-    parsedJson = JSON.parse(stdout);
+    parsedJson = parseEvalAnswer(result.answer);
   } catch (err) {
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
       cause: err,
-      details: { stage: "json-parse", stdout: result.stdout.slice(0, 500) },
+      details: { stage: "json-parse", ...stdoutDetails(result.stdout) },
       message: `smart_connections_similar: eval response is not JSON: ${result.stdout.slice(0, 200)}`,
     });
   }
@@ -70,7 +69,7 @@ export async function executeSmartConnectionsSimilar(
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
       cause: validated.error,
-      details: { stage: "envelope-parse", stdout: result.stdout.slice(0, 500) },
+      details: { stage: "envelope-parse", ...stdoutDetails(result.stdout) },
       message: "smart_connections_similar: eval response shape unexpected",
     });
   }

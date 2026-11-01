@@ -3,13 +3,14 @@
 // rename-failure unlink, writeFile-failure no-unlink) and the best-effort post-write evals: the
 // metadataCache refresh (vault-relative path, vault= argv, logged-on-failure contract — spec 068 A1)
 // and the editor open (same addressing, silent on failure). Spec 075: sizeChange, the byte (not
-// character) size difference, positive, zero or negative.
+// character) size difference, positive, zero or negative. Spec 080: the refresh reads the call's
+// tagged answer, so plugin output around it is not logged as a failure.
 import { EventEmitter } from "node:events";
 import { Readable } from "node:stream";
 
 import { describe, expect, test } from "vitest";
 
-import { captureLogger } from "./_handler-test-fixtures.js";
+import { answerLine, answerTagFromArgv, captureLogger, unwrapEvalCode } from "./_handler-test-fixtures.js";
 import {
   invalidateMetadataCache,
   openNote,
@@ -109,15 +110,26 @@ describe("writeAtomic", () => {
   });
 });
 
-/** A SpawnLike that records the argv it was handed and emits a one-shot stdout/exit lifecycle. */
+/**
+ * A SpawnLike that records the argv it was handed and emits a one-shot stdout/exit lifecycle. Spec 080:
+ * answer-tag aware like the shared stubs — on a wrapped eval, string stdout's `=> ` lines are tagged with
+ * the call's tag; function-form stdout receives the tag and is emitted verbatim.
+ */
 function recordingSpawn(opts: {
-  stdout?: string;
+  stdout?: string | ((tag: string | undefined) => string);
   exitCode?: number;
   onArgv?: (argv: readonly string[]) => void;
 }): SpawnLike {
   return (binary, argv) => {
     void binary;
     opts.onArgv?.(argv);
+    const tag = answerTagFromArgv(argv);
+    const stdout =
+      typeof opts.stdout === "function"
+        ? opts.stdout(tag)
+        : tag === undefined || opts.stdout === undefined
+          ? opts.stdout
+          : opts.stdout.replace(/^=> /gm, `=> <<${tag}>>`);
     const child = new EventEmitter() as EventEmitter & {
       stdout: Readable;
       stderr: Readable;
@@ -129,7 +141,7 @@ function recordingSpawn(opts: {
     child.pid = 7;
     child.kill = () => true;
     setImmediate(() => {
-      if (opts.stdout) child.stdout.push(Buffer.from(opts.stdout, "utf8"));
+      if (stdout) child.stdout.push(Buffer.from(stdout, "utf8"));
       child.stdout.push(null);
       child.stderr.push(null);
       setImmediate(() => child.emit("exit", opts.exitCode ?? 0, null));
@@ -188,7 +200,8 @@ describe("invalidateMetadataCache", () => {
 
   test("a note Obsidian cannot find is logged, not silently ignored", async () => {
     const events: Array<Record<string, unknown>> = [];
-    const spawnFn = recordingSpawn({ stdout: "=> missing\n" });
+    let argv: readonly string[] = [];
+    const spawnFn = recordingSpawn({ stdout: "=> missing\n", onArgv: (a) => (argv = a) });
     await invalidateMetadataCache(evalDeps(spawnFn, events), { relPath: "a.md" });
     expect(events).toEqual([
       expect.objectContaining({
@@ -196,15 +209,37 @@ describe("invalidateMetadataCache", () => {
         vault: null,
         relPath: "a.md",
         reason: "note-not-found",
-        detail: "=> missing",
+        // The detail is the raw stdout, which carries the call's answer tag (spec 080 FR-010 (b)).
+        detail: answerLine(answerTagFromArgv([...argv])!, "missing"),
       }),
+    ]);
+  });
+
+  test("plugin output around the call's ok answer is not logged as a failure (spec 080)", async () => {
+    const events: Array<Record<string, unknown>> = [];
+    const spawnFn = recordingSpawn({
+      stdout: (tag) => `[warn] plugin\n=> missing\nError: plugin says no\n=> <<${tag}>>ok\ntrailing\n`,
+    });
+    await invalidateMetadataCache(evalDeps(spawnFn, events), { vault: "TestVault", relPath: "a.md" });
+    expect(events).toEqual([]);
+  });
+
+  test("an untagged look-alike ok is not the call's answer, so the refresh is logged", async () => {
+    const events: Array<Record<string, unknown>> = [];
+    const spawnFn = recordingSpawn({ stdout: () => "plugin\n=> ok\n" });
+    await invalidateMetadataCache(evalDeps(spawnFn, events), { vault: "TestVault", relPath: "a.md" });
+    expect(events).toEqual([
+      expect.objectContaining({ reason: "unexpected-output", detail: "plugin\n=> ok" }),
     ]);
   });
 
   test("unexpected eval output is logged with the first 200 characters as detail", async () => {
     const events: Array<Record<string, unknown>> = [];
-    const noisy = `[error] {}\n=> ok${"x".repeat(300)}`;
-    const spawnFn = recordingSpawn({ stdout: `${noisy}\n` });
+    // The noise sits on the answer line itself, so the answer is not "ok".
+    let noisy = "";
+    const spawnFn = recordingSpawn({
+      stdout: (tag) => (noisy = `[error] {}\n${answerLine(tag!, "ok" + "x".repeat(300))}`) + "\n",
+    });
     await invalidateMetadataCache(evalDeps(spawnFn, events), { vault: "TestVault", relPath: "a.md" });
     expect(events).toEqual([
       expect.objectContaining({
@@ -223,7 +258,7 @@ describe("openNote", () => {
     const spawnFn = recordingSpawn({ stdout: "=> undefined\n", onArgv: (a) => (argv = a) });
     await openNote(evalDeps(spawnFn), { vault: "TestVault", relPath: "Notes\\Sub\\a.md" });
     expect(argv).toContain("vault=TestVault");
-    expect(argv!.find((a) => a.startsWith("code="))).toBe('code=app.workspace.openLinkText("Notes/Sub/a.md","")');
+    expect(unwrapEvalCode(argv!.find((a) => a.startsWith("code="))!)).toBe('app.workspace.openLinkText("Notes/Sub/a.md","")');
   });
 
   test("swallows an upstream failure (write already landed) and logs nothing", async () => {

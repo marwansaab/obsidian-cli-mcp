@@ -6,7 +6,7 @@ import { findByPropertyInputSchema } from "./schema.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn, silentLogger, captureRejection } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger, captureRejection, unwrapEvalCode } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
@@ -276,16 +276,18 @@ test("dispatch kill (output cap) → CLI_NON_ZERO_EXIT (FR-012, FR-019)", async 
   expect(err.code).toBe("CLI_NON_ZERO_EXIT");
 });
 
-// (18) Tolerant parse — eval response without `=> ` prefix parses anyway
-test("eval response without '=> ' prefix parses as bare JSON", async () => {
-  const { spawnFn } = makeQueuedSpawn([
-    { stdout: '{"count":1,"paths":["x.md"]}\n', exitCode: 0 },
-  ]);
-  const result = await executeFindByProperty(
-    { vault: "Demo", name: "id", value: "x", array_match: true, case_sensitive: true },
-    deps(spawnFn),
-  );
-  expect(result).toEqual({ count: 1, paths: ["x.md"] });
+// (18) Spec 080 — bare JSON with no answer line is not this call's answer → json-parse with the stdout excerpt
+test("eval response without '=> ' answer line → CLI_REPORTED_ERROR json-parse with the stdout excerpt", async () => {
+  const stdout = '{"count":1,"paths":["x.md"]}\n';
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  const err = (await captureRejection(
+    executeFindByProperty(
+      { vault: "Demo", name: "id", value: "x", array_match: true, case_sensitive: true },
+      deps(spawnFn),
+    ),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", stdout, stdoutLength: stdout.length });
 });
 
 // (19) Malformed JSON → CLI_REPORTED_ERROR with stage='json-parse'
@@ -492,5 +494,6 @@ test("spec 073: name / array_match / case_sensitive (new or deprecated names) re
     expect(decodePayload(recorded[0]!.argv)).toEqual(expected);
     argvs.push(recorded[0]!.argv);
   }
-  expect(argvs[1]).toEqual(argvs[0]);
+  // Byte-identical apart from the per-call spec 080 answer tag.
+  expect(argvs[1]!.map(unwrapEvalCode)).toEqual(argvs[0]!.map(unwrapEvalCode));
 });

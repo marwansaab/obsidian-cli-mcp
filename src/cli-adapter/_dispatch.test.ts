@@ -1,4 +1,4 @@
-// Original — no upstream. Co-located tests for dispatchCli — argv assembly, four-priority classification, always-on bounds, atomic in-flight registry, failure-only logging (FR-008..FR-018a, FR-015a).
+// Original — no upstream. Co-located tests for dispatchCli — argv assembly, four-priority classification, always-on bounds, atomic in-flight registry, failure-only logging (FR-008..FR-018a, FR-015a). Spec 080: for eval, the answer line and error lines anywhere in stdout (contract C1–C4, D1–D6).
 import { type SpawnOptions } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { Readable, Writable } from "node:stream";
@@ -1052,6 +1052,109 @@ describe("dispatchCli — ADR-029 cold-start single retry", () => {
     expect(String(err.details.stdout)).toMatch(COLD_START_PATTERN);
     expect(calls()).toBe(1);
     expect(cap.lines().filter((l) => JSON.parse(l).event === "dispatch.retry")).toEqual([]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Spec 080 — eval stdout with other plugins' output (ADR-029 2026-11-01 amendment; contract
+// C1–C4 and D1–D6). For `eval` only: an answer line wins, otherwise error lines are recognised at
+// the start of any line. Every other command keeps the head-anchored rules.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("dispatchCli — eval answer and error lines anywhere (spec 080)", () => {
+  const TAG = "ocm-11111111-2222-3333-4444-555555555555";
+  const run = (specs: StubChildSpec[], over: Partial<DispatchInput>, logger?: Logger) => {
+    const { spawnFn, calls } = makeScriptedSpawn(specs);
+    const promise = dispatchCli(baseInput(over), {
+      spawnFn,
+      env: {},
+      logger: logger ?? captureLines().logger,
+      resolveBinary: stubResolveBinary,
+    });
+    return { promise, calls };
+  };
+
+  it("C1: a tagged answer after an Error: line is success, with the raw stdout", async () => {
+    const stdout = `Error: plugin\n=> <<${TAG}>>{"ok":true}\n`;
+    const { promise, calls } = run([{ stdout, exitCode: 0 }], { command: "eval", answerTag: TAG });
+    expect((await promise).stdout).toBe(stdout);
+    expect(calls()).toBe(1);
+  });
+
+  it("C1: a tagged answer wins over a cold-start line too — no retry", async () => {
+    const stdout = `${COLD_START_STDOUT_PLUGIN}=> <<${TAG}>>1\n`;
+    const { promise, calls } = run([{ stdout, exitCode: 0 }], { command: "eval", answerTag: TAG });
+    expect((await promise).stdout).toBe(stdout);
+    expect(calls()).toBe(1);
+  });
+
+  it("D1: noise then cold start on attempt 1, tagged answer on attempt 2 → success after one retry, one dispatch.retry line", async () => {
+    const cap = captureLines();
+    const answer = `plugin started\n=> <<${TAG}>>{"ok":true}\n`;
+    const { promise, calls } = run(
+      [
+        { stdout: `[warn] plugin starting\n${COLD_START_STDOUT_PLUGIN}`, exitCode: 0 },
+        { stdout: answer, exitCode: 0 },
+      ],
+      { command: "eval", answerTag: TAG },
+      cap.logger,
+    );
+    expect((await promise).stdout).toBe(answer);
+    expect(calls()).toBe(2);
+    expect(cap.lines().filter((l) => JSON.parse(l).event === "dispatch.retry")).toHaveLength(1);
+  });
+
+  it("D2: noise then 'Error: No active file.' → ERR_NO_ACTIVE_FILE with that line as details.message", async () => {
+    const stdout = "plugin line\nError: No active file.\n";
+    const { promise } = run([{ stdout, exitCode: 0 }], { command: "eval", answerTag: TAG });
+    const err = await captureRejection(promise);
+    expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
+    expect(err.details).toMatchObject({ command: "eval", stdout, exitCode: 0, message: "Error: No active file." });
+  });
+
+  it("D3: noise then 'Error: something' → CLI_REPORTED_ERROR with message 'Error: something' and the full stdout", async () => {
+    const stdout = "plugin line\n[warn] x\nError: something\nError: later\n";
+    const { promise, calls } = run([{ stdout, exitCode: 0 }], { command: "eval", answerTag: TAG });
+    const err = await captureRejection(promise);
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.details).toMatchObject({ command: "eval", stdout, exitCode: 0, message: "Error: something" });
+    expect(calls()).toBe(1);
+  });
+
+  it("D4: a non-eval command with noise before a cold-start line → success with raw stdout, no retry", async () => {
+    const stdout = `noise\n${COLD_START_STDOUT}`;
+    const { promise, calls } = run([{ stdout, exitCode: 0 }], { command: "read" });
+    expect((await promise).stdout).toBe(stdout);
+    expect(calls()).toBe(1);
+  });
+
+  it("non-eval commands keep the head-anchored no-active-file and Error: rules", async () => {
+    const stdout = "noise\nError: No active file.\n";
+    const { promise } = run([{ stdout, exitCode: 0 }], { command: "outline" });
+    expect((await promise).stdout).toBe(stdout);
+  });
+
+  it("D5: an untagged eval (obsidian_exec) treats any '=> ' line as the answer → success, raw stdout", async () => {
+    const stdout = "Error: plugin\n=> 42\n";
+    const { promise } = run([{ stdout, exitCode: 0 }], { command: "eval" });
+    expect((await promise).stdout).toBe(stdout);
+  });
+
+  it("D6: a tagged eval with only an untagged '=> ' line and an Error: line → CLI_REPORTED_ERROR", async () => {
+    const stdout = "Error: plugin\n=> 42\n";
+    const { promise } = run([{ stdout, exitCode: 0 }], { command: "eval", answerTag: TAG });
+    const err = await captureRejection(promise);
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.details.message).toBe("Error: plugin");
+  });
+
+  it("isColdStart: for eval the signature may start any line; other commands match the head only", () => {
+    const reported = (command: string, stdout: string) =>
+      new UpstreamError({ code: "CLI_REPORTED_ERROR", cause: null, details: { command, stdout } });
+    expect(isColdStart(reported("eval", `plugin\n[warn] x\n${COLD_START_STDOUT_PLUGIN}`))).toBe(true);
+    expect(isColdStart(reported("eval", `plugin\r\n${COLD_START_STDOUT_PLUGIN}`))).toBe(true);
+    expect(isColdStart(reported("eval", "plugin\nError: something\n"))).toBe(false);
+    expect(isColdStart(reported("read", `noise\n${COLD_START_STDOUT}`))).toBe(false);
+    expect(isColdStart(reported("read", COLD_START_STDOUT))).toBe(true);
   });
 });
 

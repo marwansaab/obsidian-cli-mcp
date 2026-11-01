@@ -6,7 +6,7 @@ import { executeSmartConnectionsSimilar } from "./handler.js";
 import { __resetInFlightRegistryForTests, COLD_START_PATTERN, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger, unwrapEvalCode } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
@@ -845,7 +845,7 @@ test("R6 anti-injection: base64 payload round-trips verbatim incl. hostile bytes
   const argv = recorded[0]!.argv;
   expect(argv[0]).toBe("vault=Demo");
   expect(argv[1]).toBe("eval");
-  const codeArg = argv[2]!.slice("code=".length);
+  const codeArg = unwrapEvalCode(argv[2]!);
   expect(codeArg).not.toContain(hostilePath); // raw path never in source
   const match = /atob\('([A-Za-z0-9+/=]+)'\)/.exec(codeArg);
   expect(match).not.toBeNull();
@@ -872,7 +872,7 @@ test("R3 single-call invariant: one spawn per request; frozen template prefix/su
   );
   expect(getCount()).toBe(1);
   const argv = recorded[0]!.argv;
-  const codeArg = argv[2]!.slice("code=".length);
+  const codeArg = unwrapEvalCode(argv[2]!);
   // Frozen template prefix (async IIFE)
   expect(codeArg.startsWith("(async()=>{")).toBe(true);
   expect(codeArg.endsWith("})()")).toBe(true);

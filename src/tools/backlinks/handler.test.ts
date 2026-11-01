@@ -6,7 +6,7 @@ import { executeBacklinks } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { captureRejection, makeQueuedSpawn, silentLogger, unwrapEvalCode } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
@@ -682,7 +682,7 @@ test("R12 anti-injection: base64 round-trips verbatim; frozen template prefix/su
   const argv = recorded[0]!.argv;
   expect(argv[0]).toBe("vault=Demo");
   expect(argv[1]).toBe("eval");
-  const codeArg = argv[2]!.slice("code=".length);
+  const codeArg = unwrapEvalCode(argv[2]!);
   expect(codeArg.startsWith("(()=>{")).toBe(true);
   expect(codeArg.endsWith("})()")).toBe(true);
   const match = /atob\('([A-Za-z0-9+/=]+)'\)/.exec(codeArg);

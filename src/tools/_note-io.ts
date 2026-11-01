@@ -8,7 +8,8 @@
 // in the written vault (`vault=` in specific mode); it never fails the write, but every failure — including
 // a note Obsidian cannot find — is logged as `bridge.metadata_refresh_failed` rather than swallowed.
 // Spec 075: sizeChange, the `bytes_written` figure for the writers that hold the note's text before
-// and after the edit (append_note, patch_block, patch_heading).
+// and after the edit (append_note, patch_block, patch_heading). Spec 080: the refresh reads the eval's
+// tagged answer, so other plugins' output around it does not turn a refresh into a logged failure.
 import { evalInVault, type EvalDeps } from "./_active-file.js";
 import { UpstreamError } from "../errors.js";
 
@@ -102,10 +103,10 @@ export async function invalidateMetadataCache(deps: EvalDeps, note: WrittenNote)
   let reason: MetadataRefreshFailureReason;
   let detail: string;
   try {
-    const output = (await evalInVault(deps, buildInvalidateTemplate(relPath), note.vault)).trim();
-    if (output === "=> ok") return;
-    reason = output === "=> missing" ? "note-not-found" : "unexpected-output";
-    detail = output.slice(0, 200);
+    const result = await evalInVault(deps, buildInvalidateTemplate(relPath), note.vault);
+    if (result.answer === "ok") return;
+    reason = result.answer === "missing" ? "note-not-found" : "unexpected-output";
+    detail = result.stdout.trim().slice(0, 200);
   } catch (e) {
     reason = "cli-error";
     detail = describeFailure(e);

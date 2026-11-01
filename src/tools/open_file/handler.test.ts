@@ -15,7 +15,7 @@ import { executeOpenFile } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, makeQueuedSpawn, silentLogger, type StubResponse } from "../_handler-test-fixtures.js";
+import { captureRejection, makeQueuedSpawn, silentLogger, type StubResponse, unwrapEvalCode } from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -129,7 +129,8 @@ test("determinism (SC-006): two identical calls produce byte-equal eval argv + i
   const out1 = await executeOpenFile({ vault: "Work", path: "a.md" }, deps(s1));
   const out2 = await executeOpenFile({ vault: "Work", path: "a.md" }, deps(s2));
   expect(JSON.stringify(out1)).toBe(JSON.stringify(out2));
-  expect(r1[0]!.argv).toEqual(r2[0]!.argv);
+  // Byte-equal apart from the per-call spec 080 answer tag.
+  expect(r1[0]!.argv.map(unwrapEvalCode)).toEqual(r2[0]!.argv.map(unwrapEvalCode));
   expect(Object.keys(out1).sort()).toEqual(["new_tab", "opened", "placement", "vault"]);
 });
 
@@ -410,4 +411,24 @@ test("anti-injection (R12): a hostile locator round-trips ONLY inside the base64
     if (a.startsWith("code=")) continue;
     expect(a.includes(hostile)).toBe(false);
   }
+});
+
+// =====================================================================
+// Spec 080 — cold start with plugin start-up lines (US2 scenario 1)
+// =====================================================================
+
+test("spec 080: plugin start-up lines + the cold-start signature, then the tagged envelope → success after one retry", async () => {
+  const envelope = { ok: true, opened: "a.md", new_tab: false, placement: "active_tab_used" };
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    {
+      stdout: `[plugin] loading\n[warn] settings migrated\nError: Command "eval" not found. It may require a plugin to be enabled.\n`,
+      exitCode: 0,
+    },
+    { stdout: `[plugin] ready\n=> ${JSON.stringify(envelope)}\n`, exitCode: 0 },
+  ]);
+  const out = await executeOpenFile({ vault: "Work", path: "a.md" }, deps(spawnFn));
+  expect(out).toEqual({ opened: "a.md", vault: "Work", new_tab: false, placement: "active_tab_used" });
+  expect(recorded).toHaveLength(2);
+  // The retry re-sends the same input, so both attempts carry the same answer tag.
+  expect(recorded[1]!.argv).toEqual(recorded[0]!.argv);
 });

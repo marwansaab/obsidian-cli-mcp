@@ -13,7 +13,7 @@ import {
 } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger, unwrapEvalCode } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
@@ -558,15 +558,15 @@ test("stage-5 envelope-parse: wrong shape → CLI_REPORTED_ERROR(stage:'envelope
   expect(err.details.stage).toBe("envelope-parse");
 });
 
-// stage-1: missing `=> ` prefix still parses
-test("stage-3: missing '=> ' prefix → raw JSON tolerated", async () => {
-  const raw = JSON.stringify({ ok: true, count: 1, paths: ["x.md"] });
-  const { spawnFn } = makeQueuedSpawn([{ stdout: raw + "\n", exitCode: 0 }]);
-  const result = await executePaths(
-    { target_mode: "specific", vault: "Demo" },
-    deps(spawnFn),
-  );
-  expect(result).toEqual({ count: 1, paths: ["x.md"] });
+// Spec 080: bare JSON with no answer line is not this call's answer → json-parse with the stdout excerpt
+test("stage-3: missing '=> ' answer line → CLI_REPORTED_ERROR(stage:'json-parse') with the stdout excerpt", async () => {
+  const raw = JSON.stringify({ ok: true, count: 1, paths: ["x.md"] }) + "\n";
+  const { spawnFn } = makeQueuedSpawn([{ stdout: raw, exitCode: 0 }]);
+  const err = (await captureRejection(
+    executePaths({ target_mode: "specific", vault: "Demo" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toMatchObject({ stage: "json-parse", stdout: raw, stdoutLength: raw.length });
 });
 
 // =====================================================================
@@ -616,9 +616,10 @@ test("frozen template byte-stable across calls: only base64 region varies", asyn
     { target_mode: "specific", vault: "Demo", folder: "betagamma" },
     deps(spawnB),
   );
-  const codeA = recA[0]!.argv.find((a) => a.startsWith("code="))!;
-  const codeB = recB[0]!.argv.find((a) => a.startsWith("code="))!;
+  // Unwrap the spec 080 answer-tag wrapper, whose tag differs per call.
+  const codeA = unwrapEvalCode(recA[0]!.argv.find((a) => a.startsWith("code="))!);
+  const codeB = unwrapEvalCode(recB[0]!.argv.find((a) => a.startsWith("code="))!);
   const replaceB64 = (s: string) => s.replace(/atob\('[A-Za-z0-9+/=]+'\)/, "atob('X')");
   expect(replaceB64(codeA)).toBe(replaceB64(codeB));
-  expect(codeA.startsWith("code=" + JS_TEMPLATE.split("__PAYLOAD_B64__")[0])).toBe(true);
+  expect(codeA.startsWith(JS_TEMPLATE.split("__PAYLOAD_B64__")[0]!)).toBe(true);
 });

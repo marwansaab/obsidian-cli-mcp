@@ -47,7 +47,7 @@ export async function executeLinks(
     deps,
   );
 
-  const validated = decodeEvalEnvelope(result.stdout, linksEvalResponseSchema, {
+  const validated = decodeEvalEnvelope(result, linksEvalResponseSchema, {
     toolName: "links",
     malformedCode: "CLI_REPORTED_ERROR",
   });

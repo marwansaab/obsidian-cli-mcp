@@ -10,7 +10,7 @@ import {
 } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger, unwrapEvalCode } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
@@ -68,9 +68,9 @@ test("argv: subcommand === 'eval'", async () => {
 test("argv: code= parameter contains the frozen template prefix", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: defaultEnv([]), exitCode: 0 }]);
   await executeTag({ tag: "foo" }, deps(spawnFn));
-  const codeArg = recorded[0]!.argv.find((a) => a.startsWith("code="))!;
-  // Frozen-template stable prefix (first IIFE wrapper).
-  expect(codeArg.startsWith("code=(()=>{")).toBe(true);
+  const codeArg = unwrapEvalCode(recorded[0]!.argv.find((a) => a.startsWith("code="))!);
+  // Frozen-template stable prefix (first IIFE wrapper), inside the spec 080 answer-tag wrapper.
+  expect(codeArg.startsWith("(()=>{")).toBe(true);
 });
 
 // (5) base64 payload decodes to {query, total}
@@ -261,12 +261,13 @@ test("stage-3 envelope-parse: wrong shape → CLI_REPORTED_ERROR(stage:'envelope
   expect(err.details.stage).toBe("envelope-parse");
 });
 
-// (20) Missing `=> ` prefix still passes (trimStart + startsWith handles both forms)
-test("stage-1: missing '=> ' prefix still parses (raw JSON tolerated)", async () => {
-  const raw = JSON.stringify({ ok: true, mode: "default", count: 1, paths: ["x.md"] });
-  const { spawnFn } = makeQueuedSpawn([{ stdout: raw + "\n", exitCode: 0 }]);
-  const result = await executeTag({ tag: "x" }, deps(spawnFn));
-  expect(result).toEqual({ count: 1, paths: ["x.md"] });
+// (20) Spec 080: bare JSON with no answer line is not this call's answer → json-parse with the stdout excerpt
+test("stage-1: missing '=> ' answer line → CLI_REPORTED_ERROR(stage:'json-parse') with the stdout excerpt", async () => {
+  const raw = JSON.stringify({ ok: true, mode: "default", count: 1, paths: ["x.md"] }) + "\n";
+  const { spawnFn } = makeQueuedSpawn([{ stdout: raw, exitCode: 0 }]);
+  const err = (await captureRejection(executeTag({ tag: "x" }, deps(spawnFn)))) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toMatchObject({ stage: "json-parse", stdout: raw, stdoutLength: raw.length });
 });
 
 // =====================================================================
@@ -374,13 +375,14 @@ test("frozen template byte-stable: two calls differ only in the substituted base
   ]);
   await executeTag({ tag: "alpha" }, deps(spawnA));
   await executeTag({ tag: "betagamma" }, deps(spawnB));
-  const codeA = recA[0]!.argv.find((a) => a.startsWith("code="))!;
-  const codeB = recB[0]!.argv.find((a) => a.startsWith("code="))!;
+  // Unwrap the spec 080 answer-tag wrapper, whose tag differs per call.
+  const codeA = unwrapEvalCode(recA[0]!.argv.find((a) => a.startsWith("code="))!);
+  const codeB = unwrapEvalCode(recB[0]!.argv.find((a) => a.startsWith("code="))!);
   // Replace the base64 region with a placeholder; the remainders MUST be equal.
   const replaceB64 = (s: string) => s.replace(/atob\('[A-Za-z0-9+/=]+'\)/, "atob('X')");
   expect(replaceB64(codeA)).toBe(replaceB64(codeB));
   // Confirm template includes the JS_TEMPLATE prefix verbatim (modulo placeholder)
-  expect(codeA.startsWith("code=" + JS_TEMPLATE.split("__PAYLOAD_B64__")[0])).toBe(true);
+  expect(codeA.startsWith(JS_TEMPLATE.split("__PAYLOAD_B64__")[0]!)).toBe(true);
 });
 
 // =====================================================================

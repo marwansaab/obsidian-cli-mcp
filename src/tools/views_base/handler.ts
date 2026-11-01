@@ -145,7 +145,7 @@ export async function executeViewsBase(
       adapterDeps(deps),
     );
 
-    const decoded = decodeEvalEnvelope(focusResult.stdout, focusBaseEvalResponseSchema, {
+    const decoded = decodeEvalEnvelope(focusResult, focusBaseEvalResponseSchema, {
       toolName: TOOL_NAME,
       malformedCode: "INTERNAL_ERROR",
     });
