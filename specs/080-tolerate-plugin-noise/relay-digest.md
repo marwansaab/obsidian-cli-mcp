@@ -4,14 +4,14 @@
 |---|---|
 | Run | `obsidian-cli-mcp-bi-0135-2026-11-01` |
 | Project | obsidian-cli-mcp (pack speckit) |
-| Status | running |
+| Status | done |
 | Started | 2026-11-01T05:24:19.958Z |
-| Finished | not yet |
-| Elapsed | 51 min 3 s |
+| Finished | 2026-11-01T06:38:13.687Z |
+| Elapsed | 1 h 13 min |
 | Questions | 4 (0 needed the owner) |
-| Requests to the advisor | 2 (0 needed the owner) |
+| Requests to the advisor | 3 (0 needed the owner) |
 | Escalations | 0 |
-| Edits by the advisor | 0 |
+| Edits by the advisor | 3 |
 
 ## Inputs
 
@@ -102,25 +102,53 @@ Skipped.
 ### implementation (`175c3969-9dde-42d3-a6e5-7f51fb93c13c`)
 
 - Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\specs\080-tolerate-plugin-noise\tasks.md exists.
+- Condition `gh-pr-open` (done_when): met. Pull request #110 is open.
 
 - **implement**: done, 219 turns.
 
 > All 41 tasks of spec 080 (tolerate plugin noise) are implemented and checked off in tasks.md, in 3 commits. invokeCli now wraps each typed eval's code with an answer tag minted for that call and returns the tagged line's contents as `answer`. For eval only, dispatch treats an answer line as success and recognises the no-active-file, Error: and cold-start lines at the start of any line. Every eval-composed tool parses the answer through a shared parseEvalAnswer, and its parse errors carry a head-and-tail stdout excerpt plus stdoutLength. Typecheck, lint and the full suite (4074 tests) pass. Published tool fingerprints are unchanged; there is no new error code, stage or log event. The new _plugin-noise.test.ts covers all 24 affected tools against contract cases N1–N13, the long-output excerpt (E4) and seeded random noise; two deliberate regressions confirmed it catches failures. Docs and CHANGELOG are updated. T0 probes P1, P2 and P4 passed against the real CLI. P3 (cold start) was not run live because closing the test vault needs GUI interaction; unit tests cover that path. Six live end-to-end calls succeeded against the built server, and the sandbox fixtures were cleaned up. Results are in contracts/t0-probe-findings.md. The optional after_implement commit hook was skipped. Three files modified before this step (.specify/feature.json, CLAUDE.md, relay-digest.md) were left uncommitted.
 
-- **open-pr**: in progress.
+- **open-pr**: done, 13 turns.
 
-### review
+> All spec 080 work is committed on 080-tolerate-plugin-noise. I added one chore(080) commit for the agent-context and feature pointers and the Relay digest; its body records the quality-gate results, as CONTRIBUTING.md requires. Type check, lint and build pass, and the test suite passes (4074 passed, 6 skipped, none failing). The branch is pushed to origin. PR #110 is open into main and is neither a draft nor merged. The repository has no PR template file, so the description follows the format of PR #107: Summary, Evidence, Test results, the full Constitution Compliance table (no N verdicts), Commits and Documentation. The description notes that the live cold-start probe (P3) was not run and that the .docs-as-code update is still pending.
 
-- **code-review**: not run.
-- **fix**: not run.
 
-### docs
+### review (`e7a9a5f5-4b94-45d5-89bf-01d3322bb8a0`)
 
-- **document**: not run.
+- Condition `gh-pr-open` (start_when): met. Pull request #110 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #110 is open.
 
-### record
+- **code-review**: done, 21 turns.
 
-- **record-in-vault**: not run.
+> Thermo-nuclear code-quality review of PR #110 (080-tolerate-plugin-noise vs main) done. Verdict: not approved yet, three blockers. (1) invokeCli now sniffs command === "eval" and returns an optional `answer` on every command's result, and 17 call sites build the eval call by hand. Fix: a dedicated invokeEval({code, vault?}) in cli-adapter returning `answer: string | null`; delete evalInVault and EvalResult. (2) findAnswer runs in both dispatchOnce and invokeCli; dispatch should return the answer it found. (3) paths, read_heading, tag and smart_connections_query/similar each hand-roll a decode identical to decodeEvalEnvelope; collapse them, about 100 lines, byte-identical. Should-fix: the eval-vs-head rule is restated in three places in dispatch (nested ternaries, isColdStart); a module-global setTaggedStdoutTransform hook in the shared fixture; the wrapper format is copied into two fixtures with a wrong 'keep imports downward' justification. No file crosses 1k lines, no kernel nodes touched, no new error codes. Tests were not run (read-only review). Also corrected .memory/refactor-decisions.md item 41, which wrongly recorded the closed dry-run PR #109's fixes as landed.
+
+- **fix**: done, 124 turns.
+
+> Fixed all six review findings on PR #110, pushed as commit 431ef50 to 080-tolerate-plugin-noise. Behaviour is unchanged, so no spec question was needed. (1) New invokeEval({code, vault?}) in cli-adapter.ts mints the answer tag, wraps the code and returns answer: string | null. invokeCli no longer has an eval branch, all 17 hand-built eval call sites use invokeEval with byte-identical argv, evalInVault and EvalResult are deleted, and a new architecture-test invariant (iii) fails on any command: "eval" literal outside cli-adapter.ts. (2) Dispatch finds the tagged answer once and returns it as DispatchOutput.evalAnswer, only for tagged input, so obsidian_exec output is unchanged; the second scan is gone. (3) paths, read_heading, tag and smart_connections_query/similar now decode through decodeEvalEnvelope with byte-identical errors (about 140 lines fewer); find_by_property, pattern_search and set_property keep their own parse because their details differ. (4) One inspectedLines helper replaces the nested ternaries and the isColdStart branch, and keeps the non-eval head quirk; findNoActiveFileLine and findErrorLine are deleted, with their cases moved to _dispatch.test.ts. (5) The global setTaggedStdoutTransform became the scoped withTaggedStdoutTransform(transform, run), which clears itself and refuses to nest. (6) The fixtures derive the wrapper format from wrapEvalCode, and _registration-stub.ts reuses renderStubStdout. Spec artifacts (research D1, plan, data-model, contract) are amended. Gates: typecheck, lint and build clean; 4076/4076 tests pass (6 skipped); coverage 96.88%; the FR-018 fingerprint passes without a baseline rewrite. Left on purpose: the noise hook stays module-scoped because threading it through the _typed-result-fixtures builders is disproportionate; .docs-as-code still names evalInVault, which is left for /speckit-docs-as-code 110; prettier is not a gate (untouched files fail it too); the pre-existing relay-digest.md change was not committed. The first commit picked up a stale message file; it was amended locally before the push, so no force-push was needed.
+
+
+### docs (`abac71c6-2915-4a2e-8834-ff73f51f9b91`)
+
+- Condition `gh-pr-open` (start_when): met. Pull request #110 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #110 is open.
+
+- **document**: done, 52 turns.
+
+> Documented PR #110 in .docs-as-code/ (architecture.md, five capability pages, README index, new ADR-052 on the per-call eval answer tag and the invokeEval entry point), committed ed71ee3 onto 080-tolerate-plugin-noise, pushed, and added the page list to the PR body's Documentation section. The PR body's Summary table still describes the pre-review invokeCli design; the pages follow the diff (invokeEval). The modified relay-digest.md was left uncommitted. No docs/tools edits, so npm test was not needed; CHANGELOG already has entries.
+
+
+### record (`5878be1a-66dc-46e8-814c-f31b72c0afec`)
+
+- **record-in-vault**: done.
+
+> BI-0135 now shows the pull request as in review. I followed the vault's backlog-item conventions: `in-review` is in the `backlog-item` status list in the Vault Frontmatter Convention, and I copied the layout of the BI-0039 Relay entry (#96).
+>
+> - Frontmatter: `status` changed from `planned` to `in-review`, `spec_branch` set to `080-tolerate-plugin-noise`, and `updated` set to 2026-11-01.
+> - `## Status`: a new first paragraph reads "**In review — 2026-11-01.**". It links PR [#110](https://github.com/marwansaab/obsidian-cli-mcp/pull/110), names spec branch `080-tolerate-plugin-noise` and feature folder `specs/080-tolerate-plugin-noise`, and says it is awaiting owner merge. The earlier *Planned.* paragraph and the History text are kept below it.
+> - Footer: a dated HTML comment says Relay run obsidian-cli-mcp-bi-0135-2026-11-01 produced PR #110 on that branch and feature folder, and records the status change.
+>
+> I read the note back after the edits: `status` is `in-review`, the Status section and the comment are in place, and no other text changed. I did not set `npm_version_shipped`, because the PR has not been merged or released yet.
+
 
 ## Escalations
 
@@ -129,7 +157,11 @@ None.
 
 ## Edits made by the advisor
 
-None.
+| File | Change | Triggered by |
+|---|---|---|
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0135 - Harden Eval Response Parsing Against Plugin Stdout Noise.md` | Frontmatter: status planned → in-review; spec_branch set to 080-tolerate-plugin-noise; updated → 2026-11-01. | record / record-in-vault: The work for job BI-0135 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0135 - Harden Eval Response Parsing Against Plugin Stdout Noise.md` | Status section: prepended 'In review — 2026-11-01' paragraph linking PR #110, spec branch and feature folder specs/080-tolerate-plugin-noise. | record / record-in-vault: The work for job BI-0135 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0135 - Harden Eval Response Parsing Against Plugin Stdout Noise.md` | Appended dated HTML comment: Relay run obsidian-cli-mcp-bi-0135-2026-11-01 produced PR #110 (branch, feature folder, status flip). | record / record-in-vault: The work for job BI-0135 is now a reviewed, documented pull request. Record that on the job's note,  |
 
 ## Files
 

@@ -273,3 +273,43 @@ Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0
 > A
 >
 > Rationale: B pulls in `query_base`, which falls under the BI's "Capabilities that do not run a query inside Obsidian" (Out of scope). Under ADR-005 progressive disclosure, the full contract lives in `docs/tools/<name>.md` and is served via `help`, so the plugin-output caveat belongs on the five eval tools' pages (T036). The top-level description wording stays exact for the no-noise case.
+
+## 7. record / record-in-vault (2026-11-01T06:37:15.238Z)
+
+**Question (verbatim):**
+
+> The work for job BI-0135 is now a reviewed, documented pull request. Record that on the job's note, following the vault's conventions for backlog items:
+> - the spec branch: 080-tolerate-plugin-noise
+> - the feature folder in the code repository: specs/080-tolerate-plugin-noise
+> - the pull request: https://github.com/marwansaab/obsidian-cli-mcp/pull/110 (number 110)
+> - the status that means "in review" in this vault (if the vault has no such status, escalate `decision` with up to 3 choices)
+> - a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0135-2026-11-01 produced it.
+>
+> Dry run: no. In a dry run, change nothing: list each edit you would make in `vault_edits`, starting its change with "Would". Otherwise list each edit you made.
+
+**Advisor** (escalate: none):
+
+> BI-0135 now shows the pull request as in review. I followed the vault's backlog-item conventions: `in-review` is in the `backlog-item` status list in the Vault Frontmatter Convention, and I copied the layout of the BI-0039 Relay entry (#96).
+>
+> - Frontmatter: `status` changed from `planned` to `in-review`, `spec_branch` set to `080-tolerate-plugin-noise`, and `updated` set to 2026-11-01.
+> - `## Status`: a new first paragraph reads "**In review — 2026-11-01.**". It links PR [#110](https://github.com/marwansaab/obsidian-cli-mcp/pull/110), names spec branch `080-tolerate-plugin-noise` and feature folder `specs/080-tolerate-plugin-noise`, and says it is awaiting owner merge. The earlier *Planned.* paragraph and the History text are kept below it.
+> - Footer: a dated HTML comment says Relay run obsidian-cli-mcp-bi-0135-2026-11-01 produced PR #110 on that branch and feature folder, and records the status change.
+>
+> I read the note back after the edits: `status` is `in-review`, the Status section and the comment are in place, and no other text changed. I did not set `npm_version_shipped`, because the PR has not been merged or released yet.
+
+Sources: `000-Meta/Vault Frontmatter Convention.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0039 - Disambiguate Read Heading Leading Line Terminator.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0135 - Harden Eval Response Parsing Against Plugin Stdout Noise.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0135 - Harden Eval Response Parsing Against Plugin Stdout Noise.md`: Frontmatter: status planned → in-review; spec_branch set to 080-tolerate-plugin-noise; updated → 2026-11-01.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0135 - Harden Eval Response Parsing Against Plugin Stdout Noise.md`: Status section: prepended 'In review — 2026-11-01' paragraph linking PR #110, spec branch and feature folder specs/080-tolerate-plugin-noise.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0135 - Harden Eval Response Parsing Against Plugin Stdout Noise.md`: Appended dated HTML comment: Relay run obsidian-cli-mcp-bi-0135-2026-11-01 produced PR #110 (branch, feature folder, status flip).
+
+**Sent to the step:**
+
+> BI-0135 now shows the pull request as in review. I followed the vault's backlog-item conventions: `in-review` is in the `backlog-item` status list in the Vault Frontmatter Convention, and I copied the layout of the BI-0039 Relay entry (#96).
+>
+> - Frontmatter: `status` changed from `planned` to `in-review`, `spec_branch` set to `080-tolerate-plugin-noise`, and `updated` set to 2026-11-01.
+> - `## Status`: a new first paragraph reads "**In review — 2026-11-01.**". It links PR [#110](https://github.com/marwansaab/obsidian-cli-mcp/pull/110), names spec branch `080-tolerate-plugin-noise` and feature folder `specs/080-tolerate-plugin-noise`, and says it is awaiting owner merge. The earlier *Planned.* paragraph and the History text are kept below it.
+> - Footer: a dated HTML comment says Relay run obsidian-cli-mcp-bi-0135-2026-11-01 produced PR #110 on that branch and feature folder, and records the status change.
+>
+> I read the note back after the edits: `status` is `in-review`, the Status section and the comment are in place, and no other text changed. I did not set `npm_version_shipped`, because the PR has not been merged or released yet.
