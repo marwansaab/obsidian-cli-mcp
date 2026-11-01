@@ -21,6 +21,8 @@ Spec 077-fix-prepend-not-found.
 
 Spec 078-refuse-oversized-text.
 
+Spec 079-clarify-heading-paths.
+
 ### Added
 
 - **`write_note` reports `bytes_written`**, with the same meaning, counting a new note's old size as 0. If the existing note's size cannot be read before an overwrite, the call fails with `FS_WRITE_FAILED` before anything is written. Its `details` shape is unchanged; `details.syscall` now reads `"stat"` where the old existence probe reported `"realpath"`.
@@ -36,6 +38,7 @@ Spec 078-refuse-oversized-text.
   Validation errors name the new parameter; error codes, `details` keys and the CLI calls are unchanged. `create_base`'s `INVALID_BASE_PATH` issues now report `field: "base_path"`. The convention is recorded in ADR-NNN, "Shared parameter names within a tool family" (number allocated at the next vault sync).
 - **`bytes_written` means the size change on every single-note text writer** (`append_note`, `prepend`, `patch_heading`, `patch_block`, `write_note`). `patch_heading` and `patch_block` now report the note's size after the edit minus its size before, instead of its total size; the value is 0 for a same-size edit and negative when the note shrinks. *Migration*: a check that compared `bytes_written` with the note's total size should compare it with the intended size change instead, or read the note to get its size. `append_note` and `prepend` are unchanged.
 - **`prepend` refuses content over 3072 UTF-8 bytes** (spec 078). Content within the 3072-character limit but over 3072 bytes, typically non-Latin text (1,024 CJK characters or 768 emoji reach it), is refused before Obsidian is called with `VALIDATION_ERROR`, `details.code: CONTENT_TOO_LARGE`, `details.reason: "bytes"`, `contentBytes` and `maxBytes`, instead of reaching the Obsidian CLI defect that crashes Obsidian. The character-limit error is unchanged and still has no `reason`. Some non-Latin calls between 3072 bytes and about 4 KB that succeeded before are now refused; use `write_note` for them.
+- **`read_heading` and `patch_heading` document the heading-path rule.** Their descriptions, parameter descriptions and reference pages now state that a path starts at the note's level-1 heading and names one heading per level. They list the sections no path can reach (no level-1 heading, a skipped level, a level-1 section by itself) with the whole-note alternative, and name the most common cause of `HEADING_NOT_FOUND`. Behaviour, error codes and messages are unchanged.
 
 ### Deprecated
 

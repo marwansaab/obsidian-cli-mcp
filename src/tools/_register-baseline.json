@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedFromBranch": "078-refuse-oversized-text",
+  "generatedFromBranch": "079-clarify-heading-paths",
   "generatedAt": "2026-11-01",
   "tools": [
     {
@@ -141,8 +141,8 @@
     },
     {
       "name": "patch_heading",
-      "descriptionFingerprint": "9cc24ce56436d3529d951660aea82c1dd1c1b3fd926242b964ab351d12aabf21",
-      "schemaFingerprint": "ead12f25ce3140af863c2793fe7d8e7bec138ec9c08ae88e933b7eced7ef07ec",
+      "descriptionFingerprint": "3995a62afb1b4c8519f639b1df0b4f610a50c9bca1345c945f9c4f1d2fdbb7d8",
+      "schemaFingerprint": "fb021a74d39174aa1b83874a2825dd5d0fcff4ca78a017807594c5d7d867023f",
       "titleFingerprint": "28f7bb84489352f6f0c1d3245afaa834ea4b18b44e56eb054ce69a1a759b7253",
       "annotationsFingerprint": "d72d3cb182e3d7fcf0b1c6782251eee772cdf2a99470e1a4bd6a006b5c8f4e25",
       "outputSchemaFingerprint": "90fb86d24bfc5f2ad7286b78574cf0ca092dfdc99f876bf6180e89579751007a"
@@ -197,8 +197,8 @@
     },
     {
       "name": "read_heading",
-      "descriptionFingerprint": "a649d0a6d850b92516d11dc36fae1a34d999506577ac476fec95327b638fb6de",
-      "schemaFingerprint": "e4c02c9ad5783f673db695c98f72873095deab7bbac4b2cd68e44974200dad27",
+      "descriptionFingerprint": "d86fe29e8f5b9ebc03daf3e0153e137196f05a727a493225fdc358001700a562",
+      "schemaFingerprint": "00aada89fc6cba38b6db65cede523d6a05af6af3593dde7efd981217805b336c",
       "titleFingerprint": "75f0b4edadfeddee6cf45e732a3571fd4f2740e54c87e2087eaa42c61777306b",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",
       "outputSchemaFingerprint": "89f4f1bc7a281d3d48bb2bd94e7e2f69797aca1aaec5430b4dedf9f5fd01101d"

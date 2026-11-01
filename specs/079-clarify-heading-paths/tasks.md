@@ -25,7 +25,7 @@ description: "Task list for 079-clarify-heading-paths"
 
 **Purpose**: confirm a green starting point so later failures are attributable.
 
-- [ ] T001 Run `npm run typecheck`, `npm run lint` and `npm test` at HEAD on branch `079-clarify-heading-paths` and record that all pass (repo root)
+- [X] T001 Run `npm run typecheck`, `npm run lint` and `npm test` at HEAD on branch `079-clarify-heading-paths` and record that all pass (repo root)
 
 ---
 
@@ -33,7 +33,7 @@ description: "Task list for 079-clarify-heading-paths"
 
 **Purpose**: pin the behaviour the new documentation describes, so the docs cannot drift from the code (research D5, data-model I4). These tests pin existing behaviour and should pass on the first run. If any fails, stop: the documentation premise is wrong and the spec must be revisited.
 
-- [ ] T002 Add five characterisation cases to `src/tools/patch_heading/heading-walk.test.ts`, inside the existing `walkHeadings` describe block and in the file's style:
+- [X] T002 Add five characterisation cases to `src/tools/patch_heading/heading-walk.test.ts`, inside the existing `walkHeadings` describe block and in the file's style:
   - (a) `walkHeadings("# Top\n## Section\n### Subsection\n", ["Section", "Subsection"])` returns `null` (level-1 segment left out).
   - (b) `walkHeadings("# Top\n### Sub\n", ["Top", "Sub"])` returns `null` (skipped level).
   - (c) `walkHeadings("## Section\n### Sub\n", ["Section", "Sub"])` returns `null` (no level-1 heading).
@@ -54,13 +54,13 @@ description: "Task list for 079-clarify-heading-paths"
 
 ### Tests for User Story 1
 
-- [ ] T003 [P] [US1] In `src/tools/read_heading/index.test.ts`, add a `describe("heading-path rule wording (079)")` block. Assert:
+- [X] T003 [P] [US1] In `src/tools/read_heading/index.test.ts`, add a `describe("heading-path rule wording (079)")` block. Assert:
   - `READ_HEADING_DESCRIPTION` contains `level-1 heading` and `one level below the previous`;
   - the published `inputSchema.properties.heading.description` (from `createReadHeadingTool(...).descriptor.inputSchema`) contains both phrases;
   - `docs/tools/read_heading.md`, read via the existing `import.meta.url` pattern at line ~100, contains a `Heading-path rule` heading and both phrases.
 
   Confirm the new assertions fail before T005/T006/T009.
-- [ ] T004 [P] [US1] In `src/tools/patch_heading/index.test.ts`, add the same `describe("heading-path rule wording (079)")` block for `PATCH_HEADING_DESCRIPTION`, `inputSchema.properties.heading_path.description` and `docs/tools/patch_heading.md`. Also assert:
+- [X] T004 [P] [US1] In `src/tools/patch_heading/index.test.ts`, add the same `describe("heading-path rule wording (079)")` block for `PATCH_HEADING_DESCRIPTION`, `inputSchema.properties.heading_path.description` and `docs/tools/patch_heading.md`. Also assert:
   - neither `PATCH_HEADING_DESCRIPTION` nor the `heading_path` parameter description contains `top-level headings are out of scope` or `Minimum two segments`;
   - in `docs/tools/patch_heading.md`, the number of occurrences of `top-level headings are out of scope` equals the number of occurrences of the full frozen message `heading_path must contain at least two segments separated by '#'; top-level headings are out of scope` (each occurrence is a verbatim quote);
   - the 400 characters after each full-message occurrence contain `level-1 heading`.
@@ -69,13 +69,13 @@ description: "Task list for 079-clarify-heading-paths"
 
 ### Implementation for User Story 1
 
-- [ ] T005 [P] [US1] In `src/tools/read_heading/index.ts`, in `READ_HEADING_DESCRIPTION`, replace `The heading field is a \`::\`-separated path with at least two non-empty segments (e.g. "H1::H2" or "H1::H2::H3"); ` with the contract §2 S-rule text for `read_heading` (from "The heading field is a `::`-separated path that starts at the note's level-1 heading" through "…even though both headings exist."). Then turn the remaining clause into its own interim sentence, `Single-segment H1-only reads, headings whose text contains \`::\` literally, and Setext-style headings are out-of-reach (documented fallback: full-file read_note plus client-side parse).`, which T014 replaces. Leave the rest of the string unchanged. Keep `Setext` and the `::`-literal case so the existing assertions at `index.test.ts:43` and `:118` still pass.
-- [ ] T006 [P] [US1] In `src/tools/read_heading/schema.ts`, replace only the `heading` field's `.describe(...)` text with the contract §2 `read_heading` parameter description. Do not touch `validateHeadingPath` or its messages.
-- [ ] T007 [P] [US1] In `src/tools/patch_heading/index.ts`, in `PATCH_HEADING_DESCRIPTION`, replace `**Minimum two segments** — top-level headings are out of scope (the wrapper exposes no top-level patch surface; use \`write_note\` for that).` with the contract §2 S-rule text for `patch_heading` (from "The path starts at the note's level-1 heading" through "…even though both headings exist."). Keep the opening "`heading_path` uses `#` as the segment separator.", "First match wins on duplicate sibling headings." and, for now, "Headings whose literal text contains `#` are permanently unreachable through this tool." (T015 replaces it). Escape backticks as the template literal requires.
-- [ ] T008 [P] [US1] In `src/tools/patch_heading/schema.ts`, replace only the `heading_path` `.describe(...)` text with the contract §2 `patch_heading` parameter description, keeping the `${HEADING_PATH_MAX}` interpolation. Do not touch `headingPathField` or its messages.
-- [ ] T009 [P] [US1] In `docs/tools/read_heading.md`, add a `### Heading-path rule` subsection under *Input schema*, before *Heading-path validator* (contract §3 H1–H2). It states L1 and L2 and gives a mapping block: `"Project::Tasks::Today" → # Project / ## Tasks / ### Today` plus a two-segment line. Rewrite the validator paragraph and the `heading` field row so "at least two segments" reads as "the target is level 2 or deeper, and the path names the level-1 heading first". Quote the unchanged `validateHeadingPath` one-segment message verbatim in a code span, and follow it immediately with a sentence saying that it refers to addressing the level-1 heading on its own and that every path starts at the level-1 heading.
-- [ ] T010 [P] [US1] In `docs/tools/patch_heading.md`, add a `### Heading-path rule` subsection at the top of *The heading_path locator* (contract §3 H1–H2), with the same rule and mapping (using `#`). Rewrite the `heading_path` field row (`≥2 segments`) and the constraint bullet "**Minimum two segments** — top-level headings (a path that addresses a `# H1` directly) are out of scope…" so they explain the minimum as "the target is level 2 or deeper, and the path names the level-1 heading first". In that bullet, quote the frozen `single-segment` message verbatim in a code span: `heading_path must contain at least two segments separated by '#'; top-level headings are out of scope`. Follow it immediately with: "This message refers to addressing a level-1 heading on its own (a one-segment path); it does not mean the level-1 heading is left out — every path still starts at the level-1 heading." This quote is the only place on the page where `top-level headings are out of scope` may appear (contract §1 exception).
-- [ ] T011 [US1] Run `npx vitest run src/tools/read_heading src/tools/patch_heading`. T003/T004 now pass, and every pre-existing test still passes (depends on T003–T010).
+- [X] T005 [P] [US1] In `src/tools/read_heading/index.ts`, in `READ_HEADING_DESCRIPTION`, replace `The heading field is a \`::\`-separated path with at least two non-empty segments (e.g. "H1::H2" or "H1::H2::H3"); ` with the contract §2 S-rule text for `read_heading` (from "The heading field is a `::`-separated path that starts at the note's level-1 heading" through "…even though both headings exist."). Then turn the remaining clause into its own interim sentence, `Single-segment H1-only reads, headings whose text contains \`::\` literally, and Setext-style headings are out-of-reach (documented fallback: full-file read_note plus client-side parse).`, which T014 replaces. Leave the rest of the string unchanged. Keep `Setext` and the `::`-literal case so the existing assertions at `index.test.ts:43` and `:118` still pass.
+- [X] T006 [P] [US1] In `src/tools/read_heading/schema.ts`, replace only the `heading` field's `.describe(...)` text with the contract §2 `read_heading` parameter description. Do not touch `validateHeadingPath` or its messages.
+- [X] T007 [P] [US1] In `src/tools/patch_heading/index.ts`, in `PATCH_HEADING_DESCRIPTION`, replace `**Minimum two segments** — top-level headings are out of scope (the wrapper exposes no top-level patch surface; use \`write_note\` for that).` with the contract §2 S-rule text for `patch_heading` (from "The path starts at the note's level-1 heading" through "…even though both headings exist."). Keep the opening "`heading_path` uses `#` as the segment separator.", "First match wins on duplicate sibling headings." and, for now, "Headings whose literal text contains `#` are permanently unreachable through this tool." (T015 replaces it). Escape backticks as the template literal requires.
+- [X] T008 [P] [US1] In `src/tools/patch_heading/schema.ts`, replace only the `heading_path` `.describe(...)` text with the contract §2 `patch_heading` parameter description, keeping the `${HEADING_PATH_MAX}` interpolation. Do not touch `headingPathField` or its messages.
+- [X] T009 [P] [US1] In `docs/tools/read_heading.md`, add a `### Heading-path rule` subsection under *Input schema*, before *Heading-path validator* (contract §3 H1–H2). It states L1 and L2 and gives a mapping block: `"Project::Tasks::Today" → # Project / ## Tasks / ### Today` plus a two-segment line. Rewrite the validator paragraph and the `heading` field row so "at least two segments" reads as "the target is level 2 or deeper, and the path names the level-1 heading first". Quote the unchanged `validateHeadingPath` one-segment message verbatim in a code span, and follow it immediately with a sentence saying that it refers to addressing the level-1 heading on its own and that every path starts at the level-1 heading.
+- [X] T010 [P] [US1] In `docs/tools/patch_heading.md`, add a `### Heading-path rule` subsection at the top of *The heading_path locator* (contract §3 H1–H2), with the same rule and mapping (using `#`). Rewrite the `heading_path` field row (`≥2 segments`) and the constraint bullet "**Minimum two segments** — top-level headings (a path that addresses a `# H1` directly) are out of scope…" so they explain the minimum as "the target is level 2 or deeper, and the path names the level-1 heading first". In that bullet, quote the frozen `single-segment` message verbatim in a code span: `heading_path must contain at least two segments separated by '#'; top-level headings are out of scope`. Follow it immediately with: "This message refers to addressing a level-1 heading on its own (a one-segment path); it does not mean the level-1 heading is left out — every path still starts at the level-1 heading." This quote is the only place on the page where `top-level headings are out of scope` may appear (contract §1 exception).
+- [X] T011 [US1] Run `npx vitest run src/tools/read_heading src/tools/patch_heading`. T003/T004 now pass, and every pre-existing test still passes (depends on T003–T010).
 
 **Checkpoint**: an agent reading either tool's description or parameter description gets its first path right.
 
@@ -89,14 +89,14 @@ description: "Task list for 079-clarify-heading-paths"
 
 ### Tests for User Story 2
 
-- [ ] T012 [P] [US2] In `src/tools/read_heading/index.test.ts`, extend the 079 block. `READ_HEADING_DESCRIPTION` and `docs/tools/read_heading.md` each contain `no level-1 heading`, `skipped level` and `` `read` ``, and the description no longer contains `read_note`. Confirm these fail before T014/T016.
-- [ ] T013 [P] [US2] In `src/tools/patch_heading/index.test.ts`, extend the 079 block. `PATCH_HEADING_DESCRIPTION` and `docs/tools/patch_heading.md` each contain `no level-1 heading`, `skipped level` and `write_note`, and `docs/tools/patch_heading.md` does not contain `wrap the top-level heading in a parent`. Confirm these fail before T015/T017.
+- [X] T012 [P] [US2] In `src/tools/read_heading/index.test.ts`, extend the 079 block. `READ_HEADING_DESCRIPTION` and `docs/tools/read_heading.md` each contain `no level-1 heading`, `skipped level` and `` `read` ``, and the description no longer contains `read_note`. Confirm these fail before T014/T016.
+- [X] T013 [P] [US2] In `src/tools/patch_heading/index.test.ts`, extend the 079 block. `PATCH_HEADING_DESCRIPTION` and `docs/tools/patch_heading.md` each contain `no level-1 heading`, `skipped level` and `write_note`, and `docs/tools/patch_heading.md` does not contain `wrap the top-level heading in a parent`. Confirm these fail before T015/T017.
 
 ### Implementation for User Story 2
 
-- [ ] T014 [P] [US2] In `src/tools/read_heading/index.ts`, replace the interim sentence from T005 ("Single-segment H1-only reads, … plus client-side parse).") with the contract §2 S-unreach sentence for `read_heading`, which starts "Unreachable:" and ends "…use `read` for the whole note instead." This also replaces the stale `read_note` with `read`.
-- [ ] T015 [P] [US2] In `src/tools/patch_heading/index.ts`, remove "Headings whose literal text contains `#` are permanently unreachable through this tool." and insert the contract §2 S-unreach sentence for `patch_heading`, which starts "Unreachable:" and ends "…use `write_note` to rewrite the whole note instead.", directly before "First match wins on duplicate sibling headings." The paragraph order then matches contract §2.
-- [ ] T016 [P] [US2] In `docs/tools/read_heading.md`, rewrite the "out-of-reach" list under *Heading-path validator* as an *Unreachable sections* list (contract §3 H3–H4, data-model U1–U5). It covers:
+- [X] T014 [P] [US2] In `src/tools/read_heading/index.ts`, replace the interim sentence from T005 ("Single-segment H1-only reads, … plus client-side parse).") with the contract §2 S-unreach sentence for `read_heading`, which starts "Unreachable:" and ends "…use `read` for the whole note instead." This also replaces the stale `read_note` with `read`.
+- [X] T015 [P] [US2] In `src/tools/patch_heading/index.ts`, remove "Headings whose literal text contains `#` are permanently unreachable through this tool." and insert the contract §2 S-unreach sentence for `patch_heading`, which starts "Unreachable:" and ends "…use `write_note` to rewrite the whole note instead.", directly before "First match wins on duplicate sibling headings." The paragraph order then matches contract §2.
+- [X] T016 [P] [US2] In `docs/tools/read_heading.md`, rewrite the "out-of-reach" list under *Heading-path validator* as an *Unreachable sections* list (contract §3 H3–H4, data-model U1–U5). It covers:
   - a level-1 section by itself;
   - a note with no level-1 heading;
   - a section below a skipped level (example: `### Orphan` directly under `# Other`);
@@ -104,14 +104,14 @@ description: "Task list for 079-clarify-heading-paths"
   - Setext headings.
 
   Give each the fallback [`read`](./read.md). After the list, add: "A skipped level only blocks the sections at and below the skip on that branch: a skip below the target (for example a `####` directly under the `##` you want), or a skip in another branch of the note, does not block the target. When a note has several level-1 headings, a path may start at any of them."
-- [ ] T017 [P] [US2] In `docs/tools/patch_heading.md`, add an *Unreachable sections* list to *The heading_path locator*. It covers:
+- [X] T017 [P] [US2] In `docs/tools/patch_heading.md`, add an *Unreachable sections* list to *The heading_path locator*. It covers:
   - a level-1 section by itself;
   - a note with no level-1 heading;
   - a section below a skipped level (example: `### Orphan` directly under `# Other`);
   - headings whose literal text contains `#` (move the existing bullet here).
 
   Give each the fallback [`write_note`](./write_note.md). After the list, add the same sentence as T016: "A skipped level only blocks the sections at and below the skip on that branch: a skip below the target (for example a `####` directly under the `##` you want), or a skip in another branch of the note, does not block the target. When a note has several level-1 headings, a path may start at any of them." Replace the routing-table row at line 18 with the contract §3 text: "Patch a level-1 section (one-segment path) or any unreachable section | Not addressable by `patch_heading`; use `write_note` to rewrite the whole note."
-- [ ] T018 [US2] Run `npx vitest run src/tools/read_heading src/tools/patch_heading`; T012/T013 pass (depends on T012–T017).
+- [X] T018 [US2] Run `npx vitest run src/tools/read_heading src/tools/patch_heading`; T012/T013 pass (depends on T012–T017).
 
 **Checkpoint**: an agent working on a note with no level-1 heading, or with a skipped level, is told to stop and use the whole-note tool.
 
@@ -125,16 +125,16 @@ description: "Task list for 079-clarify-heading-paths"
 
 ### Tests for User Story 3
 
-- [ ] T019 [P] [US3] In `src/tools/read_heading/index.test.ts`, extend the 079 block. In `READ_HEADING_DESCRIPTION`, assert that `leaves out the level-1 heading or skips a level` occurs and that its index is lower than the index of the following `outline`. In `docs/tools/read_heading.md`, find the error-table line containing `HEADING_NOT_FOUND` and assert the same ordering within that line. Confirm these fail before T021/T023.
-- [ ] T020 [P] [US3] In `src/tools/patch_heading/index.test.ts`, extend the 079 block with the same ordering assertions for the `HEADING_NOT_FOUND` entry in `PATCH_HEADING_DESCRIPTION` (the substring starting at `` `HEADING_NOT_FOUND` (``) and for the `HEADING_NOT_FOUND` row of the error-states table in `docs/tools/patch_heading.md`. Confirm these fail before T022/T024.
+- [X] T019 [P] [US3] In `src/tools/read_heading/index.test.ts`, extend the 079 block. In `READ_HEADING_DESCRIPTION`, assert that `leaves out the level-1 heading or skips a level` occurs and that its index is lower than the index of the following `outline`. In `docs/tools/read_heading.md`, find the error-table line containing `HEADING_NOT_FOUND` and assert the same ordering within that line. Confirm these fail before T021/T023.
+- [X] T020 [P] [US3] In `src/tools/patch_heading/index.test.ts`, extend the 079 block with the same ordering assertions for the `HEADING_NOT_FOUND` entry in `PATCH_HEADING_DESCRIPTION` (the substring starting at `` `HEADING_NOT_FOUND` (``) and for the `HEADING_NOT_FOUND` row of the error-states table in `docs/tools/patch_heading.md`. Confirm these fail before T022/T024.
 
 ### Implementation for User Story 3
 
-- [ ] T021 [P] [US3] In `src/tools/read_heading/index.ts`, insert the contract §2 S-cause sentence for `read_heading` ("On HEADING_NOT_FOUND the path most often leaves out the level-1 heading or skips a level; check that first, then list the note's headings with `outline`.") directly after the S-unreach sentence from T014.
-- [ ] T022 [P] [US3] In `src/tools/patch_heading/index.ts`, in the typed-errors paragraph of `PATCH_HEADING_DESCRIPTION`, replace the `HEADING_NOT_FOUND` entry with the contract §2 S-cause entry.
-- [ ] T023 [P] [US3] In `docs/tools/read_heading.md`, rewrite the Recovery cell of the `HEADING_NOT_FOUND` error-table row to: "Most often the path leaves out the level-1 heading or skips a level; check that first. Then use [`outline`](./outline.md) to list the file's headings and retry." Update Example 5's closing sentence the same way. Runtime messages stay unchanged.
-- [ ] T024 [P] [US3] In `docs/tools/patch_heading.md`, rewrite the Trigger cell of the `HEADING_NOT_FOUND` row in *Error states* the same way, and add a line with the same guidance under the *Heading-not-found error envelope* worked example.
-- [ ] T025 [US3] Run `npx vitest run src/tools/read_heading src/tools/patch_heading`; T019/T020 pass (depends on T019–T024).
+- [X] T021 [P] [US3] In `src/tools/read_heading/index.ts`, insert the contract §2 S-cause sentence for `read_heading` ("On HEADING_NOT_FOUND the path most often leaves out the level-1 heading or skips a level; check that first, then list the note's headings with `outline`.") directly after the S-unreach sentence from T014.
+- [X] T022 [P] [US3] In `src/tools/patch_heading/index.ts`, in the typed-errors paragraph of `PATCH_HEADING_DESCRIPTION`, replace the `HEADING_NOT_FOUND` entry with the contract §2 S-cause entry.
+- [X] T023 [P] [US3] In `docs/tools/read_heading.md`, rewrite the Recovery cell of the `HEADING_NOT_FOUND` error-table row to: "Most often the path leaves out the level-1 heading or skips a level; check that first. Then use [`outline`](./outline.md) to list the file's headings and retry." Update Example 5's closing sentence the same way. Runtime messages stay unchanged.
+- [X] T024 [P] [US3] In `docs/tools/patch_heading.md`, rewrite the Trigger cell of the `HEADING_NOT_FOUND` row in *Error states* the same way, and add a line with the same guidance under the *Heading-not-found error envelope* worked example.
+- [X] T025 [US3] Run `npx vitest run src/tools/read_heading src/tools/patch_heading`; T019/T020 pass (depends on T019–T024).
 
 **Checkpoint**: an agent that hits heading-not-found corrects the path from the guidance alone.
 
@@ -148,14 +148,14 @@ description: "Task list for 079-clarify-heading-paths"
 
 ### Tests for User Story 4
 
-- [ ] T026 [P] [US4] In `src/tools/read_heading/index.test.ts`, extend the 079 block. `docs/tools/read_heading.md` contains `"Best Practices::Naming::Casing"` and `"Naming::Casing"`, and has an example heading matching `/### Example \d+ — .*level-1/i`. Confirm these fail before T028.
-- [ ] T027 [P] [US4] In `src/tools/patch_heading/index.test.ts`, extend the 079 block. `docs/tools/patch_heading.md` contains `"Daily#Tasks#TODO"` and `"Tasks#TODO"`, and has a worked-example heading containing `level-1`. Confirm these fail before T029.
+- [X] T026 [P] [US4] In `src/tools/read_heading/index.test.ts`, extend the 079 block. `docs/tools/read_heading.md` contains `"Best Practices::Naming::Casing"` and `"Naming::Casing"`, and has an example heading matching `/### Example \d+ — .*level-1/i`. Confirm these fail before T028.
+- [X] T027 [P] [US4] In `src/tools/patch_heading/index.test.ts`, extend the 079 block. `docs/tools/patch_heading.md` contains `"Daily#Tasks#TODO"` and `"Tasks#TODO"`, and has a worked-example heading containing `level-1`. Confirm these fail before T029.
 
 ### Implementation for User Story 4
 
-- [ ] T028 [P] [US4] In `docs/tools/read_heading.md`, add `### Example 6 — Level-1 segment left out (heading-not-found)`. Show `heading: "Naming::Casing"` on the Example 2 note, state that it returns `CLI_REPORTED_ERROR` with `details.code: "HEADING_NOT_FOUND"` although both headings exist, and give the corrected path `"Best Practices::Naming::Casing"`. Example 2 already shows the three-segment shape; add a one-line note there that it runs from level 1 to level 3.
-- [ ] T029 [P] [US4] In `docs/tools/patch_heading.md`, under *Worked examples*, add `### Level-1 segment left out (heading-not-found)`. Show `heading_path: "Tasks#TODO"` against the `Daily Notes/2026-05-21.md` note, the resulting `HEADING_NOT_FOUND` envelope (message `Heading "Tasks#TODO" not found in "Daily Notes/2026-05-21.md"`, exactly as the unchanged handler emits it), and the corrected `Daily#Tasks#TODO`. Add a one-line note to *Append a new TODO bullet* that `Daily#Tasks#TODO` runs from level 1 to level 3.
-- [ ] T030 [US4] Run `npx vitest run src/tools/read_heading src/tools/patch_heading`; T026/T027 pass (depends on T026–T029).
+- [X] T028 [P] [US4] In `docs/tools/read_heading.md`, add `### Example 6 — Level-1 segment left out (heading-not-found)`. Show `heading: "Naming::Casing"` on the Example 2 note, state that it returns `CLI_REPORTED_ERROR` with `details.code: "HEADING_NOT_FOUND"` although both headings exist, and give the corrected path `"Best Practices::Naming::Casing"`. Example 2 already shows the three-segment shape; add a one-line note there that it runs from level 1 to level 3.
+- [X] T029 [P] [US4] In `docs/tools/patch_heading.md`, under *Worked examples*, add `### Level-1 segment left out (heading-not-found)`. Show `heading_path: "Tasks#TODO"` against the `Daily Notes/2026-05-21.md` note, the resulting `HEADING_NOT_FOUND` envelope (message `Heading "Tasks#TODO" not found in "Daily Notes/2026-05-21.md"`, exactly as the unchanged handler emits it), and the corrected `Daily#Tasks#TODO`. Add a one-line note to *Append a new TODO bullet* that `Daily#Tasks#TODO` runs from level 1 to level 3.
+- [X] T030 [US4] Run `npx vitest run src/tools/read_heading src/tools/patch_heading`; T026/T027 pass (depends on T026–T029).
 
 **Checkpoint**: the examples show both the right shape and the common wrong one.
 
@@ -167,7 +167,7 @@ description: "Task list for 079-clarify-heading-paths"
 
 **Independent Test**: a repository search for the forbidden phrases finds only the frozen runtime messages (contract §4), the verbatim quote on the patch_heading help page (contract §1 exception) and spec artifacts.
 
-- [ ] T031 [US5] Search `src/**/*.ts` (excluding tests), `docs/**`, `README.md`, `CONTRIBUTING.md` and the server instructions in `src/server.ts` for: `top-level headings are out of scope`, `Minimum two segments`, `at least two`, `≥2 segments`, `two segments`, `top-level heading` and `read_note`. Each remaining hit must be one of:
+- [X] T031 [US5] Search `src/**/*.ts` (excluding tests), `docs/**`, `README.md`, `CONTRIBUTING.md` and the server instructions in `src/server.ts` for: `top-level headings are out of scope`, `Minimum two segments`, `at least two`, `≥2 segments`, `two segments`, `top-level heading` and `read_note`. Each remaining hit must be one of:
   - the frozen `single-segment` message in `src/tools/patch_heading/schema.ts`;
   - the frozen `validateHeadingPath` message in `src/tools/read_heading/schema.ts`;
   - the verbatim quotes of those messages on the help pages, each followed by the level-1 note (contract §3 H2);
@@ -181,18 +181,18 @@ description: "Task list for 079-clarify-heading-paths"
 
 ## Phase 8: Polish & cross-cutting
 
-- [ ] T032 Run `npm run baseline:write`, then `git diff src/tools/_register-baseline.json`. Only the `descriptionFingerprint` and `schemaFingerprint` of `read_heading` and `patch_heading` may change (contract §5). Commit the regenerated `src/tools/_register-baseline.json`.
-- [ ] T033 [P] In `CHANGELOG.md` under `## [Unreleased]`, add `Spec 079-clarify-heading-paths.` after the 078 line. Under `### Changed`, add this bullet: "**`read_heading` and `patch_heading` document the heading-path rule.** Their descriptions, parameter descriptions and reference pages now state that a path starts at the note's level-1 heading and names one heading per level. They list the sections no path can reach (no level-1 heading, a skipped level, a level-1 section by itself) with the whole-note alternative, and name the most common cause of `HEADING_NOT_FOUND`. Behaviour, error codes and messages are unchanged."
-- [ ] T034 Reviewer check of the published text against spec SC-001, SC-003 and SC-004, which are reviewer-judged, not agent trials. Read the final `READ_HEADING_DESCRIPTION`, `PATCH_HEADING_DESCRIPTION`, both heading parameter descriptions and both help pages, and confirm:
+- [X] T032 Run `npm run baseline:write`, then `git diff src/tools/_register-baseline.json`. Only the `descriptionFingerprint` and `schemaFingerprint` of `read_heading` and `patch_heading` may change (contract §5). Commit the regenerated `src/tools/_register-baseline.json`.
+- [X] T033 [P] In `CHANGELOG.md` under `## [Unreleased]`, add `Spec 079-clarify-heading-paths.` after the 078 line. Under `### Changed`, add this bullet: "**`read_heading` and `patch_heading` document the heading-path rule.** Their descriptions, parameter descriptions and reference pages now state that a path starts at the note's level-1 heading and names one heading per level. They list the sections no path can reach (no level-1 heading, a skipped level, a level-1 section by itself) with the whole-note alternative, and name the most common cause of `HEADING_NOT_FOUND`. Behaviour, error codes and messages are unchanged."
+- [X] T034 Reviewer check of the published text against spec SC-001, SC-003 and SC-004, which are reviewer-judged, not agent trials. Read the final `READ_HEADING_DESCRIPTION`, `PATCH_HEADING_DESCRIPTION`, both heading parameter descriptions and both help pages, and confirm:
   - (SC-001) a level-2 and a level-3 path under a level-1 heading can be written correctly from the description and parameter description alone;
   - (SC-003) each help page states that sections in a note with no level-1 heading, or below a skipped level, cannot be addressed, and names the whole-note alternative;
   - (SC-004) the heading-not-found guidance names the missing level-1 segment or skipped level before any other step.
 
   Record a pass or fail line per criterion under *SC review* in this file's Notes section and carry it into the PR description.
-- [ ] T035 Run the full gate: `npm run typecheck`, `npm run lint`, `npm test` (quickstart §1). All pass, and existing tests were changed only by additions.
-- [ ] T036 Verify that runtime text is untouched (contract §4, data-model I5). `git diff --stat` shows no change to `src/tools/read_heading/handler.ts`, `src/tools/read_heading/_template.ts`, `src/tools/patch_heading/handler.ts`, `src/tools/patch_heading/heading-walk.ts` or `src/tools/patch_heading/body-edit.ts`, and `git diff src/tools/*/schema.ts` touches only the `.describe(...)` lines.
-- [ ] T037 Post-implement structural verification (plan *CodeGraph structural check*). Run `codegraph sync`, then `codegraph_explore "READ_HEADING_DESCRIPTION PATCH_HEADING_DESCRIPTION readHeadingInputSchema patchHeadingInputSchema"`. Confirm there is no new symbol or import, no change to `src/errors.ts`, `src/server.ts` or any kernel node (`createServer`, `createLogger`, `createQueue`, `UpstreamError`), and nothing orphaned.
-- [ ] T038 Live check per `specs/079-clarify-heading-paths/quickstart.md` §3. First read `.memory/test-execution-instructions.md`, and use only `TestVault-Obsidian-CLI-MCP` with fixtures under `Sandbox/`. Run `npm run build`, then cases 1–8. Report cases attempted, passing and failing, quote failures verbatim, and delete both fixtures afterwards. Cases 1–4 are the only pin for `read_heading`'s rule (research F1).
+- [X] T035 Run the full gate: `npm run typecheck`, `npm run lint`, `npm test` (quickstart §1). All pass, and existing tests were changed only by additions.
+- [X] T036 Verify that runtime text is untouched (contract §4, data-model I5). `git diff --stat` shows no change to `src/tools/read_heading/handler.ts`, `src/tools/read_heading/_template.ts`, `src/tools/patch_heading/handler.ts`, `src/tools/patch_heading/heading-walk.ts` or `src/tools/patch_heading/body-edit.ts`, and `git diff src/tools/*/schema.ts` touches only the `.describe(...)` lines.
+- [X] T037 Post-implement structural verification (plan *CodeGraph structural check*). Run `codegraph sync`, then `codegraph_explore "READ_HEADING_DESCRIPTION PATCH_HEADING_DESCRIPTION readHeadingInputSchema patchHeadingInputSchema"`. Confirm there is no new symbol or import, no change to `src/errors.ts`, `src/server.ts` or any kernel node (`createServer`, `createLogger`, `createQueue`, `UpstreamError`), and nothing orphaned.
+- [X] T038 Live check per `specs/079-clarify-heading-paths/quickstart.md` §3. First read `.memory/test-execution-instructions.md`, and use only `TestVault-Obsidian-CLI-MCP` with fixtures under `Sandbox/`. Run `npm run build`, then cases 1–8. Report cases attempted, passing and failing, quote failures verbatim, and delete both fixtures afterwards. Cases 1–4 are the only pin for `read_heading`'s rule (research F1).
 
 ---
 
@@ -259,4 +259,14 @@ US1 (rule) → US2 (unreachable sections) → US3 (error guidance) → US4 (exam
 
 ### SC review
 
-(filled in by T034)
+- **SC-001: pass.** Both descriptions and both heading parameter descriptions say the path starts at the level-1 heading and names one heading per level, with a level-3 example (`Project::Tasks::Today` / `Project#Tasks#Today`). A level-2 path (`Project::Tasks`) follows directly from the same sentence.
+- **SC-003: pass.** Each help page has an *Unreachable sections* list naming a note with no level-1 heading and a section below a skipped level, each with its example and the whole-note alternative (`read` / `write_note`).
+- **SC-004: pass.** In both descriptions and both help pages (error-table row and error example), the heading-not-found guidance names "leaves out the level-1 heading or skips a level" before `outline`.
+
+### Implementation record
+
+- **T031 sweep**: the remaining hits for the forbidden phrases are the two frozen validation messages in `schema.ts`, the help-page quotes of them (each followed by the level-1 note), the parameter descriptions and field rows that explain the minimum per contract §3 H2, the `// Original — no upstream.` schema headers, and the retired-name lists in `src/tools/_register.test.ts` and `src/tools/help/handler.test.ts`. One extra hit was fixed: the opening sentence of `READ_HEADING_DESCRIPTION` also said "full-file read_note", which is now "full-file read" (T012 asserts the description has no `read_note`). Example 4 on the `read_heading` page, which paraphrases the one-segment message, now carries the level-1 note too. `src/server.ts`, `README.md` and `CONTRIBUTING.md` had no hits.
+- **T032 baseline**: only `read_heading` and `patch_heading` moved their `descriptionFingerprint` and `schemaFingerprint`; the file's `generatedFromBranch` label also changed to this branch.
+- **T035 gate**: typecheck and lint clean; 166 test files passed (1 skipped), 3611 tests passed (6 skipped). Existing tests were changed only by additions.
+- **T037 structural check**: no new symbol or import; `src/errors.ts`, `src/server.ts`, the handlers, `_template.ts`, `heading-walk.ts` and `body-edit.ts` are unchanged; no kernel node touched.
+- **T038 live check** (`TestVault-Obsidian-CLI-MCP`, fixtures under `Sandbox/`): 9 checks attempted (cases 1–6, case 7 for each tool, case 8), 9 passed, 0 failed. Both fixtures were deleted and `Sandbox/` holds no `079-*` residue.

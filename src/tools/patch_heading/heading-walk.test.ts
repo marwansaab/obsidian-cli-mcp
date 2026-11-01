@@ -96,6 +96,37 @@ describe("walkHeadings — failure paths", () => {
   });
 });
 
+describe("walkHeadings — documented heading-path rule (079)", () => {
+  it("returns null when the path leaves out the level-1 segment", () => {
+    const content = "# Top\n## Section\n### Subsection\n";
+    expect(walkHeadings(content, ["Section", "Subsection"])).toBeNull();
+  });
+
+  it("returns null when the path crosses a skipped level", () => {
+    const content = "# Top\n### Sub\n";
+    expect(walkHeadings(content, ["Top", "Sub"])).toBeNull();
+  });
+
+  it("returns null when the note has no level-1 heading", () => {
+    const content = "## Section\n### Sub\n";
+    expect(walkHeadings(content, ["Section", "Sub"])).toBeNull();
+  });
+
+  it("resolves a target when a level is skipped below it", () => {
+    const content = "# Top\n## Sub\n#### Deep\n";
+    const r = walkHeadings(content, ["Top", "Sub"]);
+    expect(r).not.toBeNull();
+    expect(r!.rank).toBe(2);
+  });
+
+  it("resolves a path that starts at a second level-1 heading", () => {
+    const content = "# A\n## X\n# B\n## Sub\n";
+    const r = walkHeadings(content, ["B", "Sub"]);
+    expect(r).not.toBeNull();
+    expect(r!.rank).toBe(2);
+  });
+});
+
 describe("walkHeadings — first-match-wins (FR-006)", () => {
   it("returns the first '## Sub' when two appear under '# Top'", () => {
     const content =

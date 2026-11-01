@@ -15,7 +15,7 @@
 | Prepend at the start of an existing note | [`prepend`](./prepend.md) |
 | Find/replace text patterns across many regions | [`find_and_replace`](./find_and_replace.md) |
 | Read a heading's body (no write) | [`read_heading`](./read_heading.md), [`outline`](./outline.md) |
-| Patch a top-level heading (1-segment path) | Out of scope — `patch_heading` requires ≥2 segments. Use `write_note` to rewrite the whole note, or wrap the top-level heading in a parent. |
+| Patch a level-1 section (one-segment path) or any unreachable section | Not addressable by `patch_heading`; use `write_note` to rewrite the whole note. |
 
 ## Input schema
 
@@ -40,7 +40,7 @@ The schema is strict: `additionalProperties: false`. Unknown fields trigger `VAL
 | `vault` | string ≥ 1 char | iff specific | Resolved via the lazy vault registry. Unknown vault → `VALIDATION_ERROR`. |
 | `file` | string ≥ 1 char (structurally safe) | XOR with `path`, iff specific | Vault-relative file path. |
 | `path` | string ≥ 1 char (structurally safe) | XOR with `file`, iff specific | Vault-relative file path. |
-| `heading_path` | string, 1–1000 chars, ≥2 segments | YES | See *The heading_path locator* below. |
+| `heading_path` | string, 1–1000 chars | YES | Starts at the note's level-1 heading, one segment per level; the target is level 2 or deeper, so at least two segments. See *The heading_path locator* below. |
 | `mode` | `"append" \| "prepend" \| "replace"` | YES | See *Three placement modes* below. |
 | `content` | string | YES | Non-empty for append/prepend; any (including empty) for replace. |
 
@@ -125,6 +125,19 @@ After `mode: "replace"` with `content: "- new item\n"`:
 
 ## The heading_path locator
 
+### Heading-path rule
+
+The path starts at the note's level-1 heading and names one heading per level down to the target: each later segment is the heading exactly one level below the previous one. A level-3 target therefore needs three segments:
+
+```
+"Project#Tasks#Today"   →  # Project / ## Tasks / ### Today
+"Project#Tasks"         →  # Project / ## Tasks
+```
+
+Leaving out the level-1 heading (`"Tasks#Today"`) fails with `HEADING_NOT_FOUND`, even though both headings exist in the note.
+
+### Path format
+
 The `heading_path` parameter is a single string addressing a heading by its full hierarchical path. Segments are joined by the literal `#` character (matching Obsidian wikilink anchors like `[[note#Top#Sub]]`):
 
 ```
@@ -135,10 +148,22 @@ The `heading_path` parameter is a single string addressing a heading by its full
 
 Constraints:
 
-- **Minimum two segments** — top-level headings (a path that addresses a `# H1` directly) are out of scope. To rewrite a top-level heading's body, use [`write_note`](./write_note.md) to rewrite the whole note.
+- **At least two segments** — the target is level 2 or deeper, and the path names the level-1 heading first. A one-segment path is rejected with `heading_path must contain at least two segments separated by '#'; top-level headings are out of scope`. This message refers to addressing a level-1 heading on its own (a one-segment path); it does not mean the level-1 heading is left out — every path still starts at the level-1 heading. To rewrite a level-1 section's body, use [`write_note`](./write_note.md) to rewrite the whole note.
 - **No segment may be empty** — `Top##Sub` (empty middle), `#Sub` (leading `#`), and `Top#Sub#` (trailing `#`) all surface `INVALID_HEADING_PATH + details.reason: "empty-segment"`.
 - **Maximum 1000 UTF-16 code units** — longer paths surface `INVALID_HEADING_PATH + details.reason: "too-long"`.
-- **Headings whose literal text contains `#` are permanently unreachable** through this tool. The `#` character is reserved as the path separator; no escaping mechanism is provided. This matches Obsidian's own wikilink-anchor behaviour.
+
+### Unreachable sections
+
+No `heading_path` can reach the following sections. For each, use [`write_note`](./write_note.md) to rewrite the whole note:
+
+- **A level-1 section by itself** (`heading_path: "Daily"` with no `#`): the validator rejects one-segment paths. Fallback: [`write_note`](./write_note.md).
+- **Any section in a note with no level-1 heading** (e.g. a note whose top heading is `## Section`): every path starts at the level-1 heading, so there is nothing to start from. Fallback: [`write_note`](./write_note.md).
+- **Any section below a skipped level** (e.g. `### Orphan` directly under `# Other`, with no `##` between them): each segment must be exactly one level below the previous, so no path names `### Orphan` or anything under it. Fallback: [`write_note`](./write_note.md).
+- **Headings whose literal text contains `#`**: the `#` character is reserved as the path separator; no escaping mechanism is provided. This matches Obsidian's own wikilink-anchor behaviour. Fallback: [`write_note`](./write_note.md).
+
+A skipped level only blocks the sections at and below the skip on that branch: a skip below the target (for example a `####` directly under the `##` you want), or a skip in another branch of the note, does not block the target. When a note has several level-1 headings, a path may start at any of them.
+
+### Matching
 
 Matching is **case-sensitive and whitespace-strict**. `## Tasks` and `## tasks` are different headings; `## Tasks ` (trailing space) and `## Tasks` are different headings.
 
@@ -192,7 +217,7 @@ Every failure routes through `UpstreamError`.
 | | | `contains-hash` | Defensive sentinel (unreachable via split-on-`#`) |
 | `VALIDATION_ERROR` | `EMPTY_CONTENT` | `append` | `mode: "append"` + `content: ""` |
 | | | `prepend` | `mode: "prepend"` + `content: ""` |
-| `CLI_REPORTED_ERROR` | `HEADING_NOT_FOUND` | — | The supplied `heading_path` does not resolve to any heading in the note. Use [`outline`](./outline.md) to enumerate the file's actual headings, then retry with a valid path. |
+| `CLI_REPORTED_ERROR` | `HEADING_NOT_FOUND` | — | The supplied `heading_path` does not resolve to any heading in the note. Most often the path leaves out the level-1 heading or skips a level; check that first. Then use [`outline`](./outline.md) to list the file's headings and retry. |
 | `CLI_REPORTED_ERROR` | `HEADING_RACE` | — | The heading hierarchy along the resolved path changed between resolve and pre-write re-walk. Retry the call against the new state, or coordinate with the other writer externally. Carries `details.original_identity` and `details.current_identity` (3-tuples). |
 | `CLI_REPORTED_ERROR` | `EXTERNAL_EDITOR_CONFLICT` | `file-locked` | OS-level `fs.rename` / `fs.writeFile` failed with `EBUSY`/`EPERM`/`EACCES`. Ask the user to save and close the file in the external editor, then retry. Carries `details.errno` and `details.path`. |
 | | | `unsaved-changes` | Reserved for forward compatibility; the wrapper never emits it today. |
@@ -224,6 +249,8 @@ Callers automating against multi-platform deployments must plan around this dive
   "content": "- File expense report\n"
 }
 ```
+
+The path runs from the level-1 heading (`# Daily`) to the level-3 target (`### TODO`), one segment per level.
 
 ### Clear a heading's body via replace + empty content
 
@@ -262,6 +289,37 @@ Callers automating against multi-platform deployments must plan around this dive
   "message": "Heading \"Daily#Phantom\" not found in \"Daily Notes/2026-05-21.md\""
 }
 ```
+
+Most often the path leaves out the level-1 heading or skips a level; check that first. Then use [`outline`](./outline.md) to list the note's headings and retry.
+
+### Level-1 segment left out (heading-not-found)
+
+The `Daily Notes/2026-05-21.md` note has `# Daily` / `## Tasks` / `### TODO`. A path that starts at `## Tasks` fails, even though both headings exist:
+
+```json
+{
+  "target_mode": "specific",
+  "vault": "Knowledge",
+  "path": "Daily Notes/2026-05-21.md",
+  "heading_path": "Tasks#TODO",
+  "mode": "append",
+  "content": "- File expense report\n"
+}
+```
+
+```json
+{
+  "code": "CLI_REPORTED_ERROR",
+  "details": {
+    "code": "HEADING_NOT_FOUND",
+    "heading_path": "Tasks#TODO",
+    "path": "Daily Notes/2026-05-21.md"
+  },
+  "message": "Heading \"Tasks#TODO\" not found in \"Daily Notes/2026-05-21.md\""
+}
+```
+
+The corrected path starts at the level-1 heading: `"Daily#Tasks#TODO"`.
 
 ### Empty-content rejection for append
 

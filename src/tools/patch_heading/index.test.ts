@@ -1,5 +1,5 @@
 // Original — no upstream. patch_heading tool registration tests per BI-040 / FR-022 / ADR-005 — descriptor name + description + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate.
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -167,5 +167,76 @@ describe("createPatchHeadingTool — descriptor (BI-040 / ADR-005)", () => {
     expect(new Set(Object.keys(properties))).toEqual(
       new Set(["target_mode", "vault", "file", "path", "heading_path", "mode", "content"]),
     );
+  });
+});
+
+describe("heading-path rule wording (079)", () => {
+  const docs = readFileSync(
+    resolve(dirname(fileURLToPath(import.meta.url)), "../../../docs/tools/patch_heading.md"),
+    "utf8",
+  );
+  const FROZEN_SINGLE_SEGMENT_MESSAGE =
+    "heading_path must contain at least two segments separated by '#'; top-level headings are out of scope";
+  const headingPathDescription = (): string => {
+    const schema = build().descriptor.inputSchema as {
+      properties: Record<string, { description?: string }>;
+    };
+    return schema.properties.heading_path!.description ?? "";
+  };
+  const countOf = (haystack: string, needle: string): number => haystack.split(needle).length - 1;
+
+  it("description, parameter description and help page state the rule (US1)", () => {
+    for (const text of [PATCH_HEADING_DESCRIPTION, headingPathDescription(), docs]) {
+      expect(text).toContain("level-1 heading");
+      expect(text).toContain("one level below the previous");
+    }
+    expect(docs).toMatch(/^### Heading-path rule$/m);
+  });
+
+  it("description and parameter description drop the misleading minimum wording (US1)", () => {
+    for (const text of [PATCH_HEADING_DESCRIPTION, headingPathDescription()]) {
+      expect(text).not.toContain("top-level headings are out of scope");
+      expect(text).not.toContain("Minimum two segments");
+    }
+  });
+
+  it("help page carries the out-of-scope phrase only inside the quoted frozen message, followed by the level-1 note (US1)", () => {
+    const phraseCount = countOf(docs, "top-level headings are out of scope");
+    expect(phraseCount).toBe(countOf(docs, FROZEN_SINGLE_SEGMENT_MESSAGE));
+    expect(phraseCount).toBeGreaterThan(0);
+    let from = docs.indexOf(FROZEN_SINGLE_SEGMENT_MESSAGE);
+    while (from !== -1) {
+      const after = from + FROZEN_SINGLE_SEGMENT_MESSAGE.length;
+      expect(docs.slice(after, after + 400)).toContain("level-1 heading");
+      from = docs.indexOf(FROZEN_SINGLE_SEGMENT_MESSAGE, after);
+    }
+  });
+
+  it("description and help page name the unreachable sections and the whole-note alternative (US2)", () => {
+    for (const text of [PATCH_HEADING_DESCRIPTION, docs]) {
+      expect(text).toContain("no level-1 heading");
+      expect(text).toContain("skipped level");
+      expect(text).toContain("write_note");
+    }
+    expect(docs).not.toContain("wrap the top-level heading in a parent");
+  });
+
+  it("heading-not-found guidance names the missing level-1 heading or skipped level before outline (US3)", () => {
+    const cause = "leaves out the level-1 heading or skips a level";
+    const entry = PATCH_HEADING_DESCRIPTION.slice(PATCH_HEADING_DESCRIPTION.indexOf("`HEADING_NOT_FOUND` ("));
+    const errorRow = docs
+      .split("\n")
+      .find((line) => line.startsWith("| `CLI_REPORTED_ERROR` | `HEADING_NOT_FOUND`"));
+    for (const text of [entry, errorRow ?? ""]) {
+      const causeAt = text.indexOf(cause);
+      expect(causeAt).toBeGreaterThanOrEqual(0);
+      expect(causeAt).toBeLessThan(text.indexOf("outline"));
+    }
+  });
+
+  it("help page shows the full three-segment path and the failing path without the level-1 segment (US4)", () => {
+    expect(docs).toContain('"Daily#Tasks#TODO"');
+    expect(docs).toContain('"Tasks#TODO"');
+    expect(docs).toMatch(/^### .*level-1/im);
   });
 });
