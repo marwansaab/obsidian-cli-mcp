@@ -501,9 +501,17 @@ describe("invokeEval — eval answer tag (spec 080, contract A1–A5, C5)", () =
 
   it("FR-010 (b): a typed eval timeout keeps its details keys; argv carries the wrapper around the original code", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    // Stub the resolver: on Linux the real one awaits fs.access on the platform default,
+    // so the timeout timer would be armed only after the fake clock had already advanced.
+    const resolveBinary = async () => ({
+      path: "obsidian",
+      attempts: [{ source: "PATH" as const, path: "obsidian", outcome: "pending" as const }],
+    });
     try {
       const { spawnFn } = makeStubSpawn({ hold: true });
-      const pending = captureRejection(invokeEval(evalInput(), defaultDeps({ spawnFn, env: {} })));
+      const pending = captureRejection(
+        invokeEval(evalInput(), { ...defaultDeps({ spawnFn, env: {} }), resolveBinary }),
+      );
       await vi.advanceTimersByTimeAsync(TYPED_TOOL_TIMEOUT_MS);
       const err = await pending;
       expect(err.code).toBe("CLI_TIMEOUT");
@@ -515,7 +523,7 @@ describe("invokeEval — eval answer tag (spec 080, contract A1–A5, C5)", () =
       const readPending = captureRejection(
         invokeCli(
           { command: "read", vault: "V", parameters: { file: "a" }, flags: [], target_mode: "specific" },
-          defaultDeps({ spawnFn: readSpawn, env: {} }),
+          { ...defaultDeps({ spawnFn: readSpawn, env: {} }), resolveBinary },
         ),
       );
       await vi.advanceTimersByTimeAsync(TYPED_TOOL_TIMEOUT_MS);
