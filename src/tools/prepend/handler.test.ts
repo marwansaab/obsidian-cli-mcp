@@ -222,11 +222,8 @@ describe("US1 PATH_ESCAPES_VAULT", () => {
 // ─────────────────────────────────────────────────────────────────────
 
 describe("US1 pre-stat errno handling (FR-016 absent-target)", () => {
-  test("pre-stat ENOENT → preCallSize defaults to 0, call proceeds and succeeds (FR-016)", async () => {
-    // The pre-call stat throws ENOENT (target absent on disk). Per FR-016 the
-    // handler does NOT fail eagerly: it swallows ENOENT, defaults preCallSize
-    // to 0, and lets the upstream prepend land. The post-call stat then reports
-    // a positive size so bytes_written is the full post size.
+  test("pre-stat ENOENT → NOTE_NOT_FOUND before Obsidian is called (spec 077 FR-001a)", async () => {
+    // Spec 077: a missing note fails at the pre-call stat, as append_note's pre-write read does.
     let statIdx = 0;
     const fs = fakeFs({
       over: {
@@ -242,7 +239,7 @@ describe("US1 pre-stat errno handling (FR-016 absent-target)", () => {
       },
     });
     const { spawnFn, recorded } = makeQueuedSpawn([PREPEND_OK]);
-    const result = await executePrepend(
+    const err = await executePrepend(
       {
         target_mode: "specific",
         vault: "TestVault",
@@ -251,16 +248,15 @@ describe("US1 pre-stat errno handling (FR-016 absent-target)", () => {
         inline: false,
       },
       deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
-    );
-    // ENOENT swallowed → preCallSize 0, post 42 → bytes_written 42; prepend ran.
-    expect(recorded.length).toBe(1);
-    expect(recorded[0]!.argv).toContain("prepend");
-    expect(result).toEqual({
+    ).catch((e) => e);
+    expect(err).toBeInstanceOf(UpstreamError);
+    expect((err as UpstreamError).code).toBe("CLI_REPORTED_ERROR");
+    expect((err as UpstreamError).details).toMatchObject({
+      code: "NOTE_NOT_FOUND",
       path: "Sandbox/new-note.md",
       vault: "TestVault",
-      bytes_written: 42,
-      inline: false,
     });
+    expect(recorded.length).toBe(0);
   });
 
   test("pre-stat non-ENOENT errno (EACCES) → re-thrown verbatim (not swallowed, not reclassified)", async () => {
