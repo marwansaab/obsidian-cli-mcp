@@ -222,3 +222,99 @@ Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Constitution
 > Limits: keep every edit inside BI-0137 scope and consistent with answers already given (bounded secondary parser detail; `details.reason` enum `invalid-yaml` | `unknown`; absent-views stays default-view, never `BASE_MALFORMED`). If a fix would change scope, reverse a clarification or touch an ADR / Constitution rule, don't apply it. Ask it as a numbered clarification question with options instead.
 >
 > Per the Constitution's spec-kit workflow, analyze findings are resolved before implement. Scope is fixed by BI-0137 §Out of scope.
+
+## 6. review / fix (2026-11-01T07:29:12.125Z)
+
+**Question (verbatim):**
+
+> Q1 — Clean-exit not-a-base check in views_base (review finding 3). On the error path, the YAML check and the not-a-base check now read the same trimmed report. On a clean exit, the not-a-base check still reads the raw stdout plus stderr, while the YAML check reads a report that leaves out view lines (`<name>\t<type>`). Using the report for both would mean a Base with a view literally named "Active file is not a base file" lists that view instead of failing, which changes success behaviour (FR-012). Nobody has probed whether that case happens.
+>
+> | Option | What happens |
+> |---|---|
+> | A (recommended) | Keep the clean-exit path as it is. The two checks still read different text, and a comment there explains why. No behaviour change. |
+> | B | Read the report for both checks on the clean exit too. The not-a-base parameter becomes a plain on/off switch. A view with that exact name would list instead of throwing. This adds a regression test and a spec note under FR-012. |
+>
+> Recommended: A. FR-012 and the research notes (the not-a-base rule "keeps its current code scope") both say not to change this, and the edge case has never been seen in a real vault. The gain from B is small.
+
+**Advisor** (escalate: none):
+
+> A
+>
+> BI-0137 Out of scope rules out "changing how view names are reported … as shipped under the prior fix" (BI-0127). Option B changes clean-exit listing behaviour, which falls in that excluded area.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0137 - Classify Malformed Base As Base Malformed In Views Base.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Features/views_base.md`
+
+**Sent to the step:**
+
+> A
+>
+> BI-0137 Out of scope rules out "changing how view names are reported … as shipped under the prior fix" (BI-0127). Option B changes clean-exit listing behaviour, which falls in that excluded area.
+
+## 7. review / fix (2026-11-01T07:29:20.824Z)
+
+**Question (verbatim):**
+
+> Q2 — Different BASE_MALFORMED details between query_base and views_base (review finding 5). views_base now bounds details.message (first 500 + cut marker + last 500 characters when it is over 1,000) and adds messageLength. query_base's BASE_MALFORMED details.message is still the full report, with no messageLength. So the same code and reason come back in two shapes. Lining them up changes query_base's behaviour, and spec 081's Scope says query_base stays unchanged.
+>
+> | Option | What happens |
+> |---|---|
+> | A (recommended) | Leave query_base as it is in this PR. Record the difference in docs/tools/query_base.md, or as a follow-up backlog item, during the /speckit-docs-as-code pass. |
+> | B | Bound query_base too in this PR: details.message goes through boundedExcerpt and messageLength is added. This widens spec 081's scope (needs a spec and CHANGELOG change) and changes query_base's error details. |
+>
+> Recommended: A. The spec scopes query_base out, and bounding its output is a contract change of its own that should go through its own spec, where the spec 080 rule can be applied to the whole Bases family together.
+
+**Advisor** (escalate: none):
+
+> A
+>
+> BI-0137 Out of scope excludes "any change to the other Bases-family capabilities", so query_base stays unchanged. Record the shape difference (views_base's details.message is bounded and adds messageLength; query_base's is not) in docs/tools/query_base.md during the docs-as-code pass. Don't file a follow-up backlog item from the repo side; that's the owner's call in the vault.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0137 - Classify Malformed Base As Base Malformed In Views Base.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Features/query_base.md`
+
+**Sent to the step:**
+
+> A
+>
+> BI-0137 Out of scope excludes "any change to the other Bases-family capabilities", so query_base stays unchanged. Record the shape difference (views_base's details.message is bounded and adds messageLength; query_base's is not) in docs/tools/query_base.md during the docs-as-code pass. Don't file a follow-up backlog item from the repo side; that's the owner's call in the vault.
+
+## 8. record / record-in-vault (2026-11-01T07:32:51.314Z)
+
+**Question (verbatim):**
+
+> The work for job BI-0137 is now a reviewed, documented pull request. Record that on the job's note, following the vault's conventions for backlog items:
+> - the spec branch: 081-classify-malformed-base
+> - the feature folder in the code repository: specs/081-classify-malformed-base
+> - the pull request: https://github.com/marwansaab/obsidian-cli-mcp/pull/111 (number 111)
+> - the status that means "in review" in this vault (if the vault has no such status, escalate `decision` with up to 3 choices)
+> - a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0137-2026-11-01 produced it.
+>
+> Dry run: no. In a dry run, change nothing: list each edit you would make in `vault_edits`, starting its change with "Would". Otherwise list each edit you made.
+
+**Advisor** (escalate: none):
+
+> Recorded on BI-0137, following the BI-0135 / PR #110 convention for backlog items:
+> - Frontmatter `status`: planned → `in-review`. That is the vault's in-review value, as used on BI-0135.
+> - Frontmatter `spec_branch`: set to `081-classify-malformed-base`. `updated` set to 2026-11-01.
+> - `## Status`: new lead paragraph "**In review — 2026-11-01.**" linking https://github.com/marwansaab/obsidian-cli-mcp/pull/111 (#111), with spec branch `081-classify-malformed-base`, feature folder `specs/081-classify-malformed-base` and "Awaiting owner merge". The earlier *Planned* narrative is kept below it as history.
+> - Footer: dated HTML comment saying Relay run obsidian-cli-mcp-bi-0137-2026-11-01 produced PR #111.
+>
+> I re-read the note and all the edits are in place. One cosmetic difference: `spec_branch` landed at the end of the frontmatter, not next to `feature`.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0137 - Classify Malformed Base As Base Malformed In Views Base.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0135 - Harden Eval Response Parsing Against Plugin Stdout Noise.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0137 - Classify Malformed Base As Base Malformed In Views Base.md`: Frontmatter status planned → in-review
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0137 - Classify Malformed Base As Base Malformed In Views Base.md`: Frontmatter spec_branch added: 081-classify-malformed-base
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0137 - Classify Malformed Base As Base Malformed In Views Base.md`: Frontmatter updated 2026-10-31 → 2026-11-01
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0137 - Classify Malformed Base As Base Malformed In Views Base.md`: Status section: prepended 'In review — 2026-11-01' paragraph with PR #111 link, spec branch and feature folder
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0137 - Classify Malformed Base As Base Malformed In Views Base.md`: Appended dated HTML comment: Relay run obsidian-cli-mcp-bi-0137-2026-11-01 produced PR #111
+
+**Sent to the step:**
+
+> Recorded on BI-0137, following the BI-0135 / PR #110 convention for backlog items:
+> - Frontmatter `status`: planned → `in-review`. That is the vault's in-review value, as used on BI-0135.
+> - Frontmatter `spec_branch`: set to `081-classify-malformed-base`. `updated` set to 2026-11-01.
+> - `## Status`: new lead paragraph "**In review — 2026-11-01.**" linking https://github.com/marwansaab/obsidian-cli-mcp/pull/111 (#111), with spec branch `081-classify-malformed-base`, feature folder `specs/081-classify-malformed-base` and "Awaiting owner merge". The earlier *Planned* narrative is kept below it as history.
+> - Footer: dated HTML comment saying Relay run obsidian-cli-mcp-bi-0137-2026-11-01 produced PR #111.
+>
+> I re-read the note and all the edits are in place. One cosmetic difference: `spec_branch` landed at the end of the frontmatter, not next to `feature`.

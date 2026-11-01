@@ -4,14 +4,14 @@
 |---|---|
 | Run | `obsidian-cli-mcp-bi-0137-2026-11-01` |
 | Project | obsidian-cli-mcp (pack speckit) |
-| Status | running |
+| Status | done |
 | Started | 2026-11-01T06:56:02.683Z |
-| Finished | not yet |
-| Elapsed | 24 min 17 s |
-| Questions | 3 (0 needed the owner) |
-| Requests to the advisor | 2 (0 needed the owner) |
+| Finished | 2026-11-01T07:33:28.670Z |
+| Elapsed | 37 min 26 s |
+| Questions | 5 (0 needed the owner) |
+| Requests to the advisor | 3 (0 needed the owner) |
 | Escalations | 0 |
-| Edits by the advisor | 0 |
+| Edits by the advisor | 5 |
 
 ## Inputs
 
@@ -131,25 +131,53 @@ Skipped.
 ### implementation (`0bdb4d20-bec2-422a-b792-a6c05e859af4`)
 
 - Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\specs\081-classify-malformed-base\tasks.md exists.
+- Condition `gh-pr-open` (done_when): met. Pull request #111 is open.
 
 - **implement**: done, 81 turns.
 
 > All 21 tasks are done. Before any code, live probes showed that Obsidian prints a broken Base's YAML complaint on stdout, with an "Error:" prefix and exit 0, and that the existing pattern matches it, so the stop-and-escalate gate did not trigger. Changes: query_base's invalid-yaml regex moved unchanged into the new src/tools/_base-malformed.ts, and query_base now imports it. views_base checks for a YAML complaint before the not-a-base check on both the error and clean-exit paths, leaving view-listing lines out of the clean-exit check. It now reports BASE_MALFORMED/invalid-yaml in named and open mode, and the named-mode not-a-base failure carries reason "unknown". The report is kept in details.message, cut to its first and last 500 characters when over 1,000, with details.messageLength. Tests M1–M16 and a pattern test were added. Also updated: the views_base description and regenerated baseline (only the views_base description fingerprint moved), the docs page and CHANGELOG. Typecheck and lint are clean and the full suite passes (4,111 tests). A live end-to-end run against the test vault confirmed views_base in both modes and query_base give the same classification, and the control Base still lists normally. Structural checks are recorded in post-implement.md. The optional after-implement commit hook was skipped, so nothing is committed.
 
-- **open-pr**: in progress.
+- **open-pr**: done, 16 turns.
 
-### review
+> Committed the spec 081 work on 081-classify-malformed-base in three commits that follow the CONTRIBUTING.md convention: 759fb85 feat for the code, tests, description and baseline; cf6f4a5 docs for the tool page, CHANGELOG, live findings, structural check and tasks; 593fc7e chore for the pointers and Relay records. The working tree is clean. Typecheck, lint and build pass, and the full suite passes with 4111 tests (4076 before plus 35 new, 6 skipped, none newly failing) at 96.9% statement coverage. Pushed the branch to origin and opened PR #111 into main; it is not a draft and is not merged. The repository has no PR template, so the description follows the layout of the previous PR (#110), including its Constitution Compliance table, where every gate is Y or N/A.
 
-- **code-review**: not run.
-- **fix**: not run.
 
-### docs
+### review (`c1c0c142-b715-4115-9985-f772e66af9e1`)
 
-- **document**: not run.
+- Condition `gh-pr-open` (start_when): met. Pull request #111 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #111 is open.
 
-### record
+- **code-review**: done, 16 turns.
 
-- **record-in-vault**: not run.
+> PR #111 review complete: changes requested, behaviour looks correct. Main points: (1) replace the four throw-closures behind `FailureHandlers` with a mode parameter on listFocusedViews and one error builder; (2) views_base's upstreamReport copies query_base's upstreamMessage and should move into _base-malformed.ts; (3) the two checks search different texts, which can be unified byte-exactly on the error path, while the clean-exit path is an owner call; (4) reportDetails and adapterDeps are thin wrappers; (5) query_base and views_base now give BASE_MALFORMED details in different shapes; (6) redundant tests: M8 duplicates M1, the M14 matrix and the headline test are covered elsewhere, and the regex-source copy test should go. No file passes 1,000 lines. Added these as item 42 in .memory/refactor-decisions.md. No code changes and nothing posted to the PR.
+
+- **fix**: done, 41 turns, 2 questions.
+
+> All PR #111 review findings are dealt with, in two commits pushed to 081-classify-malformed-base. b0fc13a (pushed last turn) fixed everything that keeps behaviour the same. Unchanged: error codes, details shape and key order, headlines, cause, and the published tool surface (fingerprint baseline did not move). (1) views_base's four throw-only callbacks are replaced by recogniseFailure plus one focusedBaseError builder, and both modes end in a single listFocusedViews call. (2) upstreamReport moved into _base-malformed.ts and query_base now uses it in place of its identical copy. (3) The error path checks for not-a-base against the same trimmed report as the YAML check, with identical results. (4) The reportDetails and adapterDeps wrappers are gone, and boundedExcerpt in _eval-parse.ts does the spec 080 bounding. (6) The 081 tests are one exact-value matrix, and the duplicate tests (M14, the M8 row, the headline test, the regex-copy test) are removed. be49968 (this turn) applies your Q1 = A ruling: the clean-exit not-a-base check keeps reading raw output, and a comment at that line cites FR-012 and BI-0137 Out of scope. Left on purpose: per Q2 = A, query_base is unchanged and its unbounded BASE_MALFORMED details.message stays as is. The difference goes into docs/tools/query_base.md during the /speckit-docs-as-code pass, not now, and I filed no backlog item. Checks: lint clean, type check clean, build clean (last run before be49968, which only adds a comment), 4103 tests pass and 6 are skipped (4111 before: 19 redundant removed, 11 new), coverage 96.89% statements. Not committed: the Relay files relay-digest.md and relay-qa-log.md, which Relay changed, not me.
+
+
+### docs (`e016eb62-870b-497c-8863-d5c147511a45`)
+
+- Condition `gh-pr-open` (start_when): met. Pull request #111 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #111 is open.
+
+- **document**: done, 31 turns.
+
+> Documented PR #111: updated .docs-as-code/capabilities/bases.md (malformed-Base classification, shared _base-malformed.ts helpers, closed reason set, bounded report, owner Q1/Q2 rulings, query_base bound difference as known limit), .docs-as-code/architecture.md (boundedExcerpt) and docs/tools/query_base.md (unbounded verbatim BASE_MALFORMED message). npm test passed (4103 passed, 6 skipped). Committed 6744c7f, pushed to the PR branch, and extended the PR body's Documentation section. Relay record files left uncommitted and untouched; PR body test count/commit list is stale outside the Documentation section.
+
+
+### record (`d32b56c7-c2c6-4be0-918b-02027cb5e9f9`)
+
+- **record-in-vault**: done.
+
+> Recorded on BI-0137, following the BI-0135 / PR #110 convention for backlog items:
+> - Frontmatter `status`: planned → `in-review`. That is the vault's in-review value, as used on BI-0135.
+> - Frontmatter `spec_branch`: set to `081-classify-malformed-base`. `updated` set to 2026-11-01.
+> - `## Status`: new lead paragraph "**In review — 2026-11-01.**" linking https://github.com/marwansaab/obsidian-cli-mcp/pull/111 (#111), with spec branch `081-classify-malformed-base`, feature folder `specs/081-classify-malformed-base` and "Awaiting owner merge". The earlier *Planned* narrative is kept below it as history.
+> - Footer: dated HTML comment saying Relay run obsidian-cli-mcp-bi-0137-2026-11-01 produced PR #111.
+>
+> I re-read the note and all the edits are in place. One cosmetic difference: `spec_branch` landed at the end of the frontmatter, not next to `feature`.
+
 
 ## Escalations
 
@@ -158,7 +186,13 @@ None.
 
 ## Edits made by the advisor
 
-None.
+| File | Change | Triggered by |
+|---|---|---|
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0137 - Classify Malformed Base As Base Malformed In Views Base.md` | Frontmatter status planned → in-review | record / record-in-vault: The work for job BI-0137 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0137 - Classify Malformed Base As Base Malformed In Views Base.md` | Frontmatter spec_branch added: 081-classify-malformed-base | record / record-in-vault: The work for job BI-0137 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0137 - Classify Malformed Base As Base Malformed In Views Base.md` | Frontmatter updated 2026-10-31 → 2026-11-01 | record / record-in-vault: The work for job BI-0137 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0137 - Classify Malformed Base As Base Malformed In Views Base.md` | Status section: prepended 'In review — 2026-11-01' paragraph with PR #111 link, spec branch and feature folder | record / record-in-vault: The work for job BI-0137 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0137 - Classify Malformed Base As Base Malformed In Views Base.md` | Appended dated HTML comment: Relay run obsidian-cli-mcp-bi-0137-2026-11-01 produced PR #111 | record / record-in-vault: The work for job BI-0137 is now a reviewed, documented pull request. Record that on the job's note,  |
 
 ## Files
 
