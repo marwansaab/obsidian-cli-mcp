@@ -3,13 +3,14 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
   createReadHeadingTool,
   READ_HEADING_DESCRIPTION,
   READ_HEADING_TOOL_NAME,
 } from "./index.js";
+import { readHeadingInputSchema } from "./schema.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
@@ -116,5 +117,51 @@ describe("docs/tools/read_heading.md exists and is non-stub (FR-023)", () => {
     expect(exampleHeadings).toBeGreaterThanOrEqual(4);
     expect(body).toMatch(/multi-?vault|multiple vaults|focused vault/i);
     expect(body).toMatch(/single-?segment|setext|::.*literally/i);
+  });
+});
+
+describe("heading-path rule wording (079)", () => {
+  let docs: string;
+  beforeAll(() => {
+    docs = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), "../../../docs/tools/read_heading.md"),
+      "utf8",
+    );
+  });
+  const headingDescription = readHeadingInputSchema.shape.heading.description;
+
+  it("description, parameter description and help page state the rule (US1)", () => {
+    for (const text of [READ_HEADING_DESCRIPTION, headingDescription, docs]) {
+      expect(text).toContain("level-1 heading");
+      expect(text).toContain("one level below the previous");
+    }
+    expect(docs).toMatch(/^### Heading-path rule$/m);
+  });
+
+  it("description and help page name the unreachable sections and the whole-note alternative (US2)", () => {
+    for (const text of [READ_HEADING_DESCRIPTION, docs]) {
+      expect(text).toContain("no level-1 heading");
+      expect(text).toContain("skipped level");
+      expect(text).toContain("`read`");
+    }
+    expect(READ_HEADING_DESCRIPTION).not.toContain("read_note");
+  });
+
+  it("heading-not-found guidance names the missing level-1 heading or skipped level before outline (US3)", () => {
+    const cause = "leaves out the level-1 heading or skips a level";
+    const guidance = READ_HEADING_DESCRIPTION.slice(READ_HEADING_DESCRIPTION.indexOf("On HEADING_NOT_FOUND"));
+    const errorRow = docs.split("\n").find((line) => line.startsWith("|") && line.includes('"HEADING_NOT_FOUND"'));
+    expect(errorRow).toBeDefined();
+    for (const text of [guidance, errorRow!]) {
+      const causeAt = text.indexOf(cause);
+      expect(causeAt).toBeGreaterThanOrEqual(0);
+      expect(causeAt).toBeLessThan(text.indexOf("outline"));
+    }
+  });
+
+  it("help page shows the full three-segment path and the failing path without the level-1 segment (US4)", () => {
+    expect(docs).toContain('"Best Practices::Naming::Casing"');
+    expect(docs).toContain('"Naming::Casing"');
+    expect(docs).toMatch(/### Example \d+ — .*level-1/i);
   });
 });

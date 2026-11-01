@@ -104,6 +104,24 @@ read one section. It does not parse Markdown itself. Its frozen template reads
 the heading array Obsidian has already parsed into `metadataCache`, and finds
 the section by a `::`-separated path such as `"H1::H2"`.
 
+The path starts at the note's level-1 heading, and each later segment is the
+heading exactly one level below the previous one, so a level-3 target needs
+three segments (`"Project::Tasks::Today"`). That has always been how the
+template resolves a path (spec 079 research F1); until PR #107 the published
+text said only "at least two segments", and agents read it as "leave the
+level-1 heading out". They wrote `"Tasks::Today"` and got `HEADING_NOT_FOUND`
+although both headings exist. PR #107 states the rule in the description, the
+`heading` parameter description and the help page, lists the sections no path
+can reach, and names a left-out level-1 heading or a skipped level as the
+usual cause of heading-not-found, before the advice to call `outline`.
+Behaviour, codes and every runtime message are unchanged (spec 079
+Clarifications Q1), including the one-segment validation message
+`at least two ::-separated segments (e.g. "H1::H2")`; the help page now
+explains that it refers to a one-segment path. `patch_heading` resolves its
+`#`-separated paths by the same rule and its text changed in the same PR
+([mutate](mutate.md#heading-paths)). Only the two tools' description and
+schema fingerprints moved in the register baseline.
+
 The body is the note text from the end of the matched heading line to the
 start of the next heading of any depth, or the end of the note. The template
 then removes the heading line's own line ending, CRLF or LF, before returning
@@ -165,10 +183,22 @@ documented success, not an empty result standing in for an error.
 
 ## Known limits
 
-- `read_heading` handles ATX headings only. It needs at least two path
-  segments, so an H1-only section cannot be addressed, and it cannot match a
-  heading whose text contains `::`. Setext headings are out of reach. The
-  documented fallback is `read` plus parsing on the client.
+- `read_heading` handles ATX headings only. Until PR #107 this entry said only
+  that it "needs at least two path segments, so an H1-only section cannot be
+  addressed". That was true but incomplete, the same gap the tool's own text
+  had: because a path starts at the level-1 heading and descends one level per
+  segment, no path reaches a level-1 section by itself, any section in a note
+  with no level-1 heading, or any section below a skipped level (a `###`
+  directly under a `#`). A skip below the target or in another branch does
+  not block it, and a path may start at any level-1 heading. It also cannot
+  match a heading whose text contains `::`, and Setext headings are out of
+  reach. The documented fallback for all of these is `read` plus parsing on
+  the client; reaching them is left out of spec 079 (plan Follow-ups).
+- `read_heading`'s path rule has no in-process test. It resolves inside an
+  Obsidian `eval`, so PR #107's live check (spec 079 T038: full path found;
+  left-out level 1, skipped level and no level-1 heading all
+  `HEADING_NOT_FOUND`) is its only pin. `patch_heading`'s `walkHeadings` has
+  characterisation tests for the same cases.
 - `read_heading` returns the direct body only, stopping at the next heading of
   any depth. Child sections are not included.
 - PR #102 corrected `read` only. `read_heading`, `read_property` and the

@@ -94,7 +94,7 @@ export const patchHeadingInputSchema = applyTargetModeRefinement(
     file: safePathField.optional().describe(TARGET_MODE_FILE_DESCRIPTION),
     path: safePathField.optional().describe(TARGET_MODE_PATH_DESCRIPTION),
     heading_path: headingPathField.describe(
-      `Full heading path from a top-level heading down, segments joined by "#" (e.g. "Project#Tasks"); at least two segments, up to ${HEADING_PATH_MAX} characters.`,
+      `Heading path: the note's level-1 heading first, then one heading per level down to the target, each one level below the previous, joined by "#" (e.g. "Project#Tasks#Today" for a level-3 heading). At least two segments, so the target is level 2 or deeper; up to ${HEADING_PATH_MAX} characters.`,
     ),
     mode: z
       .enum(["append", "prepend", "replace"])

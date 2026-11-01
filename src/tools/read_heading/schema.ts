@@ -24,7 +24,7 @@ export const readHeadingInputSchema = applyTargetModeRefinement(
       .refine((v) => validateHeadingPath(v) === true, {
         error: (issue) => validateHeadingPath(issue.input as string) as string,
       })
-      .describe('Heading path from the top-level heading down, `::`-separated, at least two segments (e.g. "H1::H2").'),
+      .describe('Heading path: the note\'s level-1 heading first, then one heading per level down to the target, each one level below the previous, `::`-separated (e.g. "Project::Tasks::Today" for a level-3 heading). At least two segments, so the target is level 2 or deeper.'),
   }),
 );
 

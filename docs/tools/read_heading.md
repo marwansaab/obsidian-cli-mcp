@@ -34,19 +34,36 @@ Read the body of a single named heading from a vault note. Returns `{ content: s
 | `vault` | string (length ≥ 1) | in specific mode | in active mode | Vault display name. Unregistered names surface as `CLI_REPORTED_ERROR` with `details.message: "Vault not found."` |
 | `file` | string | specific mode (XOR with `path`) | active mode; or with `path` in specific mode | Wikilink form (no extension, no folder). |
 | `path` | string | specific mode (XOR with `file`) | active mode; or with `file` in specific mode | Vault-relative path including `.md`. |
-| `heading` | string (length ≥ 1) | YES | never | `::`-separated heading path. Validator requires ≥2 non-empty segments. Heading existence is checked at execution. |
+| `heading` | string (length ≥ 1) | YES | never | `::`-separated heading path that starts at the note's level-1 heading, one segment per level (see [Heading-path rule](#heading-path-rule)). The target is level 2 or deeper, so the path has at least two non-empty segments. Heading existence is checked at execution. |
 
 `additionalProperties: false`. Unknown top-level keys are rejected.
 
+### Heading-path rule
+
+The path starts at the note's level-1 heading and names one heading per level down to the target: each later segment is the heading exactly one level below the previous one. A level-3 target therefore needs three segments:
+
+```
+"Project::Tasks::Today"   →  # Project / ## Tasks / ### Today
+"Project::Tasks"          →  # Project / ## Tasks
+```
+
+Leaving out the level-1 heading (`"Tasks::Today"`) fails with `HEADING_NOT_FOUND`, even though both headings exist in the note.
+
 ### Heading-path validator
 
-The `heading` string is split on the literal `::` separator; the validator rejects strings that produce fewer than 2 segments OR any empty segment (leading `::`, trailing `::`, or consecutive `::`). Heading existence is NOT pre-validated — semantic resolution happens at execution time and surfaces as a structured error.
+The `heading` string is split on the literal `::` separator; the validator rejects strings that produce fewer than 2 segments OR any empty segment (leading `::`, trailing `::`, or consecutive `::`). The two-segment minimum means the target is level 2 or deeper, and the path names the level-1 heading first. A one-segment path is rejected with ``heading must contain at least two `::`-separated segments (e.g. "H1::H2")``. That message refers to addressing the level-1 heading on its own (a one-segment path); every path still starts at the level-1 heading. Heading existence is NOT pre-validated — semantic resolution happens at execution time and surfaces as a structured error.
 
-The following heading shapes are **out-of-reach** for `read_heading`:
+### Unreachable sections
 
-- **Single-segment H1-only reads** (`heading: "Foo"` with no `::`): the validator rejects them. Fallback: [`read`](./read.md) plus client-side parse for the H1's body.
-- **Headings whose text contains `::` literally** (e.g. an H2 titled `Best Practices :: Naming` where the `::` is part of the heading text): the segment splitter cannot disambiguate the literal `::` from the path separator. Fallback: [`read`](./read.md) plus client-side parse.
-- **Setext-style headings** (text underlined with `===` for H1 or `---` for H2): Setext underlines are treated as content, not heading boundaries. Fallback: [`read`](./read.md) plus client-side parse.
+No `heading` path can reach the following sections. For each, use [`read`](./read.md) for the whole note and parse it client-side:
+
+- **A level-1 section by itself** (`heading: "Foo"` with no `::`): the validator rejects one-segment paths. Fallback: [`read`](./read.md).
+- **Any section in a note with no level-1 heading** (e.g. a note whose top heading is `## Section`): every path starts at the level-1 heading, so there is nothing to start from. Fallback: [`read`](./read.md).
+- **Any section below a skipped level** (e.g. `### Orphan` directly under `# Other`, with no `##` between them): each segment must be exactly one level below the previous, so no path names `### Orphan` or anything under it. Fallback: [`read`](./read.md).
+- **Headings whose text contains `::` literally** (e.g. an H2 titled `Best Practices :: Naming` where the `::` is part of the heading text): the segment splitter cannot disambiguate the literal `::` from the path separator. Fallback: [`read`](./read.md).
+- **Setext-style headings** (text underlined with `===` for H1 or `---` for H2): Setext underlines are treated as content, not heading boundaries. Fallback: [`read`](./read.md).
+
+A skipped level only blocks the sections at and below the skip on that branch: a skip below the target (for example a `####` directly under the `##` you want), or a skip in another branch of the note, does not block the target. When a note has several level-1 headings, a path may start at any of them.
 
 ## Output
 
@@ -118,7 +135,7 @@ Multi-vault setups can still suffer from basename ambiguity: two vaults sharing 
 | `CLI_REPORTED_ERROR` (`details.message: "Vault not found."`) | Unknown vault. | Verify the vault name; ensure the vault is registered in Obsidian. |
 | `CLI_REPORTED_ERROR` (`details.stage: "json-parse"` or `"envelope-parse"`) | Eval response was unparseable or violated the envelope schema — upstream contract divergence. | Investigate as a regression. |
 | `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "FILE_NOT_FOUND"`) | The named file does not exist. | Verify the path / wikilink; check for typos. |
-| `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "HEADING_NOT_FOUND"`) | The named heading does not exist in the file. | Use [`outline`](./outline.md) to list the file's actual headings, then retry with a valid heading path. |
+| `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "HEADING_NOT_FOUND"`) | The named heading does not exist in the file. | Most often the path leaves out the level-1 heading or skips a level; check that first. Then use [`outline`](./outline.md) to list the file's headings and retry. |
 | `ERR_NO_ACTIVE_FILE` | Active mode invoked while no note is focused. | Switch to specific mode with an explicit `vault` + `file`/`path`, OR ask the user to open a note in Obsidian. |
 
 ## Examples
@@ -155,6 +172,8 @@ For a note where `Use kebab-case.` sits directly under `## Naming` (under `# Bes
 
 Resolves `best-practices` via the metadata cache (wikilink form, no extension), then slices the body of the `### Casing` section under `## Naming` under `# Best Practices`. With `Use lowercase letters and dashes.` directly under `### Casing`, returns `{ "content": "Use lowercase letters and dashes.\n" }`.
 
+The path runs from the level-1 heading (`# Best Practices`) to the level-3 target (`### Casing`), one segment per level.
+
 ### Example 3 — Active mode
 
 ```json
@@ -183,7 +202,7 @@ Resolves the focused note and slices the body of `## Section A` under `# Top`. W
 }
 ```
 
-Rejected at the schema boundary before any CLI dispatch. Returns `VALIDATION_ERROR` with field path `["heading"]` and a message about `at least two ::-separated segments`. Fallback for an H1-only read: full-file [`read`](./read.md) plus client-side parse.
+Rejected at the schema boundary before any CLI dispatch. Returns `VALIDATION_ERROR` with field path `["heading"]` and a message about `at least two ::-separated segments`. The message refers to addressing the level-1 heading on its own; every path still starts at the level-1 heading. Fallback for an H1-only read: full-file [`read`](./read.md) plus client-side parse.
 
 ### Example 5 — Heading-not-found error
 
@@ -199,4 +218,20 @@ Rejected at the schema boundary before any CLI dispatch. Returns `VALIDATION_ERR
 }
 ```
 
-Returns `CLI_REPORTED_ERROR` with `details.stage: "envelope-error"` and `details.code: "HEADING_NOT_FOUND"`. The message field carries the unmatched segment path. Use [`outline`](./outline.md) to list the file's actual headings, then retry.
+Returns `CLI_REPORTED_ERROR` with `details.stage: "envelope-error"` and `details.code: "HEADING_NOT_FOUND"`. The message field carries the unmatched segment path. Most often the path leaves out the level-1 heading or skips a level; check that first. Then use [`outline`](./outline.md) to list the file's headings and retry.
+
+### Example 6 — Level-1 segment left out (heading-not-found)
+
+```json
+{
+  "name": "read_heading",
+  "arguments": {
+    "target_mode": "specific",
+    "vault": "Demo",
+    "file": "best-practices",
+    "heading": "Naming::Casing"
+  }
+}
+```
+
+Against the Example 2 note, this returns `CLI_REPORTED_ERROR` with `details.code: "HEADING_NOT_FOUND"`, even though `## Naming` and `### Casing` both exist: the path must start at the level-1 heading. The corrected path is `"Best Practices::Naming::Casing"`.
