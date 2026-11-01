@@ -1,4 +1,4 @@
-// Original — no upstream. backlinks handler — single invokeCli wrapper around the eval subcommand with the frozen JS template + base64 JSON payload (R12 anti-injection); R2/R9 single-call architecture; two-stage parse step (JSON.parse → backlinksEvalResponseSchema.safeParse) with structured CLI_REPORTED_ERROR on json-parse / envelope-parse failure; envelope ok:false → UpstreamError mapping per R13 (NO_ACTIVE_FILE → ERR_NO_ACTIVE_FILE for BI-015 / BI-014 / BI-025 parity; FILE_NOT_FOUND / NOT_MARKDOWN → CLI_REPORTED_ERROR with details.stage='envelope-error').
+// Original — no upstream. backlinks handler — single invokeEval call with the frozen JS template + base64 JSON payload (R12 anti-injection); R2/R9 single-call architecture; two-stage parse step (JSON.parse → backlinksEvalResponseSchema.safeParse) with structured CLI_REPORTED_ERROR on json-parse / envelope-parse failure; envelope ok:false → UpstreamError mapping per R13 (NO_ACTIVE_FILE → ERR_NO_ACTIVE_FILE for BI-015 / BI-014 / BI-025 parity; FILE_NOT_FOUND / NOT_MARKDOWN → CLI_REPORTED_ERROR with details.stage='envelope-error').
 import { JS_TEMPLATE } from "./_template.js";
 import {
   backlinksEvalResponseSchema,
@@ -6,7 +6,7 @@ import {
   type BacklinksInput,
   type BacklinksOutput,
 } from "./schema.js";
-import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
+import { invokeEval, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import { decodeEvalEnvelope } from "../_active-file.js";
 import { composeEvalCode } from "../_shared.js";
@@ -38,18 +38,9 @@ export async function executeBacklinks(
     limit: input.limit ?? null,
   });
 
-  const result = await invokeCli(
-    {
-      command: "eval",
-      vault: input.target_mode === "specific" ? input.vault : undefined,
-      parameters: { code },
-      flags: [],
-      target_mode: input.target_mode,
-    },
-    deps,
-  );
+  const result = await invokeEval({ code, vault: input.target_mode === "specific" ? input.vault : undefined }, deps);
 
-  const validated = decodeEvalEnvelope(result.stdout, backlinksEvalResponseSchema, {
+  const validated = decodeEvalEnvelope(result, backlinksEvalResponseSchema, {
     toolName: "backlinks",
     malformedCode: "CLI_REPORTED_ERROR",
   });

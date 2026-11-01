@@ -9,11 +9,16 @@ import { Readable } from "node:stream";
 import { describe, expect, it } from "vitest";
 
 import {
+  answerLine,
+  answerTagFromArgv,
   captureRejection,
   makeQueuedSpawn,
   makeStubSpawn,
   silentLogger,
+  unwrapEvalCode,
+  withTaggedStdoutTransform,
 } from "./_handler-test-fixtures.js";
+import { wrapEvalCode } from "../cli-adapter/_eval-answer.js";
 
 type StubChild = ChildProcess & {
   stdout: Readable;
@@ -40,6 +45,77 @@ function awaitExit(child: ChildProcess): Promise<{ code: number | null; signal: 
     );
   });
 }
+
+describe("answer-tag awareness (spec 080)", () => {
+  const TAG = "ocm-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+  const wrappedArgv = ["vault=V", "eval", `code=${wrapEvalCode("app.vault.getName()", TAG)}`];
+
+  it("an unwrapped argv leaves stdout untouched", async () => {
+    const { spawnFn } = makeQueuedSpawn([{ stdout: "=> 1\nplain\n" }]);
+    const child = spawnFn("obsidian", ["eval", "code=app.vault.getName()"], {}) as StubChild;
+    expect(await readToString(child.stdout)).toBe("=> 1\nplain\n");
+  });
+
+  it("a wrapped argv tags every => line of string stdout", async () => {
+    const { spawnFn } = makeStubSpawn({ stdout: "noise\n=> 1\n=> 2\n" });
+    const child = spawnFn("obsidian", wrappedArgv, {}) as StubChild;
+    expect(await readToString(child.stdout)).toBe(`noise\n=> <<${TAG}>>1\n=> <<${TAG}>>2\n`);
+  });
+
+  it("function-form stdout receives the tag and is emitted verbatim", async () => {
+    const { spawnFn } = makeQueuedSpawn([
+      { stdout: ({ answerTag }) => `=> 0\n${answerLine(answerTag ?? "none", "1")}\n` },
+      { stdout: ({ answerTag }) => `tag=${answerTag ?? "none"}` },
+    ]);
+    const c1 = spawnFn("obsidian", wrappedArgv, {}) as StubChild;
+    expect(await readToString(c1.stdout)).toBe(`=> 0\n=> <<${TAG}>>1\n`);
+    const c2 = spawnFn("obsidian", ["read"], {}) as StubChild;
+    expect(await readToString(c2.stdout)).toBe("tag=none");
+  });
+
+  it("the tagged-stdout transform rewrites wrapped string stdout only, while its run is pending", async () => {
+    const { spawnFn } = makeStubSpawn({ stdout: "=> 1\n" });
+    await withTaggedStdoutTransform(
+      (stdout, tag) => `noise ${tag}\n${stdout}`,
+      async () => {
+        const wrapped = spawnFn("obsidian", wrappedArgv, {}) as StubChild;
+        expect(await readToString(wrapped.stdout)).toBe(`noise ${TAG}\n=> <<${TAG}>>1\n`);
+        const plain = spawnFn("obsidian", ["read"], {}) as StubChild;
+        expect(await readToString(plain.stdout)).toBe("=> 1\n");
+      },
+    );
+    const after = spawnFn("obsidian", wrappedArgv, {}) as StubChild;
+    expect(await readToString(after.stdout)).toBe(`=> <<${TAG}>>1\n`);
+  });
+
+  it("the tagged-stdout transform is cleared when its run throws, and calls do not nest", async () => {
+    const boom = new Error("boom");
+    await expect(withTaggedStdoutTransform((s) => s, async () => Promise.reject(boom))).rejects.toBe(boom);
+    await withTaggedStdoutTransform(
+      (s) => s,
+      async () => {
+        await expect(withTaggedStdoutTransform((s) => s, async () => undefined)).rejects.toThrow(
+          "withTaggedStdoutTransform calls do not nest",
+        );
+      },
+    );
+    const { spawnFn } = makeStubSpawn({ stdout: "=> 1\n" });
+    expect(await readToString((spawnFn("obsidian", wrappedArgv, {}) as StubChild).stdout)).toBe(`=> <<${TAG}>>1\n`);
+  });
+
+  it("answerTagFromArgv reads the tag, or undefined when the code is not wrapped", () => {
+    expect(answerTagFromArgv(wrappedArgv)).toBe(TAG);
+    expect(answerTagFromArgv(["eval", "code=app.vault.getName()"])).toBeUndefined();
+    expect(answerTagFromArgv(["read"])).toBeUndefined();
+  });
+
+  it("unwrapEvalCode round-trips wrapEvalCode, with or without the code= prefix", () => {
+    const code = "(async()=>{return JSON.stringify({a:1});})()";
+    expect(unwrapEvalCode(`code=${wrapEvalCode(code, TAG)}`)).toBe(code);
+    expect(unwrapEvalCode(wrapEvalCode(code, TAG))).toBe(code);
+    expect(unwrapEvalCode("code=app.vault.getName()")).toBe("code=app.vault.getName()");
+  });
+});
 
 describe("makeQueuedSpawn", () => {
   it("consumes responses in order, records binary/argv/options, defaults exit 0, counts spawns", async () => {

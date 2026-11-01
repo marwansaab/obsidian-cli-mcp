@@ -28,7 +28,7 @@ import {
 } from "./handler.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { answeredCall, captureLogger, makeQueuedSpawn } from "../_handler-test-fixtures.js";
+import { answeredCall, answerLine, answerTagFromArgv, captureLogger, makeQueuedSpawn } from "../_handler-test-fixtures.js";
 
 import type { FindAndReplaceInput } from "./schema.js";
 
@@ -863,7 +863,7 @@ describe("defaultInvokeEval — default factory drives obsidian eval (L192-220)"
   it("default eval round-trip with UNPARSEABLE stdout → CLI_REPORTED_ERROR (L212-218 throw)", async () => {
     const files: MemFile[] = [{ abs: relToAbs("note.md"), content: "alpha" }];
     const { fs } = inMemoryFs(files, VAULT_ROOT);
-    const { spawnFn } = makeQueuedSpawn([
+    const { spawnFn, recorded } = makeQueuedSpawn([
       // `=> ` echo present but the body is not valid JSON → parseFocusedVault
       // fails at the json-parse stage.
       { stdout: "=> not-valid-json-at-all", exitCode: 0 },
@@ -875,7 +875,9 @@ describe("defaultInvokeEval — default factory drives obsidian eval (L192-220)"
     expect(err).toBeInstanceOf(UpstreamError);
     expect((err as UpstreamError).code).toBe("CLI_REPORTED_ERROR");
     expect((err as UpstreamError).details.stage).toBe("json-parse");
-    expect((err as UpstreamError).details.stdout).toBe("=> not-valid-json-at-all");
+    // The raw stdout carries the call's spec 080 answer tag; stdoutLength is its length.
+    const stdout = answerLine(answerTagFromArgv(recorded[0]!.argv)!, "not-valid-json-at-all");
+    expect((err as UpstreamError).details).toMatchObject({ stdout, stdoutLength: stdout.length });
   });
 });
 

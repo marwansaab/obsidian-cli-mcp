@@ -1,9 +1,10 @@
-// Original — no upstream. dispatchCli: the single spawn-and-collect primitive owning argv assembly, four-priority classification, always-on bounds, atomic in-flight registry, and failure-only stderr logging (ADR-007, FR-008..FR-018a). Wraps one `dispatchOnce` attempt with the ADR-029 single cold-start retry: a form-(a) cold-start signature (`CLI_REPORTED_ERROR` whose stdout matches COLD_START_PATTERN, the registry-not-ready `Error: Command "<cmd>" not found.`) on the first attempt triggers exactly one re-spawn whose outcome is authoritative; all other outcomes are single-shot. Form (b) `Stream closed` is NOT retried — a dropped transport pipe carries no evidence of lifecycle position, so retrying it could double-apply a mutation; the default-safe posture leaves it single-shot (form (a) only). Signature pinned by 2026-05-30 T0 probes against the production `Obsidian.com` shim. 068 R11 (FR-051, FR-054): a request's AbortSignal kills the running child through the same SIGTERM-then-SIGKILL path as a timeout and stops further attempts; the auto-launch readiness poll reports progress per poll when the request carried a progress token.
+// Original — no upstream. dispatchCli: the single spawn-and-collect primitive owning argv assembly, four-priority classification, always-on bounds, atomic in-flight registry, and failure-only stderr logging (ADR-007, FR-008..FR-018a). Wraps one `dispatchOnce` attempt with the ADR-029 single cold-start retry: a form-(a) cold-start signature (`CLI_REPORTED_ERROR` whose stdout matches COLD_START_PATTERN, the registry-not-ready `Error: Command "<cmd>" not found.`) on the first attempt triggers exactly one re-spawn whose outcome is authoritative; all other outcomes are single-shot. Form (b) `Stream closed` is NOT retried — a dropped transport pipe carries no evidence of lifecycle position, so retrying it could double-apply a mutation; the default-safe posture leaves it single-shot (form (a) only). Signature pinned by 2026-05-30 T0 probes against the production `Obsidian.com` shim. 068 R11 (FR-051, FR-054): a request's AbortSignal kills the running child through the same SIGTERM-then-SIGKILL path as a timeout and stops further attempts; the auto-launch readiness poll reports progress per poll when the request carried a progress token. Spec 080 (ADR-029 2026-11-01 amendment): for `eval` only, an answer line anywhere in stdout (the call's tagged line, or any `=> ` line when untagged) is success, and with no answer the no-active-file, `Error:` and cold-start lines are recognised at the start of any line; other commands stay head-anchored.
 import { spawn as nodeSpawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 
+import { findAnswer, stdoutLines } from "./_eval-answer.js";
 import { launchObsidian } from "../app-launcher/app-launcher.js";
 import { resolveBinary, type ResolutionAttempt } from "../binary-resolver/binary-resolver.js";
 import { UpstreamError } from "../errors.js";
@@ -35,6 +36,11 @@ export interface DispatchInput {
   copy?: boolean;
   timeoutMs: number;
   outputCapBytes: number;
+  /**
+   * Spec 080: the answer tag `invokeEval` wrapped this eval's code with. Its answer line is then
+   * `=> <<answerTag>>…`. Absent for an untagged eval (`obsidian_exec`), whose answer is any `=> ` line.
+   */
+  answerTag?: string;
 }
 
 export interface DispatchOutput {
@@ -42,6 +48,11 @@ export interface DispatchOutput {
   stderr: string;
   exitCode: 0;
   argv: string[];
+  /**
+   * Spec 080 (contract A3): the body of the tagged answer line. Set only when the input carried an
+   * `answerTag` and a line carried it, so `invokeBoundedCli`'s output never has it.
+   */
+  evalAnswer?: string;
 }
 
 export type ResolveBinaryFn = typeof resolveBinary;
@@ -132,14 +143,38 @@ export const COLD_START_PATTERN = /^\s*Error: Command "[^"]*" not found\./;
  * require a plugin to be enabled.`), so an EOL anchor would FALSE-NEGATIVE genuine cold-starts
  * — a far worse failure (the feature silently no-ops) than one bounded, non-masking extra
  * spawn on pathological file content.
+ *
+ * ADR-029 2026-11-01 amendment (spec 080, C4): for `eval` (`details.command === "eval"`), other
+ * plugins' start-up lines may precede the signature, so it is matched at the start of ANY stdout
+ * line (see {@link inspectedLines}). Such an error only exists when no answer line was found
+ * (priority C1 resolves first). Every other command keeps the head-only match.
  */
 export function isColdStart(value: unknown): boolean {
-  return (
-    value instanceof UpstreamError &&
-    value.code === "CLI_REPORTED_ERROR" &&
-    typeof value.details?.stdout === "string" &&
-    COLD_START_PATTERN.test(value.details.stdout)
-  );
+  if (
+    !(value instanceof UpstreamError) ||
+    value.code !== "CLI_REPORTED_ERROR" ||
+    typeof value.details?.stdout !== "string"
+  ) {
+    return false;
+  }
+  return inspectedLines(value.details.command, value.details.stdout).some((line) => COLD_START_PATTERN.test(line.text));
+}
+
+/** One stdout line the exit-0 error checks look at: `text` is what they test, `message` what they report. */
+interface InspectedLine {
+  text: string;
+  message: string;
+}
+
+/**
+ * The stdout lines the exit-0 error checks (priorities (b), (c) and the cold-start signature) look
+ * at. For `eval`, every line (spec 080 C2–C4: other plugins may print first). For every other
+ * command, only the head, as before spec 080: the check tests the whitespace-trimmed stdout, and
+ * the reported message is the untrimmed first physical line, trimmed.
+ */
+function inspectedLines(command: unknown, stdout: string): InspectedLine[] {
+  if (command === "eval") return stdoutLines(stdout).map((text) => ({ text, message: text.trim() }));
+  return [{ text: stdout.trimStart(), message: stdout.split("\n", 1)[0]!.trim() }];
 }
 
 /**
@@ -555,16 +590,29 @@ async function dispatchOnce(
         return;
       }
 
-      const trimmedHead = stdout.trimStart();
+      // Spec 080 (ADR-029 2026-11-01 amendment): for `eval` only, other plugins may print lines
+      // around the answer. An answer line — this call's tagged line, or any `=> ` line when the call
+      // is untagged (`obsidian_exec`) — means success, whatever error lines surround it (C1). With
+      // no answer, priorities (b) and (c) look for their error line at the start of ANY line rather
+      // than only at the head (C2, C3; see inspectedLines). Every other command keeps the
+      // head-anchored rules unchanged.
+      const evalAnswer = input.command === "eval" ? findAnswer(stdout, input.answerTag) : undefined;
+      if (evalAnswer !== undefined) {
+        resolve({ stdout, stderr, exitCode: 0, argv, ...(input.answerTag !== undefined ? { evalAnswer } : {}) });
+        return;
+      }
+
+      const lines = inspectedLines(input.command, stdout);
 
       // Priority (b): ERR_NO_ACTIVE_FILE — exit 0 with stdout starting with the canonical
       // phrase, case-insensitive (BI-041 FR-001). Upstream emits the capital-N canonical
       // form `"Error: No active file."` on `delete` / `rename` / `outline`; older lowercase
       // fixtures keep matching (monotonic widening). Anchor stays at the message head —
       // substring-anywhere matches are rejected by the prefix invariant. Must precede
-      // priority (c).
-      if (trimmedHead.toLowerCase().startsWith("error: no active file")) {
-        const message = stdout.split("\n", 1)[0]!.trim();
+      // priority (c). For eval, the phrase may start any line (spec 080 C2).
+      const noActiveFileLine = lines.find((line) => line.text.toLowerCase().startsWith("error: no active file"));
+      if (noActiveFileLine !== undefined) {
+        const { message } = noActiveFileLine;
         reject(
           new UpstreamError({
             code: "ERR_NO_ACTIVE_FILE",
@@ -578,8 +626,10 @@ async function dispatchOnce(
       }
 
       // Priority (c): CLI_REPORTED_ERROR — exit 0 with stdout starting with `Error:` (any other suffix).
-      if (trimmedHead.startsWith("Error:")) {
-        const message = stdout.split("\n", 1)[0]!.trim();
+      // For eval, the first line starting `Error:` anywhere (spec 080 C3).
+      const errorLine = lines.find((line) => line.text.startsWith("Error:"));
+      if (errorLine !== undefined) {
+        const { message } = errorLine;
         reject(
           new UpstreamError({
             code: "CLI_REPORTED_ERROR",

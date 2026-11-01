@@ -37,7 +37,8 @@ extends it.
   sub-discriminators; `target_mode`; file types and the resolved target
   (PR #97); renamed parameters and their deprecated aliases (PR #101); the
   direct-filesystem write path; the
-  `eval` template pattern; logging, shutdown and module layout.
+  `eval` template pattern and the per-call answer tag that keeps other
+  plugins' output out of it (PR #110); logging, shutdown and module layout.
 - [tech-stack.md](tech-stack.md) — what the server is built from, why each
   piece is here, and what it forces or rules out, including the current
   version holds.
@@ -138,3 +139,8 @@ applies. Records written since:
   checked in the schema and reported as `CONTENT_TOO_LARGE` with
   `details.reason: "bytes"`; the character limit wins through zod's `abort`
   flag, the placement review argued the PR into (PR #106).
+- [decisions/ADR-052-typed-evals-carry-a-per-call-answer-tag.md](decisions/ADR-052-typed-evals-carry-a-per-call-answer-tag.md)
+  — every typed `eval` goes through `invokeEval`, which tags the call's answer
+  line so other plugins' output around it is ignored, and dispatch reads
+  `eval` output line by line; carries out the 2026-11-01 amendment to
+  ADR-029, in the separate entry point review argued the PR into (PR #110).

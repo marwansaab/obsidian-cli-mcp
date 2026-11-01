@@ -80,7 +80,12 @@ flowchart LR
   A failure does not fail the write, but it is no longer silent: it is logged
   as `bridge.metadata_refresh_failed` with a `reason` of `cli-error`,
   `note-not-found` or `unexpected-output` (see
-  [architecture.md](../architecture.md#logging-and-shutdown)).
+  [architecture.md](../architecture.md#logging-and-shutdown)). Since PR #110
+  the refresh and the editor open go through `invokeEval`, and the refresh
+  reads the call's tagged answer. Before that it compared the whole trimmed
+  stdout with `=> ok`, so a single plugin line around the answer logged a
+  refresh that had worked as `unexpected-output`. The log's `detail` is
+  still the first 200 characters of the raw stdout.
 
   Before PR #87 this step did nothing at all. It passed the note's absolute
   path to `getFileByPath`, which takes a vault-relative one, so the lookup

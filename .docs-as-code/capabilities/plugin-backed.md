@@ -29,8 +29,16 @@ They use the standard `eval` template pattern
 with two differences:
 
 - **The plugin writes to the console first.** Its API logs before the `=> `
-  marker the CLI puts in front of an `eval` result, so these handlers take
-  the **last** `=> ` in stdout, not the first.
+  marker the CLI puts in front of an `eval` result. Until PR #110
+  `smart_connections_query` took the **last** `=> ` line in stdout rather
+  than the first (its spec's research R14), the only eval tool that coped
+  with output ahead of its answer. That rule returned the wrong line when a
+  plugin printed an answer-like line after the real one. Since PR #110 both
+  tools read the line carrying the call's own answer tag, like every other
+  eval tool, and decode it through the shared `decodeEvalEnvelope`
+  ([architecture](../architecture.md#reaching-obsidian-internals-the-eval-template-pattern)).
+  The Smart Connections templates themselves did not change; the tag is
+  added around them.
 - **Closed-vault detection started here, and ended here.** A per-tool
   closed-vault stage was written for `smart_connections_similar`, extracted
   into `src/tools/_eval-vault-closed-detection/` for
@@ -78,7 +86,12 @@ returns its normal result
 ([architecture](../architecture.md#runtime-spine)). If it cannot be brought
 up, the retry's `CLI_REPORTED_ERROR`, whose `details.stdout` starts
 `Error: Command "eval" not found.`, reaches the caller unchanged ("vault
-unavailable"), with no `details.code`. Both descriptions' precedence chains
+unavailable"), with no `details.code`. Since PR #110 that line can follow
+other plugins' start-up lines rather than start `details.stdout`; dispatch
+recognises it on any line of `eval` output and the tools' error rosters say
+so. A missing or unparseable answer is still the tools' existing
+`json-parse` / `envelope-parse` error, now with the bounded `details.stdout`
+excerpt and `details.stdoutLength`. Both descriptions' precedence chains
 now go from `VAULT_NOT_FOUND(unknown)` straight to
 `SMART_CONNECTIONS_NOT_INSTALLED`.
 

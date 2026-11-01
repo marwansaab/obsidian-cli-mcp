@@ -12,7 +12,7 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { UpstreamError } from "../../errors.js";
 import { createLogger, type Logger } from "../../logger.js";
 import { createVaultRegistry } from "../../vault-registry/registry.js";
-import { captureLogger, makeQueuedSpawn, type StubResponse } from "../_handler-test-fixtures.js";
+import { captureLogger, makeQueuedSpawn, type StubResponse, unwrapEvalCode } from "../_handler-test-fixtures.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -444,7 +444,7 @@ test("open=true → post-write openLinkText eval fired (#16)", async () => {
   expect(recorded[0]!.argv.find((a) => a.startsWith("code="))).toContain('getFileByPath("Sandbox/n.md")');
   expect(recorded[1]!.argv).toContain("vault=TestVault");
   const openArg = recorded[1]!.argv.find((a) => a.startsWith("code="));
-  expect(openArg).toBe('code=app.workspace.openLinkText("Sandbox/n.md","")');
+  expect(unwrapEvalCode(openArg!)).toBe('app.workspace.openLinkText("Sandbox/n.md","")');
 });
 
 // (#17) open=true + post-write open eval fails → response is STILL success

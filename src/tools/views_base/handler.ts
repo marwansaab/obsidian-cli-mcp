@@ -16,7 +16,7 @@ import {
   type ViewsBaseInput,
   type ViewsBaseOutput,
 } from "./schema.js";
-import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
+import { invokeCli, invokeEval, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError, stringDetail } from "../../errors.js";
 import { decodeEvalEnvelope, resolveVaultRootOrRemap } from "../_active-file.js";
 import { composeEvalCode } from "../_shared.js";
@@ -134,18 +134,9 @@ export async function executeViewsBase(
     // recovery (closed vault cold-launch) inherited from dispatchCli — else in the
     // focused vault (target_mode:"active"). composeEvalCode base64-wraps the locator.
     const code = composeEvalCode(FOCUS_BASE_TEMPLATE, { path: input.base_path });
-    const focusResult = await invokeCli(
-      {
-        command: "eval",
-        vault: input.vault,
-        parameters: { code },
-        flags: [],
-        target_mode: input.vault !== undefined ? "specific" : "active",
-      },
-      adapterDeps(deps),
-    );
+    const focusResult = await invokeEval({ code, vault: input.vault }, adapterDeps(deps));
 
-    const decoded = decodeEvalEnvelope(focusResult.stdout, focusBaseEvalResponseSchema, {
+    const decoded = decodeEvalEnvelope(focusResult, focusBaseEvalResponseSchema, {
       toolName: TOOL_NAME,
       malformedCode: "INTERNAL_ERROR",
     });

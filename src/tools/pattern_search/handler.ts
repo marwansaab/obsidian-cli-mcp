@@ -1,4 +1,4 @@
-// Original — no upstream. pattern_search handler — single invokeCli wrapper around the eval subcommand with the frozen JS template + base64 JSON payload (R12 anti-injection); single-call architecture (R2); folder normalisation via stripBoundarySlashes (R5 sibling-consumption from ../search/handler.ts); a closed vault is brought up by the dispatch layer's cold-start retry (ADR-029), and an empty answer falls through to the json-parse failure; multi-stage parse (JSON.parse → envelope safeParse → discriminate on ok) with structured CLI_REPORTED_ERROR on json-parse / envelope-parse / FOLDER_NOT_FOUND; (path, line, offset) ascending sort (R2); zero new top-level error codes; zero new details.code values — Principle IV streak preserved.
+// Original — no upstream. pattern_search handler — single invokeEval call with the frozen JS template + base64 JSON payload (R12 anti-injection); single-call architecture (R2); folder normalisation via stripBoundarySlashes (R5 sibling-consumption from ../search/handler.ts); a closed vault is brought up by the dispatch layer's cold-start retry (ADR-029), and an empty answer falls through to the json-parse failure; multi-stage parse (JSON.parse → envelope safeParse → discriminate on ok) with structured CLI_REPORTED_ERROR on json-parse / envelope-parse / FOLDER_NOT_FOUND; (path, line, offset) ascending sort (R2); zero new top-level error codes; zero new details.code values — Principle IV streak preserved.
 import { JS_TEMPLATE } from "./_template.js";
 import {
   patternSearchEvalEnvelopeSchema,
@@ -7,8 +7,9 @@ import {
   type PatternSearchMatch,
   type PatternSearchOutput,
 } from "./schema.js";
-import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
+import { invokeEval, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
+import { parseEvalAnswer, stdoutDetails } from "../_eval-parse.js";
 import { composeEvalCode } from "../_shared.js";
 import { stripBoundarySlashes } from "../search/handler.js";
 
@@ -45,31 +46,20 @@ export async function executePatternSearch(
     limit: appliedCap,
   });
 
-  // === Stage 3 — single invokeCli (R2) ===
-  const result = await invokeCli(
-    {
-      command: "eval",
-      vault: input.vault,
-      parameters: { code },
-      flags: [],
-      target_mode: "specific",
-    },
-    deps,
-  );
+  // === Stage 3 — single invokeEval (R2) ===
+  const result = await invokeEval({ code, vault: input.vault }, deps);
 
-  // === Stage 4 — strip eval prefix ===
-  let stdout = result.stdout.trimStart();
-  if (stdout.startsWith("=> ")) stdout = stdout.slice(3);
+  // === Stage 4 — invokeEval returns this call's tagged eval answer as `answer`; other plugins' output is ignored (spec 080) ===
 
   // === Stage 5 — JSON.parse ===
   let parsedJson: unknown;
   try {
-    parsedJson = JSON.parse(stdout);
+    parsedJson = parseEvalAnswer(result.answer);
   } catch (err) {
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
       cause: err,
-      details: { stage: "json-parse", stdout: result.stdout.slice(0, 500) },
+      details: { stage: "json-parse", ...stdoutDetails(result.stdout) },
       message: `pattern_search: CLI stdout was not valid JSON: ${(err as Error).message}`,
     });
   }
@@ -80,7 +70,7 @@ export async function executePatternSearch(
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
       cause: validated.error,
-      details: { stage: "envelope-parse", stdout: result.stdout.slice(0, 500) },
+      details: { stage: "envelope-parse", ...stdoutDetails(result.stdout) },
       message: "pattern_search: CLI JSON failed envelope wire-schema parse",
     });
   }

@@ -12,7 +12,7 @@ import { executeGetActiveFile } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { captureRejection, makeQueuedSpawn, silentLogger, unwrapEvalCode } from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -46,7 +46,7 @@ function deps(
 function codeArg(argv: string[]): string {
   const found = argv.find((a) => a.startsWith("code="));
   if (!found) throw new Error("argv missing code= parameter");
-  return found.slice("code=".length);
+  return unwrapEvalCode(found);
 }
 
 beforeEach(() => __resetInFlightRegistryForTests());

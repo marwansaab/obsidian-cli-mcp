@@ -1,4 +1,4 @@
-// Original — no upstream. links handler — single invokeCli wrapper around the eval subcommand with the frozen JS template + base64 JSON payload (R6 anti-injection); R2/R3 single-call architecture branched at envelope-emission on `a.total`; two-stage parse step (JSON.parse → linksEvalResponseSchema.safeParse) with structured CLI_REPORTED_ERROR on json-parse / envelope-parse failure; envelope ok:false → UpstreamError mapping per R13 (NO_ACTIVE_FILE → ERR_NO_ACTIVE_FILE for BI-015 / BI-014 parity per T0.2 lock; FILE_NOT_FOUND / NOT_MARKDOWN → CLI_REPORTED_ERROR with details.stage='envelope-error').
+// Original — no upstream. links handler — single invokeEval call with the frozen JS template + base64 JSON payload (R6 anti-injection); R2/R3 single-call architecture branched at envelope-emission on `a.total`; two-stage parse step (JSON.parse → linksEvalResponseSchema.safeParse) with structured CLI_REPORTED_ERROR on json-parse / envelope-parse failure; envelope ok:false → UpstreamError mapping per R13 (NO_ACTIVE_FILE → ERR_NO_ACTIVE_FILE for BI-015 / BI-014 parity per T0.2 lock; FILE_NOT_FOUND / NOT_MARKDOWN → CLI_REPORTED_ERROR with details.stage='envelope-error').
 import { JS_TEMPLATE } from "./_template.js";
 import {
   linksEvalResponseSchema,
@@ -6,7 +6,7 @@ import {
   type LinksInput,
   type LinksOutput,
 } from "./schema.js";
-import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
+import { invokeEval, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import { decodeEvalEnvelope } from "../_active-file.js";
 import { composeEvalCode } from "../_shared.js";
@@ -36,18 +36,9 @@ export async function executeLinks(
     total: input.total === true,
   });
 
-  const result = await invokeCli(
-    {
-      command: "eval",
-      vault: input.target_mode === "specific" ? input.vault : undefined,
-      parameters: { code },
-      flags: [],
-      target_mode: input.target_mode,
-    },
-    deps,
-  );
+  const result = await invokeEval({ code, vault: input.target_mode === "specific" ? input.vault : undefined }, deps);
 
-  const validated = decodeEvalEnvelope(result.stdout, linksEvalResponseSchema, {
+  const validated = decodeEvalEnvelope(result, linksEvalResponseSchema, {
     toolName: "links",
     malformedCode: "CLI_REPORTED_ERROR",
   });

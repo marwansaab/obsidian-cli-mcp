@@ -8,8 +8,10 @@
 // in the written vault (`vault=` in specific mode); it never fails the write, but every failure — including
 // a note Obsidian cannot find — is logged as `bridge.metadata_refresh_failed` rather than swallowed.
 // Spec 075: sizeChange, the `bytes_written` figure for the writers that hold the note's text before
-// and after the edit (append_note, patch_block, patch_heading).
-import { evalInVault, type EvalDeps } from "./_active-file.js";
+// and after the edit (append_note, patch_block, patch_heading). Spec 080: the refresh reads the eval's
+// tagged answer, so other plugins' output around it does not turn a refresh into a logged failure.
+import { type EvalDeps } from "./_active-file.js";
+import { invokeEval } from "../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../errors.js";
 
 import type { MetadataRefreshFailureReason } from "../logger.js";
@@ -102,10 +104,10 @@ export async function invalidateMetadataCache(deps: EvalDeps, note: WrittenNote)
   let reason: MetadataRefreshFailureReason;
   let detail: string;
   try {
-    const output = (await evalInVault(deps, buildInvalidateTemplate(relPath), note.vault)).trim();
-    if (output === "=> ok") return;
-    reason = output === "=> missing" ? "note-not-found" : "unexpected-output";
-    detail = output.slice(0, 200);
+    const result = await invokeEval({ code: buildInvalidateTemplate(relPath), vault: note.vault }, deps);
+    if (result.answer === "ok") return;
+    reason = result.answer === "missing" ? "note-not-found" : "unexpected-output";
+    detail = result.stdout.trim().slice(0, 200);
   } catch (e) {
     reason = "cli-error";
     detail = describeFailure(e);
@@ -119,7 +121,7 @@ export async function invalidateMetadataCache(deps: EvalDeps, note: WrittenNote)
  */
 export async function openNote(deps: EvalDeps, note: WrittenNote): Promise<void> {
   try {
-    await evalInVault(deps, buildOpenTemplate(toObsidianPath(note.relPath)), note.vault);
+    await invokeEval({ code: buildOpenTemplate(toObsidianPath(note.relPath)), vault: note.vault }, deps);
   } catch {
     // Silent: write succeeded.
   }

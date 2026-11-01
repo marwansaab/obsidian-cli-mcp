@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the smart_connections_query handler — single-call argv assembly, closed-vault recovery and vault-unavailable through the shared ADR-029 cold-start retry (spec 072), base64 payload round-trip (R6 anti-injection), LAST-`=> ` stdout extraction (R14 — plugin-side console.log preamble), three envelope codes with `details.reason` sub-discriminator unflattening per ADR-015, error-precedence chain (FR-017), R3 single-spawn invariant. 26 cases per data-model.md inventory.
+// Original — no upstream. Tests for the smart_connections_query handler — single-call argv assembly, closed-vault recovery and vault-unavailable through the shared ADR-029 cold-start retry (spec 072), base64 payload round-trip (R6 anti-injection), answer extraction from the call's tagged line (spec 080, superseding the R14 LAST-`=> ` rule; plugin-side console.log preamble and look-alikes ignored), three envelope codes with `details.reason` sub-discriminator unflattening per ADR-015, error-precedence chain (FR-017), R3 single-spawn invariant. 26 cases per data-model.md inventory.
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { JS_TEMPLATE } from "./_template.js";
@@ -10,7 +10,7 @@ import {
 } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { answerLine, captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger, unwrapEvalCode } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
@@ -29,7 +29,7 @@ const defaultLimit = 20;
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
 
-// Helper — build a plugin-side preamble + envelope stdout (R14 LAST-`=> ` strategy)
+// Helper — build a plugin-side preamble + envelope stdout (the answer line is tagged by the shared stub, spec 080)
 function withPreamble(envelope: unknown): string {
   return `Found and returned 5 smart_blocks.\n=> ${JSON.stringify(envelope)}\n`;
 }
@@ -569,7 +569,7 @@ test("R3 single-spawn invariant on happy path + R14 LAST-`=> ` extraction; froze
   );
   expect(getCount()).toBe(1);
   const argv = recorded[0]!.argv;
-  const codeArg = argv[2]!.slice("code=".length);
+  const codeArg = unwrapEvalCode(argv[2]!);
   expect(codeArg.startsWith("(async()=>{")).toBe(true);
   expect(codeArg.endsWith("})()")).toBe(true);
   const match = /atob\('([A-Za-z0-9+/=]+)'\)/.exec(codeArg);
@@ -630,14 +630,11 @@ test("BI-034: non-ASCII query (emoji) round-trips through base64 (FR-009)", asyn
 });
 
 // =====================================================================
-// R14 extraction fallbacks — no-preamble and no-marker (L84-85, L87)
+// Answer extraction edge cases — no preamble, no answer line, trailing look-alike (spec 080)
 // =====================================================================
 
-// No-preamble fallback: stdout is a single "=> "-prefixed line with no
-// leading "\n=> " marker (lastIndexOf("\n=> ") === -1 but startsWith("=> ")).
-// Exercises the `else if (result.stdout.startsWith("=> "))` branch (L84-85):
-// payload = result.stdout.slice(3).
-test("R14 no-preamble fallback: '=> '-prefixed single line (no '\\n=> ' marker) → ok:true", async () => {
+// No preamble: stdout is just the call's answer line, with nothing before it.
+test("no preamble: a single answer line (no '\\n=> ' marker) → ok:true", async () => {
   const envelope = { ok: true, count: 2, matches: [
     { path: "A.md", headingPath: [], score: 0.9 },
     { path: "B.md", headingPath: ["H"], score: 0.8 },
@@ -653,17 +650,31 @@ test("R14 no-preamble fallback: '=> '-prefixed single line (no '\\n=> ' marker) 
   expect(getCount()).toBe(1);
 });
 
-// No-marker fallback: bare JSON stdout with neither "\n=> " nor a "=> " prefix.
-// Exercises the final `else { payload = result.stdout }` branch (L87): the
-// whole stdout is the payload (no "Vault not found." prefix path).
-test("R14 no-marker fallback: bare JSON stdout (no '=> ' anywhere) → ok:true", async () => {
-  const { spawnFn, getCount } = makeQueuedSpawn([
-    { stdout: '{"ok":true,"count":0,"matches":[]}', exitCode: 0 },
-  ]);
-  const result = await executeSmartConnectionsQuery(
-    { query: "x", vault: "Demo", limit: defaultLimit },
-    deps(spawnFn),
-  );
-  expect(result).toEqual({ count: 0, matches: [] });
+// Spec 080 (superseding the R14 no-marker fallback): bare JSON stdout carries no answer line for
+// this call, so it is a json-parse failure with the stdout excerpt, never a success.
+test("no answer line: bare JSON stdout (no '=> ' anywhere) → CLI_REPORTED_ERROR json-parse", async () => {
+  const stdout = '{"ok":true,"count":0,"matches":[]}';
+  const { spawnFn, getCount } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  const err = (await captureRejection(
+    executeSmartConnectionsQuery({ query: "x", vault: "Demo", limit: defaultLimit }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toMatchObject({ stage: "json-parse", stdout, stdoutLength: stdout.length });
   expect(getCount()).toBe(1);
+});
+
+// Spec 080 (FR-002, contract N6): a look-alike `=> ` line AFTER the answer — which the R14
+// last-marker rule would have returned — is ignored; the call's own tagged answer wins.
+test("trailing look-alike '=> ' line after the tagged answer is ignored", async () => {
+  const envelope = { ok: true, count: 1, matches: [{ path: "Real.md", headingPath: [], score: 0.9 }] };
+  const decoy = { ok: true, count: 1, matches: [{ path: "Decoy.md", headingPath: [], score: 0.1 }] };
+  const { spawnFn } = makeQueuedSpawn([
+    {
+      stdout: ({ answerTag }) =>
+        `Found and returned 1 smart_blocks.\n${answerLine(answerTag!, JSON.stringify(envelope))}\n=> ${JSON.stringify(decoy)}\n`,
+      exitCode: 0,
+    },
+  ]);
+  const result = await executeSmartConnectionsQuery({ query: "x", vault: "Demo", limit: defaultLimit }, deps(spawnFn));
+  expect(result).toEqual({ count: 1, matches: envelope.matches });
 });

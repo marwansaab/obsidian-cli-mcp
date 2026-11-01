@@ -132,7 +132,8 @@ retry opens it and the call returns its normal result
 `pattern_search` document what happens when it cannot be brought up: the
 retry's `CLI_REPORTED_ERROR` whose `details.stdout` starts
 `Error: Command "eval" not found.` ("vault unavailable"), never an empty
-result. Until PR #100 both tools instead documented a
+result. Since PR #110 that line may come after other plugins' lines, and
+dispatch finds it there too. Until PR #100 both tools instead documented a
 `VAULT_NOT_FOUND` / `details.reason: "not-open"` failure from a per-tool
 check that waited for empty stdout. That answer only came from Obsidian's GUI
 executable, never from the shim the server drives, so the state was never

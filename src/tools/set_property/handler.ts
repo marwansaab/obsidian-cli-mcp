@@ -1,6 +1,7 @@
-// Original — no upstream. set_property handler: per-mode invokeCli wrapper around the CLI's native property:set subcommand (R2 / F1). Specific+path → 1 spawn; specific+file → 2 spawns (file TSV resolve → property:set); active → 2 spawns (FIXED eval template → property:set with resolved vault+path). Type inference from JS value shape per FR-008 / R10; empty-array branch emits literal "[]" per R10 / F2 / FR-018; cross-type retype delegated to native CLI (FR-033 / F3); type-vs-value contradictions CLI-rejected per F4 / R6.
-import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
+// Original — no upstream. set_property handler: per-mode invokeCli wrapper around the CLI's native property:set subcommand (R2 / F1). Specific+path → 1 spawn; specific+file → 2 spawns (file TSV resolve → property:set); active → 2 spawns (FIXED eval template → property:set with resolved vault+path). Type inference from JS value shape per FR-008 / R10; empty-array branch emits literal "[]" per R10 / F2 / FR-018; cross-type retype delegated to native CLI (FR-033 / F3); type-vs-value contradictions CLI-rejected per F4 / R6. Spec 080: the active-mode focused-file eval reads its tagged answer (other plugins' output ignored) and its parse errors carry the stdout excerpt and length.
+import { invokeCli, invokeEval, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
+import { parseEvalAnswer, stdoutDetails } from "../_eval-parse.js";
 
 import type { PropertyWriteTypeLabel, WritePropertyInput, WritePropertyOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
@@ -60,14 +61,6 @@ export function parseFileTSV(stdout: string): { path: string } {
   });
 }
 
-function parseEvalResponse(stdout: string): unknown {
-  // F3 (015-read-heading) — eval stdout is prefixed with "=> "; the remainder
-  // is the JS expression's value as text. Strip and JSON.parse the body.
-  const trimmed = stdout.trimStart();
-  const body = trimmed.startsWith("=> ") ? trimmed.slice(3) : trimmed;
-  return JSON.parse(body);
-}
-
 function isFocusedFileResponse(value: unknown): value is FocusedFileResponse {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
@@ -85,23 +78,16 @@ export async function executeWriteProperty(
   let writePath: string;
 
   if (input.target_mode === "active") {
-    const focused = await invokeCli(
-      {
-        command: "eval",
-        parameters: { code: FOCUSED_FILE_TEMPLATE },
-        flags: [],
-        target_mode: "active",
-      },
-      deps,
-    );
+    const focused = await invokeEval({ code: FOCUSED_FILE_TEMPLATE }, deps);
     let parsed: unknown;
     try {
-      parsed = parseEvalResponse(focused.stdout);
+      // Spec 080: this call's tagged eval answer; other plugins' output is ignored.
+      parsed = parseEvalAnswer(focused.answer);
     } catch (err) {
       throw new UpstreamError({
         code: "CLI_REPORTED_ERROR",
         cause: err,
-        details: { stage: "json-parse", stdout: focused.stdout.slice(0, 500) },
+        details: { stage: "json-parse", ...stdoutDetails(focused.stdout) },
         message: "write_property: active-mode focused-file eval returned unparseable response",
       });
     }
@@ -109,7 +95,7 @@ export async function executeWriteProperty(
       throw new UpstreamError({
         code: "CLI_REPORTED_ERROR",
         cause: null,
-        details: { stage: "envelope-parse", parsed },
+        details: { stage: "envelope-parse", parsed, ...stdoutDetails(focused.stdout) },
         message: "write_property: active-mode focused-file eval returned unexpected shape",
       });
     }

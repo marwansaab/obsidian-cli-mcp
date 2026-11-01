@@ -10,7 +10,7 @@ import {
   type QueryBaseRow,
   type QueryBaseWire,
 } from "./schema.js";
-import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
+import { invokeCli, invokeEval, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError, stringDetail } from "../../errors.js";
 import {
   assertCanonicalPath,
@@ -18,6 +18,7 @@ import {
   parseFocusedVault,
   remapVaultNotFound,
 } from "../_active-file.js";
+import { stdoutDetails } from "../_eval-parse.js";
 
 import type { SupportDeclaration } from "../../file-type/file-type.js";
 import type { Logger } from "../../logger.js";
@@ -57,23 +58,15 @@ export interface ExecuteDeps extends CallScope {
 }
 
 async function defaultInvokeEval(deps: ExecuteDeps): Promise<FocusedVaultResponse> {
-  const result = await invokeCli(
-    {
-      command: "eval",
-      parameters: { code: FOCUSED_VAULT_TEMPLATE },
-      flags: [],
-      target_mode: "active",
-    },
-    deps,
-  );
+  const result = await invokeEval({ code: FOCUSED_VAULT_TEMPLATE }, deps);
   // Shared double-decode + shape-check; query_base collapses both failure stages
   // into its single focused-vault-resolve stage and discards the cause.
-  const out = parseFocusedVault(result.stdout);
+  const out = parseFocusedVault(result);
   if (!out.ok) {
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
       cause: null,
-      details: { stage: "focused-vault-resolve", stdout: result.stdout.slice(0, 500) },
+      details: { stage: "focused-vault-resolve", ...stdoutDetails(result.stdout) },
       message: "query_base: focused-vault eval returned unparseable response",
     });
   }
@@ -91,8 +84,8 @@ async function resolveVaultRoot(
       remapVaultNotFound(err, input.vault, "query_base");
     }
   }
-  const invokeEval = deps.invokeEval ?? (() => defaultInvokeEval(deps));
-  const focused = await invokeEval();
+  const evalFocusedVault = deps.invokeEval ?? (() => defaultInvokeEval(deps));
+  const focused = await evalFocusedVault();
   return focused.base;
 }
 

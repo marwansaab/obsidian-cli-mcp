@@ -1,14 +1,15 @@
-// Original — no upstream. Unit tests for the shared active/specific locator-resolution module (_active-file.ts, F1 of the thermo-nuclear code-quality review). Covers the byte-stable eval templates, the eval stdout parse idiom, focused-file active-mode resolution (happy + ERR_NO_ACTIVE_FILE + both parse-error stages), the reverse vault display-name lookup, the wikilink TSV resolver, the VAULT_NOT_FOUND remap, and the canonical-path / PATH_ESCAPES_VAULT guard.
+// Original — no upstream. Unit tests for the shared active/specific locator-resolution module (_active-file.ts, F1 of the thermo-nuclear code-quality review). Covers the byte-stable eval templates, the eval answer decoders (spec 080: the tagged answer, noise ignored, parse errors with the stdout excerpt), focused-file active-mode resolution (happy + ERR_NO_ACTIVE_FILE + both parse-error stages), the reverse vault display-name lookup, the wikilink TSV resolver, the VAULT_NOT_FOUND remap, and the canonical-path / PATH_ESCAPES_VAULT guard.
 import { resolve, sep } from "node:path";
 import { Writable } from "node:stream";
 
 import { describe, expect, test } from "vitest";
+import { z } from "zod";
 
 import {
   assertCanonicalPath,
+  decodeEvalEnvelope,
   FOCUSED_FILE_TEMPLATE,
   FOCUSED_VAULT_TEMPLATE,
-  parseEvalStdout,
   parseFocusedVault,
   remapVaultNotFound,
   resolveActiveFocusedFile,
@@ -61,21 +62,38 @@ describe("eval templates are byte-stable", () => {
   });
 });
 
-describe("parseEvalStdout", () => {
-  test("strips the '=> ' echo prefix before parsing", () => {
-    expect(parseEvalStdout('=> {"a":1}')).toEqual({ a: 1 });
+describe("decodeEvalEnvelope", () => {
+  const schema = z.object({ ok: z.literal(true), count: z.number() });
+  const opts = { toolName: "links", malformedCode: "CLI_REPORTED_ERROR" } as const;
+
+  test("parses the call's answer, ignoring the rest of stdout", () => {
+    const stdout = 'plugin line\n=> {"ok":false}\n=> <<ocm-t>>{"ok":true,"count":2}\n';
+    expect(decodeEvalEnvelope({ stdout, answer: '{"ok":true,"count":2}' }, schema, opts)).toEqual({ ok: true, count: 2 });
   });
 
-  test("parses bare JSON with no prefix", () => {
-    expect(parseEvalStdout('{"a":1}')).toEqual({ a: 1 });
+  test("no answer → json-parse with the stdout excerpt and length (a bare-JSON stdout is not an answer)", () => {
+    const stdout = '{"ok":true,"count":2}';
+    expect(() => decodeEvalEnvelope({ stdout, answer: null }, schema, opts)).toThrow(
+      expect.objectContaining({
+        code: "CLI_REPORTED_ERROR",
+        details: { stage: "json-parse", stdout, stdoutLength: stdout.length },
+      }),
+    );
   });
 
-  test("tolerates leading whitespace before the prefix", () => {
-    expect(parseEvalStdout('   => {"a":1}')).toEqual({ a: 1 });
-  });
-
-  test("throws on invalid JSON (caller wraps the stage)", () => {
-    expect(() => parseEvalStdout("=> not json{")).toThrow();
+  test("invalid JSON answer → json-parse; wrong shape → envelope-parse, both with the excerpt", () => {
+    const stdout = "=> <<ocm-t>>not json{\n";
+    expect(() => decodeEvalEnvelope({ stdout, answer: "not json{" }, schema, opts)).toThrow(
+      expect.objectContaining({ details: { stage: "json-parse", stdout, stdoutLength: stdout.length } }),
+    );
+    expect(() =>
+      decodeEvalEnvelope({ stdout, answer: '{"ok":true}' }, schema, { toolName: "open_file", malformedCode: "INTERNAL_ERROR" }),
+    ).toThrow(
+      expect.objectContaining({
+        code: "INTERNAL_ERROR",
+        details: { stage: "envelope-parse", stdout, stdoutLength: stdout.length },
+      }),
+    );
   });
 });
 
@@ -112,34 +130,74 @@ describe("resolveActiveFocusedFile", () => {
       details: { stage: "envelope-parse" },
     });
   });
+
+  test("ignores plugin output and look-alikes around the call's answer (spec 080)", async () => {
+    const deps: EvalDeps = {
+      ...evalDeps(""),
+      spawnFn: makeRegistrationStubSpawn({
+        stdout: ({ answerTag }) =>
+          `plugin loaded\n=> {"path":"Decoy.md","base":"/decoy"}\n=> <<${answerTag}>>{"path":"Notes/a.md","base":"/vault"}\nbye\n`,
+      }),
+    };
+    await expect(resolveActiveFocusedFile(deps, "write_note")).resolves.toEqual({
+      vaultRoot: "/vault",
+      relPath: "Notes/a.md",
+    });
+  });
+
+  test("json-parse carries the stdout excerpt and length when no line carries the call's tag", async () => {
+    const stdout = 'plugin loaded\n=> {"path":"Notes/a.md","base":"/vault"}\n';
+    const deps: EvalDeps = { ...evalDeps(""), spawnFn: makeRegistrationStubSpawn({ stdout: () => stdout }) };
+    await expect(resolveActiveFocusedFile(deps, "read")).rejects.toMatchObject({
+      code: "CLI_REPORTED_ERROR",
+      details: { stage: "json-parse", stdout, stdoutLength: stdout.length },
+    });
+  });
+
+  test("E5: envelope-parse carries the stdout excerpt and length alongside parsed", async () => {
+    const err = (await resolveActiveFocusedFile(evalDeps('=> {"unexpected":true}\n'), "append_note").catch(
+      (e: unknown) => e,
+    )) as UpstreamError;
+    expect(err.details).toEqual({
+      stage: "envelope-parse",
+      parsed: { unexpected: true },
+      stdout: expect.stringMatching(/^=> <<ocm-[^>]+>>\{"unexpected":true\}\n$/),
+      stdoutLength: (err.details.stdout as string).length,
+    });
+  });
 });
 
 describe("parseFocusedVault", () => {
   test("parses the JSON-encoded-string (double-encoded) envelope form", () => {
-    const r = parseFocusedVault('=> "{\\"path\\":\\"Notes/a.md\\",\\"base\\":\\"/vault\\"}"');
+    const answer = '"{\\"path\\":\\"Notes/a.md\\",\\"base\\":\\"/vault\\"}"';
+    const r = parseFocusedVault({ stdout: `=> <<ocm-t>>${answer}`, answer });
     expect(r).toEqual({ ok: true, parsed: { path: "Notes/a.md", base: "/vault" } });
   });
 
   test("parses the bare-object form", () => {
-    const r = parseFocusedVault('=> {"path":null,"base":"/vault"}');
+    const r = parseFocusedVault({ stdout: "", answer: '{"path":null,"base":"/vault"}' });
     expect(r).toEqual({ ok: true, parsed: { path: null, base: "/vault" } });
   });
 
   test("coerces a non-string path to null", () => {
-    const r = parseFocusedVault('=> {"path":123,"base":"/vault"}');
+    const r = parseFocusedVault({ stdout: "", answer: '{"path":123,"base":"/vault"}' });
     expect(r).toEqual({ ok: true, parsed: { path: null, base: "/vault" } });
   });
 
-  test("ok:false stage:json-parse when the outer stdout is unparseable", () => {
-    expect(parseFocusedVault("=> not json {")).toMatchObject({ ok: false, stage: "json-parse" });
+  test("ok:false stage:json-parse when the answer is unparseable or absent", () => {
+    expect(parseFocusedVault({ stdout: "", answer: "not json {" })).toMatchObject({ ok: false, stage: "json-parse" });
+    expect(parseFocusedVault({ stdout: '=> {"path":null,"base":"/vault"}', answer: null })).toMatchObject({
+      ok: false,
+      stage: "json-parse",
+    });
   });
 
   test("ok:false stage:envelope-parse when the inner string is not JSON", () => {
-    expect(parseFocusedVault('=> "not json {"')).toMatchObject({ ok: false, stage: "envelope-parse" });
+    expect(parseFocusedVault({ stdout: "", answer: '"not json {"' })).toMatchObject({ ok: false, stage: "envelope-parse" });
   });
 
   test("ok:false stage:envelope-parse on a wrong-shape object (no string base)", () => {
-    expect(parseFocusedVault('=> {"unexpected":true}')).toMatchObject({
+    expect(parseFocusedVault({ stdout: "", answer: '{"unexpected":true}' })).toMatchObject({
       ok: false,
       stage: "envelope-parse",
     });

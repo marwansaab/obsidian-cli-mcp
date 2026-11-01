@@ -517,7 +517,7 @@ test("specific+file — file subcommand stdout lacks a path line → CLI_REPORTE
 
 // (36) active — Call A eval stdout body is unparseable JSON → CLI_REPORTED_ERROR stage "json-parse"
 test("active — eval stdout body is unparseable JSON → CLI_REPORTED_ERROR stage 'json-parse'", async () => {
-  // "=> " prefix is stripped by parseEvalResponse; the remaining body "not-json{{{" fails JSON.parse.
+  // The call's tagged answer is "not-json{{{", which fails JSON.parse (spec 080: parseEvalAnswer).
   // Head does not start with "Error:" / "Vault not found.", so classification stays at exit-0 success
   // and the handler's own json-parse guard is the throw site.
   const { spawnFn, recorded } = makeQueuedSpawn([
@@ -550,4 +550,36 @@ test("active — eval stdout is valid JSON of unexpected shape → CLI_REPORTED_
   expect(err.details.parsed).toEqual({ path: 123, vault: "V" });
   // property:set short-circuited — only Call A (eval) was spawned.
   expect(recorded).toHaveLength(1);
+});
+
+// (37b) Spec 080 contract E5 — envelope-parse also carries the stdout excerpt and its length, keeping parsed
+test("active — envelope-parse carries the stdout excerpt and stdoutLength alongside parsed (E5)", async () => {
+  let stdout = "";
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: ({ answerTag }) => (stdout = `plugin\n=> <<${answerTag}>>{"path":123,"vault":"V"}\n`), exitCode: 0 },
+  ]);
+  const err = (await captureRejection(
+    executeWriteProperty({ target_mode: "active", name: "status", value: "review" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.details).toEqual({
+    stage: "envelope-parse",
+    parsed: { path: 123, vault: "V" },
+    stdout,
+    stdoutLength: stdout.length,
+  });
+});
+
+// (37c) Spec 080 — plugin output and a look-alike around the call's answer are ignored
+test("active — plugin output and a look-alike around the focused-file answer are ignored", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    {
+      stdout: ({ answerTag }) =>
+        `[warn] plugin\n=> {"path":"Decoy.md","vault":"D"}\n=> <<${answerTag}>>{"path":"Notes/a.md","vault":"V"}\n`,
+      exitCode: 0,
+    },
+    { stdout: "Set status: review\n", exitCode: 0 },
+  ]);
+  const out = await executeWriteProperty({ target_mode: "active", name: "status", value: "review" }, deps(spawnFn));
+  expect(out).toEqual({ written: true, path: "Notes/a.md", name: "status" });
+  expect(recorded[1]!.argv).toContain("vault=V");
 });

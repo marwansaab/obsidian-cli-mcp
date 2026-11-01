@@ -79,7 +79,8 @@ shown now that the tool exists.
 A closed registered vault is opened by the dispatch layer's cold-start retry
 and `paths` returns its normal result; a vault that cannot be brought up is
 the retry's `CLI_REPORTED_ERROR` ("vault unavailable", `details.stdout`
-starting `Error: Command "eval" not found.`), never an empty list. PR #100
+starting `Error: Command "eval" not found.`, or carrying that line after
+other plugins' output since PR #110), never an empty list. PR #100
 removed a per-tool check that waited for an empty answer the server's CLI
 never sends, and the `VAULT_NOT_FOUND` / `not-open` failure it was documented
 to raise

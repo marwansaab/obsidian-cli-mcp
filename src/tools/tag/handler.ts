@@ -1,4 +1,4 @@
-// Original — no upstream. tag handler — single invokeCli wrapper around the eval subcommand with the frozen JS template + base64 JSON payload (R6 / FR-020 anti-injection); R2/R3 single-call architecture branched at envelope-emission on `wantTotal`; a closed vault is brought up by the shared ADR-029 cold-start retry in the dispatch layer, so the handler has no closed-vault stage of its own (spec 072); stage-1 extraction uses the BI-026 trimStart+startsWith pattern (the template is quiet — no plugin-side console preamble); stages 2-5 multi-stage parse (JSON.parse → envelope safeParse → discriminate on ok → per-mode output validation) with structured CLI_REPORTED_ERROR propagation; ZERO new top-level error codes + ZERO new details.code values (preserves fourteen-tool zero-new-codes streak).
+// Original — no upstream. tag handler — single invokeEval call with the frozen JS template + base64 JSON payload (R6 / FR-020 anti-injection); R2/R3 single-call architecture branched at envelope-emission on `wantTotal`; a closed vault is brought up by the shared ADR-029 cold-start retry in the dispatch layer, so the handler has no closed-vault stage of its own (spec 072); stage-1 extraction reads the call's tagged eval answer, so other plugins' output around it is ignored (spec 080); stages 2-5 multi-stage parse (JSON.parse → envelope safeParse → discriminate on ok → per-mode output validation) with structured CLI_REPORTED_ERROR propagation; ZERO new top-level error codes + ZERO new details.code values (preserves fourteen-tool zero-new-codes streak).
 import { JS_TEMPLATE } from "./_template.js";
 import {
   tagCountOnlyOutputSchema,
@@ -8,8 +8,9 @@ import {
   type TagDefaultOutput,
   type TagInput,
 } from "./schema.js";
-import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
+import { invokeEval, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
+import { decodeEvalEnvelope } from "../_active-file.js";
 import { composeEvalCode } from "../_shared.js";
 
 import type { Logger } from "../../logger.js";
@@ -31,47 +32,15 @@ export async function executeTag(
     total: input.total === true,
   });
 
-  const result = await invokeCli(
-    {
-      command: "eval",
-      vault: input.vault,
-      parameters: { code },
-      flags: [],
-      target_mode: input.vault ? "specific" : "active",
-    },
-    deps,
-  );
+  const result = await invokeEval({ code, vault: input.vault }, deps);
 
-  // === Stage 1 — extract JSON via "=> " prefix (BI-026 pattern, no LAST-`=> ` rescan) ===
-  const trimmed = result.stdout.trimStart();
-  const jsonText = trimmed.startsWith("=> ") ? trimmed.slice(3) : trimmed;
+  // === Stage 1 — decode this call's tagged eval answer into the envelope; other plugins' output is ignored (spec 080) ===
+  const envelope = decodeEvalEnvelope(result, tagEvalEnvelopeSchema, {
+    toolName: "tag",
+    malformedCode: "CLI_REPORTED_ERROR",
+  });
 
-  // === Stage 2 — JSON.parse ===
-  let parsedJson: unknown;
-  try {
-    parsedJson = JSON.parse(jsonText);
-  } catch (err) {
-    throw new UpstreamError({
-      code: "CLI_REPORTED_ERROR",
-      cause: err,
-      details: { stage: "json-parse", stdout: result.stdout.slice(0, 500) },
-      message: `tag: eval response is not JSON: ${result.stdout.slice(0, 200)}`,
-    });
-  }
-
-  // === Stage 3 — envelope safeParse ===
-  const validated = tagEvalEnvelopeSchema.safeParse(parsedJson);
-  if (!validated.success) {
-    throw new UpstreamError({
-      code: "CLI_REPORTED_ERROR",
-      cause: validated.error,
-      details: { stage: "envelope-parse", stdout: result.stdout.slice(0, 500) },
-      message: "tag: eval response shape unexpected",
-    });
-  }
-  const envelope = validated.data;
-
-  // === Stage 4 — discriminate on ok ===
+  // === Stage 2 — discriminate on ok ===
   if (!envelope.ok) {
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
@@ -81,7 +50,7 @@ export async function executeTag(
     });
   }
 
-  // === Stage 5 — per-mode output validation + return ===
+  // === Stage 3 — per-mode output validation + return ===
   if (envelope.mode === "count-only") {
     return tagCountOnlyOutputSchema.parse(envelope.total);
   }

@@ -1,4 +1,4 @@
-// Original — no upstream. smart_connections_similar handler — single invokeCli wrapper around the eval subcommand with the frozen JS template + base64 JSON payload (R6 anti-injection); R2/R3 single-call architecture branched at envelope-emission on a.total; a closed vault is brought up by the dispatch layer's cold-start retry (ADR-029), and an empty answer fails at json-parse; two-stage parse step (JSON.parse → smartConnectionsSimilarEvalResponseSchema.safeParse) with structured CLI_REPORTED_ERROR on json-parse / envelope-parse failure; envelope ok:false → UpstreamError mapping per R13 (NO_ACTIVE_FILE → ERR_NO_ACTIVE_FILE for BI-015 / BI-025 parity per T0.1 lock; FILE_NOT_FOUND / NOT_MARKDOWN / SMART_CONNECTIONS_NOT_INSTALLED / SMART_CONNECTIONS_NOT_READY / SOURCE_NOT_INDEXED → CLI_REPORTED_ERROR with details.stage='envelope-error').
+// Original — no upstream. smart_connections_similar handler — single invokeEval call with the frozen JS template + base64 JSON payload (R6 anti-injection); R2/R3 single-call architecture branched at envelope-emission on a.total; a closed vault is brought up by the dispatch layer's cold-start retry (ADR-029), and an empty answer fails at json-parse; two-stage parse step (JSON.parse → smartConnectionsSimilarEvalResponseSchema.safeParse) with structured CLI_REPORTED_ERROR on json-parse / envelope-parse failure; envelope ok:false → UpstreamError mapping per R13 (NO_ACTIVE_FILE → ERR_NO_ACTIVE_FILE for BI-015 / BI-025 parity per T0.1 lock; FILE_NOT_FOUND / NOT_MARKDOWN / SMART_CONNECTIONS_NOT_INSTALLED / SMART_CONNECTIONS_NOT_READY / SOURCE_NOT_INDEXED → CLI_REPORTED_ERROR with details.stage='envelope-error').
 import { JS_TEMPLATE } from "./_template.js";
 import {
   smartConnectionsSimilarEvalResponseSchema,
@@ -6,8 +6,9 @@ import {
   type SmartConnectionsSimilarInput,
   type SmartConnectionsSimilarOutput,
 } from "./schema.js";
-import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
+import { invokeEval, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
+import { decodeEvalEnvelope } from "../_active-file.js";
 import { composeEvalCode } from "../_shared.js";
 
 import type { SupportDeclaration } from "../../file-type/file-type.js";
@@ -36,51 +37,20 @@ export async function executeSmartConnectionsSimilar(
     total: input.total === true,
   });
 
-  const result = await invokeCli(
-    {
-      command: "eval",
-      vault: input.target_mode === "specific" ? input.vault : undefined,
-      parameters: { code },
-      flags: [],
-      target_mode: input.target_mode,
-    },
-    deps,
-  );
+  const result = await invokeEval({ code, vault: input.target_mode === "specific" ? input.vault : undefined }, deps);
 
-  // === Stage 1 — strip the `=> ` prefix that eval prepends to its return value ===
-  let stdout = result.stdout.trimStart();
-  if (stdout.startsWith("=> ")) stdout = stdout.slice(3);
+  // === Stage 1 — decode this call's tagged eval answer into the envelope; other plugins' output is ignored (spec 080) ===
+  const envelope = decodeEvalEnvelope(result, smartConnectionsSimilarEvalResponseSchema, {
+    toolName: "smart_connections_similar",
+    malformedCode: "CLI_REPORTED_ERROR",
+  });
 
-  // === Stage 2 — JSON.parse ===
-  let parsedJson: unknown;
-  try {
-    parsedJson = JSON.parse(stdout);
-  } catch (err) {
-    throw new UpstreamError({
-      code: "CLI_REPORTED_ERROR",
-      cause: err,
-      details: { stage: "json-parse", stdout: result.stdout.slice(0, 500) },
-      message: `smart_connections_similar: eval response is not JSON: ${result.stdout.slice(0, 200)}`,
-    });
+  // === Stage 2 — discriminate on `ok` ===
+  if (envelope.ok === true) {
+    return { count: envelope.count, matches: envelope.matches };
   }
 
-  // === Stage 3 — envelope safeParse ===
-  const validated = smartConnectionsSimilarEvalResponseSchema.safeParse(parsedJson);
-  if (!validated.success) {
-    throw new UpstreamError({
-      code: "CLI_REPORTED_ERROR",
-      cause: validated.error,
-      details: { stage: "envelope-parse", stdout: result.stdout.slice(0, 500) },
-      message: "smart_connections_similar: eval response shape unexpected",
-    });
-  }
-
-  // === Stage 4 — discriminate on `ok` ===
-  if (validated.data.ok === true) {
-    return { count: validated.data.count, matches: validated.data.matches };
-  }
-
-  throw mapEnvelopeError(validated.data.code, validated.data.detail);
+  throw mapEnvelopeError(envelope.code, envelope.detail);
 }
 
 function mapEnvelopeError(
