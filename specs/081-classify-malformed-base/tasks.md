@@ -31,14 +31,14 @@ description: "Task list for 081-classify-malformed-base"
 - never touch `Welcome.md`;
 - clean up every fixture afterwards.
 
-- [ ] T001 Run T0 probes P1–P4 from quickstart.md §3, using the unique-per-run fixtures `Sandbox/t0-081-<ts>-broken.base` (an unclosed flow sequence, e.g. `views:\n  - type: table\n    name: [a, b\n`) and `Sandbox/t0-081-<ts>-ok.base` (one valid table view). Record the exit code and the verbatim stdout and stderr of each probe in a new `specs/081-classify-malformed-base/contracts/t0-probe-findings.md`:
+- [X] T001 Run T0 probes P1–P4 from quickstart.md §3, using the unique-per-run fixtures `Sandbox/t0-081-<ts>-broken.base` (an unclosed flow sequence, e.g. `views:\n  - type: table\n    name: [a, b\n`) and `Sandbox/t0-081-<ts>-ok.base` (one valid table view). Record the exit code and the verbatim stdout and stderr of each probe in a new `specs/081-classify-malformed-base/contracts/t0-probe-findings.md`:
   - **P1**: the named-mode focus eval on the broken fixture;
   - **P2**: `base:views` with the broken fixture focused;
   - **P3**: open-mode `base:views`, with the broken fixture focused in Obsidian and no prior focus eval;
   - **P4**: `base:views` on the control fixture.
 
   For P2 and P3, test the complaint against the current `invalid-yaml` regex in `src/tools/query_base/handler.ts:126`, and record match or no match. Delete both fixtures afterwards and confirm `Sandbox/` is empty.
-- [ ] T002 Apply the T0 gate (research D7) and record the outcome at the end of `contracts/t0-probe-findings.md`:
+- [X] T002 Apply the T0 gate (research D7) and record the outcome at the end of `contracts/t0-probe-findings.md`:
   - **No complaint at all** in P2 or P3, for example a materialised default view for the broken file, or open mode reporting only `Active file is not a base file`: **STOP and escalate to the owner**. Do not start Phase 2, because the spec premise or FR-002 cannot be met from the output (plan.md Spec alignment note).
   - **A complaint the regex does not match**: record the verbatim phrase, then **STOP and escalate to the owner**. Do not add it to the pattern. The pattern is shared with `query_base`, and widening it would change `query_base`, which BI-0137 §Out of scope excludes (research D7; spec Assumptions).
   - **The complaint arrives on a channel the contract does not cover** (other than stdout/stderr on a reported failure, non-zero exit or clean exit): record it, then **STOP and escalate**. Contract §1 R2/R3 is not changed without the owner.
@@ -51,18 +51,18 @@ description: "Task list for 081-classify-malformed-base"
 
 **⚠️ CRITICAL**: no user-story work starts until T003 is complete. Both `views_base/handler.ts` (Phase 3+) and `query_base/handler.ts` (T005) import the new constant. This is a structural dependency confirmed by `codegraph_explore`: the two handlers share no other edge besides `stdoutDetails` (`src/tools/_eval-parse.ts`).
 
-- [ ] T003 Create `src/tools/_base-malformed.ts` with the header `// Original — no upstream. Shared Bases-family recognition of a YAML parser complaint about a .base file (spec 081 FR-011): the invalid-yaml pattern query_base and views_base both classify as BASE_MALFORMED / invalid-yaml.` Export `INVALID_YAML_PATTERN`, a `RegExp` with exactly the source and flags of the current literal at `src/tools/query_base/handler.ts:126`:
+- [X] T003 Create `src/tools/_base-malformed.ts` with the header `// Original — no upstream. Shared Bases-family recognition of a YAML parser complaint about a .base file (spec 081 FR-011): the invalid-yaml pattern query_base and views_base both classify as BASE_MALFORMED / invalid-yaml.` Export `INVALID_YAML_PATTERN`, a `RegExp` with exactly the source and flags of the current literal at `src/tools/query_base/handler.ts:126`:
 
   ```
   /\b(yaml(?:exception)?|yaml\s+parse|invalid\s+yaml|unexpected\s+token\s+at\s+line|sufficiently\s+indented|flow\s+(?:sequence|mapping)|block\s+(?:mapping|collection|sequence)|(?:bad|deficient)\s+indentation|duplicated\s+mapping\s+key|could\s+not\s+find\s+expected|mapping\s+values\s+are\s+not\s+allowed|tab\s+characters\s+must\s+not\s+be\s+used)\b/i
   ```
 
   Add no phrase: the constant is a byte-identical move, so `query_base` behaviour cannot change. Move the BI-057 provenance comment (`query_base/handler.ts:118-123`) onto the constant. Do **not** add the `missing-required-key` or `unsupported-schema-version` patterns (FR-015, research D1 (c)). Do not use the `g` flag: the constant is shared and `.test` must stay stateless.
-- [ ] T004 [P] Create `src/tools/_base-malformed.test.ts` with an `// Original — no upstream.` header. Cover:
+- [X] T004 [P] Create `src/tools/_base-malformed.test.ts` with an `// Original — no upstream.` header. Cover:
   - **Matches**: the BI-057 phrase `Flow sequence in block collection must be sufficiently indented and end with a ]`; `YAMLException: bad indentation of a mapping entry`; `duplicated mapping key`. Also assert `INVALID_YAML_PATTERN.source` and `.flags` equal the original literal's, so the move is pinned as byte-identical.
   - **No match**: `No views defined`, `missing required key: views`, `Active file is not a base file`, `All\ttable` and `Error: something unrelated`. A view name containing `yaml` does match, because `yaml` is a match token. That is why `views_base` leaves view lines out of the scan (T007, M9), not why it gets a negative case here.
   - **No state**: two consecutive `.test` calls on the same matching input both return `true`.
-- [ ] T005 [P] In `src/tools/query_base/handler.ts`, replace the inline regex literal of the `invalid-yaml` `CLASSIFIER_PATTERNS` entry with `INVALID_YAML_PATTERN`, imported from `../_base-malformed.js`. Keep the entry's position and its `classify`, and replace the moved provenance comment with a one-line pointer to the shared constant. Add to the file's intent header that the invalid-yaml pattern is shared with `views_base` (spec 081). Change nothing else. Then run `npx vitest run src/tools/query_base` and confirm every existing test passes unchanged.
+- [X] T005 [P] In `src/tools/query_base/handler.ts`, replace the inline regex literal of the `invalid-yaml` `CLASSIFIER_PATTERNS` entry with `INVALID_YAML_PATTERN`, imported from `../_base-malformed.js`. Keep the entry's position and its `classify`, and replace the moved provenance comment with a one-line pointer to the shared constant. Add to the file's intent header that the invalid-yaml pattern is shared with `views_base` (spec 081). Change nothing else. Then run `npx vitest run src/tools/query_base` and confirm every existing test passes unchanged.
 
 **Checkpoint**: `_base-malformed.test.ts` and the whole `query_base` suite are green.
 
@@ -78,7 +78,7 @@ description: "Task list for 081-classify-malformed-base"
 
 Write these first, using the file's existing `makeDeps` / `evalOk` / `expectErr` helpers, and confirm they FAIL before T007.
 
-- [ ] T006 [US1] Add to `src/tools/views_base/handler.test.ts`:
+- [X] T006 [US1] Add to `src/tools/views_base/handler.test.ts`:
   - **M1**: named `Broken.base`; focus `evalOk("Broken.base")`; `base:views` → `{ stdout: "Error: Flow sequence in block collection must be sufficiently indented and end with a ] at line 3, column 5:\n    - [a, b\n    ^", exitCode: 0 }`. Expect `code === "CLI_REPORTED_ERROR"`, `details.code === "BASE_MALFORMED"`, `details.reason === "invalid-yaml"` and `details.base_path === "Broken.base"`. Expect `message` to be exactly `views_base: base file at "Broken.base" is malformed: its YAML cannot be parsed`.
   - **M2**: as M1, but `base:views` exits non-zero with the complaint on stderr and empty stdout (the stub's non-zero exit path produces `CLI_NON_ZERO_EXIT`). Expect M1's `details.code`, `reason` and `base_path`.
   - **M3**: as M1, but `base:views` exits 0 with empty stdout and the complaint on **stderr**. Expect M1's shape, and `cause === null`.
@@ -87,7 +87,7 @@ Write these first, using the file's existing `makeDeps` / `evalOk` / `expectErr`
 
 ### Implementation for User Story 1
 
-- [ ] T007 [US1] In `src/tools/views_base/handler.ts`, import `INVALID_YAML_PATTERN` from `../_base-malformed.js` and `stdoutDetails` from `../_eval-parse.js`. Then:
+- [X] T007 [US1] In `src/tools/views_base/handler.ts`, import `INVALID_YAML_PATTERN` from `../_base-malformed.js` and `stdoutDetails` from `../_eval-parse.js`. Then:
   - **Add `isViewLine(line)`**: true when `stripTypeLabel(line) !== line`, i.e. the trailing tab-delimited token is in `KNOWN_VIEW_TYPES`.
   - **Add `upstreamReport(stderr, stdout)`**: the trimmed stderr and trimmed stdout joined by `"\n"` when both are non-empty, otherwise whichever is non-empty, stderr first (the `query_base` `classifyAndThrow` composition).
   - **Add `reportDetails(report)`**: returns `{ message, messageLength }` from `stdoutDetails(report)`, renaming `stdout` → `message` and `stdoutLength` → `messageLength`. The text is ≤ 1,000 chars whole, otherwise head 500 + `"\n[… cut …]\n"` + tail 500 (FR-006).
@@ -96,7 +96,7 @@ Write these first, using the file's existing `makeDeps` / `evalOk` / `expectErr`
   - **Clean-exit path (contract R3, R4)**: compute `report = upstreamReport(cliResult.stderr, <stdout lines (CR-stripped, as parseViews does) that are non-empty and !isViewLine, joined by "\n">)`. If `INVALID_YAML_PATTERN.test(report)`, call `onInvalidYaml(null, report)`. Otherwise keep the existing `NOT_A_BASE_FILE_PATTERN` check on the combined output, now calling `onNotABase(null, report)`. Otherwise parse views as today.
   - **Named-mode `onInvalidYaml`**: throw `new UpstreamError({ code: "CLI_REPORTED_ERROR", cause, details: { code: "BASE_MALFORMED", reason: "invalid-yaml", base_path: input.base_path, ...reportDetails(report) }, message: \`views_base: base file at "${input.base_path}" is malformed: its YAML cannot be parsed\` })`.
   - **Named-mode and open-mode `onNotABase`**: keep today's throws for now (US2 and US3 finish them), adapted to the new two-argument signature.
-- [ ] T008 [US1] Run `npx vitest run src/tools/views_base`. M1, M2, M3, M15 and M12 pass, and every pre-existing `views_base` test still passes.
+- [X] T008 [US1] Run `npx vitest run src/tools/views_base`. M1, M2, M3, M15 and M12 pass, and every pre-existing `views_base` test still passes.
 
 **Checkpoint**: named-mode malformed Bases are classified (the MVP).
 
@@ -110,13 +110,13 @@ Write these first, using the file's existing `makeDeps` / `evalOk` / `expectErr`
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T009 [US2] Add to `src/tools/views_base/handler.test.ts`, and confirm they fail before T010:
+- [X] T009 [US2] Add to `src/tools/views_base/handler.test.ts`, and confirm they fail before T010:
   - **M4**: open mode (`{}`), with `base:views` returning M1's output. Expect `details.code === "BASE_MALFORMED"`, `details.reason === "invalid-yaml"` and `"base_path" in details === false`. Expect `message` to be exactly `views_base: the open base file is malformed: its YAML cannot be parsed`.
   - **M5**: open mode, with `base:views` → `{ stdout: "Error: Active file is not a base file\nYAMLException: bad indentation of a mapping entry (3:5)", exitCode: 0 }`. Expect `BASE_MALFORMED` / `invalid-yaml`, not `BASE_NOT_FOUND` / `not-open`.
 
 ### Implementation for User Story 2
 
-- [ ] T010 [US2] In `src/tools/views_base/handler.ts`, add the open-mode `onInvalidYaml`: throw `new UpstreamError({ code: "CLI_REPORTED_ERROR", cause, details: { code: "BASE_MALFORMED", reason: "invalid-yaml", ...reportDetails(report) }, message: "views_base: the open base file is malformed: its YAML cannot be parsed" })`. The open-mode `onNotABase` stays `BASE_NOT_FOUND` / `not-open` with today's details and message, and it ignores `report` (FR-007; contract §2). Run `npx vitest run src/tools/views_base`: M4 and M5 pass, and the existing not-open tests stay green.
+- [X] T010 [US2] In `src/tools/views_base/handler.ts`, add the open-mode `onInvalidYaml`: throw `new UpstreamError({ code: "CLI_REPORTED_ERROR", cause, details: { code: "BASE_MALFORMED", reason: "invalid-yaml", ...reportDetails(report) }, message: "views_base: the open base file is malformed: its YAML cannot be parsed" })`. The open-mode `onNotABase` stays `BASE_NOT_FOUND` / `not-open` with today's details and message, and it ignores `report` (FR-007; contract §2). Run `npx vitest run src/tools/views_base`: M4 and M5 pass, and the existing not-open tests stay green.
 
 **Checkpoint**: both modes classify a malformed Base identically.
 
@@ -130,7 +130,7 @@ Write these first, using the file's existing `makeDeps` / `evalOk` / `expectErr`
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T011 [US3] In `src/tools/views_base/handler.test.ts`:
+- [X] T011 [US3] In `src/tools/views_base/handler.test.ts`:
   - **M6**: extend the existing test `US3 malformed: post-focus 'not a base file' on a named Base → BASE_MALFORMED` (around line 276). Also expect `details.reason === "unknown"`, `details.message === "Error: Active file is not a base file: Broken.base"`, `details.messageLength === "Error: Active file is not a base file: Broken.base".length` (50), and `message` unchanged (`views_base: base file at "Broken.base" is structurally unusable`).
   - **M9**: open mode, with `base:views` → `{ stdout: "YAML notes\ttable\nBlock mapping\tcards\n", exitCode: 0 }`. Expect success `{ views: ["YAML notes", "Block mapping"], count: 2 }`.
   - **M10**: open mode, with `base:views` → `{ stdout: "Error: No views defined", exitCode: 0 }`. Expect a rejection whose `details.code` is **not** `"BASE_MALFORMED"` (the dispatch error is rethrown unchanged; FR-015).
@@ -143,7 +143,7 @@ Write these first, using the file's existing `makeDeps` / `evalOk` / `expectErr`
 
 ### Implementation for User Story 3
 
-- [ ] T012 [US3] In `src/tools/views_base/handler.ts`, change the named-mode `onNotABase` to throw `new UpstreamError({ code: "CLI_REPORTED_ERROR", cause, details: { code: "BASE_MALFORMED", reason: "unknown", base_path: input.base_path, ...reportDetails(report) }, message: \`views_base: base file at "${input.base_path}" is structurally unusable\` })`. The headline is unchanged, and `reason`, `message` and `messageLength` are additive (ADR-015). Run `npx vitest run src/tools/views_base`: M6 and M9–M14 pass.
+- [X] T012 [US3] In `src/tools/views_base/handler.ts`, change the named-mode `onNotABase` to throw `new UpstreamError({ code: "CLI_REPORTED_ERROR", cause, details: { code: "BASE_MALFORMED", reason: "unknown", base_path: input.base_path, ...reportDetails(report) }, message: \`views_base: base file at "${input.base_path}" is structurally unusable\` })`. The headline is unchanged, and `reason`, `message` and `messageLength` are additive (ADR-015). Run `npx vitest run src/tools/views_base`: M6 and M9–M14 pass.
 
 **Checkpoint**: the error roster matches contract §2 exactly.
 
@@ -157,7 +157,7 @@ Write these first, using the file's existing `makeDeps` / `evalOk` / `expectErr`
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T013 [US4] Add to `src/tools/views_base/handler.test.ts`:
+- [X] T013 [US4] Add to `src/tools/views_base/handler.test.ts`:
   - **M7**: named, with a 5,000-character complaint. Build it as `const prefix = "Error: YAMLException: bad indentation "; const complaint = prefix + "x".repeat(5000 - prefix.length);`, giving exactly 5,000 characters with no leading or trailing whitespace. Then `base:views` → `{ stdout: complaint, stderr: "", exitCode: 0 }` (the dispatch `Error:` failure path), so the report equals `complaint`. Expect `details.messageLength === 5000`, `details.message.length === 500 + "\n[… cut …]\n".length + 500`, `details.message.startsWith(<the report's first 500 chars>)`, `details.message.endsWith(<its last 500 chars>)`, and `details.message.includes("[… cut …]")`.
   - **M8**: named, with M1's output. Expect `details.message` to equal M1's stdout trimmed, and `details.messageLength` to equal its length.
   - **Headline**: for M1 and M4, expect `message` not to contain `line 3`, `column`, `[a, b` or `Flow sequence` (SC-004, V4).
@@ -170,18 +170,18 @@ Write these first, using the file's existing `makeDeps` / `evalOk` / `expectErr`
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T014 [P] Update the intent header of `src/tools/views_base/handler.ts` (lines 1-11). Add that spec 081 recognises a YAML parser complaint (the shared `INVALID_YAML_PATTERN`) on the failure and clean-exit paths, ahead of the not-a-base check, as `BASE_MALFORMED` / `invalid-yaml` in both modes. Add that the named-mode not-a-base report is `BASE_MALFORMED` / `unknown`, and that the report is kept bounded in `details.message` / `messageLength` (spec 080 rule). Keep the rest of the header.
-- [ ] T015 [P] In `src/tools/views_base/index.ts`, replace the clause `` \`BASE_MALFORMED\` (the named \`.base\` is unusable) `` in `VIEWS_BASE_DESCRIPTION` with `` \`BASE_MALFORMED\` (the \`.base\` — named or open — is malformed: \`details.reason: "invalid-yaml"\` when Obsidian cannot parse its YAML, \`"unknown"\` when a named \`.base\` is otherwise unusable; \`details.message\` carries the bounded upstream report) ``. Change nothing else. Run `npx vitest run src/tools/views_base src/tools/_file-type-support.test.ts src/tools/_surface.test.ts`; the `_surface` check that only `views_base` mentions not-open must stay green.
-- [ ] T016 Run `npm run baseline:write`, then `git diff src/tools/_register-baseline.json`. Confirm that only the `views_base` `descriptionFingerprint` changed (quickstart §2). If any other fingerprint moved, stop and investigate before continuing. Depends on T015.
-- [ ] T017 [P] In `docs/tools/views_base.md` (Error roster table, around line 59), replace the `BASE_MALFORMED` row with two rows:
+- [X] T014 [P] Update the intent header of `src/tools/views_base/handler.ts` (lines 1-11). Add that spec 081 recognises a YAML parser complaint (the shared `INVALID_YAML_PATTERN`) on the failure and clean-exit paths, ahead of the not-a-base check, as `BASE_MALFORMED` / `invalid-yaml` in both modes. Add that the named-mode not-a-base report is `BASE_MALFORMED` / `unknown`, and that the report is kept bounded in `details.message` / `messageLength` (spec 080 rule). Keep the rest of the header.
+- [X] T015 [P] In `src/tools/views_base/index.ts`, replace the clause `` \`BASE_MALFORMED\` (the named \`.base\` is unusable) `` in `VIEWS_BASE_DESCRIPTION` with `` \`BASE_MALFORMED\` (the \`.base\` — named or open — is malformed: \`details.reason: "invalid-yaml"\` when Obsidian cannot parse its YAML, \`"unknown"\` when a named \`.base\` is otherwise unusable; \`details.message\` carries the bounded upstream report) ``. Change nothing else. Run `npx vitest run src/tools/views_base src/tools/_file-type-support.test.ts src/tools/_surface.test.ts`; the `_surface` check that only `views_base` mentions not-open must stay green.
+- [X] T016 Run `npm run baseline:write`, then `git diff src/tools/_register-baseline.json`. Confirm that only the `views_base` `descriptionFingerprint` changed (quickstart §2). If any other fingerprint moved, stop and investigate before continuing. Depends on T015.
+- [X] T017 [P] In `docs/tools/views_base.md` (Error roster table, around line 59), replace the `BASE_MALFORMED` row with two rows:
   - `` | `CLI_REPORTED_ERROR` | `BASE_MALFORMED` | `invalid-yaml` | Named or open mode: Obsidian cannot parse the `.base` file's YAML | Repair the YAML in the `.base` file (the bounded parser report is in `details.message`). | ``
   - `` | `CLI_REPORTED_ERROR` | `BASE_MALFORMED` | `unknown` | Named mode: the `.base` exists but Obsidian reports it is not usable as a Base, with no parser complaint | Open the file in Obsidian and investigate. | ``
 
   After the table, add one sentence stating that `BASE_MALFORMED`'s `details.reason` set is closed (`invalid-yaml` | `unknown`, a subset of `query_base`'s), and that `details.message` / `details.messageLength` carry the upstream report bounded to its first and last 500 characters when longer than 1,000. Also add a worked failure example: a named call with its `isError` result showing `code`, `details.code`, `details.reason`, `details.base_path`, a short `details.message`, `details.messageLength`, and the headline.
-- [ ] T018 [P] In `CHANGELOG.md` `[Unreleased]`, add the line `Spec 081-classify-malformed-base (BI-0137).` after the spec 080 line. Under `### Fixed`, add a bullet: **`views_base` reports a malformed Base as `BASE_MALFORMED`** (spec 081). A `.base` whose YAML Obsidian cannot parse now fails, named or open, with `CLI_REPORTED_ERROR`, `details.code: "BASE_MALFORMED"` and `details.reason: "invalid-yaml"`, instead of a generic upstream error carrying the raw parser output. The headline names the Base; the parser report is kept in `details.message`, bounded to its first and last 500 characters when longer than 1,000, with `details.messageLength`. The named-mode "not a base file" failure now carries `details.reason: "unknown"`. `query_base` is unchanged.
-- [ ] T019 Run the automated gate (quickstart §1): `npm run typecheck`, `npm run lint`, `npx vitest run`. Every test is green; fix any regression before continuing.
-- [ ] T020 Run the live end-to-end check (quickstart §4) under `.memory/test-execution-instructions.md`, with fresh `Sandbox/` fixtures: named broken, open broken, control, and `query_base` on the broken fixture (SC-005). Append the verbatim results to `contracts/t0-probe-findings.md`. Delete the fixtures, and confirm `Sandbox/` is empty and `Welcome.md` is untouched.
-- [ ] T021 Post-implement structural verification (CLAUDE.md, plan.md CodeGraph structural check). Run `codegraph sync`, then run `codegraph_explore` on `INVALID_YAML_PATTERN`, `listFocusedViews`, `executeViewsBase` and `classifyUpstreamError`. Verify:
+- [X] T018 [P] In `CHANGELOG.md` `[Unreleased]`, add the line `Spec 081-classify-malformed-base (BI-0137).` after the spec 080 line. Under `### Fixed`, add a bullet: **`views_base` reports a malformed Base as `BASE_MALFORMED`** (spec 081). A `.base` whose YAML Obsidian cannot parse now fails, named or open, with `CLI_REPORTED_ERROR`, `details.code: "BASE_MALFORMED"` and `details.reason: "invalid-yaml"`, instead of a generic upstream error carrying the raw parser output. The headline names the Base; the parser report is kept in `details.message`, bounded to its first and last 500 characters when longer than 1,000, with `details.messageLength`. The named-mode "not a base file" failure now carries `details.reason: "unknown"`. `query_base` is unchanged.
+- [X] T019 Run the automated gate (quickstart §1): `npm run typecheck`, `npm run lint`, `npx vitest run`. Every test is green; fix any regression before continuing.
+- [X] T020 Run the live end-to-end check (quickstart §4) under `.memory/test-execution-instructions.md`, with fresh `Sandbox/` fixtures: named broken, open broken, control, and `query_base` on the broken fixture (SC-005). Append the verbatim results to `contracts/t0-probe-findings.md`. Delete the fixtures, and confirm `Sandbox/` is empty and `Welcome.md` is untouched.
+- [X] T021 Post-implement structural verification (CLAUDE.md, plan.md CodeGraph structural check). Run `codegraph sync`, then run `codegraph_explore` on `INVALID_YAML_PATTERN`, `listFocusedViews`, `executeViewsBase` and `classifyUpstreamError`. Verify:
   1. `src/errors.ts` is unchanged, and no new top-level code or error class exists.
   2. No handler imports `createLogger` / `createQueue`, and `server.ts` is unchanged.
   3. `_base-malformed.ts` is imported only by `views_base/handler.ts`, `query_base/handler.ts` and its test, and there is no tool→tool edge.
