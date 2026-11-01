@@ -30,7 +30,7 @@ description: "Task list for 080-tolerate-plugin-noise"
 - capture stdout and stderr separately;
 - never touch `Welcome.md`.
 
-- [ ] T001 Run T0 probes P1–P4 from quickstart.md §2. Record the verbatim stdout, stderr and exit code of each in a new `specs/080-tolerate-plugin-noise/contracts/t0-probe-findings.md`:
+- [X] T001 Run T0 probes P1–P4 from quickstart.md §2. Record the verbatim stdout, stderr and exit code of each in a new `specs/080-tolerate-plugin-noise/contracts/t0-probe-findings.md`:
   - **P1**: wrapped value prints as `=> <<ocm-probe>>{"a":1}` on one line;
   - **P2**: where a `console.log` line lands relative to the answer line;
   - **P3**: cold-start signature of a wrapped eval on the closed test vault, then the immediate re-run;
@@ -46,7 +46,7 @@ description: "Task list for 080-tolerate-plugin-noise"
 
 **⚠️ CRITICAL**: no user-story work starts until this phase is complete.
 
-- [ ] T002 [P] Create `src/cli-adapter/_eval-answer.ts` with header `// Original — no upstream. …` (spec 080: per-call eval answer tag and stdout line scanning, ADR-029 2026-11-01 amendment). Export:
+- [X] T002 [P] Create `src/cli-adapter/_eval-answer.ts` with header `// Original — no upstream. …` (spec 080: per-call eval answer tag and stdout line scanning, ADR-029 2026-11-01 amendment). Export:
   - `EVAL_ANSWER_PREFIX = "=> "`;
   - `mintAnswerTag(): string`, returning `"ocm-" + randomUUID()` from `node:crypto`;
   - `wrapEvalCode(code: string, tag: string): string`, returning exactly `` `(async()=>'<<${tag}>>'+(await (${code})))()` `` (contract A1);
@@ -54,19 +54,19 @@ description: "Task list for 080-tolerate-plugin-noise"
   - `findAnswer(stdout: string, tag?: string): string | undefined`. With `tag`, it returns the remainder after `"=> <<" + tag + ">>"` on the first line that starts with that marker (contract A2/A3). Without `tag`, it returns the remainder after `"=> "` on the first line that starts with `"=> "` (the untagged rule for `obsidian_exec`);
   - `findNoActiveFileLine(stdout): string | undefined`: the first line whose lower-cased form starts with `"error: no active file"`;
   - `findErrorLine(stdout): string | undefined`: the first line that starts with `"Error:"` (contract C2/C3).
-- [ ] T003 [P] Create `src/cli-adapter/_eval-answer.test.ts` with an `// Original — no upstream.` header. Cover:
+- [X] T003 [P] Create `src/cli-adapter/_eval-answer.test.ts` with an `// Original — no upstream.` header. Cover:
   - the exact `wrapEvalCode` output;
   - `mintAnswerTag` uniqueness and shape;
   - `findAnswer`: tagged match after noise; look-alike before and after the answer ignored (A5); `\r\n` endings; leading whitespace; marker mid-line not matched (N10); a U+2028 inside a JSON body does not split the line; no line matches → `undefined`; empty body after the marker → `""`; untagged mode;
   - `findNoActiveFileLine` and `findErrorLine` on head and non-head lines, and their absence.
-- [ ] T004 [P] Create `src/tools/_eval-parse.ts` with an `// Original — no upstream. …` header. Export:
+- [X] T004 [P] Create `src/tools/_eval-parse.ts` with an `// Original — no upstream. …` header. Export:
   - `parseEvalAnswer(answer: string | undefined): unknown`, which throws `new SyntaxError("eval output carries no answer for this call")` when `answer === undefined` and otherwise returns `JSON.parse(answer)`;
   - `EXCERPT_LIMIT = 1000`, `EXCERPT_EDGE = 500`, `EXCERPT_CUT_MARKER = "\n[… cut …]\n"`;
   - `stdoutDetails(stdout: string): { stdout: string; stdoutLength: number }`. Per contract §4 / FR-013, output of ≤ 1,000 characters is returned whole; longer output is `stdout.slice(0, 500) + EXCERPT_CUT_MARKER + stdout.slice(-500)`; `stdoutLength` is `stdout.length`.
-- [ ] T005 [P] Create `src/tools/_eval-parse.test.ts` with an `// Original — no upstream.` header. Cover:
+- [X] T005 [P] Create `src/tools/_eval-parse.test.ts` with an `// Original — no upstream.` header. Cover:
   - `parseEvalAnswer`: undefined → `SyntaxError`; invalid JSON → `SyntaxError`; valid object, string, number. Also cover analyze F4 and the spec edge case "empty, `null`, `false` or an empty list… never confused with no answer": `"null"` → `null`, `"false"` → `false`, `"[]"` → `[]`, `"0"` → `0`. Each returns the value and does not throw. Only `undefined` and invalid JSON (including `""`) throw;
   - `stdoutDetails`: contract E1 (0), E2 (exactly 1,000: whole, no marker), E3 (1,001: head + marker + tail, lengths exact), E4 (2,000,000 characters: tail shows the last 500).
-- [ ] T006 Make the shared spawn stubs tag-aware in `src/tools/_handler-test-fixtures.ts`:
+- [X] T006 Make the shared spawn stubs tag-aware in `src/tools/_handler-test-fixtures.ts`:
   - widen `StubResponse.stdout` and `StubChildSpec.stdout` to `string | ((ctx: { answerTag?: string }) => string)`;
   - add `answerTagFromArgv(argv: string[]): string | undefined`, which reads the tag out of a `code=` element that starts with `(async()=>'<<ocm-`;
   - when `stdout` is a string and the argv carries a tag, rewrite every line starting with `"=> "` to `"=> <<TAG>>" + rest`; when it is a function, call it with `{ answerTag }` and emit the result verbatim;
@@ -75,14 +75,14 @@ description: "Task list for 080-tolerate-plugin-noise"
   - **multi-marker sweep (analyze F6)**: grep `src/**/*.test.ts` and the `_*fixtures*.ts` files for string stdout fixtures with more than one line starting `=> ` (for example the smart_connections_query R14 cases, which put plugin lines ahead of the answer). Automatic tagging would tag every one of those lines, so the new first-tagged-line rule could pick a different line from the one the test expects. Convert each hit to function-form stdout that tags only the intended answer line with `answerLine`, and list the converted files in the T018 commit message.
 
   Depends on T002 for the wrapper shape. Import nothing from it at runtime: keep the fixture vitest-free and its imports downward, and duplicate the `'<<ocm-` literal with a comment pointing at `_eval-answer.ts`.
-- [ ] T007 Extend `src/tools/_handler-test-fixtures.test.ts`:
+- [X] T007 Extend `src/tools/_handler-test-fixtures.test.ts`:
   - an unwrapped argv leaves stdout untouched;
   - a wrapped argv tags every `=> ` line;
   - function-form stdout receives the tag and is emitted verbatim;
   - `unwrapEvalCode` round-trips `wrapEvalCode`.
 
   Depends on T006.
-- [ ] T008 [P] Make `makeRegistrationStubSpawn` in `src/tools/_registration-stub.ts` tag-aware the same way: read argv, tag `=> ` lines of string stdout, accept function-form stdout. Add the cases to `src/tools/_registration-stub.test.ts`. Depends on T006 for the shared semantics; duplicate the minimal logic rather than importing the fixture (Principle I direction).
+- [X] T008 [P] Make `makeRegistrationStubSpawn` in `src/tools/_registration-stub.ts` tag-aware the same way: read argv, tag `=> ` lines of string stdout, accept function-form stdout. Add the cases to `src/tools/_registration-stub.test.ts`. Depends on T006 for the shared semantics; duplicate the minimal logic rather than importing the fixture (Principle I direction).
 
 **Checkpoint**: `npm test` is green with no behaviour change: no production caller uses the new modules yet, and the stubs are no-ops without a wrapper.
 
@@ -98,14 +98,14 @@ description: "Task list for 080-tolerate-plugin-noise"
 
 ### Implementation for User Story 1
 
-- [ ] T009 [US1] In `src/cli-adapter/_dispatch.ts`:
+- [X] T009 [US1] In `src/cli-adapter/_dispatch.ts`:
   - add `answerTag?: string` to `DispatchInput`;
   - in `onTerminal` (exit-0 branch, before priorities (b) and (c)), when `input.command === "eval"` and `findAnswer(stdout, input.answerTag)` is not `undefined`, resolve as success (contract C1, FR-006);
   - leave every non-eval path byte-identical;
   - update the header intent line.
 
   Depends on T002.
-- [ ] T010 [US1] In `src/cli-adapter/cli-adapter.ts`:
+- [X] T010 [US1] In `src/cli-adapter/cli-adapter.ts`:
   - when `input.command === "eval"`, mint a tag (`mintAnswerTag`), pass `parameters.code` through `wrapEvalCode`, and set `dispatchInput.answerTag`;
   - add `answer?: string` to `InvokeCliSuccess`, set from `findAnswer(out.stdout, tag)` and present only for eval when found (contract A3);
   - skip the `Vault not found.` check when an eval answer was found (C5), and leave it unchanged otherwise;
@@ -113,7 +113,7 @@ description: "Task list for 080-tolerate-plugin-noise"
   - update the header intent line.
 
   Depends on T002 and T009. Codegraph path: `invokeCli → dispatchCli → dispatchWithColdStartRetry → dispatchOnce`.
-- [ ] T011 [US1] In `src/tools/_active-file.ts`:
+- [X] T011 [US1] In `src/tools/_active-file.ts`:
   - `evalInVault` returns `InvokeCliSuccess` (`{ stdout, stderr, answer? }`);
   - `decodeEvalEnvelope` takes `result: { stdout: string; answer?: string }` in place of `stdout`, and parses with `parseEvalAnswer(result.answer)`;
   - `parseFocusedVault` takes `result: { stdout: string; answer?: string }` and parses `result.answer` (keep the double decode);
@@ -123,10 +123,10 @@ description: "Task list for 080-tolerate-plugin-noise"
   - update the header and doc comments.
 
   Depends on T004 and T010.
-- [ ] T012 [P] [US1] Pass the whole `invokeCli` result to `decodeEvalEnvelope` in `src/tools/backlinks/handler.ts`, `src/tools/links/handler.ts`, `src/tools/get_active_file/handler.ts`, `src/tools/open_file/handler.ts` and `src/tools/views_base/handler.ts`. Depends on T011.
-- [ ] T013 [P] [US1] In `src/tools/_note-io.ts`, change `invalidateMetadataCache` to compare `result.answer` with `"ok"` / `"missing"` (anything else, including absent, gives `unexpected-output`). Keep `detail` as the raw stdout trimmed and sliced to its first 200 characters, as today. `openNote` keeps ignoring the output. Depends on T011.
-- [ ] T014 [P] [US1] Pass the `invokeCli` result to `parseFocusedVault` in the `defaultInvokeEval` of `src/tools/find_and_replace/handler.ts` and `src/tools/query_base/handler.ts`. Depends on T011.
-- [ ] T015 [P] [US1] Replace the inline `trimStart`/`startsWith("=> ")` strip with `parseEvalAnswer(result.answer)` in each of these, keeping each existing error's code, stage and message:
+- [X] T012 [P] [US1] Pass the whole `invokeCli` result to `decodeEvalEnvelope` in `src/tools/backlinks/handler.ts`, `src/tools/links/handler.ts`, `src/tools/get_active_file/handler.ts`, `src/tools/open_file/handler.ts` and `src/tools/views_base/handler.ts`. Depends on T011.
+- [X] T013 [P] [US1] In `src/tools/_note-io.ts`, change `invalidateMetadataCache` to compare `result.answer` with `"ok"` / `"missing"` (anything else, including absent, gives `unexpected-output`). Keep `detail` as the raw stdout trimmed and sliced to its first 200 characters, as today. `openNote` keeps ignoring the output. Depends on T011.
+- [X] T014 [P] [US1] Pass the `invokeCli` result to `parseFocusedVault` in the `defaultInvokeEval` of `src/tools/find_and_replace/handler.ts` and `src/tools/query_base/handler.ts`. Depends on T011.
+- [X] T015 [P] [US1] Replace the inline `trimStart`/`startsWith("=> ")` strip with `parseEvalAnswer(result.answer)` in each of these, keeping each existing error's code, stage and message:
   - `src/tools/find_by_property/handler.ts`
   - `src/tools/read_heading/handler.ts`
   - `src/tools/paths/handler.ts`
@@ -135,9 +135,9 @@ description: "Task list for 080-tolerate-plugin-noise"
   - `src/tools/smart_connections_similar/handler.ts`
 
   Depends on T004 and T010.
-- [ ] T016 [P] [US1] In `src/tools/smart_connections_query/handler.ts`, replace the R14 last-`\n=> ` extraction (Stage 1) with `parseEvalAnswer(result.answer)`. Keep the stage-2 and stage-3 errors, and update the header and comment (R14 is superseded by spec 080 FR-002). Depends on T004 and T010.
-- [ ] T017 [P] [US1] In `src/tools/set_property/handler.ts`, delete `parseEvalResponse` and parse `focused.answer` with `parseEvalAnswer`, keeping its errors. Depends on T004 and T010.
-- [ ] T018 [US1] Update tests broken by the parser switch:
+- [X] T016 [P] [US1] In `src/tools/smart_connections_query/handler.ts`, replace the R14 last-`\n=> ` extraction (Stage 1) with `parseEvalAnswer(result.answer)`. Keep the stage-2 and stage-3 errors, and update the header and comment (R14 is superseded by spec 080 FR-002). Depends on T004 and T010.
+- [X] T017 [P] [US1] In `src/tools/set_property/handler.ts`, delete `parseEvalResponse` and parse `focused.answer` with `parseEvalAnswer`, keeping its errors. Depends on T004 and T010.
+- [X] T018 [US1] Update tests broken by the parser switch:
   - `src/tools/_active-file.test.ts`: the `parseEvalStdout` tests become `decodeEvalEnvelope` / `parseFocusedVault` tests over `{stdout, answer}`; the bare-JSON fallback test (l.69–71) becomes "no answer → json-parse";
   - `src/tools/_note-io.test.ts`: its local `recordingSpawn` becomes tag-aware like T006; the noisy-detail test (l.204) still expects `unexpected-output`, because its noise sits on the answer line;
   - `src/cli-adapter/cli-adapter.test.ts` (the eval `Vault not found.` case at ~l.414);
@@ -145,7 +145,7 @@ description: "Task list for 080-tolerate-plugin-noise"
   - **sweep (analyze F2)**: grep `src/**/*.test.ts` for assertions on `details.stdout`, `details.partialStdout`, `details.argv` (on eval calls) or a logged `detail` whose expected value contains `=> ` or an eval `code=`. Rewrite each to build its expected value from the tag in the recorded argv (`answerTagFromArgv` + `answerLine`) or from `unwrapEvalCode`. Known instances: `src/tools/find_and_replace/handler.test.ts:878` (`details.stdout === "=> not-valid-json-at-all"`) and the `src/tools/_note-io.test.ts` "missing" case (`detail: "=> missing"`, ~l.198). Under the new rule that case still logs `note-not-found`, but its raw detail now contains the tag. Record each hit in the commit message.
 
   Depends on T011–T017.
-- [ ] T019 [P] [US1] Make the exact-`code=` assertions compare `unwrapEvalCode(codeArg)` with the template (research F6):
+- [X] T019 [P] [US1] Make the exact-`code=` assertions compare `unwrapEvalCode(codeArg)` with the template (research F6):
   - `src/tools/get_active_file/handler.test.ts` (l.76, 193)
   - `src/tools/backlinks/handler.test.ts` (~l.685)
   - `src/tools/links/handler.test.ts` (~l.616)
@@ -156,7 +156,7 @@ description: "Task list for 080-tolerate-plugin-noise"
   - the prefix and suffix checks in `src/tools/paths/handler.test.ts` (~l.623), `src/tools/tag/handler.test.ts` (l.73, ~383) and `src/tools/read_heading/handler.test.ts` (l.480–498)
 
   Keep `write_note/handler.test.ts:550` (≤ 250) asserting on the wrapped element, which P4 confirmed. Depends on T006 and T010.
-- [ ] T020 [US1] Add `src/cli-adapter/cli-adapter.test.ts` cases:
+- [X] T020 [US1] Add `src/cli-adapter/cli-adapter.test.ts` cases:
   - eval code is wrapped with an `ocm-` tag;
   - two calls mint different tags;
   - `answer` is returned after leading noise;
@@ -172,7 +172,7 @@ description: "Task list for 080-tolerate-plugin-noise"
 
 ### Tests for User Story 1
 
-- [ ] T021 [US1] Create `src/tools/_plugin-noise.test.ts` with an `// Original — no upstream.` header:
+- [X] T021 [US1] Create `src/tools/_plugin-noise.test.ts` with an `// Original — no upstream.` header:
   - **The table**: iterate the eval-composed tools of `TYPED_RESULT_FIXTURES` (`src/tools/_typed-result-fixtures.ts`), meaning every fixture whose recorded spawns include a wrapped `code=`. Build each tool with a spawn that wraps the fixture's responses.
   - **The baseline**: run each tool once with no noise to record its result.
   - **The variants**: assert contract N1, N2, N3 and N7 produce a result deep-equal to the baseline.
@@ -193,20 +193,20 @@ description: "Task list for 080-tolerate-plugin-noise"
 
 **Independent Test**: contract D1–D4 in `_dispatch.test.ts`; quickstart §2 end-to-end step 2.
 
-- [ ] T022 [US2] In `src/cli-adapter/_dispatch.ts` `onTerminal`, for `input.command === "eval"` with no answer (after the T009 check), replace the head-anchored checks:
+- [X] T022 [US2] In `src/cli-adapter/_dispatch.ts` `onTerminal`, for `input.command === "eval"` with no answer (after the T009 check), replace the head-anchored checks:
   - (b) uses `findNoActiveFileLine(stdout)`, and `details.message` is that line;
   - (c) uses `findErrorLine(stdout)`, and `details.message` is that line.
 
   Keep each error's codes, messages and `details` keys (full `stdout`). Non-eval commands keep the `trimmedHead` code exactly. Depends on T009.
-- [ ] T023 [US2] In `src/cli-adapter/_dispatch.ts`, change `isColdStart` so that when `details.command === "eval"` it tests `COLD_START_PATTERN` against each line from `stdoutLines(details.stdout)`, and keeps the head test otherwise. Update its doc comment (ADR-029 2026-11-01 amendment). The retry stays in `dispatchWithColdStartRetry`; the second attempt reuses `input`, so the same tag. Depends on T022.
-- [ ] T024 [US2] Add `src/cli-adapter/_dispatch.test.ts` cases for contract D1–D4:
+- [X] T023 [US2] In `src/cli-adapter/_dispatch.ts`, change `isColdStart` so that when `details.command === "eval"` it tests `COLD_START_PATTERN` against each line from `stdoutLines(details.stdout)`, and keeps the head test otherwise. Update its doc comment (ADR-029 2026-11-01 amendment). The retry stays in `dispatchWithColdStartRetry`; the second attempt reuses `input`, so the same tag. Depends on T022.
+- [X] T024 [US2] Add `src/cli-adapter/_dispatch.test.ts` cases for contract D1–D4:
   - **D1**: noise, then cold start on attempt 1, then a tagged answer → success, exactly two spawns, one `dispatch.retry` log;
   - **D2**: noise then `Error: No active file.` → `ERR_NO_ACTIVE_FILE`;
   - **D3**: noise then `Error: something` → `CLI_REPORTED_ERROR` with message `Error: something`;
   - **D4**: a `read` command with noise then a cold-start line → success, no retry.
 
   Also add `isColdStart` unit cases (eval with a non-head line → true; non-eval with a non-head line → false). Confirm that every existing `_dispatch.test.ts` case passes unchanged. Depends on T023.
-- [ ] T025 [P] [US2] Add an `open_file` handler test in `src/tools/open_file/handler.test.ts`: plugin start-up lines plus the cold-start signature, then a tagged success envelope → success after one retry (spec US2 scenario 1). Depends on T023.
+- [X] T025 [P] [US2] Add an `open_file` handler test in `src/tools/open_file/handler.test.ts`: plugin start-up lines plus the cold-start signature, then a tagged success envelope → success after one retry (spec US2 scenario 1). Depends on T023.
 
 **Checkpoint**: US1 and US2 green.
 
@@ -218,25 +218,25 @@ description: "Task list for 080-tolerate-plugin-noise"
 
 **Independent Test**: contract N8, N9, N11 and E5 in `_plugin-noise.test.ts`, plus per-site excerpt assertions.
 
-- [ ] T026 [US3] In `src/tools/_active-file.ts`, replace `stdout: …` with `...stdoutDetails(rawStdout)` in:
+- [X] T026 [US3] In `src/tools/_active-file.ts`, replace `stdout: …` with `...stdoutDetails(rawStdout)` in:
   - `decodeEvalEnvelope` (json-parse, envelope-parse);
   - `resolveActiveFocusedFile` (json-parse: full stdout → excerpt; envelope-parse: add the excerpt, keep `parsed`).
 
   Messages unchanged. Depends on T011 and T004.
-- [ ] T027 [P] [US3] Apply `...stdoutDetails(result.stdout)` in place of `stdout: …slice(0, 500)` or full stdout at every eval parse-failure site (research F5):
+- [X] T027 [P] [US3] Apply `...stdoutDetails(result.stdout)` in place of `stdout: …slice(0, 500)` or full stdout at every eval parse-failure site (research F5):
   - `src/tools/find_by_property/handler.ts` (json-parse, schema-parse, count-paths-mismatch)
   - `src/tools/read_heading/handler.ts`, `src/tools/paths/handler.ts`, `src/tools/tag/handler.ts`, `src/tools/pattern_search/handler.ts`, `src/tools/smart_connections_query/handler.ts`, `src/tools/smart_connections_similar/handler.ts` (json-parse, envelope-parse)
   - `src/tools/set_property/handler.ts` (json-parse; envelope-parse gains the excerpt and keeps `parsed`)
   - `src/tools/find_and_replace/handler.ts` and `src/tools/query_base/handler.ts` `defaultInvokeEval`
 
   Keep codes, stages and messages. Depends on T015–T017 and T014.
-- [ ] T028 [US3] Extend `src/tools/_plugin-noise.test.ts` with contract N8, N9 and N11 for every tool in the table. Assert:
+- [X] T028 [US3] Extend `src/tools/_plugin-noise.test.ts` with contract N8, N9 and N11 for every tool in the table. Assert:
   - `isError: true`, with the tool's existing code and `stage: "json-parse"`;
   - `details.stdout` equal to `stdoutDetails(raw).stdout` and `details.stdoutLength === raw.length`;
   - no success and no empty result (SC-005).
 
   Add one long-noise case (> 1,000 characters) asserting the cut marker and that the tail holds the region where the answer was expected (E4). Depends on T026, T027 and T021.
-- [ ] T029 [P] [US3] Add a `src/tools/_active-file.test.ts` case for contract E5: a `resolveActiveFocusedFile` envelope-parse error now carries the `stdout` excerpt and `stdoutLength` alongside `parsed`. Do the same in `src/tools/set_property/handler.test.ts`. Depends on T026 and T027.
+- [X] T029 [P] [US3] Add a `src/tools/_active-file.test.ts` case for contract E5: a `resolveActiveFocusedFile` envelope-parse error now carries the `stdout` excerpt and `stdoutLength` alongside `parsed`. Do the same in `src/tools/set_property/handler.test.ts`. Depends on T026 and T027.
 
 **Checkpoint**: US1–US3 green.
 
@@ -248,13 +248,13 @@ description: "Task list for 080-tolerate-plugin-noise"
 
 **Independent Test**: contract N5, N6, N10, D5 and D6.
 
-- [ ] T030 [US4] Extend `src/tools/_plugin-noise.test.ts` with contract N5 (look-alike before) and N6 (look-alike after), and assert a result deep-equal to the baseline. The look-alike body is the fixture's valid envelope with altered data (for example a different path or count), so a wrong pick would be visible. Add N10 (marker mid-line → parse error). Depends on T021 and T028.
-- [ ] T031 [P] [US4] Add `src/cli-adapter/_dispatch.test.ts` cases:
+- [X] T030 [US4] Extend `src/tools/_plugin-noise.test.ts` with contract N5 (look-alike before) and N6 (look-alike after), and assert a result deep-equal to the baseline. The look-alike body is the fixture's valid envelope with altered data (for example a different path or count), so a wrong pick would be visible. Add N10 (marker mid-line → parse error). Depends on T021 and T028.
+- [X] T031 [P] [US4] Add `src/cli-adapter/_dispatch.test.ts` cases:
   - **D5**: untagged eval `Error: plugin\n=> 42` (no `answerTag`, the `obsidian_exec` path) → success with raw stdout;
   - **D6**: tagged eval with only an untagged `=> 42` and an `Error:` line → `CLI_REPORTED_ERROR`.
 
   Depends on T022.
-- [ ] T032 [P] [US4] Add an `src/tools/obsidian_exec/handler.test.ts` case with `allowEval: true` and stdout `noise\nError: plugin\n=> 42`. Expect success, with `stdout` returned raw and unchanged, the output keys exactly `{stdout, stderr, exitCode, argv}` (no `answer`), and `code=` not wrapped (FR-012). Depends on T009 and T022.
+- [X] T032 [P] [US4] Add an `src/tools/obsidian_exec/handler.test.ts` case with `allowEval: true` and stdout `noise\nError: plugin\n=> 42`. Expect success, with `stdout` returned raw and unchanged, the output keys exactly `{stdout, stderr, exitCode, argv}` (no `answer`), and `code=` not wrapped (FR-012). Depends on T009 and T022.
 
 ---
 
@@ -264,7 +264,7 @@ description: "Task list for 080-tolerate-plugin-noise"
 
 **Independent Test**: contract N4 and N12.
 
-- [ ] T033 [US5] Extend `src/tools/_plugin-noise.test.ts`:
+- [X] T033 [US5] Extend `src/tools/_plugin-noise.test.ts`:
   - **N4** (`ANS\nnoise`) → baseline result;
   - **N12** (noise around the tool's own `ok:false` envelope) → the tool's normal typed error, not a parse error. Use each tool's own documented `ok:false` code where its fixture module exposes one, and skip with a comment for tools whose envelope has no `ok:false` branch.
 
@@ -278,23 +278,23 @@ description: "Task list for 080-tolerate-plugin-noise"
 
 **Independent Test**: the randomised-noise case passes; no configuration names a plugin.
 
-- [ ] T034 [US6] Add a seeded pseudo-random noise case to `src/tools/_plugin-noise.test.ts`: a fixed seed and a small inline PRNG, with no new dependency. For each tool, generate 20 noise blocks of random printable and Unicode lines (including `Error:`-prefixed lines, `[warn]` lines, `=> `-prefixed untagged look-alikes, blank lines and `\r\n`), placed before and after the answer, and assert the baseline result. Depends on T030.
-- [ ] T035 [P] [US6] Verify that no setting was added: grep `src/**` for plugin names in the new code (`smart-connections` must not appear in `_eval-answer.ts` or `_eval-parse.ts`), and confirm that `src/server.ts` and env parsing are unchanged (`git diff main -- src/server.ts` is empty). Record the result in the PR description (SC-007).
+- [X] T034 [US6] Add a seeded pseudo-random noise case to `src/tools/_plugin-noise.test.ts`: a fixed seed and a small inline PRNG, with no new dependency. For each tool, generate 20 noise blocks of random printable and Unicode lines (including `Error:`-prefixed lines, `[warn]` lines, `=> `-prefixed untagged look-alikes, blank lines and `\r\n`), placed before and after the answer, and assert the baseline result. Depends on T030.
+- [X] T035 [P] [US6] Verify that no setting was added: grep `src/**` for plugin names in the new code (`smart-connections` must not appear in `_eval-answer.ts` or `_eval-parse.ts`), and confirm that `src/server.ts` and env parsing are unchanged (`git diff main -- src/server.ts` is empty). Record the result in the PR description (SC-007).
 
 ---
 
 ## Phase 9: Polish & cross-cutting concerns
 
-- [ ] T036 [P] Update the docs per research D7:
+- [X] T036 [P] Update the docs per research D7:
   - **Full update** (the excerpt rule and `stdoutLength` on parse errors, plus one sentence that output from other plugins around the answer is ignored): `docs/tools/backlinks.md`, `find_by_property.md`, `get_active_file.md`, `links.md`, `open_file.md`, `paths.md`, `pattern_search.md`, `read_heading.md`, `smart_connections_query.md`, `smart_connections_similar.md`, `tag.md` and `write_note.md`;
   - **Check only** (they mention only the stage names; correct any wording that now misdescribes `details.stdout`): `docs/tools/outline.md`, `context_search.md`, `search.md` and `properties.md`.
   - **Closed-vault caveat (analyze F3, Option A)**: in `docs/tools/paths.md`, `tag.md`, `pattern_search.md`, `smart_connections_query.md` and `smart_connections_similar.md`, add one sentence next to the closed-vault / vault-unavailable entry: "When other plugins print output, the `Error: Command "eval" not found.` line can appear after their lines rather than at the start of `details.stdout`." Do NOT edit `closedVaultNote` in `src/tools/_shared.ts`, any tool description, or `docs/tools/query_base.md`. T038's unchanged baseline confirms this.
-- [ ] T037 [P] Add `CHANGELOG.md` `[Unreleased]` entries for spec 080-tolerate-plugin-noise (BI-0135):
+- [X] T037 [P] Add `CHANGELOG.md` `[Unreleased]` entries for spec 080-tolerate-plugin-noise (BI-0135):
   - **Fixed**: eval-composed tools ignore other plugins' output around their answer, and a cold start with plugin start-up lines recovers;
   - **Changed**: eval parse errors carry a head-and-tail `details.stdout` excerpt plus `details.stdoutLength`.
-- [ ] T038 Run `npm run baseline:write` and `git diff src/tools/_register-baseline.json`. Expect no change (contract §5). If anything moved, find and revert the unintended description or schema edit.
-- [ ] T039 Run `npm run typecheck`, `npm run lint` and `npm test`. All must be green. Fix any failure at its root; do not weaken assertions.
-- [ ] T040 Do the post-implement structural verification (plan §CodeGraph structural check, items 1–4) after `codegraph sync`, with `codegraph_explore` on:
+- [X] T038 Run `npm run baseline:write` and `git diff src/tools/_register-baseline.json`. Expect no change (contract §5). If anything moved, find and revert the unintended description or schema edit.
+- [X] T039 Run `npm run typecheck`, `npm run lint` and `npm test`. All must be green. Fix any failure at its root; do not weaken assertions.
+- [X] T040 Do the post-implement structural verification (plan §CodeGraph structural check, items 1–4) after `codegraph sync`, with `codegraph_explore` on:
   - `wrapEvalCode`, `findAnswer`, `findNoActiveFileLine`, `findErrorLine`, `parseEvalAnswer` and `stdoutDetails`;
   - `invokeCli`, `dispatchOnce` and `isColdStart`;
   - `decodeEvalEnvelope` and `parseFocusedVault`.
@@ -308,7 +308,7 @@ description: "Task list for 080-tolerate-plugin-noise"
   - `parseEvalStdout` has no references.
 
   Record the outcome in `specs/080-tolerate-plugin-noise/contracts/t0-probe-findings.md` under a "Post-implement verification" heading.
-- [ ] T041 Run the quickstart §2 end-to-end steps 1–3 against the built server (`npm run build`) in `TestVault-Obsidian-CLI-MCP`, under `.memory/test-execution-instructions.md`, with fixtures in `Sandbox/080-<run>/`, then clean up. Report each result verbatim in `contracts/t0-probe-findings.md`.
+- [X] T041 Run the quickstart §2 end-to-end steps 1–3 against the built server (`npm run build`) in `TestVault-Obsidian-CLI-MCP`, under `.memory/test-execution-instructions.md`, with fixtures in `Sandbox/080-<run>/`, then clean up. Report each result verbatim in `contracts/t0-probe-findings.md`.
 
 ---
 
