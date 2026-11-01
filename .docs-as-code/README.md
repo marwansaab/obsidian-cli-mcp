@@ -108,13 +108,12 @@ applies. Records written since:
   per-tool `not-open` stages are deleted, and the post-retry error is
   documented as "vault unavailable" rather than given a new sub-reason
   (PR #100).
-- [decisions/ADR-NNN-shared-parameter-names-within-a-tool-family.md](decisions/ADR-NNN-shared-parameter-names-within-a-tool-family.md)
+- [decisions/ADR-046-shared-parameter-names-within-a-tool-family.md](decisions/ADR-046-shared-parameter-names-within-a-tool-family.md)
   — within a tool family one concept carries one snake-case parameter name;
   seven parameters on three tools are renamed, with the old names accepted
-  until the next major release (PR #101). Its number is not allocated yet: by
-  the owner's ruling on spec 073 (clarify Q2) the canonical copy is written in
-  the vault and this mirror is renamed at the next vault sync, as listed in
-  `specs/073-align-parameter-names/research.md` ("Pending vault sync").
+  until the next major release (PR #101). Numbered ADR-046 at the vault sync
+  on 2026-11-01: by the owner's ruling on spec 073 (clarify Q2) the canonical
+  copy is in the vault, and this mirror is kept byte-equal to it.
 - [decisions/ADR-047-read-corrects-the-cli-text-from-two-disk-facts.md](decisions/ADR-047-read-corrects-the-cli-text-from-two-disk-facts.md)
   — `read` keeps its CLI call and undoes the CLI's added final line feed and
   dropped byte-order mark from two facts read from disk, rather than

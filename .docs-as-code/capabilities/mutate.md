@@ -187,7 +187,7 @@ names are accepted until the next major release, with a
 `deprecated_parameters` notice on either result branch; `case_insensitive` is
 negated onto `case_sensitive`, and its notice carries a polarity `note`
 ([architecture](../architecture.md#renamed-parameters-deprecated-aliases-folded-before-validation),
-[ADR-NNN](../decisions/ADR-NNN-shared-parameter-names-within-a-tool-family.md)).
+[ADR-046](../decisions/ADR-046-shared-parameter-names-within-a-tool-family.md)).
 A `subfolder` scope is honoured exactly like `folder` and never widens to the
 whole vault. The `INVALID_SUBFOLDER` code, its reasons and its
 `details.subfolder` key are unchanged; the path-safety issue moved to
@@ -241,7 +241,7 @@ level and a note with no level-1 heading; a match when the skip is below the
 target and when the path starts at a second level-1 heading.
 
 The two tools still use different separators (`#` and `::`), kept apart on
-purpose ([ADR-NNN](../decisions/ADR-NNN-shared-parameter-names-within-a-tool-family.md),
+purpose ([ADR-046](../decisions/ADR-046-shared-parameter-names-within-a-tool-family.md),
 first exception). Aligning them, a
 runtime hint in the heading-not-found message, and reaching the unreachable
 sections are spec 079 plan Follow-ups.

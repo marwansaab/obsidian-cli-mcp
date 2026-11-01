@@ -1,8 +1,8 @@
-# ADR-NNN — Shared parameter names within a tool family
+# ADR-046 — Shared parameter names within a tool family
 
-- **Status:** Accepted — number not yet allocated; the canonical vault copy
-  (200-Decisions/) is pending sync, after which this mirror is kept byte-equal
-  to it
+- **Status:** Accepted — numbered at the vault sync on 2026-11-01; the
+  canonical vault copy is in 200-Decisions/, and this mirror is kept
+  byte-equal to it
 - **Date:** 2026-10-31
 - **Source:** BI-0109, `specs/073-align-parameter-names/` (clarify Q1 and Q2,
   research D1 to D9)
