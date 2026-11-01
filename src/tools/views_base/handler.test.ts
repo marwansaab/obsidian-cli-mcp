@@ -7,12 +7,9 @@ import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
 import {
   EVAL_NONCE_SEAM,
-  evalAnswerLine,
-  lookalike,
   makeQueuedSpawn,
-  NO_ANSWER,
-  NOISE_AFTER,
-  NOISE_BEFORE,
+  noAnswerCases,
+  noisyAnswerCases,
   silentLogger,
   TEST_EVAL_TAG,
   type SpawnRecording,
@@ -326,31 +323,22 @@ const FOCUS_OK = JSON.stringify({ ok: true, opened: "Tasks.base" });
 const FOCUS_FAKE = JSON.stringify({ ok: true, opened: "Other.base" });
 const VIEWS_OUT: StubResponse = { stdout: "All\ttable\nBy Status\ttable\n" };
 
-test("spec 080 US1 (T019): plugin lines before the focus answer → normal views", async () => {
-  const { deps, recorded } = makeDeps([{ stdout: `${NOISE_BEFORE}${evalAnswerLine(FOCUS_OK)}\n` }, VIEWS_OUT]);
+// US1 (T019), US3 (T036) check 1, US4 (T040), US5
+test.each(noisyAnswerCases(FOCUS_OK, FOCUS_FAKE))("spec 080 $name → normal views", async ({ stdout }) => {
+  const { deps, recorded } = makeDeps([{ stdout }, VIEWS_OUT]);
   const result = await executeViewsBase({ base_path: "Tasks.base" }, deps);
   expect(result).toEqual({ views: ["All", "By Status"], count: 2 });
   expect(commandsOf(recorded)).toEqual(["eval", "base:views"]);
 });
 
-test("spec 080 US3 (T036): look-alikes before and after the focus answer never win", async () => {
-  const fake = lookalike(FOCUS_FAKE);
-  const { deps } = makeDeps([{ stdout: `${fake}\n${evalAnswerLine(FOCUS_OK)}\n${fake}\n` }, VIEWS_OUT]);
-  const result = await executeViewsBase({ base_path: "Tasks.base" }, deps);
-  expect(result).toEqual({ views: ["All", "By Status"], count: 2 });
-});
-
-test("spec 080 US3 (T036): a look-alike alone → INTERNAL_ERROR json-parse with the raw output; base:views never runs", async () => {
-  const stdout = `${NO_ANSWER}${lookalike(FOCUS_FAKE)}\n`;
-  const { deps, recorded } = makeDeps([{ stdout }]);
-  const ue = await expectErr(executeViewsBase({ base_path: "Tasks.base" }, deps));
-  expect(ue.code).toBe("INTERNAL_ERROR");
-  expect(ue.details).toEqual({ stage: "json-parse", stdout });
-  expect(commandsOf(recorded)).toEqual(["eval"]);
-});
-
-test("spec 080 US4 (T040): plugin output after the focus answer → normal views", async () => {
-  const { deps } = makeDeps([{ stdout: `${evalAnswerLine(FOCUS_OK)}${NOISE_AFTER}\n` }, VIEWS_OUT]);
-  const result = await executeViewsBase({ base_path: "Tasks.base" }, deps);
-  expect(result).toEqual({ views: ["All", "By Status"], count: 2 });
-});
+// US3 (T036) check 2, plus no answer / long no answer
+test.each(noAnswerCases(FOCUS_FAKE))(
+  "spec 080 $name → INTERNAL_ERROR json-parse with the raw output; base:views never runs",
+  async ({ stdout, excerpt }) => {
+    const { deps, recorded } = makeDeps([{ stdout }]);
+    const ue = await expectErr(executeViewsBase({ base_path: "Tasks.base" }, deps));
+    expect(ue.code).toBe("INTERNAL_ERROR");
+    expect(ue.details).toEqual({ stage: "json-parse", ...excerpt });
+    expect(commandsOf(recorded)).toEqual(["eval"]);
+  },
+);

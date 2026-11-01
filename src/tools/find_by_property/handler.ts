@@ -1,7 +1,7 @@
-// Original — no upstream. find_by_property handler: single invokeCli wrapper around the eval subcommand with a frozen JS template + base64 payload (R6 anti-injection); two-stage response parse (tagged eval answer JSON.parse + output schema validate); R4 target_mode mapping (vault undefined → active, vault set → specific); count/paths invariant defensive check. BI-034 (spec branch 034-fix-unicode-lookups): JS_TEMPLATE extracted to sibling `_template.ts` so the cohort layout matches `read_heading/_template.ts` etc.; payload compose uses the shared `composeEvalCode` helper. Spec 073: reads the aligned names; payload keys unchanged.
+// Original — no upstream. find_by_property handler: single invokeEval call (the eval subcommand) with a frozen JS template + base64 payload (R6 anti-injection); two-stage response parse (tagged eval answer JSON.parse + output schema validate); R4 target_mode mapping (vault undefined → active, vault set → specific); count/paths invariant defensive check. BI-034 (spec branch 034-fix-unicode-lookups): JS_TEMPLATE extracted to sibling `_template.ts` so the cohort layout matches `read_heading/_template.ts` etc.; payload compose uses the shared `composeEvalCode` helper. Spec 073: reads the aligned names; payload keys unchanged.
 import { JS_TEMPLATE } from "./_template.js";
 import { findByPropertyOutputSchema, type FindByPropertyInput, type FindByPropertyOutput } from "./schema.js";
-import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
+import { invokeEval, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import { parseEvalAnswer } from "../_active-file.js";
 import { composeEvalCode } from "../_shared.js";
@@ -28,17 +28,7 @@ export async function executeFindByProperty(
     caseSensitive: input.case_sensitive,
   });
 
-  const target_mode = input.vault === undefined ? "active" : "specific";
-  const result = await invokeCli(
-    {
-      command: "eval",
-      vault: input.vault,
-      parameters: { code },
-      flags: [],
-      target_mode,
-    },
-    deps,
-  );
+  const result = await invokeEval({ code, vault: input.vault }, deps);
 
   let parsedJson: unknown;
   try {

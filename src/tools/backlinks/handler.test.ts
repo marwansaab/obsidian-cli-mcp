@@ -10,11 +10,10 @@ import {
   captureRejection,
   EVAL_NONCE_SEAM,
   evalAnswerLine,
-  lookalike,
   makeQueuedSpawn,
-  NO_ANSWER,
-  NOISE_AFTER,
+  noAnswerCases,
   NOISE_BEFORE,
+  noisyAnswerCases,
   silentLogger,
   TEST_EVAL_TAG,
   wrappedEvalCode,
@@ -740,11 +739,19 @@ const ANSWER_080 = JSON.stringify({ ok: true, count: 1, backlinks: BACKLINKS_080
 const LOOKALIKE_080 = JSON.stringify({ ok: true, count: 1, backlinks: [{ source: "Fake.md" }] });
 const SPECIFIC_080 = { target_mode: "specific", vault: "Demo", path: "x.md" } as const;
 
-// US1 (T017)
-test("spec 080 US1: plugin lines before the answer → normal result", async () => {
-  const { spawnFn } = makeQueuedSpawn([{ stdout: `${NOISE_BEFORE}${evalAnswerLine(ANSWER_080)}\n`, exitCode: 0 }]);
+// US1 (T017), US3 (T036) check 1, US4 (T040), US5
+test.each(noisyAnswerCases(ANSWER_080, LOOKALIKE_080))("spec 080 $name → normal result", async ({ stdout }) => {
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
   const result = await executeBacklinks(SPECIFIC_080, deps(spawnFn));
   expect(result).toEqual({ count: 1, backlinks: BACKLINKS_080 });
+});
+
+// US3 (T036) check 2, plus no answer / long no answer
+test.each(noAnswerCases(LOOKALIKE_080))("spec 080 $name → json-parse failure with the raw output", async ({ stdout, excerpt }) => {
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  const err = (await captureRejection(executeBacklinks(SPECIFIC_080, deps(spawnFn)))) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", ...excerpt });
 });
 
 test("spec 080 US1: FILE_NOT_FOUND envelope behind plugin lines → CLI_REPORTED_ERROR envelope-error", async () => {
@@ -757,27 +764,4 @@ test("spec 080 US1: FILE_NOT_FOUND envelope behind plugin lines → CLI_REPORTED
   const err = (await captureRejection(executeBacklinks(SPECIFIC_080, deps(spawnFn)))) as UpstreamError;
   expect(err.code).toBe("CLI_REPORTED_ERROR");
   expect(err.details).toMatchObject({ stage: "envelope-error", code: "FILE_NOT_FOUND", detail: "path: x.md" });
-});
-
-// US3 (T036) checks 1–2
-test("spec 080 US3: look-alikes before and after the answer never win", async () => {
-  const stdout = `${lookalike(LOOKALIKE_080)}\n${evalAnswerLine(ANSWER_080)}\n${lookalike(LOOKALIKE_080)}\n`;
-  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
-  const result = await executeBacklinks(SPECIFIC_080, deps(spawnFn));
-  expect(result).toEqual({ count: 1, backlinks: BACKLINKS_080 });
-});
-
-test("spec 080 US3: a look-alike alone → json-parse failure with the raw output", async () => {
-  const stdout = `${NO_ANSWER}${lookalike(LOOKALIKE_080)}`;
-  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
-  const err = (await captureRejection(executeBacklinks(SPECIFIC_080, deps(spawnFn)))) as UpstreamError;
-  expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toEqual({ stage: "json-parse", stdout });
-});
-
-// US4 (T040)
-test("spec 080 US4: plugin output after the answer → normal result", async () => {
-  const { spawnFn } = makeQueuedSpawn([{ stdout: `${evalAnswerLine(ANSWER_080)}${NOISE_AFTER}\n`, exitCode: 0 }]);
-  const result = await executeBacklinks(SPECIFIC_080, deps(spawnFn));
-  expect(result).toEqual({ count: 1, backlinks: BACKLINKS_080 });
 });

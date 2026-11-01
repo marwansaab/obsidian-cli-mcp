@@ -111,6 +111,8 @@ Both forms must therefore be read (D1), and T0 (D10) confirms which one appears.
 - The "different answers mean `null`" rule makes the ambiguous case a parse failure, never a wrong result.
 - Echoed source cannot forge an answer line. The wrapper text contains `=>{return "obsidian-cli-mcp:…`, so no line of echoed code can begin `=> ` followed by the tag.
 
+**Amendment (PR #109 review, 2026-11-01)**: the tag rule stays as decided, but it now lives in a dedicated facade rather than in `invokeCli`. `invokeEval({ code, vault? }, deps)` in `cli-adapter.ts` builds the tag, wraps the code and returns `{ stdout, stderr, answer: string | null }`; `vault` undefined means active mode, as at every former call site. `invokeCli` has no eval branch again, and `InvokeCliSuccess` is back to `{ stdout, stderr }`. Dispatch locates the tagged answer once, while classifying, and hands it back on `DispatchOutput.evalAnswer`, so the output is no longer scanned twice. Every typed eval call site, and `_note-io.ts`, calls `invokeEval`; `evalInVault` is removed. `architecture.test.ts` (iii) fails the build if a tool spells an `eval` command itself. The spawned argv of every call is byte-identical to the D1 design.
+
 **Alternatives considered (and why each is rejected)**:
 
 | Alternative | Why rejected |
@@ -170,6 +172,8 @@ All callers move to the new function: `decodeEvalEnvelope`, `parseFocusedVault`,
 - `_note-io.ts` P10 compares `evalAnswer === "ok"` / `"missing"`. Its `detail` keeps the raw output for the log.
 
 **Rationale**: FR-002 calls for one rule. The tag check lives in `invokeCli`, and tools only read `evalAnswer`.
+
+**Amendment (PR #109 review, 2026-11-01)**: with the D1 amendment the readers take `invokeEval`'s result: `parseEvalAnswer(result: { answer: string | null })`, and `decodeEvalEnvelope` / `parseFocusedVault` take `{ stdout, answer }`. `paths`, `read_heading`, `smart_connections_query`, `smart_connections_similar` and `tag` had a json-parse + envelope-parse pair identical to `decodeEvalEnvelope` (same codes, messages, causes and `details`), so they now call it. `find_by_property`, `pattern_search` and `set_property` keep their own parse: their messages, stages or output bounds differ.
 
 ### D5: `details.stdoutTail` on long parse failures (spec Clarification Q3)
 

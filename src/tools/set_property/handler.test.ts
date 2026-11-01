@@ -8,13 +8,9 @@ import { createQueue } from "../../queue.js";
 import {
   captureRejection,
   EVAL_NONCE_SEAM,
-  evalAnswerLine,
-  LONG_NO_ANSWER,
-  lookalike,
   makeQueuedSpawn,
-  NO_ANSWER,
-  NOISE_AFTER,
-  NOISE_BEFORE,
+  noAnswerCases,
+  noisyAnswerCases,
   silentLogger,
   TEST_EVAL_TAG,
   type StubResponse,
@@ -574,58 +570,19 @@ const LOOKALIKE_080 = JSON.stringify({ path: "other/fake.md", vault: "OtherVault
 const ACTIVE_080 = { target_mode: "active", name: "status", value: "review" } as const;
 const ACTIVE_RESULT_080 = { written: true, path: "focused/note.md", name: "status" };
 
-// US1 (T016)
-test("spec 080 US1: active mode, plugin lines before the focused-file answer → normal write", async () => {
-  const { spawnFn, recorded } = makeQueuedSpawn([
-    { stdout: `${NOISE_BEFORE}${evalAnswerLine(FOCUSED_080)}\n`, exitCode: 0 },
-    SET_OK("status", "review"),
-  ]);
-  const result = await executeWriteProperty(ACTIVE_080, deps(spawnFn));
-  expect(result).toEqual(ACTIVE_RESULT_080);
-  expect(recorded[1]!.argv).toContain("vault=FocusedVault");
-});
-
-// US3 (T033) checks 1–4 at the json-parse site
-test("spec 080 US3: look-alikes before and after the focused-file answer never win", async () => {
-  const stdout = `${lookalike(LOOKALIKE_080)}\n${evalAnswerLine(FOCUSED_080)}\n${lookalike(LOOKALIKE_080)}\n`;
+// US1 (T016), US3 (T033) check 1, US4 (T040), US5
+test.each(noisyAnswerCases(FOCUSED_080, LOOKALIKE_080))("spec 080 $name → normal write", async ({ stdout }) => {
   const { spawnFn, recorded } = makeQueuedSpawn([{ stdout, exitCode: 0 }, SET_OK("status", "review")]);
   const result = await executeWriteProperty(ACTIVE_080, deps(spawnFn));
   expect(result).toEqual(ACTIVE_RESULT_080);
   expect(recorded[1]!.argv).toContain("vault=FocusedVault");
 });
 
-test("spec 080 US3: a look-alike alone → json-parse failure with the raw output; nothing written", async () => {
-  const stdout = `${NO_ANSWER}${lookalike(LOOKALIKE_080)}`;
+// US3 (T033) checks 2–4 at the json-parse site
+test.each(noAnswerCases(LOOKALIKE_080))("spec 080 $name → json-parse failure with the raw output; nothing written", async ({ stdout, excerpt }) => {
   const { spawnFn, recorded } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
   const err = (await captureRejection(executeWriteProperty(ACTIVE_080, deps(spawnFn)))) as UpstreamError;
   expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toEqual({ stage: "json-parse", stdout });
+  expect(err.details).toEqual({ stage: "json-parse", ...excerpt });
   expect(recorded).toHaveLength(1);
-});
-
-test("spec 080 US3: no answer → json-parse failure without stdoutTail", async () => {
-  const { spawnFn } = makeQueuedSpawn([{ stdout: NO_ANSWER, exitCode: 0 }]);
-  const err = (await captureRejection(executeWriteProperty(ACTIVE_080, deps(spawnFn)))) as UpstreamError;
-  expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toEqual({ stage: "json-parse", stdout: NO_ANSWER });
-});
-
-test("spec 080 US3: long output with no answer → json-parse failure carrying stdoutTail", async () => {
-  const { spawnFn } = makeQueuedSpawn([{ stdout: LONG_NO_ANSWER, exitCode: 0 }]);
-  const err = (await captureRejection(executeWriteProperty(ACTIVE_080, deps(spawnFn)))) as UpstreamError;
-  expect(err.details).toEqual({
-    stage: "json-parse",
-    stdout: LONG_NO_ANSWER.slice(0, 500),
-    stdoutTail: LONG_NO_ANSWER.slice(-500),
-  });
-});
-
-// US4 (T040)
-test("spec 080 US4: plugin output after the focused-file answer → normal write", async () => {
-  const { spawnFn } = makeQueuedSpawn([
-    { stdout: `${evalAnswerLine(FOCUSED_080)}${NOISE_AFTER}\n`, exitCode: 0 },
-    SET_OK("status", "review"),
-  ]);
-  const result = await executeWriteProperty(ACTIVE_080, deps(spawnFn));
-  expect(result).toEqual(ACTIVE_RESULT_080);
 });

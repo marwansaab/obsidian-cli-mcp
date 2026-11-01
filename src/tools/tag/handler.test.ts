@@ -15,13 +15,10 @@ import {
   coldStartResponse,
   EVAL_NONCE_SEAM,
   evalAnswerLine,
-  INVENTED,
-  LONG_NO_ANSWER,
-  lookalike,
   makeQueuedSpawn,
-  NO_ANSWER,
-  NOISE_AFTER,
+  noAnswerCases,
   NOISE_BEFORE,
+  noisyAnswerCases,
   silentLogger,
   TEST_EVAL_TAG,
   wrappedEvalCode,
@@ -508,11 +505,19 @@ test("BI-034: non-ASCII tag query (emoji) round-trips through base64 (FR-009)", 
 const ANSWER_080 = JSON.stringify({ ok: true, mode: "default", count: 1, paths: ["a.md"] });
 const LOOKALIKE_080 = JSON.stringify({ ok: true, mode: "default", count: 1, paths: ["fake.md"] });
 
-// US1 (T015)
-test("spec 080 US1: plugin lines before the answer → normal result", async () => {
-  const { spawnFn } = makeQueuedSpawn([{ stdout: `${NOISE_BEFORE}${evalAnswerLine(ANSWER_080)}\n`, exitCode: 0 }]);
+// US1 (T015), US3 (T032) check 1, US4 (T040), US5 (T042)
+test.each(noisyAnswerCases(ANSWER_080, LOOKALIKE_080))("spec 080 $name → normal result", async ({ stdout }) => {
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
   const result = await executeTag({ tag: "foo" }, deps(spawnFn));
   expect(result).toEqual({ count: 1, paths: ["a.md"] });
+});
+
+// US3 (T032) checks 2–4
+test.each(noAnswerCases(LOOKALIKE_080))("spec 080 $name → json-parse failure with the raw output", async ({ stdout, excerpt }) => {
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+  const err = (await captureRejection(executeTag({ tag: "foo" }, deps(spawnFn)))) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", ...excerpt });
 });
 
 test("spec 080 US1: envelope ok:false behind plugin lines → its envelope-error", async () => {
@@ -522,53 +527,4 @@ test("spec 080 US1: envelope ok:false behind plugin lines → its envelope-error
   const err = (await captureRejection(executeTag({ tag: "foo" }, deps(spawnFn)))) as UpstreamError;
   expect(err.code).toBe("CLI_REPORTED_ERROR");
   expect(err.details).toMatchObject({ stage: "envelope-error", code: "CACHE_NOT_READY" });
-});
-
-// US3 (T032) checks 1–4
-test("spec 080 US3: look-alikes before and after the answer never win", async () => {
-  const stdout = `${lookalike(LOOKALIKE_080)}\n${evalAnswerLine(ANSWER_080)}\n${lookalike(LOOKALIKE_080)}\n`;
-  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
-  const result = await executeTag({ tag: "foo" }, deps(spawnFn));
-  expect(result).toEqual({ count: 1, paths: ["a.md"] });
-});
-
-test("spec 080 US3: a look-alike alone → json-parse failure with the raw output", async () => {
-  const stdout = `${NO_ANSWER}${lookalike(LOOKALIKE_080)}`;
-  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
-  const err = (await captureRejection(executeTag({ tag: "foo" }, deps(spawnFn)))) as UpstreamError;
-  expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toEqual({ stage: "json-parse", stdout });
-});
-
-test("spec 080 US3: no answer → json-parse failure without stdoutTail", async () => {
-  const { spawnFn } = makeQueuedSpawn([{ stdout: NO_ANSWER, exitCode: 0 }]);
-  const err = (await captureRejection(executeTag({ tag: "foo" }, deps(spawnFn)))) as UpstreamError;
-  expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toEqual({ stage: "json-parse", stdout: NO_ANSWER });
-});
-
-test("spec 080 US3: long output with no answer → json-parse failure carrying stdoutTail", async () => {
-  const { spawnFn } = makeQueuedSpawn([{ stdout: LONG_NO_ANSWER, exitCode: 0 }]);
-  const err = (await captureRejection(executeTag({ tag: "foo" }, deps(spawnFn)))) as UpstreamError;
-  expect(err.details).toEqual({
-    stage: "json-parse",
-    stdout: LONG_NO_ANSWER.slice(0, 500),
-    stdoutTail: LONG_NO_ANSWER.slice(-500),
-  });
-});
-
-// US4 (T040)
-test("spec 080 US4: plugin output after the answer → normal result", async () => {
-  const { spawnFn } = makeQueuedSpawn([{ stdout: `${evalAnswerLine(ANSWER_080)}${NOISE_AFTER}\n`, exitCode: 0 }]);
-  const result = await executeTag({ tag: "foo" }, deps(spawnFn));
-  expect(result).toEqual({ count: 1, paths: ["a.md"] });
-});
-
-// US5 (T042)
-test("spec 080 US5: invented plugin output before and after the answer → normal result", async () => {
-  const { spawnFn } = makeQueuedSpawn([
-    { stdout: `${INVENTED}${evalAnswerLine(ANSWER_080)}\n${INVENTED}`, exitCode: 0 },
-  ]);
-  const result = await executeTag({ tag: "foo" }, deps(spawnFn));
-  expect(result).toEqual({ count: 1, paths: ["a.md"] });
 });

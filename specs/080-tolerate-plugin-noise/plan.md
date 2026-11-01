@@ -26,6 +26,7 @@ Plugins print into the stdout that `obsidian eval` returns its answer on. The te
 - **D6, no new logging.**
 - **D7, tests.** Look-alike `=> {…}` lines before and after the real answer are tested in every affected tool.
 - **D9, test seam.** A nonce seam (`evalNonce`) plus shared fixtures.
+- **Amendment (PR #109 review, 2026-11-01).** D1's tag and D4's readers moved behind a dedicated `invokeEval` facade that returns `answer`; `invokeCli` keeps no eval branch, dispatch returns the answer it located, `evalInVault` is gone, and five handlers decode through `decodeEvalEnvelope`. The per-tool D7 cases are one shared data battery (`noisyAnswerCases` / `noAnswerCases`) run in every eval suite. Behaviour and argv are unchanged; see research D1 / D4 amendments.
 - **D10, T0 gate.** Before any code, a live probe confirms how the CLI prints the tagged value. If no form preserves the tag, implementation stops and the question goes to the owner.
 
 Exact behaviour is in [contracts/eval-output-contract.md](contracts/eval-output-contract.md).

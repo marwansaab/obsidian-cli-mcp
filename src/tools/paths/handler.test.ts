@@ -17,13 +17,10 @@ import {
   captureRejection,
   coldStartResponse,
   EVAL_NONCE_SEAM,
-  evalAnswerLine,
-  LONG_NO_ANSWER,
-  lookalike,
   makeQueuedSpawn,
-  NO_ANSWER,
-  NOISE_AFTER,
+  noAnswerCases,
   NOISE_BEFORE,
+  noisyAnswerCases,
   silentLogger,
   TEST_EVAL_TAG,
   wrappedEvalCode,
@@ -655,8 +652,14 @@ async function pathsFail(stdout: string, input: Parameters<typeof executePaths>[
   return (await captureRejection(executePaths(input, deps(spawnFn)))) as UpstreamError;
 }
 
-test("spec 080 US1: plugin lines before the tagged answer → normal result", async () => {
-  expect(await pathsRun(`${NOISE_BEFORE}${evalAnswerLine(PATHS_REAL)}\n`)).toEqual({ count: 1, paths: ["README.md"] });
+test.each(noisyAnswerCases(PATHS_REAL, PATHS_FAKE))("spec 080 $name → normal result", async ({ stdout }) => {
+  expect(await pathsRun(stdout)).toEqual({ count: 1, paths: ["README.md"] });
+});
+
+test.each(noAnswerCases(PATHS_FAKE))("spec 080 $name → json-parse failure with the raw output", async ({ stdout, excerpt }) => {
+  const err = await pathsFail(stdout);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", ...excerpt });
 });
 
 test("spec 080 US1: FOLDER_NOT_FOUND envelope behind plugin lines → its specific error", async () => {
@@ -667,35 +670,4 @@ test("spec 080 US1: FOLDER_NOT_FOUND envelope behind plugin lines → its specif
   });
   expect(err.code).toBe("CLI_REPORTED_ERROR");
   expect(err.details).toMatchObject({ stage: "envelope-error", code: "FOLDER_NOT_FOUND" });
-});
-
-test("spec 080 US3: look-alikes before and after the tagged answer never win", async () => {
-  const stdout = `${lookalike(PATHS_FAKE)}\n${evalAnswerLine(PATHS_REAL)}\n${lookalike(PATHS_FAKE)}`;
-  expect(await pathsRun(stdout)).toEqual({ count: 1, paths: ["README.md"] });
-});
-
-test("spec 080 US3: a look-alike alone → json-parse failure with the raw output", async () => {
-  const stdout = NO_ANSWER + lookalike(PATHS_FAKE);
-  const err = await pathsFail(stdout);
-  expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toEqual({ stage: "json-parse", stdout });
-});
-
-test("spec 080 US3: no answer → json-parse failure without stdoutTail", async () => {
-  const err = await pathsFail(NO_ANSWER);
-  expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toEqual({ stage: "json-parse", stdout: NO_ANSWER });
-});
-
-test("spec 080 US3: long output with no answer → json-parse failure carrying stdoutTail", async () => {
-  const err = await pathsFail(LONG_NO_ANSWER);
-  expect(err.details).toEqual({
-    stage: "json-parse",
-    stdout: LONG_NO_ANSWER.slice(0, 500),
-    stdoutTail: LONG_NO_ANSWER.slice(-500),
-  });
-});
-
-test("spec 080 US4: plugin output after the tagged answer → normal result", async () => {
-  expect(await pathsRun(`${evalAnswerLine(PATHS_REAL)}${NOISE_AFTER}\n`)).toEqual({ count: 1, paths: ["README.md"] });
 });

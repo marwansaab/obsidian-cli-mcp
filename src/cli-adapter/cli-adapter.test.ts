@@ -10,6 +10,7 @@ import { createQueue } from "../queue.js";
 import { __resetInFlightRegistryForTests } from "./_dispatch.js";
 import {
   invokeCli,
+  invokeEval,
   TYPED_TOOL_OUTPUT_CAP_BYTES,
   TYPED_TOOL_TIMEOUT_MS,
   UpstreamError,
@@ -543,47 +544,54 @@ describe("invokeCli — BI-060 app-not-running recovery inheritance (T014)", () 
   });
 });
 
-describe("invokeCli — eval answer tag (spec 080)", () => {
+describe("invokeEval — eval answer tag (spec 080)", () => {
   const NONCE = "33333333-3333-4333-8333-333333333333";
   const TAG = evalAnswerTag(NONCE);
   const CODE = "(()=>JSON.stringify({ok:true}))()";
 
-  it("an eval call's spawned code= is the template wrapped with the call's tag", async () => {
+  it("the spawned code= is the template wrapped with the call's tag; a vault means specific mode", async () => {
     const { spawnFn, recorded } = makeStubSpawn({ stdout: `=> ${TAG}{"ok":true}\n`, exitCode: 0 });
-    await invokeCli(
-      { command: "eval", vault: "V", parameters: { code: CODE }, flags: [], target_mode: "specific" },
-      { ...defaultDeps({ spawnFn, env: {} }), evalNonce: () => NONCE },
-    );
+    await invokeEval({ code: CODE, vault: "V" }, { ...defaultDeps({ spawnFn, env: {} }), evalNonce: () => NONCE });
     expect(recorded[0]!.argv).toEqual(["vault=V", "eval", `code=${wrapEvalCode(CODE, TAG)}`]);
   });
 
-  it("evalAnswer is the tagged answer, behind plugin lines and look-alikes", async () => {
+  it("no vault means active mode: no vault= on the argv", async () => {
+    const { spawnFn, recorded } = makeStubSpawn({ stdout: `=> ${TAG}{"ok":true}\n`, exitCode: 0 });
+    await invokeEval({ code: CODE }, { ...defaultDeps({ spawnFn, env: {} }), evalNonce: () => NONCE });
+    expect(recorded[0]!.argv).toEqual(["eval", `code=${wrapEvalCode(CODE, TAG)}`]);
+  });
+
+  it("answer is the tagged answer, behind plugin lines and look-alikes", async () => {
     const stdout = `plugin: ready\n=> {"ok":false}\n=> ${TAG}{"ok":true}\nplugin: done\n`;
     const { spawnFn } = makeStubSpawn({ stdout, exitCode: 0 });
-    const result = await invokeCli(
-      { command: "eval", parameters: { code: CODE }, flags: [], target_mode: "active" },
-      { ...defaultDeps({ spawnFn, env: {} }), evalNonce: () => NONCE },
-    );
-    expect(result).toEqual({ stdout, stderr: "", evalAnswer: '{"ok":true}' });
+    const result = await invokeEval({ code: CODE }, { ...defaultDeps({ spawnFn, env: {} }), evalNonce: () => NONCE });
+    expect(result).toEqual({ stdout, stderr: "", answer: '{"ok":true}' });
   });
 
-  it("an untagged => line gives evalAnswer: null", async () => {
+  it("an untagged => line gives answer: null", async () => {
     const { spawnFn } = makeStubSpawn({ stdout: '=> {"ok":true}\n', exitCode: 0 });
-    const result = await invokeCli(
-      { command: "eval", parameters: { code: CODE }, flags: [], target_mode: "active" },
-      { ...defaultDeps({ spawnFn, env: {} }), evalNonce: () => NONCE },
-    );
-    expect(result.evalAnswer).toBeNull();
+    const result = await invokeEval({ code: CODE }, { ...defaultDeps({ spawnFn, env: {} }), evalNonce: () => NONCE });
+    expect(result.answer).toBeNull();
   });
 
-  it("a non-eval call's argv and result are unchanged (no evalAnswer key)", async () => {
-    const { spawnFn, recorded } = makeStubSpawn({ stdout: "=> body\n", exitCode: 0 });
+  it("the nonce defaults to a fresh random UUID per call", async () => {
+    const { spawnFn, recorded } = makeStubSpawn({ stdout: "", exitCode: 0 });
+    const deps = defaultDeps({ spawnFn, env: {} });
+    await invokeEval({ code: CODE }, deps);
+    await invokeEval({ code: CODE }, deps);
+    const tagOf = (argv: string[]) => /obsidian-cli-mcp:([0-9a-f-]{36}):/.exec(argv.join(" "))?.[1];
+    expect(tagOf(recorded[0]!.argv)).toMatch(/^[0-9a-f-]{36}$/);
+    expect(tagOf(recorded[1]!.argv)).not.toBe(tagOf(recorded[0]!.argv));
+  });
+
+  it("invokeCli has no eval behaviour: eval code reaches the argv unwrapped, no answer key", async () => {
+    const { spawnFn, recorded } = makeStubSpawn({ stdout: '=> {"ok":true}\n', exitCode: 0 });
     const result = await invokeCli(
-      { command: "read", vault: "V", parameters: { file: "Note" }, flags: [], target_mode: "specific" },
+      { command: "eval", vault: "V", parameters: { code: CODE }, flags: [], target_mode: "specific" },
       { ...defaultDeps({ spawnFn, env: {} }), evalNonce: () => NONCE },
     );
-    expect(recorded[0]!.argv).toEqual(["vault=V", "read", "file=Note"]);
-    expect(result).toStrictEqual({ stdout: "=> body\n", stderr: "" });
+    expect(recorded[0]!.argv).toEqual(["vault=V", "eval", `code=${CODE}`]);
+    expect(result).toStrictEqual({ stdout: '=> {"ok":true}\n', stderr: "" });
   });
 });
 

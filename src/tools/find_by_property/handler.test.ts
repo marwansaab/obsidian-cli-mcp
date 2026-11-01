@@ -9,13 +9,9 @@ import { createQueue } from "../../queue.js";
 import {
   captureRejection,
   EVAL_NONCE_SEAM,
-  evalAnswerLine,
-  LONG_NO_ANSWER,
-  lookalike,
   makeQueuedSpawn,
-  NO_ANSWER,
-  NOISE_AFTER,
-  NOISE_BEFORE,
+  noAnswerCases,
+  noisyAnswerCases,
   silentLogger,
   TEST_EVAL_TAG,
 } from "../_handler-test-fixtures.js";
@@ -529,39 +525,14 @@ async function fbpFail(stdout: string): Promise<UpstreamError> {
   return (await captureRejection(executeFindByProperty(FBP_INPUT, deps(spawnFn)))) as UpstreamError;
 }
 
-test("spec 080 US1: plugin lines before the tagged answer → normal result", async () => {
-  expect(await fbpRun(`${NOISE_BEFORE}${evalAnswerLine(FBP_REAL)}\n`)).toEqual({
-    count: 1,
-    paths: ["backlog/BI-030.md"],
-  });
-});
-
-test("spec 080 US3: look-alikes before and after the tagged answer never win", async () => {
-  const stdout = `${lookalike(FBP_FAKE)}\n${evalAnswerLine(FBP_REAL)}\n${lookalike(FBP_FAKE)}`;
+// US1, US3 check 1, US4, US5
+test.each(noisyAnswerCases(FBP_REAL, FBP_FAKE))("spec 080 $name → normal result", async ({ stdout }) => {
   expect(await fbpRun(stdout)).toEqual({ count: 1, paths: ["backlog/BI-030.md"] });
 });
 
-test("spec 080 US3: a look-alike alone → json-parse failure with the full raw output", async () => {
-  const stdout = NO_ANSWER + lookalike(FBP_FAKE);
+// US3 checks 2–4: the full raw output, never stdoutTail
+test.each(noAnswerCases(FBP_FAKE))("spec 080 $name → json-parse failure with the full raw output", async ({ stdout }) => {
   const err = await fbpFail(stdout);
   expect(err.code).toBe("CLI_REPORTED_ERROR");
   expect(err.details).toEqual({ stdout, stage: "json-parse" });
-});
-
-test("spec 080 US3: no answer → json-parse failure without stdoutTail", async () => {
-  const err = await fbpFail(NO_ANSWER);
-  expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toEqual({ stdout: NO_ANSWER, stage: "json-parse" });
-});
-
-test("spec 080 US3: long output with no answer → the full stdout, still no stdoutTail", async () => {
-  const err = await fbpFail(LONG_NO_ANSWER);
-  expect(err.details).toEqual({ stdout: LONG_NO_ANSWER, stage: "json-parse" });
-});
-
-test("spec 080 US4: plugin output after the tagged answer → normal result", async () => {
-  expect(await fbpRun(`${evalAnswerLine(FBP_REAL)}${NOISE_AFTER}\n`)).toEqual({
-    count: 1,
-    paths: ["backlog/BI-030.md"],
-  });
 });

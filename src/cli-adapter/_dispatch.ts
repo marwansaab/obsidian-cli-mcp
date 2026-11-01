@@ -37,7 +37,7 @@ export interface DispatchInput {
   timeoutMs: number;
   outputCapBytes: number;
   /**
-   * The answer tag `invokeCli` wrapped a typed eval's code with (spec 080). When set on an
+   * The answer tag `invokeEval` wrapped a typed eval's code with (spec 080). When set on an
    * `eval` call, only a `=> ` line carrying this tag counts as an answer at classification.
    */
   evalAnswerTag?: string;
@@ -48,6 +48,11 @@ export interface DispatchOutput {
   stderr: string;
   exitCode: 0;
   argv: string[];
+  /**
+   * Set exactly when the input carried `evalAnswerTag`: the text after that tag on its `=> `
+   * line, or null when no line carries the tag or tagged lines disagree (spec 080).
+   */
+  evalAnswer?: string | null;
 }
 
 export type ResolveBinaryFn = typeof resolveBinary;
@@ -157,6 +162,45 @@ export function isColdStart(value: unknown): boolean {
   if (typeof stdout !== "string") return false;
   const pattern = value.details?.command === "eval" ? COLD_START_LINE_PATTERN : COLD_START_PATTERN;
   return pattern.test(stdout);
+}
+
+/** The `Error:` report an exit-0 output carries (classification priorities (b) and (c)). */
+interface ReportedError {
+  /** The reported line: `details.message` of the classified error. */
+  message: string;
+  /** The report is Obsidian's no-active-file error (priority (b)), matched case-insensitively. */
+  noActiveFile: boolean;
+}
+
+const NO_ACTIVE_FILE_PREFIX = "error: no active file";
+
+/**
+ * Find the `Error:` report in an exit-0 output, or null when it reports none (priority (d)).
+ *
+ * Non-eval commands keep the prefix invariant: the report must START the output (after leading
+ * whitespace), and the message is the output's first line. Upstream emits the capital-N
+ * `"Error: No active file."` on `delete` / `rename` / `outline`; older lowercase fixtures keep
+ * matching (monotonic widening). Substring-anywhere matches are rejected.
+ *
+ * `eval` (spec 080, ADR-029 amendment of 2026-11-01): the output may carry plugin lines, so the
+ * report is Obsidian's last `Error:` line anywhere — but only when the output carries no answer.
+ * A typed eval's answer is its tagged `=> ` line (`evalAnswer`, null when absent; a look-alike is
+ * not an answer); an untagged eval (`evalAnswer` undefined — obsidian_exec) counts any `=> ` line.
+ */
+function exitZeroReportedError(
+  command: string,
+  stdout: string,
+  evalAnswer: string | null | undefined,
+): ReportedError | null {
+  if (command === "eval") {
+    const answered = evalAnswer === undefined ? hasEvalAnswerLine(stdout) : evalAnswer !== null;
+    const line = answered ? null : findReportedErrorLine(stdout);
+    return line === null ? null : { message: line, noActiveFile: line.toLowerCase().startsWith(NO_ACTIVE_FILE_PREFIX) };
+  }
+  const head = stdout.trimStart();
+  const noActiveFile = head.toLowerCase().startsWith(NO_ACTIVE_FILE_PREFIX);
+  if (!noActiveFile && !head.startsWith("Error:")) return null;
+  return { message: stdout.split("\n", 1)[0]!.trim(), noActiveFile };
 }
 
 /**
@@ -572,57 +616,17 @@ async function dispatchOnce(
         return;
       }
 
-      // Spec 080 (ADR-029 amendment of 2026-11-01): `eval` output may carry plugin lines, so
-      // priorities (b) and (c) look at Obsidian's last `Error:` line anywhere in the output — but
-      // only when the output carries no answer. A typed eval's answer is the `=> ` line with its
-      // tag (a look-alike is not an answer); an untagged eval (obsidian_exec) counts any `=> ` line.
-      if (input.command === "eval") {
-        const answered =
-          input.evalAnswerTag !== undefined
-            ? findTaggedEvalAnswer(stdout, input.evalAnswerTag) !== null
-            : hasEvalAnswerLine(stdout);
-        const line = answered ? null : findReportedErrorLine(stdout);
-        if (line !== null && line.toLowerCase().startsWith("error: no active file")) {
-          reject(
-            new UpstreamError({
-              code: "ERR_NO_ACTIVE_FILE",
-              cause: null,
-              details: { argv, command: input.command, stdout, stderr, exitCode: 0, message: line },
-              message:
-                'No active file in Obsidian. Open a note in the editor, or call this tool with target_mode: "specific" and an explicit vault/file.',
-            }),
-          );
-          return;
-        }
-        if (line !== null) {
-          reject(
-            new UpstreamError({
-              code: "CLI_REPORTED_ERROR",
-              cause: null,
-              details: { argv, command: input.command, stdout, stderr, exitCode: 0, message: line },
-            }),
-          );
-          return;
-        }
-        resolve({ stdout, stderr, exitCode: 0, argv });
-        return;
-      }
+      const evalAnswer =
+        input.evalAnswerTag === undefined ? undefined : findTaggedEvalAnswer(stdout, input.evalAnswerTag);
+      const reported = exitZeroReportedError(input.command, stdout, evalAnswer);
 
-      const trimmedHead = stdout.trimStart();
-
-      // Priority (b): ERR_NO_ACTIVE_FILE — exit 0 with stdout starting with the canonical
-      // phrase, case-insensitive (BI-041 FR-001). Upstream emits the capital-N canonical
-      // form `"Error: No active file."` on `delete` / `rename` / `outline`; older lowercase
-      // fixtures keep matching (monotonic widening). For non-eval commands the anchor stays at
-      // the message head — substring-anywhere matches are rejected by the prefix invariant
-      // (`eval` output is classified line by line above). Must precede priority (c).
-      if (trimmedHead.toLowerCase().startsWith("error: no active file")) {
-        const message = stdout.split("\n", 1)[0]!.trim();
+      // Priority (b): ERR_NO_ACTIVE_FILE (BI-041 FR-001). Must precede priority (c).
+      if (reported?.noActiveFile) {
         reject(
           new UpstreamError({
             code: "ERR_NO_ACTIVE_FILE",
             cause: null,
-            details: { argv, command: input.command, stdout, stderr, exitCode: 0, message },
+            details: { argv, command: input.command, stdout, stderr, exitCode: 0, message: reported.message },
             message:
               'No active file in Obsidian. Open a note in the editor, or call this tool with target_mode: "specific" and an explicit vault/file.',
           }),
@@ -630,21 +634,20 @@ async function dispatchOnce(
         return;
       }
 
-      // Priority (c): CLI_REPORTED_ERROR — exit 0 with stdout starting with `Error:` (any other suffix).
-      if (trimmedHead.startsWith("Error:")) {
-        const message = stdout.split("\n", 1)[0]!.trim();
+      // Priority (c): CLI_REPORTED_ERROR — any other reported `Error:` line.
+      if (reported) {
         reject(
           new UpstreamError({
             code: "CLI_REPORTED_ERROR",
             cause: null,
-            details: { argv, command: input.command, stdout, stderr, exitCode: 0, message },
+            details: { argv, command: input.command, stdout, stderr, exitCode: 0, message: reported.message },
           }),
         );
         return;
       }
 
       // Priority (d): success.
-      resolve({ stdout, stderr, exitCode: 0, argv });
+      resolve({ stdout, stderr, exitCode: 0, argv, ...(evalAnswer === undefined ? {} : { evalAnswer }) });
     }
 
     // Listen on both `exit` and `close` so the primitive works with stub spawns

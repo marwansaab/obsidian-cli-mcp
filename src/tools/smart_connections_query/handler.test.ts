@@ -15,13 +15,9 @@ import {
   coldStartResponse,
   EVAL_NONCE_SEAM,
   evalAnswerLine,
-  INVENTED,
-  LONG_NO_ANSWER,
-  lookalike,
   makeQueuedSpawn,
-  NO_ANSWER,
-  NOISE_AFTER,
-  NOISE_BEFORE,
+  noAnswerCases,
+  noisyAnswerCases,
   silentLogger,
   TEST_EVAL_TAG,
   wrappedEvalCode,
@@ -677,64 +673,22 @@ test("no marker: bare JSON stdout (no `=> ` anywhere) → CLI_REPORTED_ERROR sta
   expect(getCount()).toBe(1);
 });
 
-// US1: invented plugin lines before the answer.
-test("invented plugin lines before the tagged answer → normal result", async () => {
-  const envelope = { ok: true, count: 1, matches: [{ path: "A.md", headingPath: [], score: 0.9 }] };
-  const { spawnFn } = makeQueuedSpawn([
-    { stdout: `${INVENTED}${INVENTED}${evalAnswerLine(JSON.stringify(envelope))}\n`, exitCode: 0 },
-  ]);
+// US1, US3 check 1, US4 (before this feature, the LAST-`=> ` read failed on output after the answer), US5.
+const SCQ_REAL = { ok: true, count: 1, matches: [{ path: "A.md", headingPath: [], score: 0.9 }] };
+const SCQ_FAKE = JSON.stringify({ ok: true, count: 1, matches: [{ path: "Fake.md", headingPath: [], score: 0.1 }] });
+
+test.each(noisyAnswerCases(JSON.stringify(SCQ_REAL), SCQ_FAKE))("$name → normal result", async ({ stdout }) => {
+  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
   const result = await executeSmartConnectionsQuery({ query: "x", vault: "Demo", limit: defaultLimit }, deps(spawnFn));
-  expect(result).toEqual({ count: 1, matches: envelope.matches });
+  expect(result).toEqual({ count: 1, matches: SCQ_REAL.matches });
 });
 
-// US4: plugin output after the answer — before this feature, the LAST-`=> ` read failed here.
-test("plugin output after the tagged answer → normal result", async () => {
-  const envelope = { ok: true, count: 1, matches: [{ path: "A.md", headingPath: [], score: 0.9 }] };
-  const { spawnFn } = makeQueuedSpawn([
-    { stdout: `${NOISE_BEFORE}${evalAnswerLine(JSON.stringify(envelope))}${NOISE_AFTER}\n`, exitCode: 0 },
-  ]);
-  const result = await executeSmartConnectionsQuery({ query: "x", vault: "Demo", limit: defaultLimit }, deps(spawnFn));
-  expect(result).toEqual({ count: 1, matches: envelope.matches });
-});
-
-// US3 checks 1–4.
-test("look-alikes before and after the tagged answer never win", async () => {
-  const real = { ok: true, count: 1, matches: [{ path: "A.md", headingPath: [], score: 0.9 }] };
-  const fake = JSON.stringify({ ok: true, count: 1, matches: [{ path: "Fake.md", headingPath: [], score: 0.1 }] });
-  const { spawnFn } = makeQueuedSpawn([
-    { stdout: `${lookalike(fake)}\n${evalAnswerLine(JSON.stringify(real))}\n${lookalike(fake)}\n`, exitCode: 0 },
-  ]);
-  const result = await executeSmartConnectionsQuery({ query: "x", vault: "Demo", limit: defaultLimit }, deps(spawnFn));
-  expect(result).toEqual({ count: 1, matches: real.matches });
-});
-
-test("a look-alike alone → json-parse failure with the raw output, never its result", async () => {
-  const fake = JSON.stringify({ ok: true, count: 1, matches: [{ path: "Fake.md", headingPath: [], score: 0.1 }] });
-  const stdout = `${NO_ANSWER}${lookalike(fake)}\n`;
+// US3 checks 2–4.
+test.each(noAnswerCases(SCQ_FAKE))("$name → json-parse failure with the raw output", async ({ stdout, excerpt }) => {
   const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
   const err = (await captureRejection(
     executeSmartConnectionsQuery({ query: "x", vault: "Demo", limit: defaultLimit }, deps(spawnFn)),
   )) as UpstreamError;
   expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toEqual({ stage: "json-parse", stdout });
-});
-
-test("no answer → json-parse failure without stdoutTail", async () => {
-  const { spawnFn } = makeQueuedSpawn([{ stdout: NO_ANSWER, exitCode: 0 }]);
-  const err = (await captureRejection(
-    executeSmartConnectionsQuery({ query: "x", vault: "Demo", limit: defaultLimit }, deps(spawnFn)),
-  )) as UpstreamError;
-  expect(err.details).toEqual({ stage: "json-parse", stdout: NO_ANSWER });
-});
-
-test("long output with no answer → json-parse failure carrying stdoutTail", async () => {
-  const { spawnFn } = makeQueuedSpawn([{ stdout: LONG_NO_ANSWER, exitCode: 0 }]);
-  const err = (await captureRejection(
-    executeSmartConnectionsQuery({ query: "x", vault: "Demo", limit: defaultLimit }, deps(spawnFn)),
-  )) as UpstreamError;
-  expect(err.details).toEqual({
-    stage: "json-parse",
-    stdout: LONG_NO_ANSWER.slice(0, 500),
-    stdoutTail: LONG_NO_ANSWER.slice(-500),
-  });
+  expect(err.details).toEqual({ stage: "json-parse", ...excerpt });
 });

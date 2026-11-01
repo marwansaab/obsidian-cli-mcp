@@ -31,13 +31,9 @@ import { createQueue } from "../../queue.js";
 import {
   answeredCall,
   captureLogger,
-  evalAnswerLine,
-  LONG_NO_ANSWER,
-  lookalike,
   makeQueuedSpawn,
-  NO_ANSWER,
-  NOISE_AFTER,
-  NOISE_BEFORE,
+  noAnswerCases,
+  noisyAnswerCases,
   TEST_EVAL_TAG,
 } from "../_handler-test-fixtures.js";
 
@@ -963,39 +959,16 @@ describe("spec 080 — plugin output around the focused-vault eval answer (defau
     }
   }
 
-  it("US1 (T020): plugin lines before the answer → normal preview", async () => {
-    expectNormal(await run(`${NOISE_BEFORE}${evalAnswerLine(REAL)}\n`));
+  // US1 (T020), US3 check 1 (T034), US4 (T040), US5
+  it.each(noisyAnswerCases(REAL, FAKE))("$name → normal preview", async ({ stdout }) => {
+    expectNormal(await run(stdout));
   });
 
-  it("US4 (T040): plugin output after the answer → normal preview", async () => {
-    expectNormal(await run(`${evalAnswerLine(REAL)}${NOISE_AFTER}\n`));
-  });
-
-  it("US3 check 1 (T034): look-alikes before and after the answer never win", async () => {
-    expectNormal(await run(`${lookalike(FAKE)}\n${evalAnswerLine(REAL)}\n${lookalike(FAKE)}\n`));
-  });
-
-  it("US3 check 2 (T034): a look-alike alone → CLI_REPORTED_ERROR json-parse with the raw output", async () => {
-    const stdout = `${NO_ANSWER}${lookalike(FAKE)}\n`;
+  // US3 checks 2–4 (T034)
+  it.each(noAnswerCases(FAKE))("$name → CLI_REPORTED_ERROR json-parse with the raw output", async ({ stdout, excerpt }) => {
     const err = (await run(stdout).catch((e: unknown) => e)) as UpstreamError;
     expect(err).toBeInstanceOf(UpstreamError);
     expect(err.code).toBe("CLI_REPORTED_ERROR");
-    expect(err.details).toEqual({ stage: "json-parse", stdout });
-  });
-
-  it("US3 check 3 (T034): no answer → json-parse failure without stdoutTail", async () => {
-    const err = (await run(NO_ANSWER).catch((e: unknown) => e)) as UpstreamError;
-    expect(err.code).toBe("CLI_REPORTED_ERROR");
-    expect(err.details).toEqual({ stage: "json-parse", stdout: NO_ANSWER });
-  });
-
-  it("US3 check 4 (T034): long output with no answer → json-parse failure carrying stdoutTail", async () => {
-    const err = (await run(LONG_NO_ANSWER).catch((e: unknown) => e)) as UpstreamError;
-    expect(err.code).toBe("CLI_REPORTED_ERROR");
-    expect(err.details).toEqual({
-      stage: "json-parse",
-      stdout: LONG_NO_ANSWER.slice(0, 500),
-      stdoutTail: LONG_NO_ANSWER.slice(-500),
-    });
+    expect(err.details).toEqual({ stage: "json-parse", ...excerpt });
   });
 });

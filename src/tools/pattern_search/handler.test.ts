@@ -10,13 +10,10 @@ import {
   captureRejection,
   coldStartResponse,
   EVAL_NONCE_SEAM,
-  evalAnswerLine,
-  LONG_NO_ANSWER,
-  lookalike,
   makeQueuedSpawn,
-  NO_ANSWER,
-  NOISE_AFTER,
+  noAnswerCases,
   NOISE_BEFORE,
+  noisyAnswerCases,
   silentLogger,
   TEST_EVAL_TAG,
 } from "../_handler-test-fixtures.js";
@@ -628,8 +625,14 @@ async function psFail(stdout: string, input: Parameters<typeof executePatternSea
   return (await captureRejection(executePatternSearch(input, deps(spawnFn)))) as UpstreamError;
 }
 
-test("spec 080 US1: plugin lines before the tagged answer → normal result", async () => {
-  expect(await psRun(`${NOISE_BEFORE}${evalAnswerLine(PS_REAL)}\n`)).toEqual({ count: 1, matches: PS_MATCHES });
+test.each(noisyAnswerCases(PS_REAL, PS_FAKE))("spec 080 $name → normal result", async ({ stdout }) => {
+  expect(await psRun(stdout)).toEqual({ count: 1, matches: PS_MATCHES });
+});
+
+test.each(noAnswerCases(PS_FAKE))("spec 080 $name → json-parse failure with the raw output", async ({ stdout, excerpt }) => {
+  const err = await psFail(stdout);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", ...excerpt });
 });
 
 test("spec 080 US1: FOLDER_NOT_FOUND envelope behind plugin lines → its specific error", async () => {
@@ -640,35 +643,4 @@ test("spec 080 US1: FOLDER_NOT_FOUND envelope behind plugin lines → its specif
   });
   expect(err.code).toBe("CLI_REPORTED_ERROR");
   expect(err.details).toMatchObject({ code: "FOLDER_NOT_FOUND", folder: "NoSuchFolder", stage: "handler-stage-3" });
-});
-
-test("spec 080 US3: look-alikes before and after the tagged answer never win", async () => {
-  const stdout = `${lookalike(PS_FAKE)}\n${evalAnswerLine(PS_REAL)}\n${lookalike(PS_FAKE)}`;
-  expect(await psRun(stdout)).toEqual({ count: 1, matches: PS_MATCHES });
-});
-
-test("spec 080 US3: a look-alike alone → json-parse failure with the raw output", async () => {
-  const stdout = NO_ANSWER + lookalike(PS_FAKE);
-  const err = await psFail(stdout);
-  expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toEqual({ stage: "json-parse", stdout });
-});
-
-test("spec 080 US3: no answer → json-parse failure without stdoutTail", async () => {
-  const err = await psFail(NO_ANSWER);
-  expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toEqual({ stage: "json-parse", stdout: NO_ANSWER });
-});
-
-test("spec 080 US3: long output with no answer → json-parse failure carrying stdoutTail", async () => {
-  const err = await psFail(LONG_NO_ANSWER);
-  expect(err.details).toEqual({
-    stage: "json-parse",
-    stdout: LONG_NO_ANSWER.slice(0, 500),
-    stdoutTail: LONG_NO_ANSWER.slice(-500),
-  });
-});
-
-test("spec 080 US4: plugin output after the tagged answer → normal result", async () => {
-  expect(await psRun(`${evalAnswerLine(PS_REAL)}${NOISE_AFTER}\n`)).toEqual({ count: 1, matches: PS_MATCHES });
 });

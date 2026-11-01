@@ -18,6 +18,7 @@ import { EventEmitter } from "node:events";
 import { Readable, Writable } from "node:stream";
 
 import { type SpawnLike } from "../cli-adapter/_dispatch.js";
+import { type InvokeCliDeps } from "../cli-adapter/cli-adapter.js";
 import { evalAnswerTag, wrapEvalCode } from "../cli-adapter/eval-output.js";
 import { createLogger, type Logger } from "../logger.js";
 import { confirmFromResponse } from "./_confirm.js";
@@ -169,22 +170,22 @@ export function fileTsvResponse(relPath: string): StubResponse {
 /** The eval answer-tag nonce handler tests inject through the `evalNonce` deps seam (spec 080). */
 export const TEST_EVAL_NONCE = "00000000-0000-4000-8000-000000000080";
 
-/** The answer tag `invokeCli` wraps eval code with when `evalNonce` returns {@link TEST_EVAL_NONCE}. */
+/** The answer tag `invokeEval` wraps eval code with when `evalNonce` returns {@link TEST_EVAL_NONCE}. */
 export const TEST_EVAL_TAG = evalAnswerTag(TEST_EVAL_NONCE);
 
 /**
  * The `evalNonce` seam returning {@link TEST_EVAL_NONCE}, to spread into a handler's or tool's deps.
- * The seam is an `InvokeCliDeps` field that the handler deps types do not declare, so it is typed
- * `object`: the spread adds it at runtime (deps reach `invokeCli` as passed) without an excess-property error.
+ * It is an `InvokeCliDeps` test seam (like `resolveBinary` / `launchFn`): handlers pass their deps
+ * whole to `invokeEval`, so the spread field reaches it as passed.
  */
-export const EVAL_NONCE_SEAM: object = { evalNonce: (): string => TEST_EVAL_NONCE };
+export const EVAL_NONCE_SEAM: Pick<InvokeCliDeps, "evalNonce"> = { evalNonce: (): string => TEST_EVAL_NONCE };
 
 /** The line Obsidian prints for an eval whose tagged answer is `value` (no trailing newline). */
 export function evalAnswerLine(value: string): string {
   return `=> ${TEST_EVAL_TAG}${value}`;
 }
 
-/** The `code=` value `invokeCli` spawns for eval `code` under {@link TEST_EVAL_NONCE}. */
+/** The `code=` value `invokeEval` spawns for eval `code` under {@link TEST_EVAL_NONCE}. */
 export function wrappedEvalCode(code: string): string {
   return wrapEvalCode(code, TEST_EVAL_TAG);
 }
@@ -207,6 +208,53 @@ export const LONG_NO_ANSWER = NO_ANSWER + "x".repeat(600);
 /** An untagged look-alike answer line carrying `value` — never this call's answer. */
 export function lookalike(value: string): string {
   return `=> ${value}`;
+}
+
+/** One eval output of the spec 080 plugin-noise battery. */
+export interface PluginNoiseCase {
+  name: string;
+  stdout: string;
+}
+
+/**
+ * Spec 080 battery, as data: outputs that carry the tagged `answer` among plugin output. Each eval
+ * suite runs them against its own handler (SC-001 / SC-002 hold per capability) and expects the
+ * result of `answer` alone. `decoy` is a different, valid answer carried by the look-alike lines,
+ * so a look-alike that won would change the result.
+ */
+export function noisyAnswerCases(answer: string, decoy: string): PluginNoiseCase[] {
+  return [
+    { name: "US1: plugin lines before the answer", stdout: `${NOISE_BEFORE}${evalAnswerLine(answer)}\n` },
+    { name: "US4: plugin output after the answer", stdout: `${evalAnswerLine(answer)}${NOISE_AFTER}\n` },
+    {
+      name: "US3: look-alikes before and after the answer never win",
+      stdout: `${lookalike(decoy)}\n${evalAnswerLine(answer)}\n${lookalike(decoy)}\n`,
+    },
+    { name: "US5: invented plugin output around the answer", stdout: `${INVENTED}${evalAnswerLine(answer)}\n${INVENTED}` },
+  ];
+}
+
+/** A {@link noAnswerCases} output, with the bounded raw-output `details` a 500-character excerpt carries (FR-014). */
+export interface NoAnswerCase extends PluginNoiseCase {
+  excerpt: { stdout: string; stdoutTail?: string };
+}
+
+/**
+ * Spec 080 battery, as data: outputs that carry no answer for this call (US3). Each must fail at
+ * the suite's json-parse stage with its raw output: `stdout` for a tool that keeps the whole output,
+ * `excerpt` for one that bounds it at 500 characters.
+ */
+export function noAnswerCases(decoy: string): NoAnswerCase[] {
+  const alone = `${NO_ANSWER}${lookalike(decoy)}`;
+  return [
+    { name: "US3: a look-alike alone", stdout: alone, excerpt: { stdout: alone } },
+    { name: "US3: no answer", stdout: NO_ANSWER, excerpt: { stdout: NO_ANSWER } },
+    {
+      name: "US3: long output with no answer",
+      stdout: LONG_NO_ANSWER,
+      excerpt: { stdout: LONG_NO_ANSWER.slice(0, 500), stdoutTail: LONG_NO_ANSWER.slice(-500) },
+    },
+  ];
 }
 
 /** The focused-file eval reply (FOCUSED_FILE_TEMPLATE): `relPath` (or no focused file) in the vault at `base`. */

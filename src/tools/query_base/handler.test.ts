@@ -23,13 +23,9 @@ import {
   captureRejection,
   coldStartResponse,
   EVAL_NONCE_SEAM,
-  evalAnswerLine,
-  LONG_NO_ANSWER,
-  lookalike,
   makeQueuedSpawn,
-  NO_ANSWER,
-  NOISE_AFTER,
-  NOISE_BEFORE,
+  noAnswerCases,
+  noisyAnswerCases,
   silentLogger,
   TEST_EVAL_TAG,
 } from "../_handler-test-fixtures.js";
@@ -820,42 +816,18 @@ function noVaultRun(evalStdout: string) {
   return { run: executeQueryBase({ base_path: "Indexes/Active.base", view_name: "Open" }, d), statted };
 }
 
-test("spec 080 US1 (T020): plugin lines before the focused-vault answer → normal result", async () => {
-  const { run, statted } = noVaultRun(`${NOISE_BEFORE}${evalAnswerLine(QB_REAL)}\n`);
-  expect((await run).rows).toEqual([{ path: "x.md" }]);
-  expect(statted[0]!.startsWith(TEST_VAULT_ROOT)).toBe(true);
-});
-
-test("spec 080 US4 (T040): plugin output after the focused-vault answer → normal result", async () => {
-  const { run } = noVaultRun(`${evalAnswerLine(QB_REAL)}${NOISE_AFTER}\n`);
-  expect((await run).rows).toEqual([{ path: "x.md" }]);
-});
-
-test("spec 080 US3 check 1 (T034): look-alikes before and after the answer never win", async () => {
-  const { run, statted } = noVaultRun(`${lookalike(QB_FAKE)}\n${evalAnswerLine(QB_REAL)}\n${lookalike(QB_FAKE)}\n`);
+// US1 (T020), US3 check 1 (T034), US4 (T040), US5: the .base path resolves against the real vault root
+test.each(noisyAnswerCases(QB_REAL, QB_FAKE))("spec 080 $name → normal result", async ({ stdout }) => {
+  const { run, statted } = noVaultRun(stdout);
   expect((await run).rows).toEqual([{ path: "x.md" }]);
   expect(statted).toEqual([resolvePath(TEST_VAULT_ROOT, "Indexes/Active.base")]);
 });
 
-test("spec 080 US3 check 2 (T034): a look-alike alone → focused-vault-resolve failure with the raw output", async () => {
-  const stdout = `${NO_ANSWER}${lookalike(QB_FAKE)}\n`;
+// US3 checks 2–4 (T034)
+test.each(noAnswerCases(QB_FAKE))("spec 080 $name → focused-vault-resolve failure with the raw output", async ({ stdout, excerpt }) => {
   const { run, statted } = noVaultRun(stdout);
   const err = (await captureRejection(run)) as UpstreamError;
   expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toEqual({ stage: "focused-vault-resolve", stdout });
+  expect(err.details).toEqual({ stage: "focused-vault-resolve", ...excerpt });
   expect(statted).toEqual([]);
-});
-
-test("spec 080 US3 check 3 (T034): no answer → focused-vault-resolve failure without stdoutTail", async () => {
-  const err = (await captureRejection(noVaultRun(NO_ANSWER).run)) as UpstreamError;
-  expect(err.details).toEqual({ stage: "focused-vault-resolve", stdout: NO_ANSWER });
-});
-
-test("spec 080 US3 check 4 (T034): long output with no answer → focused-vault-resolve failure carrying stdoutTail", async () => {
-  const err = (await captureRejection(noVaultRun(LONG_NO_ANSWER).run)) as UpstreamError;
-  expect(err.details).toEqual({
-    stage: "focused-vault-resolve",
-    stdout: LONG_NO_ANSWER.slice(0, 500),
-    stdoutTail: LONG_NO_ANSWER.slice(-500),
-  });
 });

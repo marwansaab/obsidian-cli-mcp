@@ -47,7 +47,7 @@ Step 1 of quickstart §4 (plugin lines in the raw output) cannot run in the auth
 
 ## Test-side notes
 
-- Handler and tool tests inject the nonce through `EVAL_NONCE_SEAM`, a `{ evalNonce }` object typed `object` and spread into deps: the seam is an `InvokeCliDeps` field that the handler deps types do not declare, and deps reach `invokeCli` as passed.
+- Handler and tool tests inject the nonce through `EVAL_NONCE_SEAM`, a `{ evalNonce }` object typed `Pick<InvokeCliDeps, "evalNonce">` and spread into deps: like `resolveBinary` and `launchFn`, it is an `InvokeCliDeps` test seam that reaches `invokeEval` because handlers pass their deps whole.
 - Tests that pinned the old tolerant parse now pin contract §1 A14: bare JSON with no answer line is a `json-parse` failure (`paths`, `tag`, `find_by_property`, `smart_connections_query`'s old R14 fallback).
 - `get_active_file` has no `ok:false` envelope, so its US1 error case is a wrong-shape answer (`envelope-parse`). `find_by_property` has none either, so its US1 envelope-error case is skipped.
 

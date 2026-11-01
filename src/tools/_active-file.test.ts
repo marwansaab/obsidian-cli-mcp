@@ -50,8 +50,8 @@ function evalDeps(stdout: string): EvalDeps {
 }
 
 /** The `invokeCli` result for `stdout` under the test tag: the raw output plus its located answer. */
-function tagged(stdout: string): { stdout: string; evalAnswer: string | null } {
-  return { stdout, evalAnswer: findTaggedEvalAnswer(stdout, TEST_EVAL_TAG) };
+function tagged(stdout: string): { stdout: string; answer: string | null } {
+  return { stdout, answer: findTaggedEvalAnswer(stdout, TEST_EVAL_TAG) };
 }
 
 const FOCUSED = JSON.stringify({ path: "Notes/a.md", base: "/vault" });
@@ -94,7 +94,7 @@ describe("parseEvalAnswer", () => {
 
   test("throws when the call carries no answer (bare JSON is not an answer)", () => {
     expect(() => parseEvalAnswer(tagged('{"a":1}'))).toThrow(SyntaxError);
-    expect(() => parseEvalAnswer({ stdout: '=> {"a":1}' })).toThrow("eval output carries no answer for this call");
+    expect(() => parseEvalAnswer({ answer: null })).toThrow("eval output carries no answer for this call");
   });
 
   test("throws on invalid JSON (caller wraps the stage)", () => {

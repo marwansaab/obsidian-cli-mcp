@@ -5,7 +5,7 @@
 import { resolve, sep } from "node:path";
 
 import { createQueue } from "../queue.js";
-import { makeQueuedSpawn, makeStubSpawn, silentLogger, type StubResponse, TEST_EVAL_TAG, EVAL_NONCE_SEAM } from "./_handler-test-fixtures.js";
+import { EVAL_NONCE_SEAM, evalAnswerLine, makeQueuedSpawn, makeStubSpawn, silentLogger, type StubResponse } from "./_handler-test-fixtures.js";
 import { createAppendNoteTool } from "./append_note/index.js";
 import { createBacklinksTool } from "./backlinks/index.js";
 import { createBasesTool } from "./bases/index.js";
@@ -72,7 +72,7 @@ function cli(...responses: StubResponse[]) {
 
 /** A one-line eval envelope as the Obsidian CLI prints it. */
 function evalOut(value: unknown): StubResponse {
-  return { stdout: `=> ${TEST_EVAL_TAG}${JSON.stringify(value)}\n`, exitCode: 0 };
+  return { stdout: `${evalAnswerLine(JSON.stringify(value))}\n`, exitCode: 0 };
 }
 
 function out(stdout: string): StubResponse {
@@ -177,12 +177,12 @@ export const TYPED_RESULT_FIXTURES: readonly TypedResultFixture[] = [
   },
   {
     name: "find_by_property",
-    build: () => createFindByPropertyTool(cli(out(`=> ${TEST_EVAL_TAG}{"count":1,"paths":["x.md"]}\n`))),
+    build: () => createFindByPropertyTool(cli(evalOut({ count: 1, paths: ["x.md"] }))),
     args: { vault: "Demo", name: "id", value: "BI-030" },
   },
   {
     name: "find_by_property",
-    build: () => createFindByPropertyTool(cli(out(`=> ${TEST_EVAL_TAG}{"count":1,"paths":["x.md"]}\n`))),
+    build: () => createFindByPropertyTool(cli(evalOut({ count: 1, paths: ["x.md"] }))),
     // Spec 073: deprecated names — the result carries deprecated_parameters.
     args: { vault: "Demo", property: "id", value: "BI-030" },
   },
@@ -285,7 +285,7 @@ export const TYPED_RESULT_FIXTURES: readonly TypedResultFixture[] = [
   },
   {
     name: "read_heading",
-    build: () => createReadHeadingTool(cli(out(`=> ${TEST_EVAL_TAG}{"ok":true,"content":"body."}\n`))),
+    build: () => createReadHeadingTool(cli(evalOut({ ok: true, content: "body." }))),
     args: { target_mode: "active", heading: "A::B" },
   },
   {

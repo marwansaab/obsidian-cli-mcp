@@ -10,13 +10,7 @@ import {
   captureRejection,
   coldStartResponse,
   EVAL_NONCE_SEAM,
-  evalAnswerLine,
-  LONG_NO_ANSWER,
-  lookalike,
   makeQueuedSpawn,
-  NO_ANSWER,
-  NOISE_AFTER,
-  NOISE_BEFORE,
   silentLogger,
   TEST_EVAL_TAG,
   wrappedEvalCode,
@@ -977,66 +971,4 @@ test("BI-034: non-ASCII file wikilink (CJK) round-trips through base64 (FR-009)"
   );
   const payload = decodePayload(recorded[0]!.argv) as { file: unknown };
   expect(payload.file).toBe("笔记");
-});
-
-// =====================================================================
-// Spec 080 — plugin output around the tagged answer
-// =====================================================================
-
-const SCS_INPUT = { target_mode: "specific" as const, vault: "Demo", path: "Source/Note.md", limit: defaultLimit };
-const SCS_MATCHES = [{ path: "Topics/AI.md", headingPath: ["Overview"], score: 0.91 }];
-const SCS_REAL = JSON.stringify({ ok: true, count: 1, matches: SCS_MATCHES });
-const SCS_FAKE = JSON.stringify({ ok: true, count: 1, matches: [{ path: "Fake.md", headingPath: [], score: 0.1 }] });
-
-async function scsRun(stdout: string) {
-  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
-  return executeSmartConnectionsSimilar(SCS_INPUT, deps(spawnFn));
-}
-
-async function scsFail(stdout: string): Promise<UpstreamError> {
-  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
-  return (await captureRejection(executeSmartConnectionsSimilar(SCS_INPUT, deps(spawnFn)))) as UpstreamError;
-}
-
-test("spec 080 US1: plugin lines before the tagged answer → normal result", async () => {
-  expect(await scsRun(`${NOISE_BEFORE}${evalAnswerLine(SCS_REAL)}\n`)).toEqual({ count: 1, matches: SCS_MATCHES });
-});
-
-test("spec 080 US1: SOURCE_NOT_INDEXED envelope behind plugin lines → its specific error", async () => {
-  const err = await scsFail(
-    `${NOISE_BEFORE}${evalAnswerLine('{"ok":false,"code":"SOURCE_NOT_INDEXED","detail":"Source/Note.md"}')}\n`,
-  );
-  expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toMatchObject({ stage: "envelope-error", code: "SOURCE_NOT_INDEXED" });
-});
-
-test("spec 080 US3: look-alikes before and after the tagged answer never win", async () => {
-  const stdout = `${lookalike(SCS_FAKE)}\n${evalAnswerLine(SCS_REAL)}\n${lookalike(SCS_FAKE)}`;
-  expect(await scsRun(stdout)).toEqual({ count: 1, matches: SCS_MATCHES });
-});
-
-test("spec 080 US3: a look-alike alone → json-parse failure with the raw output", async () => {
-  const stdout = NO_ANSWER + lookalike(SCS_FAKE);
-  const err = await scsFail(stdout);
-  expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toEqual({ stage: "json-parse", stdout });
-});
-
-test("spec 080 US3: no answer → json-parse failure without stdoutTail", async () => {
-  const err = await scsFail(NO_ANSWER);
-  expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toEqual({ stage: "json-parse", stdout: NO_ANSWER });
-});
-
-test("spec 080 US3: long output with no answer → json-parse failure carrying stdoutTail", async () => {
-  const err = await scsFail(LONG_NO_ANSWER);
-  expect(err.details).toEqual({
-    stage: "json-parse",
-    stdout: LONG_NO_ANSWER.slice(0, 500),
-    stdoutTail: LONG_NO_ANSWER.slice(-500),
-  });
-});
-
-test("spec 080 US4: plugin output after the tagged answer → normal result", async () => {
-  expect(await scsRun(`${evalAnswerLine(SCS_REAL)}${NOISE_AFTER}\n`)).toEqual({ count: 1, matches: SCS_MATCHES });
 });

@@ -10,7 +10,7 @@ import {
   type QueryBaseRow,
   type QueryBaseWire,
 } from "./schema.js";
-import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
+import { invokeCli, invokeEval, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError, stringDetail } from "../../errors.js";
 import {
   assertCanonicalPath,
@@ -58,15 +58,7 @@ export interface ExecuteDeps extends CallScope {
 }
 
 async function defaultInvokeEval(deps: ExecuteDeps): Promise<FocusedVaultResponse> {
-  const result = await invokeCli(
-    {
-      command: "eval",
-      parameters: { code: FOCUSED_VAULT_TEMPLATE },
-      flags: [],
-      target_mode: "active",
-    },
-    deps,
-  );
+  const result = await invokeEval({ code: FOCUSED_VAULT_TEMPLATE }, deps);
   // Shared double-decode + shape-check; query_base collapses both failure stages
   // into its single focused-vault-resolve stage and discards the cause.
   const out = parseFocusedVault(result);

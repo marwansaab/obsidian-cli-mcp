@@ -1,6 +1,6 @@
 // Original — no upstream. get_active_file handler (BI-063) — reports the active file of the focused vault
 // (target_mode:"active") or a named vault (target_mode:"specific", routed cross-vault). Single eval-composition
-// round-trip through invokeCli → dispatchCli, decoded by the shared decodeEvalEnvelope.
+// round-trip through invokeEval → dispatchCli, decoded by the shared decodeEvalEnvelope.
 //
 // active mode: one target_mode:"active" eval, no vault — runs against the focused vault.
 // specific mode: a pre-eval resolveVaultRootOrRemap(vault) provides the typed unknown-vault check
@@ -14,7 +14,7 @@
 // and does NOT consume resolveActiveFocusedFile (the cohort's no-active-file-is-an-error helper).
 //
 // Recovery (closed vault → ADR-029 cold-start retry; app down → ADR-030 launch) is INHERITED from
-// dispatchCli and vault-correct because the call carries vault=requested. An invokeCli throw (app
+// dispatchCli and vault-correct because the call carries vault=requested. An invokeEval throw (app
 // down/unrecoverable, binary missing) propagates unchanged — never a fabricated success. No per-tool
 // retry/launch; no app-launcher import. Zero new top-level error codes (FR-016 / Principle IV).
 import { ACTIVE_FILE_TEMPLATE } from "./_template.js";
@@ -23,7 +23,7 @@ import {
   type GetActiveFileInput,
   type GetActiveFileOutput,
 } from "./schema.js";
-import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
+import { invokeEval, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { decodeEvalEnvelope, resolveVaultRootOrRemap } from "../_active-file.js";
 
 import type { Logger } from "../../logger.js";
@@ -58,16 +58,7 @@ export async function executeGetActiveFile(
   // One eval. specific → vault=requested + target_mode:"specific" (B1 false → runs IN the named vault).
   // active → no vault + target_mode:"active" (runs against the focused vault). No caller data is injected
   // into the template (no payload), so the only routing is the vault/target_mode carried here.
-  const result = await invokeCli(
-    {
-      command: "eval",
-      vault,
-      parameters: { code: ACTIVE_FILE_TEMPLATE },
-      flags: [],
-      target_mode: input.target_mode,
-    },
-    deps,
-  );
+  const result = await invokeEval({ code: ACTIVE_FILE_TEMPLATE, vault }, deps);
 
   // The call's tagged eval answer → JSON.parse → safeParse straight into the output schema. The frozen template
   // emits exactly that `{ active }` shape — there is no separate ok-wrapped envelope to unwrap, because

@@ -70,7 +70,7 @@ The same table holds for every capability in spec Context, through `invokeCli` â
 - **Published**: none. No tool, parameter, description, schema, output field or error code is added or changed, and `_register-baseline.json` does not move.
 - **Internal**:
   - the `code=` argv value of typed eval calls becomes `wrapEvalCode(template, T)`;
-  - `InvokeCliSuccess` gains `evalAnswer?: string | null`;
-  - `DispatchInput` gains `evalAnswerTag?: string`;
+  - a new facade `invokeEval({ code, vault? }, deps)` returns `{ stdout, stderr, answer: string | null }`; every typed eval goes through it, and `invokeCli` is unchanged (amended at PR #109 review, research D1);
+  - `DispatchInput` gains `evalAnswerTag?: string`, and `DispatchOutput` gains `evalAnswer?: string | null`, set exactly when the tag was;
   - `InvokeCliDeps` gains the test seam `evalNonce?: () => string`;
   - error `details` gain the optional `stdoutTail`.

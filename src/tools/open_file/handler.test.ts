@@ -21,9 +21,9 @@ import {
   evalAnswerLine,
   lookalike,
   makeQueuedSpawn,
-  NO_ANSWER,
-  NOISE_AFTER,
+  noAnswerCases,
   NOISE_BEFORE,
+  noisyAnswerCases,
   silentLogger,
   TEST_EVAL_TAG,
   type StubResponse,
@@ -433,13 +433,28 @@ const OPEN_FAKE = { ok: true, opened: "Fake/Other.md", new_tab: true, placement:
 const OPEN_RESULT = { opened: "Projects/Roadmap.md", vault: "Work", new_tab: false, placement: "active_tab_used" };
 const EVAL_COLD = 'Error: Command "eval" not found. It may require a plugin to be enabled.\n';
 
-test("spec 080 US1 (T018): plugin lines before the answer → normal result", async () => {
-  const { spawnFn } = makeQueuedSpawn([
-    { stdout: `${NOISE_BEFORE}${evalAnswerLine(JSON.stringify(OPEN_OK))}\n`, exitCode: 0 },
-  ]);
-  const result = await executeOpenFile({ vault: "Work", path: "Projects/Roadmap.md" }, deps(spawnFn));
-  expect(result).toEqual(OPEN_RESULT);
-});
+// US1 (T018), US3 (T036) check 1, US4 (T040), US5
+test.each(noisyAnswerCases(JSON.stringify(OPEN_OK), JSON.stringify(OPEN_FAKE)))(
+  "spec 080 $name → normal result",
+  async ({ stdout }) => {
+    const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+    const result = await executeOpenFile({ vault: "Work", path: "Projects/Roadmap.md" }, deps(spawnFn));
+    expect(result).toEqual(OPEN_RESULT);
+  },
+);
+
+// US3 (T036) check 2, plus no answer / long no answer
+test.each(noAnswerCases(JSON.stringify(OPEN_FAKE)))(
+  "spec 080 $name → INTERNAL_ERROR json-parse with the raw output",
+  async ({ stdout, excerpt }) => {
+    const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
+    const err = (await captureRejection(
+      executeOpenFile({ vault: "Work", path: "Projects/Roadmap.md" }, deps(spawnFn)),
+    )) as UpstreamError;
+    expect(err.code).toBe("INTERNAL_ERROR");
+    expect(err.details).toEqual({ stage: "json-parse", ...excerpt });
+  },
+);
 
 test("spec 080 US1 (T018): FILE_NOT_FOUND envelope behind plugin lines → CLI_REPORTED_ERROR/FILE_NOT_FOUND", async () => {
   const envelope = { ok: false, code: "FILE_NOT_FOUND", detail: "Sandbox/missing.md" };
@@ -485,31 +500,4 @@ test("spec 080 US2 (T024, E5b): a look-alike before the cold-start line does not
   const result = await executeOpenFile({ vault: "Work", path: "Projects/Roadmap.md" }, deps(spawnFn));
   expect(result).toEqual(OPEN_RESULT);
   expect(getCount()).toBe(2);
-});
-
-test("spec 080 US3 (T036): look-alikes before and after the answer never win", async () => {
-  const fake = lookalike(JSON.stringify(OPEN_FAKE));
-  const { spawnFn } = makeQueuedSpawn([
-    { stdout: `${fake}\n${evalAnswerLine(JSON.stringify(OPEN_OK))}\n${fake}\n`, exitCode: 0 },
-  ]);
-  const result = await executeOpenFile({ vault: "Work", path: "Projects/Roadmap.md" }, deps(spawnFn));
-  expect(result).toEqual(OPEN_RESULT);
-});
-
-test("spec 080 US3 (T036): a look-alike alone → INTERNAL_ERROR json-parse with the raw output", async () => {
-  const stdout = `${NO_ANSWER}${lookalike(JSON.stringify(OPEN_FAKE))}\n`;
-  const { spawnFn } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
-  const err = (await captureRejection(
-    executeOpenFile({ vault: "Work", path: "Projects/Roadmap.md" }, deps(spawnFn)),
-  )) as UpstreamError;
-  expect(err.code).toBe("INTERNAL_ERROR");
-  expect(err.details).toEqual({ stage: "json-parse", stdout });
-});
-
-test("spec 080 US4 (T040): plugin output after the answer → normal result", async () => {
-  const { spawnFn } = makeQueuedSpawn([
-    { stdout: `${evalAnswerLine(JSON.stringify(OPEN_OK))}${NOISE_AFTER}\n`, exitCode: 0 },
-  ]);
-  const result = await executeOpenFile({ vault: "Work", path: "Projects/Roadmap.md" }, deps(spawnFn));
-  expect(result).toEqual(OPEN_RESULT);
 });

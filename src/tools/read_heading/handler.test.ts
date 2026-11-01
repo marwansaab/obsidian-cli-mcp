@@ -9,12 +9,10 @@ import {
   captureRejection,
   EVAL_NONCE_SEAM,
   evalAnswerLine,
-  LONG_NO_ANSWER,
-  lookalike,
   makeQueuedSpawn,
-  NO_ANSWER,
-  NOISE_AFTER,
+  noAnswerCases,
   NOISE_BEFORE,
+  noisyAnswerCases,
   silentLogger,
   TEST_EVAL_TAG,
 } from "../_handler-test-fixtures.js";
@@ -632,8 +630,14 @@ async function rhFail(stdout: string): Promise<UpstreamError> {
   return (await captureRejection(executeReadHeading(RH_INPUT, deps(spawnFn)))) as UpstreamError;
 }
 
-test("spec 080 US1: plugin lines before the tagged answer → normal result", async () => {
-  expect(await rhRun(`${NOISE_BEFORE}${evalAnswerLine(RH_REAL)}\n`)).toEqual({ content: "real body" });
+test.each(noisyAnswerCases(RH_REAL, RH_FAKE))("spec 080 $name → normal result", async ({ stdout }) => {
+  expect(await rhRun(stdout)).toEqual({ content: "real body" });
+});
+
+test.each(noAnswerCases(RH_FAKE))("spec 080 $name → json-parse failure with the raw output", async ({ stdout, excerpt }) => {
+  const err = await rhFail(stdout);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "json-parse", ...excerpt });
 });
 
 test("spec 080 US1: envelope ok:false behind plugin lines → its specific error", async () => {
@@ -646,35 +650,4 @@ test("spec 080 US1: envelope ok:false behind plugin lines → its specific error
 
 test("spec 080 US2: an Error:-looking plugin line before the tagged answer → normal result", async () => {
   expect(await rhRun(`Error: plugin says hi\n${evalAnswerLine(RH_REAL)}\n`)).toEqual({ content: "real body" });
-});
-
-test("spec 080 US3: look-alikes before and after the tagged answer never win", async () => {
-  const stdout = `${lookalike(RH_FAKE)}\n${evalAnswerLine(RH_REAL)}\n${lookalike(RH_FAKE)}`;
-  expect(await rhRun(stdout)).toEqual({ content: "real body" });
-});
-
-test("spec 080 US3: a look-alike alone → json-parse failure with the raw output", async () => {
-  const stdout = NO_ANSWER + lookalike(RH_FAKE);
-  const err = await rhFail(stdout);
-  expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toEqual({ stage: "json-parse", stdout });
-});
-
-test("spec 080 US3: no answer → json-parse failure without stdoutTail", async () => {
-  const err = await rhFail(NO_ANSWER);
-  expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toEqual({ stage: "json-parse", stdout: NO_ANSWER });
-});
-
-test("spec 080 US3: long output with no answer → json-parse failure carrying stdoutTail", async () => {
-  const err = await rhFail(LONG_NO_ANSWER);
-  expect(err.details).toEqual({
-    stage: "json-parse",
-    stdout: LONG_NO_ANSWER.slice(0, 500),
-    stdoutTail: LONG_NO_ANSWER.slice(-500),
-  });
-});
-
-test("spec 080 US4: plugin output after the tagged answer → normal result", async () => {
-  expect(await rhRun(`${evalAnswerLine(RH_REAL)}${NOISE_AFTER}\n`)).toEqual({ content: "real body" });
 });

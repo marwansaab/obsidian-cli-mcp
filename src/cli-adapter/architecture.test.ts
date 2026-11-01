@@ -1,6 +1,7 @@
 // Original — no upstream. FR-012 / ADR-029 D8 structural guardrail. Converts the
 // "no tool can bypass the single-spawn cold-start retry" invariant from a header comment
-// (which never fails CI) into a failing build. Two invariants:
+// (which never fails CI) into a failing build. Two invariants (plus spec 080's (iii): only the
+// cli-adapter facades spell an `eval` command, so every typed eval carries invokeEval's answer tag):
 //   (i)  node:child_process VALUE imports of spawn/spawnSync/exec/execFile live ONLY in the
 //        sanctioned spawn sites — src/cli-adapter/_dispatch.ts (the CLI spawn site) and
 //        src/app-launcher/app-launcher.ts (the BI-060 GUI-app launch site; type-only imports
@@ -111,6 +112,11 @@ function importsDispatchCli(content: string): boolean {
   return false;
 }
 
+/** True iff `content` spells an `eval` command literal (`command: "eval"`). */
+function buildsEvalCall(content: string): boolean {
+  return /\bcommand:\s*["']eval["']/.test(content);
+}
+
 describe("architecture guardrail (FR-012 / ADR-029 D8)", () => {
   const files = collectProductionFiles(SRC_DIR);
 
@@ -164,8 +170,24 @@ describe("architecture guardrail (FR-012 / ADR-029 D8)", () => {
     expect(offenders).toEqual([]);
   });
 
+  // Spec 080: a typed eval must carry an answer tag, and only invokeEval adds one. A tool that
+  // hand-built `invokeCli({ command: "eval", … })` would silently lose plugin-noise tolerance.
+  it("(iii) only the cli-adapter facades build an `eval` call; tools go through invokeEval", () => {
+    const facades = new Set(["cli-adapter.ts", "invoke-bounded-cli.ts"]);
+    const offenders = files
+      .filter((f) => !facades.has(f.base))
+      .filter((f) => buildsEvalCall(f.content))
+      .map((f) => f.rel);
+    expect(offenders).toEqual([]);
+  });
+
   // Detector self-tests — prove the scan FAILS the build when a bypass is introduced,
   // without actually mutating the tree (T027 "fails when a violating import is introduced").
+  it("detects a hand-built eval call (synthetic)", () => {
+    expect(buildsEvalCall('invokeCli({ command: "eval", parameters: { code }, flags: [] }, deps)')).toBe(true);
+    expect(buildsEvalCall("invokeEval({ code }, deps)")).toBe(false);
+  });
+
   it("detects a spawn value-import bypass (synthetic)", () => {
     expect(hasChildProcessSpawnValueImport('import { spawn } from "node:child_process";')).toBe(true);
     expect(hasChildProcessSpawnValueImport('import { spawn as s } from "node:child_process";')).toBe(true);
