@@ -90,7 +90,11 @@ Errors are `CLI_REPORTED_ERROR` with `details.code` — `BASE_NOT_FOUND`,
 `BASE_MALFORMED`, `VIEW_NOT_FOUND` — or `VALIDATION_ERROR` for bad paths and
 view names. `create_base` content over 3072 UTF-16 code units fails fast with
 `CONTENT_TOO_LARGE`, before the CLI is called, for the same argv reason as
-`prepend` ([mutate](mutate.md#the-cli-wrapped-tools)).
+`prepend` ([mutate](mutate.md#the-cli-wrapped-tools)). Unlike `prepend`
+since PR #106, it has no UTF-8 byte limit, so non-Latin content inside the
+character cap can still reach the size at which Obsidian's command line
+fails; spec 078's plan leaves that to its own item
+([mutate](mutate.md#prepends-two-content-limits)).
 
 `query_base` on a closed registered vault returns its normal result. In the
 T0 check for PR #100, `base:query` answered a closed vault on its first

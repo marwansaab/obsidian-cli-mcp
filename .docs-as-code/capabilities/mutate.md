@@ -12,7 +12,7 @@ below.
 | `patch_heading` | direct filesystem | [docs/tools/patch_heading.md](../../docs/tools/patch_heading.md) |
 | `patch_block` | direct filesystem | [docs/tools/patch_block.md](../../docs/tools/patch_block.md) |
 | `find_and_replace` | direct filesystem scan and write | [docs/tools/find_and_replace.md](../../docs/tools/find_and_replace.md) |
-| `prepend` | native CLI `prepend`, plus one direct-filesystem correction for a bodiless note (PR #104) and a pre-call missing-note check (PR #105) | [docs/tools/prepend.md](../../docs/tools/prepend.md) |
+| `prepend` | native CLI `prepend`, plus one direct-filesystem correction for a bodiless note (PR #104) and a pre-call missing-note check (PR #105); content capped in characters and UTF-8 bytes (PR #106) | [docs/tools/prepend.md](../../docs/tools/prepend.md) |
 | `set_property` | native CLI `property:set` | [docs/tools/set_property.md](../../docs/tools/set_property.md) |
 | `delete` | native CLI `delete` | [docs/tools/delete.md](../../docs/tools/delete.md) |
 | `rename` | native CLI `rename` | [docs/tools/rename.md](../../docs/tools/rename.md) |
@@ -257,6 +257,54 @@ the call fails as `FS_WRITE_FAILED` with
 `details.reason: "post-stat-byte-delta-zero"`. It is not returned as a success
 with `bytes_written: 0`.
 
+### `prepend`'s two content limits
+
+Since PR #106 (spec 078;
+[ADR-051](../decisions/ADR-051-prepend-caps-content-in-utf-8-bytes-as-a-second-limit.md))
+`content` has a second limit, `MAX_CONTENT_BYTES = 3072` UTF-8 bytes, beside
+`MAX_CONTENT_LENGTH = 3072` UTF-16 code units in `src/tools/prepend/schema.ts`.
+The fault the character cap guards against follows the content's UTF-8 size:
+1,500 CJK characters (4,500 bytes) were inside the character cap and crashed
+Obsidian (BI-0123; spec 078 research F2). The two earlier bisects used plain
+Latin text, where the two units coincide, so they could not tell the
+difference.
+
+Both limits run in the schema, so `registerTool` refuses an oversized call
+before target resolution, the filesystem or Obsidian is reached, in every
+target mode and with or without `inline`:
+
+```mermaid
+flowchart LR
+  parse["content: string().min(1)"] --> max[".max(3072, abort)"]
+  max -- "over 3072 code units" --> chars["too_big → CONTENT_TOO_LARGE, no reason"]
+  max -- ok --> bytes["superRefine: Buffer.byteLength(content, utf8)"]
+  bytes -- "over 3072 bytes" --> b["custom, params.subReason bytes → CONTENT_TOO_LARGE, reason bytes"]
+  bytes -- ok --> handler[executePrepend]
+```
+
+- **The size check** is a `superRefine` that measures once and puts the
+  final message (`content exceeds maximum size of 3072 UTF-8 bytes (got N)`)
+  and `params: { subReason: "bytes", contentBytes }` on its `custom` issue.
+  `mapZodIssuesToToolError` in `src/tools/prepend/index.ts` maps that issue
+  to `VALIDATION_ERROR` / `details.code: CONTENT_TOO_LARGE` /
+  `details.reason: "bytes"` with `contentBytes` and `maxBytes`, taking the
+  message and size from the issue. The `params.subReason` key is the
+  convention `find_and_replace`'s mapper already used.
+- **Precedence lives in the schema.** `{ abort: true }` on `.max()` skips the
+  size check once the character limit has failed, so text over both limits
+  carries only `too_big` and gets the character-limit error, unchanged byte
+  for byte (FR-005). The first version let both issues through and had the
+  mapper scan all issues for `too_big` before looking at any `custom` one;
+  PR #106's code-quality review (commit `00cccae`) replaced that two-pass
+  scan, and a second `Buffer.byteLength` over the raw arguments, with the
+  `abort` flag and the measured issue. `abort` and the refine add nothing to
+  the emitted JSON Schema, which still publishes only `maxLength: 3072`; the
+  byte limit is visible in the `content` description and `PREPEND_DESCRIPTION`,
+  both of which interpolate the constants.
+- **Behaviour change.** Non-Latin calls between 3,073 bytes and the fault
+  (about 4 KB) that sometimes succeeded before are now refused; `write_note`
+  is the route for them, as it already was for long Latin text.
+
 ### `prepend` on a note with no body
 
 Since PR #104 (spec 076;
@@ -487,6 +535,13 @@ from their schema would have reached the client as SDK free text rather than
   trailing line break (spec 076 contract E12). The bytes are the same as an
   insertion into a note with a body, and changing such a note would break
   spec 076 FR-006. `docs/tools/prepend.md` documents it.
+- `prepend`'s byte limit (PR #106) counts `content` only. `path` and `vault`
+  travel on the same command line and are not counted, so a long non-Latin
+  path uses part of the ~1 KB headroom (spec 078 Assumptions). Every other
+  tool that passes text on Obsidian's command line has the character-vs-byte
+  gap `prepend` had: `create_base`'s `content` is still capped in UTF-16 code
+  units only, and `set_property` values are not size-checked
+  ([bases](bases.md#failure); spec 078 plan Follow-ups).
 - A default-mode `prepend` now reads the whole note before the call and,
   because Obsidian adds one LF on every default call, reads it again after
   almost every successful one. The content cap bounds the predicate, not the
