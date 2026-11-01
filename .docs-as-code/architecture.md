@@ -1169,7 +1169,11 @@ them:
   and messages did not change, and `stdoutLength` is context, not a
   sub-discriminator (ADR-015). Before PR #110 the sites disagreed: most kept
   the first 500 characters, which would have cut off an answer that came
-  after plugin output, and some kept the whole stdout.
+  after plugin output, and some kept the whole stdout. Since PR #111 the
+  bound itself is `boundedExcerpt(text)` in the same file, which
+  `stdoutDetails` composes; `views_base` applies it to a malformed Base's
+  report in `details.message`, outside the eval path
+  ([Bases](capabilities/bases.md#failure)).
 - **Other plugins' output is ignored.** Until PR #110 every handler stripped
   the `=> ` the CLI puts in front of the answer at the head of stdout,
   except `smart_connections_query`, which took the last `=> ` line

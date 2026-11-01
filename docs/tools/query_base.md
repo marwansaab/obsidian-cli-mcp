@@ -79,6 +79,8 @@ Example row: `{ "path": "Sandbox/intval.md", "file path": "Sandbox/intval.md", "
 | `OUTPUT_CAP_EXCEEDED`   | —                     | Upstream stdout exceeded 10 MiB | The view returns too much data; narrow the filter or paginate via a view declaration that limits row count. |
 | `INTERNAL_ERROR`        | —                     | Wrapper invariant violation | File a bug. |
 
+`BASE_MALFORMED` (except `empty`) carries the upstream report verbatim in `details.message`, with no length bound and no `details.messageLength`. `views_base` reports the same `invalid-yaml` complaint bounded to its first and last 500 characters when it is longer than 1,000, with `details.messageLength`; `query_base` was deliberately left unchanged by spec 081.
+
 ## Worked examples
 
 ### Example 1 — Happy path
