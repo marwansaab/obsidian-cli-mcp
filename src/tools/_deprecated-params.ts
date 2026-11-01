@@ -1,4 +1,4 @@
-// Original — no upstream. Shared deprecated-parameter-name mechanics for the family-name alignment (spec 073, research D1–D4, ADR-NNN): alias field builder, the fold from old names to new names (conflict issue, polarity, notices) and the deprecated_parameters result field.
+// Original — no upstream. Shared deprecated-parameter-name mechanics for the family-name alignment (spec 073, research D1–D4, ADR-046): alias field builder, the fold from old names to new names (conflict issue, polarity, notices) and the deprecated_parameters result field.
 import { z } from "zod";
 
 /** One renamed parameter: the old (deprecated) key and the key that replaces it. */

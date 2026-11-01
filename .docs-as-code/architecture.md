@@ -481,10 +481,10 @@ and [ADR-048](decisions/ADR-048-bytes-written-is-the-size-change.md).
 Since PR #101 (spec 073, BI-0109) a parameter can be renamed without breaking
 callers that use the old name. The convention it serves — one concept, one
 parameter name within a tool family — is recorded in
-[ADR-NNN](decisions/ADR-NNN-shared-parameter-names-within-a-tool-family.md)
-(Shared Parameter Names Within a Tool Family), whose number is allocated at the
-next vault sync. Seven parameters on `find_by_property`, `find_and_replace` and
-`create_base` were renamed this way; the capability pages name them.
+[ADR-046](decisions/ADR-046-shared-parameter-names-within-a-tool-family.md)
+(Shared Parameter Names Within a Tool Family). Seven parameters on
+`find_by_property`, `find_and_replace` and `create_base` were renamed this way;
+the capability pages name them.
 
 The mechanics live in one leaf module,
 [src/tools/_deprecated-params.ts](../src/tools/_deprecated-params.ts), which

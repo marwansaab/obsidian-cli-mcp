@@ -102,7 +102,7 @@ and `query_base` say `base_path` and `view_name`. It now takes `base_path` and
 are accepted until the next major release, with a `deprecated_parameters`
 notice in the result
 ([architecture](../architecture.md#renamed-parameters-deprecated-aliases-folded-before-validation),
-[ADR-NNN](../decisions/ADR-NNN-shared-parameter-names-within-a-tool-family.md)).
+[ADR-046](../decisions/ADR-046-shared-parameter-names-within-a-tool-family.md)).
 All three path-taking tools now validate the field `base_path`, so
 `create_base`'s `INVALID_BASE_PATH` issues report `field: "base_path"` where
 they used to say `"path"`; that is the PR's one machine-readable change. The
