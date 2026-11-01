@@ -94,13 +94,19 @@ export const targetModeSchema = applyTargetModeRefinement(targetModeBaseSchema);
 
 export type TargetMode = z.infer<typeof targetModeSchema>;
 
+function folderScopedLocatorMessage(key: "file" | "path"): string {
+  return `${key} is not allowed for folder-scoped tools`;
+}
+
 // Folder-scoped variant of applyTargetModeRefinement (introduced by feature
 // 019-list-files). The folder-scoped surface forbids the file-scoped locator
 // fields (`file` and `path`) in BOTH modes — they have no meaning for tools
 // that operate on a vault folder. The existing in-specific-requires-vault
-// and in-active-forbids-vault rules are preserved verbatim.
+// and in-active-forbids-vault rules are preserved verbatim. A caller may supply
+// its own locator message (082: get_active_file names the active file instead).
 export function applyTargetModeRefinementForFolderScoped<T extends z.ZodObject>(
   schema: T,
+  locatorMessage: (key: "file" | "path") => string = folderScopedLocatorMessage,
 ): T {
   return schema.superRefine((input, ctx) => {
     const record = input as Record<string, unknown>;
@@ -108,14 +114,14 @@ export function applyTargetModeRefinementForFolderScoped<T extends z.ZodObject>(
       ctx.addIssue({
         code: "custom",
         path: ["file"],
-        message: "file is not allowed for folder-scoped tools",
+        message: locatorMessage("file"),
       });
     }
     if (Object.hasOwn(record, "path") && record.path !== undefined) {
       ctx.addIssue({
         code: "custom",
         path: ["path"],
-        message: "path is not allowed for folder-scoped tools",
+        message: locatorMessage("path"),
       });
     }
     if (record.target_mode === "specific") {

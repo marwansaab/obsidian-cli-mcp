@@ -1,7 +1,7 @@
 // Original — no upstream. Frozen `obsidian eval` template for get_active_file (BI-063, research D4). A plain
 // synchronous IIFE that reads app.workspace.getActiveFile() and returns { active: { path, name, basename,
 // extension } | null } — the exact published output shape. The four fields map directly to Obsidian TFile
-// members; the name = basename + extension, multi-dot, and no-extension rules are the substrate's own
+// members; the name = basename + "." + extension, multi-dot, and no-extension rules are the substrate's own
 // semantics (no re-parser). There is NO ok-wrapper: getActiveFile() returns a TFile or null and cannot fail
 // at the eval level, so unlike the discriminated-union cohort (backlinks/links/open_file) there is no
 // ok:false arm to discriminate — the body emits `{ active }` directly and decodeEvalEnvelope validates it

@@ -26,7 +26,7 @@ In `specific` mode the answer reflects the named vault's active file **even when
 | Field | Meaning |
 |-------|---------|
 | `path` | Vault-relative path. Directly reusable as a `path` locator for a follow-up call against the same file. |
-| `name` | File name including extension. `name === basename + extension`. |
+| `name` | File name including extension: `basename + "." + extension`, or just `basename` when `extension` is `""` (`note.md` → `note` + `.` + `md`). |
 | `basename` | Name without the final extension. `note.draft.md` → `note.draft`. |
 | `extension` | Final dot-delimited segment without the dot, or `""` when the name has no dot (then `name === basename`). |
 

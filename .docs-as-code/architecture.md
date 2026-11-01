@@ -934,7 +934,25 @@ later"; ADR-040).
 Folder-scoped tools use a variant of the refinement that takes `folder`
 instead of `file`/`path`. Since PR #90 `files`, `paths` and `get_active_file`
 build on `folderScopedTargetModeBaseSchema`, the same fields re-described for
-that rule: `file` and `path` are published as "not accepted by this tool". The Bases tools take only an optional `vault`, and
+that rule: `file` and `path` are published as "not accepted by this tool".
+`paths` goes one step further and omits both fields
+(`.omit({ file: true, path: true })`), so a locator sent to it is rejected by
+the strict object as `unrecognized_keys` before the refinement runs; earlier
+wording here implied all three publish the fields, which was wrong for
+`paths` (PR #112 pins that behaviour as case U3).
+
+The folder-scoped refinement,
+`applyTargetModeRefinementForFolderScoped` in
+[src/target-mode/target-mode.ts](../src/target-mode/target-mode.ts), takes an
+optional second argument, `locatorMessage: (key) => string` (PR #112, spec 082
+D1). Only the message text is a parameter; which inputs are rejected, the issue
+path and the issue order do not change, and the vault rules keep their fixed
+wording. When the argument is omitted, a private default returns
+"`<key>` is not allowed for folder-scoped tools", so `files` and `paths` are
+byte-identical by construction. `get_active_file` passes its own message,
+because "folder-scoped" misdescribed a tool whose target is the active file.
+A message is invisible to JSON Schema, so the change moved no
+`schemaFingerprint` in the register baseline. The Bases tools take only an optional `vault`, and
 omitting it means the focused vault. (`bases` accepts `vault`, but the CLI
 currently ignores it; its doc says so.)
 

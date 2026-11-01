@@ -456,6 +456,44 @@ describe("target-mode primitive", () => {
         expect(r.error.issues.some((i) => i.path.includes("vault"))).toBe(true);
       }
     });
+
+    // 082 U4 — with no locatorMessage, the folder-scoped wording is the default (files/paths rely on it).
+    it("defaults the locator messages to the folder-scoped wording", () => {
+      const f = folderSchema.safeParse({ target_mode: "specific", vault: "V", file: "F" });
+      const p = folderSchema.safeParse({ target_mode: "specific", vault: "V", path: "x.md" });
+      expect(f.success ? [] : f.error.issues.map((i) => [i.path, i.message])).toEqual([
+        [["file"], "file is not allowed for folder-scoped tools"],
+      ]);
+      expect(p.success ? [] : p.error.issues.map((i) => [i.path, i.message])).toEqual([
+        [["path"], "path is not allowed for folder-scoped tools"],
+      ]);
+    });
+
+    // 082 U5 — a caller-supplied locatorMessage replaces only the file/path texts; vault rules unchanged.
+    it("uses a supplied locatorMessage for file/path and leaves the vault messages unchanged", () => {
+      const custom = applyTargetModeRefinementForFolderScoped(
+        targetModeBaseSchema.extend({ folder: z.string().min(1).optional() }),
+        (key) => `custom ${key}`,
+      );
+      const both = custom.safeParse({
+        target_mode: "specific",
+        vault: "V",
+        file: "F",
+        path: "x.md",
+      });
+      expect(both.success ? [] : both.error.issues.map((i) => [i.path, i.message])).toEqual([
+        [["file"], "custom file"],
+        [["path"], "custom path"],
+      ]);
+      const noVault = custom.safeParse({ target_mode: "specific" });
+      expect(noVault.success ? [] : noVault.error.issues.map((i) => [i.path, i.message])).toEqual([
+        [["vault"], "vault is required in specific mode"],
+      ]);
+      const activeVault = custom.safeParse({ target_mode: "active", vault: "V" });
+      expect(
+        activeVault.success ? [] : activeVault.error.issues.map((i) => [i.path, i.message]),
+      ).toEqual([[["vault"], "vault is not allowed in active mode"]]);
+    });
   });
 
   // -----------------------------------------------------------------------------------------------

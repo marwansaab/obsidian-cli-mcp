@@ -66,6 +66,12 @@ describe("createGetActiveFileTool — descriptor", () => {
     expect(lower).toContain("vault_not_found");
   });
 
+  // 082 F1: the dot is part of the stated name formula; no dot-less join in any spacing or backtick form.
+  it('states name as basename + "." + extension, never a dot-less join', () => {
+    expect(GET_ACTIVE_FILE_DESCRIPTION).toContain('`basename + "." + extension`');
+    expect(GET_ACTIVE_FILE_DESCRIPTION).not.toMatch(/basename`?\s*\+\s*`?extension/);
+  });
+
   it("documents that no-active-file is a success, NOT ERR_NO_ACTIVE_FILE", () => {
     const desc = makeTool().descriptor.description;
     expect(desc).toContain("ERR_NO_ACTIVE_FILE");
@@ -89,6 +95,11 @@ describe("createGetActiveFileTool — schema-layer rejections route through the 
     if ("isError" in result && result.isError) {
       const payload = JSON.parse(result.content[0]!.text);
       expect(payload.code).toBe("VALIDATION_ERROR");
+      // 082 A2 on the wire: the active-file reason, never the folder-scoped wording.
+      expect(payload.details.issues[0].message).toBe(
+        "path is not allowed: the active file is the implicit target, so no note may be named",
+      );
+      expect(result.content[0]!.text).not.toContain("folder-scoped");
     }
   });
 
@@ -154,6 +165,17 @@ describe("docs/tools/get_active_file.md exists and is non-stub", () => {
     expect(body).toMatch(/\{ "active": null \}/);
     expect(body).toContain("ERR_NO_ACTIVE_FILE");
     expect(body).toMatch(/help\(\{ tool_name: "get_active_file" \}\)/);
+    // 082 F2: the name row states the dotted formula, with no dot-less join.
+    expect(body).toContain('`basename + "." + extension`');
+    expect(body).not.toMatch(/basename`?\s*\+\s*`?extension/);
+    // 082 F3: every worked example fits name = basename + "." + extension (just basename when extension is "").
+    const triplets = [
+      ...body.matchAll(/"name": "([^"]*)", "basename": "([^"]*)", "extension": "([^"]*)"/g),
+    ];
+    expect(triplets.length).toBeGreaterThanOrEqual(3);
+    for (const [, name, basename, extension] of triplets) {
+      expect(name).toBe(extension ? `${basename}.${extension}` : basename);
+    }
   });
 });
 

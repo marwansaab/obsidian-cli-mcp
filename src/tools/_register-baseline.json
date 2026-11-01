@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedFromBranch": "081-classify-malformed-base",
+  "generatedFromBranch": "082-fix-active-file-messaging",
   "generatedAt": "2026-11-01",
   "tools": [
     {
@@ -77,7 +77,7 @@
     },
     {
       "name": "get_active_file",
-      "descriptionFingerprint": "5b3a0d945417b7fbed42de4c6f5a27cef450c2ccb744d5c148f5238d7665c734",
+      "descriptionFingerprint": "4e72edfdc29bf4cd957302a53919b20d26402d78b4205e8aa1e10ea606458726",
       "schemaFingerprint": "8443d4e3c4440baf1c042410b90defdaeb46f1dfb572b89a43df39fa70dd4cba",
       "titleFingerprint": "173b8920b22afb40ff84bc2d595456198882ea66ce9d5e0b06bab06f52241f83",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",

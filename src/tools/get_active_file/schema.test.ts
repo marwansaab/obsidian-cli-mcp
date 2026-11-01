@@ -53,26 +53,61 @@ test("active with vault → issue 'vault is not allowed in active mode' on ['vau
   }
 });
 
-// file / path forbidden in BOTH modes (no locator — the active file is the implicit target).
+// file / path forbidden in BOTH modes (no locator — the active file is the implicit target). 082: the
+// message names that reason, never the folder-scoped wording `files` / `paths` use (contract A1–A9).
+const FILE_MESSAGE =
+  "file is not allowed: the active file is the implicit target, so no note may be named";
+const PATH_MESSAGE =
+  "path is not allowed: the active file is the implicit target, so no note may be named";
+
+function issuesOf(input: unknown): Array<[PropertyKey[], string]> {
+  const r = getActiveFileInputSchema.safeParse(input);
+  return r.success ? [] : r.error.issues.map((i) => [i.path, i.message]);
+}
+
 for (const target_mode of ["active", "specific"] as const) {
   const base = target_mode === "specific" ? { target_mode, vault: "V" } : { target_mode };
 
-  test(`${target_mode} mode rejects file (folder-scoped, no locator)`, () => {
-    const r = getActiveFileInputSchema.safeParse({ ...base, file: "Note" });
-    expect(r.success).toBe(false);
-    if (!r.success) {
-      expect(r.error.issues.some((i) => i.path.includes("file"))).toBe(true);
-    }
+  test(`${target_mode} mode rejects file (no locator) with the active-file message`, () => {
+    const issues = issuesOf({ ...base, file: "Note" });
+    expect(issues).toEqual([[["file"], FILE_MESSAGE]]);
+    expect(issues.some(([, m]) => m.includes("folder-scoped"))).toBe(false);
   });
 
-  test(`${target_mode} mode rejects path (folder-scoped, no locator)`, () => {
-    const r = getActiveFileInputSchema.safeParse({ ...base, path: "x.md" });
-    expect(r.success).toBe(false);
-    if (!r.success) {
-      expect(r.error.issues.some((i) => i.path.includes("path"))).toBe(true);
-    }
+  test(`${target_mode} mode rejects path (no locator) with the active-file message`, () => {
+    const issues = issuesOf({ ...base, path: "x.md" });
+    expect(issues).toEqual([[["path"], PATH_MESSAGE]]);
+    expect(issues.some(([, m]) => m.includes("folder-scoped"))).toBe(false);
+  });
+
+  test(`${target_mode} mode rejects both file and path, each with its message`, () => {
+    const issues = issuesOf({ ...base, file: "Note", path: "x.md" });
+    expect(issues).toEqual([
+      [["file"], FILE_MESSAGE],
+      [["path"], PATH_MESSAGE],
+    ]);
   });
 }
+
+test("specific without vault but with file → the file message plus the unchanged vault message (A7)", () => {
+  expect(issuesOf({ target_mode: "specific", file: "Note" })).toEqual([
+    [["file"], FILE_MESSAGE],
+    [["vault"], "vault is required in specific mode"],
+  ]);
+});
+
+test("active with vault and path → the path message plus the unchanged vault message (A8)", () => {
+  expect(issuesOf({ target_mode: "active", vault: "V", path: "x.md" })).toEqual([
+    [["path"], PATH_MESSAGE],
+    [["vault"], "vault is not allowed in active mode"],
+  ]);
+});
+
+test("active with an explicitly undefined file → accepted (A9)", () => {
+  expect(
+    getActiveFileInputSchema.safeParse({ target_mode: "active", file: undefined }).success,
+  ).toBe(true);
+});
 
 test("unknown top-level field → unrecognized_keys (.strict())", () => {
   const r = getActiveFileInputSchema.safeParse({ target_mode: "active", pane: "left" });
