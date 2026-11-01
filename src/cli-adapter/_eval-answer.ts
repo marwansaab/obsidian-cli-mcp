@@ -1,12 +1,15 @@
-// Original — no upstream. Per-call eval answer tag and stdout line scanning (spec 080, ADR-029 2026-11-01 amendment): invokeCli wraps every typed `eval` so its answer prints as `=> <<TAG>>…`, and the dispatch layer and invokeCli find that line (or, untagged, any `=> ` line; or an error line) anywhere in stdout instead of only at its head, so other plugins' output around the answer is ignored.
+// Original — no upstream. Per-call eval answer tag and stdout line scanning (spec 080, ADR-029 2026-11-01 amendment): invokeEval wraps every typed `eval` so its answer prints as `=> <<TAG>>…`, and the dispatch layer finds that line (or, untagged, any `=> ` line) anywhere in stdout instead of only at its head, so other plugins' output around the answer is ignored.
 import { randomUUID } from "node:crypto";
 
 /** The prefix `obsidian eval` prints ahead of the expression's value. */
 export const EVAL_ANSWER_PREFIX = "=> ";
 
-/** A fresh answer tag for one `invokeCli` call. */
+/** Every answer tag starts with this. */
+export const ANSWER_TAG_PREFIX = "ocm-";
+
+/** A fresh answer tag for one `invokeEval` call. */
 export function mintAnswerTag(): string {
-  return "ocm-" + randomUUID();
+  return ANSWER_TAG_PREFIX + randomUUID();
 }
 
 /**
@@ -37,14 +40,4 @@ export function findAnswer(stdout: string, tag?: string): string | undefined {
     if (line.startsWith(marker)) return line.slice(marker.length);
   }
   return undefined;
-}
-
-/** The first line that starts `error: no active file` (case-insensitive), for contract C2. */
-export function findNoActiveFileLine(stdout: string): string | undefined {
-  return stdoutLines(stdout).find((line) => line.toLowerCase().startsWith("error: no active file"));
-}
-
-/** The first line that starts `Error:`, for contract C3. */
-export function findErrorLine(stdout: string): string | undefined {
-  return stdoutLines(stdout).find((line) => line.startsWith("Error:"));
 }

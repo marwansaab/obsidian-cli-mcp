@@ -14,9 +14,9 @@ import {
   captureRejection,
   makeQueuedSpawn,
   makeStubSpawn,
-  setTaggedStdoutTransform,
   silentLogger,
   unwrapEvalCode,
+  withTaggedStdoutTransform,
 } from "./_handler-test-fixtures.js";
 import { wrapEvalCode } from "../cli-adapter/_eval-answer.js";
 
@@ -73,20 +73,34 @@ describe("answer-tag awareness (spec 080)", () => {
     expect(await readToString(c2.stdout)).toBe("tag=none");
   });
 
-  it("the tagged-stdout transform rewrites wrapped string stdout only, until cleared", async () => {
-    setTaggedStdoutTransform((stdout, tag) => `noise ${tag}\n${stdout}`);
-    try {
-      const { spawnFn } = makeStubSpawn({ stdout: "=> 1\n" });
-      const wrapped = spawnFn("obsidian", wrappedArgv, {}) as StubChild;
-      expect(await readToString(wrapped.stdout)).toBe(`noise ${TAG}\n=> <<${TAG}>>1\n`);
-      const plain = spawnFn("obsidian", ["read"], {}) as StubChild;
-      expect(await readToString(plain.stdout)).toBe("=> 1\n");
-    } finally {
-      setTaggedStdoutTransform(undefined);
-    }
+  it("the tagged-stdout transform rewrites wrapped string stdout only, while its run is pending", async () => {
     const { spawnFn } = makeStubSpawn({ stdout: "=> 1\n" });
+    await withTaggedStdoutTransform(
+      (stdout, tag) => `noise ${tag}\n${stdout}`,
+      async () => {
+        const wrapped = spawnFn("obsidian", wrappedArgv, {}) as StubChild;
+        expect(await readToString(wrapped.stdout)).toBe(`noise ${TAG}\n=> <<${TAG}>>1\n`);
+        const plain = spawnFn("obsidian", ["read"], {}) as StubChild;
+        expect(await readToString(plain.stdout)).toBe("=> 1\n");
+      },
+    );
     const after = spawnFn("obsidian", wrappedArgv, {}) as StubChild;
     expect(await readToString(after.stdout)).toBe(`=> <<${TAG}>>1\n`);
+  });
+
+  it("the tagged-stdout transform is cleared when its run throws, and calls do not nest", async () => {
+    const boom = new Error("boom");
+    await expect(withTaggedStdoutTransform((s) => s, async () => Promise.reject(boom))).rejects.toBe(boom);
+    await withTaggedStdoutTransform(
+      (s) => s,
+      async () => {
+        await expect(withTaggedStdoutTransform((s) => s, async () => undefined)).rejects.toThrow(
+          "withTaggedStdoutTransform calls do not nest",
+        );
+      },
+    );
+    const { spawnFn } = makeStubSpawn({ stdout: "=> 1\n" });
+    expect(await readToString((spawnFn("obsidian", wrappedArgv, {}) as StubChild).stdout)).toBe(`=> <<${TAG}>>1\n`);
   });
 
   it("answerTagFromArgv reads the tag, or undefined when the code is not wrapped", () => {

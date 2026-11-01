@@ -1,4 +1,4 @@
-// Original — no upstream. read_heading handler: single invokeCli wrapper around the eval subcommand with a frozen JS template + base64 payload (R6 anti-injection); reuses Obsidian's pre-parsed metadataCache headings array (R7); two-stage envelope parse with discriminator-mapped UpstreamError (R13); Setext defence-in-depth filter (R14).
+// Original — no upstream. read_heading handler: single invokeEval call with a frozen JS template + base64 payload (R6 anti-injection); reuses Obsidian's pre-parsed metadataCache headings array (R7); two-stage envelope parse with discriminator-mapped UpstreamError (R13); Setext defence-in-depth filter (R14).
 import { JS_TEMPLATE } from "./_template.js";
 import {
   HEADING_PATH_SEPARATOR,
@@ -6,9 +6,9 @@ import {
   type ReadHeadingInput,
   type ReadHeadingOutput,
 } from "./schema.js";
-import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
+import { invokeEval, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import { parseEvalAnswer, stdoutDetails } from "../_eval-parse.js";
+import { decodeEvalEnvelope } from "../_active-file.js";
 import { composeEvalCode } from "../_shared.js";
 
 import type { Logger } from "../../logger.js";
@@ -32,43 +32,16 @@ export async function executeReadHeading(
     segments: input.heading.split(HEADING_PATH_SEPARATOR),
   });
 
-  const result = await invokeCli(
-    {
-      command: "eval",
-      vault: input.target_mode === "specific" ? input.vault : undefined,
-      parameters: { code },
-      flags: [],
-      target_mode: input.target_mode,
-    },
-    deps,
-  );
+  const result = await invokeEval({ code, vault: input.target_mode === "specific" ? input.vault : undefined }, deps);
 
+  const envelope = decodeEvalEnvelope(result, readHeadingEvalResponseSchema, {
+    toolName: "read_heading",
+    malformedCode: "CLI_REPORTED_ERROR",
+  });
 
-  let parsedJson: unknown;
-  try {
-    parsedJson = parseEvalAnswer(result.answer);
-  } catch (err) {
-    throw new UpstreamError({
-      code: "CLI_REPORTED_ERROR",
-      cause: err,
-      details: { stage: "json-parse", ...stdoutDetails(result.stdout) },
-      message: `read_heading: eval response is not JSON: ${result.stdout.slice(0, 200)}`,
-    });
-  }
+  if (envelope.ok === true) return { content: envelope.content };
 
-  const validated = readHeadingEvalResponseSchema.safeParse(parsedJson);
-  if (!validated.success) {
-    throw new UpstreamError({
-      code: "CLI_REPORTED_ERROR",
-      cause: validated.error,
-      details: { stage: "envelope-parse", ...stdoutDetails(result.stdout) },
-      message: "read_heading: eval response shape unexpected",
-    });
-  }
-
-  if (validated.data.ok === true) return { content: validated.data.content };
-
-  const { code: envelopeCode, detail } = validated.data;
+  const { code: envelopeCode, detail } = envelope;
   if (envelopeCode === "NO_ACTIVE_FILE") {
     throw new UpstreamError({
       code: "ERR_NO_ACTIVE_FILE",

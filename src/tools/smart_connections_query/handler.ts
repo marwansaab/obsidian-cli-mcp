@@ -1,4 +1,4 @@
-// Original — no upstream. smart_connections_query handler — single invokeCli wrapper around the eval subcommand with the frozen JS template + base64 JSON payload (R6 anti-injection); R2/R3 single-call architecture branched at envelope-emission on a.total; a closed vault is brought up by the shared ADR-029 cold-start retry inside invokeCli, and a vault that cannot be brought up propagates as that retry's CLI_REPORTED_ERROR unchanged (spec 072); stage-1 extraction reads the call's tagged eval answer (spec 080 FR-002, superseding the R14 LAST-`=> ` strategy) because the plugin's lookup API emits plugin-side console.log output around the eval-return line; two-stage parse (JSON.parse → smartConnectionsQueryEvalResponseSchema.safeParse); envelope ok:false → UpstreamError mapping per R13 — three envelope codes flatten the (code, reason) pair for parse-time discrimination; handler unflattens into CLI_REPORTED_ERROR(details.code='SMART_CONNECTIONS_NOT_READY', details.reason='api-missing'|'embed-failed') per ADR-015.
+// Original — no upstream. smart_connections_query handler — single invokeEval call with the frozen JS template + base64 JSON payload (R6 anti-injection); R2/R3 single-call architecture branched at envelope-emission on a.total; a closed vault is brought up by the shared ADR-029 cold-start retry inside invokeEval, and a vault that cannot be brought up propagates as that retry's CLI_REPORTED_ERROR unchanged (spec 072); stage-1 extraction reads the call's tagged eval answer (spec 080 FR-002, superseding the R14 LAST-`=> ` strategy) because the plugin's lookup API emits plugin-side console.log output around the eval-return line; two-stage parse (JSON.parse → smartConnectionsQueryEvalResponseSchema.safeParse); envelope ok:false → UpstreamError mapping per R13 — three envelope codes flatten the (code, reason) pair for parse-time discrimination; handler unflattens into CLI_REPORTED_ERROR(details.code='SMART_CONNECTIONS_NOT_READY', details.reason='api-missing'|'embed-failed') per ADR-015.
 import { JS_TEMPLATE } from "./_template.js";
 import {
   smartConnectionsQueryEvalResponseSchema,
@@ -6,9 +6,9 @@ import {
   type SmartConnectionsQueryInput,
   type SmartConnectionsQueryOutput,
 } from "./schema.js";
-import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
+import { invokeEval, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import { parseEvalAnswer, stdoutDetails } from "../_eval-parse.js";
+import { decodeEvalEnvelope } from "../_active-file.js";
 import { composeEvalCode } from "../_shared.js";
 
 import type { Logger } from "../../logger.js";
@@ -31,54 +31,25 @@ export async function executeSmartConnectionsQuery(
     total: input.total === true,
   });
 
-  const result = await invokeCli(
-    {
-      command: "eval",
-      vault: input.vault,
-      parameters: { code },
-      flags: [],
-      target_mode: input.vault ? "specific" : "active",
-    },
-    deps,
-  );
+  const result = await invokeEval({ code, vault: input.vault }, deps);
 
-  // === Stage 1 — this call's tagged eval answer (spec 080 FR-002, superseding R14) ===
+  // === Stage 1 — decode this call's tagged eval answer (spec 080 FR-002, superseding R14) ===
   // The plugin's lookup API emits plugin-side console.log lines
   // ("Found and returned N smart_blocks.") AND `[warn]` lines on stdout around
-  // the eval-return line. invokeCli returns the body of this call's own tagged
+  // the eval-return line. invokeEval returns the body of this call's own tagged
   // answer line as `answer`, so those lines (look-alike `=> ` lines included)
   // are ignored wherever they appear.
+  const envelope = decodeEvalEnvelope(result, smartConnectionsQueryEvalResponseSchema, {
+    toolName: "smart_connections_query",
+    malformedCode: "CLI_REPORTED_ERROR",
+  });
 
-  // === Stage 2 — JSON.parse ===
-  let parsedJson: unknown;
-  try {
-    parsedJson = parseEvalAnswer(result.answer);
-  } catch (err) {
-    throw new UpstreamError({
-      code: "CLI_REPORTED_ERROR",
-      cause: err,
-      details: { stage: "json-parse", ...stdoutDetails(result.stdout) },
-      message: `smart_connections_query: eval response is not JSON: ${result.stdout.slice(0, 200)}`,
-    });
+  // === Stage 2 — discriminate on `ok` ===
+  if (envelope.ok === true) {
+    return { count: envelope.count, matches: envelope.matches };
   }
 
-  // === Stage 3 — envelope safeParse ===
-  const validated = smartConnectionsQueryEvalResponseSchema.safeParse(parsedJson);
-  if (!validated.success) {
-    throw new UpstreamError({
-      code: "CLI_REPORTED_ERROR",
-      cause: validated.error,
-      details: { stage: "envelope-parse", ...stdoutDetails(result.stdout) },
-      message: "smart_connections_query: eval response shape unexpected",
-    });
-  }
-
-  // === Stage 4 — discriminate on `ok` ===
-  if (validated.data.ok === true) {
-    return { count: validated.data.count, matches: validated.data.matches };
-  }
-
-  throw mapEnvelopeError(validated.data.code, validated.data.detail);
+  throw mapEnvelopeError(envelope.code, envelope.detail);
 }
 
 function mapEnvelopeError(

@@ -1,11 +1,13 @@
 // Original — no upstream. FR-012 / ADR-029 D8 structural guardrail. Converts the
 // "no tool can bypass the single-spawn cold-start retry" invariant from a header comment
-// (which never fails CI) into a failing build. Two invariants:
+// (which never fails CI) into a failing build. Three invariants:
 //   (i)  node:child_process VALUE imports of spawn/spawnSync/exec/execFile live ONLY in the
 //        sanctioned spawn sites — src/cli-adapter/_dispatch.ts (the CLI spawn site) and
 //        src/app-launcher/app-launcher.ts (the BI-060 GUI-app launch site; type-only imports
 //        are exempt — they carry no runtime spawn capability);
-//   (ii) dispatchCli is imported by ONLY the two facades (cli-adapter.ts, invoke-bounded-cli.ts).
+//   (ii) dispatchCli is imported by ONLY the two facades (cli-adapter.ts, invoke-bounded-cli.ts);
+//   (iii) spec 080: no production file outside cli-adapter.ts hand-builds a `command: "eval"` call,
+//        so every typed eval goes through invokeEval and carries its answer tag.
 // Either bypass would let a future tool reach the CLI without inheriting the retry. BI-060 admits
 // app-launcher.ts as a SECOND spawn site whose purpose is starting the Obsidian *application* (the
 // `obsidian://` URI opener), NOT running a CLI command — so a narrower assertion below holds it to
@@ -24,6 +26,9 @@ const SPAWN_VALUE_NAMES = ["spawn", "spawnSync", "exec", "execFile"];
 // per-OS `obsidian://` URI opener (BI-060, the second sanctioned spawn site). Any OTHER production
 // file with a spawn value-import is a bypass and fails invariant (i).
 const SPAWN_ALLOWLIST = new Set(["_dispatch.ts", "app-launcher.ts"]);
+
+// Spec 080: a hand-built `invokeCli({ command: "eval" })` would skip the per-call answer tag.
+const EVAL_COMMAND_LITERAL = /\bcommand:\s*"eval"/;
 
 interface SourceFile {
   /** Path relative to src/, POSIX-normalised. */
@@ -162,6 +167,12 @@ describe("architecture guardrail (FR-012 / ADR-029 D8)", () => {
       .map((f) => f.rel)
       .filter((rel) => !allowed.has(basename(rel)));
     expect(offenders).toEqual([]);
+  });
+
+  it('(iii) typed evals go through invokeEval: no `command: "eval"` literal outside cli-adapter.ts', () => {
+    const offenders = files.filter((f) => f.base !== "cli-adapter.ts" && EVAL_COMMAND_LITERAL.test(f.content)).map((f) => f.base);
+    expect(offenders).toEqual([]);
+    expect(EVAL_COMMAND_LITERAL.test('invokeCli({ command: "eval", parameters: { code } })')).toBe(true);
   });
 
   // Detector self-tests — prove the scan FAILS the build when a bypass is introduced,

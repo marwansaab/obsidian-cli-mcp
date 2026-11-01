@@ -73,7 +73,7 @@ describe("decodeEvalEnvelope", () => {
 
   test("no answer → json-parse with the stdout excerpt and length (a bare-JSON stdout is not an answer)", () => {
     const stdout = '{"ok":true,"count":2}';
-    expect(() => decodeEvalEnvelope({ stdout }, schema, opts)).toThrow(
+    expect(() => decodeEvalEnvelope({ stdout, answer: null }, schema, opts)).toThrow(
       expect.objectContaining({
         code: "CLI_REPORTED_ERROR",
         details: { stage: "json-parse", stdout, stdoutLength: stdout.length },
@@ -186,7 +186,7 @@ describe("parseFocusedVault", () => {
 
   test("ok:false stage:json-parse when the answer is unparseable or absent", () => {
     expect(parseFocusedVault({ stdout: "", answer: "not json {" })).toMatchObject({ ok: false, stage: "json-parse" });
-    expect(parseFocusedVault({ stdout: '=> {"path":null,"base":"/vault"}' })).toMatchObject({
+    expect(parseFocusedVault({ stdout: '=> {"path":null,"base":"/vault"}', answer: null })).toMatchObject({
       ok: false,
       stage: "json-parse",
     });

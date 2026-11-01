@@ -14,7 +14,7 @@ import {
   type FindAndReplaceOccurrence,
   type FindAndReplaceOutput,
 } from "./schema.js";
-import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
+import { invokeEval, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import {
   assertCanonicalPath,
@@ -189,15 +189,7 @@ function clipFullLine(content: string): string {
 }
 
 async function defaultInvokeEval(deps: ExecuteDeps): Promise<FocusedVaultResponse> {
-  const result = await invokeCli(
-    {
-      command: "eval",
-      parameters: { code: FOCUSED_VAULT_TEMPLATE },
-      flags: [],
-      target_mode: "active",
-    },
-    deps,
-  );
+  const result = await invokeEval({ code: FOCUSED_VAULT_TEMPLATE }, deps);
   // Shared double-decode + shape-check; find_and_replace keeps the json-parse /
   // envelope-parse stage distinction (and the cause) the helper surfaces.
   const out = parseFocusedVault(result);
@@ -218,8 +210,8 @@ async function resolveVaultRoot(input: FindAndReplaceInput, deps: ExecuteDeps): 
     // re-throws it with the spec-mandated VAULT_NOT_FOUND/unknown triple per FR-013.
     return resolveVaultRootOrRemap(deps.vaultRegistry, input.vault, "find_and_replace");
   }
-  const invokeEval = deps.invokeEval ?? (() => defaultInvokeEval(deps));
-  const focused = await invokeEval();
+  const evalFocusedVault = deps.invokeEval ?? (() => defaultInvokeEval(deps));
+  const focused = await evalFocusedVault();
   return focused.base;
 }
 
@@ -705,7 +697,7 @@ export async function executeFindAndReplace(
     occurrencesReplaced += occurrenceCount;
     // Best-effort metadata refresh (spec 068 FR-001), logged on failure. It runs AFTER the
     // queued write resolves, never inside the queue.run callback: the refresh goes through
-    // invokeCli and therefore the same single-flight queue, so nesting it would deadlock.
+    // invokeEval and therefore the same single-flight queue, so nesting it would deadlock.
     await invalidateMetadataCache(deps, { vault: input.vault, relPath: rel });
     deps.reportProgress?.(changedNotes.length, orderedRelPaths.length, rel);
   }

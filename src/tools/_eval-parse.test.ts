@@ -5,8 +5,8 @@ import { EXCERPT_CUT_MARKER, parseEvalAnswer, stdoutDetails } from "./_eval-pars
 
 describe("parseEvalAnswer", () => {
   it("throws a SyntaxError when there is no answer", () => {
-    expect(() => parseEvalAnswer(undefined)).toThrow(SyntaxError);
-    expect(() => parseEvalAnswer(undefined)).toThrow("eval output carries no answer for this call");
+    expect(() => parseEvalAnswer(null)).toThrow(SyntaxError);
+    expect(() => parseEvalAnswer(null)).toThrow("eval output carries no answer for this call");
   });
 
   it("throws a SyntaxError on invalid JSON, including an empty answer", () => {

@@ -23,7 +23,7 @@ import {
   type OpenFileInput,
   type OpenFileOutput,
 } from "./schema.js";
-import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
+import { invokeEval, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import { decodeEvalEnvelope, resolveVaultRootOrRemap } from "../_active-file.js";
 import { composeEvalCode } from "../_shared.js";
@@ -73,12 +73,9 @@ export async function executeOpenFile(
   // and opens the file, switching focus to that vault. Recovery (closed vault →
   // ADR-029 cold-start retry; app down → ADR-030 vault-targeted launch) is inherited
   // from dispatchCli and is vault-correct because the call carries vault=requested. An
-  // invokeCli throw (Obsidian not running / binary missing) propagates unchanged as
+  // invokeEval throw (Obsidian not running / binary missing) propagates unchanged as
   // the cohort's CLI_* error — never a fabricated success.
-  const result = await invokeCli(
-    { command: "eval", vault: input.vault, parameters: { code }, flags: [], target_mode: "specific" },
-    deps,
-  );
+  const result = await invokeEval({ code, vault: input.vault }, deps);
 
   // Single-stage decode via the shared eval-envelope decoder: take this call's tagged answer
   // → JSON.parse → openEvalResponseSchema.safeParse. A malformed result is an

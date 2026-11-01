@@ -1,4 +1,4 @@
-// Original — no upstream. Co-located vitest cases for the invokeCli typed-tool facade — argv assembly via dispatchCli, locator-strip, queue-serialization, fixed bounds; spec 080: the per-call eval answer tag, the returned answer and the unknown-vault check skipped when an answer exists.
+// Original — no upstream. Co-located vitest cases for the invokeCli typed-tool facade — argv assembly via dispatchCli, locator-strip, queue-serialization, fixed bounds; spec 080: invokeEval's per-call eval answer tag, the returned answer and the unknown-vault check skipped when an answer exists.
 import { type SpawnOptions } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { Readable, Writable } from "node:stream";
@@ -10,10 +10,11 @@ import { createQueue } from "../queue.js";
 import { __resetInFlightRegistryForTests } from "./_dispatch.js";
 import {
   invokeCli,
+  invokeEval,
   TYPED_TOOL_OUTPUT_CAP_BYTES,
   TYPED_TOOL_TIMEOUT_MS,
   UpstreamError,
-  type InvokeCliInput,
+  type InvokeEvalInput,
   type LaunchFn,
   type SpawnLike,
 } from "./cli-adapter.js";
@@ -430,26 +431,32 @@ describe("invokeCli — classification routes through dispatchCli", () => {
   });
 });
 
-describe("invokeCli — eval answer tag (spec 080, contract A1–A5, C5)", () => {
+describe("invokeEval — eval answer tag (spec 080, contract A1–A5, C5)", () => {
   const WRAPPED = /^code=\(async\(\)=>'<<(ocm-[0-9a-f-]{36})>>'\+\(await \((.*)\)\)\)\(\)$/;
-  const evalInput = (code = "app.vault.getName()"): InvokeCliInput =>
-    ({ command: "eval", vault: "V", parameters: { code }, flags: [], target_mode: "specific" });
+  const evalInput = (code = "app.vault.getName()"): InvokeEvalInput => ({ code, vault: "V" });
   /** The tag in a recorded argv's wrapped code= element. */
   const tagOf = (argv: string[]): string => WRAPPED.exec(argv.find((a) => a.startsWith("code="))!)![1]!;
 
   it("wraps eval code with a fresh ocm- tag around the unchanged code", async () => {
     const { spawnFn, recorded } = makeStubSpawn({ stdout: "" });
-    await invokeCli(evalInput(), defaultDeps({ spawnFn, env: {} }));
+    await invokeEval(evalInput(), defaultDeps({ spawnFn, env: {} }));
     const code = recorded[0]!.argv.find((a) => a.startsWith("code="))!;
     expect(code).toMatch(WRAPPED);
     expect(WRAPPED.exec(code)![2]).toBe("app.vault.getName()");
     expect(recorded[0]!.argv.slice(0, 2)).toEqual(["vault=V", "eval"]);
   });
 
+  it("without a vault runs in the focused vault: no vault= on the argv", async () => {
+    const { spawnFn, recorded } = makeStubSpawn({ stdout: "" });
+    await invokeEval({ code: "1" }, defaultDeps({ spawnFn, env: {} }));
+    expect(recorded[0]!.argv[0]).toBe("eval");
+    expect(recorded[0]!.argv).toHaveLength(2);
+  });
+
   it("mints a different tag for each call", async () => {
     const { spawnFn, recorded } = makeStubSpawn({ stdout: "" });
-    await invokeCli(evalInput(), defaultDeps({ spawnFn, env: {} }));
-    await invokeCli(evalInput(), defaultDeps({ spawnFn, env: {} }));
+    await invokeEval(evalInput(), defaultDeps({ spawnFn, env: {} }));
+    await invokeEval(evalInput(), defaultDeps({ spawnFn, env: {} }));
     expect(tagOf(recorded[0]!.argv)).not.toBe(tagOf(recorded[1]!.argv));
   });
 
@@ -458,21 +465,20 @@ describe("invokeCli — eval answer tag (spec 080, contract A1–A5, C5)", () =>
     const { spawnFn } = makeStubSpawn({
       stdoutFn: (argv) => (stdout = `plugin\nError: plugin says no\n=> {"a":0}\n=> <<${tagOf(argv)}>>{"a":1}\ntail\n`),
     });
-    const result = await invokeCli(evalInput(), defaultDeps({ spawnFn, env: {} }));
+    const result = await invokeEval(evalInput(), defaultDeps({ spawnFn, env: {} }));
     expect(result).toEqual({ stdout, stderr: "", answer: '{"a":1}' });
   });
 
-  it("an untagged look-alike is not the call's answer: success with no answer key", async () => {
+  it("an untagged look-alike is not the call's answer: success with a null answer", async () => {
     const { spawnFn } = makeStubSpawn({ stdout: 'noise\n=> {"a":1}\n' });
-    const result = await invokeCli(evalInput(), defaultDeps({ spawnFn, env: {} }));
-    expect(result).toEqual({ stdout: 'noise\n=> {"a":1}\n', stderr: "" });
-    expect("answer" in result).toBe(false);
+    const result = await invokeEval(evalInput(), defaultDeps({ spawnFn, env: {} }));
+    expect(result).toEqual({ stdout: 'noise\n=> {"a":1}\n', stderr: "", answer: null });
   });
 
-  it("non-eval calls are not wrapped and return no answer, even with a code parameter and => lines", async () => {
+  it("invokeCli never wraps, even for eval, and returns no answer", async () => {
     const { spawnFn, recorded } = makeStubSpawn({ stdout: "=> 1\n" });
     const result = await invokeCli(
-      { command: "read", vault: "V", parameters: { file: "a", code: "x" }, flags: [], target_mode: "specific" },
+      { command: "eval", vault: "V", parameters: { code: "x" }, flags: [], target_mode: "specific" },
       defaultDeps({ spawnFn, env: {} }),
     );
     expect(recorded[0]!.argv).toContain("code=x");
@@ -481,22 +487,23 @@ describe("invokeCli — eval answer tag (spec 080, contract A1–A5, C5)", () =>
 
   it("C5: 'Vault not found.' ahead of the tagged answer is noise → success with the answer", async () => {
     const { spawnFn } = makeStubSpawn({ stdoutFn: (argv) => `Vault not found.\n=> <<${tagOf(argv)}>>"ok"\n` });
-    const result = await invokeCli(evalInput(), defaultDeps({ spawnFn, env: {} }));
+    const result = await invokeEval(evalInput(), defaultDeps({ spawnFn, env: {} }));
     expect(result.answer).toBe('"ok"');
   });
 
   it("C5: 'Vault not found.' with no tagged answer is still CLI_REPORTED_ERROR", async () => {
     const { spawnFn } = makeStubSpawn({ stdout: 'Vault not found.\n=> "ok"\n' });
-    const err = await captureRejection(invokeCli(evalInput(), defaultDeps({ spawnFn, env: {} })));
+    const err = await captureRejection(invokeEval(evalInput(), defaultDeps({ spawnFn, env: {} })));
     expect(err.code).toBe("CLI_REPORTED_ERROR");
     expect(err.message).toBe("Vault not found.");
+    expect(err.details).toMatchObject({ command: "eval", stdout: 'Vault not found.\n=> "ok"\n', exitCode: 0 });
   });
 
   it("FR-010 (b): a typed eval timeout keeps its details keys; argv carries the wrapper around the original code", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     try {
       const { spawnFn } = makeStubSpawn({ hold: true });
-      const pending = captureRejection(invokeCli(evalInput(), defaultDeps({ spawnFn, env: {} })));
+      const pending = captureRejection(invokeEval(evalInput(), defaultDeps({ spawnFn, env: {} })));
       await vi.advanceTimersByTimeAsync(TYPED_TOOL_TIMEOUT_MS);
       const err = await pending;
       expect(err.code).toBe("CLI_TIMEOUT");

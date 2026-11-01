@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 
-import { findAnswer, findErrorLine, findNoActiveFileLine, stdoutLines } from "./_eval-answer.js";
+import { findAnswer, stdoutLines } from "./_eval-answer.js";
 import { launchObsidian } from "../app-launcher/app-launcher.js";
 import { resolveBinary, type ResolutionAttempt } from "../binary-resolver/binary-resolver.js";
 import { UpstreamError } from "../errors.js";
@@ -37,7 +37,7 @@ export interface DispatchInput {
   timeoutMs: number;
   outputCapBytes: number;
   /**
-   * Spec 080: the answer tag `invokeCli` wrapped this eval's code with. Its answer line is then
+   * Spec 080: the answer tag `invokeEval` wrapped this eval's code with. Its answer line is then
    * `=> <<answerTag>>…`. Absent for an untagged eval (`obsidian_exec`), whose answer is any `=> ` line.
    */
   answerTag?: string;
@@ -48,6 +48,11 @@ export interface DispatchOutput {
   stderr: string;
   exitCode: 0;
   argv: string[];
+  /**
+   * Spec 080 (contract A3): the body of the tagged answer line. Set only when the input carried an
+   * `answerTag` and a line carried it, so `invokeBoundedCli`'s output never has it.
+   */
+  evalAnswer?: string;
 }
 
 export type ResolveBinaryFn = typeof resolveBinary;
@@ -141,8 +146,8 @@ export const COLD_START_PATTERN = /^\s*Error: Command "[^"]*" not found\./;
  *
  * ADR-029 2026-11-01 amendment (spec 080, C4): for `eval` (`details.command === "eval"`), other
  * plugins' start-up lines may precede the signature, so it is matched at the start of ANY stdout
- * line. Such an error only exists when no answer line was found (priority C1 resolves first). Every
- * other command keeps the head-only match.
+ * line (see {@link inspectedLines}). Such an error only exists when no answer line was found
+ * (priority C1 resolves first). Every other command keeps the head-only match.
  */
 export function isColdStart(value: unknown): boolean {
   if (
@@ -152,9 +157,24 @@ export function isColdStart(value: unknown): boolean {
   ) {
     return false;
   }
-  const { stdout } = value.details;
-  if (value.details.command === "eval") return stdoutLines(stdout).some((line) => COLD_START_PATTERN.test(line));
-  return COLD_START_PATTERN.test(stdout);
+  return inspectedLines(value.details.command, value.details.stdout).some((line) => COLD_START_PATTERN.test(line.text));
+}
+
+/** One stdout line the exit-0 error checks look at: `text` is what they test, `message` what they report. */
+interface InspectedLine {
+  text: string;
+  message: string;
+}
+
+/**
+ * The stdout lines the exit-0 error checks (priorities (b), (c) and the cold-start signature) look
+ * at. For `eval`, every line (spec 080 C2–C4: other plugins may print first). For every other
+ * command, only the head, as before spec 080: the check tests the whitespace-trimmed stdout, and
+ * the reported message is the untrimmed first physical line, trimmed.
+ */
+function inspectedLines(command: unknown, stdout: string): InspectedLine[] {
+  if (command === "eval") return stdoutLines(stdout).map((text) => ({ text, message: text.trim() }));
+  return [{ text: stdout.trimStart(), message: stdout.split("\n", 1)[0]!.trim() }];
 }
 
 /**
@@ -574,14 +594,15 @@ async function dispatchOnce(
       // around the answer. An answer line — this call's tagged line, or any `=> ` line when the call
       // is untagged (`obsidian_exec`) — means success, whatever error lines surround it (C1). With
       // no answer, priorities (b) and (c) look for their error line at the start of ANY line rather
-      // than only at the head (C2, C3). Every other command keeps the head-anchored rules unchanged.
-      const isEval = input.command === "eval";
-      if (isEval && findAnswer(stdout, input.answerTag) !== undefined) {
-        resolve({ stdout, stderr, exitCode: 0, argv });
+      // than only at the head (C2, C3; see inspectedLines). Every other command keeps the
+      // head-anchored rules unchanged.
+      const evalAnswer = input.command === "eval" ? findAnswer(stdout, input.answerTag) : undefined;
+      if (evalAnswer !== undefined) {
+        resolve({ stdout, stderr, exitCode: 0, argv, ...(input.answerTag !== undefined ? { evalAnswer } : {}) });
         return;
       }
 
-      const trimmedHead = stdout.trimStart();
+      const lines = inspectedLines(input.command, stdout);
 
       // Priority (b): ERR_NO_ACTIVE_FILE — exit 0 with stdout starting with the canonical
       // phrase, case-insensitive (BI-041 FR-001). Upstream emits the capital-N canonical
@@ -589,13 +610,9 @@ async function dispatchOnce(
       // fixtures keep matching (monotonic widening). Anchor stays at the message head —
       // substring-anywhere matches are rejected by the prefix invariant. Must precede
       // priority (c). For eval, the phrase may start any line (spec 080 C2).
-      const noActiveFileLine = isEval
-        ? findNoActiveFileLine(stdout)
-        : trimmedHead.toLowerCase().startsWith("error: no active file")
-          ? stdout.split("\n", 1)[0]!
-          : undefined;
+      const noActiveFileLine = lines.find((line) => line.text.toLowerCase().startsWith("error: no active file"));
       if (noActiveFileLine !== undefined) {
-        const message = noActiveFileLine.trim();
+        const { message } = noActiveFileLine;
         reject(
           new UpstreamError({
             code: "ERR_NO_ACTIVE_FILE",
@@ -610,13 +627,9 @@ async function dispatchOnce(
 
       // Priority (c): CLI_REPORTED_ERROR — exit 0 with stdout starting with `Error:` (any other suffix).
       // For eval, the first line starting `Error:` anywhere (spec 080 C3).
-      const errorLine = isEval
-        ? findErrorLine(stdout)
-        : trimmedHead.startsWith("Error:")
-          ? stdout.split("\n", 1)[0]!
-          : undefined;
+      const errorLine = lines.find((line) => line.text.startsWith("Error:"));
       if (errorLine !== undefined) {
-        const message = errorLine.trim();
+        const { message } = errorLine;
         reject(
           new UpstreamError({
             code: "CLI_REPORTED_ERROR",

@@ -1,13 +1,13 @@
-// Original — no upstream. Shared eval answer parsing and parse-error excerpt for the eval-composed tool cohort (spec 080 FR-002, FR-013): parseEvalAnswer JSON-parses the answer invokeCli found on this call's tagged line (a missing answer fails like invalid JSON), and stdoutDetails gives every eval parse error the same bounded head-and-tail stdout excerpt plus the raw length.
+// Original — no upstream. Shared eval answer parsing and parse-error excerpt for the eval-composed tool cohort (spec 080 FR-002, FR-013): parseEvalAnswer JSON-parses the answer invokeEval found on this call's tagged line (a missing answer fails like invalid JSON), and stdoutDetails gives every eval parse error the same bounded head-and-tail stdout excerpt plus the raw length.
 
 /**
- * JSON-parse the call's eval answer (`InvokeCliSuccess.answer`). Throws a SyntaxError when the
- * answer is absent (no line carried this call's tag) or is not valid JSON; the caller wraps the
- * failure in its own error, as it did for invalid JSON before. `null`, `false`, `0` and `[]` are
- * values, not a missing answer.
+ * JSON-parse the call's eval answer (`InvokeEvalSuccess.answer`). Throws a SyntaxError when the
+ * answer is `null` (no line carried this call's tag) or is not valid JSON; the caller wraps the
+ * failure in its own error, as it did for invalid JSON before. The answer texts `"null"`,
+ * `"false"`, `"0"` and `"[]"` are values, not a missing answer.
  */
-export function parseEvalAnswer(answer: string | undefined): unknown {
-  if (answer === undefined) throw new SyntaxError("eval output carries no answer for this call");
+export function parseEvalAnswer(answer: string | null): unknown {
+  if (answer === null) throw new SyntaxError("eval output carries no answer for this call");
   return JSON.parse(answer);
 }
 

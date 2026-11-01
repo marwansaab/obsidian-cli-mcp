@@ -6,12 +6,12 @@ The contract binds every typed tool that runs `obsidian eval`. It also covers th
 
 ## §1 Answer recognition
 
-| Rule | Typed tool (`invokeCli`, tagged) | `obsidian_exec` (`invokeBoundedCli`, untagged) |
+| Rule | Typed tool (`invokeEval`, tagged) | `obsidian_exec` (`invokeBoundedCli`, untagged) |
 |---|---|---|
-| A1 The code that is sent | `(async()=>'<<TAG>>'+(await (CODE)))()`, where `TAG = "ocm-" + randomUUID()`, minted per `invokeCli` call | `CODE` exactly as the caller gave it |
+| A1 The code that is sent | `(async()=>'<<TAG>>'+(await (CODE)))()`, where `TAG = "ocm-" + randomUUID()`, minted per `invokeEval` call | `CODE` exactly as the caller gave it |
 | A2 Answer line | the first line that starts with `=> <<TAG>>` | any line that starts with `=> ` |
 | A3 Answer body | the rest of that line after `=> <<TAG>>`, returned as `answer` | not extracted; stdout is returned raw |
-| A4 No answer line | `answer` is absent; the tool raises its parse error (§4) | stdout is returned raw |
+| A4 No answer line | `answer` is `null`; the tool raises its parse error (§4) | stdout is returned raw |
 | A5 Look-alikes | `=> ` lines without this call's tag are ignored wherever they appear | n/a |
 
 The cold-start retry re-sends the same input, so both attempts carry the same tag (A1).
@@ -24,7 +24,7 @@ The cold-start retry re-sends the same input, so both attempts carry the same ta
 | C2 No answer, and some line starts `error: no active file` (case-insensitive) | `ERR_NO_ACTIVE_FILE`, `details.message` = that line | only when it is the head (unchanged) |
 | C3 No answer, and some line starts `Error:` | `CLI_REPORTED_ERROR`, `details.message` = the first such line | only when it is the head (unchanged) |
 | C4 Cold start | `isColdStart` matches `Error: Command "…" not found.` at the start of **any** line, then retries exactly once | the head only (unchanged) |
-| C5 `Vault not found.` (`invokeCli`) | skipped when an answer was found; otherwise the head only (unchanged) | the head only (unchanged) |
+| C5 `Vault not found.` (`invokeEval` / `invokeCli`) | skipped when an answer was found; otherwise the head only (unchanged) | the head only (unchanged) |
 
 - C2 is checked before C3, as priority (b) is checked before (c) today.
 - The `details` keys, codes and messages of C2 and C3 are the same as today, and `details.stdout` is the full stdout.

@@ -88,6 +88,15 @@ Tests that assert the exact `code=` argument:
 
 ### D1 — Per-call answer tag, added in `invokeCli`
 
+> **Amended 2026-11-01 (PR #110 code-quality review; behaviour unchanged).** The tag now lives in a dedicated entry point in the same module, `invokeEval({ code, vault? }, deps)` in `src/cli-adapter/cli-adapter.ts`, rather than in an `eval` branch of `invokeCli`. Where D1–D3 below say `invokeCli` for a typed eval, read `invokeEval`. The differences from the text below:
+>
+> - `invokeEval` mints the tag, wraps the code and returns `{ stdout, stderr, answer: string | null }` (`null` when no line carried the tag). `vault` undefined means active mode, which is how every call site already paired the two, so every argv is byte-identical. `invokeCli` no longer wraps anything and returns `{ stdout, stderr }`. A test in `architecture.test.ts`, invariant (iii), fails on any `command: "eval"` literal outside `cli-adapter.ts`, so a tool still cannot forget the tag (FR-002).
+> - The dispatch layer finds the answer once and returns it as `DispatchOutput.evalAnswer`. That field is set only when the input carried `answerTag`, so `invokeBoundedCli` (`obsidian_exec`) never has it and its output is unchanged (FR-012). `invokeEval` reads that field rather than scanning stdout again.
+> - In dispatch, one helper (`inspectedLines`) decides which lines the (b), (c) and cold-start checks look at: every line for `eval`, otherwise the head as before. `findNoActiveFileLine` and `findErrorLine` are gone; their cases moved to `_dispatch.test.ts`.
+> - `evalInVault` and `EvalResult` are deleted. `decodeEvalEnvelope` and `parseFocusedVault` take `Pick<InvokeEvalSuccess, "stdout" | "answer">`, and `parseEvalAnswer` takes `string | null`.
+> - paths, read_heading, tag, smart_connections_query and smart_connections_similar decode through `decodeEvalEnvelope`. Their hand-written blocks had the same codes, messages and `details` as that decoder. find_by_property, pattern_search and set_property keep their own parse, because their stages, messages or key order differ.
+> - Test stubs: the wrapper's fixed parts are taken from `wrapEvalCode` itself, and `_registration-stub.ts` reuses `renderStubStdout`. The noise hook is the scoped `withTaggedStdoutTransform(transform, run)`, which is cleared when `run` settles and cannot nest.
+
 For `command === "eval"`, `invokeCli` mints `tag = "ocm-" + randomUUID()` and replaces `parameters.code` with
 
 ```text

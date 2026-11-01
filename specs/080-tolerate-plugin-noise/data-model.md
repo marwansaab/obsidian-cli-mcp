@@ -8,11 +8,11 @@ No stored data or published schema changes. The entities below are in-process va
 
 | Entity | Shape | Owner | Notes |
 |---|---|---|---|
-| **Answer tag** | `"ocm-" + randomUUID()` | `invokeCli` (one per call, `command === "eval"` only) | Embedded in the sent code (contract A1). The cold-start retry reuses it. It is never logged: the dispatch log events carry `command` and call IDs, not argv. It is visible to the caller in eval error `details.argv` (the wrapped `code=`) and in raw `details.stdout` (contract §5, spec FR-010 (b)). It carries no secret and no user input. |
-| **Raw output** | `stdout: string` | dispatch → `invokeCli` → tool | Always kept raw. It is the source for error excerpts. |
+| **Answer tag** | `"ocm-" + randomUUID()` | `invokeEval` (one per call) | Embedded in the sent code (contract A1). The cold-start retry reuses it. It is never logged: the dispatch log events carry `command` and call IDs, not argv. It is visible to the caller in eval error `details.argv` (the wrapped `code=`) and in raw `details.stdout` (contract §5, spec FR-010 (b)). It carries no secret and no user input. |
+| **Raw output** | `stdout: string` | dispatch → `invokeEval` → tool | Always kept raw. It is the source for error excerpts. |
 | **Answer line** | first line matching `=> <<TAG>>` (typed) / `=> ` (untagged) | `src/cli-adapter/_eval-answer.ts` | Contract A2. Lines split on `\n`, one trailing `\r` dropped, leading whitespace ignored. |
-| **Answer body** | `answer?: string` on `InvokeCliSuccess` | `invokeCli` | The rest of the answer line after the marker. Absent when no answer line belongs to the call. |
-| **`DispatchInput.answerTag`** | `answerTag?: string` | set by `invokeCli`, read by `dispatchOnce` | Absent for `invokeBoundedCli` (`obsidian_exec`). |
+| **Answer body** | `answer: string \| null` on `InvokeEvalSuccess` (from `DispatchOutput.evalAnswer`) | `dispatchOnce`, returned by `invokeEval` | The rest of the answer line after the marker. `null` when no answer line belongs to the call. `evalAnswer` is set only for a tagged input, so `invokeBoundedCli` never returns it. |
+| **`DispatchInput.answerTag`** | `answerTag?: string` | set by `invokeEval`, read by `dispatchOnce` | Absent for `invokeBoundedCli` (`obsidian_exec`). |
 | **Parse-error excerpt** | `{ stdout: string; stdoutLength: number }` | `stdoutDetails()` in `src/tools/_eval-parse.ts` | Spread into the `details` of every eval parse-failure `UpstreamError` (contract §4). |
 
 ## Rules and invariants
@@ -29,16 +29,16 @@ No stored data or published schema changes. The entities below are in-process va
 ## State flow (one typed eval call)
 
 ```text
-tool handler ──invokeCli({command:"eval", code})──▶ mint TAG, wrap code (A1)
+tool handler ──invokeEval({code, vault?})──▶ mint TAG, wrap code (A1)
    ▼
 dispatchCli ─▶ dispatchWithColdStartRetry ─▶ dispatchOnce(answerTag=TAG)
    │  exit≠0 / timeout / cap / cancel ─▶ unchanged errors
-   │  answer line present ─▶ success (C1)
+   │  answer line present ─▶ success, evalAnswer = body (C1)
    │  no answer: no-active-file line ─▶ ERR_NO_ACTIVE_FILE (C2)
    │             Error: line ─▶ CLI_REPORTED_ERROR (C3) ─▶ cold-start line? retry once (C4)
    │             neither ─▶ success with no answer
    ▼
-invokeCli ─▶ {stdout(raw), stderr, answer?}   (Vault-not-found check skipped if answer, C5)
+invokeEval ─▶ {stdout(raw), stderr, answer | null}   (Vault-not-found check skipped if answer, C5)
    ▼
 tool parser ─▶ parseEvalAnswer(answer) ─▶ envelope/schema checks
    │  failure ─▶ UpstreamError(existing code, stage, ...stdoutDetails(stdout))

@@ -1147,6 +1147,38 @@ describe("dispatchCli — eval answer and error lines anywhere (spec 080)", () =
     expect(err.details.message).toBe("Error: plugin");
   });
 
+  it("A3: a tagged answer is returned as evalAnswer; an untagged eval's output never carries one", async () => {
+    const tagged = run([{ stdout: `noise\n=> <<${TAG}>>{"ok":true}\n`, exitCode: 0 }], { command: "eval", answerTag: TAG });
+    expect((await tagged.promise).evalAnswer).toBe('{"ok":true}');
+    const untagged = run([{ stdout: "noise\n=> 42\n", exitCode: 0 }], { command: "eval" });
+    expect("evalAnswer" in (await untagged.promise)).toBe(false);
+    const noAnswer = run([{ stdout: "noise\n", exitCode: 0 }], { command: "eval", answerTag: TAG });
+    expect("evalAnswer" in (await noAnswer.promise)).toBe(false);
+  });
+
+  it("C2: for eval the no-active-file line is matched case-insensitively and after leading whitespace", async () => {
+    const stdout = "noise\n  error: no active file\n";
+    const { promise } = run([{ stdout, exitCode: 0 }], { command: "eval", answerTag: TAG });
+    const err = await captureRejection(promise);
+    expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
+    expect(err.details.message).toBe("error: no active file");
+  });
+
+  it("C3: for eval an Error: line ending in \\r\\n reports the line without the \\r", async () => {
+    const { promise } = run([{ stdout: "noise\r\nError: something\r\n", exitCode: 0 }], { command: "eval", answerTag: TAG });
+    const err = await captureRejection(promise);
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.details.message).toBe("Error: something");
+  });
+
+  it("C3: for eval 'Error:' in the middle of a line is not an error line → success with no answer", async () => {
+    const stdout = "noise Error: x\n";
+    const { promise } = run([{ stdout, exitCode: 0 }], { command: "eval", answerTag: TAG });
+    const out = await promise;
+    expect(out.stdout).toBe(stdout);
+    expect("evalAnswer" in out).toBe(false);
+  });
+
   it("isColdStart: for eval the signature may start any line; other commands match the head only", () => {
     const reported = (command: string, stdout: string) =>
       new UpstreamError({ code: "CLI_REPORTED_ERROR", cause: null, details: { command, stdout } });

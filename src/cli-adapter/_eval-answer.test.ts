@@ -1,15 +1,7 @@
-// Original — no upstream. Tests for the eval answer tag and stdout line scanning (spec 080, contract A1–A5, C2–C3).
+// Original — no upstream. Tests for the eval answer tag and stdout line scanning (spec 080, contract A1–A5). The C2–C3 error-line rules are tested through dispatchCli in _dispatch.test.ts.
 import { describe, expect, it } from "vitest";
 
-import {
-  EVAL_ANSWER_PREFIX,
-  findAnswer,
-  findErrorLine,
-  findNoActiveFileLine,
-  mintAnswerTag,
-  stdoutLines,
-  wrapEvalCode,
-} from "./_eval-answer.js";
+import { EVAL_ANSWER_PREFIX, findAnswer, mintAnswerTag, stdoutLines, wrapEvalCode } from "./_eval-answer.js";
 
 const TAG = "ocm-11111111-2222-3333-4444-555555555555";
 
@@ -91,31 +83,5 @@ describe("findAnswer (A2, A3, A5)", () => {
   it("untagged: returns the body of the first line starting with => ", () => {
     expect(findAnswer("Error: plugin\n=> 42\n=> 43\n")).toBe("42");
     expect(findAnswer("no answer here\n")).toBeUndefined();
-  });
-});
-
-describe("findNoActiveFileLine (C2)", () => {
-  it("finds the line at the head or after noise, case-insensitively", () => {
-    expect(findNoActiveFileLine("Error: No active file.\n")).toBe("Error: No active file.");
-    expect(findNoActiveFileLine("noise\n  error: no active file\n")).toBe("error: no active file");
-  });
-
-  it("returns undefined when absent", () => {
-    expect(findNoActiveFileLine("Error: something\n")).toBeUndefined();
-  });
-});
-
-describe("findErrorLine (C3)", () => {
-  it("finds the first Error: line at the head or after noise", () => {
-    expect(findErrorLine("Error: first\nError: second\n")).toBe("Error: first");
-    expect(findErrorLine("noise\nError: something\r\n")).toBe("Error: something");
-  });
-
-  it("does not match Error: in the middle of a line", () => {
-    expect(findErrorLine("noise Error: x\n")).toBeUndefined();
-  });
-
-  it("returns undefined when absent", () => {
-    expect(findErrorLine("all good\n")).toBeUndefined();
   });
 });

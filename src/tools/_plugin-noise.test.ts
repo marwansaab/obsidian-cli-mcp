@@ -12,9 +12,9 @@ import {
   focusedFileResponse,
   makeQueuedSpawn,
   makeStubSpawn,
-  setTaggedStdoutTransform,
   silentLogger,
   unwrapEvalCode,
+  withTaggedStdoutTransform,
   type StubResponse,
 } from "./_handler-test-fixtures.js";
 import { invalidateMetadataCache, openNote } from "./_note-io.js";
@@ -95,17 +95,15 @@ async function run(
   transform?: (tagged: string, tag: string) => string,
 ): Promise<{ result: ToolResult; evalStdouts: string[] }> {
   const evalStdouts: string[] = [];
-  setTaggedStdoutTransform((tagged, tag) => {
-    const sent = transform ? transform(tagged, tag) : tagged;
-    evalStdouts.push(sent);
-    return sent;
-  });
-  try {
-    const result = (await build().handler(args)) as ToolResult;
-    return { result, evalStdouts };
-  } finally {
-    setTaggedStdoutTransform(undefined);
-  }
+  const result = await withTaggedStdoutTransform(
+    (tagged, tag) => {
+      const sent = transform ? transform(tagged, tag) : tagged;
+      evalStdouts.push(sent);
+      return sent;
+    },
+    async () => (await build().handler(args)) as ToolResult,
+  );
+  return { result, evalStdouts };
 }
 
 function errorPayload(result: ToolResult): { code: string; message: string; details: Record<string, unknown> } {
