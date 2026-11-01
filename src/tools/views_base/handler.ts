@@ -169,6 +169,9 @@ async function listFocusedViews(deps: ExecuteDeps, basePath: string | undefined)
 
   const lines = stdoutLines(cliResult.stdout);
   const report = upstreamReport(cliResult.stderr, lines.filter((line) => !isViewLine(line)).join("\n"));
+  // Unlike the YAML check, the not-a-base check reads the raw output, view lines included.
+  // Reading `report` instead would change clean-exit listing (a view named "Active file is not
+  // a base file" would list), which spec 081 leaves as shipped (FR-012, BI-0137 Out of scope).
   const failure = recogniseFailure(report, `${cliResult.stdout}\n${cliResult.stderr}`);
   if (failure !== null) throw focusedBaseError(basePath, failure, null, report);
 
