@@ -64,7 +64,16 @@ optional `vault` field, `focusedVaultField` in `src/tools/_vault-field.ts`
 introduced to replace identical per-tool copies; tools whose `vault` follows a
 different rule keep their own declaration. `get_active_file` builds on
 `folderScopedTargetModeBaseSchema`
-([targeting](../architecture.md#targeting-target_mode)).
+([targeting](../architecture.md#targeting-target_mode)). It rejects a `file`
+or `path` locator in both modes, as `files` does, but since PR #112 (spec 082)
+with its own reason: "`<key>` is not allowed: the active file is the implicit
+target, so no note may be named", passed to the shared folder-scoped
+refinement in place of the "folder-scoped" wording that misdescribed it. The
+same PR corrected the description and help page, which had stated
+`name === basename + extension` without the dot; both now give
+`basename + "." + extension` (just `basename` when `extension` is `""`), and
+tests check every worked example in the help page against that formula. The
+frozen `ACTIVE_FILE_TEMPLATE` string did not change.
 
 **Typed results** (PR #91;
 [architecture](../architecture.md#typed-results-outputschema-and-structuredcontent)).

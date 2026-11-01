@@ -64,7 +64,13 @@ all five carry the read-only hint row. `files` and `paths` (with
 `get_active_file`) build on `folderScopedTargetModeBaseSchema`, whose
 published descriptions say that `file` and `path` are not accepted and that
 `vault` is required with `"specific"`
-([targeting](../architecture.md#targeting-target_mode)). `properties` takes the
+([targeting](../architecture.md#targeting-target_mode)). `files` publishes the
+two fields and rejects them in the refinement with
+"`<key>` is not allowed for folder-scoped tools"; `paths` omits them, so a
+locator fails as `unrecognized_keys`. This page earlier read as if both
+published the fields. PR #112 pins both texts in tests (cases U1–U3) when it
+gave `get_active_file` its own locator message; neither tool's behaviour
+changed. `properties` takes the
 shared `focusedVaultField` (`src/tools/_vault-field.ts`). Since PR #91 all
 five publish their result shape as an `outputSchema` and return it as
 `structuredContent` alongside the identical text
