@@ -20,7 +20,7 @@ Targeting — two modes:
 
 Success shape — \`{ active: { path, name, basename, extension } | null }\`:
 - \`path\` — vault-relative path; directly reusable as a \`path\` locator for a follow-up operation against the same file.
-- \`name\` — file name including extension; \`name === basename + extension\`.
+- \`name\` — file name including extension: \`basename + "." + extension\`, or just \`basename\` when \`extension\` is \`""\` (\`note.md\` → \`note\` + \`.\` + \`md\`).
 - \`basename\` — name without the final extension (\`note.draft.md\` → \`note.draft\`).
 - \`extension\` — the final dot-delimited segment without the dot, or \`""\` when the name has no dot (then \`name === basename\`). Non-ASCII characters are returned raw (no normalization).
 

@@ -1,9 +1,9 @@
 // Original — no upstream. get_active_file input/output schemas (BI-063). Input reuses the
 // shared folder-scoped target-mode refinement (vault required in specific, forbidden in active; file/path
-// forbidden in BOTH modes — the active file is the implicit target, there is no locator) — byte-pattern
-// parity with the `files` tool. Output { active: FileInfo | null } where null is a SUCCESS (no active
-// file), not an error (research D3 / FR-005). All shapes are strictObject — the Zod schema is the single
-// source of truth (z.infer downstream; Principle III). No vault/target_mode echo (FR-015); file-only —
+// forbidden in BOTH modes — the active file is the implicit target, there is no locator) — rule parity with
+// the `files` tool, but with its own locator message naming that reason (082). Output
+// { active: FileInfo | null } where null is a SUCCESS (no active file), not an error (research D3 / FR-005).
+// All shapes are strictObject — the Zod schema is the single source of truth (z.infer downstream; Principle III). No vault/target_mode echo (FR-015); file-only —
 // no pane/leaf/cursor fields (FR-017/018), enforced structurally by the strict fileInfoSchema.
 import { z } from "zod";
 
@@ -15,14 +15,21 @@ import {
 // Input: the shared folder-scoped refinement applied to the base target-mode object. Because
 // folderScopedTargetModeBaseSchema declares `file`/`path` as optional, the emitted MCP inputSchema lists them
 // even though the refinement always rejects them — identical published-but-rejected shape to the
-// shipped `files`/`paths` tools (accepted cohort convention; data-model I1 / spec FR-009).
-export const getActiveFileInputSchema =
-  applyTargetModeRefinementForFolderScoped(folderScopedTargetModeBaseSchema);
+// shipped `files`/`paths` tools (accepted cohort convention; data-model I1 / spec FR-009). The tool supplies
+// its own locator message rather than the folder-scoped wording, which would misdescribe it (082).
+function activeFileLocatorMessage(key: "file" | "path"): string {
+  return `${key} is not allowed: the active file is the implicit target, so no note may be named`;
+}
+
+export const getActiveFileInputSchema = applyTargetModeRefinementForFolderScoped(
+  folderScopedTargetModeBaseSchema,
+  activeFileLocatorMessage,
+);
 export type GetActiveFileInput = z.infer<typeof getActiveFileInputSchema>;
 
-// The four Obsidian-native TFile identity fields (FR-001..004). `name` = `basename` + `extension`;
-// `extension` is "" when the name has no dot (FR-003); characters are returned raw, no normalization
-// (FR-004). No re-parser — the substrate is the source of truth for the basename/extension split.
+// The four Obsidian-native TFile identity fields (FR-001..004). `name` = `basename` + "." + `extension`
+// (just `basename` when `extension` is ""); `extension` is "" when the name has no dot (FR-003); characters
+// are returned raw, no normalization (FR-004). No re-parser — the substrate is the source of truth for the basename/extension split.
 export const fileInfoSchema = z.strictObject({
   path: z.string(),
   name: z.string(),

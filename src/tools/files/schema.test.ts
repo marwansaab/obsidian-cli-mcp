@@ -87,6 +87,10 @@ test("specific with file → issue on ['file'] (folder-scoped forbids file)", ()
   expect(r.success).toBe(false);
   if (!r.success) {
     expect(r.error.issues.some((i) => i.path.includes("file"))).toBe(true);
+    // 082 U1: files keeps the folder-scoped wording byte for byte.
+    expect(r.error.issues.find((i) => i.path.includes("file"))!.message).toBe(
+      "file is not allowed for folder-scoped tools",
+    );
   }
 });
 
@@ -100,6 +104,10 @@ test("specific with path → issue on ['path'] (folder-scoped forbids path)", ()
   expect(r.success).toBe(false);
   if (!r.success) {
     expect(r.error.issues.some((i) => i.path.includes("path"))).toBe(true);
+    // 082 U2: files keeps the folder-scoped wording byte for byte.
+    expect(r.error.issues.find((i) => i.path.includes("path"))!.message).toBe(
+      "path is not allowed for folder-scoped tools",
+    );
   }
 });
 
