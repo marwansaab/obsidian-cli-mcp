@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-11-01T04:07:31.203Z |
 | Finished | not yet |
-| Elapsed | 27 min 13 s |
+| Elapsed | 49 min 4 s |
 | Questions | 4 (1 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 1 |
@@ -55,6 +55,7 @@
 ### pre-implementation (`bc45bc22-adf0-47ed-a00e-ee01798e4b3e`)
 
 - Condition `shell-exit-0` (run_when): met. "node -e "process.exit('' === '' ? 0 : 1)"" exited 0.
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\specs\080-tolerate-plugin-noise\tasks.md exists.
 
 - **specify**: done, 17 turns.
 
@@ -175,16 +176,65 @@
 >
 > Next step: re-run /speckit-analyze, or start /speckit-implement at the T002 gate.
 
-- **resolve-analysis**: in progress.
+- **resolve-analysis**: done, 11 turns.
+
+> All six analyze findings are resolved and the feature folder is committed as `a4dce43` on `080-tolerate-plugin-noise`, not pushed. The message follows CONTRIBUTING.md (`docs(080)` subject, a body naming each finding by ID and severity, and the Co-Authored-By trailer). No question was needed: your ruling on U1 settled the one design decision, and the rest were fixed by the spec, plan, constitution and clarifications.
+>
+> **Changes** (most were made in the previous turn):
+> - **U1 (MEDIUM):** the answer is no longer found by its position in the output. Every typed `eval` carries a per-call tag, `obsidian-cli-mcp:<uuid>:`, and only the line with that tag counts.
+>   - Look-alike lines before or after the answer are rejected (contract rows A5–A8 and A13), conflicting tagged lines give a parse failure (A12), and a look-alike cannot hide a cold start (E5b).
+>   - Every affected tool gets tests for both. Task T002 is a live check that stops the work and comes back to you if Obsidian does not print the tag intact.
+> - **F1 (MEDIUM):** spec Context now says `obsidian_exec` handles answers as before, and its `eval` calls inherit FR-011.
+> - **D1 (LOW):** FR-010 is merged into FR-013; the ID stays as a stub.
+> - **U2 (LOW):** T026 names `src/cli-adapter/_dispatch.test.ts` as the guard test.
+> - **I1 (LOW):** data-model invariant I1 notes that contract row E5 needs plugin output to occur.
+> - **T1 (LOW):** "answer" is the main term, with "answer envelope" recorded as a synonym.
+> - **Also:** the post-write metadata refresh in `_note-io`, which also reads eval output, is now in scope (P10). This turn I also refreshed a stale note in `checklists/requirements.md`.
+>
+> **Left open:**
+> - The tag design costs something: the `code=` value of every typed `eval` call changes, and about 25 eval test files move onto tagged fixtures. No published tool surface changes.
+> - How Obsidian prints the tag has not been checked yet. Code comments disagree on whether strings come back raw or quoted, and the T002 live check settles it at the start of implementation.
+> - `CLAUDE.md` (plan pointer moved to 080) and `.specify/feature.json` are modified but uncommitted, because they sit outside the feature folder.
+> - The ADR-029 amendment of 2026-11-01 is in the gitignored `.decisions/` folder; the vault copy is not updated.
+>
+> Next step: /speckit-implement, starting with the T002 check.
+
 
 ### continue
 
-- **prepare**: not run.
+Skipped.
 
-### implementation
+- Condition `shell-exit-0` (run_when): not met. "node -e "process.exit('' === '' ? 1 : 0)"" exited 1.
 
-- **implement**: not run.
-- **open-pr**: not run.
+- **prepare**: skipped.
+
+### implementation (`253400f5-971e-4825-b9a3-607acb68653d`)
+
+- Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\specs\080-tolerate-plugin-noise\tasks.md exists.
+
+- **implement**: done, 8 turns.
+
+> All 51 tasks in `tasks.md` are done and marked [X]. Typecheck and lint are clean, and the full suite passes: 3790 passed, 6 skipped. The architecture test passes on its own too. Nothing is committed.
+>
+> **What changed**
+> - **New module** `src/cli-adapter/eval-output.ts`. It creates the per-call tag, wraps the eval code with it, finds the tagged answer line, and finds `Error:` lines.
+> - **`invokeCli`**: for `eval` calls only, it wraps the code with a per-call random tag and returns the tagged answer as `evalAnswer`. A `evalNonce` seam lets tests fix the tag.
+> - **Dispatch**: for `eval` only, when the output has no answer, the last `Error:` line anywhere in it is classified, and the cold-start check matches on any line. The retry stays single and non-eval commands are classified as before (ADR-029 amendment of 2026-11-01).
+> - **Readers**: every eval reader now goes through `parseEvalAnswer`. Long parse failures at the bounded sites add `details.stdoutTail`. No error code, stage or reason was added, and the tool fingerprint baseline did not move.
+> - **Tests**: every affected tool has cases for plugin lines before and after the answer, look-alike lines before and after, a look-alike alone, no answer, and long output.
+> - **Behaviour change**: bare JSON with no answer line now fails at `json-parse` (contract row A14). Four old tests that expected it to parse were changed to expect that failure.
+>
+> **Checks**
+> - **Live gate (T002)**: the CLI prints the tag in raw form, `=> <tag>{...}`, so the stop rule did not apply.
+> - **Live check (T050)**: run against the test vault only. `get_active_file`, `links` and `read_heading` gave normal results. `smart_connections_query` returned `SMART_CONNECTIONS_NOT_INSTALLED`, because that vault has no plugins by design, so plugin output itself was not reproduced live. The scratch note is removed and `Welcome.md` is intact.
+> - **CodeGraph checks**: all four hold. `codegraph sync` was blocked by the index lock, so I ran them through the MCP tool.
+> - **`format:check`**: still fails, but it already flagged 1,203 files before this change, so it can't serve as a gate here.
+>
+> **Where things are**
+> - The text for the PR description is in `specs/080-tolerate-plugin-noise/implement-notes.md`: the probe forms, the plugin-agnostic check, the CodeGraph and live results, and the Constitution Compliance checklist.
+> - The optional `after_implement` git commit hook (`/speckit-git-commit`) was listed but not run, as were the optional hooks earlier.
+
+- **open-pr**: in progress.
 
 ### review
 

@@ -43,8 +43,8 @@ These are defined in `src/tools/_handler-test-fixtures.ts` by T008 (research D9)
 
 ## Phase 1: Setup and gate
 
-- [ ] T001 Read `.memory/test-execution-instructions.md`. On the branch, before any change, run `npm run typecheck`, `npm run lint` and `npx vitest run`, and note any already-failing test in the PR description.
-- [ ] T002 **T0 gate (research D10, quickstart §1).**
+- [X] T001 Read `.memory/test-execution-instructions.md`. On the branch, before any change, run `npm run typecheck`, `npm run lint` and `npx vitest run`, and note any already-failing test in the PR description.
+- [X] T002 **T0 gate (research D10, quickstart §1).**
   1. Against the authorised test vault only, send `eval` through `obsidian_exec` (or the CLI directly) with `(async()=>{return "obsidian-cli-mcp:t0-probe:"+(await (<template>))})()`, once each for `FOCUSED_FILE_TEMPLATE`, `FOCUSED_VAULT_TEMPLATE` and the `links` template composed in active mode.
   2. Record the exact stdout of each.
   3. Confirm the answer line starts `=> obsidian-cli-mcp:t0-probe:` (raw form) or `=> "obsidian-cli-mcp:t0-probe:` (quoted form), and carries the template's normal JSON, not `[object Promise]`.
@@ -57,7 +57,7 @@ These are defined in `src/tools/_handler-test-fixtures.ts` by T008 (research D9)
 
 **Purpose**: research D1, D4 and D9. **⚠️ CRITICAL**: no story task starts until T003–T009 are done and the whole suite is green.
 
-- [ ] T003 Create `src/cli-adapter/eval-output.ts`.
+- [X] T003 Create `src/cli-adapter/eval-output.ts`.
   - **Header**: `// Original — no upstream.` followed by a one-line purpose statement.
   - **Imports**: no imports from `src/tools/**`, `_dispatch.ts` or `node:child_process`.
   - **Exports** (research D1, data-model E0–E2):
@@ -72,12 +72,12 @@ These are defined in `src/tools/_handler-test-fixtures.ts` by T008 (research D9)
       - if there are no candidates, or two candidates differ, return `null`.
     - `hasEvalAnswerLine(stdout: string): boolean`: true when any line's `trimStart()` starts with `=> `.
     - `findReportedErrorLine(stdout: string): string | null`: returns the trimmed **last** line whose `trimStart()` starts with `"Error:"`.
-- [ ] T004 Create `src/cli-adapter/eval-output.test.ts` covering every row of contract §1, A1–A15, through `findTaggedEvalAnswer`, with a fixed tag. Also cover:
+- [X] T004 Create `src/cli-adapter/eval-output.test.ts` covering every row of contract §1, A1–A15, through `findTaggedEvalAnswer`, with a fixed tag. Also cover:
   - `wrapEvalCode(t, tag)` contains `t` verbatim and starts `(async()=>{return "obsidian-cli-mcp:`;
   - `evalAnswerTag` gives the exact format;
   - `hasEvalAnswerLine` returns true and false;
   - `findReportedErrorLine` returns none, one, and the last of several.
-- [ ] T005 Change the cli-adapter facade and dispatch types (research D1, D9).
+- [X] T005 Change the cli-adapter facade and dispatch types (research D1, D9).
   - In `src/cli-adapter/_dispatch.ts`, add optional `evalAnswerTag?: string` to `DispatchInput` (`:30`). Type only; no logic yet.
   - In `src/cli-adapter/cli-adapter.ts`:
     - add `evalNonce?: () => string` to `InvokeCliDeps`, documented as a test seam that defaults to `randomUUID` from `node:crypto`;
@@ -90,7 +90,7 @@ These are defined in `src/tools/_handler-test-fixtures.ts` by T008 (research D9)
     - `evalAnswer` is the tagged answer;
     - an untagged `=> {…}` gives `evalAnswer: null`;
     - a non-eval call's argv and result are unchanged.
-- [ ] T006 Change the shared readers in `src/tools/_active-file.ts` and `src/tools/_note-io.ts` (research D4).
+- [X] T006 Change the shared readers in `src/tools/_active-file.ts` and `src/tools/_note-io.ts` (research D4).
   - Replace `parseEvalStdout` (`:72`) with `parseEvalAnswer(result: { stdout: string; evalAnswer?: string | null }): unknown`. It returns `JSON.parse(result.evalAnswer)` when that is a string, and otherwise throws `new SyntaxError("eval output carries no answer for this call")`.
   - Change `decodeEvalEnvelope` (`:89`) and `parseFocusedVault` (`:137`) to take the `invokeCli` result as the first parameter, read `result.stdout` wherever they used `stdout`, and call `parseEvalAnswer(result)`.
   - Make `resolveActiveFocusedFile` (`:194`) call `parseEvalAnswer(focused)`.
@@ -98,7 +98,7 @@ These are defined in `src/tools/_handler-test-fixtures.ts` by T008 (research D9)
   - In `src/tools/_note-io.ts:105-107`, compare `result.evalAnswer === "ok"`, and `=== "missing"` for `note-not-found`. Keep `detail = result.stdout.trim().slice(0, 200)`.
   - Update JSDoc and the `_active-file.ts` header (`:1`, its "`"=> "` stdout strip" phrase).
   - Codes, stages, messages and `details` keys are unchanged.
-- [ ] T007 Move every handler call site onto the new readers. Each call stays inside its existing `try`, with code, stage, message and `details` unchanged.
+- [X] T007 Move every handler call site onto the new readers. Each call stays inside its existing `try`, with code, stage, message and `details` unchanged.
   - **Inline strips → `parsedJson = parseEvalAnswer(result)`**, importing from `../_active-file.js`:
     - `src/tools/read_heading/handler.ts:45-50`
     - `src/tools/pattern_search/handler.ts:61-67`
@@ -112,8 +112,8 @@ These are defined in `src/tools/_handler-test-fixtures.ts` by T008 (research D9)
     - `decodeEvalEnvelope(result, …)` in `src/tools/links/handler.ts:50`, `src/tools/backlinks/handler.ts:52`, `src/tools/open_file/handler.ts:87`, `src/tools/get_active_file/handler.ts:84` and `src/tools/views_base/handler.ts:148`;
     - `parseFocusedVault(result)` in `src/tools/find_and_replace/handler.ts:202` and `src/tools/query_base/handler.ts:71`.
   - **Search check**: `src/tools/**/*.ts` (non-test) must contain no remaining `"=> "` strip, and no other `evalInVault` caller left on the old return type.
-- [ ] T008 In `src/tools/_handler-test-fixtures.ts`, add the vocabulary from the table above: `TEST_EVAL_NONCE`, `TEST_EVAL_TAG`, `evalAnswerLine(v)` and `wrappedEvalCode(code)`. `wrappedEvalCode` imports `wrapEvalCode` / `evalAnswerTag` from `../cli-adapter/eval-output.js`; this is a test fixture, the only `src/tools/**` importer allowed (plan check 3). Update the existing `focusedFileResponse` helper (`:169`) to emit `evalAnswerLine(...)`.
-- [ ] T009 Migrate the existing eval tests to tagged output.
+- [X] T008 In `src/tools/_handler-test-fixtures.ts`, add the vocabulary from the table above: `TEST_EVAL_NONCE`, `TEST_EVAL_TAG`, `evalAnswerLine(v)` and `wrappedEvalCode(code)`. `wrappedEvalCode` imports `wrapEvalCode` / `evalAnswerTag` from `../cli-adapter/eval-output.js`; this is a test fixture, the only `src/tools/**` importer allowed (plan check 3). Update the existing `focusedFileResponse` helper (`:169`) to emit `evalAnswerLine(...)`.
+- [X] T009 Migrate the existing eval tests to tagged output.
   - **Find the stubs**: grep `src/**/*.test.ts`, `src/tools/**/_handler-fixtures.ts` and `src/tools/_typed-result-fixtures.ts` (`evalOut`, `:74`) for stub stdout starting `=> ` on eval calls.
   - **Rewrite them**: each becomes `evalAnswerLine(<same value>)`, and the test's deps gain `evalNonce: () => TEST_EVAL_NONCE`. Every argv assertion on an eval `code=` value becomes `wrappedEvalCode(<template>)`, or stays `toContain(<template>)` where it already asserts containment.
   - **Expected files**: the handler tests (and `_handler-fixtures.ts`, where present) of these tools:
@@ -138,18 +138,18 @@ These are defined in `src/tools/_handler-test-fixtures.ts` by T008 (research D9)
 
 **Independent Test**: each affected tool's tests include NOISE_BEFORE + `evalAnswerLine(answer)`, which returns the normal result. One envelope `ok:false` behind NOISE_BEFORE still maps to its specific error.
 
-- [ ] T010 [P] [US1] In `src/tools/read_heading/handler.test.ts`, add the NOISE_BEFORE normal-result case and one envelope-error case behind NOISE_BEFORE.
-- [ ] T011 [P] [US1] Make the same addition in `src/tools/pattern_search/handler.test.ts`.
-- [ ] T012 [P] [US1] Make the same addition in `src/tools/find_by_property/handler.test.ts`.
-- [ ] T013 [P] [US1] Make the same addition in `src/tools/smart_connections_similar/handler.test.ts`, using a `SOURCE_NOT_INDEXED` envelope for the error case.
-- [ ] T014 [P] [US1] In `src/tools/smart_connections_query/handler.test.ts`, confirm the existing preamble tests pass with tagged stubs, and add a NOISE_BEFORE case built from INVENTED lines.
-- [ ] T015 [P] [US1] Make the same addition as T010 in `src/tools/paths/handler.test.ts` and `src/tools/tag/handler.test.ts`.
-- [ ] T016 [P] [US1] In `src/tools/set_property/handler.test.ts`, add an active-mode NOISE_BEFORE case.
-- [ ] T017 [P] [US1] In `src/tools/links/handler.test.ts` and `src/tools/backlinks/handler.test.ts`, add NOISE_BEFORE cases: the normal result, and a `FILE_NOT_FOUND` envelope mapping to `CLI_REPORTED_ERROR` with `envelope-error`.
-- [ ] T018 [P] [US1] In `src/tools/get_active_file/handler.test.ts` and `src/tools/open_file/handler.test.ts`, add NOISE_BEFORE cases: the normal result, and one envelope error each.
-- [ ] T019 [P] [US1] In `src/tools/views_base/handler.test.ts`, add a NOISE_BEFORE case on the focus-base eval.
-- [ ] T020 [P] [US1] In `src/tools/find_and_replace/handler.test.ts` (or `scope.test.ts`) and `src/tools/query_base/handler.test.ts`, add NOISE_BEFORE cases on the focused-vault eval. Drive `defaultInvokeEval` through `spawnFn`, **not** the `invokeEval` seam.
-- [ ] T021 [P] [US1] Add NOISE_BEFORE cases in three places:
+- [X] T010 [P] [US1] In `src/tools/read_heading/handler.test.ts`, add the NOISE_BEFORE normal-result case and one envelope-error case behind NOISE_BEFORE.
+- [X] T011 [P] [US1] Make the same addition in `src/tools/pattern_search/handler.test.ts`.
+- [X] T012 [P] [US1] Make the same addition in `src/tools/find_by_property/handler.test.ts`.
+- [X] T013 [P] [US1] Make the same addition in `src/tools/smart_connections_similar/handler.test.ts`, using a `SOURCE_NOT_INDEXED` envelope for the error case.
+- [X] T014 [P] [US1] In `src/tools/smart_connections_query/handler.test.ts`, confirm the existing preamble tests pass with tagged stubs, and add a NOISE_BEFORE case built from INVENTED lines.
+- [X] T015 [P] [US1] Make the same addition as T010 in `src/tools/paths/handler.test.ts` and `src/tools/tag/handler.test.ts`.
+- [X] T016 [P] [US1] In `src/tools/set_property/handler.test.ts`, add an active-mode NOISE_BEFORE case.
+- [X] T017 [P] [US1] In `src/tools/links/handler.test.ts` and `src/tools/backlinks/handler.test.ts`, add NOISE_BEFORE cases: the normal result, and a `FILE_NOT_FOUND` envelope mapping to `CLI_REPORTED_ERROR` with `envelope-error`.
+- [X] T018 [P] [US1] In `src/tools/get_active_file/handler.test.ts` and `src/tools/open_file/handler.test.ts`, add NOISE_BEFORE cases: the normal result, and one envelope error each.
+- [X] T019 [P] [US1] In `src/tools/views_base/handler.test.ts`, add a NOISE_BEFORE case on the focus-base eval.
+- [X] T020 [P] [US1] In `src/tools/find_and_replace/handler.test.ts` (or `scope.test.ts`) and `src/tools/query_base/handler.test.ts`, add NOISE_BEFORE cases on the focused-vault eval. Drive `defaultInvokeEval` through `spawnFn`, **not** the `invokeEval` seam.
+- [X] T021 [P] [US1] Add NOISE_BEFORE cases in three places:
   - `src/tools/write_note/handler.test.ts`: one active-mode case. It stands for the file cohort, which resolves through `_file-target.ts` → `resolveActiveFocusedFile`.
   - `src/tools/_active-file.test.ts`: cases for `resolveActiveFocusedFile` and `parseFocusedVault`.
   - `src/tools/_note-io.test.ts`: a case where NOISE_BEFORE + `evalAnswerLine("ok")` gives no `metadataRefreshFailed` log.
@@ -164,8 +164,8 @@ These are defined in `src/tools/_handler-test-fixtures.ts` by T008 (research D9)
 
 **Independent Test**: contract §2 rows E1–E9 pass. An `open_file` call whose first attempt is NOISE_BEFORE plus the cold-start line, and whose second attempt is NOISE_BEFORE plus the tagged answer, succeeds after exactly one retry.
 
-- [ ] T022 [US2] Add contract §2 rows E1–E8, including E5b, to `src/cli-adapter/_dispatch.test.ts` first, so they run red. Use the file's stub `spawnFn` and pass `evalAnswerTag` in `DispatchInput` for the tagged rows. Add E9 (no tag, `command: "eval"`) to `src/cli-adapter/invoke-bounded-cli.test.ts`, and assert there that `obsidian_exec`'s `code=` reaches the argv unwrapped.
-- [ ] T023 [US2] Change `src/cli-adapter/_dispatch.ts` as follows. T022 then runs green.
+- [X] T022 [US2] Add contract §2 rows E1–E8, including E5b, to `src/cli-adapter/_dispatch.test.ts` first, so they run red. Use the file's stub `spawnFn` and pass `evalAnswerTag` in `DispatchInput` for the tagged rows. Add E9 (no tag, `command: "eval"`) to `src/cli-adapter/invoke-bounded-cli.test.ts`, and assert there that `obsidian_exec`'s `code=` reaches the argv unwrapped.
+- [X] T023 [US2] Change `src/cli-adapter/_dispatch.ts` as follows. T022 then runs green.
   - Add `export const COLD_START_LINE_PATTERN = /^\s*Error: Command "[^"]*" not found\./m;` next to `COLD_START_PATTERN` (`:115`), whose value stays unchanged. Its JSDoc cites the ADR-029 amendment of 2026-11-01.
   - In `isColdStart` (`:136`), use `COLD_START_LINE_PATTERN` when `value.details?.command === "eval"`, and `COLD_START_PATTERN` otherwise.
   - In the exit-0 classifier (`:558-594`), when `input.command === "eval"`:
@@ -177,11 +177,11 @@ These are defined in `src/tools/_handler-test-fixtures.ts` by T008 (research D9)
     - no line at all goes to priority (d).
   - Keep non-eval branches byte-identical, importing from `./eval-output.js`.
   - Update the JSDoc above `COLD_START_PATTERN` / `isColdStart` and the file header.
-- [ ] T024 [US2] Add the cold-start case from the Independent Test above to `src/tools/open_file/handler.test.ts`, through the real dispatch path with a sequenced stub `spawnFn`. Also add the case where both attempts give NOISE_BEFORE + `Error: Command "eval" not found. …`: the existing cold-start error surfaces after one retry. Add a case where LOOKALIKE comes before the cold-start line: one retry still runs (E5b).
-- [ ] T025 [US2] Add these cases, which depend on T023:
+- [X] T024 [US2] Add the cold-start case from the Independent Test above to `src/tools/open_file/handler.test.ts`, through the real dispatch path with a sequenced stub `spawnFn`. Also add the case where both attempts give NOISE_BEFORE + `Error: Command "eval" not found. …`: the existing cold-start error surfaces after one retry. Add a case where LOOKALIKE comes before the cold-start line: one retry still runs (E5b).
+- [X] T025 [US2] Add these cases, which depend on T023:
   - `src/tools/links/handler.test.ts`: active mode with NOISE_BEFORE + `Error: No active file.` and no answer gives `ERR_NO_ACTIVE_FILE` (spec US2 scenario 4);
   - `src/tools/read_heading/handler.test.ts`: `Error: plugin says hi\n` + `evalAnswerLine(answer)` gives the normal result (spec US2 scenario 5).
-- [ ] T026 [US2] In `src/cli-adapter/_dispatch.test.ts`, confirm that the existing zero-new-code guard still passes. No new code or `details.reason` is expected (FR-013).
+- [X] T026 [US2] In `src/cli-adapter/_dispatch.test.ts`, confirm that the existing zero-new-code guard still passes. No new code or `details.reason` is expected (FR-013).
 
 **Checkpoint**: US2 is delivered.
 
@@ -198,7 +198,7 @@ These are defined in `src/tools/_handler-test-fixtures.ts` by T008 (research D9)
 3. **No answer**: NO_ANSWER gives that same failure without `stdoutTail`.
 4. **Long output** (bounded sites only): LONG_NO_ANSWER also carries `stdoutTail === stdout.slice(-500)`.
 
-- [ ] T027 [US3] Add `evalParseFailureStdout` to `src/tools/_active-file.ts` and wire it into `decodeEvalEnvelope`.
+- [X] T027 [US3] Add `evalParseFailureStdout` to `src/tools/_active-file.ts` and wire it into `decodeEvalEnvelope`.
   - **Helper**: `export function evalParseFailureStdout(stdout: string): { stdout: string; stdoutTail?: string }`. It returns `{ stdout: stdout.slice(0, 500) }`, plus `stdoutTail: stdout.slice(-500)` only when `stdout.length > 500`.
   - **`decodeEvalEnvelope`**: spread `...evalParseFailureStdout(result.stdout)` in place of `stdout: …slice(0, 500)` at both stages. Messages are unchanged.
   - **Tests** in `src/tools/_active-file.test.ts`:
@@ -206,16 +206,16 @@ These are defined in `src/tools/_handler-test-fixtures.ts` by T008 (research D9)
     - `decodeEvalEnvelope` at both stages;
     - `resolveActiveFocusedFile` never has `stdoutTail`;
     - for `parseEvalAnswer` / `decodeEvalEnvelope`, check 1 (look-alikes before and after) and check 2 (look-alike alone).
-- [ ] T028 [P] [US3] In `src/tools/read_heading/handler.ts` (`:55`, `:65`), spread `...evalParseFailureStdout(result.stdout)`. Add checks 1–4 to its `handler.test.ts`.
-- [ ] T029 [P] [US3] Make the same change in `src/tools/pattern_search/handler.ts` (`:72`, `:83`), with checks 1–4 in its tests.
-- [ ] T030 [P] [US3] Make the same change in `src/tools/smart_connections_similar/handler.ts` (`:62`, `:73`), with checks 1–4.
-- [ ] T031 [P] [US3] Make the same change in `src/tools/smart_connections_query/handler.ts` (`:69`, `:80`), with checks 1–4.
-- [ ] T032 [P] [US3] Make the same change in `src/tools/paths/handler.ts` (`:54`, `:65`) and `src/tools/tag/handler.ts` (`:57`, `:68`), with checks 1–4 in each.
-- [ ] T033 [P] [US3] Make the same change at the `json-parse` site of `src/tools/set_property/handler.ts` (`:104`). Its `envelope-parse` site attaches `parsed` and stays unchanged. Add checks 1–4.
-- [ ] T034 [P] [US3] Make the same change in `src/tools/find_and_replace/handler.ts:207` and `src/tools/query_base/handler.ts:76`, with checks 1–4 driven through `defaultInvokeEval`.
-- [ ] T035 [P] [US3] Add checks 1–3 to `src/tools/find_by_property/handler.test.ts`. It keeps the full `details.stdout` and never has `stdoutTail`; there is no handler change.
-- [ ] T036 [P] [US3] Add checks 1–4 to `src/tools/links/handler.test.ts`, and checks 1–2 to `backlinks`, `open_file`, `get_active_file` and `views_base` (`handler.test.ts` in each). These are `decodeEvalEnvelope` consumers with no handler change.
-- [ ] T037 [P] [US3] Add checks 1–2 in three places:
+- [X] T028 [P] [US3] In `src/tools/read_heading/handler.ts` (`:55`, `:65`), spread `...evalParseFailureStdout(result.stdout)`. Add checks 1–4 to its `handler.test.ts`.
+- [X] T029 [P] [US3] Make the same change in `src/tools/pattern_search/handler.ts` (`:72`, `:83`), with checks 1–4 in its tests.
+- [X] T030 [P] [US3] Make the same change in `src/tools/smart_connections_similar/handler.ts` (`:62`, `:73`), with checks 1–4.
+- [X] T031 [P] [US3] Make the same change in `src/tools/smart_connections_query/handler.ts` (`:69`, `:80`), with checks 1–4.
+- [X] T032 [P] [US3] Make the same change in `src/tools/paths/handler.ts` (`:54`, `:65`) and `src/tools/tag/handler.ts` (`:57`, `:68`), with checks 1–4 in each.
+- [X] T033 [P] [US3] Make the same change at the `json-parse` site of `src/tools/set_property/handler.ts` (`:104`). Its `envelope-parse` site attaches `parsed` and stays unchanged. Add checks 1–4.
+- [X] T034 [P] [US3] Make the same change in `src/tools/find_and_replace/handler.ts:207` and `src/tools/query_base/handler.ts:76`, with checks 1–4 driven through `defaultInvokeEval`.
+- [X] T035 [P] [US3] Add checks 1–3 to `src/tools/find_by_property/handler.test.ts`. It keeps the full `details.stdout` and never has `stdoutTail`; there is no handler change.
+- [X] T036 [P] [US3] Add checks 1–4 to `src/tools/links/handler.test.ts`, and checks 1–2 to `backlinks`, `open_file`, `get_active_file` and `views_base` (`handler.test.ts` in each). These are `decodeEvalEnvelope` consumers with no handler change.
+- [X] T037 [P] [US3] Add checks 1–2 in three places:
   - `src/tools/write_note/handler.test.ts`, active mode, for the file cohort;
   - `src/tools/_note-io.test.ts`, where a look-alike `=> ok` without the tag must log `metadataRefreshFailed` with reason `unexpected-output`;
   - `src/tools/_active-file.test.ts`, for `parseFocusedVault`.
@@ -230,9 +230,9 @@ These are defined in `src/tools/_handler-test-fixtures.ts` by T008 (research D9)
 
 **Independent Test**: NOISE_AFTER on its own, and NOISE_BEFORE plus NOISE_AFTER, give the normal result.
 
-- [ ] T038 [US4] Add NOISE_AFTER and before-plus-after cases to `src/tools/_active-file.test.ts` for `parseEvalAnswer`, `resolveActiveFocusedFile` and `parseFocusedVault`.
-- [ ] T039 [US4] Add a NOISE_AFTER case to `src/tools/smart_connections_query/handler.test.ts`. Before this feature, that output failed.
-- [ ] T040 [US4] Add one NOISE_AFTER normal-result case to the `handler.test.ts` of each of these tools, reusing each file's US1 fixture:
+- [X] T038 [US4] Add NOISE_AFTER and before-plus-after cases to `src/tools/_active-file.test.ts` for `parseEvalAnswer`, `resolveActiveFocusedFile` and `parseFocusedVault`.
+- [X] T039 [US4] Add a NOISE_AFTER case to `src/tools/smart_connections_query/handler.test.ts`. Before this feature, that output failed.
+- [X] T040 [US4] Add one NOISE_AFTER normal-result case to the `handler.test.ts` of each of these tools, reusing each file's US1 fixture:
   - `read_heading`, `pattern_search`, `find_by_property`;
   - `smart_connections_similar`, `paths`, `tag`;
   - `set_property`, `links`, `backlinks`;
@@ -245,7 +245,7 @@ These are defined in `src/tools/_handler-test-fixtures.ts` by T008 (research D9)
 
 **Goal**: FR-006 and SC-005.
 
-- [ ] T041 [P] [US5] Add a table-driven case to `src/cli-adapter/eval-output.test.ts`. Use at least eight preceding and trailing line shapes:
+- [X] T041 [P] [US5] Add a table-driven case to `src/cli-adapter/eval-output.test.ts`. Use at least eight preceding and trailing line shapes:
   - INVENTED;
   - an empty line;
   - whitespace only;
@@ -256,14 +256,14 @@ These are defined in `src/tools/_handler-test-fixtures.ts` by T008 (research D9)
   - a line ending in `\r`.
 
   Also use an untagged `=> {"ok":false}`. In every case, `findTaggedEvalAnswer(shape + "\n=> " + tag + '{"ok":true}' + "\n" + shape, tag)` must return `{"ok":true}`.
-- [ ] T042 [P] [US5] Add one INVENTED-before-and-after case each to `src/tools/get_active_file/handler.test.ts` and `src/tools/tag/handler.test.ts`, asserting the normal result.
-- [ ] T043 [US5] Inspect `src/cli-adapter/eval-output.ts` and the T023 dispatch branch, and confirm they match only on `=> `, the call's tag and `Error:` line prefixes, and name no plugin. Record the check in the PR description. This task changes no code.
+- [X] T042 [P] [US5] Add one INVENTED-before-and-after case each to `src/tools/get_active_file/handler.test.ts` and `src/tools/tag/handler.test.ts`, asserting the normal result.
+- [X] T043 [US5] Inspect `src/cli-adapter/eval-output.ts` and the T023 dispatch branch, and confirm they match only on `=> `, the call's tag and `Error:` line prefixes, and name no plugin. Record the check in the PR description. This task changes no code.
 
 ---
 
 ## Phase 8: Polish & cross-cutting concerns
 
-- [ ] T044 Check every modified file's header and comments for statements the change has made false (Principle V; plan gate table). At least these:
+- [X] T044 Check every modified file's header and comments for statements the change has made false (Principle V; plan gate table). At least these:
   - `_active-file.ts:1`;
   - the `tag` handler comment;
   - the `smart_connections_query` header (R14);
@@ -272,7 +272,7 @@ These are defined in `src/tools/_handler-test-fixtures.ts` by T008 (research D9)
   - the `parseFocusedVault` JSDoc (`_active-file.ts:128-136`, the quoted form). Note in it which form T002 observed.
 
   Correct only the words that changed.
-- [ ] T045 Add to the `## [Unreleased]` section of `CHANGELOG.md`, following the file's existing style:
+- [X] T045 Add to the `## [Unreleased]` section of `CHANGELOG.md`, following the file's existing style:
   - **Fixed**:
     - in-Obsidian query tools no longer report a parse failure when plugins print lines before or after the answer, or print text that looks like an answer;
     - a cold start behind plugin start-up lines gets its single retry.
@@ -280,12 +280,12 @@ These are defined in `src/tools/_handler-test-fixtures.ts` by T008 (research D9)
     - typed eval calls carry a per-call answer tag (internal);
     - long parse failures add `details.stdoutTail`;
     - an `obsidian_exec` `eval` whose output has plugin lines, then an `Error:` line, and no answer now returns `CLI_REPORTED_ERROR` (research D3).
-- [ ] T046 Run `npm run typecheck`, `npm run lint`, `npm run format:check` and `npx vitest run`, and get them all green.
-- [ ] T047 Run `git diff --stat main -- src/tools/_register-baseline.json` and confirm there is no change (contract §5). Confirm that no `index.ts`, `schema.ts`, `_template.ts`, `src/errors.ts`, `src/server.ts` or `src/cli-adapter/invoke-bounded-cli.ts` file is in the diff.
-- [ ] T048 Run `codegraph sync`, then `codegraph_explore "evalAnswerTag wrapEvalCode findTaggedEvalAnswer hasEvalAnswerLine findReportedErrorLine COLD_START_LINE_PATTERN parseEvalAnswer evalParseFailureStdout invokeCli"`. Verify the plan's four post-implement checks and record the result in the PR description.
-- [ ] T049 Run `src/cli-adapter/architecture.test.ts` on its own and confirm it is green.
-- [ ] T050 Run the live check in quickstart §4 under `.memory/test-execution-instructions.md`, against the authorised test vault only. Record the findings and clean up.
-- [ ] T051 Prepare the PR description's Constitution Compliance checklist with the plan's verdicts. It covers Principles I–V, ADR-010, ADR-013, ADR-014, ADR-015, the MCP Tool Surface Standards and the Security Defaults. Cite the ADR-029 amendment of 2026-11-01 and the owner's analyze-time ruling on look-alikes, and include the T002 observations and the research D3 note on `obsidian_exec` `eval`.
+- [X] T046 Run `npm run typecheck`, `npm run lint`, `npm run format:check` and `npx vitest run`, and get them all green.
+- [X] T047 Run `git diff --stat main -- src/tools/_register-baseline.json` and confirm there is no change (contract §5). Confirm that no `index.ts`, `schema.ts`, `_template.ts`, `src/errors.ts`, `src/server.ts` or `src/cli-adapter/invoke-bounded-cli.ts` file is in the diff.
+- [X] T048 Run `codegraph sync`, then `codegraph_explore "evalAnswerTag wrapEvalCode findTaggedEvalAnswer hasEvalAnswerLine findReportedErrorLine COLD_START_LINE_PATTERN parseEvalAnswer evalParseFailureStdout invokeCli"`. Verify the plan's four post-implement checks and record the result in the PR description.
+- [X] T049 Run `src/cli-adapter/architecture.test.ts` on its own and confirm it is green.
+- [X] T050 Run the live check in quickstart §4 under `.memory/test-execution-instructions.md`, against the authorised test vault only. Record the findings and clean up.
+- [X] T051 Prepare the PR description's Constitution Compliance checklist with the plan's verdicts. It covers Principles I–V, ADR-010, ADR-013, ADR-014, ADR-015, the MCP Tool Surface Standards and the Security Defaults. Cite the ADR-029 amendment of 2026-11-01 and the owner's analyze-time ruling on look-alikes, and include the T002 observations and the research D3 note on `obsidian_exec` `eval`.
 
 ---
 
