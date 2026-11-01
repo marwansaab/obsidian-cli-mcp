@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { type ExecuteFs } from "./handler.js";
 import {
@@ -11,6 +11,7 @@ import {
   PATCH_HEADING_DESCRIPTION,
   PATCH_HEADING_TOOL_NAME,
 } from "./index.js";
+import { patchHeadingInputSchema } from "./schema.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
@@ -171,22 +172,19 @@ describe("createPatchHeadingTool — descriptor (BI-040 / ADR-005)", () => {
 });
 
 describe("heading-path rule wording (079)", () => {
-  const docs = readFileSync(
-    resolve(dirname(fileURLToPath(import.meta.url)), "../../../docs/tools/patch_heading.md"),
-    "utf8",
-  );
+  let docs: string;
+  beforeAll(() => {
+    docs = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), "../../../docs/tools/patch_heading.md"),
+      "utf8",
+    );
+  });
   const FROZEN_SINGLE_SEGMENT_MESSAGE =
     "heading_path must contain at least two segments separated by '#'; top-level headings are out of scope";
-  const headingPathDescription = (): string => {
-    const schema = build().descriptor.inputSchema as {
-      properties: Record<string, { description?: string }>;
-    };
-    return schema.properties.heading_path!.description ?? "";
-  };
-  const countOf = (haystack: string, needle: string): number => haystack.split(needle).length - 1;
+  const headingPathDescription = patchHeadingInputSchema.shape.heading_path.description;
 
   it("description, parameter description and help page state the rule (US1)", () => {
-    for (const text of [PATCH_HEADING_DESCRIPTION, headingPathDescription(), docs]) {
+    for (const text of [PATCH_HEADING_DESCRIPTION, headingPathDescription, docs]) {
       expect(text).toContain("level-1 heading");
       expect(text).toContain("one level below the previous");
     }
@@ -194,21 +192,20 @@ describe("heading-path rule wording (079)", () => {
   });
 
   it("description and parameter description drop the misleading minimum wording (US1)", () => {
-    for (const text of [PATCH_HEADING_DESCRIPTION, headingPathDescription()]) {
+    for (const text of [PATCH_HEADING_DESCRIPTION, headingPathDescription]) {
       expect(text).not.toContain("top-level headings are out of scope");
       expect(text).not.toContain("Minimum two segments");
     }
   });
 
   it("help page carries the out-of-scope phrase only inside the quoted frozen message, followed by the level-1 note (US1)", () => {
-    const phraseCount = countOf(docs, "top-level headings are out of scope");
-    expect(phraseCount).toBe(countOf(docs, FROZEN_SINGLE_SEGMENT_MESSAGE));
-    expect(phraseCount).toBeGreaterThan(0);
-    let from = docs.indexOf(FROZEN_SINGLE_SEGMENT_MESSAGE);
-    while (from !== -1) {
-      const after = from + FROZEN_SINGLE_SEGMENT_MESSAGE.length;
-      expect(docs.slice(after, after + 400)).toContain("level-1 heading");
-      from = docs.indexOf(FROZEN_SINGLE_SEGMENT_MESSAGE, after);
+    const pieces = docs.split(FROZEN_SINGLE_SEGMENT_MESSAGE);
+    expect(pieces.length).toBeGreaterThan(1);
+    expect(pieces.join("")).not.toContain("top-level headings are out of scope");
+    for (const afterQuote of pieces.slice(1)) {
+      // Skip the quote's closing code-span backtick and full stop, then take the next sentence.
+      const nextSentence = afterQuote.replace(/^`?\.?\s*/, "").split(/\.\s/)[0];
+      expect(nextSentence).toContain("level-1 heading");
     }
   });
 
@@ -227,7 +224,8 @@ describe("heading-path rule wording (079)", () => {
     const errorRow = docs
       .split("\n")
       .find((line) => line.startsWith("| `CLI_REPORTED_ERROR` | `HEADING_NOT_FOUND`"));
-    for (const text of [entry, errorRow ?? ""]) {
+    expect(errorRow).toBeDefined();
+    for (const text of [entry, errorRow!]) {
       const causeAt = text.indexOf(cause);
       expect(causeAt).toBeGreaterThanOrEqual(0);
       expect(causeAt).toBeLessThan(text.indexOf("outline"));

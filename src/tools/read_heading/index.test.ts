@@ -3,13 +3,14 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
   createReadHeadingTool,
   READ_HEADING_DESCRIPTION,
   READ_HEADING_TOOL_NAME,
 } from "./index.js";
+import { readHeadingInputSchema } from "./schema.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
@@ -120,24 +121,17 @@ describe("docs/tools/read_heading.md exists and is non-stub (FR-023)", () => {
 });
 
 describe("heading-path rule wording (079)", () => {
-  const docs = readFileSync(
-    resolve(dirname(fileURLToPath(import.meta.url)), "../../../docs/tools/read_heading.md"),
-    "utf8",
-  );
-  const headingDescription = (): string => {
-    const tool = createReadHeadingTool({
-      logger: silentLogger(),
-      queue: createQueue(),
-      spawnFn: makeStubSpawn(),
-    });
-    const schema = tool.descriptor.inputSchema as {
-      properties: Record<string, { description?: string }>;
-    };
-    return schema.properties.heading!.description ?? "";
-  };
+  let docs: string;
+  beforeAll(() => {
+    docs = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), "../../../docs/tools/read_heading.md"),
+      "utf8",
+    );
+  });
+  const headingDescription = readHeadingInputSchema.shape.heading.description;
 
   it("description, parameter description and help page state the rule (US1)", () => {
-    for (const text of [READ_HEADING_DESCRIPTION, headingDescription(), docs]) {
+    for (const text of [READ_HEADING_DESCRIPTION, headingDescription, docs]) {
       expect(text).toContain("level-1 heading");
       expect(text).toContain("one level below the previous");
     }
@@ -157,7 +151,8 @@ describe("heading-path rule wording (079)", () => {
     const cause = "leaves out the level-1 heading or skips a level";
     const guidance = READ_HEADING_DESCRIPTION.slice(READ_HEADING_DESCRIPTION.indexOf("On HEADING_NOT_FOUND"));
     const errorRow = docs.split("\n").find((line) => line.startsWith("|") && line.includes('"HEADING_NOT_FOUND"'));
-    for (const text of [guidance, errorRow ?? ""]) {
+    expect(errorRow).toBeDefined();
+    for (const text of [guidance, errorRow!]) {
       const causeAt = text.indexOf(cause);
       expect(causeAt).toBeGreaterThanOrEqual(0);
       expect(causeAt).toBeLessThan(text.indexOf("outline"));
