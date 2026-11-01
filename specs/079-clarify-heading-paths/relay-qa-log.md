@@ -217,3 +217,44 @@ Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0
 >   - F2: split T022 into one task per file.
 >   - U2: move the US2 and US3 description text out of US1 into their own stories.
 >   - F1: in the spec, describe the change as "no runtime behaviour change" (the BI's own words: "docs-only … No runtime change"). Don't invoke CLAUDE.md's docs-only exemption.
+
+## 5. record / record-in-vault (2026-11-01T03:31:23.642Z)
+
+**Question (verbatim):**
+
+> The work for job BI-0125 is now a reviewed, documented pull request. Record that on the job's note, following the vault's conventions for backlog items:
+> - the spec branch: 079-clarify-heading-paths
+> - the feature folder in the code repository: specs/079-clarify-heading-paths
+> - the pull request: https://github.com/marwansaab/obsidian-cli-mcp/pull/107 (number 107)
+> - the status that means "in review" in this vault (if the vault has no such status, escalate `decision` with up to 3 choices)
+> - a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0125-2026-11-01 produced it.
+>
+> Dry run: no. In a dry run, change nothing: list each edit you would make in `vault_edits`, starting its change with "Would". Otherwise list each edit you made.
+
+**Advisor** (escalate: none):
+
+> BI-0125 now records the pull request. The edits follow the precedent set by BI-0123 / PR #106:
+> - Frontmatter `status`: changed from `planned` to `in-review`. `in-review` is the `backlog-item` status listed in Vault Frontmatter Convention.
+> - Frontmatter `spec_branch`: set to `079-clarify-heading-paths`.
+> - Frontmatter `updated`: set to 2026-11-01.
+> - Dated HTML comment appended. It says Relay run obsidian-cli-mcp-bi-0125-2026-11-01 produced https://github.com/marwansaab/obsidian-cli-mcp/pull/107 (#107), on spec branch `079-clarify-heading-paths` with feature folder `specs/079-clarify-heading-paths`, and that the PR is reviewed, documented and awaiting the owner's merge.
+>
+> A read-back confirmed all four edits are in the note.
+
+Sources: `000-Meta/Vault Frontmatter Convention.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0123 - Add UTF-8 Byte Budget Cap.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0125 - Reconcile Heading Path Description.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0125 - Reconcile Heading Path Description.md`: Frontmatter status: planned → in-review
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0125 - Reconcile Heading Path Description.md`: Frontmatter spec_branch set to 079-clarify-heading-paths
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0125 - Reconcile Heading Path Description.md`: Frontmatter updated set to 2026-11-01
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0125 - Reconcile Heading Path Description.md`: Appended a 2026-11-01 HTML comment recording that Relay run obsidian-cli-mcp-bi-0125-2026-11-01 produced PR #107, giving its spec branch and feature folder, and noting it awaits the owner's merge
+
+**Sent to the step:**
+
+> BI-0125 now records the pull request. The edits follow the precedent set by BI-0123 / PR #106:
+> - Frontmatter `status`: changed from `planned` to `in-review`. `in-review` is the `backlog-item` status listed in Vault Frontmatter Convention.
+> - Frontmatter `spec_branch`: set to `079-clarify-heading-paths`.
+> - Frontmatter `updated`: set to 2026-11-01.
+> - Dated HTML comment appended. It says Relay run obsidian-cli-mcp-bi-0125-2026-11-01 produced https://github.com/marwansaab/obsidian-cli-mcp/pull/107 (#107), on spec branch `079-clarify-heading-paths` with feature folder `specs/079-clarify-heading-paths`, and that the PR is reviewed, documented and awaiting the owner's merge.
+>
+> A read-back confirmed all four edits are in the note.

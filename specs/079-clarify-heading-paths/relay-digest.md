@@ -4,14 +4,14 @@
 |---|---|
 | Run | `obsidian-cli-mcp-bi-0125-2026-11-01` |
 | Project | obsidian-cli-mcp (pack speckit) |
-| Status | running |
+| Status | done |
 | Started | 2026-11-01T03:04:49.303Z |
-| Finished | not yet |
-| Elapsed | 18 min 44 s |
+| Finished | 2026-11-01T03:31:54.114Z |
+| Elapsed | 27 min 5 s |
 | Questions | 2 (0 needed the owner) |
-| Requests to the advisor | 2 (0 needed the owner) |
+| Requests to the advisor | 3 (0 needed the owner) |
 | Escalations | 0 |
-| Edits by the advisor | 0 |
+| Edits by the advisor | 4 |
 
 ## Inputs
 
@@ -118,25 +118,53 @@ Skipped.
 ### implementation (`6e1c642e-05bd-4a7b-8dcb-faff7a695adb`)
 
 - Condition `file-exists` (start_when): met. C:\Github\obsidian-cli-mcp\specs\079-clarify-heading-paths\tasks.md exists.
+- Condition `gh-pr-open` (done_when): met. Pull request #107 is open.
 
 - **implement**: done, 84 turns.
 
 > Implemented all 38 tasks for 079-clarify-heading-paths. read_heading and patch_heading descriptions, heading parameter descriptions and help pages now state the level-1-first, one-level-per-segment rule, list unreachable sections with the whole-note alternative (read / write_note), and name the missing level-1 heading or skipped level as the usual heading-not-found cause, before outline. Runtime text and logic unchanged. Added 5 walkHeadings characterisation cases and FR-013 wording tests (each failed before its text change); regenerated the baseline (only the two tools' description/schema fingerprints moved); added a CHANGELOG entry. Full gate green (3611 tests passed); live check against TestVault 9/9 passed, fixtures cleaned up. The sweep also fixed a stale read_note in READ_HEADING_DESCRIPTION's opening sentence. SC review and run records are in the tasks.md Notes. The optional after_implement commit hook was skipped, so nothing is committed.
 
-- **open-pr**: in progress.
+- **open-pr**: done, 18 turns.
 
-### review
+> Re-ran the full gate (typecheck, lint, 3611 tests pass), then committed the 079 work in two CONTRIBUTING-style commits: ec5524b docs(079), the implementation, and 291517e chore(079), the spec-kit pointer and Relay digest. Pushed 079-clarify-heading-paths to origin and opened PR #107 into main, not a draft and not merged. The repo has no PR template file, so the body follows PR #106's layout, including the Constitution Compliance table (no N verdicts). The /speckit-docs-as-code pass is still pending.
 
-- **code-review**: not run.
-- **fix**: not run.
 
-### docs
+### review (`91da55af-9557-44a5-b1f8-eaf16759cf90`)
 
-- **document**: not run.
+- Condition `gh-pr-open` (start_when): met. Pull request #107 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #107 is open.
 
-### record
+- **code-review**: done, 16 turns.
 
-- **record-in-vault**: not run.
+> Thermo-nuclear review of PR #107 (079-clarify-heading-paths vs main). Verdict: no blockers, approve with minor test-layer fixes. Production change is prose only (two tool descriptions + two parameter descriptions) and matches heading-path-wording-contract §2 word for word; the frozen runtime messages (§4) are unchanged; no new branch, import, file over 1k lines or kernel-node touch. The shared rule-builder that research D1 rejected was re-examined, and the rejection holds: two strings with different quoting, different unreachable cases and different whole-note alternatives, so a builder would be a generic mechanism over two literals. The 3 changed test files pass (54/54). Findings, all tests only: (1) both index.test.ts files read the parameter description by building the tool and casting descriptor.inputSchema; applyTargetModeRefinement<T> returns T, so xInputSchema.shape.<field>.description is typed and needs no deps, spawn stub or cast. (2) patch_heading/index.test.ts:203-211 uses a countOf plus while-loop and a magic 400-char window that does not encode contract H2 'sentence immediately after'; collapse to docs.split(FROZEN).slice(1) and check the rest of each line. (3) `errorRow ?? ""` in both files turns 'row missing' into a confusing '-1 >= 0' failure; assert the row is defined first. (4) Low: the docs readFileSync runs at describe-collection time, so a missing doc crashes the whole file instead of failing the FR-023 existence test. Not raised: the US1-US4 blocks are near-duplicates across the two tools, but two copies with different literals stay readable. Appended durable entry 40 to .memory/refactor-decisions.md (D1 rationale + the .shape description fact). Nothing posted to the PR, nothing committed.
+
+- **fix**: done, 20 turns.
+
+> I fixed all four review findings in commit af30b33 and pushed it to 079-clarify-heading-paths, so it is on PR #107. All four were test-only, so none changed what the 079 spec requires and no question was needed. (1) The cast on the descriptor's input schema is gone from both index.test.ts files. Each now reads `patchHeadingInputSchema.shape.heading_path.description` or `readHeadingInputSchema.shape.heading.description` directly, a typed read with no tool build, spawn stub or cast. (2) The patch_heading check for contract §3 H2 no longer uses a counting helper, a while loop and a fixed 400-character window. It now splits the help page on the verbatim frozen message, checks that 'top-level headings are out of scope' is missing from the joined pieces, and checks that the sentence right after each quote names the level-1 heading. I printed that sentence from the real help page to confirm the slice picks it up. (3) The `errorRow ?? ""` fallback is replaced in both files by an assertion that the HEADING_NOT_FOUND table row exists. (4) The help page is now read in `beforeAll` instead of while the test file loads, so a missing doc fails one test instead of breaking the whole file. Production code, the published descriptions, the help pages and _register-baseline.json are unchanged. Typecheck, lint and build are clean, and the full suite passes: 3611 tests, 6 skipped, none failing. Left alone: the US1–US4 test blocks are still near-copies across the two tools. The review did not count that as a finding, since it is only two copies with different text, and a shared test helper would add indirection for little gain. I also left the uncommitted change in specs/079-clarify-heading-paths/relay-digest.md out of the commit, because it was there before this step and is not part of the review fixes. The commit message follows CONTRIBUTING.md.
+
+
+### docs (`52a01a49-5a6e-4fca-a437-a67fcaa38ea1`)
+
+- Condition `gh-pr-open` (start_when): met. Pull request #107 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #107 is open.
+
+- **document**: done, 29 turns.
+
+> Ran /speckit-docs-as-code 107 in PR mode. PR #107 is open; review comments and reviews were empty. Committed 9dd153b on 079-clarify-heading-paths and pushed it. The commit updates .docs-as-code/capabilities/read.md: read_heading's level-1-first path rule, the old "at least two path segments" limit marked incomplete, and a new limit that the rule is pinned only by the live check. It adds a "Heading paths" section to .docs-as-code/capabilities/mutate.md: the walkHeadings matching rule, the wording PR #107 replaced, the frozen one-segment message, the tests and the follow-ups. docs/tools pages and the CHANGELOG were already updated in the PR, so npm test was not needed. Added a ## Documentation section to the PR body; the first edit added a BOM and CRLF line endings, which were stripped. The skill says to stop on a dirty tree, but the uncommitted relay-digest.md was carried on past: the PR branch was already checked out, so nothing was dragged across, and only the two pages were staged. The digest is still uncommitted.
+
+
+### record (`fcd3e5b0-ddf8-456a-8af8-91c61cfb2db6`)
+
+- **record-in-vault**: done.
+
+> BI-0125 now records the pull request. The edits follow the precedent set by BI-0123 / PR #106:
+> - Frontmatter `status`: changed from `planned` to `in-review`. `in-review` is the `backlog-item` status listed in Vault Frontmatter Convention.
+> - Frontmatter `spec_branch`: set to `079-clarify-heading-paths`.
+> - Frontmatter `updated`: set to 2026-11-01.
+> - Dated HTML comment appended. It says Relay run obsidian-cli-mcp-bi-0125-2026-11-01 produced https://github.com/marwansaab/obsidian-cli-mcp/pull/107 (#107), on spec branch `079-clarify-heading-paths` with feature folder `specs/079-clarify-heading-paths`, and that the PR is reviewed, documented and awaiting the owner's merge.
+>
+> A read-back confirmed all four edits are in the note.
+
 
 ## Escalations
 
@@ -145,7 +173,12 @@ None.
 
 ## Edits made by the advisor
 
-None.
+| File | Change | Triggered by |
+|---|---|---|
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0125 - Reconcile Heading Path Description.md` | Frontmatter status: planned → in-review | record / record-in-vault: The work for job BI-0125 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0125 - Reconcile Heading Path Description.md` | Frontmatter spec_branch set to 079-clarify-heading-paths | record / record-in-vault: The work for job BI-0125 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0125 - Reconcile Heading Path Description.md` | Frontmatter updated set to 2026-11-01 | record / record-in-vault: The work for job BI-0125 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0125 - Reconcile Heading Path Description.md` | Appended a 2026-11-01 HTML comment recording that Relay run obsidian-cli-mcp-bi-0125-2026-11-01 produced PR #107, giving its spec branch and feature folder, and noting it awaits the owner's merge | record / record-in-vault: The work for job BI-0125 is now a reviewed, documented pull request. Record that on the job's note,  |
 
 ## Files
 
