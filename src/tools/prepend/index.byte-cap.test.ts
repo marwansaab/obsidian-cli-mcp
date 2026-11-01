@@ -1,4 +1,4 @@
-// Original — no upstream. Spec 078 — prepend's size limit: content over MAX_CONTENT_BYTES UTF-8 bytes is refused during input validation as VALIDATION_ERROR / CONTENT_TOO_LARGE with details.reason "bytes", before anything reaches the vault or Obsidian; contract B1–B16.
+// Original — no upstream. Spec 078 — prepend's size limit: content over MAX_CONTENT_BYTES UTF-8 bytes is refused during input validation as VALIDATION_ERROR / CONTENT_TOO_LARGE with details.reason "bytes", before anything reaches the vault or Obsidian; contract B1–B16. Also home to the registered-path character-limit cases (BI-045 FR-018), so both limits are tested in one place; the toEqual payloads of B1 and B5 pin that both share details.code and only the size limit carries reason "bytes" (spec 078 US3).
 import { describe, expect, test, vi } from "vitest";
 
 import { fakeFs } from "./_handler-fixtures.js";
@@ -142,18 +142,18 @@ describe("the two limits together (spec 078 FR-005)", () => {
     expectUntouched(b);
   });
 
+  test("ten times over the character limit → the same character-limit error (BI-045 FR-018)", async () => {
+    const b = build();
+    const wayOver = MAX_CONTENT_LENGTH * 10;
+    const payload = payloadOf(await b.tool.handler({ ...SPECIFIC, content: "x".repeat(wayOver) }));
+    expect(payload).toEqual(charLimitError(wayOver));
+    expectUntouched(b);
+  });
+
   test("B6 over both limits → the character-limit error wins", async () => {
     const b = build();
     const payload = payloadOf(await b.tool.handler({ ...SPECIFIC, content: "🚀".repeat(1537) }));
     expect(payload).toEqual(charLimitError(3074));
     expectUntouched(b);
-  });
-
-  test("both errors share details.code; only the size limit carries reason: bytes", async () => {
-    const bytes = payloadOf(await build().tool.handler({ ...SPECIFIC, content: CJK_1500 }));
-    const chars = payloadOf(await build().tool.handler({ ...SPECIFIC, content: "a".repeat(3073) }));
-    expect(bytes.details.code).toBe(chars.details.code);
-    expect(bytes.details.reason).toBe("bytes");
-    expect(chars.details.reason).toBeUndefined();
   });
 });

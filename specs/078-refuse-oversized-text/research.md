@@ -31,6 +31,8 @@ A `.refine()` chained after `.min(1).max(3072)` on the same string:
 
 1,024 × `中` (3,072 bytes) and 3,072 × `a` both pass.
 
+*Amended at PR #106 review (probed, zod 4):* `.max(3072, { abort: true })` stops the chained check when the length check fails, so text over both limits yields **only** `too_big`. Within the character limit the size check still runs, and `abort` adds nothing to the emitted JSON Schema.
+
 ### F4. Tests that encode the old behaviour
 
 - `src/tools/prepend/schema.test.ts:134` "multi-byte content exactly at cap (MAX_CONTENT_LENGTH UTF-16 code units of emojis) → ACCEPTED" sends 1,536 × `🚀` (3,072 code units, 6,144 bytes). That is exactly the case this BI refuses, so the test must be rewritten to expect the size-limit refusal. It is the only existing test whose expectation changes.
@@ -53,6 +55,8 @@ ADR-015 says: when one error code has several sub-states, add `details.reason` (
 
 `schema.ts` exports `MAX_CONTENT_BYTES = 3072`, next to `MAX_CONTENT_LENGTH` and with its own comment citing this spec. `content` gains `.refine((v) => Buffer.byteLength(v, "utf8") <= MAX_CONTENT_BYTES, { message, params: { subReason: "bytes" } })` after `.max()`.
 
+*Amended at PR #106 review:* the check is a `.superRefine` that measures once and adds the `custom` issue with the final message (`… (got N)`) and `params: { subReason: "bytes", contentBytes: N }`, and `.max()` carries `{ abort: true }` (F3 amendment), so the size check runs only on text within the character limit.
+
 - **Rationale**: the check runs where the character limit already runs, before any business logic (Principle III; spec FR-002). Obsidian, the filesystem and target resolution are never reached, in every target mode and with or without `inline`. `Buffer.byteLength(…, "utf8")` measures the UTF-8 size the fault depends on, lone surrogates included (F2, F3), and `sizeChange` in `_note-io.ts` already uses it.
 - **Alternatives rejected**: a check in `executePrepend`, which runs after target resolution, so an oversized call on a missing note would report `NOTE_NOT_FOUND` (spec Edge Cases), and which breaks Principle III's "validate at the boundary"; making `.max()` count bytes, which would change the character-limit error (FR-005, FR-007); deriving `MAX_CONTENT_BYTES` from `MAX_CONTENT_LENGTH`, which couples two limits that measure different things and may move apart later.
 
@@ -65,6 +69,8 @@ ADR-015 says: when one error code has several sub-states, add `details.reason` (
 3. otherwise, the generic envelope, unchanged.
 
 `contentBytes` is computed from `rawArgs.content` with the same `Buffer.byteLength` call. Step 1 checks all issues for `too_big` before step 2 looks at any `custom` issue, so the precedence rule (spec FR-005, Edge Cases) does not depend on the order Zod reports issues in (F3).
+
+*Amended at PR #106 review:* the precedence now lives in the schema (`abort` on `.max()`, D1 amendment), so `content` never carries both issues and the mapper checks both in one pass. The message and `contentBytes` come from the schema's issue instead of a second `Buffer.byteLength` over `rawArgs`. The returned errors are unchanged.
 
 - **Rationale**: ADR-015 (F6). Agents that already map `CONTENT_TOO_LARGE` to `write_note` keep working. Field names follow the existing `contentLength` / `maxLength` pair, with the unit named.
 - **Alternatives rejected**: a new `details.code` (ADR-015 option b, declined by the owner); adding `reason: "characters"` to the existing error, which would change its `details` (FR-005).
@@ -79,7 +85,7 @@ Both strings interpolate the constants, so the published values cannot drift fro
 ### D4. Tests
 
 - A new `src/tools/prepend/index.byte-cap.test.ts` drives `createPrependTool(...).handler` (the registered path that runs the schema and the mapper) through contract §3 examples B1–B16. Refused calls use a registry stub and a spawn spy that fail the test if reached.
-- `schema.test.ts`: rewrite the emoji-at-cap test (F4), and add byte-boundary cases (3,072 bytes accepted for ASCII, 2-byte, 3-byte and 4-byte scripts and for text ending in a CRLF; one byte over refused with only the `custom` issue; both limits broken gives both issues).
+- `schema.test.ts`: rewrite the emoji-at-cap test (F4), and add byte-boundary cases (3,072 bytes accepted for ASCII, 2-byte, 3-byte and 4-byte scripts and for text ending in a CRLF; one byte over refused with only the `custom` issue; both limits broken gives both issues). *Amended at PR #106 review:* both limits broken now gives only the `too_big` issue. The registered-path character-limit tests that were in `handler.test.ts` (cap + 1, cap × 10, exactly at cap) moved into `index.byte-cap.test.ts`. The first and last were already covered by B5 and B7, so only cap × 10 was added there.
 - `index.test.ts`: the description and the `content` description contain `MAX_CONTENT_BYTES` and "bytes".
 
 ### D5. Documentation

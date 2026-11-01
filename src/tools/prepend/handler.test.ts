@@ -2,10 +2,11 @@
 // US1 happy paths (both locator shapes × content-verbatim, bytes_written stat-delta,
 // file-TSV resolver pre-flight, PATH_ESCAPES_VAULT, repeat-invocation determinism,
 // inline-flag passthrough, NOTE_NOT_FOUND + EXTERNAL_EDITOR_CONFLICT classification);
-// US2 (CONTENT_EMPTY / CONTENT_TOO_LARGE, locator-mutex, bracket-rejection,
-// unknown-extra-field) through the registerTool boundary; US3 (inline opt-in); US4
-// (active-mode focused-file resolution + ERR_NO_ACTIVE_FILE + eval parse failures).
-// The BI-047 byte-delta-guard cohort lives in handler.bi047.test.ts; shared fixtures
+// US2 (CONTENT_EMPTY, locator-mutex, bracket-rejection, unknown-extra-field) through
+// the registerTool boundary; US3 (inline opt-in); US4 (active-mode focused-file
+// resolution + ERR_NO_ACTIVE_FILE + eval parse failures). The BI-047 byte-delta-guard
+// cohort lives in handler.bi047.test.ts; both CONTENT_TOO_LARGE limits (characters and
+// spec 078's UTF-8 size) in index.byte-cap.test.ts; shared fixtures
 // (fakeFs / fakeRegistry / deps / canned responses) in _handler-fixtures.ts.
 import { resolve } from "node:path";
 import { Writable } from "node:stream";
@@ -15,7 +16,6 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { deps, fakeFs, fakeRegistry, FILE_TSV_OK, PREPEND_OK, VAULT_ROOT } from "./_handler-fixtures.js";
 import { executePrepend } from "./handler.js";
 import { createPrependTool } from "./index.js";
-import { MAX_CONTENT_LENGTH } from "./schema.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createLogger } from "../../logger.js";
@@ -464,72 +464,6 @@ describe("US2 schema-layer errors via registerTool boundary translator", () => {
     expect(payload.code).toBe("VALIDATION_ERROR");
     const issues = payload.details.issues as Array<{ code: string; path: string[] }>;
     expect(issues.some((i) => i.code === "too_small" && i.path[0] === "content")).toBe(true);
-  });
-
-  test("CONTENT_TOO_LARGE: cap+1 → VALIDATION_ERROR with top-level details.code discriminator + contentLength + maxLength", async () => {
-    const tool = buildTool();
-    const overByOne = MAX_CONTENT_LENGTH + 1;
-    const result = await tool.handler({
-      target_mode: "specific",
-      vault: "TestVault",
-      path: "n.md",
-      content: "x".repeat(overByOne),
-    });
-    expect("isError" in result && result.isError).toBe(true);
-    const payload = JSON.parse(result.content[0]!.text);
-    expect(payload.code).toBe("VALIDATION_ERROR");
-    expect(payload.details.code).toBe("CONTENT_TOO_LARGE");
-    expect(payload.details.contentLength).toBe(overByOne);
-    expect(payload.details.maxLength).toBe(MAX_CONTENT_LENGTH);
-    // No nested issues array — the discriminator carries everything.
-    expect(payload.details.issues).toBeUndefined();
-  });
-
-  test("CONTENT_TOO_LARGE: cap+N (many multiples over) produces same top-level discriminator", async () => {
-    const tool = buildTool();
-    const wayOver = MAX_CONTENT_LENGTH * 10;
-    const result = await tool.handler({
-      target_mode: "specific",
-      vault: "TestVault",
-      path: "n.md",
-      content: "x".repeat(wayOver),
-    });
-    expect("isError" in result && result.isError).toBe(true);
-    const payload = JSON.parse(result.content[0]!.text);
-    // Discriminator is STABLE across over-cap magnitudes — boundary+1 and
-    // boundary+N produce the same top-level shape.
-    expect(payload.code).toBe("VALIDATION_ERROR");
-    expect(payload.details.code).toBe("CONTENT_TOO_LARGE");
-    expect(payload.details.contentLength).toBe(wayOver);
-    expect(payload.details.maxLength).toBe(MAX_CONTENT_LENGTH);
-  });
-
-  test("CONTENT_TOO_LARGE boundary: exactly MAX_CONTENT_LENGTH → handler reached (no validation error)", async () => {
-    // Build a tool with a stub vault registry; even though we cannot easily
-    // assert success without a real spawn pipeline, we can verify the
-    // schema layer accepts the input and reaches the handler.
-    const tool = createPrependTool({
-      logger: silentLogger(),
-      queue: createQueue(),
-      vaultRegistry: {
-        resolveVaultPath: async () => {
-          throw new UpstreamError({
-            code: "MARKER_PASSED_SCHEMA",
-            cause: null,
-            details: {},
-          });
-        },
-      },
-    });
-    const result = await tool.handler({
-      target_mode: "specific",
-      vault: "TestVault",
-      path: "n.md",
-      content: "x".repeat(MAX_CONTENT_LENGTH),
-    });
-    expect("isError" in result && result.isError).toBe(true);
-    const payload = JSON.parse(result.content[0]!.text);
-    expect(payload.code).toBe("MARKER_PASSED_SCHEMA");
   });
 
   test("bracket rejection (FR-001a) → VALIDATION_ERROR with file path", async () => {

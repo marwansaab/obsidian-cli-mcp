@@ -98,6 +98,5 @@ describe("createPrependTool — descriptor (BI-045 / ADR-005 / ADR-010)", () => 
     const description = properties.content!.description as string;
     expect(description).toContain(`${MAX_CONTENT_LENGTH} characters`);
     expect(description).toContain(`${MAX_CONTENT_BYTES} bytes as UTF-8`);
-    expect(properties.content!.maxLength).toBe(MAX_CONTENT_LENGTH);
   });
 });

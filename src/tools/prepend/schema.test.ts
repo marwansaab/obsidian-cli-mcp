@@ -11,11 +11,6 @@ import {
   prependOutputSchema,
 } from "./schema.js";
 
-/** The `params.subReason` a spec 078 size-limit issue carries. */
-function subReasonOf(issue: object): string | undefined {
-  return (issue as { params?: { subReason?: string } }).params?.subReason;
-}
-
 describe("prependInputSchema — happy paths", () => {
   it("accepts specific mode with vault + path + content", () => {
     const parsed = prependInputSchema.safeParse({
@@ -154,8 +149,10 @@ describe("prependInputSchema — CONTENT_TOO_LARGE (FR-018, NEW in BI-045)", () 
     if (parsed.success) return;
     const issues = parsed.error.issues.filter((i) => i.path.join(".") === "content");
     expect(issues).toHaveLength(1);
-    expect(issues[0]!.code).toBe("custom");
-    expect(subReasonOf(issues[0]!)).toBe("bytes");
+    expect(issues[0]).toMatchObject({
+      code: "custom",
+      params: { subReason: "bytes", contentBytes: MAX_CONTENT_LENGTH * 2 },
+    });
   });
 
   it("multi-byte content one emoji over cap → REJECTED (verifies code-unit measurement per R3)", () => {
@@ -214,8 +211,10 @@ describe("prependInputSchema — size limit (spec 078)", () => {
     if (parsed.success) return;
     const issues = parsed.error.issues.filter((i) => i.path.join(".") === "content");
     expect(issues).toHaveLength(1);
-    expect(issues[0]!.code).toBe("custom");
-    expect(subReasonOf(issues[0]!)).toBe("bytes");
+    expect(issues[0]).toMatchObject({
+      code: "custom",
+      params: { subReason: "bytes", contentBytes: Buffer.byteLength(content, "utf8") },
+    });
   });
 
   it.each([
@@ -229,13 +228,12 @@ describe("prependInputSchema — size limit (spec 078)", () => {
     expect(parse(content).success).toBe(true);
   });
 
-  it("over both limits → both a too_big and a custom / subReason bytes issue (why the mapper must not rely on order)", () => {
+  it("over both limits → only the too_big issue (abort on .max() skips the size check; FR-005)", () => {
     const parsed = parse("🚀".repeat(1537));
     expect(parsed.success).toBe(false);
     if (parsed.success) return;
     const issues = parsed.error.issues.filter((i) => i.path.join(".") === "content");
-    expect(issues.some((i) => i.code === "too_big")).toBe(true);
-    expect(issues.some((i) => i.code === "custom" && subReasonOf(i) === "bytes")).toBe(true);
+    expect(issues.map((i) => i.code)).toEqual(["too_big"]);
   });
 });
 

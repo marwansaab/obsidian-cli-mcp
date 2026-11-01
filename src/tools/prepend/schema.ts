@@ -1,4 +1,4 @@
-// Original — no upstream. prepend input/output schemas per BI-045 — content non-empty (FR-013) producing the cohort's Zod `too_small` issue with details.code: CONTENT_EMPTY (reused from BI-044 unchanged); content max-length 3072 UTF-16 code units (FR-018, lowered from 24576 by BI-047) producing Zod `too_big` with details.code: CONTENT_TOO_LARGE (NEW single-state sub-discriminator per ADR-015); spec 078: content also capped at MAX_CONTENT_BYTES (3072) UTF-8 bytes via a refine whose custom issue carries params.subReason "bytes"; file-field structural-path-safety + wikilink-form bracket rejection (FR-001a, byte-stable with BI-044's safeFileField); path-field structural-path-safety; inline boolean default false; target-mode primitive (no active-mode opt-in flag per FR-004a — deliberate cohort exception to write_note's overwrite:true, justified by prepend's additive-not-destructive safety profile, inherited from BI-044). 075: bytes_written described by the shared BYTES_WRITTEN_DESCRIPTION (bound unchanged).
+// Original — no upstream. prepend input/output schemas per BI-045 — content non-empty (FR-013) producing the cohort's Zod `too_small` issue with details.code: CONTENT_EMPTY (reused from BI-044 unchanged); content max-length 3072 UTF-16 code units (FR-018, lowered from 24576 by BI-047) producing Zod `too_big` with details.code: CONTENT_TOO_LARGE (NEW single-state sub-discriminator per ADR-015); spec 078: content also capped at MAX_CONTENT_BYTES (3072) UTF-8 bytes via a superRefine whose custom issue carries the final message and params { subReason: "bytes", contentBytes }, skipped (abort on .max()) when the character limit already failed; file-field structural-path-safety + wikilink-form bracket rejection (FR-001a, byte-stable with BI-044's safeFileField); path-field structural-path-safety; inline boolean default false; target-mode primitive (no active-mode opt-in flag per FR-004a — deliberate cohort exception to write_note's overwrite:true, justified by prepend's additive-not-destructive safety profile, inherited from BI-044). 075: bytes_written described by the shared BYTES_WRITTEN_DESCRIPTION (bound unchanged).
 import { z } from "zod";
 
 import {
@@ -79,15 +79,23 @@ export const prependInputSchema = applyTargetModeRefinement(
     // FR-018 — oversized content is rejected with Zod's `too_big` issue
     // (single-state details.code: CONTENT_TOO_LARGE, NEW in BI-045 per ADR-015).
     // Spec 078 — content over MAX_CONTENT_BYTES UTF-8 bytes raises a `custom` issue
-    // with params.subReason "bytes", mapped to CONTENT_TOO_LARGE / reason "bytes" in
-    // index.ts (ADR-015).
+    // carrying the final message and params { subReason: "bytes", contentBytes }, mapped
+    // to CONTENT_TOO_LARGE / reason "bytes" in index.ts (ADR-015). `abort` on `.max()`
+    // skips the size check when the character limit already failed, so text over both
+    // limits yields only `too_big` and gets the character-limit error (FR-005).
     content: z
       .string()
       .min(1)
-      .max(MAX_CONTENT_LENGTH)
-      .refine((value) => Buffer.byteLength(value, "utf8") <= MAX_CONTENT_BYTES, {
-        message: `content exceeds maximum size of ${MAX_CONTENT_BYTES} UTF-8 bytes`,
-        params: { subReason: "bytes" },
+      .max(MAX_CONTENT_LENGTH, { abort: true })
+      .superRefine((value, ctx) => {
+        const contentBytes = Buffer.byteLength(value, "utf8");
+        if (contentBytes > MAX_CONTENT_BYTES) {
+          ctx.addIssue({
+            code: "custom",
+            message: `content exceeds maximum size of ${MAX_CONTENT_BYTES} UTF-8 bytes (got ${contentBytes})`,
+            params: { subReason: "bytes", contentBytes },
+          });
+        }
       })
       .describe(
         `Text to add at the top of the note (after any frontmatter), written byte-for-byte; 1 to ${MAX_CONTENT_LENGTH} characters and at most ${MAX_CONTENT_BYTES} bytes as UTF-8 (most non-Latin characters take 2 to 4 bytes).`,
