@@ -1,4 +1,4 @@
-// Original — no upstream. Resolves the file a file-path tool will act on, so its file-type check runs on that file however it is addressed (spec 070 FR-009, research D3): `path` as given (no CLI call), `file` through the `obsidian file` TSV resolver, `active` through the focused-file eval. `resolveFileTarget` serves the CLI-pass-through tools (read, rename, move, outline) and also returns the locator they forward (active mode: the resolved `path=` with no `vault=`, so no vault registry is involved) and, in active mode only (narrowed by `vault === undefined`), the focused-file eval's vault root (spec 074: read's exact-content check); `resolveFsTarget` serves the direct-fs tools (append_note, prepend, patch_block, patch_heading — spec 089) and also returns the vault root and display name. Composes the shared `_active-file.ts` resolvers; resolution failures surface unchanged.
+// Original — no upstream. Resolves the file a file-path tool will act on, so its file-type check runs on that file however it is addressed (spec 070 FR-009, research D3): `path` as given (no CLI call), `file` through the `obsidian file` TSV resolver, `active` through the focused-file eval. `resolveFileTarget` serves the CLI-pass-through tools (read, rename, move, outline) and also returns the locator they forward (active mode: the resolved `path=` with no `vault=`, so no vault registry is involved) and, in active mode only (narrowed by `vault === undefined`), the focused-file eval's vault root (spec 074: read's exact-content check), and `fileTargetVaultRoot` gives either mode's vault folder after the action command (read, and move's failure rewrite, spec 090); `resolveFsTarget` serves the direct-fs tools (append_note, prepend, patch_block, patch_heading — spec 089) and also returns the vault root and display name. Composes the shared `_active-file.ts` resolvers; resolution failures surface unchanged.
 import {
   resolveActiveFocusedFile,
   resolveActiveLocatorWithVault,
@@ -56,6 +56,15 @@ export async function resolveFileTarget(
     vault: input.vault!,
     locator: input.file !== undefined ? { file: input.file } : { path: relPath },
   };
+}
+
+/**
+ * The target's vault folder on disk: active mode's from the focused-file eval, specific mode's from
+ * the vault registry. Callers look it up after the action command, so an unknown vault still fails
+ * at the CLI (spec 074 research D2).
+ */
+export function fileTargetVaultRoot(target: FileTarget, vaultRegistry: VaultRegistry): Promise<string> {
+  return target.vault === undefined ? Promise.resolve(target.vaultRoot) : vaultRegistry.resolveVaultPath(target.vault);
 }
 
 /**

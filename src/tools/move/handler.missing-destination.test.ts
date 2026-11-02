@@ -75,23 +75,83 @@ function shape(err: UpstreamError) {
   return { code: err.code, message: err.message, details: err.details };
 }
 
-const M1_INPUT = {
-  target_mode: "specific",
-  vault: "Work",
-  path: "Inbox/Note.md",
-  to: "Archive/2026/",
-} as const;
+interface FolderRow {
+  id: string;
+  title: string;
+  path: string;
+  to: string;
+  stub: StubResponse;
+  folder: string;
+  /** The `to=` the CLI must receive, when the row pins it. */
+  forwarded?: string;
+}
 
-async function runM1() {
-  const { spawnFn, recorded } = makeQueuedSpawn([
-    enoent(WIN_ROOT, "\\", "Inbox\\Note.md", "Archive\\2026\\Note.md"),
-  ]);
+const FOLDER_ROWS: FolderRow[] = [
+  {
+    id: "M1",
+    title: "folder-form `to` into a missing folder → FOLDER_NOT_FOUND with the vault-relative folder",
+    path: "Inbox/Note.md",
+    to: "Archive/2026/",
+    stub: enoent(WIN_ROOT, "\\", "Inbox\\Note.md", "Archive\\2026\\Note.md"),
+    folder: "Archive/2026",
+  },
+  {
+    id: "M2",
+    title: "full-path `to` into a missing folder → FOLDER_NOT_FOUND names the folder, not the file",
+    path: "Inbox/Note.md",
+    to: "Archive/2026/Old.md",
+    stub: enoent(WIN_ROOT, "\\", "Inbox\\Note.md", "Archive\\2026\\Old.md"),
+    folder: "Archive/2026",
+  },
+  {
+    id: "M3",
+    title: "nested missing folder → the whole nested folder path",
+    path: "Inbox/Note.md",
+    to: "A/B/C/",
+    stub: enoent(WIN_ROOT, "\\", "Inbox\\Note.md", "A\\B\\C\\Note.md"),
+    folder: "A/B/C",
+  },
+  {
+    id: "M4",
+    title: "a canvas moved to an extensionless `to` → FOLDER_NOT_FOUND for its folder; the forwarded to= is unchanged",
+    path: "Boards/Plan.canvas",
+    to: "Archive/Roadmap",
+    stub: enoent(WIN_ROOT, "\\", "Boards\\Plan.canvas", "Archive\\Roadmap.canvas"),
+    folder: "Archive",
+    forwarded: "Archive/Roadmap.canvas",
+  },
+  {
+    id: "M7",
+    title: "the POSIX form of the ENOENT line → FOLDER_NOT_FOUND",
+    path: "Inbox/Note.md",
+    to: "Archive/",
+    stub: enoent(POSIX_ROOT, "/", "Inbox/Note.md", "Archive/Note.md"),
+    folder: "Archive",
+  },
+  {
+    id: "M19",
+    title: "a backslash full-path `to` → FOLDER_NOT_FOUND with forward slashes; to= forwarded as given",
+    path: "Inbox/Note.md",
+    to: "Archive\\2026\\Old.md",
+    stub: enoent(WIN_ROOT, "\\", "Inbox\\Note.md", "Archive\\2026\\Old.md"),
+    folder: "Archive/2026",
+    forwarded: "Archive\\2026\\Old.md",
+  },
+];
+
+async function runRow(row: FolderRow) {
+  const { spawnFn, recorded } = makeQueuedSpawn([row.stub]);
   const { registry, calls } = recordingRegistry(WIN_ROOT);
   const err = (await captureRejection(
-    executeMove(M1_INPUT, deps(spawnFn, registry)),
+    executeMove(
+      { target_mode: "specific", vault: "Work", path: row.path, to: row.to },
+      deps(spawnFn, registry),
+    ),
   )) as UpstreamError;
   return { err, recorded, calls };
 }
+
+const runM1 = () => runRow(FOLDER_ROWS[0]!);
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -100,56 +160,14 @@ afterEach(() => __resetInFlightRegistryForTests());
 // US1 — FOLDER_NOT_FOUND (M1–M7, M19)
 // =========================================================================
 
-test("M1: folder-form `to` into a missing folder → FOLDER_NOT_FOUND with the vault-relative folder; 1 spawn, no lookup", async () => {
-  const { err, recorded, calls } = await runM1();
+test.each(FOLDER_ROWS)("$id: $title; 1 spawn, no lookup", async (row) => {
+  const { err, recorded, calls } = await runRow(row);
   expect(err).toBeInstanceOf(UpstreamError);
-  expect(shape(err)).toEqual(folderNotFound("Archive/2026"));
+  expect(shape(err)).toEqual(folderNotFound(row.folder));
   expect(err.cause).toBeNull();
   expect(recorded).toHaveLength(1);
+  if (row.forwarded !== undefined) expect(recorded[0]!.argv).toContain(`to=${row.forwarded}`);
   expect(calls).toHaveLength(0);
-});
-
-test("M2: full-path `to` into a missing folder → FOLDER_NOT_FOUND names the folder, not the file", async () => {
-  const { spawnFn } = makeQueuedSpawn([
-    enoent(WIN_ROOT, "\\", "Inbox\\Note.md", "Archive\\2026\\Old.md"),
-  ]);
-  const { registry } = recordingRegistry(WIN_ROOT);
-  const err = (await captureRejection(
-    executeMove(
-      { target_mode: "specific", vault: "Work", path: "Inbox/Note.md", to: "Archive/2026/Old.md" },
-      deps(spawnFn, registry),
-    ),
-  )) as UpstreamError;
-  expect(shape(err)).toEqual(folderNotFound("Archive/2026"));
-});
-
-test("M3: nested missing folder → the whole nested folder path", async () => {
-  const { spawnFn } = makeQueuedSpawn([
-    enoent(WIN_ROOT, "\\", "Inbox\\Note.md", "A\\B\\C\\Note.md"),
-  ]);
-  const { registry } = recordingRegistry(WIN_ROOT);
-  const err = (await captureRejection(
-    executeMove(
-      { target_mode: "specific", vault: "Work", path: "Inbox/Note.md", to: "A/B/C/" },
-      deps(spawnFn, registry),
-    ),
-  )) as UpstreamError;
-  expect(shape(err)).toEqual(folderNotFound("A/B/C"));
-});
-
-test("M4: a canvas moved to an extensionless `to` → FOLDER_NOT_FOUND for its folder; the forwarded to= is unchanged", async () => {
-  const { spawnFn, recorded } = makeQueuedSpawn([
-    enoent(WIN_ROOT, "\\", "Boards\\Plan.canvas", "Archive\\Roadmap.canvas"),
-  ]);
-  const { registry } = recordingRegistry(WIN_ROOT);
-  const err = (await captureRejection(
-    executeMove(
-      { target_mode: "specific", vault: "Work", path: "Boards/Plan.canvas", to: "Archive/Roadmap" },
-      deps(spawnFn, registry),
-    ),
-  )) as UpstreamError;
-  expect(shape(err)).toEqual(folderNotFound("Archive"));
-  expect(recorded[0]!.argv).toContain("to=Archive/Roadmap.canvas");
 });
 
 test("M5: `file` locator → FOLDER_NOT_FOUND after the name resolution; the forwarded to=Archive/ is unchanged", async () => {
@@ -179,41 +197,6 @@ test("M6: active mode → FOLDER_NOT_FOUND, no registry lookup", async () => {
     executeMove({ target_mode: "active", to: "Archive/" }, deps(spawnFn, registry)),
   )) as UpstreamError;
   expect(shape(err)).toEqual(folderNotFound("Archive"));
-  expect(calls).toHaveLength(0);
-});
-
-test("M7: the POSIX form of the ENOENT line → FOLDER_NOT_FOUND", async () => {
-  const { spawnFn } = makeQueuedSpawn([
-    enoent(POSIX_ROOT, "/", "Inbox/Note.md", "Archive/Note.md"),
-  ]);
-  const { registry } = recordingRegistry(POSIX_ROOT);
-  const err = (await captureRejection(
-    executeMove(
-      { target_mode: "specific", vault: "Work", path: "Inbox/Note.md", to: "Archive/" },
-      deps(spawnFn, registry),
-    ),
-  )) as UpstreamError;
-  expect(shape(err)).toEqual(folderNotFound("Archive"));
-});
-
-test("M19: a backslash full-path `to` → FOLDER_NOT_FOUND with forward slashes; to= forwarded as given; no lookup", async () => {
-  const { spawnFn, recorded } = makeQueuedSpawn([
-    enoent(WIN_ROOT, "\\", "Inbox\\Note.md", "Archive\\2026\\Old.md"),
-  ]);
-  const { registry, calls } = recordingRegistry(WIN_ROOT);
-  const err = (await captureRejection(
-    executeMove(
-      {
-        target_mode: "specific",
-        vault: "Work",
-        path: "Inbox/Note.md",
-        to: "Archive\\2026\\Old.md",
-      },
-      deps(spawnFn, registry),
-    ),
-  )) as UpstreamError;
-  expect(shape(err)).toEqual(folderNotFound("Archive/2026"));
-  expect(recorded[0]!.argv).toContain("to=Archive\\2026\\Old.md");
   expect(calls).toHaveLength(0);
 });
 

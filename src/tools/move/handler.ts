@@ -1,8 +1,9 @@
-// Original — no upstream. move handler: thin transformer routing parsed input through invokeCli — resolves the source (spec 070 research D3), then resolveTo (trailing-`/` folder form keeps the basename; otherwise the type-preservation rule on the final segment of `to`: keep the source's extension, reject a change to another recognised type), forwarding the original `file=` / `path=` or, in active mode, the resolved `path=` with no `vault=` (the CLI's current vault, as the focused-file eval); parseMoveResponse three-shape contract. Spec 090: a move-step failure is classified after the CLI reports it — an ENOENT rename becomes CLI_REPORTED_ERROR + details.code FOLDER_NOT_FOUND with the vault-relative destination folder (no lookup); every other failure but CLI_BINARY_NOT_FOUND has the vault's absolute folder (active: focused-file eval; specific: vault registry, after the failure) rewritten to the vault-relative form, the same object when nothing changed; when the specific-mode lookup fails for any reason but an unregistered vault, the CLI text is withheld (code kept, vault-relative source and destination named, lookup failure as cause).
+// Original — no upstream. move handler: thin transformer routing parsed input through invokeCli — resolves the source (spec 070 research D3), then resolveTo (trailing-`/` folder form keeps the basename; otherwise the type-preservation rule on the final segment of `to`: keep the source's extension, reject a change to another recognised type), forwarding the original `file=` / `path=` or, in active mode, the resolved `path=` with no `vault=` (the CLI's current vault, as the focused-file eval); parseMoveResponse three-shape contract. Spec 090: a move-step failure is classified after the CLI reports it, in moveFailure — an ENOENT rename becomes CLI_REPORTED_ERROR + details.code FOLDER_NOT_FOUND with the vault-relative destination folder (no lookup); every other failure but CLI_BINARY_NOT_FOUND has the vault's absolute folder (active: focused-file eval; specific: vault registry, after the failure) rewritten to the vault-relative form by the shared withVaultRelativePaths (`_vault-relative-error.ts`); when the specific-mode lookup fails for any reason but an unregistered vault, the CLI text is withheld (code kept, vault-relative source and destination named, lookup failure as cause).
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError, stringDetail } from "../../errors.js";
 import { resolveDestinationName, type SupportDeclaration } from "../../file-type/file-type.js";
-import { resolveFileTarget } from "../_file-target.js";
+import { fileTargetVaultRoot, resolveFileTarget, type FileTarget } from "../_file-target.js";
+import { withVaultRelativePaths } from "../_vault-relative-error.js";
 
 import type { MoveInput, MoveOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
@@ -83,46 +84,6 @@ function folderNotFound(folder: string): UpstreamError {
   });
 }
 
-const SEPARATOR = String.raw`[\\/]`;
-// What may follow a bare root in CLI text: the end, or a character that cannot continue a folder
-// name there. Anything else (`<root>shop\x.md`) is a sibling folder and is left alone.
-const AFTER_BARE_ROOT = String.raw`(?=$|[\s'"\x60,;:)\]>])`;
-
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  if (value === null || typeof value !== "object") return false;
-  const proto: unknown = Object.getPrototypeOf(value);
-  return proto === Object.prototype || proto === null;
-}
-
-// Spec 090 data-model E5: `<root><separator>` becomes "" and a bare `<root>` becomes ".", in the
-// message and in every string inside `details`, with either separator and in any case. The same
-// object comes back when nothing was rewritten, so a failure naming no path is unchanged.
-function withVaultRelativePaths(e: UpstreamError, root: string): UpstreamError {
-  const trimmed = root.replace(/[\\/]+$/, "");
-  if (trimmed === "") return e;
-  const pattern = trimmed
-    .split(/[\\/]/)
-    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-    .join(SEPARATOR);
-  const re = new RegExp(`${pattern}(?:${SEPARATOR}|${AFTER_BARE_ROOT})`, "gi");
-  let count = 0;
-  const rewrite = (value: unknown): unknown => {
-    if (typeof value === "string") {
-      return value.replace(re, (match) => {
-        count++;
-        return /[\\/]$/.test(match) ? "" : ".";
-      });
-    }
-    if (Array.isArray(value)) return value.map(rewrite);
-    if (isPlainRecord(value)) return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, rewrite(v)]));
-    return value;
-  };
-  const message = rewrite(e.message) as string;
-  const details = rewrite(e.details) as Record<string, unknown>;
-  if (count === 0) return e;
-  return new UpstreamError({ code: e.code, cause: e.cause, details, message });
-}
-
 // Spec 090 data-model E4c: the vault root is unknown, so the CLI text cannot be cleaned and is
 // dropped; the move failure keeps its code, and the lookup failure is its cause.
 function withheldFailure(e: UpstreamError, source: string, destination: string, lookupErr: unknown): UpstreamError {
@@ -133,6 +94,24 @@ function withheldFailure(e: UpstreamError, source: string, destination: string, 
     details: { source, destination },
     message: `move: moving "${source}" to "${destination}" failed with ${e.code}, and the vault's folder could not be looked up (${lookupCode}), so the command-line output is withheld to keep absolute paths out of this error. Retry the move.`,
   });
+}
+
+// Spec 090 data-model "Per-call flow": the error a move-step failure is reported as.
+async function moveFailure(e: unknown, target: FileTarget, resolvedTo: string, vaultRegistry: VaultRegistry): Promise<unknown> {
+  // CLI_BINARY_NOT_FOUND's search paths describe the CLI install, not the vault (Clarification Q1).
+  if (!(e instanceof UpstreamError) || e.code === "CLI_BINARY_NOT_FOUND") return e;
+  const folder = destinationFolder(resolvedTo);
+  if (folder !== "" && isMissingDestinationFolder(e)) return folderNotFound(folder);
+  let root: string;
+  try {
+    root = await fileTargetVaultRoot(target, vaultRegistry);
+  } catch (lookupErr) {
+    // Research D5: a vault the registry does not know is one the CLI did not act on, so its
+    // failure names no folder of it.
+    if (lookupErr instanceof UpstreamError && lookupErr.code === "VALIDATION_ERROR") return e;
+    return withheldFailure(e, target.relPath, resolvedTo, lookupErr);
+  }
+  return withVaultRelativePaths(e, root);
 }
 
 export async function executeMove(input: MoveInput, deps: ExecuteDeps): Promise<MoveOutput> {
@@ -150,23 +129,6 @@ export async function executeMove(input: MoveInput, deps: ExecuteDeps): Promise<
     const { fromPath, toPath } = parseMoveResponse(stdout, target.relPath, resolvedTo);
     return { moved: true, fromPath, toPath };
   } catch (e) {
-    // CLI_BINARY_NOT_FOUND's search paths describe the CLI install, not the vault (Clarification Q1).
-    if (!(e instanceof UpstreamError) || e.code === "CLI_BINARY_NOT_FOUND") throw e;
-    const folder = destinationFolder(resolvedTo);
-    if (isMissingDestinationFolder(e) && folder !== "") throw folderNotFound(folder);
-    let root: string;
-    if (target.vault === undefined) {
-      root = target.vaultRoot;
-    } else {
-      try {
-        root = await deps.vaultRegistry.resolveVaultPath(target.vault);
-      } catch (lookupErr) {
-        // Research D5: a vault the registry does not know is one the CLI did not act on, so its
-        // failure names no folder of it.
-        if (lookupErr instanceof UpstreamError && lookupErr.code === "VALIDATION_ERROR") throw e;
-        throw withheldFailure(e, target.relPath, resolvedTo, lookupErr);
-      }
-    }
-    throw withVaultRelativePaths(e, root);
+    throw await moveFailure(e, target, resolvedTo, deps.vaultRegistry);
   }
 }
