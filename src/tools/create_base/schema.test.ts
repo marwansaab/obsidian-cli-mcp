@@ -234,6 +234,15 @@ test("output: valid envelope accepted", () => {
 // JSON Schema round-trip
 // =====================================================================
 
+test("083: the published vault description no longer says it is ignored", () => {
+  const json = z.toJSONSchema(createBaseInputSchema, { io: "input", target: "draft-2020-12" }) as {
+    properties: Record<string, { description?: string }>;
+  };
+  const description = json.properties.vault!.description ?? "";
+  expect(description).not.toMatch(/ignored/i);
+  expect(description).toContain("the vault in front");
+});
+
 test("z.toJSONSchema emits expected shape", () => {
   const json = z.toJSONSchema(createBaseInputSchema, { io: "input", target: "draft-2020-12" }) as Record<string, unknown>;
   expect(json.type).toBe("object");

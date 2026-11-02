@@ -10,7 +10,7 @@ export const viewsBaseInputSchema = z
       .min(1)
       .optional()
       .describe(
-        "Obsidian vault display name. With base_path, routes to that vault; without base_path it is ignored (the focused Base is used).",
+        "Obsidian vault display name. Routes to that vault in both modes: with base_path, the named Base in that vault; without it, the Base open in that vault. Omit for the vault in front.",
       ),
     // Optional vault-relative `.base` locator. Omitted ⇒ open-Base active mode
     // (lists the views of the focused Base). Present ⇒ named-Base mode (focus the

@@ -1,4 +1,8 @@
 // Original — no upstream.
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -10,8 +14,12 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
+import { closedVaultNote } from "../_shared.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
+
+// The pre-083 wording that said `vault` was not honoured (spec 083 SC-005).
+const STALE_VAULT_CLAIM = /ignored|no-op|parity|inherited|forward compatibility/i;
 
 const stubRegistry: VaultRegistry = {
   async resolveVaultPath(name: string) {
@@ -76,6 +84,20 @@ describe("createViewsBaseTool — descriptor", () => {
     expect(desc).toContain("bases");
     expect(desc).toContain("query_base");
     expect(desc).toContain("create_base");
+  });
+
+  it("083: description routes vault in both modes and carries the closed-vault note", () => {
+    expect(VIEWS_BASE_DESCRIPTION).toContain(closedVaultNote("base:views"));
+    expect(VIEWS_BASE_DESCRIPTION).toContain("VAULT_NOT_FOUND");
+    expect(VIEWS_BASE_DESCRIPTION).toContain("without `base_path`, the views of the Base open in that vault");
+    expect(VIEWS_BASE_DESCRIPTION).toContain("omitted, the vault in front");
+    expect(VIEWS_BASE_DESCRIPTION).not.toMatch(STALE_VAULT_CLAIM);
+  });
+
+  it("083: docs/tools/views_base.md makes no stale claim about vault", () => {
+    const doc = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../../docs/tools/views_base.md"), "utf8");
+    const stale = doc.split("\n").filter((line) => /vault/i.test(line) && STALE_VAULT_CLAIM.test(line));
+    expect(stale).toEqual([]);
   });
 
   it("deps wired through: handler strips the type label and produces a typed response", async () => {

@@ -38,7 +38,7 @@ const createBaseArgsSchema = z.strictObject({
     .string()
     .min(1)
     .optional()
-    .describe("Obsidian vault display name. Accepted for parity but currently ignored by the CLI."),
+    .describe("Obsidian vault display name. Creates the item in that vault's Base. Omit for the vault in front."),
 });
 
 /** The input after the fold: new names only, with `base_path` required again. */
@@ -104,3 +104,13 @@ export const createBaseOutputSchema = z.strictObject({
 
 export type CreateBaseInput = z.infer<typeof createBaseInputSchema>;
 export type CreateBaseOutput = z.infer<typeof createBaseOutputSchema>;
+
+// Discriminated eval-envelope wire format for the named-vault item-folder step (spec 083
+// research D5). The frozen ITEM_FOLDER_TEMPLATE returns `{ok:true, folder}` (vault-relative,
+// "" = the vault root) or `{ok:false, code:"BASE_NOT_FOUND"}` when no file exists at the
+// base path in the named vault. This is an internal handoff envelope, not the tool's
+// published surface, so it does NOT affect the input fingerprint.
+export const itemFolderEvalResponseSchema = z.discriminatedUnion("ok", [
+  z.strictObject({ ok: z.literal(true), folder: z.string() }),
+  z.strictObject({ ok: z.literal(false), code: z.literal("BASE_NOT_FOUND") }),
+]);

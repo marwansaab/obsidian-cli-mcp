@@ -110,9 +110,9 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
   const tools: RegisteredTool[] = [
     createAppendNoteTool({ logger, queue, vaultRegistry }),
     createBacklinksTool({ logger, queue }),
-    createBasesTool({ logger, queue }),
+    createBasesTool({ logger, queue, vaultRegistry }),
     createContextSearchTool({ logger, queue }),
-    createCreateBaseTool({ logger, queue }),
+    createCreateBaseTool({ logger, queue, vaultRegistry }),
     createDeleteTool({ logger, queue }),
     createFilesTool({ logger, queue }),
     createFindAndReplaceTool({ logger, queue, vaultRegistry }),

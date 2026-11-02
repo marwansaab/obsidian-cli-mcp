@@ -12,7 +12,29 @@ import {
   type StubResponse,
 } from "../_handler-test-fixtures.js";
 
-function makeDeps(responses: StubResponse[]): {
+import type { VaultRegistry } from "../../vault-registry/registry.js";
+
+// Stub registry: known vault names resolve to a fake path; unknown throws the
+// registry's VALIDATION_ERROR (which resolveVaultRootOrRemap remaps to
+// VAULT_NOT_FOUND/unknown), exactly the production shape.
+function makeVaultRegistry(known: Record<string, string> = { Work: "C:/vaults/Work" }): VaultRegistry {
+  return {
+    async resolveVaultPath(name: string): Promise<string> {
+      const p = known[name];
+      if (p === undefined) {
+        throw new UpstreamError({
+          code: "VALIDATION_ERROR",
+          cause: null,
+          details: { requestedVault: name, knownVaults: Object.keys(known) },
+          message: `Vault "${name}" is not registered with Obsidian.`,
+        });
+      }
+      return p;
+    },
+  };
+}
+
+function makeDeps(responses: StubResponse[], vaultRegistry?: VaultRegistry): {
   deps: ExecuteDeps;
   recorded: SpawnRecording[];
 } {
@@ -21,6 +43,7 @@ function makeDeps(responses: StubResponse[]): {
     deps: {
       logger: silentLogger(),
       queue: createQueue(),
+      vaultRegistry: vaultRegistry ?? makeVaultRegistry(),
       spawnFn,
     },
     recorded,
@@ -70,15 +93,64 @@ test("happy: deterministic sort order", async () => {
   expect(result.count).toBe(3);
 });
 
-test("vault parameter accepted but silently ignored (R-001)", async () => {
-  const stdout = "test.base\n";
-  const { deps, recorded } = makeDeps([{ stdout }]);
+// ─────────────────────────── spec 083 — named vault ───────────────────────────
 
-  const result = await executeBases({ vault: "MyVault" }, deps);
+// The subcommand for a recorded argv: the first element that is not a key=value pair.
+function commandOf(argv: string[]): string | undefined {
+  return argv.find((a) => !a.includes("="));
+}
 
-  expect(result.bases).toEqual(["test.base"]);
-  expect(result.count).toBe(1);
+test("083 B1: no vault → one `bases` spawn with no vault= arg; registry never consulted", async () => {
+  let consulted = false;
+  const registry: VaultRegistry = {
+    async resolveVaultPath(name) {
+      consulted = true;
+      return `C:/vaults/${name}`;
+    },
+  };
+  const { deps, recorded } = makeDeps([{ stdout: "a.base\n" }], registry);
+
+  const result = await executeBases({}, deps);
+
+  expect(result).toEqual({ bases: ["a.base"], count: 1 });
   expect(recorded.length).toBe(1);
+  expect(commandOf(recorded[0]!.argv)).toBe("bases");
+  expect(recorded[0]!.argv.some((a) => a.startsWith("vault="))).toBe(false);
+  expect(consulted).toBe(false);
+});
+
+test("083 B2: named vault → one `bases` spawn carrying vault=Work; filtered and sorted as today", async () => {
+  const { deps, recorded } = makeDeps([{ stdout: "b.base\na.base\n" }]);
+
+  const result = await executeBases({ vault: "Work" }, deps);
+
+  expect(result).toEqual({ bases: ["a.base", "b.base"], count: 2 });
+  expect(recorded.length).toBe(1);
+  expect(commandOf(recorded[0]!.argv)).toBe("bases");
+  expect(recorded[0]!.argv).toContain("vault=Work");
+});
+
+test("083 B3: unregistered vault → VAULT_NOT_FOUND/unknown before any spawn", async () => {
+  const { deps, recorded } = makeDeps([]);
+
+  const err = await executeBases({ vault: "Nope" }, deps).catch((e: unknown) => e);
+
+  expect(err).toBeInstanceOf(UpstreamError);
+  const ue = err as UpstreamError;
+  expect(ue.code).toBe("CLI_REPORTED_ERROR");
+  expect(ue.details).toEqual({ code: "VAULT_NOT_FOUND", reason: "unknown", vault: "Nope" });
+  expect(ue.message).toBe('bases: vault "Nope" is not registered');
+  expect(recorded.length).toBe(0);
+});
+
+test("083 B4: named vault with no Bases → { bases: [], count: 0 } from that one spawn", async () => {
+  const { deps, recorded } = makeDeps([{ stdout: "No base files found in vault\n" }]);
+
+  const result = await executeBases({ vault: "Work" }, deps);
+
+  expect(result).toEqual({ bases: [], count: 0 });
+  expect(recorded.length).toBe(1);
+  expect(recorded[0]!.argv).toContain("vault=Work");
 });
 
 test("boundary: whitespace-only / blank stdout returns empty (FR-002)", async () => {

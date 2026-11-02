@@ -8,7 +8,7 @@ export const basesInputSchema = z
       .min(1)
       .optional()
       .describe(
-        "Obsidian vault display name. Accepted for parity but currently ignored by the CLI: the focused vault is always listed.",
+        "Obsidian vault display name. Lists that vault's Bases, whether it is in front, open behind it, or closed. Omit to list the vault in front.",
       ),
   });
 

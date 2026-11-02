@@ -20,6 +20,12 @@ test("happy: with optional vault", () => {
   expect(r.success).toBe(true);
 });
 
+test("083: the vault description routes in both modes and names the front-vault default", () => {
+  const description = viewsBaseInputSchema.shape.vault.description ?? "";
+  expect(description).not.toMatch(/ignored/i);
+  expect(description).toContain("the vault in front");
+});
+
 test("happy: with optional base_path (.base)", () => {
   const r = viewsBaseInputSchema.safeParse({ base_path: "Folder/Tasks.base" });
   expect(r.success).toBe(true);

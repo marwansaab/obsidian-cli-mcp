@@ -1,68 +1,55 @@
 // Original — no upstream.
-import { type SpawnOptions } from "node:child_process";
-import { EventEmitter } from "node:events";
-import { Readable } from "node:stream";
+import { resolve, sep } from "node:path";
 
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { executeCreateBase, type ExecuteDeps } from "./handler.js";
-import {
-  __resetInFlightRegistryForTests,
-  type SpawnLike,
-} from "../../cli-adapter/_dispatch.js";
+import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
+import { linkRealpath } from "../../path-safety/_realpath-fixtures.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import {
+  captureLogger,
+  makeQueuedSpawn,
+  silentLogger,
+  type SpawnRecording,
+  type StubResponse,
+} from "../_handler-test-fixtures.js";
 
-interface StubResponse {
-  stdout?: string;
-  stderr?: string;
-  exitCode?: number | null;
-  signal?: NodeJS.Signals | null;
-}
+import type { VaultRegistry } from "../../vault-registry/registry.js";
 
-function makeSpawn(responses: StubResponse[]): {
-  spawnFn: SpawnLike;
-  recorded: Array<{ binary: string; argv: string[] }>;
-} {
-  const recorded: Array<{ binary: string; argv: string[] }> = [];
-  let idx = 0;
-  const spawnFn: SpawnLike = (binary, argv, _options: SpawnOptions) => {
-    const spec = responses[idx++]!;
-    recorded.push({ binary, argv: [...argv] });
-    const child = new EventEmitter() as EventEmitter & {
-      stdout: Readable;
-      stderr: Readable;
-      kill: (signal?: NodeJS.Signals) => boolean;
-      pid?: number;
-    };
-    child.stdout = new Readable({ read() {} });
-    child.stderr = new Readable({ read() {} });
-    child.pid = 7777;
-    child.kill = () => true;
-    setImmediate(() => {
-      if (spec.stdout) child.stdout.push(Buffer.from(spec.stdout, "utf8"));
-      child.stdout.push(null);
-      if (spec.stderr) child.stderr.push(Buffer.from(spec.stderr, "utf8"));
-      child.stderr.push(null);
-      setImmediate(() => {
-        child.emit("exit", spec.exitCode ?? 0, spec.signal ?? null);
-      });
-    });
-    return child as unknown as ReturnType<SpawnLike>;
+const WORK_ROOT = resolve("/vaults/Work");
+
+// Stub registry: known vault names resolve to a fake path; unknown throws the
+// registry's VALIDATION_ERROR (which resolveVaultRootOrRemap remaps to
+// VAULT_NOT_FOUND/unknown), exactly the production shape.
+function makeVaultRegistry(known: Record<string, string> = { Work: WORK_ROOT }): VaultRegistry {
+  return {
+    async resolveVaultPath(name: string): Promise<string> {
+      const p = known[name];
+      if (p === undefined) {
+        throw new UpstreamError({
+          code: "VALIDATION_ERROR",
+          cause: null,
+          details: { requestedVault: name, knownVaults: Object.keys(known) },
+          message: `Vault "${name}" is not registered with Obsidian.`,
+        });
+      }
+      return p;
+    },
   };
-  return { spawnFn, recorded };
 }
 
-function makeDeps(responses: StubResponse[]): {
+function makeDeps(responses: StubResponse[], vaultRegistry?: VaultRegistry): {
   deps: ExecuteDeps;
-  recorded: Array<{ binary: string; argv: string[] }>;
+  recorded: SpawnRecording[];
 } {
-  const { spawnFn, recorded } = makeSpawn(responses);
+  const { spawnFn, recorded } = makeQueuedSpawn(responses);
   return {
     deps: {
       logger: silentLogger(),
       queue: createQueue(),
+      vaultRegistry: vaultRegistry ?? makeVaultRegistry(),
       spawnFn,
     },
     recorded,
@@ -182,15 +169,191 @@ test("upstream CLI failure surfaces as UpstreamError", async () => {
   ).rejects.toThrow(UpstreamError);
 });
 
-test("vault parameter accepted but silently ignored (R-004)", async () => {
-  const { deps } = makeDeps([{ stdout: "Created: Test.md\n" }]);
+// ───────────────────── spec 083 — default path pinned (US4) ─────────────────────
 
-  const result = await executeCreateBase(
-    { base_path: "Tasks.base", name: "Test", vault: "MyVault" },
-    deps,
+// The subcommand for a recorded argv: the first element that is not a key=value pair.
+function commandOf(argv: string[]): string | undefined {
+  return argv.find((a) => !a.includes("="));
+}
+
+const throwingRealpath = async (): Promise<string> => {
+  throw new Error("realpath must not run when no vault is named");
+};
+
+test("083 C1: no vault → one base:create, no eval, no vault=, no containment check; result as today", async () => {
+  const { deps, recorded } = makeDeps([{ stdout: "Created: Test.md\n" }]);
+  deps.fs = { realpath: throwingRealpath };
+
+  const result = await executeCreateBase({ base_path: "Tasks.base", name: "Test" }, deps);
+
+  expect(result).toEqual({ path: "Tasks/Test.md", name: "Test.md" });
+  expect(recorded.map((r) => commandOf(r.argv))).toEqual(["base:create"]);
+  expect(recorded[0]!.argv.some((a) => a.startsWith("vault="))).toBe(false);
+});
+
+test("083 C1: no vault, base not found → details and message unchanged", async () => {
+  const { deps } = makeDeps([{ stdout: "Error: Base file not found: Missing.base", exitCode: 0 }]);
+  deps.fs = { realpath: throwingRealpath };
+
+  const err = (await executeCreateBase({ base_path: "Missing.base", name: "x" }, deps).catch((e: unknown) => e)) as UpstreamError;
+
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ code: "BASE_NOT_FOUND", path: "Missing.base" });
+  expect(err.message).toBe("create_base: base file not found: Missing.base");
+});
+
+// ──────────────────── spec 083 — named vault (US2 / US5) ────────────────────
+
+function envelope(value: unknown): StubResponse {
+  return { stdout: `=> ${JSON.stringify(value)}` };
+}
+
+const identityRealpath = async (p: string): Promise<string> => p;
+
+async function rejectionOf(p: Promise<unknown>): Promise<UpstreamError> {
+  const err = await p.catch((e: unknown) => e);
+  expect(err).toBeInstanceOf(UpstreamError);
+  return err as UpstreamError;
+}
+
+test("083 C2: named vault → item-folder eval then base:create, both with vault=Work; result built as today", async () => {
+  const { deps, recorded } = makeDeps([envelope({ ok: true, folder: "Tasks" }), { stdout: "Created: Tasks/New.md\n" }]);
+  deps.fs = { realpath: identityRealpath };
+
+  const result = await executeCreateBase({ base_path: "Tasks.base", name: "New", vault: "Work" }, deps);
+
+  // The response path is built exactly as before (the response-path bug is out of scope).
+  expect(result).toEqual({ path: "Tasks/Tasks/New.md", name: "Tasks/New.md" });
+  expect(recorded.map((r) => commandOf(r.argv))).toEqual(["eval", "base:create"]);
+  expect(recorded.every((r) => r.argv.includes("vault=Work"))).toBe(true);
+});
+
+test("083 C3: unregistered vault → VAULT_NOT_FOUND/unknown, nothing spawned", async () => {
+  const { deps, recorded } = makeDeps([]);
+  deps.fs = { realpath: identityRealpath };
+
+  const err = await rejectionOf(executeCreateBase({ base_path: "Tasks.base", name: "x", vault: "Nope" }, deps));
+
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ code: "VAULT_NOT_FOUND", reason: "unknown", vault: "Nope" });
+  expect(recorded.length).toBe(0);
+});
+
+test("083 C4: base_path through a link out of the vault → PATH_ESCAPES_VAULT + log, nothing spawned", async () => {
+  const events: Array<Record<string, unknown>> = [];
+  const { deps, recorded } = makeDeps([]);
+  deps.logger = captureLogger(events);
+  deps.fs = { realpath: linkRealpath({ [resolve("/vaults/Work/out")]: resolve("/elsewhere") }) };
+
+  const err = await rejectionOf(executeCreateBase({ base_path: "out/T.base", name: "x", vault: "Work" }, deps));
+
+  expect(err.code).toBe("PATH_ESCAPES_VAULT");
+  expect(err.details).toEqual({ vault: "Work", attemptedPath: "out/T.base", resolvedPath: resolve("/elsewhere/T.base") });
+  expect(recorded.length).toBe(0);
+  expect(events.filter((e) => e.event === "pathEscapeAttempt")).toHaveLength(1);
+});
+
+test("083 C5: item-folder eval finds no base → BASE_NOT_FOUND with details.vault; base:create never spawned", async () => {
+  const { deps, recorded } = makeDeps([envelope({ ok: false, code: "BASE_NOT_FOUND" })]);
+  deps.fs = { realpath: identityRealpath };
+
+  const err = await rejectionOf(executeCreateBase({ base_path: "Missing.base", name: "x", vault: "Work" }, deps));
+
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ code: "BASE_NOT_FOUND", path: "Missing.base", vault: "Work" });
+  expect(err.message).toBe('create_base: base file not found in vault "Work": Missing.base');
+  expect(recorded.map((r) => commandOf(r.argv))).toEqual(["eval"]);
+});
+
+test("083 C6: derived item folder links outside → PATH_ESCAPES_VAULT naming the folder; nothing created", async () => {
+  const { deps, recorded } = makeDeps([envelope({ ok: true, folder: "Items" })]);
+  deps.fs = { realpath: linkRealpath({ [resolve("/vaults/Work/Items")]: resolve("/elsewhere") }) };
+
+  const err = await rejectionOf(executeCreateBase({ base_path: "Tasks.base", name: "x", vault: "Work" }, deps));
+
+  expect(err.code).toBe("PATH_ESCAPES_VAULT");
+  expect(err.details.attemptedPath).toBe("Items");
+  expect(err.details.vault).toBe("Work");
+  expect(recorded.length).toBe(1);
+});
+
+test("083 C7: folder segments of name are joined into the checked folder", async () => {
+  const seen: string[] = [];
+  const { deps, recorded } = makeDeps([envelope({ ok: true, folder: "" }), { stdout: "Created: sub/Item.md\n" }]);
+  deps.fs = {
+    realpath: async (p) => {
+      seen.push(p);
+      return p;
+    },
+  };
+
+  await executeCreateBase({ base_path: "Tasks.base", name: "sub/Item", vault: "Work" }, deps);
+
+  expect(seen).toContain(resolve("/vaults/Work/sub"));
+  expect(recorded.length).toBe(2);
+});
+
+test("083 C8: base:create reports the base missing → BASE_NOT_FOUND with details.vault", async () => {
+  const { deps } = makeDeps([
+    envelope({ ok: true, folder: "Tasks" }),
+    { stdout: "Error: Base file not found: T.base", exitCode: 0 },
+  ]);
+  deps.fs = { realpath: identityRealpath };
+
+  const err = await rejectionOf(executeCreateBase({ base_path: "T.base", name: "x", vault: "Work" }, deps));
+
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ code: "BASE_NOT_FOUND", path: "T.base", vault: "Work" });
+  expect(err.message).toBe('create_base: base file not found in vault "Work": T.base');
+});
+
+test("083 C9: created path resolves outside → PATH_ESCAPES_VAULT with createdPath; the item is not deleted", async () => {
+  const { deps, recorded } = makeDeps([envelope({ ok: true, folder: "Tasks" }), { stdout: "Created: Esc/New.md\n" }]);
+  deps.fs = { realpath: linkRealpath({ [resolve("/vaults/Work/Esc")]: resolve("/elsewhere") }) };
+
+  const err = await rejectionOf(executeCreateBase({ base_path: "Tasks.base", name: "New", vault: "Work" }, deps));
+
+  expect(err.code).toBe("PATH_ESCAPES_VAULT");
+  expect(err.details).toEqual({
+    vault: "Work",
+    attemptedPath: "Esc/New.md",
+    resolvedPath: resolve("/elsewhere/New.md"),
+    createdPath: "Esc/New.md",
+  });
+  expect(err.message).toBe(
+    'create_base: the item was created at "Esc/New.md", which resolves outside vault "Work"; it was not deleted',
   );
+  // Exactly the eval and base:create: no further spawn (no delete).
+  expect(recorded.map((r) => commandOf(r.argv))).toEqual(["eval", "base:create"]);
+});
 
-  expect(result.name).toBe("Test.md");
+test.each([
+  ["json-parse", "=> not-json"],
+  ["envelope-parse", '=> {"ok":true}'],
+])("083 C10: malformed item-folder eval answer → CLI_REPORTED_ERROR stage %s", async (stage, stdout) => {
+  const { deps, recorded } = makeDeps([{ stdout }]);
+  deps.fs = { realpath: identityRealpath };
+
+  const err = await rejectionOf(executeCreateBase({ base_path: "Tasks.base", name: "x", vault: "Work" }, deps));
+
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details.stage).toBe(stage);
+  expect(recorded.length).toBe(1);
+});
+
+test("083 C12: base_path whose folders do not exist yet → containment walks to the nearest ancestor and proceeds", async () => {
+  const newRoot = resolve("/vaults/Work/New");
+  const { deps, recorded } = makeDeps([envelope({ ok: true, folder: "Tasks" }), { stdout: "Created: Tasks/x.md\n" }]);
+  deps.fs = {
+    realpath: async (p) => {
+      if (p === newRoot || p.startsWith(newRoot + sep)) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      return p;
+    },
+  };
+
+  await executeCreateBase({ base_path: "New/Deep/T.base", name: "x", vault: "Work" }, deps);
+
+  expect(recorded.map((r) => commandOf(r.argv))).toEqual(["eval", "base:create"]);
 });
 
 test("unparseable response throws UpstreamError", async () => {

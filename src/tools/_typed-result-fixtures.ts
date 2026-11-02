@@ -128,7 +128,7 @@ export const TYPED_RESULT_FIXTURES: readonly TypedResultFixture[] = [
   },
   {
     name: "bases",
-    build: () => createBasesTool(cli(out("a.base\nb.base\n"))),
+    build: () => createBasesTool({ ...cli(out("a.base\nb.base\n")), vaultRegistry: registryAt("/vaults/Work") }),
     args: {},
   },
   {
@@ -138,12 +138,12 @@ export const TYPED_RESULT_FIXTURES: readonly TypedResultFixture[] = [
   },
   {
     name: "create_base",
-    build: () => createCreateBaseTool(cli(out("Created: New item.md\n"))),
+    build: () => createCreateBaseTool({ ...cli(out("Created: New item.md\n")), vaultRegistry: registryAt("/vaults/Work") }),
     args: { base_path: "Tasks.base", name: "New item" },
   },
   {
     name: "create_base",
-    build: () => createCreateBaseTool(cli(out("Created: New item.md\n"))),
+    build: () => createCreateBaseTool({ ...cli(out("Created: New item.md\n")), vaultRegistry: registryAt("/vaults/Work") }),
     // Spec 073: deprecated names — the result carries deprecated_parameters.
     args: { path: "Tasks.base", name: "New item", view: "All" },
   },

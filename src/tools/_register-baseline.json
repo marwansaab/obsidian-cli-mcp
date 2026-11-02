@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "generatedFromBranch": "082-fix-active-file-messaging",
-  "generatedAt": "2026-11-01",
+  "generatedFromBranch": "083-enable-cross-vault-bases",
+  "generatedAt": "2026-11-02",
   "tools": [
     {
       "name": "append_note",
@@ -21,8 +21,8 @@
     },
     {
       "name": "bases",
-      "descriptionFingerprint": "aeefbc01ad00d4e10b87489eb0e0abdb55d3166465a0d8d8680c45f7fc322f73",
-      "schemaFingerprint": "9cf2865c1acdcd16c9a84d54ed5851d02fd9755949ba52626b47f82ac2f82fc0",
+      "descriptionFingerprint": "478c02211ad1552a025be54645846f532cd7ce8f02fd7f97a601aa56a6081316",
+      "schemaFingerprint": "2e238f7c347e96225b1da8d7029fa26940d6f57b0f0f4162ae3c63b4acd1003b",
       "titleFingerprint": "363bc61a6dd3c78c7a6fa866e86873c1517ebdf1d8b232430e74e38c313e8dba",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",
       "outputSchemaFingerprint": "2a65d8d457308a8c28a3dbbfeaaab12067deb8193df7007c0448f717b7c986cb"
@@ -37,8 +37,8 @@
     },
     {
       "name": "create_base",
-      "descriptionFingerprint": "1a1460a88c2d1f1316dd025be0d1c3afe6c390996c44ae2e24190e8d754c824b",
-      "schemaFingerprint": "210ce952f6553021064c1554a75a3c4f35e27835ed3ce4f4439877e6d5423e23",
+      "descriptionFingerprint": "e4d020d386e08e5b7c6dee2c2dafc55fbcac574e67f525d4773453171aaa61d4",
+      "schemaFingerprint": "7fb74e8255513d4d1bc99c0099f6a45b26ea3e344cc5a4d423ebf6e8cb46a1f1",
       "titleFingerprint": "d09213fea04104b836a8bcd13a551dcb0d5ce6fe7103e46a78a2d433c1f1eba5",
       "annotationsFingerprint": "d72d3cb182e3d7fcf0b1c6782251eee772cdf2a99470e1a4bd6a006b5c8f4e25",
       "outputSchemaFingerprint": "b962965cc6aa2be73aeb1045613290504e29c851aa7f16485f6e99f4c4438181"
@@ -269,8 +269,8 @@
     },
     {
       "name": "views_base",
-      "descriptionFingerprint": "c9606c00b1981cb939b2476e088328a6b539a77c29f37baf9646dfe4ff6b4d4a",
-      "schemaFingerprint": "4022b9c25a31b7f47d652a112123198d3154029ff320df3fed86314966b9a2d7",
+      "descriptionFingerprint": "19400ccf08ec52ecff08a51389433f44046385f9c387e1e30233c1c301bca881",
+      "schemaFingerprint": "e3694825977004b0619ee41c5e1335b7beeab747a42dd6fede41aa7e53960236",
       "titleFingerprint": "85b3373749c11643fd6f2def6eb84e8729f56065e6538f5046e008e8bfb5c25e",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",
       "outputSchemaFingerprint": "6fed5bd336d46748373ca695bf724393ea6b68a7256812539aafa793cb57df5e"
