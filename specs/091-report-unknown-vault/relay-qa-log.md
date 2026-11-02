@@ -240,3 +240,50 @@ Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Constitution
 > - **A1:** add the note to data-model E3 that "surrounding whitespace" means whatever `trim()` removes. Keep the exact-sentence match itself.
 >
 > Rationale: I1 matters because Constitution Principle II needs each new surface test to fail for the right reason and then pass. A harness that rejects every call with `CLI_BINARY_NOT_FOUND` proves nothing. A1 is consistent with the earlier ruling (option C: a vault was named and the whole output, trimmed, is exactly `Vault not found.`), because the CLI's answer is the ASCII `Vault not found.\n` (BI-0173 Status; Tool Notes, "Exit-code semantics"). U1 and C1 are wording-only and don't change scope.
+
+## 5. record / record-in-vault (2026-11-02T11:12:53.788Z)
+
+**Question (verbatim):**
+
+> The work for job BI-0173 is now a reviewed, documented pull request. Record that on the job's note, following the vault's conventions for backlog items:
+> - the spec branch: 091-report-unknown-vault
+> - the feature folder in the code repository: specs/091-report-unknown-vault
+> - the pull request: https://github.com/marwansaab/obsidian-cli-mcp/pull/124 (number 124)
+> - the status that means "in review" in this vault (if the vault has no such status, escalate `decision` with up to 3 choices)
+> - a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0173-2026-11-02 produced it.
+>
+> Dry run: no. In a dry run, change nothing: list each edit you would make in `vault_edits`, starting its change with "Would". Otherwise list each edit you made.
+
+**Advisor** (escalate: none):
+
+> Recorded on `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0173 - Classify Vault Not Found In Obsidian Exec.md`, following the vault's backlog-item conventions and the shape of BI-0172:
+> - **Status:** `planned` → `in-review`. The status vocabulary for backlog items in Vault Frontmatter Convention includes `in-review`.
+> - **Spec branch:** frontmatter `spec_branch: 091-report-unknown-vault` is set.
+> - **Updated:** frontmatter `updated` is now 2026-11-02.
+> - **Status paragraph:** a new paragraph opens the `## Status` section. It reads "In review — 2026-11-02" and gives PR #124 (https://github.com/marwansaab/obsidian-cli-mcp/pull/124), the spec branch `091-report-unknown-vault`, the feature folder `specs/091-report-unknown-vault`, and "Awaiting owner merge."
+> - **Relay comment:** a dated HTML comment at the end of the note says Relay run obsidian-cli-mcp-bi-0173-2026-11-02 produced PR #124 on that branch and folder.
+> - **Clarify ruling:** a second dated HTML comment records this run's earlier /speckit-clarify ruling (option C: exact trimmed `Vault not found.`, only when the call named a vault). It had not been recorded on the note.
+>
+> I read the note back afterwards: the frontmatter parses and the body is intact.
+
+Sources: `000-Meta/Vault Frontmatter Convention.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0172 - Classify Move Missing Destination Folder Error.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0173 - Classify Vault Not Found In Obsidian Exec.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0173 - Classify Vault Not Found In Obsidian Exec.md`: Frontmatter status planned → in-review (set_property).
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0173 - Classify Vault Not Found In Obsidian Exec.md`: Frontmatter updated 2026-10-31 → 2026-11-02 (set_property, type date).
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0173 - Classify Vault Not Found In Obsidian Exec.md`: Frontmatter spec_branch added: 091-report-unknown-vault (set_property).
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0173 - Classify Vault Not Found In Obsidian Exec.md`: Added an 'In review — 2026-11-02' paragraph at the top of ## Status with PR #124 link, spec branch and feature folder specs/091-report-unknown-vault (path-scoped find_and_replace, previewed first).
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0173 - Classify Vault Not Found In Obsidian Exec.md`: Appended a dated HTML comment recording the earlier /speckit-clarify ruling (option C: exact trimmed `Vault not found.` only on calls that name a vault).
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0173 - Classify Vault Not Found In Obsidian Exec.md`: Appended a dated HTML comment: Relay run obsidian-cli-mcp-bi-0173-2026-11-02 produced PR #124, spec branch 091-report-unknown-vault, feature folder specs/091-report-unknown-vault; status planned → in-review.
+
+**Sent to the step:**
+
+> Recorded on `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0173 - Classify Vault Not Found In Obsidian Exec.md`, following the vault's backlog-item conventions and the shape of BI-0172:
+> - **Status:** `planned` → `in-review`. The status vocabulary for backlog items in Vault Frontmatter Convention includes `in-review`.
+> - **Spec branch:** frontmatter `spec_branch: 091-report-unknown-vault` is set.
+> - **Updated:** frontmatter `updated` is now 2026-11-02.
+> - **Status paragraph:** a new paragraph opens the `## Status` section. It reads "In review — 2026-11-02" and gives PR #124 (https://github.com/marwansaab/obsidian-cli-mcp/pull/124), the spec branch `091-report-unknown-vault`, the feature folder `specs/091-report-unknown-vault`, and "Awaiting owner merge."
+> - **Relay comment:** a dated HTML comment at the end of the note says Relay run obsidian-cli-mcp-bi-0173-2026-11-02 produced PR #124 on that branch and folder.
+> - **Clarify ruling:** a second dated HTML comment records this run's earlier /speckit-clarify ruling (option C: exact trimmed `Vault not found.`, only when the call named a vault). It had not been recorded on the note.
+>
+> I read the note back afterwards: the frontmatter parses and the body is intact.

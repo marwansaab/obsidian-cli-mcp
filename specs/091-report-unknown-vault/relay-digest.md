@@ -4,14 +4,14 @@
 |---|---|
 | Run | `obsidian-cli-mcp-bi-0173-2026-11-02` |
 | Project | obsidian-cli-mcp (pack speckit) |
-| Status | running |
+| Status | done |
 | Started | 2026-11-02T10:31:47.639Z |
-| Finished | not yet |
-| Elapsed | 27 min 33 s |
+| Finished | 2026-11-02T11:13:45.337Z |
+| Elapsed | 41 min 58 s |
 | Questions | 2 (0 needed the owner) |
-| Requests to the advisor | 2 (0 needed the owner) |
+| Requests to the advisor | 3 (0 needed the owner) |
 | Escalations | 1 |
-| Edits by the advisor | 0 |
+| Edits by the advisor | 6 |
 
 ## Inputs
 
@@ -174,26 +174,59 @@ Skipped.
 ### implementation (`f14a6a35-84a2-4ef8-aa0f-8b2274d09074`)
 
 - Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\specs\091-report-unknown-vault\tasks.md exists; focused TestVault-Obsidian-CLI-MCP in Obsidian (it had Funwright-Studio-Vault focused).
+- Condition `gh-pr-open` (done_when): met. Pull request #124 is open.
 
 - **implement**: done, 64 turns.
 
 > Implemented spec 091 (T002–T018 complete, all [X]). invokeBoundedCli now rejects a named-vault call whose trimmed stdout is exactly "Vault not found." as CLI_REPORTED_ERROR (message/details.message "Vault not found.", raw details shape); cli-adapter.ts gets a comment only. Added 26 test rows (U1–U14 in new handler.unknown-vault.test.ts, B1/B2 in invoke-bounded-cli.test.ts, R1 in obsidian_exec/index.test.ts); the red check before the change bit as expected (15 failures, all because the call resolved). Updated OBSIDIAN_EXEC_DESCRIPTION, regenerated the baseline (only the obsidian_exec description fingerprint moved, plus the generatedFromBranch metadata), applied docs §H2–H4 and CHANGELOG §C. Full gate green (4492 passed, 6 skipped, coverage above floor). Live check L1–L6 passed through the built server over stdio; vault cleaned. Structural check found no deviation. Optional after_implement commit hook skipped; nothing committed.
 
-- **open-pr**: in progress.
+- **open-pr**: done, 14 turns.
 
-### review
+> Re-ran the gates and all passed: typecheck, lint, build and the full test suite (4492 passed, 6 skipped). Committed the spec 091 work in two commits that follow CONTRIBUTING.md: d34cfb6 fix(091) and 0b1ec2a docs(091). Pushed 091-report-unknown-vault to origin and opened PR #124 into main, not as a draft. The repository has no PR template, so the description follows PR #123's layout and includes the Constitution Compliance checklist (all Y or N/A). Not merged.
 
-- **code-review**: not run.
-- **fix**: not run.
 
-### docs
+### review (`e7efe833-303d-4f97-8c20-ee066c9c6195`)
 
-- **document**: not run.
-- **ci**: not run.
+- Condition `gh-pr-open` (start_when): met. Pull request #124 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #124 is open.
 
-### record
+- **code-review**: done, 11 turns.
 
-- **record-in-vault**: not run.
+> Thermo-nuclear code-quality review of PR #124: I'd approve it, with one change I'd ask for. No blockers: the production change is 15 lines in the right layer, no file passes 1k lines, and no messy branching was added. Merging the two facades' unknown-vault rules would look simpler but would change behaviour, so it is not a missed simplification. Findings: (a) medium: the "Vault not found." string is declared twice (UNKNOWN_VAULT_PREFIX in cli-adapter.ts:85 and UNKNOWN_VAULT_ANSWER in invoke-bounded-cli.ts:22), each with a comment pointing at the other; export one constant from _dispatch.ts, which both facades already import and which owns the other CLI answer signatures. This goes against plan D4, which is not an ADR. (b) low: invoke-bounded-cli.ts:85-99 copies dispatch priority (c)'s details object by hand, so FR-003 holds only because the copy matches; a shared builder is optional. (c) low: test B1 repeats U1's full assertion, and U14c re-tests the COMMAND_BLOCKED gate, which can never reach the new check. I recorded these as entry 50 in .memory/refactor-decisions.md and changed no code.
+
+- **fix**: done, 25 turns.
+
+> Fixed all three review issues in commit eb0b509 and pushed it to 091-report-unknown-vault, so the fixes are on PR #124. No fix changed behaviour the spec requires, so no question was needed. (a) _dispatch.ts now exports one UNKNOWN_VAULT_ANSWER that both facades import; the two local copies and their cross-reference comments are gone, and the two facades keep their different rules. (b) A new exitZeroDetails builder in _dispatch.ts builds the error details for dispatch's no-active-file and `Error:` checks and for the raw facade, with the key order unchanged; the typed facade has no argv in its details, so it does not use the builder. (c) Test B1 now checks only the error code, one spawn and that launchFn is never called, since U1 pins the full error shape; U14c is removed because handler.test.ts already covers the blocked-command check. Research D4, plan D4 and its FR-006 trace, data-model E3/V5 and the contract's B1/U14c rows were updated to match. Lint, type check and build are clean; tests: 4491 passed and 6 skipped (one fewer, U14c), with no failures. Left alone: relay-digest.md, which was already modified before this session and was not committed.
+
+
+### docs (`e511650f-950b-45d9-abba-815deaa9034e`)
+
+- Condition `gh-pr-open` (start_when): met. Pull request #124 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #124 is open.
+
+- **document**: done, 33 turns.
+
+> Ran /speckit-docs-as-code 124. Updated .docs-as-code/architecture.md (runtime and error spines), capabilities/escape-hatch-and-meta.md, wrote decisions/ADR-061 (exact-answer unknown-vault rule; review moved the literal into _dispatch.ts) and indexed it in README.md. Committed 8085195 on 091-report-unknown-vault, pushed, and added the ## Documentation section to the PR body. No docs/tools change, so npm test was not needed; the CHANGELOG entry is already there. Notes: the PR body's D4 line still describes a private constant, which the review fix eb0b509 replaced, so the pages follow the diff. The pre-existing uncommitted relay-digest.md was left unstaged.
+
+- **ci**: done, 6 turns.
+
+> CI passed on PR #124's latest commit 8085195 (run 41434423972): Lint / Typecheck / Test / Build passed on ubuntu-latest Node 22 (1m50s) and Node 24 (1m48s), and on windows-latest Node 22 (2m45s) and Node 24 (2m28s). No fixes were needed and nothing was pushed. `gh pr checks --watch` exited at first with 'no checks reported' while the run was queued, so the run was watched with `gh run watch` until it finished. The PR is mergeable and its merge state is CLEAN.
+
+
+### record (`91f65b03-3bbc-49f0-9064-b96b4289f63c`)
+
+- **record-in-vault**: done.
+
+> Recorded on `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0173 - Classify Vault Not Found In Obsidian Exec.md`, following the vault's backlog-item conventions and the shape of BI-0172:
+> - **Status:** `planned` → `in-review`. The status vocabulary for backlog items in Vault Frontmatter Convention includes `in-review`.
+> - **Spec branch:** frontmatter `spec_branch: 091-report-unknown-vault` is set.
+> - **Updated:** frontmatter `updated` is now 2026-11-02.
+> - **Status paragraph:** a new paragraph opens the `## Status` section. It reads "In review — 2026-11-02" and gives PR #124 (https://github.com/marwansaab/obsidian-cli-mcp/pull/124), the spec branch `091-report-unknown-vault`, the feature folder `specs/091-report-unknown-vault`, and "Awaiting owner merge."
+> - **Relay comment:** a dated HTML comment at the end of the note says Relay run obsidian-cli-mcp-bi-0173-2026-11-02 produced PR #124 on that branch and folder.
+> - **Clarify ruling:** a second dated HTML comment records this run's earlier /speckit-clarify ruling (option C: exact trimmed `Vault not found.`, only when the call named a vault). It had not been recorded on the note.
+>
+> I read the note back afterwards: the frontmatter parses and the body is intact.
+
 
 ## Escalations
 
@@ -215,7 +248,14 @@ Skipped.
 
 ## Edits made by the advisor
 
-None.
+| File | Change | Triggered by |
+|---|---|---|
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0173 - Classify Vault Not Found In Obsidian Exec.md` | Frontmatter status planned → in-review (set_property). | record / record-in-vault: The work for job BI-0173 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0173 - Classify Vault Not Found In Obsidian Exec.md` | Frontmatter updated 2026-10-31 → 2026-11-02 (set_property, type date). | record / record-in-vault: The work for job BI-0173 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0173 - Classify Vault Not Found In Obsidian Exec.md` | Frontmatter spec_branch added: 091-report-unknown-vault (set_property). | record / record-in-vault: The work for job BI-0173 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0173 - Classify Vault Not Found In Obsidian Exec.md` | Added an 'In review — 2026-11-02' paragraph at the top of ## Status with PR #124 link, spec branch and feature folder specs/091-report-unknown-vault (path-scoped find_and_replace, previewed first). | record / record-in-vault: The work for job BI-0173 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0173 - Classify Vault Not Found In Obsidian Exec.md` | Appended a dated HTML comment recording the earlier /speckit-clarify ruling (option C: exact trimmed `Vault not found.` only on calls that name a vault). | record / record-in-vault: The work for job BI-0173 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0173 - Classify Vault Not Found In Obsidian Exec.md` | Appended a dated HTML comment: Relay run obsidian-cli-mcp-bi-0173-2026-11-02 produced PR #124, spec branch 091-report-unknown-vault, feature folder specs/091-report-unknown-vault; status planned → in-review. | record / record-in-vault: The work for job BI-0173 is now a reviewed, documented pull request. Record that on the job's note,  |
 
 ## Files
 
