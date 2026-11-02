@@ -13,16 +13,15 @@ import { executeSearch, stripBoundarySlashes } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import {
+  captureRejection,
+  findKv,
+  makeQueuedSpawn,
+  silentLogger,
+} from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
-}
-
-function findKv(argv: string[], key: string): string | undefined {
-  const prefix = `${key}=`;
-  const hit = argv.find((a) => a.startsWith(prefix));
-  return hit === undefined ? undefined : hit.slice(prefix.length);
 }
 
 beforeEach(() => __resetInFlightRegistryForTests());

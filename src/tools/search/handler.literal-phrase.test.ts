@@ -4,16 +4,10 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 import { executeSearch } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { findKv, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
-}
-
-function findKv(argv: string[], key: string): string | undefined {
-  const prefix = `${key}=`;
-  const hit = argv.find((a) => a.startsWith(prefix));
-  return hit === undefined ? undefined : hit.slice(prefix.length);
 }
 
 beforeEach(() => __resetInFlightRegistryForTests());
