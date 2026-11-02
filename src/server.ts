@@ -120,7 +120,7 @@ export function createServer(ctx: ShutdownContext = {}): CreatedServer {
     createGetActiveFileTool({ logger, queue, vaultRegistry }),
     createHelpTool(),
     createLinksTool({ logger, queue }),
-    createMoveTool({ logger, queue }),
+    createMoveTool({ logger, queue, vaultRegistry }),
     createObsidianExecTool({ logger, queue, allowEval: access.allowEval }),
     createOpenFileTool({ logger, queue, vaultRegistry }),
     createOutlineTool({ logger, queue }),

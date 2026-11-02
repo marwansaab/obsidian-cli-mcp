@@ -207,7 +207,7 @@ export const TYPED_RESULT_FIXTURES: readonly TypedResultFixture[] = [
   },
   {
     name: "move",
-    build: () => createMoveTool(cli(out("Moved: Inbox/Tax-2026.md → Archive/Tax-2026.md\n"))),
+    build: () => createMoveTool({ ...cli(out("Moved: Inbox/Tax-2026.md → Archive/Tax-2026.md\n")), vaultRegistry: registryAt("/vaults/MyVault") }),
     args: { target_mode: "specific", vault: "MyVault", path: "Inbox/Tax-2026.md", to: "Archive/" },
   },
   {

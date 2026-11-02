@@ -95,6 +95,11 @@ read, so an unknown vault still fails at the CLI rather than as the registry's
 `VALIDATION_ERROR`. That is why `read` does not use `resolveFsTarget`, which
 resolves the registry first. `createServer` now passes `vaultRegistry` to
 `createReadTool`; that one argument is PR #102's only change to the boot spine.
+Since PR #123 the per-mode choice is `fileTargetVaultRoot` in
+`src/tools/_file-target.ts`, shared with `move`, which looks the root up
+after a failed move to rewrite it out of the error
+([mutate](mutate.md#missing-destination-folder-and-vault-relative-failures)).
+`read`'s calls and results did not change.
 The disk read goes through an `fs?.readFile` seam on `ExecuteDeps`
 (default `node:fs/promises`), and reads the whole file rather than its first
 three bytes and last byte, a saving no measurement asked for (research D3).

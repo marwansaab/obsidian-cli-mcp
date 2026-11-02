@@ -91,7 +91,7 @@ The wrapper treats the final segment of `to` as the destination filename, and **
 3. If `to` already carries the source's extension, it is forwarded as given. For a `.md` source this check is the literal, case-sensitive `endsWith(".md")` it has always been — `.MD` is NOT treated as `.md` — so Markdown behaviour is unchanged; for every other source it ignores case.
 4. Otherwise the wrapper appends `.` plus the source's extension, in the source's own spelling. An extension that is not a core type (`.v1`, `.draft`, `.txt`) counts as part of the name.
 
-The append in step 4 is required for every source type, not only notes: the CLI reads an extensionless `to` as a **folder**, so `to: "Archive/Roadmap"` forwarded as given on a canvas would try to create `Archive/Roadmap/Plan.canvas` (and fail with `ENOENT` when that folder does not exist). This rule replaces the earlier source-`.md` guard, which forwarded a non-`.md` source's extensionless `to` as given and a caller-explicit `.md` verbatim.
+The append in step 4 is required for every source type, not only notes: the CLI reads an extensionless `to` as a **folder**, so `to: "Archive/Roadmap"` forwarded as given on a canvas would try to create `Archive/Roadmap/Plan.canvas`, inside a folder that usually does not exist. This rule replaces the earlier source-`.md` guard, which forwarded a non-`.md` source's extensionless `to` as given and a caller-explicit `.md` verbatim.
 
 | Input `to` | Input `path` | Forwarded `to=` | Why |
 |-----|-----|-----|-----|
@@ -153,8 +153,11 @@ When `to` resolves to a destination whose folder matches the source's folder, th
 | `CLI_REPORTED_ERROR` (`details.message: "Vault not found."`) | Unknown vault. | Verify the vault name; ensure the vault is registered in Obsidian. |
 | `CLI_REPORTED_ERROR` (`details.message: 'Error: File "<path>" not found.'`) | Source not found (for `file`, reported by the resolver call before the move). | Verify the locator (`file` or `path`). |
 | `CLI_REPORTED_ERROR` (`details.message: "Error: Destination file already exists!"`) | Destination collision. | Pick a different `to`, OR delete the collision target first. |
+| `CLI_REPORTED_ERROR` (`details.code: "FOLDER_NOT_FOUND"`) | The destination's folder does not exist (for example `to: "Archive/2026/"` or `to: "Archive/2026/Old.md"` with no `Archive/2026` folder). `details.folder` is that folder's vault-relative path, with forward slashes; `details` has no other keys. Nothing was moved and nothing was created. A call whose source is also missing reports the source instead. | Create the folder (writing a note into it with [`write_note`](./write_note.md) creates it), then retry the same call. |
 | `CLI_REPORTED_ERROR` (`details.stage: "parse"`) | Unparseable success response — upstream output drift. | `details.stdout` carries verbatim output. Investigate as a regression. |
 | `ERR_NO_ACTIVE_FILE` | Active mode invoked while no file is focused. Raised by the focused-file lookup before the `move` call: either the lookup reports no focused file, or the CLI replies `"Error: No active file."` and the dispatch classifier reclassifies it as this typed code. | Switch to specific mode with explicit `vault` + `file`/`path`, OR ask the user to open a note in Obsidian. |
+
+**No absolute paths.** No `move` failure carries the vault's location on disk. Where the CLI's own text names a file by its absolute path (for example an `EPERM` from a locked file), the vault's folder is removed from it, so the path reads vault-relative (`C:\Vaults\Work\Inbox\a.md` becomes `Inbox\a.md`). The error code and the rest of the text are unchanged. If the vault's folder cannot be looked up at that moment, the CLI's text is withheld instead: the error keeps its code, and its message names the vault-relative source and destination and the reason (`details: { source, destination }`). `CLI_BINARY_NOT_FOUND` is the exception: its search paths describe where the Obsidian CLI is installed, not the vault.
 
 ## Examples
 
@@ -277,6 +280,7 @@ Spawns `obsidian vault=MyVault move path=Welcome.md to=Archive.md`. The strict t
 - **Same-folder move** succeeds via the CLI's native handling; the response carries `dirname(fromPath) === dirname(toPath)` as the observable rename-equivalence marker.
 - **Source not found** surfaces as `CLI_REPORTED_ERROR` with the verbatim `Error: File "<path>" not found.` message.
 - **Destination collision** surfaces as `CLI_REPORTED_ERROR` with the verbatim `Error: Destination file already exists!`.
+- **Missing destination folder** surfaces as `CLI_REPORTED_ERROR` with `details.code: "FOLDER_NOT_FOUND"` and `details.folder`; the source is checked first.
 - **Unknown vault names** surface as `CLI_REPORTED_ERROR` with the verbatim `Vault not found.` message.
 - **Active mode no-focused-file** surfaces as `ERR_NO_ACTIVE_FILE` from the focused-file lookup, before the `move` call. When the CLI itself replies with the verbatim `Error: No active file.` on stdout (exit 0), the dispatch classifier reclassifies it as the same typed code.
 - **Path-traversal**: the CLI treats `..` as literal vault-relative segments that resolve to a non-existent file — `path: "../../etc/x.md"` surfaces as `Error: File "../../etc/x.md" not found.`

@@ -12,12 +12,15 @@ import {
   makeQueuedSpawn,
   makeStubSpawn,
   silentLogger,
+  stubVaultRegistry,
 } from "../_handler-test-fixtures.js";
 
 import type { SpawnLike } from "../../cli-adapter/_dispatch.js";
 
+const REGISTRY = stubVaultRegistry("V", "/vaults/V");
+
 function deps(spawnFn: SpawnLike) {
-  return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
+  return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY };
 }
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -35,7 +38,7 @@ test("specific+path+folder-target `to: 'Archive/'` → argv to=Archive/Tax-2026.
   });
   const result = await executeMove(
     { target_mode: "specific", vault: "MyVault", path: "Inbox/Tax-2026.md", to: "Archive/" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
   );
   expect(result).toEqual({
     moved: true,
@@ -58,7 +61,7 @@ test("specific+path+folder-target nested `to: 'Archive/2026/'` → argv to=Archi
   });
   await executeMove(
     { target_mode: "specific", vault: "V", path: "Inbox/Tax-2026.md", to: "Archive/2026/" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
   );
   expect(recorded[0]!.argv).toContain("to=Archive/2026/Tax-2026.md");
 });
@@ -71,7 +74,7 @@ test("folder-target preserves internal-periods source basename: path=Drafts/Doc.
   });
   await executeMove(
     { target_mode: "specific", vault: "V", path: "Drafts/Doc.v1.draft.md", to: "Archive/" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
   );
   expect(recorded[0]!.argv).toContain("to=Archive/Doc.v1.draft.md");
 });
@@ -84,7 +87,7 @@ test("R11 single-spawn invariant: specific+path → spawnFn.callCount === 1", as
   });
   await executeMove(
     { target_mode: "specific", vault: "V", path: "Inbox/N.md", to: "Archive/" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
   );
   expect(recorded).toHaveLength(1);
 });
@@ -97,7 +100,7 @@ test("specific+path: argv has 'vault=V' as discrete token at position 0 (PSR-3 v
   });
   await executeMove(
     { target_mode: "specific", vault: "V", path: "P.md", to: "Archive/" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
   );
   expect(recorded[0]!.argv[0]).toBe("vault=V");
   expect(recorded[0]!.argv[1]).toBe("move");
@@ -120,7 +123,7 @@ test("full-path with explicit `.md`: `to: 'Archive/Renamed.md'` → argv to=Arch
       path: "Inbox/Tax-2026.md",
       to: "Archive/Renamed.md",
     },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
   );
   expect(recorded[0]!.argv).toContain("to=Archive/Renamed.md");
   expect(result.fromPath).toBe("Inbox/Tax-2026.md");
@@ -135,7 +138,7 @@ test("full-path append on `.md` source: `to: 'Archive/Renamed'` → argv to=Arch
   });
   await executeMove(
     { target_mode: "specific", vault: "V", path: "Inbox/Tax-2026.md", to: "Archive/Renamed" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
   );
   expect(recorded[0]!.argv).toContain("to=Archive/Renamed.md");
 });
@@ -148,7 +151,7 @@ test("full-path append preserves internal periods: `to: 'Archive/Doc.v1.draft'` 
   });
   await executeMove(
     { target_mode: "specific", vault: "V", path: "Inbox/N.md", to: "Archive/Doc.v1.draft" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
   );
   expect(recorded[0]!.argv).toContain("to=Archive/Doc.v1.draft.md");
 });
@@ -161,7 +164,7 @@ test("case-sensitive `.MD` ≠ `.md`: `to: 'Archive/Renamed.MD'` → argv to=Arc
   });
   await executeMove(
     { target_mode: "specific", vault: "V", path: "Inbox/N.md", to: "Archive/Renamed.MD" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
   );
   expect(recorded[0]!.argv).toContain("to=Archive/Renamed.MD.md");
 });
@@ -181,7 +184,7 @@ test("SC-013 type kept on non-`.md` source (spec 070 supersedes the source-`.md`
       path: "Boards/Plan.canvas",
       to: "Archive/Renamed",
     },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
   );
   expect(recorded[0]!.argv).toContain("to=Archive/Renamed.canvas");
   expect(recorded[0]!.argv.some((t) => t === "to=Archive/Renamed.md")).toBe(false);
@@ -199,7 +202,7 @@ test("caller-explicit `.md` on non-`.md` source → UNSUPPORTED_FILE_TYPE / type
         path: "Boards/Plan.canvas",
         to: "Archive/Renamed.md",
       },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
     ),
   )) as UpstreamError;
   expect(err.code).toBe("VALIDATION_ERROR");
@@ -219,7 +222,7 @@ test("specific+file+folder-target: file=Tax-2026, to=Archive/ → argv has file=
   ]);
   const result = await executeMove(
     { target_mode: "specific", vault: "V", file: "Tax-2026", to: "Archive/" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
   );
   // Spec 070: recorded[0] is the resolution spawn; the move spawn follows it.
   expect(recorded[1]!.argv).toContain("file=Tax-2026");
@@ -237,7 +240,7 @@ test("UTF-8 byte-perfect forwarding: file=笔记, to=Archive/ → argv tokens ex
   ]);
   await executeMove(
     { target_mode: "specific", vault: "V", file: "笔记", to: "Archive/" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
   );
   expect(recorded[1]!.argv).toContain("file=笔记");
   expect(recorded[1]!.argv).toContain("to=Archive/");
@@ -256,7 +259,7 @@ test("active+to → focused-file eval, then 'move path=<focused> to=Archive/' wi
   ]);
   const result = await executeMove(
     { target_mode: "active", to: "Archive/" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
   );
   expect(result).toEqual({
     moved: true,
@@ -283,7 +286,7 @@ test("active mode no-focused-note → ERR_NO_ACTIVE_FILE typed surface (SC-014 /
   const err = (await captureRejection(
     executeMove(
       { target_mode: "active", to: "Archive/" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
     ),
   )) as UpstreamError;
   expect(err).toBeInstanceOf(UpstreamError);
@@ -308,7 +311,7 @@ test("source-not-found → CLI_REPORTED_ERROR with verbatim 'Error: File \"<path
   const err = (await captureRejection(
     executeMove(
       { target_mode: "specific", vault: "V", path: "Sandbox/Missing.md", to: "Archive/" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
     ),
   )) as UpstreamError;
   expect(err.code).toBe("CLI_REPORTED_ERROR");
@@ -324,7 +327,7 @@ test("destination-collision → CLI_REPORTED_ERROR with verbatim 'Error: Destina
   const err = (await captureRejection(
     executeMove(
       { target_mode: "specific", vault: "V", path: "Sandbox/a.md", to: "Sandbox/b.md" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
     ),
   )) as UpstreamError;
   expect(err.code).toBe("CLI_REPORTED_ERROR");
@@ -342,7 +345,7 @@ test("ENOENT on spawn → CLI_BINARY_NOT_FOUND (Story 6 AC#1)", async () => {
   const err = (await captureRejection(
     executeMove(
       { target_mode: "specific", vault: "V", path: "P.md", to: "Archive/" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
     ),
   )) as UpstreamError;
   expect(err).toBeInstanceOf(UpstreamError);
@@ -355,7 +358,7 @@ test("non-zero exit + stderr → CLI_NON_ZERO_EXIT (Story 6 AC#2)", async () => 
   const err = (await captureRejection(
     executeMove(
       { target_mode: "specific", vault: "V", path: "P.md", to: "Archive/" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
     ),
   )) as UpstreamError;
   expect(err.code).toBe("CLI_NON_ZERO_EXIT");
@@ -372,7 +375,7 @@ test("exit-0 stdout 'Error: <msg>' → CLI_REPORTED_ERROR (Story 6 AC#3)", async
   const err = (await captureRejection(
     executeMove(
       { target_mode: "specific", vault: "V", path: "P.md", to: "Archive/" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
     ),
   )) as UpstreamError;
   expect(err.code).toBe("CLI_REPORTED_ERROR");
@@ -388,7 +391,7 @@ test("unknown-vault stdout 'Vault not found.' → CLI_REPORTED_ERROR (011-R5 inh
   const err = (await captureRejection(
     executeMove(
       { target_mode: "specific", vault: "DoesNotExist", path: "P.md", to: "Archive/" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
     ),
   )) as UpstreamError;
   expect(err.code).toBe("CLI_REPORTED_ERROR");
@@ -402,7 +405,7 @@ test("non-UpstreamError exception is re-thrown verbatim, NO asToolError wrapping
   const rejection = await captureRejection(
     executeMove(
       { target_mode: "specific", vault: "V", path: "P.md", to: "Archive/" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
     ),
   );
   expect(rejection).toBe(synthetic);
@@ -418,7 +421,7 @@ test("parseMoveResponse failure: unparseable stdout 'OK\\n' → CLI_REPORTED_ERR
   const err = (await captureRejection(
     executeMove(
       { target_mode: "specific", vault: "V", path: "P.md", to: "Archive/" },
-      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
     ),
   )) as UpstreamError;
   expect(err).toBeInstanceOf(UpstreamError);
@@ -439,7 +442,7 @@ test("same-folder move: response carries renamed-equivalence marker (dirname(fro
   });
   const result = await executeMove(
     { target_mode: "specific", vault: "V", path: "Inbox/Old.md", to: "Inbox/New.md" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
   );
   expect(result).toEqual({
     moved: true,
@@ -467,7 +470,7 @@ test("empty stdout + exit 0 (specific+path) → parseMoveResponse synthesizes fr
   const { spawnFn } = makeStubSpawn({ stdout: "", exitCode: 0 });
   const result = await executeMove(
     { target_mode: "specific", vault: "V", path: "Inbox/Tax-2026.md", to: "Archive/" },
-    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    { logger: silentLogger(), queue: createQueue(), spawnFn, env: {}, vaultRegistry: REGISTRY },
   );
   expect(result).toEqual({
     moved: true,

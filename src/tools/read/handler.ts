@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { invokeCli, type ResolveBinaryFn, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import { assertSupportedFileType, type SupportDeclaration } from "../../file-type/file-type.js";
-import { resolveFileTarget } from "../_file-target.js";
+import { fileTargetVaultRoot, resolveFileTarget } from "../_file-target.js";
 import { getErrno, getSyscall } from "../_fs-errors.js";
 
 import type { ReadNoteInput } from "./schema.js";
@@ -53,8 +53,7 @@ export async function executeReadNote(input: ReadNoteInput, deps: ExecuteDeps): 
     deps,
   );
   // The registry lookup runs after the CLI read, so an unknown vault still fails at the CLI.
-  const vaultRoot =
-    target.vault === undefined ? target.vaultRoot : await deps.vaultRegistry.resolveVaultPath(target.vault);
+  const vaultRoot = await fileTargetVaultRoot(target, deps.vaultRegistry);
   const disk = await readDiskBytes(deps.fs ?? DEFAULT_FS, join(vaultRoot, target.relPath), target.relPath);
   return { content: exactContent(stdout, disk) };
 }

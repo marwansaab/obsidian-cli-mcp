@@ -186,3 +186,9 @@ applies. Records written since:
   shared `resolveFsTarget` lookup and pass its not-found failure through
   unchanged, as `read` gives it; a `NOTE_NOT_FOUND` conversion and a
   literal-path fallback were rejected (PR #122).
+- [decisions/ADR-060-move-classifies-its-failure-after-the-cli-and-keeps-the-vault-folder-out.md](decisions/ADR-060-move-classifies-its-failure-after-the-cli-and-keeps-the-vault-folder-out.md)
+  — `move` classifies a failure only after the CLI reports it, turning the
+  ENOENT rename line into `FOLDER_NOT_FOUND` and rewriting the vault's
+  absolute folder out of every other failure, withholding the text when the
+  root cannot be looked up; a pre-check, withholding everywhere and a
+  before-the-move lookup were rejected (PR #123).
