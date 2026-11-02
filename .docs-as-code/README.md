@@ -57,7 +57,8 @@ extends it.
   - [capabilities/list-and-inventory.md](capabilities/list-and-inventory.md) —
     `files`, `paths`, `outline`, `properties`, `vaults`.
   - [capabilities/bases.md](capabilities/bases.md) — `bases`, `views_base`,
-    `query_base`, `create_base`.
+    `query_base`, `create_base`, and their routing by the named vault
+    (PR #114).
   - [capabilities/plugin-backed.md](capabilities/plugin-backed.md) — the two
     Smart Connections tools.
   - [capabilities/escape-hatch-and-meta.md](capabilities/escape-hatch-and-meta.md)
@@ -143,3 +144,9 @@ applies. Records written since:
   line so other plugins' output around it is ignored, and dispatch reads
   `eval` output line by line; carries out the 2026-11-01 amendment to
   ADR-029, in the separate entry point review argued the PR into (PR #110).
+- [decisions/ADR-053-create-base-contains-a-named-vault-item-and-reports-an-escape-it-cannot-prevent.md](decisions/ADR-053-create-base-contains-a-named-vault-item-and-reports-an-escape-it-cannot-prevent.md)
+  — a named-vault `create_base` realpath-checks `base_path` and the item
+  folder an eval template derives before creating, and checks the `Created:`
+  path afterwards, reporting an escape with `createdPath` and never deleting;
+  the template scans block YAML because the eval context has no parser, and
+  the owner kept it over the TypeScript scanner review proposed (PR #114).
