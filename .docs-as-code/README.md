@@ -150,3 +150,8 @@ applies. Records written since:
   path afterwards, reporting an escape with `createdPath` and never deleting;
   the template scans block YAML because the eval context has no parser, and
   the owner kept it over the TypeScript scanner review proposed (PR #114).
+- [decisions/ADR-054-help-pages-are-checked-against-the-offered-tools-by-a-test.md](decisions/ADR-054-help-pages-are-checked-against-the-offered-tools-by-a-test.md)
+  — the help pages and `index.md` must name exactly the tools a default
+  server offers, checked by a test rather than at boot or by filtering
+  `help`, reading pages through the `listToolPages` the review extracted
+  (PR #115).

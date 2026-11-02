@@ -21,6 +21,21 @@ shared refinement in `src/tools/_base-path.ts`, so an empty, over-long,
 traversing or wrong-extension path fails identically everywhere
 (`VALIDATION_ERROR` with `INVALID_BASE_PATH` sub-issues, following ADR-015).
 
+What reaches the caller differs. Each sub-issue carries its ADR-015 `params`
+(`code`, `reason`, `field`), but `registerTool`'s generic envelope keeps only
+each issue's `path`, `message` and `code`. `views_base` and `query_base` use
+that envelope, so the sub-reason survives only as the message prefix
+(`INVALID_BASE_PATH/wrong-extension: …`). Since PR #115 (spec 084, FR-008,
+Q1 = B) `create_base` has a `mapValidationError` that lifts the first
+sub-coded issue — `INVALID_BASE_PATH`, `INVALID_NAME` or `CONTENT_TOO_LARGE`,
+in `base_path`, `name`, `content` order — to `details.code`,
+`details.reason` (absent for `CONTENT_TOO_LARGE`) and `details.field`, with
+that issue's message as the top-level `message`, and keeps the full
+`details.issues` beside them. Any other validation failure, including the
+deprecated-name conflict, whose issue carries no `params`, keeps the generic
+envelope. Its help page had promised those `details` fields before the code
+returned them.
+
 `query_base` runs a staged pipeline before trusting the CLI:
 
 1. Resolve the vault root and run the canonical path check.
@@ -274,6 +289,15 @@ These are inherited from the CLI and documented in each tool's description:
   does not exist. On a name collision the CLI auto-increments the new note's
   name, and the response reports the actual name.
 - `views_base` with `base_path` changes Obsidian's focus as a side effect.
+- `query_base` and `views_base` validation errors carry no `details.code` or
+  `details.reason` ([above](#how-it-is-built)). PR #115 corrected
+  `views_base`'s help page, which had claimed `params.*` fields; `query_base`'s
+  page still documents `details.reason` for `INVALID_BASE_PATH`. The planned
+  fix is to lift `create_base`'s mapper into `_base-path.ts` for all three
+  (spec 084 research D3, F5, F8); spec 084 kept the mapper local as the
+  minimum its FR-008 needed.
+- Four Bases help pages list `UPSTREAM_TIMEOUT`, which nothing raises; a
+  timeout is `CLI_TIMEOUT` (spec 084 research F8, a recorded follow-up).
 - The two tools bound `BASE_MALFORMED`'s `details.message` differently.
   `views_base` bounds it and adds `messageLength` (PR #111); `query_base`
   still returns the whole report, unbounded, with no `messageLength`. Review
