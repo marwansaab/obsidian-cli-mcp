@@ -2,7 +2,7 @@
 
 List the views defined inside an Obsidian Bases (`.base`) file. Member of the Bases-family cohort (siblings: `bases`, `query_base`, `create_base`).
 
-**Supported file types:** bases only (`base_path`). A `base_path` that does not end in `.base` is rejected as before, with `VALIDATION_ERROR` + `params.code: "INVALID_BASE_PATH"`, `params.reason: "wrong-extension"`.
+**Supported file types:** bases only (`base_path`). A `base_path` that does not end in `.base` is rejected as before, with `VALIDATION_ERROR` whose issue message starts `INVALID_BASE_PATH/wrong-extension:`.
 
 ## When to use this tool
 
@@ -54,7 +54,7 @@ The native `base:views` subcommand emits each line as `<view name>\t<view type>`
 
 | Top-level `code`     | `details.code`     | `details.reason` | When | Recovery |
 |----------------------|--------------------|------------------|------|----------|
-| `VALIDATION_ERROR`   | —                  | `params.code: "INVALID_BASE_PATH"` (`empty` / `too-long` / `path-traversal` / `wrong-extension`) | `base_path` is malformed (empty, > 1000 units, traversal shape, or not ending in `.base`) | Fix the `base_path` value. A non-`.base` path is a validation failure, distinct from "named Base not found". |
+| `VALIDATION_ERROR`   | —                  | — (the `details.issues[0].message` prefix is `INVALID_BASE_PATH/empty`, `/too-long`, `/path-traversal` or `/wrong-extension`) | `base_path` is malformed (empty, > 1000 units, traversal shape, or not ending in `.base`) | Fix the `base_path` value. A non-`.base` path is a validation failure, distinct from "named Base not found". |
 | `CLI_REPORTED_ERROR` | `BASE_NOT_FOUND`   | `named-missing`  | A named `.base` does not exist at `base_path` in the resolved vault | Check the path with `bases`; the named Base is not substituted by the open one. |
 | `CLI_REPORTED_ERROR` | `BASE_NOT_FOUND`   | `not-open`       | Open-Base mode: the focused file is not a `.base`. With `vault` named, `details.vault` names the vault and the message names it too | Focus a `.base` in Obsidian, or pass `base_path`. |
 | `CLI_REPORTED_ERROR` | `BASE_MALFORMED`   | `invalid-yaml`   | Named or open mode: Obsidian cannot parse the `.base` file's YAML | Repair the YAML in the `.base` file (the bounded parser report is in `details.message`). |
@@ -147,7 +147,21 @@ with a non-`.base` note focused returns `CLI_REPORTED_ERROR` with `details.code:
 { "name": "views_base", "arguments": { "base_path": "Notes/Daily.md" } }
 ```
 
-Returns `VALIDATION_ERROR` with `params.code: "INVALID_BASE_PATH"`, `params.reason: "wrong-extension"` — distinct from "named Base not found".
+Returns `VALIDATION_ERROR` — distinct from "named Base not found":
+
+```json
+{
+  "code": "VALIDATION_ERROR",
+  "message": "views_base input failed schema validation",
+  "details": {
+    "issues": [
+      { "path": ["base_path"], "message": "INVALID_BASE_PATH/wrong-extension: base_path must end with .base", "code": "custom" }
+    ]
+  }
+}
+```
+
+The sub-reason is the prefix of the issue's `message` (`INVALID_BASE_PATH/wrong-extension:`); the error carries no `details.code` or `details.reason`.
 
 ### Example 8 — Malformed Base (YAML Obsidian cannot parse)
 

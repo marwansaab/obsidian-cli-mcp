@@ -31,6 +31,8 @@ Spec 082-fix-active-file-messaging.
 
 Spec 083-enable-cross-vault-bases (BI-0139).
 
+Spec 084-reconcile-help-docs.
+
 ### Added
 
 - **`write_note` reports `bytes_written`**, with the same meaning, counting a new note's old size as 0. If the existing note's size cannot be read before an overwrite, the call fails with `FS_WRITE_FAILED` before anything is written. Its `details` shape is unchanged; `details.syscall` now reads `"stat"` where the old existence probe reported `"realpath"`.
@@ -49,6 +51,8 @@ Spec 083-enable-cross-vault-bases (BI-0139).
 - **`read_heading` and `patch_heading` document the heading-path rule.** Their descriptions, parameter descriptions and reference pages now state that a path starts at the note's level-1 heading and names one heading per level. They list the sections no path can reach (no level-1 heading, a skipped level, a level-1 section by itself) with the whole-note alternative, and name the most common cause of `HEADING_NOT_FOUND`. Behaviour, error codes and messages are unchanged.
 - **`create_base` checks write containment when `vault` is named** (spec 083). Before creating, it checks that `base_path` and the folder the item will land in (the Base's single top-level `file.inFolder` folder, else the vault's new-note folder, plus any folder part of `name`) resolve inside the named vault; after creating, it checks the reported path again. An escape fails with `PATH_ESCAPES_VAULT`; when the post-creation check catches it, `details.createdPath` names the item, which is kept, not deleted. With no `vault`, nothing changes.
 - **Eval parse errors carry a head-and-tail stdout excerpt** (spec 080). Every `json-parse`, `envelope-parse`, `schema-parse`, `count-paths-mismatch` and `focused-vault-resolve` error of an eval-composed tool now sets `details.stdout` to the raw output when it is 1,000 characters or fewer, otherwise its first and last 500 characters around a `[… cut …]` line, and adds `details.stdoutLength`, the raw output's length. Codes, stages and messages are unchanged. A stdout with no answer line for the call, such as bare JSON, is now a `json-parse` error rather than parsed as the answer; the Obsidian CLI always prints the answer line. Each typed eval's `code=` element in `details.argv` now shows the answer-tag wrapper around the original code.
+- **`create_base` validation errors name what to fix** (spec 084). An `INVALID_BASE_PATH`, `INVALID_NAME` or `CONTENT_TOO_LARGE` rejection now carries `details.code`, `details.reason` (when the rejection has one) and `details.field` next to the unchanged `details.issues`, and its `message` is the rejection's own, for example `INVALID_NAME/empty: name is empty`, instead of `create_base input failed schema validation`. Every other validation failure is unchanged.
+- **`rename`'s folder-separator hint names `move`** (spec 084). The message is now `name must not contain folder separators; use move to relocate the file to a different folder`; it named `move_note`, a tool that no longer exists.
 
 ### Deprecated
 
@@ -58,6 +62,7 @@ Spec 083-enable-cross-vault-bases (BI-0139).
 
 - **The `VAULT_NOT_FOUND` / `not-open` sub-state** from those six tools and from the `find_and_replace` and `patch_block` reference pages. It was documented but never produced: through the CLI the server drives, a closed vault answers with the cold-start signature that the automatic retry already handles.
 - **The internal closed-vault detection module** (`_eval-vault-closed-detection`) and the six handler stages that used it. An empty answer from the CLI still fails with `CLI_REPORTED_ERROR` and `details.stage: "json-parse"`, now without the extra `vaults verbose` call.
+- **The `list_notes` and `search_vault` placeholder help pages and index entries** (spec 084). Neither tool exists; `help` now answers `HELP_TOOL_NOT_FOUND` for them, and its `availableTools` lists only the offered tools. A test now fails when a help page or index entry names a tool the server does not offer.
 
 ### Fixed
 
@@ -68,6 +73,7 @@ Spec 083-enable-cross-vault-bases (BI-0139).
 - **`views_base` reports a malformed Base as `BASE_MALFORMED`** (spec 081). A `.base` whose YAML Obsidian cannot parse now fails, named or open, with `CLI_REPORTED_ERROR`, `details.code: "BASE_MALFORMED"` and `details.reason: "invalid-yaml"`, instead of a generic upstream error carrying the raw parser output. The headline names the Base; the parser report is kept in `details.message`, bounded to its first and last 500 characters when longer than 1,000, with `details.messageLength`. The named-mode "not a base file" failure now carries `details.reason: "unknown"`. `query_base` is unchanged.
 - **`bases`, open-mode `views_base` and `create_base` act on the named `vault`** (spec 083) instead of the vault in front, whether that vault is in front, open behind it, or closed. An unregistered name fails with `CLI_REPORTED_ERROR`, `details.code: "VAULT_NOT_FOUND"`, `details.reason: "unknown"` before the CLI runs. `views_base`'s `BASE_NOT_FOUND` / `not-open` and `create_base`'s `BASE_NOT_FOUND` carry `details.vault` when a vault is named. With no `vault`, results, errors and messages are unchanged.
 - **`get_active_file` names the right reason when a note locator is supplied.** A `file` or `path` locator is still rejected in both modes, with the message "`<key>` is not allowed: the active file is the implicit target, so no note may be named" in place of the folder-scoped wording, and the description and help page now state `name` as `basename + "." + extension` (just `basename` with no extension). `files` and `paths` are unchanged.
+- **Help pages show calls and errors as the server accepts and returns them** (spec 084). The `write_note` migration example now passes a valid `obsidian_exec` call (`command` plus `parameters`, not an `argv` array). The quoted validation messages in the `context_search`, `search` and `properties` examples match what the server returns. The `views_base` and `patch_block` pages no longer claim `params.*` / `details.code` fields on their validation errors, which carry the reason in the issue message only. The `context_search` missing-folder example shows the generic top-level message and the `details` agents should branch on.
 
 ## [0.9.0] - 2026-10-30
 

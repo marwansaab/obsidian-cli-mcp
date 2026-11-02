@@ -496,6 +496,12 @@ an extensionless `to` as a folder — and one with a different recognised
 extension is refused with `alternative: "obsidian_exec"`. Markdown outcomes
 did not change, including `Renamed.MD` → `Renamed.MD.md` (FR-012).
 
+A `name` containing `/` or `\` is rejected at validation by the schema's own
+`.regex` message. Until PR #115 that message ended "use move_note to relocate
+the file to a different folder", naming a tool the server no longer offers;
+since then it names `move` (spec 084 FR-004). Only the message changed: the
+pattern, and so the published schema, did not.
+
 `write_note` has no resolver to ask, so it checks the path it computes. Its
 short form used to add `.md` to any slash-free name not ending in `.md`, which
 made `file: "Plan.canvas"` into `Plan.canvas.md`. Since PR #97 a name ending
@@ -629,3 +635,16 @@ from their schema would have reached the client as SDK free text rather than
   `backlinks`). PR #90's T051 list did not include them and they use none of
   the banned phrases, so the surface test passes; the PR body leaves their
   removal to the owner.
+- `patch_block` has no `mapValidationError`, so a malformed `block_id` comes
+  back as the generic `VALIDATION_ERROR` envelope, with the reason only in
+  the issue's message. Its help page used to show `details.code:
+  "INVALID_BLOCK_ID"`, `details.reason` and `details.offending_index` on that
+  error; none of them is returned, and PR #115 corrected the page. The
+  published description still lists `INVALID_BLOCK_ID` among its errors; it
+  is fingerprinted, so changing it is a recorded follow-up of spec 084, not a
+  docs fix.
+- `prepend` and `find_and_replace` still hand-copy `registerTool`'s generic
+  `VALIDATION_ERROR` fallback inside their mappers. Since PR #115 a mapper can
+  return `undefined` to get that envelope
+  ([architecture](../architecture.md#registration--the-one-path-from-a-schema-to-a-published-tool));
+  the two copies are to move to it when those files are next touched.

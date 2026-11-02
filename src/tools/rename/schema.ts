@@ -10,7 +10,7 @@ export const renameInputSchema = applyTargetModeRefinement(
       .min(1)
       .regex(
         /^[^/\\]+$/,
-        "name must not contain folder separators; use move_note to relocate the file to a different folder",
+        "name must not contain folder separators; use move to relocate the file to a different folder",
       )
       .describe(
         'New file name, in the same folder (e.g. "Renamed Note"); no "/" or "\\". Without an extension the file keeps its own (a canvas stays a canvas); an extension of a different file type is rejected.',

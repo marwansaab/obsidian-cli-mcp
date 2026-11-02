@@ -205,7 +205,7 @@ Whitespace-only `query` fails the schema:
   "isError": true,
   "content": [{
     "type": "text",
-    "text": "{\"code\":\"VALIDATION_ERROR\",\"message\":\"search input failed schema validation\",\"details\":{\"issues\":[{\"path\":[\"query\"],\"message\":\"query is empty or whitespace-only\",\"code\":\"custom\"}]}}"
+    "text": "{\"code\":\"VALIDATION_ERROR\",\"message\":\"search input failed schema validation\",\"details\":{\"issues\":[{\"path\":[\"query\"],\"message\":\"query is empty or whitespace-only (FR-010)\",\"code\":\"custom\"}]}}"
   }]
 }
 ```

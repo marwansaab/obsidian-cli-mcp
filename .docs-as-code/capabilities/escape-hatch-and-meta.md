@@ -126,6 +126,10 @@ the compiled handler, so it works the same from `src/` in development and
 from the installed `dist/`. The requested name is checked for path traversal
 and NUL bytes before any file is opened. A missing doc is
 `HELP_TOOL_NOT_FOUND`, and a missing docs directory is `HELP_DOCS_MISSING`.
+`HELP_TOOL_NOT_FOUND`'s `details.availableTools` is the directory's page
+names, from `listToolPages` (extracted in PR #115 so the drift test reads the
+same list), not the registry: `help` deliberately does not import the tool
+list, which would be an upward dependency.
 
 Because `help` makes the docs part of the runtime, the server also refuses to
 start if any registered tool lacks its doc file
@@ -149,12 +153,19 @@ start if any registered tool lacks its doc file
   published with the passthrough hint row — destructive and open-world, the
   only open-world tool. Its optional `vault` is the shared
   `focusedVaultField`.
-- `docs/tools/` still holds stub pages for `list_notes` and `search_vault`.
-  They are not registered tools, so `help` serves a "not yet implemented" page
-  for names a client cannot call. `docs/tools/index.md` lists them as
-  documentation pending. The third stub, `list_vaults`, became the real
-  `docs/tools/vaults.md` when PR #91 shipped the tool under the name `vaults`
+- Until PR #115 this list said `docs/tools/` still held stub pages for
+  `list_notes` and `search_vault`, which `help` served and `index.md` listed
+  as documentation pending, for names a client cannot call. Spec 084 deleted
+  both (research D1): `help` now answers `HELP_TOOL_NOT_FOUND` for them, and a
+  test fails if a page or index entry names a tool the server does not offer
+  ([architecture](../architecture.md#documentation-as-part-of-the-runtime),
+  [ADR-054](../decisions/ADR-054-help-pages-are-checked-against-the-offered-tools-by-a-test.md)).
+  The third stub, `list_vaults`, had become the real `docs/tools/vaults.md`
+  when PR #91 shipped the tool under the name `vaults`
   ([list and inventory](list-and-inventory.md#vaults)).
+- The drift test compares names against a *default* server. A tool the owner
+  switches off with `OBSIDIAN_MCP_DISABLE` or read-only mode keeps its page,
+  so `help` still serves it and lists it in `availableTools`.
 - Neither tool publishes an `outputSchema` (PR #91,
   [typed results](../architecture.md#typed-results-outputschema-and-structuredcontent)):
   `help` returns raw Markdown, and `obsidian_exec` returns free-form CLI

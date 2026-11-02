@@ -156,7 +156,9 @@ registered tool has a `docs/tools/<name>.md`. It collects **every** missing
 file and throws once, rather than failing on the first. A tool without
 documentation stops the server from starting. It checks every tool built, not
 only the offered ones, so a doc cannot go missing just because a tool is
-switched off.
+switched off. The reverse direction — a page or index entry for a tool the
+server does not offer — is not checked at boot; since PR #115 a test does it
+([documentation as part of the runtime](#documentation-as-part-of-the-runtime)).
 
 #### Owner access settings
 
@@ -255,6 +257,19 @@ PR #91, see [typed results](#typed-results-outputschema-and-structuredcontent)).
    `VALIDATION_ERROR`, because the client's input was valid. These are
    **returned** as results, never thrown, so the SDK passes them through
    untouched.
+
+   The generic input envelope is `message: "<tool> input failed schema
+   validation"` with `details.issues`, each issue cut to its `path`,
+   `message` and `code` by `validationIssues` (`src/tools/_register.ts`), so a
+   zod issue's `params` never reach the caller. Three tools pass a
+   `mapValidationError` to say more: `prepend`, `find_and_replace` and, since
+   PR #115, `create_base`. Since that PR a mapper may return `undefined` for
+   the failures it does not recognise, and `registerTool` sends the generic
+   envelope for them. The PR #115 review argued for that: the first version
+   of `create_base`'s mapper hand-copied the fallback, the fourth copy in the
+   tree. `create_base`'s mapper now uses both seams; `prepend` and
+   `find_and_replace` still copy the fallback
+   ([mutate](capabilities/mutate.md#known-limits)).
 
 Since PR #90 (068 FR-019 to FR-024) a `ToolSpec` cannot be written without a
 `title` and an `annotations` object holding all four MCP behaviour hints
@@ -863,7 +878,9 @@ than added as new codes:
   example `CLI_REPORTED_ERROR` with `details.code: "VAULT_NOT_FOUND"`,
   `"FILE_NOT_FOUND"`, `"NOT_MARKDOWN"`, `"FOLDER_NOT_FOUND"`,
   `"SMART_CONNECTIONS_NOT_INSTALLED"`, `"BASE_MALFORMED"`, `"VIEW_NOT_FOUND"`;
-  or `VALIDATION_ERROR` with `details.code: "CONTENT_TOO_LARGE"` or, from
+  or `VALIDATION_ERROR` with `details.code: "CONTENT_TOO_LARGE"` (and, from
+  `create_base` since PR #115, `"INVALID_BASE_PATH"` and `"INVALID_NAME"`,
+  with `details.field`; [bases](capabilities/bases.md#how-it-is-built)) or, from
   `obsidian_exec`'s code-execution gate (PR #88), `"COMMAND_BLOCKED"`. Since
   PR #92 the confirmation gate adds two more under `VALIDATION_ERROR`:
   `"CONFIRMATION_UNAVAILABLE"` (the client cannot ask the human) and
@@ -1310,6 +1327,27 @@ published schema, and the cross-cutting rules are in the server instructions.
 rosters and recovery hints — so the one-liners can stay short. The cost is
 that a parameter's behaviour is now written in two places, its `.describe()`
 and its `docs/tools/` page, and both must stay accurate.
+
+Boot catches only a *missing* page. Until PR #115 nothing caught the
+opposite: `docs/tools/` held placeholder pages for `list_notes` and
+`search_vault`, two tools the server never offered, `index.md` listed them,
+and `help` served them and named them in `HELP_TOOL_NOT_FOUND`'s
+`availableTools`, which is the directory listing. Spec 084 deleted both
+pages and added `src/tools/help/docs-sync.test.ts`. It lists the tools a
+default server offers over an in-memory client (`quietServer({})`, so no
+`OBSIDIAN_MCP_*` flag in the shell narrows the set), and fails unless the
+page names — read through `listToolPages`, the same function `help` uses for
+`availableTools` — and the `- **<name>** —` entries of `index.md` are exactly
+that set. Its comparison helper lives in the test file, with its own
+passing and failing self-tests, so no production symbol exists only for the
+test. Why a test and not a boot check:
+[ADR-054](decisions/ADR-054-help-pages-are-checked-against-the-offered-tools-by-a-test.md).
+
+The guard checks names only. Whether a page's examples are valid calls and
+its quoted errors match what the server returns is not tested; spec 084
+checked that once, with a probe outside the repository, and PR #115 fixed
+the pages it caught (`write_note`, `context_search`, `search`, `properties`,
+`views_base`, `patch_block`, `create_base`).
 
 ## Logging and shutdown
 

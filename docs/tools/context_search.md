@@ -185,8 +185,9 @@ Error envelope:
 ```json
 {
   "code": "CLI_REPORTED_ERROR",
-  "message": "Error: Folder \"DoesNotExist\" not found.",
+  "message": "CLI bridge upstream error: CLI_REPORTED_ERROR",
   "details": {
+    "argv": ["<obsidian binary>", "folder", "path=DoesNotExist"],
     "command": "folder",
     "stdout": "Error: Folder \"DoesNotExist\" not found.\n",
     "stderr": "",
@@ -195,6 +196,8 @@ Error envelope:
   }
 }
 ```
+
+The top-level `message` is the generic CLI-bridge text; branch on `details.command === "folder"` and `details.message`, never on the top-level `message`.
 
 Distinguishing outcomes:
 
@@ -249,7 +252,7 @@ Whitespace-only `query` fails the schema:
   "isError": true,
   "content": [{
     "type": "text",
-    "text": "{\"code\":\"VALIDATION_ERROR\",\"message\":\"context_search input failed schema validation\",\"details\":{\"issues\":[{\"path\":[\"query\"],\"message\":\"query is empty or whitespace-only\",\"code\":\"custom\"}]}}"
+    "text": "{\"code\":\"VALIDATION_ERROR\",\"message\":\"context_search input failed schema validation\",\"details\":{\"issues\":[{\"path\":[\"query\"],\"message\":\"query is empty or whitespace-only (FR-008)\",\"code\":\"custom\"}]}}"
   }]
 }
 ```

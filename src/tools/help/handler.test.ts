@@ -1,4 +1,4 @@
-// Original — no upstream. Co-located vitest cases for the help handler (FR-017 + L1 remediation: 11 cases covering AC#1-6 + Q4 + traversal + reserved-name + empty-file + orphan).
+// Original — no upstream. Co-located vitest cases for the help handler (FR-017 + L1 remediation: 11 cases covering AC#1-6 + Q4 + traversal + reserved-name + empty-file; spec 084 replaced the orphan-page case with the withdrawn-placeholder not-found case).
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -142,14 +142,26 @@ describe("executeHelp", () => {
     }
   });
 
-  it("returns content for orphaned doc files (Edge Case 'doc file with no registered tool', remediation L1c)", async () => {
-    // Stub doc files are present in docs/tools/ but their tools are not registered yet —
-    // this is the orphan case in production. The handler must succeed and return the file
-    // content (FR-008 filesystem-as-source-of-truth). The remaining orphan stubs at this
-    // BI are list_notes / search_vault.
-    const result = await executeHelp({ tool_name: "list_notes" });
-    expect(result.content[0]!.text).toContain("<!-- TODO(BI-");
-  });
+  it.each(["list_notes", "search_vault"])(
+    "rejects withdrawn placeholder %s with HELP_TOOL_NOT_FOUND (spec 084 FR-002, contract H6)",
+    async (name) => {
+      // The placeholder pages for tools the server never offered are deleted (spec 084 D1), so
+      // help answers "no such tool" for them and no longer lists them as available.
+      let caught: unknown;
+      try {
+        await executeHelp({ tool_name: name });
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(UpstreamError);
+      const err = caught as UpstreamError;
+      expect(err.code).toBe("HELP_TOOL_NOT_FOUND");
+      expect((err.details as { requestedName: string }).requestedName).toBe(name);
+      const available = (err.details as { availableTools: string[] }).availableTools;
+      expect(available).not.toContain("list_notes");
+      expect(available).not.toContain("search_vault");
+    },
+  );
 
   // ---------------------------------------------------------------------------
   // BI-022 — renamed tools: help routing for the five new names + tool-not-found

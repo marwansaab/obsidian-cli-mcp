@@ -125,7 +125,7 @@ When the source and destination resolve to identical canonical paths, the CLI re
 `rename` works on **files of any type** — notes, canvases, bases, attachments, and files whose extension is not a core type — and **keeps each file's type** (spec 070). Out of scope:
 
 - **Changing a file's type**: renaming `.md → .canvas`, `.canvas → .md`, `.png → .jpg`, etc. A `name` that ends in a different core extension is rejected with `UNSUPPORTED_FILE_TYPE` / `type-change` (see *Extension-handling rule*); the wrapper never converts a file's type silently.
-- **Folder relocation**: changing the file's folder location. Folder-separator characters (`/`, `\`) in `name` are rejected at the schema layer with a `move_note` recovery hint.
+- **Folder relocation**: changing the file's folder location. Folder-separator characters (`/`, `\`) in `name` are rejected at the schema layer with a `move` recovery hint.
 
 To change a file's type deliberately, route through [`obsidian_exec`](./obsidian_exec.md), which forwards `name` without the type check:
 
@@ -146,7 +146,7 @@ For folder relocation, use [`move`](./move.md).
 
 | Code | When | Recovery |
 |------|------|----------|
-| `VALIDATION_ERROR` | The input failed schema validation (missing `target_mode`, missing `vault` in specific mode, neither/both `file` and `path`, forbidden key in active mode, unknown top-level key, empty `name`, `name` non-string, `name` containing `/` or `\`, etc.). | Retry with corrected input. `details.issues` carries the per-issue `path` + `message` + zod code. For `/` or `\` in `name`, the message includes a `move_note` recovery hint — use [`move`](./move.md) for folder relocation. |
+| `VALIDATION_ERROR` | The input failed schema validation (missing `target_mode`, missing `vault` in specific mode, neither/both `file` and `path`, forbidden key in active mode, unknown top-level key, empty `name`, `name` non-string, `name` containing `/` or `\`, etc.). | Retry with corrected input. `details.issues` carries the per-issue `path` + `message` + zod code. For `/` or `\` in `name`, the message includes a `move` recovery hint — use [`move`](./move.md) for folder relocation. |
 | `VALIDATION_ERROR` (`details.code: "UNSUPPORTED_FILE_TYPE"`, `details.reason: "type-change"`) | `name` ends in a core extension different from the source's (for example `"Plan.md"` on a `.canvas` source). Raised before the `rename` call; for `file` and active calls, after the source resolves. `details` carries `path` (the resolved source path), `extension` (the source's, original case), `supported` (all four categories: `["note", "canvas", "base", "attachment"]`), `destination` (the `name` as given), `destinationExtension`, and `alternative: "obsidian_exec"`. | Nothing was changed. Omit the extension (or give the source's own) to keep the type, or use [`obsidian_exec`](./obsidian_exec.md) to change the type deliberately. |
 | `CLI_BINARY_NOT_FOUND` | The `obsidian` CLI binary is not on `PATH` and `OBSIDIAN_BIN` was unset/invalid. | Operator-side: install the Obsidian CLI, OR set `OBSIDIAN_BIN` to a valid path. |
 | `CLI_NON_ZERO_EXIT` | The Obsidian CLI exited with a non-zero code (file locked by an external editor on Windows, permission error, etc.). | `details.{exitCode, signal, stdout, stderr}` carry the failure context. Inspect `stderr` for diagnostic output. |
@@ -280,7 +280,7 @@ If `Inbox/B.md` already exists, surfaces as `CLI_REPORTED_ERROR` with `details.m
 }
 ```
 
-Rejected at the schema boundary with `VALIDATION_ERROR`. The issue carries the path `["name"]` and a message naming the `move_note` recovery hint. Use [`move`](./move.md) for folder relocation, OR route through `obsidian_exec move` directly:
+Rejected at the schema boundary with `VALIDATION_ERROR`. The issue carries the path `["name"]` and a message naming the `move` recovery hint: `name must not contain folder separators; use move to relocate the file to a different folder`. Use [`move`](./move.md) for folder relocation, OR route through `obsidian_exec move` directly:
 
 ```json
 {

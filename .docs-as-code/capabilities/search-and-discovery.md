@@ -132,8 +132,20 @@ unnoticed.
 
 Shared across the group: an unknown vault (`CLI_REPORTED_ERROR`,
 `details.code: "VAULT_NOT_FOUND"`); an invalid regex in
-`pattern_search` (`VALIDATION_ERROR`); a missing `folder` (`CLI_REPORTED_ERROR`,
-`details.code: "FOLDER_NOT_FOUND"`) for the tools that probe for it.
+`pattern_search` (`VALIDATION_ERROR`); a missing `folder` is
+`CLI_REPORTED_ERROR` for the tools that probe for it.
+
+This page used to give the missing-folder error one shape,
+`details.code: "FOLDER_NOT_FOUND"`. That is `pattern_search`'s, whose eval
+template reports the folder itself. `context_search` probes with the native
+`folder` command after a zero-match search, and the probe's `Error:` line
+surfaces as dispatch's generic error: the top-level `message` is
+`CLI bridge upstream error: CLI_REPORTED_ERROR`, with no `details.code`, and
+the caller branches on `details.command === "folder"` and `details.message`.
+Its help page had shown Obsidian's folder text as the top-level `message`;
+PR #115 (spec 084, FR-009) corrected the page and added tests that pin
+`details.command`, `details.message` and the top-level message. The handler
+did not change.
 
 A closed registered vault is not a failure. The dispatch layer's cold-start
 retry opens it and the call returns its normal result

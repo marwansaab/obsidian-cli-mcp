@@ -1,10 +1,18 @@
-// Original — no upstream.
+// Original — no upstream. create_base tool registration via registerTool; spec 084: a mapValidationError hook lifts the first sub-coded issue's ADR-015 params (INVALID_BASE_PATH / INVALID_NAME / CONTENT_TOO_LARGE) to details.code, details.reason (when present) and details.field, with that issue's own message, next to the unchanged generic details.issues; every other validation failure returns undefined and gets registerTool's generic envelope.
+import { type z } from "zod";
+
 import { withDeprecatedParameters } from "../_deprecated-params.js";
-import { registerTool } from "../_register.js";
+import { registerTool, validationIssues } from "../_register.js";
 import { CREATE_BASE_SUPPORTED, executeCreateBase, type ExecuteDeps } from "./handler.js";
 import { createBaseInputSchema, createBaseOutputSchema, MAX_CONTENT_LENGTH } from "./schema.js";
 import { describeSupport } from "../../file-type/file-type.js";
-import { ADDITIVE_WRITE_HINTS, closedVaultNote, type BootDeps, type RegisteredTool } from "../_shared.js";
+import {
+  ADDITIVE_WRITE_HINTS,
+  closedVaultNote,
+  type BootDeps,
+  type RegisteredTool,
+  type ToolErrorPayload,
+} from "../_shared.js";
 
 export const CREATE_BASE_TOOL_NAME = "create_base";
 
@@ -25,6 +33,30 @@ ${closedVaultNote("base:create")}`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 
+/**
+ * The schema's sub-coded custom issues (`appendBasePathIssues` and the name / content checks)
+ * carry ADR-015 params; the first one, in superRefine order, is the error the caller acts on.
+ * The deprecated-name conflict issue carries no params, so it and every other failure fall
+ * through to registerTool's generic envelope.
+ */
+function mapZodIssuesToToolError(issues: z.core.$ZodIssue[]): ToolErrorPayload | undefined {
+  for (const issue of issues) {
+    if (issue.code !== "custom" || issue.params?.["code"] === undefined) continue;
+    const { code, reason, field } = issue.params;
+    return {
+      code: "VALIDATION_ERROR",
+      message: issue.message,
+      details: {
+        code,
+        ...(reason === undefined ? {} : { reason }),
+        field,
+        issues: validationIssues(issues),
+      },
+    };
+  }
+  return undefined;
+}
+
 export function createCreateBaseTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: CREATE_BASE_TOOL_NAME,
@@ -35,5 +67,6 @@ export function createCreateBaseTool(deps: RegisterDeps): RegisteredTool {
     outputSchema: createBaseOutputSchema,
     deps,
     handler: async (input, d) => withDeprecatedParameters(await executeCreateBase(input, d), input.deprecated_parameters),
+    mapValidationError: mapZodIssuesToToolError,
   });
 }

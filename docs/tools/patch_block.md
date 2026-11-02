@@ -136,7 +136,7 @@ The `block_id` field is the **bare identifier** — no leading `^`. Schema-layer
 - **Alphabet**: alphanumeric + hyphen-minus only (`^[A-Za-z0-9-]+$`). Underscore, period, colon, and other punctuation are rejected.
 - **Case-sensitive**: `^Foo` does not match `block_id: "foo"`.
 - **Length cap**: 1000 UTF-16 code units.
-- **No leading caret**: passing `"^foo"` is rejected with `INVALID_BLOCK_ID details.reason: "leading-caret"`. Pass `"foo"` instead.
+- **No leading caret**: passing `"^foo"` is rejected with `VALIDATION_ERROR`, issue message `block_id must not begin with '^' — the caret is the wikilink delimiter, not part of the identifier`. Pass `"foo"` instead.
 - **First-match-wins**: when the same `block_id` appears more than once in a single note (through authoring error or imported content), the wrapper resolves to the FIRST occurrence in document order.
 
 ## Active-mode focused-note locator
@@ -169,7 +169,7 @@ Every failure routes through `UpstreamError`.
 
 | Top-level `code` | `details.code` | `details.reason` | What triggered it |
 |---|---|---|---|
-| `VALIDATION_ERROR` | `INVALID_BLOCK_ID` | `empty` / `contains-invalid-chars` / `leading-caret` / `too-long` | Schema-layer rejection of the `block_id` shape. |
+| `VALIDATION_ERROR` | — | — | Schema-layer rejection of the `block_id` shape (empty, invalid characters, leading `^`, over 1000 units). The rule broken is named by the `block_id` issue's `message` in `details.issues`. |
 | `CLI_REPORTED_ERROR` | `BLOCK_NOT_FOUND` | — | The id was not present in the resolved file's body. |
 | `CLI_REPORTED_ERROR` | `BLOCK_ON_HEADING` | — (carries `details.heading_shape: "atx" \| "setext"`) | The id resolved to a marker attached to a heading line. Route to [`patch_heading`](./patch_heading.md). |
 | `CLI_REPORTED_ERROR` | `NOTE_NOT_FOUND` | — | The target file does not exist. |
@@ -284,4 +284,4 @@ Callers needing stronger guarantees should coordinate externally.
 }
 ```
 
-→ `VALIDATION_ERROR` with `details.code: "INVALID_BLOCK_ID"`, `details.reason: "contains-invalid-chars"`, `details.offending_index: 5`. Drop the underscore (alphabet is alphanumeric + hyphen only).
+→ `VALIDATION_ERROR` (`message: "patch_block input failed schema validation"`) whose `details.issues` holds `{ "path": ["block_id"], "message": "block_id must match the alphanumeric + hyphen alphabet ([A-Za-z0-9-]+)", "code": "custom" }`. Drop the underscore (alphabet is alphanumeric + hyphen only).

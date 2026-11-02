@@ -112,7 +112,9 @@ Two deliberate breaking changes vs. the legacy tool:
    {
      "name": "obsidian_exec",
      "arguments": {
-       "argv": ["create", "vault=MyVault", "path=Daily/2026-05-10.md", "template=Daily"]
+       "command": "create",
+       "vault": "MyVault",
+       "parameters": { "path": "Daily/2026-05-10.md", "template": "Daily" }
      }
    }
    ```
@@ -241,7 +243,9 @@ Rewrite as:
 {
   "name": "obsidian_exec",
   "arguments": {
-    "argv": ["create", "vault=MyVault", "path=Daily/2026-05-10.md", "template=Daily"]
+    "command": "create",
+    "vault": "MyVault",
+    "parameters": { "path": "Daily/2026-05-10.md", "template": "Daily" }
   }
 }
 ```

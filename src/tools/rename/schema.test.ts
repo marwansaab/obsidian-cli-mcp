@@ -144,7 +144,7 @@ test("specific with name: 42 rejects on path=['name'] with invalid_type (Story 6
 });
 
 // (n) Story 6 AC#8 — folder-separator rejection (forward slash)
-test("name with forward slash rejects with move_note recovery hint (Story 6 AC#8 / Q2)", () => {
+test("name with forward slash rejects with `move` recovery hint (Story 6 AC#8 / Q2; spec 084 N1)", () => {
   const result = renameInputSchema.safeParse({
     target_mode: "specific",
     vault: "V",
@@ -156,12 +156,12 @@ test("name with forward slash rejects with move_note recovery hint (Story 6 AC#8
     const nameIssues = result.error.issues.filter((i) => JSON.stringify(i.path) === JSON.stringify(["name"]));
     expect(nameIssues.length).toBeGreaterThanOrEqual(1);
     const messages = nameIssues.map((i) => i.message).join(" | ");
-    expect(messages).toMatch(/move_note/);
+    expect(messages).toBe("name must not contain folder separators; use move to relocate the file to a different folder");
   }
 });
 
 // (o) Story 6 AC#8 — folder-separator rejection (backslash)
-test("name with backslash rejects with move_note recovery hint (Story 6 AC#8 / Q2)", () => {
+test("name with backslash rejects with `move` recovery hint (Story 6 AC#8 / Q2; spec 084 N1)", () => {
   const result = renameInputSchema.safeParse({
     target_mode: "specific",
     vault: "V",
@@ -173,7 +173,7 @@ test("name with backslash rejects with move_note recovery hint (Story 6 AC#8 / Q
     const nameIssues = result.error.issues.filter((i) => JSON.stringify(i.path) === JSON.stringify(["name"]));
     expect(nameIssues.length).toBeGreaterThanOrEqual(1);
     const messages = nameIssues.map((i) => i.message).join(" | ");
-    expect(messages).toMatch(/move_note/);
+    expect(messages).toBe("name must not contain folder separators; use move to relocate the file to a different folder");
   }
 });
 

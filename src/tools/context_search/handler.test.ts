@@ -527,6 +527,9 @@ test("H7 zero-match + folder missing → probe throws CLI_REPORTED_ERROR, handle
   expect(recorded).toHaveLength(2);
   expect(err).toBeInstanceOf(UpstreamError);
   expect((err as UpstreamError).code).toBe("CLI_REPORTED_ERROR");
+  // Spec 084 S1a: the fields the help page tells agents to branch on.
+  expect((err as UpstreamError).details.command).toBe("folder");
+  expect((err as UpstreamError).details.message).toBe('Error: Folder "DoesNotExist" not found.');
 });
 
 // =================== T043 — Two-call-path NOT triggered when folder absent ===================

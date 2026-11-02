@@ -34,7 +34,7 @@ Spec 073 aligned this tool's parameter names with `query_base` and `views_base`.
 
 - A call that uses an old name gets the same result as the new name, plus a `deprecated_parameters` field (see *Output*).
 - A call that sends an old name together with its new name (even with the same value) fails with `VALIDATION_ERROR`, before the CLI is invoked. The issue sits at the old name's path and names both.
-- Validation reports the new name whichever key was used: an `INVALID_BASE_PATH` issue carries `path: ["base_path"]` and `params.field: "base_path"`.
+- Validation reports the new name whichever key was used: an `INVALID_BASE_PATH` error carries `details.field: "base_path"`, and its issue in `details.issues` carries `path: ["base_path"]`.
 - The old keys stay in the published input schema, marked `deprecated: true`.
 
 ## Output
@@ -75,9 +75,11 @@ The `content` parameter is accepted by the CLI but is not listed in the CLI's he
 
 | Top-level `code`     | `details.code`       | When | Recovery |
 |----------------------|----------------------|------|----------|
-| `VALIDATION_ERROR`   | `INVALID_BASE_PATH`  | Empty / over-cap / wrong-extension / path-traversal | Inspect `details.reason`; supply a valid vault-relative `.base` path. |
-| `VALIDATION_ERROR`   | `INVALID_NAME`       | Empty / over-cap | Supply a non-empty name within the length cap. |
-| `VALIDATION_ERROR`   | `CONTENT_TOO_LARGE`  | Content exceeds 3072 UTF-16 code units | Reduce content size; use `write_note` for larger content. |
+| `VALIDATION_ERROR`   | `INVALID_BASE_PATH`  | Empty / over-cap / wrong-extension / path-traversal. `details.reason` is `empty` / `too-long` / `wrong-extension` / `path-traversal`; `details.field` is `base_path` | Inspect `details.reason`; supply a valid vault-relative `.base` path. |
+| `VALIDATION_ERROR`   | `INVALID_NAME`       | Empty / over-cap. `details.reason` is `empty` / `too-long`; `details.field` is `name` | Supply a non-empty name within the length cap. |
+| `VALIDATION_ERROR`   | `CONTENT_TOO_LARGE`  | Content exceeds 3072 UTF-16 code units. No `details.reason`; `details.field` is `content` | Reduce content size; use `write_note` for larger content. |
+
+These three validation errors carry `details.code`, `details.reason` (when the rejection has one) and `details.field`. Their `message` is the rejection's own, for example `INVALID_NAME/empty: name is empty` or `INVALID_BASE_PATH/wrong-extension: base_path must end with .base`. `details.issues` keeps the full per-issue list (`path`, `message`, `code`). When several inputs are wrong, the first rejection in the order `base_path`, `name`, `content` sets `details.code`. Any other validation failure (a missing `name`, an unknown key, an old name sent with its new name) returns `message: "create_base input failed schema validation"` with `details.issues` only.
 | `CLI_REPORTED_ERROR` | `BASE_NOT_FOUND`     | Specified `.base` file does not exist (`details.path` carries the `base_path` value; with `vault` named, `details.vault` names the vault and the message names it too) | Verify the `base_path`; use `bases` to enumerate `.base` files in the vault. |
 | `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND` (`details.reason: "unknown"`) | The `vault` display name is not registered with Obsidian | Check the name with `vaults`. A vault added after the server started is found without a restart. |
 | `PATH_ESCAPES_VAULT` | —                    | `vault` named only: `base_path`, the item's folder, or the created path resolves outside the vault (`details.vault`, `details.attemptedPath`, `details.resolvedPath`; plus `details.createdPath` when caught after creation) | Before creation nothing was written; after creation, inspect the item at `details.createdPath`. |
@@ -170,4 +172,18 @@ Creates the item in the `Work` vault, even when another vault is in front. When 
 }
 ```
 
-Returns `VALIDATION_ERROR` with `details.code: "CONTENT_TOO_LARGE"` — rejected before CLI invocation.
+Rejected before CLI invocation:
+
+```json
+{
+  "code": "VALIDATION_ERROR",
+  "message": "CONTENT_TOO_LARGE: content exceeds 3072 UTF-16 code units",
+  "details": {
+    "code": "CONTENT_TOO_LARGE",
+    "field": "content",
+    "issues": [
+      { "path": ["content"], "message": "CONTENT_TOO_LARGE: content exceeds 3072 UTF-16 code units", "code": "custom" }
+    ]
+  }
+}
+```
