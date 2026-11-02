@@ -43,6 +43,8 @@ Spec 088-preserve-match-whitespace (BI-0170).
 
 Spec 089-resolve-note-names (BI-0171).
 
+Spec 090-classify-missing-destination.
+
 ### Added
 
 - **`write_note` reports `bytes_written`**, with the same meaning, counting a new note's old size as 0. If the existing note's size cannot be read before an overwrite, the call fails with `FS_WRITE_FAILED` before anything is written. Its `details` shape is unchanged; `details.syscall` now reads `"stat"` where the old existence probe reported `"realpath"`.
@@ -76,6 +78,7 @@ Spec 089-resolve-note-names (BI-0171).
 
 ### Fixed
 
+- **`move` reports a missing destination folder as `FOLDER_NOT_FOUND`** (spec 090). Moving a file into a folder that does not exist now fails with `CLI_REPORTED_ERROR`, `details.code: "FOLDER_NOT_FOUND"` and the folder's vault-relative path in `details.folder`, the shape `paths` and `pattern_search` already use. It previously failed with the operating system's raw `ENOENT` text and no `details.code`. No `move` failure now carries the vault's absolute folder: where the CLI's text names an absolute path, the vault's folder is removed. The missing-source, destination-exists and unknown-vault failures are unchanged.
 - **`patch_heading` and `patch_block` resolve a note name like the reading tools** (spec 089). A `file` locator is now looked up the way a wikilink is, so a note in a sub-folder can be edited by its bare name and the response's `path` is the resolved note. A name that matches no note fails with Obsidian's own `File "<name>" not found.` error, as `read` does, instead of a file-system write error. `path` and active-mode targeting are unchanged.
 - **`read` now returns a file's exact text.** It no longer adds a final line break to a file that does not end with one, and it keeps a leading byte-order mark that the Obsidian CLI drops. A failed confirmation read reports `FS_WRITE_FAILED` with `reason: "read"`.
 - **`prepend` on an empty note, or a note with only a properties block, no longer adds a trailing line break** (spec 076). The note ends with exactly the supplied content, and `bytes_written` equals the content's size in bytes. If removing the extra line break fails, the call reports `FS_WRITE_FAILED` with the new `reason: "extra-trailing-newline"`.

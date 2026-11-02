@@ -227,7 +227,7 @@ const DEDICATED_CASES: NoiseCase[] = [
   {
     label: "move (active)",
     name: "move",
-    build: () => createMoveTool(cli(focusedFileResponse("Inbox/a.md", NOTE_ROOT), out("Moved: Inbox/a.md → Archive/a.md\n"))),
+    build: () => createMoveTool({ ...cli(focusedFileResponse("Inbox/a.md", NOTE_ROOT), out("Moved: Inbox/a.md → Archive/a.md\n")), vaultRegistry: registryAt(NOTE_ROOT) }),
     args: { target_mode: "active", to: "Archive/" },
   },
   {

@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createMoveTool, MOVE_DESCRIPTION, MOVE_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { makeStubSpawn as makeSuccessSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { makeStubSpawn as makeSuccessSpawn, silentLogger, stubVaultRegistry } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -20,6 +20,7 @@ describe("createMoveTool — descriptor", () => {
     const tool = createMoveTool({
       logger: silentLogger(),
       queue: createQueue(),
+      vaultRegistry: stubVaultRegistry("MyVault", "/vaults/MyVault"),
       spawnFn: makeStubSpawn(),
     });
     expect(tool.descriptor.name).toBe(MOVE_TOOL_NAME);
@@ -32,6 +33,7 @@ describe("createMoveTool — descriptor", () => {
     const tool = createMoveTool({
       logger: silentLogger(),
       queue: createQueue(),
+      vaultRegistry: stubVaultRegistry("MyVault", "/vaults/MyVault"),
       spawnFn: makeStubSpawn(),
     });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
@@ -43,6 +45,7 @@ describe("createMoveTool — descriptor", () => {
     const tool = createMoveTool({
       logger: silentLogger(),
       queue: createQueue(),
+      vaultRegistry: stubVaultRegistry("MyVault", "/vaults/MyVault"),
       spawnFn: makeStubSpawn(),
     });
     const desc = tool.descriptor.description;
@@ -64,6 +67,7 @@ describe("createMoveTool — descriptor", () => {
     const tool = createMoveTool({
       logger: silentLogger(),
       queue: createQueue(),
+      vaultRegistry: stubVaultRegistry("MyVault", "/vaults/MyVault"),
       spawnFn,
     });
     const result = await tool.handler({
@@ -84,6 +88,36 @@ describe("createMoveTool — descriptor", () => {
       moved: true,
       fromPath: "Inbox/Tax-2026.md",
       toPath: "Archive/Tax-2026.md",
+    });
+  });
+
+  // R1 (spec 090) — a missing destination folder reaches the wire as an isError text result
+  // carrying the FOLDER_NOT_FOUND payload, with no structuredContent.
+  it("tool.handler returns the FOLDER_NOT_FOUND payload as an isError result (spec 090 R1)", async () => {
+    const { spawnFn } = makeSuccessSpawn({
+      stdout: "Error: ENOENT: no such file or directory, rename 'C:\\Vaults\\Work\\Inbox\\Note.md' -> 'C:\\Vaults\\Work\\Archive\\2026\\Note.md'\n",
+      exitCode: 0,
+    });
+    const tool = createMoveTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      vaultRegistry: stubVaultRegistry("Work", "C:\\Vaults\\Work"),
+      spawnFn,
+    });
+    const result = await tool.handler({
+      target_mode: "specific",
+      vault: "Work",
+      path: "Inbox/Note.md",
+      to: "Archive/2026/",
+    });
+    expect("isError" in result).toBe(true);
+    expect((result as { isError?: boolean }).isError).toBe(true);
+    expect("structuredContent" in result).toBe(false);
+    expect(JSON.parse(result.content[0]!.text)).toEqual({
+      code: "CLI_REPORTED_ERROR",
+      message:
+        'move: the destination folder "Archive/2026" does not exist in the vault. Nothing was moved. Create the folder (writing a note into it with write_note creates it), then retry the move.',
+      details: { code: "FOLDER_NOT_FOUND", folder: "Archive/2026" },
     });
   });
 });

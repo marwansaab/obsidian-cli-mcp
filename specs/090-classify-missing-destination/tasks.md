@@ -67,7 +67,7 @@ description: "Task list for 090 Classify missing destination"
 
 **Purpose**: a known-green starting point.
 
-- [ ] T001 Before any edit, on branch `090-classify-missing-destination`, run `npm run typecheck; if ($?) { npm run lint }; if ($?) { npm test }` in PowerShell.
+- [X] T001 Before any edit, on branch `090-classify-missing-destination`, run `npm run typecheck; if ($?) { npm run lint }; if ($?) { npm test }` in PowerShell.
   - Create `specs/090-classify-missing-destination/post-implement.md`, headed `# Post-implement: 090 Classify missing destination`.
   - Record the result under `## T001 baseline`.
   - A failure here is pre-existing: report it, and do not fix it in this feature.
@@ -78,22 +78,22 @@ description: "Task list for 090 Classify missing destination"
 
 **Purpose**: give `move` the vault registry with no behaviour change (research D6), then write rows M1–M20 and R1 against the unchanged behaviour and prove that they bite.
 
-- [ ] T002 In `src/tools/move/handler.ts`, add `vaultRegistry: VaultRegistry;` to `ExecuteDeps`, after `queue`. Add `import type { VaultRegistry } from "../../vault-registry/registry.js";` with the other type imports, in import order. Change nothing else yet.
-- [ ] T003 In `src/server.ts` line 123, change `createMoveTool({ logger, queue })` to `createMoveTool({ logger, queue, vaultRegistry })`. This is the only `server.ts` change (plan, kernel-node attention).
-- [ ] T004 [P] Apply X1–X3 (contract §X) in `src/tools/move/handler.test.ts`:
+- [X] T002 In `src/tools/move/handler.ts`, add `vaultRegistry: VaultRegistry;` to `ExecuteDeps`, after `queue`. Add `import type { VaultRegistry } from "../../vault-registry/registry.js";` with the other type imports, in import order. Change nothing else yet.
+- [X] T003 In `src/server.ts` line 123, change `createMoveTool({ logger, queue })` to `createMoveTool({ logger, queue, vaultRegistry })`. This is the only `server.ts` change (plan, kernel-node attention).
+- [X] T004 [P] Apply X1–X3 (contract §X) in `src/tools/move/handler.test.ts`:
   - import `stubVaultRegistry` from `../_handler-test-fixtures.js` into the existing import list;
   - add `const REGISTRY = stubVaultRegistry("V", "/vaults/V");` above `deps()`;
   - add `vaultRegistry: REGISTRY` to the `deps()` return value and to each of the 25 inline `{ logger: silentLogger(), queue: createQueue(), spawnFn, env: {} }` literals.
 
   Nothing else in the file changes.
-- [ ] T005 [P] Apply X4 in `src/tools/move/index.test.ts`: import `stubVaultRegistry` from `../_handler-test-fixtures.js`, and add `vaultRegistry: stubVaultRegistry("MyVault", "/vaults/MyVault"),` to the four `createMoveTool({...})` literals (lines 20, 32, 43, 64). Nothing else changes.
-- [ ] T006 [P] Apply X5 in `src/tools/_typed-result-fixtures.ts` (line 210): `build: () => createMoveTool({ ...cli(out("Moved: Inbox/Tax-2026.md → Archive/Tax-2026.md\n")), vaultRegistry: registryAt("/vaults/MyVault") }),`.
-- [ ] T007 [P] Apply X6 in `src/tools/_plugin-noise.test.ts` (line 230): `build: () => createMoveTool({ ...cli(focusedFileResponse("Inbox/a.md", NOTE_ROOT), out("Moved: Inbox/a.md → Archive/a.md\n")), vaultRegistry: registryAt(NOTE_ROOT) }),`.
-- [ ] T008 Run `npm run typecheck`, then `npx vitest run src/tools/move src/tools/_plugin-noise.test.ts src/tools/_register.test.ts src/tools/_register-baseline.test.ts src/tools/_surface.test.ts src/server.test.ts`.
+- [X] T005 [P] Apply X4 in `src/tools/move/index.test.ts`: import `stubVaultRegistry` from `../_handler-test-fixtures.js`, and add `vaultRegistry: stubVaultRegistry("MyVault", "/vaults/MyVault"),` to the four `createMoveTool({...})` literals (lines 20, 32, 43, 64). Nothing else changes.
+- [X] T006 [P] Apply X5 in `src/tools/_typed-result-fixtures.ts` (line 210): `build: () => createMoveTool({ ...cli(out("Moved: Inbox/Tax-2026.md → Archive/Tax-2026.md\n")), vaultRegistry: registryAt("/vaults/MyVault") }),`.
+- [X] T007 [P] Apply X6 in `src/tools/_plugin-noise.test.ts` (line 230): `build: () => createMoveTool({ ...cli(focusedFileResponse("Inbox/a.md", NOTE_ROOT), out("Moved: Inbox/a.md → Archive/a.md\n")), vaultRegistry: registryAt(NOTE_ROOT) }),`.
+- [X] T008 Run `npm run typecheck`, then `npx vitest run src/tools/move src/tools/_plugin-noise.test.ts src/tools/_register.test.ts src/tools/_register-baseline.test.ts src/tools/_surface.test.ts src/server.test.ts`.
   - Everything must pass: the dependency is added but not yet used, and the baseline does not move.
   - If an assertion outside X1–X6 fails, stop and raise it.
   - Record the result in `post-implement.md` under `## T008 dependency added`.
-- [ ] T009 Create `src/tools/move/handler.missing-destination.test.ts`.
+- [X] T009 Create `src/tools/move/handler.missing-destination.test.ts`.
   - **Header**: `// Original — no upstream. move missing-destination and vault-relative failure tests (spec 090): an ENOENT rename becomes CLI_REPORTED_ERROR + details.code FOLDER_NOT_FOUND with the vault-relative folder, and every other move failure has the vault's absolute folder rewritten out (rows M1–M20 of contracts/missing-destination-contract.md).`
   - **Imports**: `executeMove` from `./handler.js`; `__resetInFlightRegistryForTests` from `../../cli-adapter/_dispatch.js`, with `beforeEach` / `afterEach` reset as in `handler.test.ts`; `UpstreamError`; `createQueue`; and `captureRejection`, `fileTsvResponse`, `focusedFileResponse`, `makeQueuedSpawn`, `makeStubSpawn`, `silentLogger`, `stubVaultRegistry` from `../_handler-test-fixtures.js`.
   - **Fixtures**:
@@ -122,13 +122,13 @@ description: "Task list for 090 Classify missing destination"
 
       Because the parse step sits inside the same `try` as the CLI call (T012), the rewrite reaches it (analyze C2).
     - For M11, also include a sibling folder that shares the root's prefix (`C:\Vaults\Workshop\x.md`) and assert it is left unchanged. The rewrite must stop at a path-segment boundary.
-- [ ] T010 [P] In `src/tools/move/index.test.ts`, add one new `it` (R1) inside the existing `describe("createMoveTool — descriptor", …)` block, after Case 3b:
+- [X] T010 [P] In `src/tools/move/index.test.ts`, add one new `it` (R1) inside the existing `describe("createMoveTool — descriptor", …)` block, after Case 3b:
   - Build the tool with a `makeSuccessSpawn` / `makeStubSpawn` answering M1's ENOENT line and a `stubVaultRegistry`.
   - Call `tool.handler` with M1's input.
   - Assert `"isError" in result` and `result.isError === true`, and that there is no `structuredContent`.
   - Assert `JSON.parse(result.content[0]!.text)` equals the E-1 payload with `folder: "Archive/2026"`.
   - Do not touch the existing `it` blocks beyond X4.
-- [ ] T011 Red check (quickstart §1). Run `npx vitest run src/tools/move/handler.missing-destination.test.ts src/tools/move/index.test.ts` against the unchanged behaviour.
+- [X] T011 Red check (quickstart §1). Run `npx vitest run src/tools/move/handler.missing-destination.test.ts src/tools/move/index.test.ts` against the unchanged behaviour.
   - Expected: M1–M12, M14, M18–M20 and R1 fail; M13 and M15–M17 pass. M14 fails because its contrast half expects M1's `FOLDER_NOT_FOUND`.
   - Record the pass/fail list per row in `post-implement.md` under `## T011 red check`.
   - If any of M1–M12, M14, M18–M20 or R1 passes, that row does not bite: fix the row (not the handler) before going on.
@@ -143,7 +143,7 @@ description: "Task list for 090 Classify missing destination"
 
 **Independent test**: M1–M7 and R1 pass, and every existing suite passes.
 
-- [ ] T012 [US1] In `src/tools/move/handler.ts`, add three private helpers next to `parseMoveResponse` (data-model E3, E4a; contract E-1):
+- [X] T012 [US1] In `src/tools/move/handler.ts`, add three private helpers next to `parseMoveResponse` (data-model E3, E4a; contract E-1):
   - `const ENOENT_RENAME_RE = /^Error: ENOENT: [^,]*, rename '/;`
   - `destinationFolder(resolvedTo: string): string`: replace every `\` with `/`, then return the text before the last `/`, or `""` when there is none.
   - `isMissingDestinationFolder(e: UpstreamError): boolean`: `e.code === "CLI_REPORTED_ERROR" && ENOENT_RENAME_RE.test(stringDetail(e.details, "message"))`. Import `stringDetail` from `../../errors.js`.
@@ -155,7 +155,7 @@ description: "Task list for 090 Classify missing destination"
   - Otherwise rethrow `e` (T014 replaces this last step).
   - Keep `invokeCli({ … }, deps,)` with `deps` passed whole, and keep the multi-line call shape, so the `index.test.ts` drift lock (`/invokeCli\([\s\S]*?\s+deps,\s*\)/`, no `deps.logger`) still matches.
   - The success path, argv and `forwardedTo` stay byte-identical.
-- [ ] T013 [US1] Run `npm run typecheck`, then `npx vitest run src/tools/move`.
+- [X] T013 [US1] Run `npm run typecheck`, then `npx vitest run src/tools/move`.
   - M1–M7, M13–M17, M19 and R1 must pass.
   - M8–M12, M18 and M20 may still fail; they belong to US2.
   - Every existing test must pass.
@@ -171,7 +171,7 @@ description: "Task list for 090 Classify missing destination"
 
 **Independent test**: M8–M13, M16, M18 and M20 pass, and every existing suite passes with their original error objects.
 
-- [ ] T014 [US2] In `src/tools/move/handler.ts`, add the private rewrite and use it as the catch's last step.
+- [X] T014 [US2] In `src/tools/move/handler.ts`, add the private rewrite and use it as the catch's last step.
   - `withVaultRelativePaths(e: UpstreamError, root: string): UpstreamError`:
     - trim trailing `\` / `/` from `root`;
     - escape it for a regex, and let each separator in it match `[\\/]`;
@@ -194,7 +194,7 @@ description: "Task list for 090 Classify missing destination"
     - Throw `withVaultRelativePaths(e, root)`.
   - The `FOLDER_NOT_FOUND` branch (T012) stays before the lookup, so it never consults the registry (V5).
   - Update the file header: append "Spec 090: a move-step failure is classified after the CLI reports it — an ENOENT rename becomes CLI_REPORTED_ERROR + details.code FOLDER_NOT_FOUND with the vault-relative destination folder (no lookup); every other failure but CLI_BINARY_NOT_FOUND has the vault's absolute folder (active: focused-file eval; specific: vault registry, after the failure) rewritten to the vault-relative form, the same object when nothing changed; when the specific-mode lookup fails for any reason but an unregistered vault, the CLI text is withheld (code kept, vault-relative source and destination named, lookup failure as cause)."
-- [ ] T015 [US2] Run `npm run typecheck`, then `npx vitest run src/tools/move src/tools/_plugin-noise.test.ts`.
+- [X] T015 [US2] Run `npm run typecheck`, then `npx vitest run src/tools/move src/tools/_plugin-noise.test.ts`.
   - All of M1–M20 and R1 pass.
   - Every existing test passes unchanged beyond X1–X6.
   - Record the result in `post-implement.md` under `## T015 US2`.
@@ -209,7 +209,7 @@ description: "Task list for 090 Classify missing destination"
 
 **Independent test**: M13–M15 pass, and M14 contrasts the two signals in one test, with no code beyond T012 and T014.
 
-- [ ] T016 [US3] Run `npx vitest run src/tools/move/handler.missing-destination.test.ts -t "M1[3-5]"`, then the whole `src/tools/move/handler.test.ts` (its existing source-not-found Case 16 and destination-collision Case 17 must pass unchanged).
+- [X] T016 [US3] Run `npx vitest run src/tools/move/handler.missing-destination.test.ts -t "M1[3-5]"`, then the whole `src/tools/move/handler.test.ts` (its existing source-not-found Case 16 and destination-collision Case 17 must pass unchanged).
   - If one fails, fix the handler, not the row. Do not add a sub-code to the missing-source failure (Clarification Q2).
   - Record the result under `## T016 US3`.
 
@@ -219,24 +219,24 @@ description: "Task list for 090 Classify missing destination"
 
 ## Phase 6: Polish: published contract, live check, verification
 
-- [ ] T017 [P] In `src/tools/move/index.ts`:
+- [X] T017 [P] In `src/tools/move/index.ts`:
   - Append contract §H1 to `MOVE_DESCRIPTION`, as one more sentence after the existing text, separated by a space and kept inside the same template literal.
   - Update the header: append "Spec 090: the description names the FOLDER_NOT_FOUND failure and its recovery."
-- [ ] T018 Surface gate (quickstart §2).
+- [X] T018 Surface gate (quickstart §2).
   - Run `npx vitest run src/tools/_register-baseline.test.ts`. Expected: it fails on the `move` description only (P1).
   - Run `npm run baseline:write`, then `git diff -- src/tools/_register-baseline.json`, and confirm the only change is the `move` description string (P2).
   - Re-run the baseline test, `src/tools/_register.test.ts` and `src/tools/_surface.test.ts`; all pass.
   - `git diff --exit-code main -- src/errors.ts src/tools/move/schema.ts` prints nothing (P3, P4).
   - Record the result under `## T018 surface gate`.
-- [ ] T019 [P] In `docs/tools/move.md`, apply contract §H2–H5 verbatim:
+- [X] T019 [P] In `docs/tools/move.md`, apply contract §H2–H5 verbatim:
   - the Errors-table row after the destination-collision row;
   - the "No absolute paths" paragraph directly under the Errors table;
   - the Behavioural-notes bullet after the destination-collision bullet;
   - the Branch 2 wording.
 
   Then run `npx vitest run src/tools/help src/tools/move/index.test.ts`; the docs-sync guard and the move docs test pass.
-- [ ] T020 [P] In `CHANGELOG.md`, add `Spec 090-classify-missing-destination.` after the `Spec 089-resolve-note-names (BI-0171).` line in `[Unreleased]`. Add the contract §C `Fixed` entry verbatim at the top of the `[Unreleased]` `### Fixed` list.
-- [ ] T021 Required live check (quickstart §3, contract §L). Read `.memory/test-execution-instructions.md` first.
+- [X] T020 [P] In `CHANGELOG.md`, add `Spec 090-classify-missing-destination.` after the `Spec 089-resolve-note-names (BI-0171).` line in `[Unreleased]`. Add the contract §C `Fixed` entry verbatim at the top of the `[Unreleased]` `### Fixed` list.
+- [X] T021 Required live check (quickstart §3, contract §L). Read `.memory/test-execution-instructions.md` first.
   - Run `npm run build`.
   - Record the `Sandbox/` entry count (13 at plan time).
   - Seed `Sandbox/090-live/Note.md` and `Sandbox/090-live/Live090Unique.md`.
@@ -245,14 +245,14 @@ description: "Task list for 090 Classify missing destination"
   - Remove `Sandbox/090-live/` and any `.trash/` entries from this run. Confirm that the `Sandbox/` count matches and that `Welcome.md` is untouched.
   - Record cases attempted, passed and failed, with verbatim payloads, under `## T021 live check`.
   - If the vault is left in an unexpected state, stop and report.
-- [ ] T022 Post-implement structural verification (plan §CodeGraph structural check).
+- [X] T022 Post-implement structural verification (plan §CodeGraph structural check).
   - Run `codegraph sync`, then `codegraph_explore "executeMove createMoveTool createServer withVaultRelativePaths folderNotFound"`.
   - Confirm and record under `## T022 structural verification`:
     1. `src/errors.ts` is unchanged, and every new `new UpstreamError` in `move/handler.ts` uses `CLI_REPORTED_ERROR` or the caught error's own code.
     2. No handler imports `createLogger` or `createQueue`, and `server.ts` differs from `main` only in the `createMoveTool` argument.
     3. `move/handler.ts` imports only downward (`cli-adapter`, `errors`, `file-type`, `_file-target`, the `VaultRegistry` type), and no other tool imports from `move/`.
     4. The new private helpers' only caller is `executeMove`, and there is no new production export.
-- [ ] T023 Full gate: `npm run typecheck; if ($?) { npm run lint }; if ($?) { npm run format:check }; if ($?) { npm test }` in PowerShell.
+- [X] T023 Full gate: `npm run typecheck; if ($?) { npm run lint }; if ($?) { npm run format:check }; if ($?) { npm test }` in PowerShell.
   - Everything must pass, including the coverage floor.
   - Run `npx prettier --write` only on files this feature touched, if `format:check` names them.
   - Check the 1000-line limit of every touched test file with `[System.IO.File]::ReadAllLines(p).Length`.

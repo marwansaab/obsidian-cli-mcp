@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedFromBranch": "086-fix-section-replacement",
+  "generatedFromBranch": "090-classify-missing-destination",
   "generatedAt": "2026-11-02",
   "tools": [
     {
@@ -101,7 +101,7 @@
     },
     {
       "name": "move",
-      "descriptionFingerprint": "d9811f6bb82281c35dc34f228c5163ef8dcc91820b27afa9a4b0d515e06e01ee",
+      "descriptionFingerprint": "9df0fa86fe6ddd825b9cc805b6124a63a95e550f6965a89ccc75bf076257bbbe",
       "schemaFingerprint": "66cf5cefdaa3f76c25c713e587682e4154bc90c89e901d220b5dcab73699f2aa",
       "titleFingerprint": "6ecc3df6bffdd06c58cd4f6e276929e119c8f653c53f5a6a5a5e66dfa1c3fc93",
       "annotationsFingerprint": "b15393126f12ebd7533afe7d31a1beb8938a1e37d0bb2a52c382aaba4373f265",
