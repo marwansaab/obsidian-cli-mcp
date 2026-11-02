@@ -115,12 +115,12 @@ function recogniseFailure(report: string, notABaseText: string | null): FocusedB
  * the spec 080 rule. `cause` is the originating dispatch error, or null on a clean exit.
  */
 function focusedBaseError(
-  basePath: string | undefined,
+  input: ViewsBaseInput,
   failure: FocusedBaseFailure,
   cause: unknown,
   report: string,
-  vault: string | undefined,
 ): UpstreamError {
+  const { base_path: basePath, vault } = input;
   if (basePath === undefined && failure === "not-a-base") {
     // Spec 083 D4: a named vault is attributed; with none, details and message are unchanged.
     return new UpstreamError({
@@ -159,20 +159,18 @@ function focusedBaseError(
  * clean-exit path view lines are left out of the YAML scan, so a view named "YAML notes"
  * never trips it.
  */
-async function listFocusedViews(
-  deps: ExecuteDeps,
-  basePath: string | undefined,
-  vault: string | undefined,
-): Promise<ViewsBaseOutput> {
+async function listFocusedViews(deps: ExecuteDeps, input: ViewsBaseInput): Promise<ViewsBaseOutput> {
   let cliResult: { stdout: string; stderr: string };
   try {
+    // "specific" with no `vault` puts no `vault=` on the argv, so it matches active mode here:
+    // `base:views` takes no parameters for active mode to strip.
     cliResult = await invokeCli(
       {
         command: "base:views",
-        vault,
+        vault: input.vault,
         parameters: {},
         flags: [],
-        target_mode: vault === undefined ? "active" : "specific",
+        target_mode: "specific",
       },
       deps,
     );
@@ -180,7 +178,7 @@ async function listFocusedViews(
     if (err instanceof UpstreamError && (err.code === "CLI_REPORTED_ERROR" || err.code === "CLI_NON_ZERO_EXIT")) {
       const report = upstreamReport(stringDetail(err.details, "stderr"), stringDetail(err.details, "stdout"));
       const failure = recogniseFailure(report, err.code === "CLI_REPORTED_ERROR" ? report : null);
-      if (failure !== null) throw focusedBaseError(basePath, failure, err, report, vault);
+      if (failure !== null) throw focusedBaseError(input, failure, err, report);
     }
     throw err;
   }
@@ -191,7 +189,7 @@ async function listFocusedViews(
   // Reading `report` instead would change clean-exit listing (a view named "Active file is not
   // a base file" would list), which spec 081 leaves as shipped (FR-012, BI-0137 Out of scope).
   const failure = recogniseFailure(report, `${cliResult.stdout}\n${cliResult.stderr}`);
-  if (failure !== null) throw focusedBaseError(basePath, failure, null, report, vault);
+  if (failure !== null) throw focusedBaseError(input, failure, null, report);
 
   const views = lines.map(stripTypeLabel);
   return viewsBaseOutputSchema.parse({ views, count: views.length });
@@ -237,5 +235,5 @@ export async function executeViewsBase(
 
   // Both modes list the focused Base's views, in the named vault when one is given (spec 083
   // D3); open mode (no base_path) reads whatever Base is focused there.
-  return listFocusedViews(deps, input.base_path, input.vault);
+  return listFocusedViews(deps, input);
 }

@@ -31,13 +31,15 @@ export async function executeBases(
   // Typed unknown-vault error BEFORE anything is spawned (research D2).
   if (input.vault !== undefined) await resolveVaultRootOrRemap(deps.vaultRegistry, input.vault, "bases");
 
+  // "specific" with no `vault` puts no `vault=` on the argv, so it matches active mode here:
+  // `bases` takes no parameters for active mode to strip.
   const result = await invokeCli(
     {
       command: "bases",
       vault: input.vault,
       parameters: {},
       flags: [],
-      target_mode: input.vault === undefined ? "active" : "specific",
+      target_mode: "specific",
     },
     deps,
   );

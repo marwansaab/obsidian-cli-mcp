@@ -52,11 +52,11 @@ The `B` rows use a registry that resolves B to `root(B)` and an `fs.realpath` se
 |-----|--------------------------------------|----------|
 | T1 | missing, or a folder at P | `{ok:false, code:"BASE_NOT_FOUND"}` |
 | T2 | `filters: 'file.inFolder("A")'` | `{ok:true, folder:"A"}` |
-| T3 | `filters: {and: ['file.inFolder("A")', 'x > 1']}` | `{ok:true, folder:"A"}` |
-| T4 | two `file.inFolder` entries, an `or` group, or no filters | `{ok:true, folder:<getNewFileParent(P).path, "/"→"">}` |
-| T5 | unparseable YAML | as T4 |
+| T3 | block-style `filters:` → `and:` list with the entries `file.inFolder("A")` and `x > 1` (quoted or plain) | `{ok:true, folder:"A"}` |
+| T4 | two `file.inFolder` entries, an `or` group, a `file.inFolder` nested below the top-level `and:` list, or no filters | `{ok:true, folder:<getNewFileParent(P).path, "/"→"">}` |
+| T5 | unparseable YAML, or flow-style YAML (`filters: {and: [...]}`; the eval context has no YAML parser, research D5) | as T4 |
 
-The template's JavaScript is not executable in-process. Unit tests pin its bytes (`_template.test.ts`, as for `FOCUS_BASE_TEMPLATE`) and the handler's handling of each envelope arm. T1–T5 are verified live in the implement-phase T0 against the test vault.
+`_template.test.ts` pins the template's bytes (as for `FOCUS_BASE_TEMPLATE`) and runs it in `node:vm` against a stub `app`, one case per row above. The handler tests cover the handler's handling of each envelope arm. T1–T5 were also verified live in the implement-phase T0 against the test vault (research, "T040 live validation").
 
 ## §5 Published surface
 

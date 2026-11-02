@@ -60,13 +60,6 @@ const TOOL_NAME = "create_base";
 const CREATED_PATTERN = /^Created:\s*(.+)$/m;
 const BASE_NOT_FOUND_PATTERN = /Base file not found/i;
 
-/** The named vault, its root and the guard its containment checks share. */
-interface NamedVaultTarget {
-  vault: string;
-  root: string;
-  guard: CanonicalGuardContext;
-}
-
 /**
  * BASE_NOT_FOUND for `input.base_path`. With no vault named, details and message are exactly the
  * pre-083 ones; with a vault, details gain `vault` and the message names it (research D4).
@@ -87,12 +80,13 @@ function baseNotFound(input: CreateBaseInput, cause: unknown): UpstreamError {
  * Pre-creation stages of the named-vault pipeline (research D5 stages 1–4): resolve the vault
  * (VAULT_NOT_FOUND), contain `base_path`, ask Obsidian for the item folder, contain that folder
  * joined with any folder part of `name`. Any failure stops the call before `base:create`.
+ * Returns the post-creation backstop for the `Created:` path.
  */
 async function containNamedVaultTarget(
   input: CreateBaseInput,
   vault: string,
   deps: ExecuteDeps,
-): Promise<NamedVaultTarget> {
+): Promise<(created: string) => Promise<void>> {
   const root = await resolveVaultRootOrRemap(deps.vaultRegistry, vault, TOOL_NAME);
   const guard: CanonicalGuardContext = { realpath: (deps.fs ?? DEFAULT_FS).realpath, logger: deps.logger, vaultLabel: vault };
   await assertCanonicalPath(root, input.base_path, guard);
@@ -106,34 +100,31 @@ async function containNamedVaultTarget(
 
   const itemFolder = posix.join(decoded.folder, posix.dirname(input.name.replace(/\\/g, "/")));
   await assertCanonicalPath(root, itemFolder, { ...guard, attemptedPathLabel: itemFolder });
-  return { vault, root, guard };
-}
 
-/**
- * Post-creation backstop (Clarifications Q4): the `Created:` path must resolve inside the named
- * vault. An escape is reported with `createdPath`; the item is never deleted.
- */
-async function assertCreatedContained(target: NamedVaultTarget, created: string): Promise<void> {
-  try {
-    await assertCanonicalPath(target.root, created, target.guard);
-  } catch (err) {
-    if (err instanceof UpstreamError && err.code === "PATH_ESCAPES_VAULT") {
-      throw new UpstreamError({
-        code: "PATH_ESCAPES_VAULT",
-        cause: err,
-        details: { ...err.details, createdPath: created },
-        message: `create_base: the item was created at "${created}", which resolves outside vault "${target.vault}"; it was not deleted`,
-      });
+  // Post-creation backstop (Clarifications Q4): the `Created:` path must resolve inside the named
+  // vault. An escape is reported with `createdPath`; the item is never deleted.
+  return async (created) => {
+    try {
+      await assertCanonicalPath(root, created, guard);
+    } catch (err) {
+      if (err instanceof UpstreamError && err.code === "PATH_ESCAPES_VAULT") {
+        throw new UpstreamError({
+          code: "PATH_ESCAPES_VAULT",
+          cause: err,
+          details: { ...err.details, createdPath: created },
+          message: `create_base: the item was created at "${created}", which resolves outside vault "${vault}"; it was not deleted`,
+        });
+      }
+      throw err;
     }
-    throw err;
-  }
+  };
 }
 
 export async function executeCreateBase(
   input: CreateBaseInput,
   deps: ExecuteDeps,
 ): Promise<CreateBaseOutput> {
-  const target = input.vault === undefined ? null : await containNamedVaultTarget(input, input.vault, deps);
+  const checkCreated = input.vault === undefined ? null : await containNamedVaultTarget(input, input.vault, deps);
 
   const parameters: Record<string, string> = {
     path: input.base_path,
@@ -181,7 +172,7 @@ export async function executeCreateBase(
   }
 
   const createdFilename = match[1]!.trim();
-  if (target !== null) await assertCreatedContained(target, createdFilename);
+  await checkCreated?.(createdFilename);
   const baseDir = posix.dirname(input.base_path.replace(/\\/g, "/"));
   const baseName = posix.basename(input.base_path.replace(/\\/g, "/"), ".base");
   const itemDir = baseDir === "." ? baseName : `${baseDir}/${baseName}`;
