@@ -67,6 +67,45 @@ All three subcommands answer an unregistered vault with `Vault not found.` (exit
 
 The internal `bases` plugin instance exposes only `createAndEmbedBase`, `createAndOpenBase`, `createNewBasesFile` and the view-registration methods. Nothing returns the folder a new item will be created in. The folder is known for certain only from the `Created:` line, after the item exists.
 
+### T002 re-probe: `base:create` focus (implement phase, 2026-11-02)
+
+`TestVault-Obsidian-CLI-MCP` was open behind `My-Setup-Vault`. The fixture `Sandbox/P083-T002-20261102135455/Filtered.base` (with `filters: {and: ['file.inFolder("Sandbox/P083-T002-20261102135455/Items")']}`) and its `Items` folder were seeded through the filesystem, then `Obsidian.com vault=TestVault-Obsidian-CLI-MCP base:create path=<that base> name=F<n>` ran three times, with `Obsidian.com eval "code=app.vault.getName()"` before and after each call.
+
+| Call | Front before | stdout (verbatim) | Front after |
+|------|--------------|-------------------|-------------|
+| 1 | `=> My-Setup-Vault` | `Created: Sandbox/P083-T002-20261102135455/Items/F1.md` | `=> My-Setup-Vault` |
+| 2 | `=> My-Setup-Vault` | `Created: Sandbox/P083-T002-20261102135455/Items/F2.md` | `=> My-Setup-Vault` |
+| 3 | `=> My-Setup-Vault` | `Created: Sandbox/P083-T002-20261102135455/Items/F3.md` | `=> My-Setup-Vault` |
+
+No call moved focus, so **D7 = focus-free**. All three items landed in the test vault's `Items` folder. The run folder was removed afterwards, and `Welcome.md` is intact.
+
+### T040 live validation (implement phase, 2026-11-02)
+
+Run folder `Sandbox/P083-T040-20261102140840/`, seeded through the filesystem. `My-Setup-Vault` was in front and `TestVault-Obsidian-CLI-MCP` open behind it unless noted. Each tool was driven through its built `handler` (`dist/tools/<tool>/index.js`) with real deps (`createLogger`, `createQueue`, `createVaultRegistry` probing `vaults verbose`), and the front vault was read with `Obsidian.com eval "code=app.vault.getName()"` before and after each call.
+
+**F7 refuted, template corrected.** The first L7 run returned `{"ok":true,"folder":""}` for every filtered Base. A probe in the test vault showed the eval context has no YAML parser: `typeof parseYaml` and `typeof window.parseYaml` are `"undefined"`, `parseYaml(…)` throws `ReferenceError: parseYaml is not defined`, `require('obsidian')` throws `Cannot find module 'obsidian'`, and no `window` or `app` key matches `/yaml/i`. The catch then took the new-note branch every time, so the pre-creation folder check only ever checked the vault root (the backstop would still have reported an escape). `ITEM_FOLDER_TEMPLATE` now scans the block-style YAML Obsidian writes: a top-level `filters:` scalar, or `filters:` whose first child is a block `and:` list, whose direct string entries (single-quoted, double-quoted or plain) are the candidates. The derivation rule is otherwise unchanged. Flow-style YAML and `or`/`not` groups take the new-note branch, and the backstop covers any miss (Clarifications Q4).
+
+| Step | Call | Result (verbatim where quoted) | Front before → after |
+|------|------|--------------------------------|----------------------|
+| L7 T1 | template, `Missing.base` / folder `Folder.base` | `{"ok":false,"code":"BASE_NOT_FOUND"}` (both) | — |
+| L7 T2 | `filters: 'file.inFolder("…/A")'`; also double-quoted | `{"ok":true,"folder":"Sandbox/P083-T040-20261102140840/A"}` (both) | — |
+| L7 T3 | block `and:` with the folder entry and `'x > 1'`; also a plain entry plus a nested `- or:` group | `folder` = `…/A` (both) | — |
+| L7 T4 | two `file.inFolder` entries; an `or:` group; no filters | `{"ok":true,"folder":""}` (vault root, the test vault's new-note location) | — |
+| L7 T5 | unparseable YAML | `{"ok":true,"folder":""}` | — |
+| L7 extra | flow style `filters: {and: ['file.inFolder("…/A")']}` | `{"ok":true,"folder":""}` (new-note branch, as documented) | — |
+| L7 | `Filtered.base` | `folder` = `Sandbox/P083-T040-20261102140840/Items` | — |
+| L1 | `bases {vault:"TestVault-…"}` | the test vault's 16 Bases, `count:16` | My-Setup-Vault → My-Setup-Vault |
+| L2 | `views_base {vault:"TestVault-…"}`, `Filtered.base` active in the test vault | `{"views":["All"],"count":1}` | My-Setup-Vault → My-Setup-Vault |
+| L3 | same, `Note.md` active in the test vault | `CLI_REPORTED_ERROR`, `views_base: active file in vault "TestVault-Obsidian-CLI-MCP" is not a base file`, details `{"code":"BASE_NOT_FOUND","reason":"not-open","vault":"TestVault-Obsidian-CLI-MCP"}` | My-Setup-Vault → My-Setup-Vault |
+| L4 ×3 | `create_base {vault, base_path:"…/Filtered.base", name:"L4"}` | created `Items/L4.md`, `Items/L4 1.md`, `Items/L4 2.md` in the test vault; response `name` = `Sandbox/P083-T040-20261102140840/Items/L4.md` and `path` = `Sandbox/P083-T040-20261102140840/Filtered/Sandbox/P083-T040-20261102140840/Items/L4.md` (the pre-existing response-path follow-up, P6) | My-Setup-Vault → My-Setup-Vault, all three |
+| L5 | `create_base {vault, base_path:"…/Missing.base", name:"x"}` | `create_base: base file not found in vault "TestVault-Obsidian-CLI-MCP": …/Missing.base`, details `{code:"BASE_NOT_FOUND", path, vault}`; no item created | My-Setup-Vault → My-Setup-Vault |
+| L6 | each tool with `vault:"No-Such-Vault"` | `CLI_REPORTED_ERROR`, `<tool>: vault "No-Such-Vault" is not registered`, details `{"code":"VAULT_NOT_FOUND","reason":"unknown","vault":"No-Such-Vault"}` for `bases`, `views_base` and `create_base` | unchanged |
+| L8 | test vault's window closed (`vault=TestVault-… eval` scheduling `window.close()`), `My-Setup-Vault` the only window, then `bases {vault:"TestVault-…"}` | the test vault's 16 Bases, no error; 739 ms against 503 ms for the repeat call | My-Setup-Vault → **TestVault** (the cold open raised it, research P2) |
+
+Setup note: making a file active in the test vault with an `openLinkText` eval raised that vault to the front, so L2 and L3 re-focused `My-Setup-Vault` (`obsidian://open?vault=My-Setup-Vault`) before each call. This is a property of the setup eval, not of the tools under test.
+
+The run folder was removed afterwards; no file was written to the vault root, and `Welcome.md` is intact.
+
 ## Code findings (CodeGraph, HEAD `684adf5`)
 
 - **F1**: `executeBases` (`src/tools/bases/handler.ts:17`) calls `invokeCli({command:"bases", target_mode:"active"})` and never reads `input.vault`. `bases/ExecuteDeps` has no `vaultRegistry`.
@@ -75,7 +114,7 @@ The internal `bases` plugin instance exposes only `createAndEmbedBase`, `createA
 - **F4**: `server.ts` builds `createBasesTool({ logger, queue })` and `createCreateBaseTool({ logger, queue })` without `vaultRegistry` (`src/server.ts:113,115`). `createViewsBaseTool` and `createQueryBaseTool` already receive it. `_typed-result-fixtures.ts:131,141,146` build the two tools with `cli(...)` only.
 - **F5**: the shared helpers already exist in `src/tools/_active-file.ts`: `resolveVaultRootOrRemap` (`:292`, the typed `VAULT_NOT_FOUND`/`unknown` remap), `assertCanonicalPath` (`:325`, which logs `pathEscapeAttempt` and throws `PATH_ESCAPES_VAULT` with details `{vault, attemptedPath, resolvedPath}`) and `decodeEvalEnvelope` (`:66`). Fixed eval templates are base64-wrapped through `composeEvalCode` (`src/tools/_shared.ts:26`). `.memory/refactor-decisions.md` says to use these and never re-roll them.
 - **F6**: `closedVaultNote(command)` (`src/tools/_shared.ts:41`) is the shared closed-vault paragraph. `query_base` carries `closedVaultNote("base:query")`.
-- **F7**: the dependencies are only `@modelcontextprotocol/server` and `zod`; there is no YAML parser. Obsidian's eval context does provide `parseYaml` and `app.fileManager.getNewFileParent`.
+- **F7**: the dependencies are only `@modelcontextprotocol/server` and `zod`; there is no YAML parser. Obsidian's eval context does provide `app.fileManager.getNewFileParent`. **Correction (T040)**: it does not provide `parseYaml`; see "T040 live validation".
 
 ## Decisions
 
@@ -119,7 +158,7 @@ With `vault` supplied, the stages run in this order, and each stage stops the ca
 6. **Backstop**: the `Created:` value (the item's vault-relative path, P6) is checked with `assertCanonicalPath(root, created)`. On an escape, the handler re-throws `PATH_ESCAPES_VAULT` with details `{vault, attemptedPath, resolvedPath, createdPath}` and a message saying the item was created at that path and was not deleted. The `pathEscapeAttempt` log still fires.
 7. The success response is built exactly as today; the response-path bug is out of scope.
 
-**Folder derivation in the template**:
+**Folder derivation in the template** (as corrected at T040: the eval context has no `parseYaml`, so the template scans the block-style YAML instead; flow style takes the new-note branch):
 - Read the `.base` with `app.vault.cachedRead` and parse it with `parseYaml`.
 - Take the top-level `filters`, which is either a string or an object whose `and` holds a list of strings.
 - If exactly one direct entry matches `file.inFolder("<f>")` (single or double quotes), the folder is `<f>`.
@@ -136,6 +175,7 @@ With `vault` supplied, the stages run in this order, and each stage stops the ca
 ### D7: focus behaviour (FR-004 / FR-004a)
 
 **Decision**: `bases` and `base:views` are classified as focus-free (P1, P3, repeated). `base:create` is classified as focus-free on the strength of P4 (4 of 5 calls, with one switch that did not reproduce). The implement-phase T0 re-probes `base:create` three more times with the front vault checked after each call. If any switch reproduces, the `create_base` description and help reference document the side effect and point callers to `get_active_file` (FR-004); otherwise no side effect is documented. Unit tests cannot observe focus, so FR-004a's "front vault unchanged" assertion lives in the quickstart live check.
+**Outcome (T037)**: the T002 re-probe moved focus in none of three calls, so D7 = focus-free. No side-effect sentence or `get_active_file` pointer was added to `create_base`'s description or help reference.
 
 ### D8: published surface
 
