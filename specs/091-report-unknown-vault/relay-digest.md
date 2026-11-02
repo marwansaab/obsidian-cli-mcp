@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-11-02T10:31:47.639Z |
 | Finished | not yet |
-| Elapsed | 21 min 20 s |
+| Elapsed | 27 min 33 s |
 | Questions | 2 (0 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 1 |
@@ -61,6 +61,7 @@
 ### pre-implementation (`79bb80b4-7c5b-47e1-b7db-bb210d5f861e`)
 
 - Condition `shell-exit-0` (run_when): met. "node -e "process.exit('' === '' ? 0 : 1)"" exited 0.
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\specs\091-report-unknown-vault\tasks.md exists.
 
 - **specify**: done, 15 turns.
 
@@ -140,16 +141,45 @@
 >
 > The next session should run /speckit-implement starting at T002.
 
-- **resolve-analysis**: in progress.
+- **resolve-analysis**: done, 6 turns.
+
+> No analyze finding is left open, and the feature folder is committed on 091-report-unknown-vault as ca0dd73 (not pushed). The four fixes were already applied last turn; this turn I checked each was still in place.
+>
+> - **I1 (HIGH):** T002's test setup uses `env: {}`, like `obsidian_exec/handler.test.ts`, and takes the binary name from `recorded[0].binary`. T005 records why each failing row fails.
+> - **U1 (LOW):** contract §X says that adding new `describe`/`it` blocks to the existing co-located test files does not count as an edit.
+> - **C1 (LOW):** the plan's FR-006 line names the existing test suites for timeout, output cap, cancellation and missing binary, and explains that the check runs only after `dispatchCli` resolves, so those failures never reach it.
+> - **A1 (LOW):** data-model E3 says "surrounding whitespace" means whatever `trim()` removes; the match itself stays exact.
+>
+> No finding needed a product, scope or design decision, so I asked no questions. Three of the four edits are in the contract and data-model files rather than spec.md, plan.md and tasks.md, because those are where the text being fixed lives.
+>
+> The commit message follows CONTRIBUTING.md (`docs(091): …`, with a body listing each finding by ID and severity, and the co-author line). It covers the whole `specs/091-report-unknown-vault/` folder: spec, plan, research, data-model, contract, quickstart, tasks, checklist, post-implement.md, and the two Relay files already in the folder (`relay-digest.md`, `relay-qa-log.md`).
+>
+> Left uncommitted, because they sit outside the feature folder you asked me to commit:
+> - `CLAUDE.md`: I updated its plan pointer by hand after the agent-context hook failed for lack of PyYAML.
+> - `.specify/feature.json`: the active-feature pointer.
+>
+> Earlier features committed the CLAUDE.md pointer in its own `docs(NNN)` commit.
+>
+> Implementation is still open: T002 to T018 run in the implementation session. The drafted U1–U14 test suite is saved in post-implement.md for that session.
+
 
 ### continue
 
-- **prepare**: not run.
+Skipped.
 
-### implementation
+- Condition `shell-exit-0` (run_when): not met. "node -e "process.exit('' === '' ? 1 : 0)"" exited 1.
 
-- **implement**: not run.
-- **open-pr**: not run.
+- **prepare**: skipped.
+
+### implementation (`f14a6a35-84a2-4ef8-aa0f-8b2274d09074`)
+
+- Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\specs\091-report-unknown-vault\tasks.md exists; focused TestVault-Obsidian-CLI-MCP in Obsidian (it had Funwright-Studio-Vault focused).
+
+- **implement**: done, 64 turns.
+
+> Implemented spec 091 (T002–T018 complete, all [X]). invokeBoundedCli now rejects a named-vault call whose trimmed stdout is exactly "Vault not found." as CLI_REPORTED_ERROR (message/details.message "Vault not found.", raw details shape); cli-adapter.ts gets a comment only. Added 26 test rows (U1–U14 in new handler.unknown-vault.test.ts, B1/B2 in invoke-bounded-cli.test.ts, R1 in obsidian_exec/index.test.ts); the red check before the change bit as expected (15 failures, all because the call resolved). Updated OBSIDIAN_EXEC_DESCRIPTION, regenerated the baseline (only the obsidian_exec description fingerprint moved, plus the generatedFromBranch metadata), applied docs §H2–H4 and CHANGELOG §C. Full gate green (4492 passed, 6 skipped, coverage above floor). Live check L1–L6 passed through the built server over stdio; vault cleaned. Structural check found no deviation. Optional after_implement commit hook skipped; nothing committed.
+
+- **open-pr**: in progress.
 
 ### review
 
