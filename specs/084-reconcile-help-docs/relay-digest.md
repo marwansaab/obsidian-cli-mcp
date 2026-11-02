@@ -4,14 +4,14 @@
 |---|---|
 | Run | `obsidian-cli-mcp-bi-0166-2026-11-02` |
 | Project | obsidian-cli-mcp (pack speckit) |
-| Status | running |
+| Status | done |
 | Started | 2026-11-02T03:34:43.499Z |
-| Finished | not yet |
-| Elapsed | 36 min 43 s |
+| Finished | 2026-11-02T04:27:12.783Z |
+| Elapsed | 52 min 29 s |
 | Questions | 7 (0 needed the owner) |
-| Requests to the advisor | 2 (0 needed the owner) |
+| Requests to the advisor | 3 (0 needed the owner) |
 | Escalations | 0 |
-| Edits by the advisor | 3 |
+| Edits by the advisor | 6 |
 
 ## Inputs
 
@@ -96,26 +96,55 @@ Skipped.
 ### implementation (`33d2e902-db8b-41d3-ad47-2a73a5593f63`)
 
 - Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\specs\084-reconcile-help-docs\tasks.md exists, and Obsidian has TestVault-Obsidian-CLI-MCP focused.
+- Condition `gh-pr-open` (done_when): met. Pull request #115 is open.
 
 - **implement**: done, 136 turns.
 
 > Implemented all 33 tasks of spec 084 and marked them [X]. Typecheck, lint and the full test suite pass (4182 tests), and the FR-018 fingerprint gate passes without regenerating the baseline. Changes: deleted the list_notes/search_vault placeholder help pages and index lines; added the docs-sync drift-guard test; rename's hint now names `move`; create_base gains a mapValidationError hook adding details.code/reason/field (C1–C10 tests); context_search's missing-folder error pinned in tests; help-page examples and messages fixed (write_note, context_search, search, properties, views_base, create_base); CHANGELOG updated. One addition beyond the plan: patch_block.md's failure example claimed details fields its error doesn't return, so the docs were corrected and a follow-up recorded. The audit records TC-00586/587 could not be read because vault tool permission was denied, so those checks rest on the repo scan and probe. format:check fails on main too and CI doesn't run it, so it was left alone. Live checks L1–L5 against the rebuilt server in TestVault all pass, with the vault unchanged. Results are in post-implement.md. Nothing committed: the optional commit hook was skipped.
 
-- **open-pr**: in progress.
+- **open-pr**: done, 17 turns.
 
-### review
+> Committed all spec 084 work on 084-reconcile-help-docs in three commits following CONTRIBUTING.md: feat(084) for code, tests and docs; docs(084) for post-implement.md and the Relay digest; chore(084) for the agent-context and feature pointers. Before committing, the full test suite (4182 passed, 6 skipped), lint, type check and build all passed. Pushed the branch to origin and opened PR #115 into main (not a draft, since dry run is no). The repo has no PR template, so the description follows the previous PR's layout and includes the Constitution Compliance table. It flags for review the extra patch_block.md change and the audit records (TC-00586/587) that could not be read. The PR is not merged.
 
-- **code-review**: not run.
-- **fix**: not run.
 
-### docs
+### review (`7ec42bf9-80b9-4480-b1f0-0ce12868ae68`)
 
-- **document**: not run.
-- **ci**: not run.
+- Condition `gh-pr-open` (start_when): met. Pull request #115 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #115 is open.
 
-### record
+- **code-review**: done, 21 turns.
 
-- **record-in-vault**: not run.
+> Code-quality review of PR #115: changes requested, no blockers. No file passes 1k lines, no kernel-node touches, no new error codes, no new conditionals in shared paths. Findings: (1) Medium: create_base's mapValidationError hand-copies registerTool's generic VALIDATION_ERROR fallback and issue mapping (the 4th copy). Widening mapValidationError's return to ToolErrorPayload | undefined deletes the fallback with byte-identical output; also an unnecessary params cast, and DISCRIMINATED_CODES re-lists the schema's codes. (2) Medium: docs-sync.test.ts uses process.cwd() instead of the exported DOCS_DIR, and re-rolls notFound's page listing; extract one helper and share it. (3) Low: quietServer() reads OBSIDIAN_MCP_* flags from process.env, so the drift test fails falsely in a read-only shell; the missingPages half cannot fire live. (4) Low: C10 repeats an existing create_base test; dead not.toMatch(/move_note/) after exact toBe. The shared Bases mapper was not raised (research D3 rejected it for this scope). Item 44 added to .memory/refactor-decisions.md.
+
+- **fix**: done, 30 turns.
+
+> Fixed all four review findings and pushed commit 92b09fc to 084-reconcile-help-docs (PR #115). (1) mapValidationError may now return undefined so registerTool sends its generic error; the new validationIssues() in _register.ts is the one issue-list builder; the create_base hook drops its copied fallback, the params cast and the DISCRIMINATED_CODES list, with error bytes unchanged (C1-C10 pass unedited). (2) listToolPages() moved out of help's notFound; docs-sync.test.ts uses it with DOCS_DIR instead of process.cwd(). (3) quietServer(env?) added; the drift test passes {} so shell OBSIDIAN_MCP_* flags can't change it; a comment notes missingPages can't fire live. (4) Removed the two never-failing not.toMatch(/move_note/) lines. Left: test C10 (contract row C10 names it); the fallback copies in prepend and find_and_replace (move when those files are touched); _surface.test.ts's shell-env reads (predate this PR); prettier reformatting (not a CI check, and main already fails it); the unrelated uncommitted relay-digest.md change. Tests, lint, type check and build pass: 4182 tests pass, 6 skipped, statement coverage 96.86%; the FR-018 fingerprint test passed without regenerating its baseline.
+
+
+### docs (`2039b1d3-0319-4d91-a134-e22af7ddb69d`)
+
+- Condition `gh-pr-open` (start_when): met. Pull request #115 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #115 is open.
+
+- **document**: done, 44 turns.
+
+> Ran /speckit-docs-as-code 115 in PR mode. PR #115 is OPEN; its head is the current branch, 084-reconcile-help-docs. Committed 02b7dff and pushed it to the PR branch. It adds ADR-054 (help pages are checked against the offered tools by a test, not at boot), updates architecture.md (generic validation envelope, validationIssues, mapValidationError may return undefined, the reverse docs check) and the bases, escape-hatch-and-meta, search-and-discovery and mutate capability pages, and indexes ADR-054 in .docs-as-code/README.md. No docs/tools file changed, so npm test was not needed. Added a ## Documentation section to the PR body. Left the uncommitted relay-digest.md change out of the commit (staged selectively). Flagged that the bases entry in docs/tools/index.md is stale since spec 083 and outside this PR's diff. The CHANGELOG already has entries for this PR.
+
+- **ci**: done, 3 turns.
+
+> Watched the CI for PR #115 on the latest commit, 02b7dff. All four checks passed (lint, type check, tests and build): ubuntu-latest on Node 22 (1m6s) and Node 24 (1m52s), and windows-latest on Node 22 (2m29s) and Node 24 (2m24s). No fixes were needed and nothing was pushed.
+
+
+### record (`9fd61961-e10d-4c49-baca-2e1093a0a18b`)
+
+- **record-in-vault**: done.
+
+> BI-0166 now records the pull request. I followed the vault's backlog-item convention: the `in-review` status from the Vault Frontmatter Convention, and the record shape used on BI-0139.
+> - Frontmatter: `status` changed from `planned` to `in-review`, `spec_branch` set to `084-reconcile-help-docs`, `updated` set to 2026-11-02.
+> - `## Status`: a new first paragraph reads "In review — 2026-11-02". It links PR #115 (https://github.com/marwansaab/obsidian-cli-mcp/pull/115) and names the spec branch `084-reconcile-help-docs` and the feature folder `specs/084-reconcile-help-docs`. The PR is awaiting the owner's merge.
+> - Footer: a dated HTML comment says Relay run obsidian-cli-mcp-bi-0166-2026-11-02 produced PR #115.
+> I read the note back: the frontmatter is valid and the edits are in place.
+
 
 ## Escalations
 
@@ -129,6 +158,9 @@ None.
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0166 - Reconcile 0.9.0 Help Doc And Description Drift.md` | Cleanup constraint, create_base bullet: added a 2026-11-02 clarification saying the errors change to carry details.code/reason/field (ADR-015, matching prepend and find_and_replace), and recording the root cause (no mapValidationError hook). | pre-implementation / clarify: Question 1: create_base validation errors |
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0166 - Reconcile 0.9.0 Help Doc And Description Drift.md` | Cleanup constraint, context_search bullet: added a 2026-11-02 clarification making the fix docs-only. Example 4 shows the generic top-level message, the folder text in details.message, details.command "folder" and argv. | pre-implementation / clarify: Question 2: context_search missing-folder error |
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0166 - Reconcile 0.9.0 Help Doc And Description Drift.md` | Out of scope, full re-audit bullet: added a 2026-11-02 clarification. The only permanent automated guard is help index and pages matching the registered tools. Tool names and examples are verified once and re-checked through TC-00586 and TC-00587. | pre-implementation / clarify: Question 3: automated drift checks |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0166 - Reconcile 0.9.0 Help Doc And Description Drift.md` | Frontmatter: status planned → in-review; spec_branch set to 084-reconcile-help-docs; updated set to 2026-11-02. | record / record-in-vault: The work for job BI-0166 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0166 - Reconcile 0.9.0 Help Doc And Description Drift.md` | ## Status: added an 'In review — 2026-11-02' paragraph linking PR #115, spec branch 084-reconcile-help-docs and feature folder specs/084-reconcile-help-docs. | record / record-in-vault: The work for job BI-0166 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0166 - Reconcile 0.9.0 Help Doc And Description Drift.md` | Appended a dated 2026-11-02 HTML comment saying Relay run obsidian-cli-mcp-bi-0166-2026-11-02 produced PR #115. | record / record-in-vault: The work for job BI-0166 is now a reviewed, documented pull request. Record that on the job's note,  |
 
 ## Files
 

@@ -413,3 +413,39 @@ Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0
 > Rule for spec FR-011, D8 and T026: within each example, the vault name in the request, the shown response and the surrounding prose agree, and each name is a generic placeholder or `TestVault-Obsidian-CLI-MCP`. Also add a fixed check: no file under `docs/tools/` and no description contains `The Setup`.
 >
 > TC-00586 and TC-00587 hold no vault names: they cover removed tool names and `argv` call shapes only. BI-0166 Impact item 6 says "no TC asserts these" and gives the single known stale name. It was re-validated as still present on 0.9.0-local on 2026-10-31, so a repository scan that misses it is incomplete. The vault was renamed `My-Setup-Vault` on 2026-10-20.
+
+## 10. record / record-in-vault (2026-11-02T04:26:15.967Z)
+
+**Question (verbatim):**
+
+> The work for job BI-0166 is now a reviewed, documented pull request. Record that on the job's note, following the vault's conventions for backlog items:
+> - the spec branch: 084-reconcile-help-docs
+> - the feature folder in the code repository: specs/084-reconcile-help-docs
+> - the pull request: https://github.com/marwansaab/obsidian-cli-mcp/pull/115 (number 115)
+> - the status that means "in review" in this vault (if the vault has no such status, escalate `decision` with up to 3 choices)
+> - a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0166-2026-11-02 produced it.
+>
+> Dry run: no. In a dry run, change nothing: list each edit you would make in `vault_edits`, starting its change with "Would". Otherwise list each edit you made.
+
+**Advisor** (escalate: none):
+
+> BI-0166 now records the pull request. I followed the vault's backlog-item convention: the `in-review` status from the Vault Frontmatter Convention, and the record shape used on BI-0139.
+> - Frontmatter: `status` changed from `planned` to `in-review`, `spec_branch` set to `084-reconcile-help-docs`, `updated` set to 2026-11-02.
+> - `## Status`: a new first paragraph reads "In review — 2026-11-02". It links PR #115 (https://github.com/marwansaab/obsidian-cli-mcp/pull/115) and names the spec branch `084-reconcile-help-docs` and the feature folder `specs/084-reconcile-help-docs`. The PR is awaiting the owner's merge.
+> - Footer: a dated HTML comment says Relay run obsidian-cli-mcp-bi-0166-2026-11-02 produced PR #115.
+> I read the note back: the frontmatter is valid and the edits are in place.
+
+Sources: `000-Meta/Vault Frontmatter Convention.md`, `000-Meta/Templates/Backlog Item Template.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0139 - Honour Vault Argument Across Bases Family Tools.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0166 - Reconcile 0.9.0 Help Doc And Description Drift.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0166 - Reconcile 0.9.0 Help Doc And Description Drift.md`: Frontmatter: status planned → in-review; spec_branch set to 084-reconcile-help-docs; updated set to 2026-11-02.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0166 - Reconcile 0.9.0 Help Doc And Description Drift.md`: ## Status: added an 'In review — 2026-11-02' paragraph linking PR #115, spec branch 084-reconcile-help-docs and feature folder specs/084-reconcile-help-docs.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0166 - Reconcile 0.9.0 Help Doc And Description Drift.md`: Appended a dated 2026-11-02 HTML comment saying Relay run obsidian-cli-mcp-bi-0166-2026-11-02 produced PR #115.
+
+**Sent to the step:**
+
+> BI-0166 now records the pull request. I followed the vault's backlog-item convention: the `in-review` status from the Vault Frontmatter Convention, and the record shape used on BI-0139.
+> - Frontmatter: `status` changed from `planned` to `in-review`, `spec_branch` set to `084-reconcile-help-docs`, `updated` set to 2026-11-02.
+> - `## Status`: a new first paragraph reads "In review — 2026-11-02". It links PR #115 (https://github.com/marwansaab/obsidian-cli-mcp/pull/115) and names the spec branch `084-reconcile-help-docs` and the feature folder `specs/084-reconcile-help-docs`. The PR is awaiting the owner's merge.
+> - Footer: a dated HTML comment says Relay run obsidian-cli-mcp-bi-0166-2026-11-02 produced PR #115.
+> I read the note back: the frontmatter is valid and the edits are in place.
