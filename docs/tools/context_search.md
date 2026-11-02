@@ -174,7 +174,7 @@ Truncation is conservative — `truncated: true` fires when the post-flatten mat
 ```
 
 Sequence:
-1. First call: `obsidian search:context query=anything path=DoesNotExist format=json` (no `limit` is forwarded — the wrapper requests the full match set).
+1. First call: `obsidian search:context query="anything" path=DoesNotExist format=json` (no `limit` is forwarded — the wrapper requests the full match set).
 2. Upstream returns the zero-match sentinel `"No matches found.\n"`.
 3. Handler detects sentinel AND `folder` was supplied → fires the second-call existence probe: `obsidian folder path=DoesNotExist`.
 4. Upstream `folder` returns stdout `Error: Folder "DoesNotExist" not found.` with exit 0.
@@ -334,7 +334,7 @@ Upstream returns results in its own order; the wrapper imposes a deterministic s
 
 ### No regex / boolean / surrounding-context
 
-Upstream is substring-only — no regex queries (use [`pattern_search`](./pattern_search.md) for that), no `AND` / `OR` boolean operators, no surrounding-context-lines (lines `N±k`). Each match entry contains exactly the matching line itself.
+The query is matched as one literal substring — no regex queries (use [`pattern_search`](./pattern_search.md) for that), no `AND` / `OR` boolean operators, no surrounding-context-lines (lines `N±k`). Each match entry contains exactly the matching line itself. This section used to say upstream itself is substring-only. It is not: `obsidian search:context` reads Obsidian search syntax, including `OR`. The wrapper sends the query as one quoted, escaped phrase, so the operators are matched as text (spec 087).
 
 ### Latency
 

@@ -263,7 +263,7 @@ The `truncated` flag carries the "did we hit the cap?" signal; explicit pre-flig
 
 ### No regex / boolean / surrounding-context
 
-Upstream is substring-only. For regex use [`pattern_search`](./pattern_search.md). For surrounding-context lines (`N±k`) — not supported in either tool.
+The query is matched as one literal substring; boolean operators such as `OR` are matched as text. This section used to say upstream itself is substring-only. It is not: `obsidian search` reads Obsidian search syntax. The wrapper sends the query as one quoted, escaped phrase (spec 087). For regex use [`pattern_search`](./pattern_search.md). For surrounding-context lines (`N±k`) — not supported in either tool.
 
 ### Latency
 

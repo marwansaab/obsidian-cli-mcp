@@ -36,6 +36,34 @@ path gave a uniform contract. During that work a live probe also showed that
 `getBacklinksForFile`'s `.data` property is empty, so the template uses the
 dictionary's `.keys()`/`.get()` methods (T0 finding F3).
 
+**The query is one literal phrase** (PR #120, spec 087;
+[ADR-057](../decisions/ADR-057-text-searches-send-the-query-as-one-escaped-literal-phrase.md)).
+The CLI reads its `query` as Obsidian search syntax, splitting it into words
+and operators. Until PR #120 both wrappers forwarded the query unchanged, so
+`alpha beta` matched notes holding the two words anywhere, `-draft` matched
+notes *without* `draft`, and `tag:urgent` matched the tag, not the text,
+while the descriptions promised a literal substring. Both handlers now send
+`literalPhraseQuery(input.query)` from `src/tools/search/literal-phrase.ts`:
+the query in double quotes, with `\` and `"` escaped. File-name and metadata
+matching, the case flag and folder scoping are the CLI's own and did not
+change.
+
+**One line-level pipeline.** `context_search` and `search` with
+`context_lines: true` both build their rows through `lineMatches`
+(`src/tools/search/line-matches.ts`): a query containing a line break keeps
+no lines; otherwise the `.md` filter, then `oneMatchPerLine` (the CLI lists a
+line once per occurrence), then flattening, the 500-character cap with
+`…`, conservative truncation, the `(path, line)` sort and the slice. Because
+the per-line step runs before counting, `count` and `truncated` count lines.
+The two handlers differ only in the text normaliser they pass:
+`context_search` strips one trailing `\r`, the deprecated line mode keeps it.
+The PR #120 code-quality review argued the PR into this shared module; the
+fix had first written the pipeline into each handler. The helpers sit in
+`search/`, and `context_search` reaches them over the context_search →
+search import it already had for `stripBoundarySlashes` and
+`searchContextWireSchema` (`pattern_search` uses the same edge for
+`stripBoundarySlashes`).
+
 **Caps and truncation.** `search`, `context_search`, `pattern_search` and
 `backlinks` stop at an implicit 1000 results, take a `limit` to change that,
 and report `truncated: true` when the cap applied. Truncated results are the
@@ -184,6 +212,17 @@ produced; PR #100 deleted the check
   its keys, so the CLI call is byte-identical.
 - `tag` folds case with ASCII lower-casing only, so non-ASCII tags match
   case-sensitively.
+- `search` and `context_search` describe their default case handling as an
+  ASCII-only fold, in their published descriptions and help pages, but the
+  CLI also folds at least Latin-1 letters: `CAFÉ` matches `café` (spec 087
+  research F7). The wording predates PR #120, which left it alone because
+  correcting the descriptions moves two fingerprints; it is a follow-up
+  backlog item. The CLI also trims each returned line's `text` (F9), which
+  the help pages do not say.
+- Search syntax is not available through `search` or `context_search`
+  (PR #120): `OR`, a leading `-`, `tag:`, `path:` and the rest are matched as
+  text. Raw syntax goes through `obsidian_exec`, which passes the CLI's
+  `search` command its query unchanged.
 - `backlinks`'s description still keeps a "Targeting:" paragraph that
   restates the locator rule now carried by the field descriptions. PR #90's
   T051 list did not include it, and the PR body leaves its removal to the
