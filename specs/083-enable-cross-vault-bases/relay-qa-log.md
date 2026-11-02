@@ -326,3 +326,69 @@ Edits:
 >
 > This is the owner's ruling, and it refines A1. Before creating, realpath-check `base_path` and the derived item folder: the Base's single top-level `file.inFolder` folder if there is one, else the vault's new-note folder, plus any folder part of `name`. If either escapes, return `PATH_ESCAPES_VAULT` and create nothing. After creating, realpath-check the real `Created:` path as a backstop. If the backstop finds an escape, return `PATH_ESCAPES_VAULT` with the created path in `details`, and do not delete the item. Add no new code or `details.reason`. Leave the response-path bug at `handler.ts:91-95` as a follow-up outside this spec.
 > The ruling is recorded as BI-0139 Clarifications Q4. Principle IV is met because the backstop error reports the item that was written.
+
+## 7. review / fix (2026-11-02T03:22:24.892Z)
+
+**Question (verbatim):**
+
+> The review's main finding, the YAML scanner hand-written inside the ITEM_FOLDER_TEMPLATE eval string, is now covered by in-process node:vm tests, one per contract §4 row. The proposed restructure is still open: the eval would return {ok:true, text, newFileParent} (the base text from cachedRead plus Obsidian's new-note folder), and the filters scan would become a pure TypeScript function with a plain table test. Callers would see no difference and the spawn count would stay the same. But it changes the internal envelope that data-model E2 and contract §3/§4 define ({ok:true, folder}), and it replaces the template that was checked live at T040, so it would need the data-model and contract updated and a new live T0 run against the test vault.
+>
+> | Option | What happens |
+> |---|---|
+> | A (recommended) | Keep the template and envelope as they are. The vm tests now cover the scanner's behaviour, the contract and data-model stay valid, and the T040 live evidence still applies. The restructure is recorded as a possible follow-up. |
+> | B | Do the restructure in this PR: the eval returns {ok:true, text, newFileParent}, the scan moves into a TypeScript function in create_base, data-model E2 and contract §3/§4 are updated, and T1–T5 are run live again against the test vault before pushing. |
+>
+> Recommended: A. The real risk in the review finding was the untested scanner, and that is fixed now. Option B mostly makes the code easier to read, but it costs a contract change and a new live validation, and callers see no difference.
+>
+> Which option do you want?
+
+**Advisor** (escalate: none):
+
+> A
+>
+> The BI scopes this as a low-complexity change: stop dropping the vault argument and fix the docs. The vm tests cover every contract §4 row, which meets Constitution Principle II's need for tested public behaviour, and callers see no difference. Option B would change the contract and require a new live T0 run, with no change callers can see. Record the restructure as a possible follow-up in the PR or spec notes, not in this feature.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0139 - Honour Vault Argument Across Bases Family Tools.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Constitution.md`
+
+**Sent to the step:**
+
+> A
+>
+> The BI scopes this as a low-complexity change: stop dropping the vault argument and fix the docs. The vm tests cover every contract §4 row, which meets Constitution Principle II's need for tested public behaviour, and callers see no difference. Option B would change the contract and require a new live T0 run, with no change callers can see. Record the restructure as a possible follow-up in the PR or spec notes, not in this feature.
+
+## 8. record / record-in-vault (2026-11-02T03:30:09.481Z)
+
+**Question (verbatim):**
+
+> The work for job BI-0139 is now a reviewed, documented pull request. Record that on the job's note, following the vault's conventions for backlog items:
+> - the spec branch: 083-enable-cross-vault-bases
+> - the feature folder in the code repository: specs/083-enable-cross-vault-bases
+> - the pull request: https://github.com/marwansaab/obsidian-cli-mcp/pull/114 (number 114)
+> - the status that means "in review" in this vault (if the vault has no such status, escalate `decision` with up to 3 choices)
+> - a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0139-2026-11-02 produced it.
+>
+> Dry run: no. In a dry run, change nothing: list each edit you would make in `vault_edits`, starting its change with "Would". Otherwise list each edit you made.
+
+**Advisor** (escalate: none):
+
+> Recorded on BI-0139, following the BI-0137 in-review pattern:
+> - Frontmatter: `status` changed from `planned` to `in-review` (in-review is in the backlog-item vocab in the Vault Frontmatter Convention). `spec_branch: 083-enable-cross-vault-bases` added. `updated` is 2026-11-02.
+> - `## Status`: added "**In review — 2026-11-02.**" at the top. It links PR [#114](https://github.com/marwansaab/obsidian-cli-mcp/pull/114) and names spec branch `083-enable-cross-vault-bases` and feature folder `specs/083-enable-cross-vault-bases`. Awaiting owner merge.
+> - Footer: added a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0139-2026-11-02 produced PR #114.
+> Read back and checked.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0139 - Honour Vault Argument Across Bases Family Tools.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0137 - Classify Malformed Base As Base Malformed In Views Base.md`, `000-Meta/Vault Frontmatter Convention.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0139 - Honour Vault Argument Across Bases Family Tools.md`: Frontmatter status planned → in-review (set_property).
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0139 - Honour Vault Argument Across Bases Family Tools.md`: Frontmatter spec_branch added: 083-enable-cross-vault-bases (set_property).
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0139 - Honour Vault Argument Across Bases Family Tools.md`: Added an 'In review — 2026-11-02' paragraph at the top of ## Status, linking PR #114, the spec branch and the feature folder specs/083-enable-cross-vault-bases.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0139 - Honour Vault Argument Across Bases Family Tools.md`: Appended a dated HTML comment (2026-11-02): Relay run obsidian-cli-mcp-bi-0139-2026-11-02 produced PR #114; status → in-review; spec_branch set.
+
+**Sent to the step:**
+
+> Recorded on BI-0139, following the BI-0137 in-review pattern:
+> - Frontmatter: `status` changed from `planned` to `in-review` (in-review is in the backlog-item vocab in the Vault Frontmatter Convention). `spec_branch: 083-enable-cross-vault-bases` added. `updated` is 2026-11-02.
+> - `## Status`: added "**In review — 2026-11-02.**" at the top. It links PR [#114](https://github.com/marwansaab/obsidian-cli-mcp/pull/114) and names spec branch `083-enable-cross-vault-bases` and feature folder `specs/083-enable-cross-vault-bases`. Awaiting owner merge.
+> - Footer: added a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0139-2026-11-02 produced PR #114.
+> Read back and checked.

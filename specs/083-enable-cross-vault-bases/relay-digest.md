@@ -4,14 +4,14 @@
 |---|---|
 | Run | `obsidian-cli-mcp-bi-0139-2026-11-02` |
 | Project | obsidian-cli-mcp (pack speckit) |
-| Status | running |
+| Status | done |
 | Started | 2026-11-02T02:16:00.493Z |
-| Finished | not yet |
-| Elapsed | 58 min 8 s |
-| Questions | 4 (2 needed the owner) |
-| Requests to the advisor | 2 (0 needed the owner) |
+| Finished | 2026-11-02T03:30:49.876Z |
+| Elapsed | 1 h 14 min |
+| Questions | 5 (2 needed the owner) |
+| Requests to the advisor | 3 (0 needed the owner) |
 | Escalations | 2 |
-| Edits by the advisor | 5 |
+| Edits by the advisor | 9 |
 
 ## Inputs
 
@@ -94,26 +94,55 @@ Skipped.
 ### implementation (`b9b22b5c-d496-412d-ad50-a78d25355d85`)
 
 - Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\specs\083-enable-cross-vault-bases\tasks.md exists; focused TestVault-Obsidian-CLI-MCP in Obsidian (it had My-Setup-Vault focused).
+- Condition `gh-pr-open` (done_when): met. Pull request #114 is open.
 
 - **implement**: done, 225 turns.
 
 > Implemented all 42 tasks of spec 083 (marked [X]). bases, open-mode views_base and create_base now act on the named vault; with no vault, behaviour is byte-identical. Unregistered vault names fail with VAULT_NOT_FOUND before anything is spawned. create_base with a vault checks that base_path and the item's folder stay inside the vault before creating, and checks the created path afterwards (reporting details.createdPath, never deleting). The server.ts diff is exactly the two planned lines, and only the bases, views_base and create_base baseline entries moved. The full gate is green (lint, typecheck, build, 4150 tests, 96.86% statement coverage), and the live check against the test vault passed (L1–L8, plus the template rows). Deviations, all recorded in post-implement.md and research.md: (1) the eval context has no parseYaml (research F7 was wrong), so ITEM_FOLDER_TEMPLATE now scans the block-style YAML Obsidian writes; flow-style filters and or/not groups fall back to the new-note folder, and the after-creation check still covers them; (2) contract row V9 named CLI_REPORTED_ERROR, but the default path actually returns ERR_NO_ACTIVE_FILE, so the test asserts parity with the default path; (3) the bases description drops 'display name' to satisfy the _surface.test.ts rule; (4) two old tests asserting that vault is silently ignored were replaced by the new routing tests. D7 = focus-free, so no side-effect sentence was added. Nothing is committed (the optional after_implement commit hook was skipped).
 
-- **open-pr**: in progress.
+- **open-pr**: done, 19 turns.
 
-### review
+> I committed all spec 083 work on 083-enable-cross-vault-bases in three CONTRIBUTING.md-style commits (feat 4252884, docs 620cc9f, chore 2b25187), and the working tree is clean. Lint, type check and build pass. The full suite passes: 4150 tests, 6 skipped, against 4111 at the branch base, with 96.86% statement coverage. I scanned the Relay records for secrets (none), pushed the branch to origin, and opened PR #114 into main as a regular PR, not a draft and not merged. The repo has no PR template file, so the description follows PR #112's layout: summary table, a deviations section for the reviewer, evidence, test results, the full Constitution Compliance table, out-of-scope follow-ups, commits and documentation. Prettier flags files on this Windows checkout, but it also flags untouched files and is not a CI gate; the PR body says so.
 
-- **code-review**: not run.
-- **fix**: not run.
 
-### docs
+### review (`d9d79266-2d33-4ca1-a6ae-553aba955c57`)
 
-- **document**: not run.
-- **ci**: not run.
+- Condition `gh-pr-open` (start_when): met. Pull request #114 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #114 is open.
 
-### record
+- **code-review**: done, 15 turns.
 
-- **record-in-vault**: not run.
+> Ran the strict code-quality review of PR #114 (083-enable-cross-vault-bases against main). Verdict: changes requested. No file crosses 1k lines and no new error codes were added. Four findings: (1) MAIN ISSUE: create_base/_template.ts ITEM_FOLDER_TEMPLATE contains a minified, hand-written block-YAML filters scanner inside the eval string. Its tests only check substrings, and the handler tests stub the {ok, folder} envelope, so the scanner's behaviour is untested in-process. Suggested restructure: the eval returns {ok:true, text (cachedRead), newFileParent}, and the scan moves into a pure TS function with a table test. Same spawn count, no YAML dependency. (2) In bases/handler.ts:91 and views_base/handler.ts:175, the `target_mode: vault === undefined ? "active" : "specific"` ternaries do nothing: with parameters {} both modes produce the same argv, so `target_mode: "specific", vault` is enough. (3) views_base focusedBaseError and listFocusedViews take basePath and vault as two adjacent `string | undefined` arguments; pass `input` instead. (4) Minor: create_base's NamedVaultTarget stores `vault` twice (also as guard.vaultLabel) and spreads the nullable `target` across the top and bottom of the handler; it can be removed. No code was changed. Durable facts were added as item 41 in .memory/refactor-decisions.md.
+
+- **fix**: done, 31 turns, 1 questions.
+
+> Applied the owner's option A: ITEM_FOLDER_TEMPLATE and its {ok, folder} envelope stay as they are in spec 083. The possible restructure (the eval returns {ok:true, text, newFileParent} and the filters scan moves into a pure TypeScript function) is recorded as a follow-up outside this feature in specs/083-enable-cross-vault-bases/post-implement.md, with why it was left: it changes data-model E2 and contract §3/§4 and needs T1–T5 run live again, while the node:vm tests already cover every contract §4 row. In the same file, plan check 4 no longer names assertCreatedContained, which no longer exists since commit dc827e2. Committed as 7e338fb (docs only, so tests were not rerun) and pushed to 083-enable-cross-vault-bases (PR #114). From the earlier fix commit dc827e2, already pushed: the target_mode ternaries in bases and views_base were removed with the argv unchanged; views_base helpers take ViewsBaseInput; create_base's NamedVaultTarget was replaced by a returned closure; vm tests for the template were added; contract §4 was corrected. Its gate run passed: lint, type check and build clean, 4166 tests passed, 6 skipped, no failures, FR-018 fingerprint unchanged. .memory/refactor-decisions.md item 41 records the ruling. Left: relay-digest.md had uncommitted changes from before this session and was not committed.
+
+
+### docs (`0d30c41f-ceaa-47cc-968c-8643b3e49b6f`)
+
+- Condition `gh-pr-open` (start_when): met. Pull request #114 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #114 is open.
+
+- **document**: done, 45 turns.
+
+> PR #114 (OPEN, 083-enable-cross-vault-bases -> main): docs committed a0b5747 and pushed. Pages: .docs-as-code/capabilities/bases.md (new named-vault routing section, create_base containment pipeline as a flowchart, the F7 correction, new failure keys, corrected and extended known limits), architecture.md (corrected the 'bases ignores vault' aside, the missing YAML parser in eval, the wider closedVaultNote set, the second executed template test, create_base containment), new decisions/ADR-053 (pre-creation checks plus a backstop that never deletes, and the scanner restructure the owner declined), and README.md index lines. Also added the PR body's Documentation lines. The docs/tools pages, README, CONTRIBUTING and CHANGELOG already matched the diff, so no npm test was needed. The Relay-managed relay-digest.md and relay-qa-log.md changes were left uncommitted. CI is re-running.
+
+- **ci**: done, 3 turns.
+
+> All four CI checks on PR #114 passed for the latest commit, a0b5747, in run 41383178561. Lint / Typecheck / Test / Build passed on ubuntu-latest with Node 22 (1m23s) and Node 24 (1m43s), and on windows-latest with Node 22 (2m33s) and Node 24 (2m17s). No fixes were needed, so nothing was pushed.
+
+
+### record (`a948d6a3-cd52-49c1-8f91-8eb95e27018a`)
+
+- **record-in-vault**: done.
+
+> Recorded on BI-0139, following the BI-0137 in-review pattern:
+> - Frontmatter: `status` changed from `planned` to `in-review` (in-review is in the backlog-item vocab in the Vault Frontmatter Convention). `spec_branch: 083-enable-cross-vault-bases` added. `updated` is 2026-11-02.
+> - `## Status`: added "**In review — 2026-11-02.**" at the top. It links PR [#114](https://github.com/marwansaab/obsidian-cli-mcp/pull/114) and names spec branch `083-enable-cross-vault-bases` and feature folder `specs/083-enable-cross-vault-bases`. Awaiting owner merge.
+> - Footer: added a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0139-2026-11-02 produced PR #114.
+> Read back and checked.
+
 
 ## Escalations
 
@@ -133,6 +162,10 @@ Skipped.
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0139 - Honour Vault Argument Across Bases Family Tools.md` | Appended Q2/A2 to '## Clarifications (2026-11-02)': prefer a focus-free route; if none exists, allow a documented focus side effect; no step to restore the previous front vault (FR-004). | pre-implementation / clarify: **Question:** If live probes show that the only way to make `bases`, open-Base `views_base` or `crea |
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0139 - Honour Vault Argument Across Bases Family Tools.md` | Appended Q3/A3 to '## Clarifications (2026-11-02)': a closed-but-registered named vault follows sibling routing (CLI cold-launch plus inherited ADR-029/ADR-030 recovery) as a success path; open-mode views_base returns that vault's open-Base views or the existing no-Base-open error; nothing new added. | pre-implementation / clarify: **Question:** When a caller names a vault that Obsidian knows (it appears in `vaults`) but that is n |
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0139 - Honour Vault Argument Across Bases Family Tools.md` | Appended Q4/A4 to '## Clarifications (2026-11-02)': the probe finding that Obsidian picks the item folder, and the owner ruling to pre-check base_path and the derived folder, then backstop-check the Created: path (PATH_ESCAPES_VAULT with the created path in details, item not deleted); response-path bug left as a follow-up. | pre-implementation / plan: **Question:** Live probes show that the folder a `create_base` item lands in is chosen by Obsidian,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0139 - Honour Vault Argument Across Bases Family Tools.md` | Frontmatter status planned → in-review (set_property). | record / record-in-vault: The work for job BI-0139 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0139 - Honour Vault Argument Across Bases Family Tools.md` | Frontmatter spec_branch added: 083-enable-cross-vault-bases (set_property). | record / record-in-vault: The work for job BI-0139 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0139 - Honour Vault Argument Across Bases Family Tools.md` | Added an 'In review — 2026-11-02' paragraph at the top of ## Status, linking PR #114, the spec branch and the feature folder specs/083-enable-cross-vault-bases. | record / record-in-vault: The work for job BI-0139 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0139 - Honour Vault Argument Across Bases Family Tools.md` | Appended a dated HTML comment (2026-11-02): Relay run obsidian-cli-mcp-bi-0139-2026-11-02 produced PR #114; status → in-review; spec_branch set. | record / record-in-vault: The work for job BI-0139 is now a reviewed, documented pull request. Record that on the job's note,  |
 
 ## Files
 
