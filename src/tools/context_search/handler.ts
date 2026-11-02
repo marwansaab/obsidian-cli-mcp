@@ -17,8 +17,8 @@
 // FR-005), sorted by (path, line) ascending, sliced to appliedCap. Obsidian's search
 // trims each line, so the selected lines are read back from the notes through
 // readBackLines (read-back.ts, spec 088): `text` is the note's line minus its line
-// ending, capped at 500 chars + U+2026 marker after the read-back. A search with no
-// lines makes no read-back; a line that cannot be read back fails the call with
+// ending, capped at 500 chars + U+2026 marker by lineOutput after the read-back. A search
+// with no lines makes no read-back; a line that cannot be read back fails the call with
 // CLI_REPORTED_ERROR / details.code MATCH_LINE_UNAVAILABLE. Output boundary-validated
 // via contextSearchOutputSchema.
 import { readBackLines } from "./read-back.js";
@@ -30,7 +30,7 @@ import {
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import { stripBoundarySlashes } from "../search/handler.js";
-import { capLine, selectLines } from "../search/line-matches.js";
+import { lineOutput, selectLines } from "../search/line-matches.js";
 import { literalPhraseQuery } from "../search/literal-phrase.js";
 import { searchContextWireSchema } from "../search/schema.js";
 
@@ -123,10 +123,7 @@ export async function executeContextSearch(
   }
 
   const { rows, truncated } = selectLines(input.query, wireParsed.data, appliedCap);
-  const texts = rows.length === 0 ? [] : await readBackLines(rows, input.vault, deps);
-  return contextSearchOutputSchema.parse({
-    count: rows.length,
-    matches: rows.map((r, i) => ({ path: r.path, line: r.line, text: capLine(texts[i]!) })),
-    ...(truncated ? { truncated: true as const } : {}),
-  });
+  return contextSearchOutputSchema.parse(
+    lineOutput({ rows: await readBackLines(rows, input.vault, deps), truncated }),
+  );
 }

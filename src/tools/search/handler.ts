@@ -11,7 +11,7 @@
 // path-ascending leading N across the entire match set.
 // Default-mode pipeline: filter to `.md`, sort UTF-16 ascending, detect truncation
 // precisely via `mdOnly.length > appliedCap`, slice to appliedCap when truncated.
-// Line-mode pipeline: lineMatches (line-matches.ts, shared with context_search) —
+// Line-mode pipeline: selectLines + lineOutput (line-matches.ts, shared with context_search) —
 // `.md` filter, one entry per line (none for a line-break query; spec 087), flat
 // rows (drops empty `matches: []` entries naturally — R9), 500-char cap + U+2026
 // (FR-024 / R10), conservative truncation (FR-005), (path, line) ascending sort
@@ -20,7 +20,7 @@
 // true (I-11 / FR-023). Folder leading/trailing `/` normalised wrapper-side (FR-006 / I-5);
 // empty post-strip omits the `path` parameter from CLI invocation. Zero new
 // top-level error codes; zero new details.code values — Principle IV preserved.
-import { lineMatches } from "./line-matches.js";
+import { lineOutput, selectLines } from "./line-matches.js";
 import { literalPhraseQuery } from "./literal-phrase.js";
 import {
   searchContextWireSchema,
@@ -111,7 +111,7 @@ export async function executeSearch(
       });
     }
     return searchLineOutputSchema.parse(
-      lineMatches(input.query, wireParsed.data, appliedCap, (text) => text),
+      lineOutput(selectLines(input.query, wireParsed.data, appliedCap)),
     );
   } else {
     const wireParsed = searchDefaultWireSchema.safeParse(parsed);

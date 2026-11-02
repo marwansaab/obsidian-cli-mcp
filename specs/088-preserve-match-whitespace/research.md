@@ -110,6 +110,7 @@ The order becomes:
 - **Alternatives considered**:
   - *Give `lineMatches` an async text hook.* Search would then await a no-op, and the hook would carry an I/O concern into a pure module. Rejected.
   - *Re-inline the pipeline in context_search.* Item 47 forbids it. Rejected.
+- **Amended (PR #121 code-quality review, 2026-11-02)**: once context_search stopped calling `lineMatches`, search's identity function was the only value `normaliseText` ever took, so the parameter no longer did anything. `lineMatches` and `normaliseText` are gone. `line-matches.ts` now exports `selectLines` and `lineOutput({ rows, truncated })`, which caps each text (`capLine`, private again) and builds `{ count, matches, truncated? }`. Search calls `lineOutput(selectLines(...))`. context_search calls `lineOutput({ rows: await readBackLines(rows, ...), truncated })`, and `readBackLines` returns the rows with their text replaced. Selection order and output are unchanged (FR-006, FR-008, SC-005).
 
 ### D3. Batch the read-back so no eval command line passes a fixed budget
 

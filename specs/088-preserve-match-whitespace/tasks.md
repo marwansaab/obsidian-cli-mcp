@@ -143,6 +143,7 @@ description: "Task list for 088 Preserve match whitespace"
     - every batch holds at least one row.
   - **Export `async function readBackLines(rows, vault: string | undefined, deps: InvokeCliDeps): Promise<string[]>`**, which returns texts aligned with `rows`:
     - for each batch in order, `await invokeEval({ code: composeEvalCode(JS_TEMPLATE, batch), vault }, deps)`, passing deps whole (refactor-decisions §29);
+    - *Amended by the PR #121 code-quality review:* the two steps below now go through the shared `decodeEvalEnvelope` (`_active-file.ts`), which has the same stages and `stdoutDetails`. The messages became the cohort's: `"context_search: eval response is not JSON: <stdout>"` and `"context_search: eval response shape unexpected"`. `readBackLines` returns the rows with `text` replaced, not a `string[]`.
     - parse each answer with `parseEvalAnswer`. On a throw: `UpstreamError({ code: "CLI_REPORTED_ERROR", cause, details: { stage: "json-parse", ...stdoutDetails(stdout) }, message: "context_search: line read-back eval returned unparseable response" })`;
     - then `contextSearchReadBackSchema.safeParse`. On failure: the same with `stage: "envelope-parse"`, `cause: error` and message `"context_search: line read-back eval returned unexpected shape"`;
     - index the answers in two maps, filled across all batches:

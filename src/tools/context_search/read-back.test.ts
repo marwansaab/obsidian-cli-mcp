@@ -30,6 +30,10 @@ function readAll(rows: Row[], raw: (row: Row) => string | null): StubResponse {
   );
 }
 
+function texts(rows: Row[]): string[] {
+  return rows.map((r) => r.text);
+}
+
 function linesOf(path: string, count: number): Row[] {
   return Array.from({ length: count }, (_, i) => ({ path, line: i + 1, text: `zqx ${i + 1}` }));
 }
@@ -63,7 +67,11 @@ test("R1 one eval for rows across two notes; texts are the note lines minus the 
       { path: "b.md", state: "read", lines: [{ line: 1, raw: "  zqx c" }] },
     ]),
   ]);
-  expect(await readBackLines(rows, undefined, deps(spawnFn))).toEqual(["\tzqx a", "zqx b  ", "  zqx c"]);
+  expect(await readBackLines(rows, undefined, deps(spawnFn))).toEqual([
+    { path: "a.md", line: 2, text: "\tzqx a" },
+    { path: "a.md", line: 7, text: "zqx b  " },
+    { path: "b.md", line: 1, text: "  zqx c" },
+  ]);
   expect(getCount()).toBe(1);
 });
 
@@ -85,7 +93,7 @@ test("R2 large results are batched under the code budget and restored in order",
 
   const answer = readAll(rows, (r) => `  ${r.text}`);
   const { spawnFn, recorded } = makeQueuedSpawn(batches.map(() => answer));
-  expect(await readBackLines(rows, undefined, deps(spawnFn))).toEqual(rows.map((r) => `  ${r.text}`));
+  expect(texts(await readBackLines(rows, undefined, deps(spawnFn)))).toEqual(rows.map((r) => `  ${r.text}`));
   expect(recorded).toHaveLength(batches.length);
   for (const r of recorded) expect(findKv(r.argv, "code")!.length).toBeLessThan(3000);
 });
@@ -95,7 +103,7 @@ test("R14 a single row with a 1,000-character path is one eval within the budget
   expect(planReadBack([row])).toEqual([[[row.path, [1]]]]);
   expect(composeEvalCode(JS_TEMPLATE, planReadBack([row])[0]).length).toBeLessThanOrEqual(READ_BACK_CODE_MAX);
   const { spawnFn, recorded } = makeQueuedSpawn([readAll([row], () => " zqx")]);
-  expect(await readBackLines([row], undefined, deps(spawnFn))).toEqual([" zqx"]);
+  expect(texts(await readBackLines([row], undefined, deps(spawnFn)))).toEqual([" zqx"]);
   expect(recorded).toHaveLength(1);
   expect(findKv(recorded[0]!.argv, "code")!.length).toBeLessThan(3000);
 });
@@ -129,13 +137,13 @@ test("R4 a note that no longer exists fails with note-not-found", async () => {
   );
 });
 
-test("R5 a failed read carries its detail", async () => {
+test.each(["boom", ""])("R5 a failed read carries its detail: %j", async (detail) => {
   const err = await rejection(
     [{ path: "a.md", line: 1, text: "zqx" }],
-    [readBackAnswer([{ path: "a.md", state: "read-failed", detail: "boom" }])],
+    [readBackAnswer([{ path: "a.md", state: "read-failed", detail }])],
   );
   expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.details).toEqual(unavailable("read-failed", "a.md", 1, "boom"));
+  expect(err.details).toEqual(unavailable("read-failed", "a.md", 1, detail));
 });
 
 test("R6 a line past the note's end is line-changed", async () => {
@@ -158,7 +166,7 @@ test("R8 trim equality accepts the untrimmed line and drops one trailing \\r", a
   ];
   const raws: Record<number, string> = { 1: " x\t", 2: "  x  \r" };
   const { spawnFn } = makeQueuedSpawn([readAll(rows, (r) => raws[r.line]!)]);
-  expect(await readBackLines(rows, undefined, deps(spawnFn))).toEqual([" x\t", "  x  "]);
+  expect(texts(await readBackLines(rows, undefined, deps(spawnFn)))).toEqual([" x\t", "  x  "]);
 });
 
 test("R9 two failing rows in different notes: the first in output order is named", async () => {
@@ -181,7 +189,7 @@ test.each([
 ])("R10 %s fails at stage json-parse", async (_label, response) => {
   const err = await rejection([{ path: "a.md", line: 1, text: "zqx" }], [response]);
   expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.message).toBe("context_search: line read-back eval returned unparseable response");
+  expect(err.message).toMatch(/^context_search: eval response is not JSON: /);
   expect(err.details).toMatchObject({ stage: "json-parse" });
   expect(err.details).toHaveProperty("stdout");
   expect(err.details).toHaveProperty("stdoutLength");
@@ -195,7 +203,7 @@ test.each([
 ])("R11 an answer with %s fails at stage envelope-parse", async (_label, response) => {
   const err = await rejection([{ path: "a.md", line: 1, text: "zqx" }], [response]);
   expect(err.code).toBe("CLI_REPORTED_ERROR");
-  expect(err.message).toBe("context_search: line read-back eval returned unexpected shape");
+  expect(err.message).toBe("context_search: eval response shape unexpected");
   expect(err.details).toMatchObject({ stage: "envelope-parse" });
   expect(err.details).toHaveProperty("stdoutLength");
 });
@@ -219,7 +227,7 @@ test("R15 a byte-order mark is dropped from line 1 only", async () => {
   ];
   const raws: Record<number, string> = { 1: "﻿  zqx bom", 2: "﻿zqx" };
   const { spawnFn } = makeQueuedSpawn([readAll(rows, (r) => raws[r.line]!)]);
-  expect(await readBackLines(rows, undefined, deps(spawnFn))).toEqual(["  zqx bom", "﻿zqx"]);
+  expect(texts(await readBackLines(rows, undefined, deps(spawnFn)))).toEqual(["  zqx bom", "﻿zqx"]);
 });
 
 test("R16 a note's state applies to its rows in every batch", async () => {

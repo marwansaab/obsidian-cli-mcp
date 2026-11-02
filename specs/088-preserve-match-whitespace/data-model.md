@@ -22,7 +22,7 @@ No persisted data. These are the values one `context_search` call moves through.
 - **V3**: `truncated` is `deduplicated row count >= appliedCap`.
 - **V4**: rows are sorted by `path` (code-unit order), then `line`, and sliced to `appliedCap`.
 
-`lineMatches(query, wire, appliedCap, normaliseText)` (search's deprecated line mode) is `selectLines`, then `capLine(normaliseText(text))` per row. Its output is the same as today (research F2, D2).
+`lineOutput({ rows, truncated })` caps each row's text and builds the output. Search's deprecated line mode is `lineOutput(selectLines(...))`, and its output is the same as today (research F2, D2 as amended by the PR #121 review).
 
 ## E3. Read-back request (new)
 
