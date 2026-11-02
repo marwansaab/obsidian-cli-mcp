@@ -246,6 +246,95 @@ first exception). Aligning them, a
 runtime hint in the heading-not-found message, and reaching the unreachable
 sections are spec 079 plan Follow-ups.
 
+## Line endings and the placement check
+
+`patch_heading` and `patch_block` find their target with a pure scanner
+(`walkHeadings`, `findBlock`) that returns **line indices**, and then splice
+an array of the note's lines at those indices. The two arrays have to be
+split at the same places, or the indices address the wrong lines. Until PR
+#119 (spec 086, BI-0168) they were not. The scanners split on every line feed
+and stripped one `\r`; the handlers split on `\r\n` alone as soon as
+`detectLineEnding` found a single CRLF anywhere in the note. On a note that
+mixes LF and CRLF — most often an LF frontmatter that a property edit left on
+a CRLF note on Windows — a run of LF-only lines collapsed into one element of
+the edit array, and the edit landed lower down the note, over unrelated
+text, while the call reported success (spec 086 research F1, F2). With a CRLF
+frontmatter over an LF body the indices ran past the end of the array and the
+new text was appended at the end of the note. All three `patch_heading`
+modes and `patch_block` had the fault; `patch_heading`'s race check compares
+heading identity, not the edit array, so it never caught it (F3), and
+`patch_block` has no race check at all.
+
+Since PR #119 both tools edit through one cohort leaf,
+[src/tools/_note-lines.ts](../../src/tools/_note-lines.ts), which imports
+nothing and is imported only by the two tools:
+
+```mermaid
+flowchart LR
+  raw[note text] --> scan["splitLinesForScan: the finders' split"]
+  raw --> split["splitNoteLines: each line keeps its terminator"]
+  scan --> find[walkHeadings / findBlock]
+  find -- line indices --> splice[unchanged splice helpers]
+  split --> splice
+  splice --> place["placeEdit: join, then placement check"]
+  place -- text --> write["race check (patch_heading only), then writeAtomic"]
+  place -- "null" --> refuse["CLI_REPORTED_ERROR / UNSAFE_PLACEMENT"]
+```
+
+- **One split rule.** `splitLinesForScan` — `split("\n")`, then one trailing
+  `\r` dropped per line — is the finders' view of the note, and since the PR
+  #119 review (commit `c069194`, finding F1) it lives only here:
+  `heading-walk.ts` and `block-scan.ts` import it instead of each carrying a
+  private copy. `splitNoteLines` splits the same text after each `\n` but
+  keeps every line's own terminator (`\r\n`, `\n`, or none on an
+  unterminated last line), so element `i` is the line both finders call line
+  `i` by construction, on uniform and mixed notes alike. The review moved the
+  split because the bug was two copies of a split rule disagreeing; as first
+  implemented, the fix had added a third copy and kept the agreement by
+  convention.
+- **Kept lines keep their bytes; added lines take the anchor's ending.**
+  `joinNoteLines` writes an element that already ends in `\n` exactly as it
+  is, and follows every other element with one ending: the terminator of the
+  anchor line (the heading line, or the block's marker line), else of the
+  nearest earlier line that has one, else LF (`insertEnding`). The note's
+  final-line-break state is then restored as before. On a uniform note every
+  terminator is the note's one ending, so the bytes are what the old
+  file-wide `detectLineEnding` produced (spec 086 FR-008, rows H9 and B5).
+  Both tools' `detectLineEnding` exports were deleted, with the owner's
+  conditional approval, once no caller remained.
+- **The splice helpers did not change.** `applyAppend`, `applyPrepend`,
+  `applyReplace`, `applyDetachReattach` and `applyVerbatimMarkerPreserve`
+  only slice and insert at indices and never read an existing line's text
+  (research F6), so they work unchanged on the new array, and their tests
+  were not edited.
+- **The placement check.** `placeEdit` joins the edited lines and then
+  checks two things before anything else happens: the anchor line in the
+  edit array reads the finder's text, and the original bytes before and
+  after the edit are still at the start and end of the result. For
+  `patch_heading` the kept prefix runs to the end of the heading's text and
+  the kept suffix starts at the next same-or-higher heading, the same bounds
+  in all three modes. For `patch_block` they are the start of the block and
+  the line after it. A miss returns `null`, and the handler throws
+  `CLI_REPORTED_ERROR` with `details.code: "UNSAFE_PLACEMENT"` plus
+  `heading_path` or `block_id` and `path`: nothing is written, and in
+  `patch_heading` the check runs before the race re-read, so a refusal costs
+  no second read. `placeEdit` was extracted in the same review (finding F2);
+  before it, both handlers carried the same join-and-check block. With the
+  fixed split the check is not expected to fire on any note — it exists so
+  that any future disagreement between finder and editor is a loud refusal
+  rather than silent damage
+  ([ADR-056](../decisions/ADR-056-section-edits-keep-each-lines-ending-and-refuse-an-unsafe-placement.md)).
+
+The refusal is tested through the real handlers by
+`handler.unsafe-placement.test.ts` in each tool, which shifts the real
+finder's result by one line with `vi.mock` — the repository's first use of
+it, confined to those two files (research D4). The placement rows on both
+mixes are in each tool's `handler.line-endings.test.ts`, and the model rows,
+including index agreement checked through the real `walkHeadings`, in
+`_note-lines.test.ts`. Inputs, outputs, annotations and `bytes_written` are
+unchanged; `UNSAFE_PLACEMENT` joined each tool's published typed-error list,
+which moved exactly the two description fingerprints.
+
 ## Confirmation before irreversible changes
 
 Since PR #92 (068 US14, FR-047 to FR-050, research R12) two actions in this
@@ -572,6 +661,17 @@ from their schema would have reached the client as SDK free text rather than
 - `patch_heading` and `patch_block` were outside spec 070 (FR-013): they do
   not run the type check and their descriptions carry no supported-types
   sentence.
+- PR #119 fixed where the patch tools write on a mixed-ending note, not how
+  notes become mixed. `set_property` writing an LF frontmatter on a CRLF
+  note, the usual cause, is tracked as its own item. `patch_block` still has
+  no re-read race check, and `append_note` keeps its own `detectLineEnding`,
+  which reads the first line break; it uses no line indices, so it never had
+  this fault (spec 086 research F11).
+- `placeEdit` takes the note's `trailingNewline` as a parameter rather than
+  deriving it from the original text. Deriving it would orphan both tools'
+  `detectTrailingNewline` exports, and deleting those with their tests needs
+  the owner's approval, which the PR #119 review did not seek (commit
+  `c069194`).
 - `set_property`, `find_and_replace` and `create_base` report no size at
   all. Spec 075 (clarification Q1) kept the `bytes_written` convention to
   the five single-note text writers; adding a figure to any of the three is

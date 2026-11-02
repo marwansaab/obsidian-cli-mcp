@@ -899,6 +899,11 @@ than added as new codes:
   `append_note`, `patch_block` and `prepend`, so its shape and message are
   defined once; each caller still supplies its own `details.vault`
   ([ADR-050](decisions/ADR-050-prepend-checks-the-note-on-disk-before-calling-obsidian.md)).
+  Since PR #119 `patch_heading` and `patch_block` add `"UNSAFE_PLACEMENT"`
+  under `CLI_REPORTED_ERROR`, beside their `HEADING_RACE` and
+  `BLOCK_ON_HEADING`: the edit could not be shown to land on the line the
+  finder named with the bytes around it kept, so nothing was written
+  ([ADR-056](decisions/ADR-056-section-edits-keep-each-lines-ending-and-refuse-an-unsafe-placement.md)).
 - `details.reason` separates the states of one multi-state condition (ADR-015,
   Sub-Discriminators via details.reason for Multi-State Error Codes) — for
   example `obsidian-not-running` on `CLI_NON_ZERO_EXIT`, `named-missing` and
@@ -1130,6 +1135,13 @@ The direct path needs three things the CLI used to provide:
    module exports `sizeChange(before, after)`, the UTF-8 byte difference the
    text-holding writers report as `bytes_written`
    ([ADR-048](decisions/ADR-048-bytes-written-is-the-size-change.md)).
+
+The two tools that edit by line index, `patch_heading` and `patch_block`,
+also share a line model: since PR #119 the leaf
+[src/tools/_note-lines.ts](../src/tools/_note-lines.ts) owns the split their
+finders scan, the split they edit (each line keeping its own terminator), the
+reassembly, and the placement check that refuses an edit before the write
+([capabilities/mutate.md](capabilities/mutate.md#line-endings-and-the-placement-check)).
 
 `prepend` is the deliberate exception in the write cohort. It wraps the CLI's
 own `prepend` subcommand, because the CLI's frontmatter detection is the
