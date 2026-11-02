@@ -61,7 +61,7 @@ description: "Task list for 089 Resolve note names"
 
 **Purpose**: a known-green starting point.
 
-- [ ] T001 Before any edit, on branch `089-resolve-note-names`, run `npm run typecheck; if ($?) { npm run lint }; if ($?) { npm test }` in PowerShell.
+- [X] T001 Before any edit, on branch `089-resolve-note-names`, run `npm run typecheck; if ($?) { npm run lint }; if ($?) { npm test }` in PowerShell.
   - Create `specs/089-resolve-note-names/post-implement.md`, headed `# Post-implement: 089 Resolve note names`.
   - Record the result under `## T001 baseline`.
   - A failure here is pre-existing: report it, and do not fix it in this feature.
@@ -82,7 +82,7 @@ description: "Task list for 089 Resolve note names"
 - Build absolute paths with `join(VAULT_ROOT, ...)` from `node:path`, so the rows hold on Linux and Windows CI.
 - Do not edit any fixture module.
 
-- [ ] T002 [P] Create `src/tools/patch_heading/handler.note-name.test.ts` calling `executePatchHeading`. Use the default `SAMPLE_NOTE` and `heading_path: "Daily#Tasks#TODO"`, `mode: "append"`, `content: "- Call dentist\n"` unless a row says otherwise.
+- [X] T002 [P] Create `src/tools/patch_heading/handler.note-name.test.ts` calling `executePatchHeading`. Use the default `SAMPLE_NOTE` and `heading_path: "Daily#Tasks#TODO"`, `mode: "append"`, `content: "- Call dentist\n"` unless a row says otherwise.
   - **N1**: `file: "Meeting Notes"`, spawns `[fileTsvResponse("Projects/Deep/Meeting Notes.md"), EVAL_OK]`.
     - `fs.reads[0]` and `fs.renames[0][1]` equal `join(VAULT_ROOT, "Projects/Deep/Meeting Notes.md")`.
     - `result.path === "Projects/Deep/Meeting Notes.md"`, and the written text contains `- Call dentist` under `### TODO`.
@@ -103,12 +103,12 @@ description: "Task list for 089 Resolve note names"
   - **N7**: `file: "x"`, spawns `[fileTsvResponse("Projects/x.md")]`, and `fakeFs({ content: "# Other\n\nbody\n" })`. Rejects `CLI_REPORTED_ERROR` with `details.code === "HEADING_NOT_FOUND"` and `details.path === "Projects/x.md"`, and `fs.writes` is empty.
   - **N8**: `path: "n.md"`, spawns `[EVAL_OK]`. `recorded.length === 1`, no argv entry starts with `file=`, and `result.path === "n.md"`.
   - **N9** (vault-root boundary, US1 AS3): `file: "Daily"`, spawns `[fileTsvResponse("Daily.md"), EVAL_OK]`. `fs.reads[0]` and `fs.renames[0][1]` equal `join(VAULT_ROOT, "Daily.md")`, and `result.path === "Daily.md"`. The unchanged handler reads `join(VAULT_ROOT, "Daily")`, so this row must fail the T004 red check.
-- [ ] T003 [P] Create `src/tools/patch_block/handler.note-name.test.ts` calling `executePatchBlock`. Use `fakeFs({ content: "intro\n\nA simple paragraph. ^foo\n\nclosing\n" })`, `block_id: "foo"`, `content: "Replaced text."` unless a row says otherwise. It has the same rows N1–N9 as T002, with these differences:
+- [X] T003 [P] Create `src/tools/patch_block/handler.note-name.test.ts` calling `executePatchBlock`. Use `fakeFs({ content: "intro\n\nA simple paragraph. ^foo\n\nclosing\n" })`, `block_id: "foo"`, `content: "Replaced text."` unless a row says otherwise. It has the same rows N1–N9 as T002, with these differences:
   - In N1, the written text contains `Replaced text. ^foo`.
   - In N2, the `readFile` override returns the T003 default content (`"intro\n\nA simple paragraph. ^foo\n\nclosing\n"`).
   - N7 uses `fakeFs({ content: "no markers here\n" })` and expects `details.code === "BLOCK_NOT_FOUND"` with `details.path === "Projects/x.md"`.
   - N4's code must not be `CLI_REPORTED_ERROR` with `details.code === "NOTE_NOT_FOUND"`: assert `details.code === undefined`.
-- [ ] T004 Red check (quickstart §1). Run `npx vitest run src/tools/patch_heading/handler.note-name.test.ts src/tools/patch_block/handler.note-name.test.ts` against the unchanged handlers.
+- [X] T004 Red check (quickstart §1). Run `npx vitest run src/tools/patch_heading/handler.note-name.test.ts src/tools/patch_block/handler.note-name.test.ts` against the unchanged handlers.
   - Expected: N1–N5 and N9 fail in both suites. N6–N8 may pass.
   - Record the pass/fail list per row in `post-implement.md` under `## T004 red check`.
   - If any of N1–N5 or N9 passes, the row does not bite: fix the row (not the handler) before going on.
@@ -123,19 +123,19 @@ description: "Task list for 089 Resolve note names"
 
 **Independent test**: rows N1–N3, N8 and N9 pass in both suites, and every existing suite passes unedited.
 
-- [ ] T005 [P] [US1] In `src/tools/patch_heading/handler.ts`:
+- [X] T005 [P] [US1] In `src/tools/patch_heading/handler.ts`:
   - Delete `resolveLocator` (lines 58–68).
   - Replace its call in `executePatchHeading` with `await resolveFsTarget(input, deps, "patch_heading")`.
   - Add `import { resolveFsTarget } from "../_file-target.js";` in import order.
   - Drop `resolveActiveLocatorWithVault` from the `../_active-file.js` import, keeping `assertCanonicalPath`.
   - Header: replace "specific-mode vault-registry resolve OR active-mode focused-file eval" with "locator via the shared resolveFsTarget (specific mode: vault-registry resolve, then a `file` name through the `obsidian file` lookup — spec 089; active mode: focused-file eval)".
   - Change nothing else in the file. That includes the ENOENT `FS_WRITE_FAILED` block (research F9, out of scope).
-- [ ] T006 [P] [US1] In `src/tools/patch_block/handler.ts`, make the same edit as T005, with `"patch_block"`:
+- [X] T006 [P] [US1] In `src/tools/patch_block/handler.ts`, make the same edit as T005, with `"patch_block"`:
   - Delete `resolveLocator` (lines 57–67) and switch the call site.
   - Add the `resolveFsTarget` import and drop `resolveActiveLocatorWithVault`.
   - Update the header the same way.
   - Leave the `noteNotFound` ENOENT mapping untouched.
-- [ ] T007 [US1] Run `npm run typecheck`, then `npx vitest run src/tools/patch_heading src/tools/patch_block src/tools/_surface.test.ts src/tools/_register.test.ts src/tools/_plugin-noise.test.ts`.
+- [X] T007 [US1] Run `npm run typecheck`, then `npx vitest run src/tools/patch_heading src/tools/patch_block src/tools/_surface.test.ts src/tools/_register.test.ts src/tools/_plugin-noise.test.ts`.
   - N1–N3, N8 and N9 must pass in both suites.
   - Every existing test must pass unedited.
   - If an existing assertion fails, stop and raise it for owner review (refactor-decisions §5), and do not edit the test.
@@ -150,7 +150,7 @@ description: "Task list for 089 Resolve note names"
 
 **Independent test**: rows N4–N7 pass in both suites, with no code beyond T005 and T006.
 
-- [ ] T008 [US2] Run both `handler.note-name.test.ts` suites.
+- [X] T008 [US2] Run both `handler.note-name.test.ts` suites.
   - N4–N7 must pass with no further production change: the resolver's errors pass through unchanged (research D3).
   - If one fails, fix the handler switch, not the row. Do not add any mapping to `NOTE_NOT_FOUND` or any other code (Clarification Q2).
   - Record the result in `post-implement.md` under `## T008 failure rows`.
@@ -166,14 +166,14 @@ description: "Task list for 089 Resolve note names"
 
 **Independent test**: contract §H text present, P1–P3 diff empty, every help-page statement about `file` holds against L1–L5.
 
-- [ ] T009 [P] [US3] In `docs/tools/patch_heading.md`, apply contract §H items 1, 3 and 4 verbatim:
+- [X] T009 [P] [US3] In `docs/tools/patch_heading.md`, apply contract §H items 1, 3 and 4 verbatim:
   - the `file` row (line 41);
   - the new error-roster row before `PATH_ESCAPES_VAULT`;
   - the output `path` row (line 201).
 
   Leave the `FS_WRITE_FAILED` ENOENT row and the `path` row unchanged.
-- [ ] T010 [P] [US3] In `docs/tools/patch_block.md`, apply contract §H items 1 and 3 verbatim: the `file` row (line 42), and the new error-roster row before `PATH_ESCAPES_VAULT`. Leave the output `path` row unchanged (§H item 5).
-- [ ] T011 [US3] Surface gate (quickstart §2). Run `npx vitest run src/tools/_register.test.ts`, then `git diff --exit-code main -- src/tools/_register-baseline.json src/tools/patch_heading/index.ts src/tools/patch_block/index.ts src/tools/patch_heading/schema.ts src/tools/patch_block/schema.ts src/errors.ts src/target-mode/target-mode.ts`.
+- [X] T010 [P] [US3] In `docs/tools/patch_block.md`, apply contract §H items 1 and 3 verbatim: the `file` row (line 42), and the new error-roster row before `PATH_ESCAPES_VAULT`. Leave the output `path` row unchanged (§H item 5).
+- [X] T011 [US3] Surface gate (quickstart §2). Run `npx vitest run src/tools/_register.test.ts`, then `git diff --exit-code main -- src/tools/_register-baseline.json src/tools/patch_heading/index.ts src/tools/patch_block/index.ts src/tools/patch_heading/schema.ts src/tools/patch_block/schema.ts src/errors.ts src/target-mode/target-mode.ts`.
   - Both must pass with no `npm run baseline:write`.
   - Also run `npx vitest run src/tools/help` so the docs-sync guard (`src/tools/help/docs-sync.test.ts`) sees both edited pages.
 
@@ -183,21 +183,21 @@ description: "Task list for 089 Resolve note names"
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T012 [P] In `src/tools/_file-target.ts`, edit the header comment only: change "`resolveFsTarget` serves the direct-fs tools (append_note, prepend)" to "`resolveFsTarget` serves the direct-fs tools (append_note, prepend, patch_block, patch_heading — spec 089)". No code change.
-- [ ] T013 [P] In `CHANGELOG.md`, add `Spec 089-resolve-note-names (BI-0171).` after the `Spec 088-preserve-match-whitespace (BI-0170).` line in `[Unreleased]`. Add the contract §C `Fixed` entry verbatim at the top of the `[Unreleased]` `### Fixed` list.
-- [ ] T014 Required live check (quickstart §3, contract §L). Read `.memory/test-execution-instructions.md` first.
+- [X] T012 [P] In `src/tools/_file-target.ts`, edit the header comment only: change "`resolveFsTarget` serves the direct-fs tools (append_note, prepend)" to "`resolveFsTarget` serves the direct-fs tools (append_note, prepend, patch_block, patch_heading — spec 089)". No code change.
+- [X] T013 [P] In `CHANGELOG.md`, add `Spec 089-resolve-note-names (BI-0171).` after the `Spec 088-preserve-match-whitespace (BI-0170).` line in `[Unreleased]`. Add the contract §C `Fixed` entry verbatim at the top of the `[Unreleased]` `### Fixed` list.
+- [X] T014 Required live check (quickstart §3, contract §L). Read `.memory/test-execution-instructions.md` first.
   - Run `npm run build`.
   - Seed `Sandbox/089-live/` and run L1–L5 through the built server against `TestVault-Obsidian-CLI-MCP`.
   - Confirm no stray file was created.
   - Remove the fixtures, then confirm the `Sandbox/` entry count matches the pre-run count and that `Welcome.md` is untouched.
   - Record cases attempted, passed and failed, with verbatim output, in `post-implement.md` under `## T014 live check`.
   - If the vault is left in an unexpected state, stop and report.
-- [ ] T015 Post-implement structural verification (plan §CodeGraph structural check). Run `codegraph sync`, then `codegraph_explore "executePatchHeading executePatchBlock resolveFsTarget"`. Confirm and record under `## T015 structural verification`:
+- [X] T015 Post-implement structural verification (plan §CodeGraph structural check). Run `codegraph sync`, then `codegraph_explore "executePatchHeading executePatchBlock resolveFsTarget"`. Confirm and record under `## T015 structural verification`:
   1. `src/errors.ts` is unchanged, and neither handler adds a `new UpstreamError`.
   2. No handler imports `createLogger` or `createQueue`, and `server.ts` is unchanged.
   3. Both handlers import `resolveFsTarget` from `../_file-target.js` and no longer import `resolveActiveLocatorWithVault`; no `resolveLocator` symbol remains; `_file-target.ts` gains no import.
   4. `resolveFsTarget` has production callers in `append_note`, `prepend`, `patch_heading` and `patch_block`, and no new production export exists.
-- [ ] T016 Full gate: `npm run typecheck; if ($?) { npm run lint }; if ($?) { npm run format:check }; if ($?) { npm test }` in PowerShell. Everything must pass. Run `npx prettier --write` only on files this feature touched, if `format:check` names them. Record the result under `## T016 full gate`.
+- [X] T016 Full gate: `npm run typecheck; if ($?) { npm run lint }; if ($?) { npm run format:check }; if ($?) { npm test }` in PowerShell. Everything must pass. Run `npx prettier --write` only on files this feature touched, if `format:check` names them. Record the result under `## T016 full gate`.
 
 ---
 
