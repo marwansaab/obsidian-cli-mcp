@@ -8,6 +8,8 @@ import {
   keepsOriginalAround,
   lineStart,
   lineText,
+  placeEdit,
+  splitLinesForScan,
   splitNoteLines,
 } from "./_note-lines.js";
 import { walkHeadings } from "./patch_heading/heading-walk.js";
@@ -31,7 +33,7 @@ describe("splitNoteLines", () => {
   ])("N3: index agreement with the scanners on %s", (_name, raw) => {
     it("lineText at every index equals the scanners' split rule", () => {
       const lines = splitNoteLines(raw);
-      const scan = raw.split("\n").map((l) => (l.endsWith("\r") ? l.slice(0, -1) : l));
+      const scan = splitLinesForScan(raw);
       for (let i = 0; i < lines.length; i++) {
         expect(lineText(lines[i]!)).toBe(scan[i]);
       }
@@ -45,6 +47,14 @@ describe("splitNoteLines", () => {
         expect(lineText(splitNoteLines(raw)[r!.markerLineIndex]!)).toBe(r!.markerLineText);
       },
     );
+  });
+});
+
+describe("splitLinesForScan", () => {
+  it("splits at every line feed and strips one trailing carriage return per line", () => {
+    expect(splitLinesForScan("a\r\nb\nc\r")).toEqual(["a", "b", "c"]);
+    expect(splitLinesForScan("a\n")).toEqual(["a", ""]);
+    expect(splitLinesForScan("x\r\r\n")).toEqual(["x\r", ""]);
   });
 });
 
@@ -106,5 +116,27 @@ describe("keepsOriginalAround", () => {
   it("N9: prefix and suffix overlap in the edited text", () => {
     // "head\n" starts with the prefix and ends with the suffix only by sharing its bytes.
     expect(keepsOriginalAround("head\nhead\n", "head\n", 5, 5)).toBe(false);
+  });
+});
+
+describe("placeEdit", () => {
+  const original = "# H\r\nold\n## Next\n";
+  const lines = splitNoteLines(original);
+  const at = { anchorLine: 0, anchorText: "# H", keepBefore: 3, keepFromLine: 2 };
+
+  it("joins with the anchor's ending and returns the text when the bytes around are kept", () => {
+    expect(placeEdit(original, lines, [lines[0]!, "new", lines[2]!], true, at)).toBe(
+      "# H\r\nnew\r\n## Next\n",
+    );
+  });
+
+  it("returns null when the anchor line does not read the finder's text", () => {
+    expect(
+      placeEdit(original, lines, [lines[0]!, "new", lines[2]!], true, { ...at, anchorText: "# X" }),
+    ).toBeNull();
+  });
+
+  it("returns null when the edit drops kept bytes", () => {
+    expect(placeEdit(original, lines, [lines[0]!, "new"], true, at)).toBeNull();
   });
 });

@@ -77,6 +77,13 @@ Each handler was temporarily edited, the US1 / B1–B2 rows run, and the file re
 
 Kernel nodes: `createServer()`, `createLogger()`, `createQueue()` and `UpstreamError` are not edited; each handler gains one `UpstreamError` construction with an existing code, as the plan claimed.
 
+**Code-quality review update (PR #119).** The review found that the finders' split rule was written four times and the placement block twice. After the review-fix commit:
+
+- `_note-lines.ts` also owns `splitLinesForScan`. `heading-walk.ts` and `block-scan.ts` import it instead of keeping identical private copies, so the finders and the editors share one module for the split. `_note-lines.ts` still imports nothing; its importers now also include the two finders, which is still a downward edge.
+- `placeEdit(original, lines, edited, trailingNewline, placement)` joins the edited lines and runs the placement check, returning the new text or `null`. Both handlers call `splitNoteLines`, `lineStart` and `placeEdit`; `insertEnding`, `joinNoteLines`, `keepsOriginalAround` and `lineText` are now called through `placeEdit` (item 4 above read the pre-review state).
+- `patch_heading` passes `reachEndLineIndex` straight to `lineStart`, which already clamps an index past the end (`REACH_END_EOF`) to the note length; the extra `Math.min` is gone.
+- Behaviour is unchanged: every existing test passes unedited, and the fingerprint baseline did not move.
+
 ## T026 — optional live check (quickstart §3)
 
 **Not run.** This implementation ran unattended, and the live check needs `TestVault-Obsidian-CLI-MCP` focused in a running Obsidian (`.memory/test-execution-instructions.md`). The automated rows (H1–H12, B1–B6, U1–U2) and the red check cover the behaviour in-process.

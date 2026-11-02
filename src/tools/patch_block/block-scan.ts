@@ -1,4 +1,5 @@
-// Original — no upstream. patch_block block-scan pure helper per BI-043 / data-model §Block-scan-algorithm — line-by-line scanner with frontmatter scan-skip (FR-014), fenced-code opacity (FR-011 / R3), per-shape classification (paragraph / list-item / separately-placed / on-heading-atx / on-heading-setext per R2), setext-underline lookahead, first-match-wins on duplicate ids (FR-002a). Pure functions: no fs access, no UpstreamError throwing; handler converts null findBlock to BLOCK_NOT_FOUND.
+// Original — no upstream. patch_block block-scan pure helper per BI-043 / data-model §Block-scan-algorithm — line-by-line scanner with frontmatter scan-skip (FR-014), fenced-code opacity (FR-011 / R3), per-shape classification (paragraph / list-item / separately-placed / on-heading-atx / on-heading-setext per R2), setext-underline lookahead, first-match-wins on duplicate ids (FR-002a). Pure functions: no fs access, no UpstreamError throwing; handler converts null findBlock to BLOCK_NOT_FOUND. Lines come from the shared `splitLinesForScan` (spec 086), the split the handler's edit array agrees with.
+import { splitLinesForScan } from "../_note-lines.js";
 
 export type BlockShape =
   | "paragraph"
@@ -55,15 +56,6 @@ function isSeparatelyPlacedParent(line: string): boolean {
     BLOCKQUOTE_RE.test(line) ||
     INDENTED_CODE_RE.test(line)
   );
-}
-
-/**
- * Splits `content` on `\n` and CRLF-strips so the scanner reasons on logical
- * lines regardless of the file's line-ending convention. The handler is
- * responsible for preserving the original line ending on reassembly.
- */
-function splitLinesForScan(content: string): string[] {
-  return content.split("\n").map((line) => (line.endsWith("\r") ? line.slice(0, -1) : line));
 }
 
 /**

@@ -1,6 +1,19 @@
-// Original — no upstream. Shared note-line model for the direct-fs editors patch_heading and patch_block (spec 086): splits a note at every line feed — the same points both finders split at — keeping each line's own terminator, so the finders' line indices address the same lines in the edit array on uniform and mixed-ending notes alike; picks the ending for added lines from the target's marker line; reassembles without touching kept lines' terminators; and checks that an edit kept the original bytes around it.
+// Original — no upstream. Shared note-line model for the direct-fs editors patch_heading and patch_block (spec 086): owns the finders' line split (`splitLinesForScan`) and the editors' split of the same note at the same line feeds, keeping each line's own terminator, so the finders' line indices address the same lines in the edit array on uniform and mixed-ending notes alike; picks the ending for added lines from the target's marker line; reassembles without touching kept lines' terminators; and checks that an edit kept the original bytes around it (`placeEdit`).
 
 export type LineEnding = "\n" | "\r\n";
+
+function dropCr(s: string): string {
+  return s.endsWith("\r") ? s.slice(0, -1) : s;
+}
+
+/**
+ * The finders' split: `content.split("\n")`, then one trailing `"\r"` stripped from each
+ * line, so heading and block detection reason on logical lines whatever the line endings.
+ * A note ending in a line break gives an empty last element.
+ */
+export function splitLinesForScan(content: string): string[] {
+  return content.split("\n").map(dropCr);
+}
 
 /**
  * Splits `raw` after each `"\n"`, so every element carries its own terminator (`"\r\n"`,
@@ -20,12 +33,12 @@ export function splitNoteLines(raw: string): string[] {
 }
 
 /**
- * The scanners' view of a line: drops one trailing `"\n"`, then one trailing `"\r"` — the
- * same rule as the finders' `splitLinesForScan`, so a lone trailing CR is not text either.
+ * The finders' view of a line: drops one trailing `"\n"`, then one trailing `"\r"` — so
+ * `lineText(splitNoteLines(raw)[i]) === splitLinesForScan(raw)[i]`, and a lone trailing CR
+ * is not text either.
  */
 export function lineText(line: string): string {
-  const noLf = line.endsWith("\n") ? line.slice(0, -1) : line;
-  return noLf.endsWith("\r") ? noLf.slice(0, -1) : noLf;
+  return dropCr(line.endsWith("\n") ? line.slice(0, -1) : line);
 }
 
 function terminatorOf(line: string): LineEnding | null {
@@ -98,4 +111,45 @@ export function keepsOriginalAround(
     edited.endsWith(original.slice(suffixStart)) &&
     edited.length >= prefixEnd + (original.length - suffixStart)
   );
+}
+
+/** Where an edit sits, in the finder's terms. */
+export interface Placement {
+  /** The line the finder named (heading or block marker); added lines take its ending. */
+  anchorLine: number;
+  /** The finder's text for that line; the edit array must hold the same text there. */
+  anchorText: string;
+  /** Original characters before this offset must survive the edit. */
+  keepBefore: number;
+  /** Original characters from the start of this line on must survive the edit. */
+  keepFromLine: number;
+}
+
+/**
+ * Reassembles `edited` (split from `original` by `splitNoteLines` as `lines`) with the
+ * anchor line's ending, then runs the placement check: the anchor line must read the
+ * finder's text, and the original bytes before `keepBefore` and from `keepFromLine` on must
+ * be kept. Returns the new note text, or `null` when the edit cannot be placed safely.
+ */
+export function placeEdit(
+  original: string,
+  lines: readonly string[],
+  edited: readonly string[],
+  trailingNewline: boolean,
+  placement: Placement,
+): string | null {
+  const editedContent = joinNoteLines(
+    edited,
+    insertEnding(lines, placement.anchorLine),
+    trailingNewline,
+  );
+  const placed =
+    lineText(lines[placement.anchorLine] ?? "") === placement.anchorText &&
+    keepsOriginalAround(
+      original,
+      editedContent,
+      placement.keepBefore,
+      lineStart(lines, placement.keepFromLine),
+    );
+  return placed ? editedContent : null;
 }

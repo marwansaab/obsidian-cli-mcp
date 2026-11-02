@@ -1,4 +1,4 @@
-// Original — no upstream. patch_heading handler per BI-040 / ADR-009 — specific-mode vault-registry resolve OR active-mode focused-file eval → Layer 2 canonical path check → fs.readFile → heading walk → placement check (UNSAFE_PLACEMENT, no write) → race-check (re-walk + identity compare per FR-019) → mode-dispatched body edit on per-line-terminator lines (spec 086: the edit array splits where the heading walk splits; kept lines keep their own line endings, added lines take the heading line's) → atomic tmp+rename (FR-020 substrate) → best-effort metadataCache refresh in the written vault (logged on failure) → typed output envelope. Six error states: HEADING_NOT_FOUND, UNSAFE_PLACEMENT, HEADING_RACE, EXTERNAL_EDITOR_CONFLICT (FR-021 EBUSY/EPERM/EACCES classification), PATH_ESCAPES_VAULT, ERR_NO_ACTIVE_FILE; falls through to FS_WRITE_FAILED for generic fs errors. 075: bytes_written = edited minus original byte length (the size change).
+// Original — no upstream. patch_heading handler per BI-040 / ADR-009 — specific-mode vault-registry resolve OR active-mode focused-file eval → Layer 2 canonical path check → fs.readFile → heading walk → mode-dispatched body edit on per-line-terminator lines (spec 086: the edit array splits where the heading walk splits; kept lines keep their own line endings, added lines take the heading line's) → placement check (UNSAFE_PLACEMENT, no write) → race-check (re-walk + identity compare per FR-019) → atomic tmp+rename (FR-020 substrate) → best-effort metadataCache refresh in the written vault (logged on failure) → typed output envelope. Six error states: HEADING_NOT_FOUND, UNSAFE_PLACEMENT, HEADING_RACE, EXTERNAL_EDITOR_CONFLICT (FR-021 EBUSY/EPERM/EACCES classification), PATH_ESCAPES_VAULT, ERR_NO_ACTIVE_FILE; falls through to FS_WRITE_FAILED for generic fs errors. 075: bytes_written = edited minus original byte length (the size change).
 import { randomUUID } from "node:crypto";
 import * as nodeFs from "node:fs/promises";
 
@@ -14,14 +14,7 @@ import { UpstreamError } from "../../errors.js";
 import { assertCanonicalPath, resolveActiveLocatorWithVault } from "../_active-file.js";
 import { getErrno, mapFsWriteError } from "../_fs-errors.js";
 import { invalidateMetadataCache, sizeChange, writeAtomic } from "../_note-io.js";
-import {
-  insertEnding,
-  joinNoteLines,
-  keepsOriginalAround,
-  lineStart,
-  lineText,
-  splitNoteLines,
-} from "../_note-lines.js";
+import { lineStart, placeEdit, splitNoteLines } from "../_note-lines.js";
 
 import type { PatchHeadingInput, PatchHeadingOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
@@ -142,25 +135,16 @@ export async function executePatchHeading(
       editedLines = applyReplace(lines, resolved, input.content);
       break;
   }
-  const editedContent = joinNoteLines(
-    editedLines,
-    insertEnding(lines, resolved.markerLineIndex),
-    trailingNewline,
-  );
-
   // spec 086 placement check: the edit array must address the line the walk resolved, and the
   // edit must keep the original bytes up to the heading text and from the reach end. Refuse
   // before the race re-read and before any write.
-  const markerText = lineText(lines[resolved.markerLineIndex] ?? "");
-  if (
-    markerText !== resolved.markerLineText ||
-    !keepsOriginalAround(
-      originalContent,
-      editedContent,
-      lineStart(lines, resolved.markerLineIndex) + markerText.length,
-      lineStart(lines, Math.min(resolved.reachEndLineIndex, lines.length)),
-    )
-  ) {
+  const editedContent = placeEdit(originalContent, lines, editedLines, trailingNewline, {
+    anchorLine: resolved.markerLineIndex,
+    anchorText: resolved.markerLineText,
+    keepBefore: lineStart(lines, resolved.markerLineIndex) + resolved.markerLineText.length,
+    keepFromLine: resolved.reachEndLineIndex,
+  });
+  if (editedContent === null) {
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
       cause: null,

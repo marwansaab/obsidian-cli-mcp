@@ -13,14 +13,7 @@ import { UpstreamError } from "../../errors.js";
 import { assertCanonicalPath, resolveActiveLocatorWithVault } from "../_active-file.js";
 import { getErrno, mapFsWriteError, noteNotFound } from "../_fs-errors.js";
 import { invalidateMetadataCache, sizeChange, writeAtomic } from "../_note-io.js";
-import {
-  insertEnding,
-  joinNoteLines,
-  keepsOriginalAround,
-  lineStart,
-  lineText,
-  splitNoteLines,
-} from "../_note-lines.js";
+import { lineStart, placeEdit, splitNoteLines } from "../_note-lines.js";
 
 import type { PatchBlockInput, PatchBlockOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
@@ -137,23 +130,15 @@ export async function executePatchBlock(
   }
   const successShape = match.shape; // paragraph | list-item | separately-placed
 
-  const editedContent = joinNoteLines(
-    editedLines,
-    insertEnding(lines, match.markerLineIndex),
-    trailingNewline,
-  );
-
   // spec 086 placement check: the edit array must address the line the scanner found, and the
   // edit must keep the original bytes before and after the block. Refuse before any write.
-  if (
-    lineText(lines[match.markerLineIndex] ?? "") !== match.markerLineText ||
-    !keepsOriginalAround(
-      originalContent,
-      editedContent,
-      lineStart(lines, match.blockStartLineIndex),
-      lineStart(lines, match.blockEndLineIndex + 1),
-    )
-  ) {
+  const editedContent = placeEdit(originalContent, lines, editedLines, trailingNewline, {
+    anchorLine: match.markerLineIndex,
+    anchorText: match.markerLineText,
+    keepBefore: lineStart(lines, match.blockStartLineIndex),
+    keepFromLine: match.blockEndLineIndex + 1,
+  });
+  if (editedContent === null) {
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
       cause: null,
