@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-11-02T03:34:43.499Z |
 | Finished | not yet |
-| Elapsed | 23 min 2 s |
+| Elapsed | 36 min 43 s |
 | Questions | 7 (0 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 0 |
@@ -58,6 +58,7 @@
 ### pre-implementation (`4c15df51-e1e1-4ca7-b1fa-51cf427367d8`)
 
 - Condition `shell-exit-0` (run_when): met. "node -e "process.exit('' === '' ? 0 : 1)"" exited 0.
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\specs\084-reconcile-help-docs\tasks.md exists.
 
 - **specify**: done, 24 turns.
 
@@ -79,25 +80,28 @@
 
 > Remediation applied; the plan still passes the Constitution Check and nothing is committed. C1 (HIGH): the T002 probe now checks call blocks and bare-argument blocks, lists <…> placeholder templates without parsing them, and flags deprecated_parameters (also covers U2). T015/T027, contract X2, quickstart §2 and research F3 updated to match. I1 = A: FR-008 reworded so only the help page must name details.code/reason/field and the short description must not contradict them; the description and fingerprint stay unchanged (ADR-040). Clarification recorded; US4, plan and research aligned. C2 = A: FR-009 now requires tests pinning details.command, details.message and the top-level message, with no production change. Contract S1a/S1b added, S2 narrowed; plan Test-edit scope, unchanged-file list and the Constitution II row updated. New task T020 (H7 assertions plus a new index.test.ts case); old T020–T032 renumbered to T021–T033, and T003's routing note corrected. tasks.md has 33 tasks (US1 5, US2 5, US3 2, US4 6, US5 6). FR-012's single guard is unchanged. Not addressed (outside the requested scope): U1 (FR-011 needs the vault read tools for TC-00586/TC-00587) and LOW I2, I3, U3. Next step: /speckit-implement, or /speckit-analyze again for a check.
 
-- **resolve-analysis**: in progress, 15 turns, 1 questions.
+- **resolve-analysis**: done, 32 turns, 1 questions.
 
-> Applied every remediation the artifacts already settle, then committed 5c317c8 on 084-reconcile-help-docs (feature folder only, not pushed). Changes this round:
-> - I2 (LOW): spec Assumptions now say the drift lists came from the repository at plan time and are confirmed against TC-00586/TC-00587 at implementation (T003).
-> - I3 (LOW): FR-008 states that the three create_base rejections' top-level message becomes the issue's own message; details.issues is kept and other failures keep the generic envelope.
-> - U3 (LOW): the T013 scan and contract N3 now cover src/instructions/instructions.ts.
-> - Plan's spec-alignment note updated for all three.
-> - Earlier this session: C1 (HIGH), I1, C2, U2.
-> The commit also includes relay-digest.md and relay-qa-log.md, which were already in the feature folder. CLAUDE.md and .specify/feature.json pointer edits are left uncommitted for a separate chore commit, as with 083. No CRITICAL or HIGH finding is open. U1 (MEDIUM, FR-011 vault names) needs a decision on how FR-011 is verified when the audit records cannot be read, and is asked below.
+> All analysis findings resolved; committed on 084-reconcile-help-docs as 5c317c8 and ed3a099, feature folder only, not pushed. U1 = B applied: FR-011 rule (request, shown response and prose agree; each vault name is a generic placeholder or TestVault-Obsidian-CLI-MCP) plus a fixed check that no docs/tools file or tool description contains "The Setup". TC-00586/TC-00587 dropped as a vault-name source; T003 takes only tool names and argv call shapes from them. Updated spec (FR-011, US5, clarification), research (F9, D8), plan, tasks (T003, T026), contract (X6, new X7) and quickstart (§2 git grep check). Finding: the named instance (smart_connections_similar Example 6 with "The Setup") is already gone at HEAD 52fd0eb; commit e637b24 (spec 072, 2026-10-31, on main) deleted it, and git grep finds the string only in registry.test.ts test fixtures, so T026 checks it stays absent. Earlier commit 5c317c8 covered C1, I1, C2, I2, I3, U2, U3. Left open: CLAUDE.md and .specify/feature.json pointer edits stay uncommitted (commit was scoped to the feature folder; 083 put them in a separate chore commit); out-of-scope follow-ups (query_base/views_base details fields, UPSTREAM_TIMEOUT vs CLI_TIMEOUT) recorded in research for the BI-0122 audit. Next step: /speckit-implement.
 
 
 ### continue
 
-- **prepare**: not run.
+Skipped.
 
-### implementation
+- Condition `shell-exit-0` (run_when): not met. "node -e "process.exit('' === '' ? 1 : 0)"" exited 1.
 
-- **implement**: not run.
-- **open-pr**: not run.
+- **prepare**: skipped.
+
+### implementation (`33d2e902-db8b-41d3-ad47-2a73a5593f63`)
+
+- Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\specs\084-reconcile-help-docs\tasks.md exists, and Obsidian has TestVault-Obsidian-CLI-MCP focused.
+
+- **implement**: done, 136 turns.
+
+> Implemented all 33 tasks of spec 084 and marked them [X]. Typecheck, lint and the full test suite pass (4182 tests), and the FR-018 fingerprint gate passes without regenerating the baseline. Changes: deleted the list_notes/search_vault placeholder help pages and index lines; added the docs-sync drift-guard test; rename's hint now names `move`; create_base gains a mapValidationError hook adding details.code/reason/field (C1–C10 tests); context_search's missing-folder error pinned in tests; help-page examples and messages fixed (write_note, context_search, search, properties, views_base, create_base); CHANGELOG updated. One addition beyond the plan: patch_block.md's failure example claimed details fields its error doesn't return, so the docs were corrected and a follow-up recorded. The audit records TC-00586/587 could not be read because vault tool permission was denied, so those checks rest on the repo scan and probe. format:check fails on main too and CI doesn't run it, so it was left alone. Live checks L1–L5 against the rebuilt server in TestVault all pass, with the vault unchanged. Results are in post-implement.md. Nothing committed: the optional commit hook was skipped.
+
+- **open-pr**: in progress.
 
 ### review
 
