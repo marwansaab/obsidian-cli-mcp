@@ -174,3 +174,9 @@ applies. Records written since:
   their line-level modes list each line once through one shared
   `lineMatches` pipeline the review argued the PR into; wrapper-side
   filtering and an `eval` search were rejected (PR #120).
+- [decisions/ADR-058-context-search-reads-matched-lines-back-and-fails-when-one-cannot-be.md](decisions/ADR-058-context-search-reads-matched-lines-back-and-fails-when-one-cannot-be.md)
+  — `context_search` reads its selected lines back from the notes through a
+  batched `eval` under a fixed code budget and fails the whole call with
+  `MATCH_LINE_UNAVAILABLE` when one cannot be; reading from disk, an
+  unbounded `eval` and a trimmed fallback were rejected, and review replaced
+  `lineMatches` with `selectLines` and `lineOutput` (PR #121).

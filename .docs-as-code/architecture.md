@@ -904,6 +904,10 @@ than added as new codes:
   `BLOCK_ON_HEADING`: the edit could not be shown to land on the line the
   finder named with the bytes around it kept, so nothing was written
   ([ADR-056](decisions/ADR-056-section-edits-keep-each-lines-ending-and-refuse-an-unsafe-placement.md)).
+  Since PR #121 `context_search` adds `"MATCH_LINE_UNAVAILABLE"` under
+  `CLI_REPORTED_ERROR`: a line the search found could not be read back from
+  its note, so the call returns nothing
+  ([ADR-058](decisions/ADR-058-context-search-reads-matched-lines-back-and-fails-when-one-cannot-be.md)).
 - `details.reason` separates the states of one multi-state condition (ADR-015,
   Sub-Discriminators via details.reason for Multi-State Error Codes) — for
   example `obsidian-not-running` on `CLI_NON_ZERO_EXIT`, `named-missing` and
@@ -917,6 +921,8 @@ than added as new codes:
   `details.reason` for the character limit (the origin sub-state, unchanged)
   and `bytes` for the UTF-8 size limit
   ([ADR-051](decisions/ADR-051-prepend-caps-content-in-utf-8-bytes-as-a-second-limit.md)).
+  `MATCH_LINE_UNAVAILABLE` (PR #121) shipped with three reasons from its first
+  release: `note-not-found`, `read-failed` and `line-changed`.
   This page used to give `VAULT_NOT_FOUND` /
   `not-open`, "a vault that is registered but closed", as the example. That
   state was never produced through the CLI the server drives, and PR #100
@@ -1257,6 +1263,18 @@ them:
   case allows only `views_base` to mention a `not-open` state (PR #100).
   Since PR #114 `bases`, `views_base` and `create_base` append it too, now
   that they act on the named vault.
+- **The `eval` code has a length limit** (PR #121, spec 088 research F10).
+  Through the `Obsidian.com` shim, an `eval` whose `code=` was 4,009
+  characters answered, one of 5,009 returned empty stdout on exit 0, and one
+  of 20,000 never answered and left every later CLI call failing until
+  Obsidian was restarted. The limit is the shim's, far below any OS
+  command-line limit. Through `invokeEval` the silent case surfaces as a
+  `json-parse` failure, never as an empty result. `context_search`'s
+  read-back is the first template whose payload is budgeted:
+  `READ_BACK_CODE_MAX = 2900` per batch, with the template pinned at 900
+  characters ([search and discovery](capabilities/search-and-discovery.md),
+  [ADR-058](decisions/ADR-058-context-search-reads-matched-lines-back-and-fails-when-one-cannot-be.md)).
+  Other templates whose payload grows with their input are not budgeted yet.
 - **No YAML parser in the eval context.** The T040 live run for PR #114
   found `parseYaml` undefined (`ReferenceError`) and `require('obsidian')`
   unresolvable inside `obsidian eval`; a template has the `app` global and
@@ -1300,7 +1318,10 @@ them:
   second: the PR #114 code-quality review (commit `dc827e2`) found that
   `ITEM_FOLDER_TEMPLATE`'s `filters:` scanner had only substring checks, and
   added one `node:vm` case per contract row, plus CRLF, comments, nested
-  groups and flow style. The other `_template.test.ts` files (`open_file`,
+  groups and flow style. `src/tools/context_search/_template.test.ts`
+  (PR #121) runs the read-back template the same way, over raw whitespace,
+  CRLF, a line past the end, a missing note and a folder, a rejected read and
+  the 900-character size pin. The other `_template.test.ts` files (`open_file`,
   `get_active_file`, `views_base`) check the template string, meaning its
   bytes, its payload encoding and which calls it contains. They do not run
   it. Every other template's transforms are covered only by live probes

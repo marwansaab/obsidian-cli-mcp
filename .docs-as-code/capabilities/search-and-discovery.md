@@ -7,7 +7,7 @@ per-tool contracts are the `docs/tools/` pages linked below.
 | Tool | Pipeline | Contract |
 | --- | --- | --- |
 | `search` | native CLI `search` / `search:context` | [docs/tools/search.md](../../docs/tools/search.md) |
-| `context_search` | native CLI `search:context`, plus a `folder` probe | [docs/tools/context_search.md](../../docs/tools/context_search.md) |
+| `context_search` | native CLI `search:context`, an `eval` read-back of the matched lines, and a `folder` probe | [docs/tools/context_search.md](../../docs/tools/context_search.md) |
 | `pattern_search` | `eval` template | [docs/tools/pattern_search.md](../../docs/tools/pattern_search.md) |
 | `find_by_property` | `eval` template | [docs/tools/find_by_property.md](../../docs/tools/find_by_property.md) |
 | `tag` | `eval` template | [docs/tools/tag.md](../../docs/tools/tag.md) |
@@ -48,21 +48,69 @@ the query in double quotes, with `\` and `"` escaped. File-name and metadata
 matching, the case flag and folder scoping are the CLI's own and did not
 change.
 
-**One line-level pipeline.** `context_search` and `search` with
-`context_lines: true` both build their rows through `lineMatches`
-(`src/tools/search/line-matches.ts`): a query containing a line break keeps
-no lines; otherwise the `.md` filter, then `oneMatchPerLine` (the CLI lists a
-line once per occurrence), then flattening, the 500-character cap with
-`…`, conservative truncation, the `(path, line)` sort and the slice. Because
-the per-line step runs before counting, `count` and `truncated` count lines.
-The two handlers differ only in the text normaliser they pass:
-`context_search` strips one trailing `\r`, the deprecated line mode keeps it.
-The PR #120 code-quality review argued the PR into this shared module; the
-fix had first written the pipeline into each handler. The helpers sit in
-`search/`, and `context_search` reaches them over the context_search →
-search import it already had for `stripBoundarySlashes` and
+**One line-level pipeline, in two steps.** `context_search` and `search`
+with `context_lines: true` both build their rows in
+`src/tools/search/line-matches.ts`. `selectLines` decides which lines and in
+what order: a query containing a line break keeps no lines; otherwise the
+`.md` filter, then `oneMatchPerLine` (the CLI lists a line once per
+occurrence), then flattening, conservative truncation, the `(path, line)`
+sort and the slice. Because the per-line step runs before counting, `count`
+and `truncated` count lines. `lineOutput` then caps each text at 500
+characters with `…` and builds the result. The deprecated line mode calls
+`lineOutput(selectLines(…))` and returns the CLI's text as it came;
+`context_search` replaces the text between the two steps (below). The
+PR #120 code-quality review argued that PR into one shared module, then
+called `lineMatches`, with a text normaliser per handler; the fix had first
+written the pipeline into each handler. PR #121 split it, and its review
+removed `lineMatches` and the normaliser once search's identity function was
+the only value left
+([ADR-058](../decisions/ADR-058-context-search-reads-matched-lines-back-and-fails-when-one-cannot-be.md)).
+The helpers sit in `search/`, and `context_search` reaches them over the
+context_search → search import it already had for `stripBoundarySlashes` and
 `searchContextWireSchema` (`pattern_search` uses the same edge for
 `stripBoundarySlashes`).
+
+**`context_search` reads its lines back** (PR #121, spec 088;
+[ADR-058](../decisions/ADR-058-context-search-reads-matched-lines-back-and-fails-when-one-cannot-be.md)).
+Obsidian's `search:context` trims every line it reports, and has no option
+not to (research F6, F9). So after selection the handler hands the rows to
+`readBackLines` (`src/tools/context_search/read-back.ts`), which reads the
+selected lines from the notes with a frozen `eval` template
+(`context_search/_template.ts`: `cachedRead`, split on `"\n"`, the requested
+lines raw). Each line is accepted only when its trimmed text equals the
+CLI's, loses one trailing `\r` through `lineText` (`src/tools/_note-lines.ts`,
+the section editors' line rule) and, on line 1, a byte-order mark. The cap
+applies afterwards, so indentation counts towards the 500 characters.
+
+```mermaid
+sequenceDiagram
+    participant H as executeContextSearch
+    participant S as line-matches.ts
+    participant R as readBackLines
+    participant O as Obsidian CLI
+    H->>O: search:context (literal phrase)
+    O-->>H: trimmed lines
+    H->>S: selectLines
+    S-->>H: rows, truncated
+    H->>R: rows
+    loop one batch per READ_BACK_CODE_MAX
+        R->>O: eval (frozen template + base64 payload)
+        O-->>R: raw lines, or note-not-found / read-failed
+    end
+    R-->>H: rows with the note's text, or MATCH_LINE_UNAVAILABLE
+    H->>S: lineOutput (500-character cap)
+```
+
+The read-back is batched because the `Obsidian.com` shim answers nothing once
+an `eval`'s code passes about 4,000 characters (F10,
+[architecture](../architecture.md#reaching-obsidian-internals-the-eval-template-pattern)):
+`planReadBack` keeps each batch's composed code at or under
+`READ_BACK_CODE_MAX = 2900`. A typical result takes one extra call; in the
+PR #121 live check 300 lines over 300 notes took 10. A search with no lines
+makes no read-back. The read-back passes the call's deps whole, so a
+cancelled call drops the batches still queued. In review (PR #121, F3) it
+moved onto the shared `decodeEvalEnvelope`, so its parse failures carry the
+cohort's stages and messages rather than hand-rolled copies.
 
 **Caps and truncation.** `search`, `context_search`, `pattern_search` and
 `backlinks` stop at an implicit 1000 results, take a `limit` to change that,
@@ -163,6 +211,18 @@ Shared across the group: an unknown vault (`CLI_REPORTED_ERROR`,
 `pattern_search` (`VALIDATION_ERROR`); a missing `folder` is
 `CLI_REPORTED_ERROR` for the tools that probe for it.
 
+Since PR #121 `context_search` can also fail after a successful search, when
+a selected line cannot be read back: `CLI_REPORTED_ERROR` with
+`details.code: "MATCH_LINE_UNAVAILABLE"`, `details.path` and `details.line`,
+and `details.reason` `note-not-found` (no file at the path), `read-failed`
+(`cachedRead` threw; `details.detail` carries its text) or `line-changed`
+(the line is past the note's end, or its trimmed text no longer equals the
+CLI's). The first failing row in output order is reported and nothing else
+is returned (Clarification Q1, option A): the note changed while the search
+ran, and the recovery is to search again. A malformed read-back answer fails
+the `json-parse` or `envelope-parse` stage, and a failure of the `eval`
+itself propagates from `invokeEval` unchanged.
+
 This page used to give the missing-folder error one shape,
 `details.code: "FOLDER_NOT_FOUND"`. That is `pattern_search`'s, whose eval
 template reports the folder itself. `context_search` probes with the native
@@ -217,8 +277,17 @@ produced; PR #100 deleted the check
   CLI also folds at least Latin-1 letters: `CAFÉ` matches `café` (spec 087
   research F7). The wording predates PR #120, which left it alone because
   correcting the descriptions moves two fingerprints; it is a follow-up
-  backlog item. The CLI also trims each returned line's `text` (F9), which
-  the help pages do not say.
+  backlog item.
+- This page used to record that the CLI trims each returned line's `text`
+  (spec 087 F9) and that the help pages did not say so. For
+  `context_search` that was a bug against its own help page, and PR #121
+  fixed it by reading the lines back. `search`'s deprecated line mode still
+  returns the trimmed text (spec 088 FR-008); `context_search`'s help page
+  lists it as a migration difference, and `search.md` does not mention it.
+- The read-back's code budget is local to `context_search`. The shim's limit
+  of about 4,000 characters of `eval` code (spec 088 F10) applies to every
+  template whose payload grows with its input; the PR names `pattern_search`
+  and `find_and_replace`, and checking them is a separate backlog item.
 - Search syntax is not available through `search` or `context_search`
   (PR #120): `OR`, a leading `-`, `tag:`, `path:` and the rest are matched as
   text. Raw syntax goes through `obsidian_exec`, which passes the CLI's
