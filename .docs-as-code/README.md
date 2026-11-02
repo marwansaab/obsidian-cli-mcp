@@ -60,7 +60,8 @@ extends it.
     `query_base`, `create_base`, and their routing by the named vault
     (PR #114).
   - [capabilities/plugin-backed.md](capabilities/plugin-backed.md) — the two
-    Smart Connections tools.
+    Smart Connections tools, and how `limit` cuts one fixed, sorted
+    candidate list (PR #116).
   - [capabilities/escape-hatch-and-meta.md](capabilities/escape-hatch-and-meta.md)
     — `obsidian_exec`, its default-off code-execution gate, and `help`.
 
@@ -155,3 +156,8 @@ applies. Records written since:
   server offers, checked by a test rather than at boot or by filtering
   `help`, reading pages through the `listToolPages` the review extracted
   (PR #115).
+- [decisions/ADR-055-smart-connections-tools-fetch-a-fixed-candidate-list-before-sorting.md](decisions/ADR-055-smart-connections-tools-fetch-a-fixed-candidate-list-before-sorting.md)
+  — both Smart Connections tools ask the plugin for 100 candidates on every
+  call and cut to `limit` only after the documented sort, so a smaller
+  `limit` is a leading slice of a larger one; the full plugin set and a
+  bigger fetch were rejected (PR #116).
