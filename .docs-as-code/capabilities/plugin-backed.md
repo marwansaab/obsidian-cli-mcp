@@ -51,6 +51,32 @@ with two differences:
   The plugin lifecycle checks (ADR-013, ADR-014) run as before; only the
   stage ahead of them is gone.
 
+### Ordering and `limit`
+
+Both templates sort what the plugin returns by `score` descending, then
+`path` byte-ascending, then `headingPath.join('#')` byte-ascending, and cut
+to `limit` with a final `.slice(0, a.limit)`. Until PR #116 they also passed
+the agent's `limit` to the plugin — `lookup({ filter: { limit } })` and
+`find_connections({ limit })` — so the plugin's own cut chose which
+equal-score blocks reached the sort, and the documented tie-break only
+reordered the survivors (spec 085 research F1, F5). A smaller `limit` could
+then return an entry a larger one did not.
+
+Since PR #116 each template asks the plugin for a fixed `MAX_LIMIT` (100)
+candidates on every call, whatever `limit` is, and the trailing slice is the
+only cut to `limit`. Every allowed `limit` is therefore a leading slice of one
+fully sorted list: the same entries, in the same order
+([ADR-055](../decisions/ADR-055-smart-connections-tools-fetch-a-fixed-candidate-list-before-sorting.md)).
+`smart_connections_similar` removes the source note's own blocks after that
+fetch and before the slice. As merged, each tool's `schema.ts` exports its
+own `MAX_LIMIT`, used by the schema's `.max()` and interpolated into the
+template, so neither tool imports the other (constitution Principle I). Each
+tool has a `_template.test.ts` that runs the real `JS_TEMPLATE` under
+`node:vm` against a stub plugin that truncates to the limit it is asked for,
+and checks every pair of limits N < M from 1 to 100. Both descriptions carry
+one sentence stating the guarantee, which moved their description
+fingerprints only.
+
 Published surface (PR #90; [architecture](../architecture.md#registration--the-one-path-from-a-schema-to-a-published-tool)):
 both carry the read-only hint row, including "beyond vault" (`openWorldHint`)
 false, as spec 068 FR-024 classifies them. `smart_connections_query`'s
@@ -118,3 +144,14 @@ there), which comes from a stage that runs only after the vault has answered.
   `"unknown"`. PR #100's review left the sentence as it is, because spec 072
   keeps the unknown-vault wording unchanged, and recorded it with that
   follow-up on BI-0076.
+- Ties at the 100-candidate edge stay with the plugin (PR #116). When several
+  matches share the score of the plugin's 100th candidate, the plugin decides
+  which of them are in the list; the tie-break orders only those. This does
+  not depend on `limit`. For `smart_connections_similar`, self-exclusion runs
+  after the fetch, so a call can return fewer than `limit` matches when the
+  source's own blocks were among the 100; that too is the same at every
+  `limit`. Both help pages document the edge.
+- The 100-candidate fetch was not measured against a live indexed vault in
+  PR #116 (spec 085 SC-005, T025): no Smart Connections vault was available
+  to the implementation session. `limit: 100` was already an allowed input,
+  so it is a request size both tools already made.
