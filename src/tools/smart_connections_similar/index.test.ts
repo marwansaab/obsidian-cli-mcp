@@ -90,12 +90,13 @@ describe("createSmartConnectionsSimilarTool — handler closure (valid input)", 
 });
 
 describe("docs/tools/smart_connections_similar.md exists and is non-stub (FR-022)", () => {
+  const docsPath = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    "../../../docs/tools/smart_connections_similar.md",
+  );
+
   // (d) Docs presence + content completeness
   it("docs file exists, has no TODO marker, lists every error code + ≥4 worked examples + plugin-lifecycle text", () => {
-    const docsPath = resolve(
-      dirname(fileURLToPath(import.meta.url)),
-      "../../../docs/tools/smart_connections_similar.md",
-    );
     expect(existsSync(docsPath)).toBe(true);
     const body = readFileSync(docsPath, "utf8");
     expect(body.length).toBeGreaterThan(1024);
@@ -125,13 +126,7 @@ describe("docs/tools/smart_connections_similar.md exists and is non-stub (FR-022
 
   // spec 085 S5 (FR-009): the help page states the guarantee and the 100-candidate tie edge
   it("docs state that limit applies after the sort and list the 100-candidate edge", () => {
-    const body = readFileSync(
-      resolve(
-        dirname(fileURLToPath(import.meta.url)),
-        "../../../docs/tools/smart_connections_similar.md",
-      ),
-      "utf8",
-    );
+    const body = readFileSync(docsPath, "utf8");
     expect(body).toMatch(/applied after (this|the) sort/);
     expect(body).toMatch(/leading slice/);
     expect(body).toMatch(/100-candidate edge/i);

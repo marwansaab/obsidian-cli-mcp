@@ -1,10 +1,8 @@
 // Original — no upstream. Template-execution tests for the links eval template (spec 071 research D4): renders JS_TEMPLATE through composeEvalCode and runs it in node:vm against a stub `app` loaded with link-cache shapes recorded live (spec 071 contracts/t0-cache-shapes.json, research F6), checking the display-label rule row by row (data-model.md rows 1–27) plus the FR-005 target/line/kind/order/count invariants.
-import { runInNewContext } from "node:vm";
-
 import { describe, expect, it } from "vitest";
 
 import { JS_TEMPLATE } from "./_template.js";
-import { composeEvalCode } from "../_shared.js";
+import { runEvalTemplate } from "../_eval-template-fixtures.js";
 
 interface CacheEntry {
   link: string;
@@ -27,15 +25,13 @@ interface Envelope {
 
 const SRC = "Sandbox/Src.md";
 
-function runTemplate(cache: FileCache, total = false): Envelope {
-  const code = composeEvalCode(JS_TEMPLATE, { active: false, path: SRC, file: null, total });
+async function runTemplate(cache: FileCache, total = false): Promise<Envelope> {
   const app = {
     vault: { getFiles: () => [{ path: SRC, extension: "md" }] },
     metadataCache: { getFileCache: () => cache },
   };
-  return JSON.parse(
-    runInNewContext(code, { TextDecoder, Uint8Array, atob, app }) as string,
-  ) as Envelope;
+  const payload = { active: false, path: SRC, file: null, total };
+  return (await runEvalTemplate(JS_TEMPLATE, payload, app)) as Envelope;
 }
 
 // "fm" is a frontmatter link; the others are body entries of that kind.
@@ -138,8 +134,8 @@ function kindOf(r: Row): string {
 }
 
 // Renders one row alone: a body entry sits on 0-based line 4 (reported line 5).
-function expectRow(r: Row): void {
-  const result = runTemplate(cacheOf([r], () => [4, 0]));
+async function expectRow(r: Row): Promise<void> {
+  const result = await runTemplate(cacheOf([r], () => [4, 0]));
   expect(result.ok).toBe(true);
   expect(result.count).toBe(1);
   const entry = result.links[0]!;
@@ -154,8 +150,8 @@ function expectRow(r: Row): void {
 }
 
 describe("links JS_TEMPLATE — harness", () => {
-  it("an empty cache gives an empty success envelope", () => {
-    expect(runTemplate({})).toEqual({ ok: true, count: 0, links: [] });
+  it("an empty cache gives an empty success envelope", async () => {
+    expect(await runTemplate({})).toEqual({ ok: true, count: 0, links: [] });
   });
 });
 
@@ -216,8 +212,8 @@ describe("FR-005 — target, line, kind, order and count are unchanged", () => {
   ];
   const ordered = ORDER.map((id) => ROWS.find((r) => r.id === id)!);
 
-  it("default mode emits every entry in source order with unchanged target/line/kind and count", () => {
-    const result = runTemplate(cacheOf(ROWS, positionOf));
+  it("default mode emits every entry in source order with unchanged target/line/kind and count", async () => {
+    const result = await runTemplate(cacheOf(ROWS, positionOf));
     const expected = ordered.map((r) => ({
       target: r.link,
       line: r.source === "fm" ? 1 : positionOf(r)[0] + 1,
@@ -232,8 +228,8 @@ describe("FR-005 — target, line, kind, order and count are unchanged", () => {
     );
   });
 
-  it("total: true returns the same count with an empty links array", () => {
-    expect(runTemplate(cacheOf(ROWS, positionOf), true)).toEqual({
+  it("total: true returns the same count with an empty links array", async () => {
+    expect(await runTemplate(cacheOf(ROWS, positionOf), true)).toEqual({
       ok: true,
       count: ROWS.length,
       links: [],
