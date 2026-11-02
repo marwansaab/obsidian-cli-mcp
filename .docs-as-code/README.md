@@ -53,7 +53,8 @@ extends it.
     write cohort, what `bytes_written` reports (PR #103),
     `find_and_replace`, `prepend` and its empty-body correction (PR #104)
     and missing-note check (PR #105), its UTF-8 byte limit (PR #106),
-    `set_property`, `delete`, `rename`, `move`.
+    line endings and the placement check in `patch_heading` and
+    `patch_block` (PR #119), `set_property`, `delete`, `rename`, `move`.
   - [capabilities/list-and-inventory.md](capabilities/list-and-inventory.md) —
     `files`, `paths`, `outline`, `properties`, `vaults`.
   - [capabilities/bases.md](capabilities/bases.md) — `bases`, `views_base`,
@@ -161,3 +162,9 @@ applies. Records written since:
   call and cut to `limit` only after the documented sort, so a smaller
   `limit` is a leading slice of a larger one; the full plugin set and a
   bigger fetch were rejected (PR #116).
+- [decisions/ADR-056-section-edits-keep-each-lines-ending-and-refuse-an-unsafe-placement.md](decisions/ADR-056-section-edits-keep-each-lines-ending-and-refuse-an-unsafe-placement.md)
+  — `patch_heading` and `patch_block` split the lines they edit where their
+  finders split, keep each line's own ending, and refuse an edit that would
+  not keep the bytes around it with `UNSAFE_PLACEMENT`; normalising the note
+  and a file-wide ending were rejected, and review moved the split and the
+  check into one shared module (PR #119).

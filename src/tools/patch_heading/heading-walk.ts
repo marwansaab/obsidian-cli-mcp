@@ -1,4 +1,5 @@
-// Original — no upstream. patch_heading heading-walk pure helper per BI-040 / data-model §Heading-walk-algorithm — ATX-only line scanner (R2) with fenced-code opacity (R3, FR-013), `#`-segment walk by parent-chain bookkeeping, first-match-wins on duplicate siblings (FR-006), 3-tuple race-identity primitive (R4 / FR-019). Pure functions: no fs access, no UpstreamError throwing; handler converts `null` resolves to typed errors.
+// Original — no upstream. patch_heading heading-walk pure helper per BI-040 / data-model §Heading-walk-algorithm — ATX-only line scanner (R2) with fenced-code opacity (R3, FR-013), `#`-segment walk by parent-chain bookkeeping, first-match-wins on duplicate siblings (FR-006), 3-tuple race-identity primitive (R4 / FR-019). Pure functions: no fs access, no UpstreamError throwing; handler converts `null` resolves to typed errors. Lines come from the shared `splitLinesForScan` (spec 086), the split the handler's edit array agrees with.
+import { splitLinesForScan } from "../_note-lines.js";
 
 export interface ResolvedHeading {
   /** 0-indexed line number of the heading's marker line in the file. */
@@ -58,16 +59,6 @@ function parseAtxHeading(line: string, lineIndex: number): ParsedHeading | null 
   if (line.charCodeAt(rank) !== 32 /* space */) return null;
   const text = line.slice(rank + 1);
   return { lineIndex, markerLineText: line, rank, text };
-}
-
-/**
- * Splits `content` on `\n`. CRLF-aware: a trailing `\r` on each line is stripped before
- * the ATX scanner inspects the line so heading detection works on both LF and CRLF files.
- * The handler is responsible for preserving the original line ending in the post-edit reassembly.
- */
-function splitLinesForScan(content: string): string[] {
-  const raw = content.split("\n");
-  return raw.map((line) => (line.endsWith("\r") ? line.slice(0, -1) : line));
 }
 
 /**

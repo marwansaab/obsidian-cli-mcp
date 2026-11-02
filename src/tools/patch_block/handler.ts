@@ -1,11 +1,10 @@
-// Original — no upstream. patch_block handler per BI-043 / ADR-009 — specific-mode vault-registry resolve OR active-mode focused-file eval → Layer 2 canonical path check → fs.readFile (ENOENT → NOTE_NOT_FOUND per FR-018) → block-scan + first-match resolve (BLOCK_NOT_FOUND per FR-017) → block-on-heading short-circuit (BLOCK_ON_HEADING per FR-019a, both ATX and setext) → per-shape surgery → atomic tmp+rename with EBUSY/EPERM EXTERNAL_EDITOR_CONFLICT classification (FR-021) → best-effort metadataCache refresh eval in the written vault (logged on failure) → typed output envelope. No race detection — FR-026 publishes last-write-wins per R4 (deliberate divergence from sibling patch_heading). 075: bytes_written = edited minus original byte length (the size change).
+// Original — no upstream. patch_block handler per BI-043 / ADR-009 — specific-mode vault-registry resolve OR active-mode focused-file eval → Layer 2 canonical path check → fs.readFile (ENOENT → NOTE_NOT_FOUND per FR-018) → block-scan + first-match resolve (BLOCK_NOT_FOUND per FR-017) → block-on-heading short-circuit (BLOCK_ON_HEADING per FR-019a, both ATX and setext) → per-shape surgery on per-line-terminator lines (spec 086) → placement check (UNSAFE_PLACEMENT, no write) → atomic tmp+rename with EBUSY/EPERM EXTERNAL_EDITOR_CONFLICT classification (FR-021) → best-effort metadataCache refresh eval in the written vault (logged on failure) → typed output envelope. No race detection — FR-026 publishes last-write-wins per R4 (deliberate divergence from sibling patch_heading). 075: bytes_written = edited minus original byte length (the size change).
 import { randomUUID } from "node:crypto";
 import * as nodeFs from "node:fs/promises";
 
 import {
   applyDetachReattach,
   applyVerbatimMarkerPreserve,
-  detectLineEnding,
   detectTrailingNewline,
 } from "./block-edit.js";
 import { findBlock } from "./block-scan.js";
@@ -14,6 +13,7 @@ import { UpstreamError } from "../../errors.js";
 import { assertCanonicalPath, resolveActiveLocatorWithVault } from "../_active-file.js";
 import { getErrno, mapFsWriteError, noteNotFound } from "../_fs-errors.js";
 import { invalidateMetadataCache, sizeChange, writeAtomic } from "../_note-io.js";
+import { lineStart, placeEdit, splitNoteLines } from "../_note-lines.js";
 
 import type { PatchBlockInput, PatchBlockOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
@@ -66,26 +66,6 @@ async function resolveLocator(
   return { vaultRoot, relPath, vaultDisplayName: input.vault! };
 }
 
-function reassemble(
-  editedLines: string[],
-  lineEnding: "lf" | "crlf",
-  trailingNewline: boolean,
-): string {
-  const ending = lineEnding === "crlf" ? "\r\n" : "\n";
-  let out = editedLines.join(ending);
-  if (trailingNewline && !out.endsWith(ending)) {
-    out += ending;
-  } else if (!trailingNewline && out.endsWith(ending)) {
-    // DEFENSIVE / unreachable through the public entry point: with trailingNewline === false
-    // the surgeries never produce an editedLines array ending in "" (applyDetachReattach always
-    // suffixes the ` ^id` marker token to the last segment; applyVerbatimMarkerPreserve always
-    // retains the marker-only line in the tail), so out.endsWith(ending) cannot hold here.
-    /* v8 ignore next */
-    out = out.slice(0, -ending.length);
-  }
-  return out;
-}
-
 export async function executePatchBlock(
   input: PatchBlockInput,
   deps: ExecuteDeps,
@@ -110,17 +90,8 @@ export async function executePatchBlock(
     throw mapWriteErr(e);
   }
 
-  const lineEnding = detectLineEnding(originalContent);
   const trailingNewline = detectTrailingNewline(originalContent);
-  // Strip a trailing line-terminator before splitting so the `lines` array
-  // indexes align byte-stably with `scanBlocks`'s logical-line view. The
-  // reassembly re-adds the terminator iff the original had one (FR-012).
-  const trimmedForSplit = trailingNewline
-    ? originalContent.endsWith("\r\n")
-      ? originalContent.slice(0, -2)
-      : originalContent.slice(0, -1)
-    : originalContent;
-  const lines = trimmedForSplit.split(lineEnding === "crlf" ? /\r\n/ : "\n");
+  const lines = splitNoteLines(originalContent);
 
   const match = findBlock(originalContent, input.block_id);
   if (match === null) {
@@ -159,7 +130,22 @@ export async function executePatchBlock(
   }
   const successShape = match.shape; // paragraph | list-item | separately-placed
 
-  const editedContent = reassemble(editedLines, lineEnding, trailingNewline);
+  // spec 086 placement check: the edit array must address the line the scanner found, and the
+  // edit must keep the original bytes before and after the block. Refuse before any write.
+  const editedContent = placeEdit(originalContent, lines, editedLines, trailingNewline, {
+    anchorLine: match.markerLineIndex,
+    anchorText: match.markerLineText,
+    keepBefore: lineStart(lines, match.blockStartLineIndex),
+    keepFromLine: match.blockEndLineIndex + 1,
+  });
+  if (editedContent === null) {
+    throw new UpstreamError({
+      code: "CLI_REPORTED_ERROR",
+      cause: null,
+      details: { code: "UNSAFE_PLACEMENT", block_id: input.block_id, path: relPath },
+      message: `Edit for block-reference "^${input.block_id}" could not be placed safely in "${relPath}"; the note was not changed. Re-read the note and retry once; if it fails again, report it.`,
+    });
+  }
 
   // ADR-009 §3 atomic write (tmp + rename, UUID-uniquified per FR-026) then
   // best-effort metadataCache refresh per ADR-009 §5 — both via the shared

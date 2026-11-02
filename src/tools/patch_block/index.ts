@@ -26,7 +26,7 @@ Block-id that resolves to a heading-attached marker (ATX or setext) short-circui
 
 Concurrent calls against the same note resolve **last-write-wins**.
 
-Typed errors via \`UpstreamError.details.code\`: \`BLOCK_NOT_FOUND\`, \`BLOCK_ON_HEADING\` (use \`patch_heading\`), \`NOTE_NOT_FOUND\`, \`INVALID_BLOCK_ID\`, \`EXTERNAL_EDITOR_CONFLICT\` (file locked — ask user to save and close, retry). Plus the standard \`VALIDATION_ERROR\`, \`PATH_ESCAPES_VAULT\`, \`FS_WRITE_FAILED\`, \`VAULT_NOT_FOUND\`, \`ERR_NO_ACTIVE_FILE\`.`;
+Typed errors via \`UpstreamError.details.code\`: \`BLOCK_NOT_FOUND\`, \`BLOCK_ON_HEADING\` (use \`patch_heading\`), \`UNSAFE_PLACEMENT\` (note unchanged; re-read and retry once), \`NOTE_NOT_FOUND\`, \`INVALID_BLOCK_ID\`, \`EXTERNAL_EDITOR_CONFLICT\` (file locked — ask user to save and close, retry). Plus the standard \`VALIDATION_ERROR\`, \`PATH_ESCAPES_VAULT\`, \`FS_WRITE_FAILED\`, \`VAULT_NOT_FOUND\`, \`ERR_NO_ACTIVE_FILE\`.`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

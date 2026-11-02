@@ -219,6 +219,7 @@ Every failure routes through `UpstreamError`.
 | | | `prepend` | `mode: "prepend"` + `content: ""` |
 | `CLI_REPORTED_ERROR` | `HEADING_NOT_FOUND` | — | The supplied `heading_path` does not resolve to any heading in the note. Most often the path leaves out the level-1 heading or skips a level; check that first. Then use [`outline`](./outline.md) to list the file's headings and retry. |
 | `CLI_REPORTED_ERROR` | `HEADING_RACE` | — | The heading hierarchy along the resolved path changed between resolve and pre-write re-walk. Retry the call against the new state, or coordinate with the other writer externally. Carries `details.original_identity` and `details.current_identity` (3-tuples). |
+| `CLI_REPORTED_ERROR` | `UNSAFE_PLACEMENT` | — | The edit could not be placed safely under the named heading, so the tool refused it. The note was not changed. Re-read the note and retry once; if it fails again, report it. This should not happen on any note. Carries `details.heading_path` and `details.path`. |
 | `CLI_REPORTED_ERROR` | `EXTERNAL_EDITOR_CONFLICT` | `file-locked` | OS-level `fs.rename` / `fs.writeFile` failed with `EBUSY`/`EPERM`/`EACCES`. Ask the user to save and close the file in the external editor, then retry. Carries `details.errno` and `details.path`. |
 | | | `unsaved-changes` | Reserved for forward compatibility; the wrapper never emits it today. |
 | `PATH_ESCAPES_VAULT` | — | — | Canonical-path check detected a symlink escape. Fix the path. |
@@ -337,9 +338,9 @@ The corrected path starts at the level-1 heading: `"Daily#Tasks#TODO"`.
 
 ## Body-shape gotchas
 
-- **Multi-line content**: split on `\n` (or `\r\n` for CRLF) by the wrapper; the file's detected line ending is used on reassembly. Include a trailing `\n` in your content if you want it to occupy its own line(s); omit it if you want the inserted content to abut the next existing line.
+- **Multi-line content**: split on `\n` (or `\r\n` for CRLF) by the wrapper; the added lines take the heading line's line ending. Include a trailing `\n` in your content if you want it to occupy its own line(s); omit it if you want the inserted content to abut the next existing line.
 - **Trailing newline preservation**: a file that ended with `\n` still does after edit; a file that did not still does not.
-- **Line-ending preservation**: CRLF files stay CRLF; LF files stay LF. No platform normalisation.
+- **Line endings**: the note may mix LF and CRLF (a property edit can leave an LF frontmatter on a CRLF note). Every line outside the edit keeps its own line ending; lines the edit adds take the heading line's line ending (or, if the heading is the note's last line and has none, the nearest earlier line's; LF if the note has no line breaks). No normalisation.
 - **Frontmatter preservation**: the YAML frontmatter block (`---\n…\n---`) is byte-identical before and after patching. The walker recognises ATX headings only and the splice operates strictly within the targeted heading's reach.
 - **No backups taken**: the wrapper writes via atomic temp+rename. No `.bak`/`.backup`/`.old` files are created.
 - **No streaming**: whole-file read/write only. For very large notes, `find_and_replace` or `write_note` may be better matches.

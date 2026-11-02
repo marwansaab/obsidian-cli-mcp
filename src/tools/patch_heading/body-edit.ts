@@ -1,4 +1,4 @@
-// Original — no upstream. patch_heading body-edit pure helpers per BI-040 / data-model §Body-edit-algorithm — three placement modes (append at end-of-reach FR-010, prepend after marker FR-011, replace direct body FR-012); line-ending detection (FR-015) and trailing-newline detection (FR-014) so the handler can preserve the file's existing conventions. Pure functions: no fs access, no `UpstreamError` throwing; the handler reassembles and writes.
+// Original — no upstream. patch_heading body-edit pure helpers per BI-040 / data-model §Body-edit-algorithm — three placement modes (append at end-of-reach FR-010, prepend after marker FR-011, replace direct body FR-012); and trailing-newline detection (FR-014) so the handler can preserve the file's existing conventions. Pure functions: no fs access, no `UpstreamError` throwing; the handler reassembles and writes.
 import { REACH_END_EOF, type ResolvedHeading } from "./heading-walk.js";
 
 function clampReachEnd(value: number, linesLength: number): number {
@@ -14,8 +14,8 @@ function clampDirectBodyEnd(value: number, reachEndClamped: number): number {
  * lines (the FR-018a "clear the body" case for replace). Otherwise, the content is
  * split on either `\n` or `\r\n`; a trailing line-terminator in the content produces
  * a phantom empty trailing segment which is stripped so the line count matches the
- * user's intent. The handler glues the segments with the file's detected line ending
- * on reassembly.
+ * user's intent. The handler glues the segments with the heading line's line ending
+ * on reassembly (spec 086).
  */
 function splitContentLines(content: string): string[] {
   if (content === "") return [];
@@ -79,16 +79,6 @@ export function applyReplace(
   const start = resolved.reachStartLineIndex;
   const contentLines = splitContentLines(content);
   return [...lines.slice(0, start), ...contentLines, ...lines.slice(directBodyEnd)];
-}
-
-/**
- * Detects the file's line-ending convention by scanning raw bytes for any `\r\n`. A single
- * CRLF anywhere in the file classifies the whole file as CRLF; otherwise LF. The reassembly
- * uses the detected ending so that FR-015 (line-ending preservation across the modified
- * region's boundaries) is satisfied.
- */
-export function detectLineEnding(rawContent: string): "lf" | "crlf" {
-  return rawContent.includes("\r\n") ? "crlf" : "lf";
 }
 
 /**
