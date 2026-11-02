@@ -1,27 +1,19 @@
 // Original — no upstream. Template-execution tests for the smart_connections_similar eval template (spec 085): renders JS_TEMPLATE through composeEvalCode and runs it under node:vm against a stub source note whose find_connections records its request, returns its fixture in plugin order and truncates it to limit, checking the leading-slice, tie-break, fixed-request, count, self-exclusion, non-finite and pass-through rows of contracts/ordering-contract.md.
-import { runInNewContext } from "node:vm";
-
 import { describe, expect, it } from "vitest";
 
 import { JS_TEMPLATE } from "./_template.js";
-import { MAX_LIMIT } from "./schema.js";
-import { composeEvalCode } from "../_shared.js";
+import { runEvalTemplate } from "../_eval-template-fixtures.js";
+import {
+  keyOf,
+  tiedFixture as tiedCandidates,
+  type Match,
+  type MatchEnvelope,
+} from "../_smart-connections-fixtures.js";
+import { MAX_LIMIT } from "../_smart-connections.js";
 
 interface Connection {
   item: { key: string };
   score?: unknown;
-}
-
-interface Match {
-  path: string;
-  headingPath: string[];
-  score: number;
-}
-
-interface Envelope {
-  ok: boolean;
-  count: number;
-  matches: Match[];
 }
 
 const SRC = "Src.md";
@@ -29,8 +21,7 @@ const SRC = "Src.md";
 async function runTemplate(
   fixture: Connection[],
   { limit, total = false }: { limit: number; total?: boolean },
-): Promise<{ envelope: Envelope; requests: Array<{ limit: number }> }> {
-  const code = composeEvalCode(JS_TEMPLATE, { active: false, path: SRC, file: null, limit, total });
+): Promise<{ envelope: MatchEnvelope; requests: Array<{ limit: number }> }> {
   const requests: Array<{ limit: number }> = [];
   const app = {
     vault: {
@@ -56,8 +47,9 @@ async function runTemplate(
       },
     },
   };
-  const out = (await runInNewContext(code, { TextDecoder, Uint8Array, atob, app })) as string;
-  return { envelope: JSON.parse(out) as Envelope, requests };
+  const payload = { active: false, path: SRC, file: null, limit, total };
+  const envelope = (await runEvalTemplate(JS_TEMPLATE, payload, app)) as MatchEnvelope;
+  return { envelope, requests };
 }
 
 async function page(fixture: Connection[], limit: number): Promise<Match[]> {
@@ -68,36 +60,10 @@ function conn(key: string, score?: unknown): Connection {
   return { item: { key }, score };
 }
 
-function keyOf(m: Match): string {
-  return m.path + (m.headingPath.length ? "#" + m.headingPath.join("#") : "");
-}
-
-// The documented order (score desc, path byte-asc, headingPath.join('#') byte-asc), kept here
-// independently of the template so fixtures can be laid out against it.
-function documentedOrder(x: Connection, y: Connection): number {
-  const xs = x.score as number;
-  const ys = y.score as number;
-  if (xs !== ys) return ys - xs;
-  const [xp, ...xh] = x.item.key.split("#");
-  const [yp, ...yh] = y.item.key.split("#");
-  if (xp !== yp) return xp! < yp! ? -1 : 1;
-  const a = xh.join("#");
-  const b = yh.join("#");
-  return a < b ? -1 : a > b ? 1 : 0;
-}
-
-// 150 candidates: 15 scores × 10 keys, each tied group in reverse documented order, plus three
-// blocks of the source note scattered among the top 100 (at the score of their neighbours).
+// The shared 150-candidate tied fixture, plus three blocks of the source note scattered among the
+// top 100 (at the score of their neighbours).
 function tiedFixture(): Connection[] {
-  const out: Connection[] = [];
-  for (let g = 0; g < 15; g++) {
-    const score = 0.95 - g * 0.05;
-    const group: Connection[] = [];
-    for (let k = 0; k < 10; k++) {
-      group.push(conn(k < 2 ? `G${g}-${k}.md` : `N${k % 4}.md#G${g}#S${k}`, score));
-    }
-    out.push(...group.sort(documentedOrder).reverse());
-  }
+  const out = tiedCandidates().map((c) => conn(c.key, c.score));
   out.splice(5, 0, conn(SRC, out[5]!.score));
   out.splice(40, 0, conn(`${SRC}#A`, out[40]!.score));
   out.splice(80, 0, conn(`${SRC}#B#C`, out[80]!.score));
@@ -114,17 +80,14 @@ describe("smart_connections_similar template — US1: a smaller limit is a leadi
     expect(one).toEqual(two.slice(0, 1));
   });
 
+  // Every page(N) being the first N entries of page(100) implies page(N) = page(M)[0..N) for every
+  // pair N < M in 1..100: both sides are the first N entries of page(100).
   it("T11: for every pair N < M in 1..100, page(N) equals page(M)[0..N), and the source note is excluded", async () => {
     const fixture = tiedFixture();
-    const pages: Match[][] = [];
-    for (let limit = 1; limit <= 100; limit++) pages[limit] = await page(fixture, limit);
-    for (let m = 2; m <= 100; m++) {
-      for (let n = 1; n < m; n++) {
-        expect(pages[n], `page(${n}) vs page(${m})`).toEqual(pages[m]!.slice(0, n));
-      }
-    }
-    for (let limit = 1; limit <= 100; limit++) {
-      expect(pages[limit]!.some((m) => m.path === SRC)).toBe(false);
+    const full = await page(fixture, 100);
+    expect(full.some((m) => m.path === SRC)).toBe(false);
+    for (let n = 1; n < 100; n++) {
+      expect(await page(fixture, n), `page(${n}) vs page(100)`).toEqual(full.slice(0, n));
     }
   });
 

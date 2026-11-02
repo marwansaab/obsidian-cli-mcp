@@ -3,6 +3,7 @@ import { registerTool } from "../_register.js";
 import { executeSmartConnectionsQuery, type ExecuteDeps } from "./handler.js";
 import { MAX_QUERY_LENGTH, smartConnectionsQueryInputSchema, smartConnectionsQueryOutputSchema } from "./schema.js";
 import { closedVaultNote, READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
+import { MAX_LIMIT } from "../_smart-connections.js";
 
 export const SMART_CONNECTIONS_QUERY_TOOL_NAME = "smart_connections_query";
 
@@ -13,9 +14,9 @@ Use this when the agent has a QUESTION and needs notes related to it. Use \`smar
 
 Required \`query\` (string, trimmed, 1..${MAX_QUERY_LENGTH} chars — over-cap rejected fast with VALIDATION_ERROR). The cap is bounded by an upstream Obsidian CLI defect that hangs the host process around 4 KB of base64-encoded eval payload on Windows; queries above ~2000 chars trigger \`CLI_TIMEOUT\` at 10 s and a 30–60 s recovery window during which subsequent calls timeout. For longer text, summarise client-side before querying.
 
-Optional \`vault\` (string, min 1 char; routes to the focused vault when omitted). Optional integer \`limit\` (1..100, default 20) caps the matches list AND the count. Setting \`total: true\` returns just the count with \`matches: []\` for a token-economical pre-flight read.
+Optional \`vault\` (string, min 1 char; routes to the focused vault when omitted). Optional integer \`limit\` (1..${MAX_LIMIT}, default 20) caps the matches list AND the count. Setting \`total: true\` returns just the count with \`matches: []\` for a token-economical pre-flight read.
 
-Per-match fields: \`path\` is the source file's vault-relative path with \`.md\` extension. \`headingPath\` is an array of heading segments — empty \`[]\` for source-level matches, literal \`["---frontmatter---"]\` for frontmatter-block matches (plugin sentinel preserved verbatim), multi-segment for nested-heading blocks. \`score\` is the raw plugin-returned number — embedding-model-dependent semantics, pass-through (no clamp / normalise / round); non-finite scores (NaN / Infinity / null / missing) are silently dropped. Sort: primary score descending, secondary path byte-ascending, tertiary headingPath.join('#') byte-ascending. \`limit\` is applied after this sort, to a fixed list of up to 100 candidates, so a smaller limit always returns a leading slice of a larger one.
+Per-match fields: \`path\` is the source file's vault-relative path with \`.md\` extension. \`headingPath\` is an array of heading segments — empty \`[]\` for source-level matches, literal \`["---frontmatter---"]\` for frontmatter-block matches (plugin sentinel preserved verbatim), multi-segment for nested-heading blocks. \`score\` is the raw plugin-returned number — embedding-model-dependent semantics, pass-through (no clamp / normalise / round); non-finite scores (NaN / Infinity / null / missing) are silently dropped. Sort: primary score descending, secondary path byte-ascending, tertiary headingPath.join('#') byte-ascending. \`limit\` is applied after this sort, to a fixed list of up to ${MAX_LIMIT} candidates, so a smaller limit always returns a leading slice of a larger one.
 
 Runtime dependency: the Smart Connections plugin (by Brian Petro; ≥ v4.5.0) must be installed in the target vault AND have completed initial indexing AND have an embed model configured. Missing / not-ready states surface as typed CLI_REPORTED_ERROR codes (\`SMART_CONNECTIONS_NOT_INSTALLED\` or \`SMART_CONNECTIONS_NOT_READY\` with \`details.reason: "api-missing"\` or \`"embed-failed"\`).
 

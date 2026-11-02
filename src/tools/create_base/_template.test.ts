@@ -3,11 +3,10 @@
 // round-trip asserting the base path is base64-encoded into the payload (anti-injection — NOT
 // string-interpolated) + the template run in node:vm against a stub `app`, row by row (contract §4,
 // T1–T5, which were also verified live).
-import { runInNewContext } from "node:vm";
-
 import { describe, expect, it } from "vitest";
 
 import { ITEM_FOLDER_TEMPLATE } from "./_template.js";
+import { runEvalTemplate } from "../_eval-template-fixtures.js";
 import { composeEvalCode } from "../_shared.js";
 
 describe("create_base ITEM_FOLDER_TEMPLATE — frozen-string byte stability", () => {
@@ -87,10 +86,7 @@ describe("create_base ITEM_FOLDER_TEMPLATE — execution against a stub app (con
       },
       fileManager: { getNewFileParent: () => ({ path: stub.newFileParent ?? "/" }) },
     };
-    const code = composeEvalCode(ITEM_FOLDER_TEMPLATE, { path: BASE });
-    return JSON.parse(
-      await (runInNewContext(code, { TextDecoder, Uint8Array, atob, app }) as Promise<string>),
-    );
+    return runEvalTemplate(ITEM_FOLDER_TEMPLATE, { path: BASE }, app);
   }
 
   it.each([

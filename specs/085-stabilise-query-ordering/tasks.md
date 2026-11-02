@@ -269,6 +269,8 @@ T001 → T002–T004 → T005–T018. This ships the fix for both tools and the 
 
 ## Notes
 
+- **Amendment (PR #116 code-quality review, 2026-11-02)**: `MAX_LIMIT` now lives in `src/tools/_smart-connections.ts` with the shared `SORT_SLICE_AND_EMIT` tail; T002, T003, T005, T006, T008 and T009 import it from there instead of `./schema.js`. The two `_template.test.ts` files share `runEvalTemplate` (`_eval-template-fixtures.ts`, also used by the links and create_base template tests) and the ordering oracle (`_smart-connections-fixtures.ts`). T2 and T11 assert page(N) = page(100)[0..N) for every N in 1..99. That implies page(N) = page(M)[0..N) for all 4,950 pairs N < M (both sides are the first N entries of page(100)), so SC-001 is still proven for every pair, in 99 comparisons instead of 4,950.
+
 - Task IDs use `T0nn`; contract rows use `T1`–`T15` and `S1`–`S5`.
 - No existing test assertion is edited (plan, Test-edit scope). Only new cases and two new files are added.
 - Handlers, payloads and `src/cli-adapter/**` are not edited.

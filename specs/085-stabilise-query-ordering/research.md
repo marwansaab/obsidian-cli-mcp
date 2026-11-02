@@ -95,6 +95,7 @@ The spec's input said to verify this separately. Per BI-0167's out-of-scope note
   - **Baseline**: its `descriptionFingerprint` moves in the same regeneration as `smart_connections_query`'s.
 - **Rationale**: the same defect needs the same fix. Each tool keeps its own constant because Principle I forbids a tool → tool import. A shared constant in `_shared.ts` would put one tool family's limit in a module every tool imports, for two callers.
 - **Alternatives considered**: a separate spec and backlog item for this tool. Rejected per BI-0167's out-of-scope note, as recorded in the spec's Clarifications.
+- **Amendment (PR #116 code-quality review, 2026-11-02)**: the per-tool constant is replaced by one cohort leaf module, `src/tools/_smart-connections.ts`. It exports `MAX_LIMIT` and `SORT_SLICE_AND_EMIT`, the template tail from `.sort(` to the envelope, which was byte-identical in both templates. The rationale above rejected `_shared.ts`, which every tool imports; a leaf imported only by the two Smart Connections tools does not have that cost, and like `_base-path.ts` it is a downward edge, not a tool → tool one. Both rendered `JS_TEMPLATE` strings, both descriptions and both `limit` descriptions were checked byte-identical before and after, and the FR-018 baseline gate passed without `npm run baseline:write`.
 
 ## Follow-ups (out of scope)
 

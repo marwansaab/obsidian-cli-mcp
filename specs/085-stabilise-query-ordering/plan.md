@@ -78,7 +78,7 @@ The decisions:
 
 | Gate | Verdict | Evidence |
 |------|---------|----------|
-| **I. Modular Code Organization** | **Y** | No new module. Each `_template.ts` gains an import from its sibling `./schema.js`, which is new for templates (the others import only `../_shared.js`). The edge is same-directory, one-directional and acyclic: neither `schema.ts` imports its template. Each tool has its own `MAX_LIMIT`, so there is no tool → tool edge. |
+| **I. Modular Code Organization** | **Y** | Amended by the PR #116 code-quality review: one new cohort leaf module, `src/tools/_smart-connections.ts`, holds the shared `MAX_LIMIT` and the `SORT_SLICE_AND_EMIT` template tail. Each tool's `schema.ts`, `_template.ts` and `index.ts` import it downward, like `_base-path.ts` and `_vault-field.ts`; it imports nothing. Neither tool imports the other, so there is no tool → tool edge. |
 | **II. Public Surface Test Coverage (NON-NEGOTIABLE)** | **Y** | Each behaviour change is pinned by its tool's `_template.test.ts`, with failure and boundary rows (T1, T2, T4, T5; T10–T13) plus happy-path and boundary rows (T3, T6–T9; T14, T15). The description and help changes are pinned by S1, S2, S4 and S5. The existing suites run unedited. |
 | **III. Boundary Input Validation with Zod** | **Y** | `limit` is still validated by each input schema. `.max(MAX_LIMIT)` emits the same JSON Schema as `.max(100)`. No hand-rolled check. |
 | **IV. Explicit Upstream Error Propagation** | **Y** | No new code or class. Both tools' envelope codes and `UpstreamError` mappings are unchanged. No silent fallback. |
@@ -156,7 +156,7 @@ CHANGELOG.md                                           # [Unreleased] spec line 
   - E2 candidate set (changed, both tools);
   - E3 documented ordering;
   - E4 returned page;
-  - per-tool `MAX_LIMIT`;
+  - `MAX_LIMIT` (shared by both tools since the PR #116 review);
   - rules V1–V7.
 - **[contracts/ordering-contract.md](contracts/ordering-contract.md)**: T1–T9, T10–T15 and S1–S5, each mapped to the spec's FR, AS and SC IDs.
 - **[quickstart.md](quickstart.md)**: the automated gate with a red check for both templates, the baseline diff check (two fingerprints plus expected metadata), and an optional read-only live check that also records SC-005.
@@ -164,7 +164,7 @@ CHANGELOG.md                                           # [Unreleased] spec line 
 
 ## Phase 1 re-check (post-design Constitution Check)
 
-- **I**: two sibling imports (`_template.ts` → `./schema.js`); acyclic, same-directory, no cross-tool edge.
+- **I**: each tool imports the cohort leaf `../_smart-connections.js` downward; acyclic, no cross-tool edge (PR #116 review amendment).
 - **II**: failure, boundary and happy-path rows for both tools in the same change; surface text asserted.
 - **III**: Zod is still the only validator; the emitted schemas are the same.
 - **IV**: existing codes only.
@@ -176,7 +176,7 @@ CHANGELOG.md                                           # [Unreleased] spec line 
 
 ### Spec alignment note
 
-- **FR-002 / clarification Option A**: the request is fixed at `MAX_LIMIT` in both tools. Interpolating it from each schema keeps "100" in one place per tool (research D1, D5).
+- **FR-002 / clarification Option A**: the request is fixed at `MAX_LIMIT` in both tools. Interpolating the shared constant keeps "100" in one place for both tools (research D1, D5 and its PR #116 amendment).
 - **Scope (analysis remediation)**: `smart_connections_similar` is in scope only for the slice-before-sort step. Its target resolution, self-exclusion, lifecycle checks and errors are unchanged (spec Out of Scope).
 - **FR-009**: the descriptions carry the guarantee. The help pages carry the guarantee and the 100-candidate edge (ADR-040 split).
 - **FR-010**:
@@ -204,8 +204,8 @@ Run with `codegraph_explore` at plan time and again at analysis (HEAD `2734e99`)
 **Post-implement structural verification** (after `codegraph sync`):
 1. No new error class or code; `src/errors.ts` is unchanged.
 2. No handler imports `createLogger` / `createQueue`; `server.ts` is unchanged.
-3. Each `_template.ts` imports only `../_shared.js` and its own `./schema.js`, and neither `schema.ts` imports its template. No tool → tool edge.
-4. Each `MAX_LIMIT` has production callers: its `schema.ts` (`.max`) and its `_template.ts`, the latter reached from its handler.
+3. Each `_template.ts` imports only `../_shared.js` and `../_smart-connections.js`; `_smart-connections.ts` imports nothing. No tool → tool edge.
+4. `MAX_LIMIT` and `SORT_SLICE_AND_EMIT` have production callers in both tools: `MAX_LIMIT` in each `schema.ts` (`.max`), `_template.ts` and `index.ts`; `SORT_SLICE_AND_EMIT` in each `_template.ts`, reached from its handler.
 
 ## Follow-ups (out of scope)
 

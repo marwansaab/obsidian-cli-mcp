@@ -1,10 +1,8 @@
-// Original — no upstream. smart_connections_similar input/output/eval-envelope schemas — standard target-mode refinement (specific-requires-vault + file/path XOR, active forbids vault/file/path) extended with limit (int 1..100 default 20) + total (optional boolean); strict per-entry matchEntrySchema locks the exhaustive three-field public contract {path, headingPath, score} (block-level per the 2026-05-15 live-probe-driven amendment to grilling-Q3); six-code discriminated-union eval-envelope wire format (NO_ACTIVE_FILE / FILE_NOT_FOUND / NOT_MARKDOWN / SMART_CONNECTIONS_NOT_INSTALLED / SMART_CONNECTIONS_NOT_READY / SOURCE_NOT_INDEXED); `MAX_LIMIT` is shared with `_template.ts` (spec 085).
+// Original — no upstream. smart_connections_similar input/output/eval-envelope schemas — standard target-mode refinement (specific-requires-vault + file/path XOR, active forbids vault/file/path) extended with limit (int 1..100 default 20) + total (optional boolean); strict per-entry matchEntrySchema locks the exhaustive three-field public contract {path, headingPath, score} (block-level per the 2026-05-15 live-probe-driven amendment to grilling-Q3); six-code discriminated-union eval-envelope wire format (NO_ACTIVE_FILE / FILE_NOT_FOUND / NOT_MARKDOWN / SMART_CONNECTIONS_NOT_INSTALLED / SMART_CONNECTIONS_NOT_READY / SOURCE_NOT_INDEXED); the `limit` maximum is the shared `MAX_LIMIT` from `../_smart-connections.ts` (spec 085).
 import { z } from "zod";
 
 import { applyTargetModeRefinement, targetModeBaseSchema } from "../../target-mode/target-mode.js";
-
-// The `limit` maximum, and the number of candidates the eval template always asks the plugin for (spec 085 FR-002).
-export const MAX_LIMIT = 100;
+import { MAX_LIMIT } from "../_smart-connections.js";
 
 export const smartConnectionsSimilarInputSchema = applyTargetModeRefinement(
   targetModeBaseSchema.extend({
@@ -14,7 +12,7 @@ export const smartConnectionsSimilarInputSchema = applyTargetModeRefinement(
       .min(1)
       .max(MAX_LIMIT)
       .default(20)
-      .describe("Maximum number of matches to return, integer 1..100. Default 20."),
+      .describe(`Maximum number of matches to return, integer 1..${MAX_LIMIT}. Default 20.`),
     total: z
       .boolean()
       .optional()

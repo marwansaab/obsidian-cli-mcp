@@ -32,7 +32,7 @@ The first `limit` entries of E3 applied to E2 after its filters. `count` = the p
 
 ### Constant
 
-- `MAX_LIMIT = 100`, exported separately from each tool's `schema.ts`. In each tool it is the input schema's `limit` maximum and the candidate count in the template. There is one constant per tool, because Principle I rules out a tool → tool import.
+- `MAX_LIMIT = 100`, exported from the cohort leaf module `src/tools/_smart-connections.ts` (PR #116 review amendment; it was first one constant per tool's `schema.ts`). In both tools it is the input schema's `limit` maximum and the candidate count in the template. Both tools import it downward, so there is still no tool → tool import (Principle I).
 
 ## Rules (each is checked in [contracts/ordering-contract.md](contracts/ordering-contract.md))
 

@@ -1,28 +1,16 @@
 // Original — no upstream. Template-execution tests for the smart_connections_query eval template (spec 085): renders JS_TEMPLATE through composeEvalCode and runs it under node:vm against a stub Smart Connections plugin whose lookup records its request, returns its fixture in plugin order and truncates it to filter.limit, checking the leading-slice, tie-break, fixed-request, count, non-finite and pass-through rows of contracts/ordering-contract.md.
-import { runInNewContext } from "node:vm";
-
 import { describe, expect, it } from "vitest";
 
 import { JS_TEMPLATE } from "./_template.js";
-import { MAX_LIMIT } from "./schema.js";
-import { composeEvalCode } from "../_shared.js";
-
-interface Candidate {
-  key: string;
-  score?: unknown;
-}
-
-interface Match {
-  path: string;
-  headingPath: string[];
-  score: number;
-}
-
-interface Envelope {
-  ok: boolean;
-  count: number;
-  matches: Match[];
-}
+import { runEvalTemplate } from "../_eval-template-fixtures.js";
+import {
+  keyOf,
+  tiedFixture,
+  type Match,
+  type MatchEnvelope,
+  type ScoredKey,
+} from "../_smart-connections-fixtures.js";
+import { MAX_LIMIT } from "../_smart-connections.js";
 
 interface LookupRequest {
   hypotheticals: unknown;
@@ -31,10 +19,9 @@ interface LookupRequest {
 }
 
 async function runTemplate(
-  fixture: Candidate[],
+  fixture: ScoredKey[],
   { limit, total = false }: { limit: number; total?: boolean },
-): Promise<{ envelope: Envelope; requests: LookupRequest[] }> {
-  const code = composeEvalCode(JS_TEMPLATE, { query: "q", limit, total });
+): Promise<{ envelope: MatchEnvelope; requests: LookupRequest[] }> {
   const requests: LookupRequest[] = [];
   const app = {
     vault: { getName: () => "Demo" },
@@ -53,46 +40,13 @@ async function runTemplate(
       },
     },
   };
-  const out = (await runInNewContext(code, { TextDecoder, Uint8Array, atob, app })) as string;
-  return { envelope: JSON.parse(out) as Envelope, requests };
+  const payload = { query: "q", limit, total };
+  const envelope = (await runEvalTemplate(JS_TEMPLATE, payload, app)) as MatchEnvelope;
+  return { envelope, requests };
 }
 
-async function page(fixture: Candidate[], limit: number): Promise<Match[]> {
+async function page(fixture: ScoredKey[], limit: number): Promise<Match[]> {
   return (await runTemplate(fixture, { limit })).envelope.matches;
-}
-
-function keyOf(m: Match): string {
-  return m.path + (m.headingPath.length ? "#" + m.headingPath.join("#") : "");
-}
-
-// The documented order (score desc, path byte-asc, headingPath.join('#') byte-asc), kept here
-// independently of the template so fixtures can be laid out against it.
-function documentedOrder(x: Candidate, y: Candidate): number {
-  const xs = x.score as number;
-  const ys = y.score as number;
-  if (xs !== ys) return ys - xs;
-  const [xp, ...xh] = x.key.split("#");
-  const [yp, ...yh] = y.key.split("#");
-  if (xp !== yp) return xp! < yp! ? -1 : 1;
-  const a = xh.join("#");
-  const b = yh.join("#");
-  return a < b ? -1 : a > b ? 1 : 0;
-}
-
-// 150 candidates: 15 scores × 10 keys. Each tied group mixes heading-free notes and blocks
-// that share a path, and the plugin returns every group in reverse documented order.
-function tiedFixture(): Candidate[] {
-  const out: Candidate[] = [];
-  for (let g = 0; g < 15; g++) {
-    const score = 0.95 - g * 0.05;
-    const group: Candidate[] = [];
-    for (let k = 0; k < 10; k++) {
-      const key = k < 2 ? `G${g}-${k}.md` : `N${k % 4}.md#G${g}#S${k}`;
-      group.push({ key, score });
-    }
-    out.push(...group.sort(documentedOrder).reverse());
-  }
-  return out;
 }
 
 describe("smart_connections_query template — US1: a smaller limit is a leading slice of a larger one", () => {
@@ -109,14 +63,13 @@ describe("smart_connections_query template — US1: a smaller limit is a leading
     expect(one).toEqual(two.slice(0, 1));
   });
 
+  // Every page(N) being the first N entries of page(100) implies page(N) = page(M)[0..N) for every
+  // pair N < M in 1..100: both sides are the first N entries of page(100).
   it("T2: for every pair N < M in 1..100, page(N) equals page(M)[0..N)", async () => {
     const fixture = tiedFixture();
-    const pages: Match[][] = [];
-    for (let limit = 1; limit <= 100; limit++) pages[limit] = await page(fixture, limit);
-    for (let m = 2; m <= 100; m++) {
-      for (let n = 1; n < m; n++) {
-        expect(pages[n], `page(${n}) vs page(${m})`).toEqual(pages[m]!.slice(0, n));
-      }
+    const full = await page(fixture, 100);
+    for (let n = 1; n < 100; n++) {
+      expect(await page(fixture, n), `page(${n}) vs page(100)`).toEqual(full.slice(0, n));
     }
   });
 
@@ -191,7 +144,7 @@ describe("smart_connections_query template — US2: equal-relevance results foll
   });
 
   it("T7: non-finite scores are dropped and the finite ones keep the slice and tie rules", async () => {
-    const fixture: Candidate[] = [
+    const fixture: ScoredKey[] = [
       { key: "Z.md", score: 0.9 },
       { key: "NaN.md", score: Number.NaN },
       { key: "A.md", score: 0.9 },

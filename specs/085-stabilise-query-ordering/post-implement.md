@@ -88,6 +88,13 @@ No other fingerprint moved: every `schemaFingerprint`, `outputSchemaFingerprint`
 
 **Kernel-node no-touch claim holds.** `createServer()`, `createLogger()`, `createQueue()` and `UpstreamError` are not edited, and no production file gains a call to them. The `src/` files changed are the two tools' `schema.ts`, `_template.ts`, `index.ts` and `index.test.ts`, the two new `_template.test.ts` files, and `_register-baseline.json`.
 
+## Review fixes (PR #116 code-quality review)
+
+- `src/tools/_smart-connections.ts` (new) exports `MAX_LIMIT` and `SORT_SLICE_AND_EMIT`; both `_template.ts` files interpolate the tail, and both `schema.ts` and `index.ts` interpolate `MAX_LIMIT` into `.max`, `.describe` and the descriptions.
+- Byte identity: a temporary test captured both `JS_TEMPLATE` strings, both tool descriptions and both `limit` parameter descriptions before the change and compared them after; all six were identical. The FR-018 baseline gate passed and `_register-baseline.json` did not move.
+- Tests: `runEvalTemplate` in `src/tools/_eval-template-fixtures.ts` replaces the four hand-written vm harnesses (create_base, links, both smart_connections); the ordering oracle is shared in `src/tools/_smart-connections-fixtures.ts`. Both match the `_*fixtures.ts` build and coverage excludes; `dist/tools` holds `_smart-connections.js` only. T2/T11 now compare each page against page(100) (tasks.md Notes). The S2/S5 docs tests reuse a describe-scoped `docsPath`.
+- Structural re-check after `codegraph sync`: no new error code, `src/errors.ts` and `src/server.ts` untouched, no kernel node touched; `_smart-connections.ts` imports nothing and is imported only by the two tools' `schema.ts`, `_template.ts` and `index.ts` (and their tests); no tool → tool edge.
+
 ## T025 — SC-005
 
 **SC-005 unverified live: no Smart Connections vault available.** `TestVault-Obsidian-CLI-MCP` has no plugins, and this unattended run was not granted access to the local Obsidian MCP tools, so no other vault could be checked. Nothing was written to any vault.
