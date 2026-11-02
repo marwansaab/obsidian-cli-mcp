@@ -331,3 +331,74 @@ Edits:
 > Make T029 required: it must pass against the built server in the TestVault Sandbox, with results recorded in `post-implement.md`, before the work is marked complete. Record that plan D6 is reversed. Keep FR-013 as written. The automated rows prove the escaped, quoted query is sent; T029 proves phrase-only matching (SC-001, SC-003, SC-006).
 >
 > Rationale: owner ruling 2026-11-02, recorded on BI-0169. Best Practices treats empirical validation against the live MCP as the bar for shipped, and canned CLI answers cannot show which notes and lines actually match.
+
+## 8. review / fix (2026-11-02T06:59:28.790Z)
+
+**Question (verbatim):**
+
+> The review found that `oneMatchPerLine(query, wire)` (src/tools/search/literal-phrase.ts) holds two rules under one name: it removes duplicate lines, and when the query contains a line break it also empties every file's matches, returning `{file, matches: []}` entries that nothing reads. Fixing this means changing a helper contract that spec 087 sets out. contracts/literal-phrase-contract.md fixes the signature `oneMatchPerLine(query, wire)` and row L8 ("every file's `matches` is `[]`; file entries are kept"), and research D2 describes the same thing. What tool callers see is unaffected either way: a line-break query still returns no lines in line mode (FR-004, handler tests S7 and C7 unchanged).
+>
+> | Option | What changes |
+> |---|---|
+> | A (recommended) | `oneMatchPerLine(wire)` only removes duplicate lines; the line-break guard (`if (/[\r\n]/.test(query)) return the empty result`) moves into `lineMatches`. Amend contract row L8 and research D2 to match. L8 becomes a test of the line-break rule through `lineMatches`, and L7 drops its `query` argument. |
+> | B | Keep `oneMatchPerLine(query, wire)` and L8 exactly as the contract says; only rename or document it. Finding 2 stays partly open. |
+> | C | Leave it as it is; record finding 2 as declined in refactor-decisions with the contract as the reason. |
+>
+> Recommendation: A. Callers see the same results, the two rules each get one clear name, and the empty per-file entries that L8 pins (something no consumer reads) go away. The cost is a small amendment to the 087 contract and research text, plus edits to L7 and L8, both of which are new in this PR. Which option?
+
+**Advisor** (escalate: none):
+
+> A
+>
+> Constitution Principle I requires small, single-purpose units, and a unit that takes on a second responsibility must be split. Callers see no change: FR-004 and handler tests S7 and C7 are untouched. L7 and L8 are new in this PR, so this is not an edit to an existing test. Amend contract row L8 and research D2 in the same change and record the amendment in the spec's Clarifications.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Constitution.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0169 - Match Multi Word Search Queries As Literal Phrases.md`
+
+**Sent to the step:**
+
+> A
+>
+> Constitution Principle I requires small, single-purpose units, and a unit that takes on a second responsibility must be split. Callers see no change: FR-004 and handler tests S7 and C7 are untouched. L7 and L8 are new in this PR, so this is not an edit to an existing test. Amend contract row L8 and research D2 in the same change and record the amendment in the spec's Clarifications.
+
+## 9. record / record-in-vault (2026-11-02T07:07:37.754Z)
+
+**Question (verbatim):**
+
+> The work for job BI-0169 is now a reviewed, documented pull request. Record that on the job's note, following the vault's conventions for backlog items:
+> - the spec branch: 087-match-literal-phrases
+> - the feature folder in the code repository: specs/087-match-literal-phrases
+> - the pull request: https://github.com/marwansaab/obsidian-cli-mcp/pull/120 (number 120)
+> - the status that means "in review" in this vault (if the vault has no such status, escalate `decision` with up to 3 choices)
+> - a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0169-2026-11-02 produced it.
+>
+> Dry run: no. In a dry run, change nothing: list each edit you would make in `vault_edits`, starting its change with "Would". Otherwise list each edit you made.
+
+**Advisor** (escalate: none):
+
+> BI-0169 is now recorded as in review, using the same pattern as BI-0135 (PR #110).
+>
+> - `status`: changed from `planned` to `in-review`. The vault's backlog-item statuses (Vault Frontmatter Convention) are `queued | planned | in-flight | in-review | shipped | deferred | superseded | retired`.
+> - `spec_branch`: set to `087-match-literal-phrases`. An empty `npm_version_shipped: ""` was added after `feature`, as on BI-0135.
+> - `## Status`: a paragraph "**In review — 2026-11-02.**" now opens the section. It links [marwansaab/obsidian-cli-mcp#120](https://github.com/marwansaab/obsidian-cli-mcp/pull/120) and names the spec branch and the feature folder `specs/087-match-literal-phrases`. The existing *Planned.* paragraph is kept below it.
+> - An HTML comment dated 2026-11-02 at the end of the note says Relay run obsidian-cli-mcp-bi-0169-2026-11-02 produced PR #120 and gives the branch and folder.
+>
+> I read `status` and `spec_branch` back afterwards and both show the new values. `updated` was already 2026-11-02 from an earlier edit in this run.
+
+Sources: `000-Meta/Vault Frontmatter Convention.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0135 - Harden Eval Response Parsing Against Plugin Stdout Noise.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0169 - Match Multi Word Search Queries As Literal Phrases.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0169 - Match Multi Word Search Queries As Literal Phrases.md`: Frontmatter `status` planned → in-review (path-scoped find_and_replace, previewed first).
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0169 - Match Multi Word Search Queries As Literal Phrases.md`: Frontmatter: added `spec_branch: 087-match-literal-phrases` and `npm_version_shipped: ""` after `feature` (BI-0135 pattern).
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0169 - Match Multi Word Search Queries As Literal Phrases.md`: ## Status: added an 'In review — 2026-11-02' paragraph with the PR #120 link, spec branch and feature folder `specs/087-match-literal-phrases`, above the existing Planned paragraph.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0169 - Match Multi Word Search Queries As Literal Phrases.md`: Appended an HTML comment dated 2026-11-02 saying Relay run obsidian-cli-mcp-bi-0169-2026-11-02 produced PR #120 (branch and folder named).
+
+**Sent to the step:**
+
+> BI-0169 is now recorded as in review, using the same pattern as BI-0135 (PR #110).
+>
+> - `status`: changed from `planned` to `in-review`. The vault's backlog-item statuses (Vault Frontmatter Convention) are `queued | planned | in-flight | in-review | shipped | deferred | superseded | retired`.
+> - `spec_branch`: set to `087-match-literal-phrases`. An empty `npm_version_shipped: ""` was added after `feature`, as on BI-0135.
+> - `## Status`: a paragraph "**In review — 2026-11-02.**" now opens the section. It links [marwansaab/obsidian-cli-mcp#120](https://github.com/marwansaab/obsidian-cli-mcp/pull/120) and names the spec branch and the feature folder `specs/087-match-literal-phrases`. The existing *Planned.* paragraph is kept below it.
+> - An HTML comment dated 2026-11-02 at the end of the note says Relay run obsidian-cli-mcp-bi-0169-2026-11-02 produced PR #120 and gives the branch and folder.
+>
+> I read `status` and `spec_branch` back afterwards and both show the new values. `updated` was already 2026-11-02 from an earlier edit in this run.

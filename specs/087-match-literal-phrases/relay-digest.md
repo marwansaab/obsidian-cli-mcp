@@ -4,14 +4,14 @@
 |---|---|
 | Run | `obsidian-cli-mcp-bi-0169-2026-11-02` |
 | Project | obsidian-cli-mcp (pack speckit) |
-| Status | running |
+| Status | done |
 | Started | 2026-11-02T06:14:00.936Z |
-| Finished | not yet |
-| Elapsed | 37 min 37 s |
-| Questions | 5 (2 needed the owner) |
-| Requests to the advisor | 2 (0 needed the owner) |
+| Finished | 2026-11-02T07:08:31.518Z |
+| Elapsed | 54 min 31 s |
+| Questions | 6 (2 needed the owner) |
+| Requests to the advisor | 3 (0 needed the owner) |
 | Escalations | 2 |
-| Edits by the advisor | 3 |
+| Edits by the advisor | 7 |
 
 ## Inputs
 
@@ -96,6 +96,7 @@ Skipped.
 ### implementation (`fe8debe9-82e6-4bf0-8f23-7e6474f03989`)
 
 - Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\specs\087-match-literal-phrases\tasks.md exists; focused TestVault-Obsidian-CLI-MCP in Obsidian (it had Game-Server-Vault focused).
+- Condition `gh-pr-open` (done_when): met. Pull request #120 is open.
 
 - **implement**: done, 109 turns.
 
@@ -118,21 +119,58 @@ Skipped.
 >
 > Everything is recorded in post-implement.md. One follow-up is noted there for `/speckit-docs-as-code`: the missing-folder walkthrough in docs/tools/context_search.md still shows `query=anything` in its argv example. The contract said to change nothing else on that page, so it was left as is. The optional after_implement commit hook was skipped, so nothing is committed yet.
 
-- **open-pr**: in progress.
+- **open-pr**: done, 15 turns.
 
-### review
+> All the spec 087 work is committed on `087-match-literal-phrases` in two commits, using CONTRIBUTING.md's message format:
+> - `e145174` `fix(087)`: the code, tests, help pages, CHANGELOG, `tasks.md` and `post-implement.md`.
+> - `a4b62d0` `docs(087)`: the agent-context pointer and the Relay digest.
+>
+> Lint, typecheck, `npm test` and build all passed after the last code edit: 4352 tests passed, 6 skipped, statements coverage 96.9%. These are the same checks CI runs.
+>
+> The branch is pushed to origin, and PR #120 into `main` is open (not a draft, since dry run is no). The repository has no pull request template file, so the description follows PR #119's layout, including the Constitution Compliance table. The PR is not merged.
 
-- **code-review**: not run.
-- **fix**: not run.
 
-### docs
+### review (`75b5656f-0d90-42e3-b0d2-53e5ec72f162`)
 
-- **document**: not run.
-- **ci**: not run.
+- Condition `gh-pr-open` (start_when): met. Pull request #120 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #120 is open.
 
-### record
+- **code-review**: done, 16 turns.
 
-- **record-in-vault**: not run.
+> Code-quality review of PR #120 (087-match-literal-phrases vs main). Verdict: changes requested. No correctness issue (203 search/context_search tests pass). (1) Main finding: the line-mode pipeline (.md filter → oneMatchPerLine → flatten → 500-char cap → truncation → sort → slice) is duplicated in search/handler.ts and context_search/handler.ts. The PR made the step order matter (FR-006) and wrote it twice. Fix: one lineMatches(query, wire, appliedCap, normaliseText) helper, with identity for search and stripCr for context_search, so output stays byte-for-byte the same. (2) oneMatchPerLine hides the line-break rule behind its query argument and returns per-file empty entries nothing reads; move the guard into the pipeline and keep oneMatchPerLine a pure dedupe (pure test L8, new in this PR, changes slightly). (3) Minor: two overlong header-comment lines; findKv now copied in three test files. Settled 087 research decisions (D2, D3, F9) were not raised again. Findings recorded as item 47 in .memory/refactor-decisions.md. Nothing posted to the PR; no code changed.
+
+- **fix**: done, 60 turns, 1 questions.
+
+> Fixed all three review findings on PR #120. Both commits are pushed to 087-match-literal-phrases, which matches origin. Commit 20e134c: one shared line-level pipeline, lineMatches in src/tools/search/line-matches.ts, now used by both search and context_search with byte-identical output (context_search passes stripCr, search's deprecated line mode passes identity). Both handler headers are rewrapped, and findKv now lives once in _handler-test-fixtures.ts. Commit 6b29ecb (owner ruling option A): oneMatchPerLine(wire) now only keeps the first entry per line. The line-break guard moved into lineMatches, so a line-break query still returns { count: 0, matches: [] }; FR-004 and handler tests S7 and C7 pass unchanged. L7 drops its query argument; L8 moved to the new line-matches.test.ts, with a single-line baseline so it cannot pass vacuously. Contract row L8 and research D2 are amended and the ruling is recorded in spec.md Clarifications. I also corrected two places that still described the old helper: data-model.md E4 (V5) and plan.md's D2 summary. Lint, typecheck and build are clean; 4353 tests pass (6 skipped), 0 regressions. Left on purpose: tasks.md T-rows (the record of what implement did); prettier warnings in literal-phrase.test.ts (L2 title quoting), the two handler test files and _handler-test-fixtures.ts, all of which were already there before these commits; and relay-digest.md, which Relay modified, not committed. Review memory item 47 updated.
+
+
+### docs (`2de8a098-7a23-45c0-9e08-d95ed486a78a`)
+
+- Condition `gh-pr-open` (start_when): met. Pull request #120 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #120 is open.
+
+- **document**: done, 42 turns.
+
+> Documented PR #120 (OPEN): new ADR-057 (literal-phrase query, one-entry-per-line, shared lineMatches pipeline, rejected alternatives), updated search-and-discovery capability page, architecture.md module layout, README index; corrected docs/tools/context_search.md missing-folder argv (query="anything") and the 'upstream is substring-only' claim on both help pages. npm test passed (4353/6 skipped). Committed 98e97b7, pushed, extended the PR body's Documentation section. PR body D2 bullet still attributes the line-break rule to oneMatchPerLine; the docs follow the diff (lineMatches). Relay digest/qa-log files left unstaged.
+
+- **ci**: done, 4 turns.
+
+> CI on PR #120 passed on the latest commit 98e97b7 (run 41403932046): Lint/Typecheck/Test/Build ubuntu-latest Node 22 pass (1m45s), ubuntu-latest Node 24 pass (1m43s), windows-latest Node 22 pass (2m25s), windows-latest Node 24 pass (2m21s). No fixes needed; nothing pushed.
+
+
+### record (`62256f68-8b20-45dd-abaf-166945634997`)
+
+- **record-in-vault**: done.
+
+> BI-0169 is now recorded as in review, using the same pattern as BI-0135 (PR #110).
+>
+> - `status`: changed from `planned` to `in-review`. The vault's backlog-item statuses (Vault Frontmatter Convention) are `queued | planned | in-flight | in-review | shipped | deferred | superseded | retired`.
+> - `spec_branch`: set to `087-match-literal-phrases`. An empty `npm_version_shipped: ""` was added after `feature`, as on BI-0135.
+> - `## Status`: a paragraph "**In review — 2026-11-02.**" now opens the section. It links [marwansaab/obsidian-cli-mcp#120](https://github.com/marwansaab/obsidian-cli-mcp/pull/120) and names the spec branch and the feature folder `specs/087-match-literal-phrases`. The existing *Planned.* paragraph is kept below it.
+> - An HTML comment dated 2026-11-02 at the end of the note says Relay run obsidian-cli-mcp-bi-0169-2026-11-02 produced PR #120 and gives the branch and folder.
+>
+> I read `status` and `spec_branch` back afterwards and both show the new values. `updated` was already 2026-11-02 from an earlier edit in this run.
+
 
 ## Escalations
 
@@ -150,6 +188,10 @@ Skipped.
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0169 - Match Multi Word Search Queries As Literal Phrases.md` | Appended a 2026-11-02 HTML-comment audit entry recording the owner's ruling B (the two test-line edits are approved only if they are the only existing failures; any other failure stops the work for review), plus the clarify answers so far (filename matching kept, edge whitespace kept). | pre-implementation / plan: Question: approve the two test-line edits? |
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0169 - Match Multi Word Search Queries As Literal Phrases.md` | Frontmatter `updated` 2026-10-31 → 2026-11-02 (path-scoped find_and_replace, previewed first). | pre-implementation / plan: Question: approve the two test-line edits? |
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0169 - Match Multi Word Search Queries As Literal Phrases.md` | Appended a 2026-11-02 HTML-comment audit entry recording the owner's ruling A: live check T029 is a required gate (plan D6 reversed) and FR-013 is unchanged. | pre-implementation / analyze: Question: should the live check become a required gate? |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0169 - Match Multi Word Search Queries As Literal Phrases.md` | Frontmatter `status` planned → in-review (path-scoped find_and_replace, previewed first). | record / record-in-vault: The work for job BI-0169 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0169 - Match Multi Word Search Queries As Literal Phrases.md` | Frontmatter: added `spec_branch: 087-match-literal-phrases` and `npm_version_shipped: ""` after `feature` (BI-0135 pattern). | record / record-in-vault: The work for job BI-0169 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0169 - Match Multi Word Search Queries As Literal Phrases.md` | ## Status: added an 'In review — 2026-11-02' paragraph with the PR #120 link, spec branch and feature folder `specs/087-match-literal-phrases`, above the existing Planned paragraph. | record / record-in-vault: The work for job BI-0169 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0169 - Match Multi Word Search Queries As Literal Phrases.md` | Appended an HTML comment dated 2026-11-02 saying Relay run obsidian-cli-mcp-bi-0169-2026-11-02 produced PR #120 (branch and folder named). | record / record-in-vault: The work for job BI-0169 is now a reviewed, documented pull request. Record that on the job's note,  |
 
 ## Files
 
