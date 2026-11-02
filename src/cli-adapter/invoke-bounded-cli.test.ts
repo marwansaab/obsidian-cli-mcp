@@ -1,4 +1,4 @@
-// Original — no upstream. Co-located vitest cases for the invokeBoundedCli escape-hatch facade — defaults, override, copy flag, queue-serialization, cancellation (FR-011, 068 R11).
+// Original — no upstream. Co-located vitest cases for the invokeBoundedCli escape-hatch facade — defaults, override, copy flag, queue-serialization, cancellation (FR-011, 068 R11), the unknown-vault answer (spec 091).
 import { type SpawnOptions } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { Readable, Writable } from "node:stream";
@@ -9,6 +9,7 @@ import { UpstreamError } from "../errors.js";
 import { createLogger, type Logger } from "../logger.js";
 import { createQueue } from "../queue.js";
 import { __resetInFlightRegistryForTests } from "./_dispatch.js";
+import { invokeCli } from "./cli-adapter.js";
 import {
   invokeBoundedCli,
   OBSIDIAN_EXEC_DEFAULT_TIMEOUT_MS,
@@ -341,5 +342,48 @@ describe("invokeBoundedCli — queue serialization (research R6)", () => {
     expect(maxActive).toBe(1);
     expect(completions.length).toBe(2);
     expect(completions[1]!).toBeGreaterThanOrEqual(completions[0]!);
+  });
+});
+
+describe("invokeBoundedCli — unknown-vault answer (spec 091)", () => {
+  it("B1: a named vault answered with exactly `Vault not found.` rejects as CLI_REPORTED_ERROR; spawned once, never launched", async () => {
+    const { spawnFn, recorded } = makeStubSpawn({ stdout: "Vault not found.\n", exitCode: 0 });
+    let launches = 0;
+    const launchFn: LaunchFn = async () => {
+      launches += 1;
+    };
+    const err = await pendingRejection(
+      invokeBoundedCli(
+        { command: "files", vault: "NoSuchVault" },
+        {},
+        { spawnFn, env: {}, logger: captureLines().logger, queue: createQueue(), resolveBinary: stubResolveBinary, launchFn },
+      ),
+    );
+    expect({ code: err.code, message: err.message, cause: err.cause, details: err.details }).toEqual({
+      code: "CLI_REPORTED_ERROR",
+      message: "Vault not found.",
+      cause: null,
+      details: {
+        argv: [recorded[0]!.binary, "vault=NoSuchVault", "files"],
+        command: "files",
+        stdout: "Vault not found.\n",
+        stderr: "",
+        exitCode: 0,
+        message: "Vault not found.",
+      },
+    });
+    expect(recorded).toHaveLength(1);
+    expect(launches).toBe(0);
+  });
+
+  it("B2: the raw and typed facades agree on code, message and details.message (E-4)", async () => {
+    const { spawnFn } = makeStubSpawn({ stdout: "Vault not found.\n", exitCode: 0 });
+    const deps = { spawnFn, env: {}, logger: captureLines().logger, queue: createQueue(), resolveBinary: stubResolveBinary };
+    const raw = await pendingRejection(invokeBoundedCli({ command: "files", vault: "NoSuchVault" }, {}, deps));
+    const typed = await pendingRejection(
+      invokeCli({ target_mode: "specific", command: "files", vault: "NoSuchVault", parameters: {}, flags: [] }, deps),
+    );
+    const view = (e: UpstreamError) => ({ code: e.code, message: e.message, detailsMessage: e.details.message });
+    expect(view(raw)).toEqual(view(typed));
   });
 });

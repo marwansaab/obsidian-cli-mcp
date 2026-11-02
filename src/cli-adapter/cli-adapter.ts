@@ -82,6 +82,7 @@ function stripTargetLocators(
   return stripped;
 }
 
+// The raw facade (invoke-bounded-cli.ts) checks the same answer under a stricter rule: named vault, whole stdout (spec 091).
 const UNKNOWN_VAULT_PREFIX = "Vault not found.";
 
 export function invokeCli(input: InvokeCliInput, deps: InvokeCliDeps): Promise<InvokeCliSuccess> {

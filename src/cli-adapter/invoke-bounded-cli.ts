@@ -1,4 +1,4 @@
-// Original — no upstream. invokeBoundedCli escape-hatch facade: queue-wrapped dispatch with default 30 s / 10 MiB; the timeoutMs override is bounded at 120 s by the obsidian_exec schema (ADR-007, FR-011). 068 R11: the per-call signal and progress reporter pass to the queue and to dispatchCli.
+// Original — no upstream. invokeBoundedCli escape-hatch facade: queue-wrapped dispatch with default 30 s / 10 MiB; the timeoutMs override is bounded at 120 s by the obsidian_exec schema (ADR-007, FR-011). 068 R11: the per-call signal and progress reporter pass to the queue and to dispatchCli. Spec 091: a call that names a vault and whose whole stdout, trimmed, is the CLI's "Vault not found." answer fails as CLI_REPORTED_ERROR; any other output, or a call without a vault, is returned unchanged.
 import {
   dispatchCli,
   type CallScope,
@@ -8,6 +8,7 @@ import {
   type ResolveBinaryFn,
   type SpawnLike,
 } from "./_dispatch.js";
+import { UpstreamError } from "../errors.js";
 
 import type { Logger } from "../logger.js";
 import type { Queue } from "../queue.js";
@@ -15,6 +16,10 @@ import type { Queue } from "../queue.js";
 export const OBSIDIAN_EXEC_DEFAULT_TIMEOUT_MS = 30_000;
 export const OBSIDIAN_EXEC_OUTPUT_CAP_BYTES = 10 * 1024 * 1024;
 export const OBSIDIAN_EXEC_MAX_TIMEOUT_MS = 120_000;
+
+// The CLI answers every command this way for an unknown vault (spec 091 research F1); the typed
+// facade's UNKNOWN_VAULT_PREFIX in cli-adapter.ts applies a looser start-of-output rule.
+const UNKNOWN_VAULT_ANSWER = "Vault not found.";
 
 export interface InvokeBoundedCliInput {
   command: string;
@@ -77,6 +82,21 @@ export function invokeBoundedCli(
       signal: deps.signal,
       reportProgress: deps.reportProgress,
     });
+    if (input.vault !== undefined && out.stdout.trim() === UNKNOWN_VAULT_ANSWER) {
+      throw new UpstreamError({
+        code: "CLI_REPORTED_ERROR",
+        cause: null,
+        details: {
+          argv: out.argv,
+          command: input.command,
+          stdout: out.stdout,
+          stderr: out.stderr,
+          exitCode: 0,
+          message: UNKNOWN_VAULT_ANSWER,
+        },
+        message: UNKNOWN_VAULT_ANSWER,
+      });
+    }
     return out;
   }, { signal: deps.signal });
 }

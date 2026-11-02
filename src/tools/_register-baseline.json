@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedFromBranch": "090-classify-missing-destination",
+  "generatedFromBranch": "091-report-unknown-vault",
   "generatedAt": "2026-11-02",
   "tools": [
     {
@@ -109,7 +109,7 @@
     },
     {
       "name": "obsidian_exec",
-      "descriptionFingerprint": "664816d0036db5da2cdebb9b760d93495d7d94171d39ffa2f424e84cf4afabd0",
+      "descriptionFingerprint": "5b39038e7bf82cb31328c8406b5b75d92492c315e7fdc85a977d0f092593e627",
       "schemaFingerprint": "4e6340880be5e9a95a555c141b95e6d6b0aec8b9e18ab268ca7e9ea3c587ef9c",
       "titleFingerprint": "13192bfeb0b0e9673b7e211ac4c46f8f54c5c05369cc9cb4d20e27789e1cfa9f",
       "annotationsFingerprint": "bbca3f90a8f37a2e09188309470b131134c395dbc4eccad15de06d2c2f94f06a",

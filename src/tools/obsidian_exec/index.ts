@@ -7,7 +7,7 @@ import { PASSTHROUGH_HINTS, type BootDeps, type RegisteredTool } from "../_share
 export const OBSIDIAN_EXEC_TOOL_NAME = "obsidian_exec";
 
 export const OBSIDIAN_EXEC_DESCRIPTION =
-  'Invoke any Obsidian Integrated CLI subcommand. Returns stdout, stderr, exitCode, and the exact argv invoked. Failures (non-zero exit, in-band Error: prefix, missing binary, timeout, output > 10 MiB) surface as structured errors with stable codes.';
+  'Invoke any Obsidian Integrated CLI subcommand. Returns stdout, stderr, exitCode, and the exact argv invoked. Failures (non-zero exit, in-band Error: prefix, unknown vault, missing binary, timeout, output > 10 MiB) surface as structured errors with stable codes.';
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

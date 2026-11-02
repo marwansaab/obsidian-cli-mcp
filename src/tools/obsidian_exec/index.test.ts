@@ -96,6 +96,24 @@ describe("createObsidianExecTool — handler integration via registerTool", () =
     expect(payload.code).toBe("CLI_NON_ZERO_EXIT");
     expect(payload.details.exitCode).toBe(2);
   });
+
+  it("R1: an unknown vault's `Vault not found.` answer surfaces as an isError CLI_REPORTED_ERROR (spec 091)", async () => {
+    const tool = createObsidianExecTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      spawnFn: makeStubSpawn({ stdout: "Vault not found.\n", exitCode: 0 }),
+      env: {},
+    });
+    const result = (await tool.handler({ command: "files", vault: "NoSuchVault" })) as {
+      isError?: boolean;
+      content: { type: string; text: string }[];
+    };
+    expect(result.isError).toBe(true);
+    const payload = JSON.parse(result.content[0]!.text);
+    expect(payload.code).toBe("CLI_REPORTED_ERROR");
+    expect(payload.message).toBe("Vault not found.");
+    expect(payload.details.message).toBe("Vault not found.");
+  });
 });
 
 describe("createObsidianExecTool — allowEval deps reach the handler (068 T023/T024)", () => {
