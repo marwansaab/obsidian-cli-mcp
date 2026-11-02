@@ -33,6 +33,8 @@ Spec 083-enable-cross-vault-bases (BI-0139).
 
 Spec 084-reconcile-help-docs.
 
+Spec 085-stabilise-query-ordering.
+
 ### Added
 
 - **`write_note` reports `bytes_written`**, with the same meaning, counting a new note's old size as 0. If the existing note's size cannot be read before an overwrite, the call fails with `FS_WRITE_FAILED` before anything is written. Its `details` shape is unchanged; `details.syscall` now reads `"stat"` where the old existence probe reported `"realpath"`.
@@ -74,6 +76,7 @@ Spec 084-reconcile-help-docs.
 - **`bases`, open-mode `views_base` and `create_base` act on the named `vault`** (spec 083) instead of the vault in front, whether that vault is in front, open behind it, or closed. An unregistered name fails with `CLI_REPORTED_ERROR`, `details.code: "VAULT_NOT_FOUND"`, `details.reason: "unknown"` before the CLI runs. `views_base`'s `BASE_NOT_FOUND` / `not-open` and `create_base`'s `BASE_NOT_FOUND` carry `details.vault` when a vault is named. With no `vault`, results, errors and messages are unchanged.
 - **`get_active_file` names the right reason when a note locator is supplied.** A `file` or `path` locator is still rejected in both modes, with the message "`<key>` is not allowed: the active file is the implicit target, so no note may be named" in place of the folder-scoped wording, and the description and help page now state `name` as `basename + "." + extension` (just `basename` with no extension). `files` and `paths` are unchanged.
 - **Help pages show calls and errors as the server accepts and returns them** (spec 084). The `write_note` migration example now passes a valid `obsidian_exec` call (`command` plus `parameters`, not an `argv` array). The quoted validation messages in the `context_search`, `search` and `properties` examples match what the server returns. The `views_base` and `patch_block` pages no longer claim `params.*` / `details.code` fields on their validation errors, which carry the reason in the issue message only. The `context_search` missing-folder example shows the generic top-level message and the `details` agents should branch on.
+- **`smart_connections_query` and `smart_connections_similar`: the result `limit` is now applied after the documented score / path / headingPath ordering**, to a fixed list of up to 100 plugin candidates, so a smaller limit always returns a leading slice of a larger one and equal-score results no longer depend on the limit (spec 085).
 
 ## [0.9.0] - 2026-10-30
 

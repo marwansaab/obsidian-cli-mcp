@@ -72,6 +72,8 @@ Per-match shape:
 
 Sort order: primary `score` descending, secondary `path` byte-asc, tertiary `headingPath.join("#")` byte-asc.
 
+`limit` is applied after this sort, to a fixed list of up to 100 candidates the plugin returns, so a smaller `limit` always returns a leading slice of a larger one: the same entries, in the same order.
+
 ## Worked examples
 
 ### Example A — minimal default-mode query against focused vault
@@ -169,3 +171,4 @@ The earlier-priority discriminator fires first and short-circuits the remainder.
 6. **Embed-call latency cap (10s)** — embed calls exceeding the 10-second timeout surface as `CLI_TIMEOUT`. After a timeout, wait 30–60 s before retrying — the host process may need to recover.
 7. **Stale-index reverse direction** — if a match references a deleted file, the wrapper still surfaces the path verbatim. The plugin's index may lag deletion. Treat dangling matches as plugin-state artefacts.
 8. **Low-information queries** — very short queries (single characters, single common stop-words) produce embeddings with little discriminative power; results may be incoherent. Prefer queries that are full sentences or noun phrases.
+9. **Ties at the 100-candidate edge** — the wrapper asks the plugin for 100 candidates on every call, whatever `limit` is. If several matches share the score of the plugin's 100th candidate, the plugin decides which of them are in that list; the documented tie-break orders only the ones it returned. This does not depend on `limit`, so smaller limits are still leading slices of larger ones.

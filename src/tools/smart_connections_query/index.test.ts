@@ -55,6 +55,11 @@ describe("createSmartConnectionsQueryTool — descriptor", () => {
   it("description carries the closed-vault note for `eval`", () => {
     expect(SMART_CONNECTIONS_QUERY_DESCRIPTION).toContain(closedVaultNote("eval"));
   });
+
+  // spec 085 S1 (FR-009): the description states that limit applies after the sort
+  it("description carries the leading-slice guarantee", () => {
+    expect(SMART_CONNECTIONS_QUERY_DESCRIPTION).toContain("leading slice");
+  });
 });
 
 // (3a) handler-closure execution — VALID input runs `handler: async (input, d) => executeSmartConnectionsQuery(...)`
@@ -111,6 +116,20 @@ describe("docs/tools/smart_connections_query.md exists and is non-stub (FR-022)"
     expect(body).toMatch(/headingPath/);
     expect(body).toMatch(/plugin-lifecycle|Smart Connections plugin/i);
     expect(body).toMatch(/minimum probed|minimum plugin version|v4\.|Smart Connections/i);
+  });
+
+  // spec 085 S2 (FR-009): the help page states the guarantee and the 100-candidate tie edge
+  it("docs state that limit applies after the sort and list the 100-candidate edge", () => {
+    const body = readFileSync(
+      resolve(
+        dirname(fileURLToPath(import.meta.url)),
+        "../../../docs/tools/smart_connections_query.md",
+      ),
+      "utf8",
+    );
+    expect(body).toMatch(/applied after (this|the) sort/);
+    expect(body).toMatch(/leading slice/);
+    expect(body).toMatch(/100-candidate edge/i);
   });
 });
 

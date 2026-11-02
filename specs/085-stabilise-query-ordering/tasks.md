@@ -32,7 +32,7 @@ description: "Task list for 085 Stabilise query ordering"
 
 **Purpose**: a known-green starting point.
 
-- [ ] T001 Before any edit, run `npm run typecheck; if ($?) { npm run lint }; if ($?) { npm test }` in PowerShell on branch `085-stabilise-query-ordering` and record the result in `specs/085-stabilise-query-ordering/post-implement.md`. Create that file, headed `# Post-implement: 085 Stabilise query ordering`. A failure here is pre-existing: report it, do not fix it in this feature.
+- [X] T001 Before any edit, run `npm run typecheck; if ($?) { npm run lint }; if ($?) { npm test }` in PowerShell on branch `085-stabilise-query-ordering` and record the result in `specs/085-stabilise-query-ordering/post-implement.md`. Create that file, headed `# Post-implement: 085 Stabilise query ordering`. A failure here is pre-existing: report it, do not fix it in this feature.
 
 ---
 
@@ -40,17 +40,17 @@ description: "Task list for 085 Stabilise query ordering"
 
 **Purpose**: one source of truth for "100" per tool (research D1, D5; data-model "Constant").
 
-- [ ] T002 [P] In `src/tools/smart_connections_query/schema.ts`:
+- [X] T002 [P] In `src/tools/smart_connections_query/schema.ts`:
   - add `export const MAX_LIMIT = 100;` next to `MAX_QUERY_LENGTH`, with a one-line comment: it is the `limit` maximum and the number of candidates the eval template always asks the plugin for (spec 085 FR-002);
   - replace `.max(100)` on `limit` with `.max(MAX_LIMIT)`;
   - leave the `.describe("Maximum number of matches to return, integer 1..100. Default 20.")` string byte-identical;
   - extend the header comment with one clause: `MAX_LIMIT` is shared with `_template.ts` (spec 085).
-- [ ] T003 [P] In `src/tools/smart_connections_similar/schema.ts`, make the same change, using this tool's own constant (no import from `smart_connections_query`, per Principle I):
+- [X] T003 [P] In `src/tools/smart_connections_similar/schema.ts`, make the same change, using this tool's own constant (no import from `smart_connections_query`, per Principle I):
   - add `export const MAX_LIMIT = 100;` above `smartConnectionsSimilarInputSchema`, with the same one-line comment;
   - replace `.max(100)` with `.max(MAX_LIMIT)`;
   - leave the `.describe(...)` string byte-identical;
   - extend the header comment the same way.
-- [ ] T004 Run `npx vitest run src/tools/smart_connections_query/schema.test.ts src/tools/smart_connections_similar/schema.test.ts src/tools/_register.test.ts` with no `baseline:write`. All must pass unedited: this proves neither `schemaFingerprint` moved (contract S3, data-model V6).
+- [X] T004 Run `npx vitest run src/tools/smart_connections_query/schema.test.ts src/tools/smart_connections_similar/schema.test.ts src/tools/_register.test.ts` with no `baseline:write`. All must pass unedited: this proves neither `schemaFingerprint` moved (contract S3, data-model V6).
 
 **Checkpoint**: both `MAX_LIMIT` constants exist, and the published surface has not moved.
 
@@ -64,7 +64,7 @@ description: "Task list for 085 Stabilise query ordering"
 
 ### Tests for User Story 1 (write first; T1, T2, T5, T10, T11 and T13 must fail before T008/T009)
 
-- [ ] T005 [P] [US1] Create `src/tools/smart_connections_query/_template.test.ts`, following `src/tools/links/_template.test.ts`.
+- [X] T005 [P] [US1] Create `src/tools/smart_connections_query/_template.test.ts`, following `src/tools/links/_template.test.ts`.
 
   **Header**: `// Original — no upstream. Template-execution tests for the smart_connections_query eval template (spec 085): renders JS_TEMPLATE through composeEvalCode and runs it under node:vm against a stub Smart Connections plugin whose lookup records its request, returns its fixture in plugin order and truncates it to filter.limit, checking the leading-slice, tie-break, fixed-request, count, non-finite and pass-through rows of contracts/ordering-contract.md.`
 
@@ -88,7 +88,7 @@ description: "Task list for 085 Stabilise query ordering"
   - **T6**: with the T2 fixture at `limit` 7 and at `limit` 100, `count` is equal for `total: true` and `total: false`, and `matches` is `[]` when `total: true`.
   - **T8**: 5 finite candidates at `limit: 100` → all 5 come back, in documented order, with `count: 5`.
   - **T9**: for the T2 fixture at `limit: 100`, each returned `score` is `===` the fixture score for its key: `path` + (`headingPath.length` ? `"#" + headingPath.join("#")` : `""`).
-- [ ] T006 [P] [US1] Create `src/tools/smart_connections_similar/_template.test.ts` on the same pattern.
+- [X] T006 [P] [US1] Create `src/tools/smart_connections_similar/_template.test.ts` on the same pattern.
 
   **Header**: `// Original — no upstream. Template-execution tests for the smart_connections_similar eval template (spec 085): renders JS_TEMPLATE through composeEvalCode and runs it under node:vm against a stub source note whose find_connections records its request, returns its fixture in plugin order and truncates it to limit, checking the leading-slice, tie-break, fixed-request, count, self-exclusion, non-finite and pass-through rows of contracts/ordering-contract.md.`
 
@@ -107,11 +107,11 @@ description: "Task list for 085 Stabilise query ordering"
   - **T13**: for `limit` 1, 20 and 100, every recorded request has `limit === MAX_LIMIT`.
   - **T14**: the T11 fixture at `limit` 7 and 100: `count` is equal for `total: true` and `false`, and `matches` is `[]` with `total: true`.
   - **T15**: a fixture with `NaN`, `null`, a missing score and `Infinity` among finite scores. The non-finite entries are absent, and each returned `score` is `===` the fixture's.
-- [ ] T007 [US1] Run `npx vitest run src/tools/smart_connections_query/_template.test.ts src/tools/smart_connections_similar/_template.test.ts` against the **unfixed** templates. T1, T2, T5, T10, T11 and T13 must fail; the other rows may pass. Record the failing rows and their assertion messages in `post-implement.md` as the red proof.
+- [X] T007 [US1] Run `npx vitest run src/tools/smart_connections_query/_template.test.ts src/tools/smart_connections_similar/_template.test.ts` against the **unfixed** templates. T1, T2, T5, T10, T11 and T13 must fail; the other rows may pass. Record the failing rows and their assertion messages in `post-implement.md` as the red proof.
 
 ### Implementation for User Story 1
 
-- [ ] T008 [P] [US1] In `src/tools/smart_connections_query/_template.ts`:
+- [X] T008 [P] [US1] In `src/tools/smart_connections_query/_template.ts`:
   - import `MAX_LIMIT` from `./schema.js`;
   - change `filter:{limit:a.limit}` to `filter:{limit:${MAX_LIMIT}}`;
   - leave every other template line byte-identical, including the sort and `.slice(0,a.limit)`;
@@ -119,7 +119,7 @@ description: "Task list for 085 Stabilise query ordering"
     - the lookup example now reads `filter:{limit:MAX_LIMIT}`;
     - Stage 3 asks the plugin for a fixed `MAX_LIMIT` candidates whatever the agent's `limit` (spec 085 FR-002);
     - Stage 6 is now the only cut to `a.limit`, applied after the full sort, so a smaller limit is a leading slice of a larger one.
-- [ ] T009 [P] [US1] In `src/tools/smart_connections_similar/_template.ts`:
+- [X] T009 [P] [US1] In `src/tools/smart_connections_similar/_template.ts`:
   - import `MAX_LIMIT` from `./schema.js`;
   - change `src.find_connections({limit:a.limit})` to `src.find_connections({limit:${MAX_LIMIT}})`;
   - leave every other template line byte-identical, including the map, both filters, the sort and `.slice(0,a.limit)`;
@@ -127,29 +127,29 @@ description: "Task list for 085 Stabilise query ordering"
     - the API example now reads `find_connections({limit:MAX_LIMIT})`;
     - Stage 6 asks for a fixed `MAX_LIMIT` candidates (spec 085 FR-002);
     - replace the sentence "Slice to a.limit applied after transforms in case the plugin's internal cap exceeds the request limit." with: the slice to `a.limit` is the only cut, applied after the filters and the full sort, so a smaller limit is a leading slice of a larger one.
-- [ ] T010 [US1] Run `npx vitest run src/tools/smart_connections_query src/tools/smart_connections_similar`. The US1 rows of both `_template.test.ts` files must pass. Each tool's `handler.test.ts`, `index.test.ts` and `schema.test.ts` must pass unedited: each handler test re-renders `JS_TEMPLATE` itself.
+- [X] T010 [US1] Run `npx vitest run src/tools/smart_connections_query src/tools/smart_connections_similar`. The US1 rows of both `_template.test.ts` files must pass. Each tool's `handler.test.ts`, `index.test.ts` and `schema.test.ts` must pass unedited: each handler test re-renders `JS_TEMPLATE` itself.
 
 ### Published guarantee for User Story 1 (FR-009)
 
-- [ ] T011 [P] [US1] In `src/tools/smart_connections_query/index.test.ts`, add two new `it` cases. Do not edit any existing assertion.
+- [X] T011 [P] [US1] In `src/tools/smart_connections_query/index.test.ts`, add two new `it` cases. Do not edit any existing assertion.
   - **S1**, in the descriptor `describe`: `expect(SMART_CONNECTIONS_QUERY_DESCRIPTION).toContain("leading slice")`.
   - **S2**, in the docs `describe`: the body matches `/applied after (this|the) sort/` and `/leading slice/`, and contains `/100-candidate edge/i`.
 
   Both must fail now.
-- [ ] T012 [P] [US1] In `src/tools/smart_connections_similar/index.test.ts`, add two new `it` cases. Do not edit any existing assertion.
+- [X] T012 [P] [US1] In `src/tools/smart_connections_similar/index.test.ts`, add two new `it` cases. Do not edit any existing assertion.
   - **S4**, in the descriptor `describe`: `expect(SMART_CONNECTIONS_SIMILAR_DESCRIPTION).toContain("leading slice")`. Import the constant from `./index.js` if it is not imported already.
   - **S5**, in the docs `describe`: the body matches `/applied after (this|the) sort/`, `/leading slice/` and `/100-candidate edge/i`, and `not.toMatch(/Mirrors the plugin's `find_connections\(\{limit\}\)` parameter/)`.
 
   Both must fail now.
-- [ ] T013 [P] [US1] In `src/tools/smart_connections_query/index.ts` (`SMART_CONNECTIONS_QUERY_DESCRIPTION`), append exactly one sentence after the sentence ending `tertiary headingPath.join('#') byte-ascending.` (same paragraph): `` `limit` is applied after this sort, to a fixed list of up to 100 candidates, so a smaller limit always returns a leading slice of a larger one.`` Change nothing else in the description. Extend the header comment with one clause: spec 085 leading-slice guarantee.
-- [ ] T014 [P] [US1] In `src/tools/smart_connections_similar/index.ts` (`SMART_CONNECTIONS_SIMILAR_DESCRIPTION`), append exactly one sentence at the end of the "Sort order:" paragraph, after `…from the result list.`: `limit is applied after this sort and these filters, to a fixed list of up to 100 plugin candidates, so a smaller limit always returns a leading slice of a larger one.` The sentence has no backticks, matching that description's style. Change nothing else. Extend the header comment with the same clause.
-- [ ] T015 [P] [US1] In `docs/tools/smart_connections_query.md`:
+- [X] T013 [P] [US1] In `src/tools/smart_connections_query/index.ts` (`SMART_CONNECTIONS_QUERY_DESCRIPTION`), append exactly one sentence after the sentence ending `tertiary headingPath.join('#') byte-ascending.` (same paragraph): `` `limit` is applied after this sort, to a fixed list of up to 100 candidates, so a smaller limit always returns a leading slice of a larger one.`` Change nothing else in the description. Extend the header comment with one clause: spec 085 leading-slice guarantee.
+- [X] T014 [P] [US1] In `src/tools/smart_connections_similar/index.ts` (`SMART_CONNECTIONS_SIMILAR_DESCRIPTION`), append exactly one sentence at the end of the "Sort order:" paragraph, after `…from the result list.`: `limit is applied after this sort and these filters, to a fixed list of up to 100 plugin candidates, so a smaller limit always returns a leading slice of a larger one.` The sentence has no backticks, matching that description's style. Change nothing else. Extend the header comment with the same clause.
+- [X] T015 [P] [US1] In `docs/tools/smart_connections_query.md`:
   - under the `Sort order:` line (around line 73), add: `` `limit` is applied after this sort, to a fixed list of up to 100 candidates the plugin returns, so a smaller `limit` always returns a leading slice of a larger one: the same entries, in the same order. ``
   - under `## Inherited limitations`, add item 9: `**Ties at the 100-candidate edge** — the wrapper asks the plugin for 100 candidates on every call, whatever \`limit\` is. If several matches share the score of the plugin's 100th candidate, the plugin decides which of them are in that list; the documented tie-break orders only the ones it returned. This does not depend on \`limit\`, so smaller limits are still leading slices of larger ones.`
-- [ ] T016 [P] [US1] In `docs/tools/smart_connections_similar.md`:
+- [X] T016 [P] [US1] In `docs/tools/smart_connections_similar.md`:
   - **`limit` bullet** (line 79, under "Per-field policy"): replace it with `- **\`limit\`** — caps the matches list length AND the count. The wrapper always asks the plugin's \`find_connections\` for 100 candidates, whatever \`limit\` is; \`limit\` is applied after the filters and the sort below, so a smaller \`limit\` always returns a leading slice of a larger one: the same entries, in the same order.`
   - **"Documented inherited limitations"**: add a subsection before "### Multi-vault basename ambiguity", headed `### Ties at the 100-candidate edge`, with the same body as the `smart_connections_query` item 9. Add one sentence: the source note's own blocks are removed after the 100-candidate fetch, so a call can return fewer than `limit` matches even when the plugin has more; this is the same at every `limit`.
-- [ ] T017 [US1] Regenerate the baseline. This depends on T013 and T014, through the structural path `fingerprintLiveRegistry` → `createServer()` → `create*Tool` → `*_DESCRIPTION`.
+- [X] T017 [US1] Regenerate the baseline. This depends on T013 and T014, through the structural path `fingerprintLiveRegistry` → `createServer()` → `create*Tool` → `*_DESCRIPTION`.
   1. Run `npm run baseline:write`.
   2. Run `git diff src/tools/_register-baseline.json`.
   3. Confirm (contract S3) that the only fingerprint changes are the `descriptionFingerprint` of `smart_connections_query` and of `smart_connections_similar`.
@@ -157,7 +157,7 @@ description: "Task list for 085 Stabilise query ordering"
   5. Record the diff summary in `post-implement.md`.
 
   If any other fingerprint moved, stop and find out why before going on.
-- [ ] T018 [US1] Run `npx vitest run src/tools/smart_connections_query src/tools/smart_connections_similar src/tools/_register.test.ts src/tools/_surface.test.ts`. All must pass, S1, S2, S4 and S5 included.
+- [X] T018 [US1] Run `npx vitest run src/tools/smart_connections_query src/tools/smart_connections_similar src/tools/_register.test.ts src/tools/_surface.test.ts`. All must pass, S1, S2, S4 and S5 included.
 
 **Checkpoint**: US1 is complete for both tools. A smaller limit is a leading slice, and the descriptions and help pages say so.
 
@@ -171,7 +171,7 @@ description: "Task list for 085 Stabilise query ordering"
 
 ### Tests for User Story 2
 
-- [ ] T019 [US2] Add the US2 rows to `src/tools/smart_connections_query/_template.test.ts`. It is the same file as T005, so this task is not [P] with that one.
+- [X] T019 [US2] Add the US2 rows to `src/tools/smart_connections_query/_template.test.ts`. It is the same file as T005, so this task is not [P] with that one.
   - **T3**: `[{key:"N.md#c",score:0.8},{key:"N.md#a",score:0.8},{key:"N.md#b",score:0.8}]` → `headingPath` order `["a"]`, `["b"]`, `["c"]`.
   - **T4**: fixture of
     - two leaders (0.99, 0.98);
@@ -180,8 +180,8 @@ description: "Task list for 085 Stabilise query ordering"
 
     At `limit: 4`, ranks 3–4 are `A.md` and `B.md`. Run it a second time with the same input and assert the two results deep-equal (US2 AS3, SC-002).
   - **T7**: mix finite scores with `NaN`, `null`, a missing `score` and `Infinity`. The non-finite entries are absent, and the finite ones obey V1 (leading slice between `limit` 2 and 10) and V2 (tie order).
-- [ ] T020 [P] [US2] Add row **T12** to `src/tools/smart_connections_similar/_template.test.ts` (a different file from T019). Fixture: two leaders, a tied group of 5 at 0.7 in reverse path order (`{ item: { key: "E.md" } }` … `A.md`), and a tail. At `limit: 4`, ranks 3–4 are `A.md` and `B.md`.
-- [ ] T021 [US2] Red check for both tools:
+- [X] T020 [P] [US2] Add row **T12** to `src/tools/smart_connections_similar/_template.test.ts` (a different file from T019). Fixture: two leaders, a tied group of 5 at 0.7 in reverse path order (`{ item: { key: "E.md" } }` … `A.md`), and a tail. At `limit: 4`, ranks 3–4 are `A.md` and `B.md`.
+- [X] T021 [US2] Red check for both tools:
   1. Temporarily revert T008 (`filter:{limit:a.limit}`) and T009 (`find_connections({limit:a.limit})`).
   2. Run both `_template.test.ts` files. T4 and T12 must fail, alongside T1, T2, T5, T10, T11 and T13. T3 and T7 may pass.
   3. Restore both changes.
@@ -195,18 +195,18 @@ description: "Task list for 085 Stabilise query ordering"
 
 ## Phase 5: Polish & Cross-Cutting
 
-- [ ] T022 [P] In `CHANGELOG.md` under `## [Unreleased]`:
+- [X] T022 [P] In `CHANGELOG.md` under `## [Unreleased]`:
   - add the line `Spec 085-stabilise-query-ordering.` after the existing spec lines;
   - add a `### Fixed` entry (create the subsection if it is missing, in Keep a Changelog order): `smart_connections_query` and `smart_connections_similar`: the result `limit` is now applied after the documented score / path / headingPath ordering, to a fixed list of up to 100 plugin candidates, so a smaller limit always returns a leading slice of a larger one and equal-score results no longer depend on the limit.
-- [ ] T023 Full gate: `npm run typecheck; if ($?) { npm run lint }; if ($?) { npm run format:check }; if ($?) { npm test }`. Compare with T001. Any new failure blocks completion.
-- [ ] T024 Post-implement structural verification (`CLAUDE.md` § Code index). Run `codegraph sync`, then `codegraph_explore "MAX_LIMIT JS_TEMPLATE smartConnectionsQueryInputSchema smartConnectionsSimilarInputSchema executeSmartConnectionsQuery executeSmartConnectionsSimilar"`. Verify and record in `post-implement.md`:
+- [X] T023 Full gate: `npm run typecheck; if ($?) { npm run lint }; if ($?) { npm run format:check }; if ($?) { npm test }`. Compare with T001. Any new failure blocks completion.
+- [X] T024 Post-implement structural verification (`CLAUDE.md` § Code index). Run `codegraph sync`, then `codegraph_explore "MAX_LIMIT JS_TEMPLATE smartConnectionsQueryInputSchema smartConnectionsSimilarInputSchema executeSmartConnectionsQuery executeSmartConnectionsSimilar"`. Verify and record in `post-implement.md`:
   1. no new error class or code, and `src/errors.ts` is unchanged;
   2. no handler imports `createLogger` / `createQueue`, and `src/server.ts` is unchanged;
   3. each `_template.ts` imports only `../_shared.js` and its own `./schema.js`, neither `schema.ts` imports its template, and there is no tool → tool edge;
   4. each `MAX_LIMIT` has production callers: its `schema.ts`, and its `_template.ts`, which is reached from its handler.
 
   Also confirm the kernel-node no-touch claim: `createServer()`, `createLogger()`, `createQueue()` and `UpstreamError` are not edited.
-- [ ] T025 SC-005 record (mandatory) and live check (optional; quickstart §3). Read `.memory/test-execution-instructions.md` first.
+- [X] T025 SC-005 record (mandatory) and live check (optional; quickstart §3). Read `.memory/test-execution-instructions.md` first.
   - **If** a vault with Smart Connections indexed is available: run the read-only calls of both tools at `limit` 1, 2, 20 and 100, confirm the leading-slice property, and note whether every call returned within the timeout.
   - **Otherwise**: record in `post-implement.md` "SC-005 unverified live: no Smart Connections vault available". Cite the fallback evidence from spec SC-005: `limit: 100` is already an allowed input for both tools, so the 100-candidate request is a size both already make, and the transport payload is still cut to `limit`.
 
