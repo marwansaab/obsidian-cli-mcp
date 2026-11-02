@@ -23,10 +23,10 @@ The string sent as the CLI's `query=` parameter: `"` + E1 with `\` → `\\` and 
 
 ## E4. Per-line wire (new value, same type)
 
-The output of `oneMatchPerLine(E1, E3[])`: the same files in the same order, where:
+The files `lineMatches` keeps from E3[] (`.md` filter, then `oneMatchPerLine(E3[])`), in the same order, where:
 
 - **V4**: no two entries in one file's `matches` share a `line`. The entry kept is the first for that line in wire order, and its `text` is unchanged.
-- **V5**: if E1 contains `\n` or `\r`, every file's `matches` is empty.
+- **V5**: if E1 contains `\n` or `\r`, no files are kept (the rule lives in `lineMatches`; amended 2026-11-02, see research D2).
 - **V6**: the input array and its objects are not mutated.
 
 ## E5. Line-level row and output (unchanged types)

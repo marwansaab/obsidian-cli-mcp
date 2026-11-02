@@ -1,4 +1,4 @@
-// Original — no upstream. Pure tests for the literal-phrase helpers shared by search and context_search (spec 087): the escaped double-quoted CLI query and the one-entry-per-line reduction.
+// Original — no upstream. Pure tests for the literal-phrase helpers shared by search and context_search (spec 087): the escaped double-quoted CLI query (L1–L6) and the one-entry-per-line reduction (L7). L8 lives in line-matches.test.ts.
 import { expect, test } from "vitest";
 
 import { literalPhraseQuery, oneMatchPerLine } from "./literal-phrase.js";
@@ -54,16 +54,8 @@ function fileWithLines(file: string, lines: number[]) {
 test("L7 keeps the first entry per line, in wire order, without mutating the input", () => {
   const wire = [fileWithLines("a.md", [1, 1, 2, 1, 3])];
   const before = structuredClone(wire);
-  const r = oneMatchPerLine("alpha beta", wire);
+  const r = oneMatchPerLine(wire);
   expect(r).toEqual([fileWithLines("a.md", [1, 2, 3])]);
   expect(r[0]!.matches[0]).toBe(wire[0]!.matches[0]);
   expect(wire).toEqual(before);
-});
-
-test.each(["a\nb", "a\rb"])("L8 a query containing a line break keeps no lines: %j", (query) => {
-  const wire = [fileWithLines("a.md", [1, 1, 2, 1, 3]), fileWithLines("b.md", [4])];
-  expect(oneMatchPerLine(query, wire)).toEqual([
-    { file: "a.md", matches: [] },
-    { file: "b.md", matches: [] },
-  ]);
 });

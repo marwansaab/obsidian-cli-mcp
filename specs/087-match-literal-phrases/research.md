@@ -103,12 +103,11 @@ The spec puts case rules out of scope, and fixing the descriptions would move tw
 
 ### D2. In line-level modes, keep one entry per (path, line), and none for a query containing a line break
 
-`oneMatchPerLine(query, wire)` takes the parsed `search:context` wire array and returns it with:
+`oneMatchPerLine(wire)` takes the parsed `search:context` wire array and returns it with each file's `matches` reduced to the first entry for each line number, in wire order.
 
-- each file's `matches` reduced to the first entry for each line number, in wire order;
-- every file's `matches` emptied when the query contains `\n` or `\r`.
+`lineMatches(query, wire, appliedCap, normaliseText)` (`src/tools/search/line-matches.ts`) is the one line-level pipeline both handlers call. It keeps no files when the query contains `\n` or `\r`; otherwise it applies the `.md` filter and then `oneMatchPerLine`. Flattening, truncation, sorting and slicing then run on the reduced set (FR-006).
 
-Both line-level paths call it right after the wire parse and the `.md` filter, before flattening. Truncation, sorting and slicing then run on the reduced set (FR-006).
+**Amendment (owner ruling 2026-11-02, option A, PR #120 review).** This decision first gave both rules to `oneMatchPerLine(query, wire)`, which emptied every file's `matches` for a line-break query. The review found that one unit then held two responsibilities. Constitution Principle I requires such a unit to be split, so the line-break rule moved into `lineMatches`, and contract row L8 now tests it there. Callers see no change: FR-004, S7 and C7 are untouched.
 
 - **Rationale**:
   - F8 shows that quoting leaves per-occurrence repeats. Two entries with the same path and line always carry the same text, so keeping the first loses nothing (spec Assumptions).

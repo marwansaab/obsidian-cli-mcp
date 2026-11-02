@@ -7,7 +7,7 @@
 > **This change makes the CLI read the query as text, not as search syntax.** Today `search` and `context_search` pass the agent's query to `obsidian search` / `search:context` unchanged, and Obsidian splits it into words and operators. After this change:
 >
 > - both handlers send the query as one double-quoted phrase, with `\` and `"` escaped, through one new helper, `literalPhraseQuery`;
-> - both line-level paths keep one entry per `(path, line)` through a second helper, `oneMatchPerLine`, which also returns no lines for a query containing a line break;
+> - both line-level paths keep one entry per `(path, line)` through a second helper, `oneMatchPerLine`, and return no lines for a query containing a line break (both run inside the shared pipeline `lineMatches`, per the 2026-11-02 amendment to research D2);
 > - both helpers live in `src/tools/search/literal-phrase.ts`.
 >
 > Schemas, descriptions, annotations, error codes and the fingerprint baseline do not change.
@@ -34,7 +34,7 @@ Live-probe findings:
 Decisions:
 
 - **D1**: quote and escape the query in all three modes.
-- **D2**: `oneMatchPerLine` keeps the first entry per line, and none for a query containing `\n` or `\r`.
+- **D2**: `oneMatchPerLine` keeps the first entry per line; `lineMatches` keeps none for a query containing `\n` or `\r` (amended 2026-11-02).
 - **D3**: put both helpers in `src/tools/search/literal-phrase.ts`.
 - **D4**: add a pure test suite plus one `handler.literal-phrase.test.ts` per tool. The two F4 assertions are edited, and that edit needs owner approval.
 - **D5**: the published surface is untouched; help pages and CHANGELOG are updated.

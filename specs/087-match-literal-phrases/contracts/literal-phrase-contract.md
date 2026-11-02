@@ -19,16 +19,25 @@ Wraps the query in double quotes after escaping `\` as `\\` and `"` as `\"`, in 
 | L5 | ` alpha ` (leading and trailing space), `alpha<TAB>beta`, `alpha  beta` | each wrapped with its whitespace byte-identical | FR-002 |
 | L6 | `-draft`, `cats OR dogs`, `cats AND dogs`, `tag:urgent`, `file:Plan`, `/usr/bin/`, `[status]`, `(see note)`, `a*b` | each wrapped unchanged inside the quotes; only `\` and `"` are rewritten | FR-003 |
 
-### `oneMatchPerLine(query: string, wire: SearchContextWireFile[]): SearchContextWireFile[]`
+### `oneMatchPerLine(wire: SearchContextWireFile[]): SearchContextWireFile[]`
 
 Returns a new array. File order and the order of the remaining matches are preserved (research D2).
 
 | Row | Input | Output | Proves |
 |---|---|---|---|
 | L7 | one file whose matches are lines `[1, 1, 2, 1, 3]` (texts equal per line) | matches for lines `[1, 2, 3]`, each the first entry for its line | FR-005 |
-| L8 | the same wire with a query containing `\n`, then with one containing `\r` | every file's `matches` is `[]`; file entries are kept | FR-004, edge case "Query containing a line break" |
 
 The input array and its objects are not mutated (checked by L7).
+
+### `lineMatches(query, wire, appliedCap, normaliseText)` in `src/tools/search/line-matches.ts`
+
+The shared line-level pipeline both handlers call (research D2). Rows are in `line-matches.test.ts`.
+
+| Row | Input | Output | Proves |
+|---|---|---|---|
+| L8 | a two-file wire with a query containing `\n`, then with one containing `\r` (baseline: the same wire with a single-line query keeps its lines) | `{ count: 0, matches: [] }` | FR-004, edge case "Query containing a line break" |
+
+*Amended 2026-11-02 (owner ruling, option A, PR #120 review): L8 originally pinned `oneMatchPerLine(query, wire)` returning every file with `matches: []`. The line-break rule moved into `lineMatches` so that `oneMatchPerLine` has one responsibility (Constitution Principle I). Tool behaviour is unchanged: S7 and C7 pass as written.*
 
 ## `search` handler: `src/tools/search/handler.literal-phrase.test.ts`
 

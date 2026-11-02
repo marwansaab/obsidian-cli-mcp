@@ -6,12 +6,8 @@ export function literalPhraseQuery(query: string): string {
   return `"${query.replace(/[\\"]/g, "\\$&")}"`;
 }
 
-/** The first wire entry per line, in wire order (the CLI repeats a line per occurrence, F8); none when the query holds a line break, since no single line can contain one (F6). */
-export function oneMatchPerLine(
-  query: string,
-  wire: SearchContextWireFile[],
-): SearchContextWireFile[] {
-  if (/[\r\n]/.test(query)) return wire.map((f) => ({ ...f, matches: [] }));
+/** The first wire entry per line, in wire order (the CLI repeats a line per occurrence, F8). */
+export function oneMatchPerLine(wire: SearchContextWireFile[]): SearchContextWireFile[] {
   return wire.map((f) => {
     const seen = new Set<number>();
     return {
