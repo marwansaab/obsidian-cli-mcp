@@ -230,3 +230,44 @@ Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0
 > yes
 >
 > Apply I1, C1 and I2. All three are artifact-only edits within BI-0171 scope: a name should resolve wherever the note lives. C1 adds a boundary test for a note at the vault root, which Constitution Principle II calls for. I2 leaves contract §H as the single source for the help text.
+
+## 6. record / record-in-vault (2026-11-02T09:28:24.705Z)
+
+**Question (verbatim):**
+
+> The work for job BI-0171 is now a reviewed, documented pull request. Record that on the job's note, following the vault's conventions for backlog items:
+> - the spec branch: 089-resolve-note-names
+> - the feature folder in the code repository: specs/089-resolve-note-names
+> - the pull request: https://github.com/marwansaab/obsidian-cli-mcp/pull/122 (number 122)
+> - the status that means "in review" in this vault (if the vault has no such status, escalate `decision` with up to 3 choices)
+> - a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0171-2026-11-02 produced it.
+>
+> Dry run: no. In a dry run, change nothing: list each edit you would make in `vault_edits`, starting its change with "Would". Otherwise list each edit you made.
+
+**Advisor** (escalate: none):
+
+> Recorded on BI-0171, following the shape of BI-0170 (the previous in-review BI):
+> - Frontmatter: `status` changed from `planned` to `in-review`. The vault's backlog-item status list includes `in-review`.
+> - Frontmatter: added `spec_branch: 089-resolve-note-names` and an empty `npm_version_shipped: ""`.
+> - `## Status`: added a dated "In review — 2026-11-02" paragraph at the top. It links PR #122 (https://github.com/marwansaab/obsidian-cli-mcp/pull/122) and names spec branch `089-resolve-note-names` and feature folder `specs/089-resolve-note-names`.
+> - Added a dated HTML comment at the end of the note: Relay run obsidian-cli-mcp-bi-0171-2026-11-02 produced PR #122.
+>
+> Read back after the edits: `status` = `in-review` and `spec_branch` = `089-resolve-note-names`, so the frontmatter still parses.
+
+Sources: `000-Meta/Vault Frontmatter Convention.md`, `000-Meta/Templates/Backlog Item Template.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0171 - Resolve File Locator In Patch Heading.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0171 - Resolve File Locator In Patch Heading.md`: Frontmatter status: planned → in-review.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0171 - Resolve File Locator In Patch Heading.md`: Frontmatter: added spec_branch: 089-resolve-note-names and npm_version_shipped: "" after feature.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0171 - Resolve File Locator In Patch Heading.md`: ## Status: added an 'In review — 2026-11-02' paragraph with PR #122 link, spec branch and feature folder specs/089-resolve-note-names.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0171 - Resolve File Locator In Patch Heading.md`: Appended a dated HTML comment: Relay run obsidian-cli-mcp-bi-0171-2026-11-02 produced PR #122 (branch, folder, status flip).
+
+**Sent to the step:**
+
+> Recorded on BI-0171, following the shape of BI-0170 (the previous in-review BI):
+> - Frontmatter: `status` changed from `planned` to `in-review`. The vault's backlog-item status list includes `in-review`.
+> - Frontmatter: added `spec_branch: 089-resolve-note-names` and an empty `npm_version_shipped: ""`.
+> - `## Status`: added a dated "In review — 2026-11-02" paragraph at the top. It links PR #122 (https://github.com/marwansaab/obsidian-cli-mcp/pull/122) and names spec branch `089-resolve-note-names` and feature folder `specs/089-resolve-note-names`.
+> - Added a dated HTML comment at the end of the note: Relay run obsidian-cli-mcp-bi-0171-2026-11-02 produced PR #122.
+>
+> Read back after the edits: `status` = `in-review` and `spec_branch` = `089-resolve-note-names`, so the frontmatter still parses.
