@@ -168,3 +168,9 @@ applies. Records written since:
   not keep the bytes around it with `UNSAFE_PLACEMENT`; normalising the note
   and a file-wide ending were rejected, and review moved the split and the
   check into one shared module (PR #119).
+- [decisions/ADR-057-text-searches-send-the-query-as-one-escaped-literal-phrase.md](decisions/ADR-057-text-searches-send-the-query-as-one-escaped-literal-phrase.md)
+  — `search` and `context_search` send the query as one double-quoted
+  phrase with `\` and `"` escaped, so Obsidian search syntax is text, and
+  their line-level modes list each line once through one shared
+  `lineMatches` pipeline the review argued the PR into; wrapper-side
+  filtering and an `eval` search were rejected (PR #120).

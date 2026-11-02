@@ -41,7 +41,7 @@ This tool is **vault-scoped** — there is no `target_mode` discriminator, no `f
 
 ### Per-field policy
 
-- **`query`** — phrase-matched as a single literal substring. Internal whitespace is preserved verbatim — `"foo bar"` matches `foo bar` but not `foobar` or `foo  bar`. Empty / whitespace-only is rejected with a custom validation issue on `path: ["query"]`.
+- **`query`** — phrase-matched as a single literal substring. Internal whitespace is preserved verbatim — `"foo bar"` matches `foo bar` but not `foobar` or `foo  bar`. Empty / whitespace-only is rejected with a custom validation issue on `path: ["query"]`. The whole query is one literal phrase: its words must appear together, in order, with the same spacing. Characters that mean something in Obsidian's own search box (double quotes, a leading `-`, `OR`, parentheses, square brackets, `tag:` / `path:` / `file:`-style prefixes, `/…/`, `*`, `\`) are matched as ordinary text; nothing needs escaping.
 - **`folder`** — vault-relative folder prefix; leading/trailing `/` are stripped before forwarding. `folder: "/"` alone normalises to empty and is omitted (effectively unscoped). Recursive subtree-prefix match — `folder=Projects` matches `Projects/foo.md`, `Projects/sub/bar.md`, and `Projects/a/b/c.md`. Case-sensitive segment-boundary equality enforced by upstream — `folder=Projects` does NOT match `projects/`.
 - **`limit`** — caps the returned `matches` array (post-flatten, post-strip). The implicit cap is 1000.
 - **`case_sensitive`** — when `true`, the wrapper sets the upstream `case` flag; otherwise upstream's default insensitivity (ASCII fold only) applies. Folding is ASCII-only — `É` does NOT match `é`.
@@ -72,7 +72,7 @@ With truncation:
 | Field | Type | Description |
 |-------|------|-------------|
 | `count` | integer ≥ 0 | Number of entries; equals `matches.length`. |
-| `matches` | object[] | One entry per matching line; sorted by `path` asc then `line` asc. |
+| `matches` | object[] | One entry per matching line; sorted by `path` asc then `line` asc. Each matching line appears once, however many times the phrase occurs in it. |
 | `matches[].path` | string | Vault-relative `.md` path. |
 | `matches[].line` | integer ≥ 1 | 1-based line number of the matching line. |
 | `matches[].text` | string | Matching line content. Single trailing `\r` stripped. Capped at 500 chars + `…` (U+2026 ellipsis marker) if longer (final length 501 for capped lines). |
@@ -174,7 +174,7 @@ Truncation is conservative — `truncated: true` fires when the post-flatten mat
 ```
 
 Sequence:
-1. First call: `obsidian search:context query=anything path=DoesNotExist format=json` (no `limit` is forwarded — the wrapper requests the full match set).
+1. First call: `obsidian search:context query="anything" path=DoesNotExist format=json` (no `limit` is forwarded — the wrapper requests the full match set).
 2. Upstream returns the zero-match sentinel `"No matches found.\n"`.
 3. Handler detects sentinel AND `folder` was supplied → fires the second-call existence probe: `obsidian folder path=DoesNotExist`.
 4. Upstream `folder` returns stdout `Error: Folder "DoesNotExist" not found.` with exit 0.
@@ -334,7 +334,7 @@ Upstream returns results in its own order; the wrapper imposes a deterministic s
 
 ### No regex / boolean / surrounding-context
 
-Upstream is substring-only — no regex queries (use [`pattern_search`](./pattern_search.md) for that), no `AND` / `OR` boolean operators, no surrounding-context-lines (lines `N±k`). Each match entry contains exactly the matching line itself.
+The query is matched as one literal substring — no regex queries (use [`pattern_search`](./pattern_search.md) for that), no `AND` / `OR` boolean operators, no surrounding-context-lines (lines `N±k`). Each match entry contains exactly the matching line itself. This section used to say upstream itself is substring-only. It is not: `obsidian search:context` reads Obsidian search syntax, including `OR`. The wrapper sends the query as one quoted, escaped phrase, so the operators are matched as text (spec 087).
 
 ### Latency
 

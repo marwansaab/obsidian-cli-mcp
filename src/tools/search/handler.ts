@@ -1,23 +1,27 @@
 // Original — no upstream. search handler — two-subcommand router (`search` /
 // `search:context`) wrapping the native CLI; subcommand selection keyed on
-// input.context_lines (R2). Zero-match sentinel detection on `No matches found.`
-// stdout returns the empty envelope for the active mode rather than an error
-// (FR-012 / R4 / F2). Staged parse — JSON.parse failures throw CLI_REPORTED_ERROR
-// with details.stage="json-parse"; wire-schema failures with details.stage=
-// "wire-parse" (I-7 / I-8). No `limit` is forwarded upstream (BI-055): upstream
-// returns the full match set, the wrapper sorts it, then slices to appliedCap, so
-// the visible subset is the path-ascending leading N across the entire match set.
+// input.context_lines (R2). The query is sent as one escaped, double-quoted phrase
+// (spec 087, literal-phrase.ts) so the CLI matches it literally in both subcommands.
+// Zero-match sentinel detection on `No matches found.` stdout returns the empty
+// envelope for the active mode rather than an error (FR-012 / R4 / F2). Staged
+// parse — JSON.parse failures throw CLI_REPORTED_ERROR with details.stage=
+// "json-parse"; wire-schema failures with details.stage="wire-parse" (I-7 / I-8).
+// No `limit` is forwarded upstream (BI-055): upstream returns the full match set,
+// the wrapper sorts it, then slices to appliedCap, so the visible subset is the
+// path-ascending leading N across the entire match set.
 // Default-mode pipeline: filter to `.md`, sort UTF-16 ascending, detect truncation
 // precisely via `mdOnly.length > appliedCap`, slice to appliedCap when truncated.
-// Line-mode pipeline: file-level `.md` filter, flatMap to flat rows (drops empty
-// `matches: []` entries naturally — R9), cap each text at 500 chars + U+2026 ellipsis
-// (FR-024 / R10), detect truncation conservatively via `flat.length >= appliedCap`
-// (fires on a real drop and at flat===cap with no drop — FR-005), sort by path asc
-// then line asc (FR-019 / R11), slice to appliedCap. Output schemas
-// validated at the boundary. `truncated` field present only when true (I-11 /
-// FR-023). Folder leading/trailing `/` normalised wrapper-side (FR-006 / I-5);
+// Line-mode pipeline: lineMatches (line-matches.ts, shared with context_search) —
+// `.md` filter, one entry per line (none for a line-break query; spec 087), flat
+// rows (drops empty `matches: []` entries naturally — R9), 500-char cap + U+2026
+// (FR-024 / R10), conservative truncation (FR-005), (path, line) ascending sort
+// (FR-019 / R11), slice to appliedCap; this mode keeps a trailing \r in the text.
+// Output schemas validated at the boundary. `truncated` field present only when
+// true (I-11 / FR-023). Folder leading/trailing `/` normalised wrapper-side (FR-006 / I-5);
 // empty post-strip omits the `path` parameter from CLI invocation. Zero new
 // top-level error codes; zero new details.code values — Principle IV preserved.
+import { lineMatches } from "./line-matches.js";
+import { literalPhraseQuery } from "./literal-phrase.js";
 import {
   searchContextWireSchema,
   searchDefaultOutputSchema,
@@ -40,8 +44,6 @@ export interface ExecuteDeps extends CallScope {
   env?: NodeJS.ProcessEnv;
 }
 
-const TEXT_CAP = 500;
-const ELLIPSIS = "…";
 const DEFAULT_CAP = 1000;
 const ZERO_MATCH_SENTINEL = "No matches found.";
 
@@ -60,7 +62,7 @@ export async function executeSearch(
   const appliedCap = input.limit ?? DEFAULT_CAP;
 
   const parameters: Record<string, string | true> = {
-    query: input.query,
+    query: literalPhraseQuery(input.query),
     format: "json",
   };
   if (input.folder !== undefined) {
@@ -108,25 +110,9 @@ export async function executeSearch(
         message: "search: CLI JSON failed search:context wire-schema parse",
       });
     }
-    const wire = wireParsed.data;
-    const mdOnly = wire.filter((f) => f.file.toLowerCase().endsWith(".md"));
-    const flat = mdOnly.flatMap((f) =>
-      f.matches.map((m) => ({
-        path: f.file,
-        line: m.line,
-        text: m.text.length <= TEXT_CAP ? m.text : m.text.slice(0, TEXT_CAP) + ELLIPSIS,
-      })),
+    return searchLineOutputSchema.parse(
+      lineMatches(input.query, wireParsed.data, appliedCap, (text) => text),
     );
-    const truncated = flat.length >= appliedCap;
-    const sorted = [...flat].sort((a, b) =>
-      a.path < b.path ? -1 : a.path > b.path ? 1 : a.line - b.line,
-    );
-    const trimmed = sorted.slice(0, appliedCap);
-    return searchLineOutputSchema.parse({
-      count: trimmed.length,
-      matches: trimmed,
-      ...(truncated ? { truncated: true as const } : {}),
-    });
   } else {
     const wireParsed = searchDefaultWireSchema.safeParse(parsed);
     if (!wireParsed.success) {

@@ -2,27 +2,31 @@
 // obsidian search:context with FR-013 post-empty folder-existence probe (R4) and
 // FR-012 CRLF strip (R5). Re-uses BI-033's stripBoundarySlashes + searchContextWireSchema
 // via direct imports (R6 / R8 — module direction context_search → search, no cycle).
-// Pipeline: assemble parameters (query, format=json, optional path, optional case) →
-// invokeCli(search:context). No `limit` is forwarded upstream (BI-055): upstream
-// returns the full match set, the wrapper sorts it, then slices to appliedCap, so the
-// visible subset is the (path asc, line asc) leading N across the entire match set.
+// Pipeline: assemble parameters (query as one escaped, double-quoted phrase per spec
+// 087, format=json, optional path, optional case) → invokeCli(search:context). No
+// `limit` is forwarded upstream (BI-055): upstream returns the full match set, the
+// wrapper sorts it, then slices to appliedCap, so the visible subset is the
+// (path asc, line asc) leading N across the entire match set.
 // Zero-match sentinel branch — if folder was supplied and normalises non-empty, fire a
 // second invokeCli(folder) probe so a missing folder surfaces as the inherited
 // dispatch-classifier CLI_REPORTED_ERROR instead of count=0. JSON.parse / wire-parse
-// failures emit CLI_REPORTED_ERROR(details.stage). Flatten file-grouped wire to per-line
-// rows, strip a single trailing \r per FR-012, cap text at 500 chars + U+2026 marker,
-// detect truncation conservatively via `flat.length >= appliedCap` (fires on a real drop
-// and at flat===cap with no drop — FR-005), sort by (path, line) ascending, slice to
-// appliedCap. Output boundary-validated via contextSearchOutputSchema.
+// failures emit CLI_REPORTED_ERROR(details.stage). The rows come from lineMatches
+// (search/line-matches.ts, shared with search's line mode): one entry per line (none
+// for a line-break query; spec 087), a single trailing \r stripped per FR-012, text
+// capped at 500 chars + U+2026 marker, conservative truncation via
+// `flat.length >= appliedCap` (fires on a real drop and at flat===cap with no drop —
+// FR-005), sorted by (path, line) ascending, sliced to appliedCap. Output
+// boundary-validated via contextSearchOutputSchema.
 import {
   contextSearchOutputSchema,
   type ContextSearchInput,
-  type ContextSearchMatch,
   type ContextSearchOutput,
 } from "./schema.js";
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import { stripBoundarySlashes } from "../search/handler.js";
+import { lineMatches } from "../search/line-matches.js";
+import { literalPhraseQuery } from "../search/literal-phrase.js";
 import { searchContextWireSchema } from "../search/schema.js";
 
 import type { Logger } from "../../logger.js";
@@ -35,17 +39,11 @@ export interface ExecuteDeps extends CallScope {
   env?: NodeJS.ProcessEnv;
 }
 
-const TEXT_CAP = 500;
-const ELLIPSIS = "…";
 const DEFAULT_CAP = 1000;
 const ZERO_MATCH_SENTINEL = "No matches found.";
 
 function stripCr(s: string): string {
   return s.endsWith("\r") ? s.slice(0, -1) : s;
-}
-
-function capLine(text: string): string {
-  return text.length <= TEXT_CAP ? text : text.slice(0, TEXT_CAP) + ELLIPSIS;
 }
 
 export async function executeContextSearch(
@@ -55,7 +53,7 @@ export async function executeContextSearch(
   const appliedCap = input.limit ?? DEFAULT_CAP;
 
   const parameters: Record<string, string | true> = {
-    query: input.query,
+    query: literalPhraseQuery(input.query),
     format: "json",
   };
 
@@ -123,23 +121,7 @@ export async function executeContextSearch(
     });
   }
 
-  const wire = wireParsed.data;
-  const mdOnly = wire.filter((f) => f.file.toLowerCase().endsWith(".md"));
-  const flat: ContextSearchMatch[] = mdOnly.flatMap((f) =>
-    f.matches.map((m) => ({
-      path: f.file,
-      line: m.line,
-      text: capLine(stripCr(m.text)),
-    })),
+  return contextSearchOutputSchema.parse(
+    lineMatches(input.query, wireParsed.data, appliedCap, stripCr),
   );
-  const truncated = flat.length >= appliedCap;
-  const sorted = [...flat].sort((a, b) =>
-    a.path < b.path ? -1 : a.path > b.path ? 1 : a.line - b.line,
-  );
-  const trimmed = sorted.slice(0, appliedCap);
-  return contextSearchOutputSchema.parse({
-    count: trimmed.length,
-    matches: trimmed,
-    ...(truncated ? { truncated: true as const } : {}),
-  });
 }

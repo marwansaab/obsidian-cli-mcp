@@ -47,7 +47,7 @@ This tool is **vault-scoped** — there is no `target_mode` discriminator, no `f
 
 ### Per-field policy
 
-- **`query`** — phrase-matched as a single literal substring. Internal whitespace preserved verbatim — `"foo bar"` matches `foo bar` but not `foobar` or `foo  bar`. Empty / whitespace-only rejected.
+- **`query`** — phrase-matched as a single literal substring. Internal whitespace preserved verbatim — `"foo bar"` matches `foo bar` but not `foobar` or `foo  bar`. Empty / whitespace-only rejected. The whole query is one literal phrase: its words must appear together, in order, with the same spacing. Characters that mean something in Obsidian's own search box (double quotes, a leading `-`, `OR`, parentheses, square brackets, `tag:` / `path:` / `file:`-style prefixes, `/…/`, `*`, `\`) are matched as ordinary text; nothing needs escaping.
 - **`folder`** — vault-relative folder prefix; leading/trailing `/` stripped. `folder: "/"` alone normalises to empty (unscoped). Case-sensitive segment-boundary match enforced by upstream — `folder=Projects` does NOT match `projects/`.
 - **`limit`** — caps the returned array. Implicit cap is 1000.
 - **`case_sensitive`** — when `true`, upstream's `case` flag is set; otherwise ASCII-fold case-insensitive. Folding is ASCII-only — `É` does NOT match `é`.
@@ -93,7 +93,7 @@ With truncation:
 |-------|------|-------------|
 | `count` | integer ≥ 0 | Number of entries; equals `paths.length` (default) or `matches.length` (line). |
 | `paths` | string[] | Vault-relative paths. Sorted UTF-16 ascending. Only `.md` files. |
-| `matches` | object[] | One entry per matching line; sorted by `path` asc then `line` asc. |
+| `matches` | object[] | One entry per matching line; sorted by `path` asc then `line` asc. Each matching line appears once, however many times the phrase occurs in it. |
 | `matches[].path` | string | Vault-relative `.md` path. |
 | `matches[].line` | integer ≥ 1 | 1-based line number of the matching line. |
 | `matches[].text` | string | Matching-line content, capped at 500 chars + `…` (U+2026 ellipsis marker) if longer. |
@@ -225,7 +225,7 @@ Whitespace-only `query` fails the schema:
 
 ### Filename-match inflation (default mode)
 
-The default-mode result set may include files whose **filename** or metadata contains the query, even when no body line literally contains it. `query=Welcome` returns `Welcome.md` because the filename matches; the body need not contain "Welcome" at all. This is upstream behaviour and is preserved.
+The default-mode result set may include files whose **filename** or metadata contains the query, even when no body line literally contains it. `query=Welcome` returns `Welcome.md` because the filename matches; the body need not contain "Welcome" at all. This is upstream behaviour and is preserved. The file name or metadata must contain the whole phrase.
 
 ### Line-mode count divergence
 
@@ -263,7 +263,7 @@ The `truncated` flag carries the "did we hit the cap?" signal; explicit pre-flig
 
 ### No regex / boolean / surrounding-context
 
-Upstream is substring-only. For regex use [`pattern_search`](./pattern_search.md). For surrounding-context lines (`N±k`) — not supported in either tool.
+The query is matched as one literal substring; boolean operators such as `OR` are matched as text. This section used to say upstream itself is substring-only. It is not: `obsidian search` reads Obsidian search syntax. The wrapper sends the query as one quoted, escaped phrase (spec 087). For regex use [`pattern_search`](./pattern_search.md). For surrounding-context lines (`N±k`) — not supported in either tool.
 
 ### Latency
 

@@ -37,6 +37,8 @@ Spec 085-stabilise-query-ordering.
 
 Spec 086-fix-section-replacement (BI-0168).
 
+Spec 087-match-literal-phrases (BI-0169).
+
 ### Added
 
 - **`write_note` reports `bytes_written`**, with the same meaning, counting a new note's old size as 0. If the existing note's size cannot be read before an overwrite, the call fails with `FS_WRITE_FAILED` before anything is written. Its `details` shape is unchanged; `details.syscall` now reads `"stat"` where the old existence probe reported `"realpath"`.
@@ -80,6 +82,7 @@ Spec 086-fix-section-replacement (BI-0168).
 - **Help pages show calls and errors as the server accepts and returns them** (spec 084). The `write_note` migration example now passes a valid `obsidian_exec` call (`command` plus `parameters`, not an `argv` array). The quoted validation messages in the `context_search`, `search` and `properties` examples match what the server returns. The `views_base` and `patch_block` pages no longer claim `params.*` / `details.code` fields on their validation errors, which carry the reason in the issue message only. The `context_search` missing-folder example shows the generic top-level message and the `details` agents should branch on.
 - **`smart_connections_query` and `smart_connections_similar`: the result `limit` is now applied after the documented score / path / headingPath ordering**, to a fixed list of up to 100 plugin candidates, so a smaller limit always returns a leading slice of a larger one and equal-score results no longer depend on the limit (spec 085).
 - **`patch_heading` and `patch_block` now place edits at the named heading or found block on notes that mix LF and CRLF line endings** (for example after a property edit on a Windows note) (spec 086). Previously the edit could land further down the note and overwrite unrelated text while reporting success. Kept lines keep their line endings, and an edit that cannot be placed safely is refused with `CLI_REPORTED_ERROR` / `UNSAFE_PLACEMENT` without writing.
+- **`search` and `context_search` match the whole query as one literal phrase** (spec 087). A query with spaces no longer matches notes that contain its words separately or in another order, and characters that mean something in Obsidian's search syntax (`"`, a leading `-`, `OR`, parentheses, square brackets, `tag:` / `path:` / `file:` prefixes, `/…/`, `*`, `\`) are matched as text, with nothing to escape. Line-level results (`context_search`, and `search` with `context_lines: true`) list each matching line once, so `count` and `truncated` count lines, not occurrences; a query containing a line break returns no lines there. File-name matching, case handling and folder scoping are unchanged.
 
 ## [0.9.0] - 2026-10-30
 

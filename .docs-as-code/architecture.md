@@ -1426,6 +1426,12 @@ holds the zod input (and usually output) schemas, `handler.ts` holds the
 calls `registerTool`, and eval tools add `_template.ts`. Tests sit beside the
 file they test. Imports go one way — tools depend on the shared modules and
 the adapter, never the other way round, and nothing imports `server.ts`.
+One tool-to-tool edge exists, and it runs one way: `context_search` and
+`pattern_search` import from `search/`. Code the text searches share sits in
+that folder beside the wire schema it reads, rather than in an `_*.ts` leaf:
+`literal-phrase.ts` and `line-matches.ts` since PR #120
+([search and discovery](capabilities/search-and-discovery.md),
+[ADR-057](decisions/ADR-057-text-searches-send-the-query-as-one-escaped-literal-phrase.md)).
 
 Every production source file starts with an attribution header: either an
 upstream reference with SPDX licence and version, or `Original — no upstream`

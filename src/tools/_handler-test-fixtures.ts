@@ -273,6 +273,13 @@ export function captureLogger(events: Array<Record<string, unknown>>): Logger {
   });
 }
 
+/** The value of the first recorded argv token `key=<value>`, or undefined when no such token was sent. */
+export function findKv(argv: string[], key: string): string | undefined {
+  const prefix = `${key}=`;
+  const hit = argv.find((a) => a.startsWith(prefix));
+  return hit === undefined ? undefined : hit.slice(prefix.length);
+}
+
 /** Await a promise expected to reject; return the rejection value (or throw if it resolves). */
 export async function captureRejection(promise: Promise<unknown>): Promise<unknown> {
   try {
