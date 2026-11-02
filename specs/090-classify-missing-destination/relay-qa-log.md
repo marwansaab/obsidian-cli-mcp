@@ -300,3 +300,43 @@ Edits:
 > - **C1:** Add the M row for the full-path backslash destination (`Archive\\2026\\Old.md` reports `Archive/2026`). Keep the edge case as written.
 >
 > Rationale: the BI's clarification (FR-005) says no move failure may carry the vault's absolute location. A recorded residual would break that. Constitution Principle IV forbids masking the move failure behind the lookup error and asks that both failures be reported.
+
+## 8. record / record-in-vault (2026-11-02T10:22:09.631Z)
+
+**Question (verbatim):**
+
+> The work for job BI-0172 is now a reviewed, documented pull request. Record that on the job's note, following the vault's conventions for backlog items:
+> - the spec branch: 090-classify-missing-destination
+> - the feature folder in the code repository: specs/090-classify-missing-destination
+> - the pull request: https://github.com/marwansaab/obsidian-cli-mcp/pull/123 (number 123)
+> - the status that means "in review" in this vault (if the vault has no such status, escalate `decision` with up to 3 choices)
+> - a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0172-2026-11-02 produced it.
+>
+> Dry run: no. In a dry run, change nothing: list each edit you would make in `vault_edits`, starting its change with "Would". Otherwise list each edit you made.
+
+**Advisor** (escalate: none):
+
+> BI-0172 now records PR #123 as in review. I followed the shape of sibling BI-0137 (PR #111) and checked the result by reading the note back:
+> - Frontmatter: `status` is `in-review` (was `planned`); this value is in the backlog-item status list in Vault Frontmatter Convention. `spec_branch` is set to `090-classify-missing-destination` and `updated` to 2026-11-02.
+> - `## Status` section: a new first paragraph, "**In review — 2026-11-02.**", links https://github.com/marwansaab/obsidian-cli-mcp/pull/123 and names the spec branch and the feature folder `specs/090-classify-missing-destination`. It says the PR is awaiting owner merge.
+> - Footer: a dated HTML comment says Relay run obsidian-cli-mcp-bi-0172-2026-11-02 produced PR #123.
+>
+> The specify prompt is unchanged. The note stays all-LF.
+
+Sources: `000-Meta/Vault Frontmatter Convention.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0137 - Classify Malformed Base As Base Malformed In Views Base.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0172 - Classify Move Missing Destination Folder Error.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0172 - Classify Move Missing Destination Folder Error.md`: Frontmatter status planned → in-review (set_property).
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0172 - Classify Move Missing Destination Folder Error.md`: Frontmatter spec_branch added: 090-classify-missing-destination (set_property).
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0172 - Classify Move Missing Destination Folder Error.md`: Frontmatter updated 2026-10-31 → 2026-11-02 (set_property).
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0172 - Classify Move Missing Destination Folder Error.md`: ## Status: added an 'In review — 2026-11-02' paragraph linking PR #123, spec branch and feature folder (path-scoped find_and_replace, previewed, 1 occurrence).
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0172 - Classify Move Missing Destination Folder Error.md`: Appended a dated HTML comment: Relay run obsidian-cli-mcp-bi-0172-2026-11-02 produced PR #123, branch 090-classify-missing-destination, folder specs/090-classify-missing-destination; status → in-review.
+
+**Sent to the step:**
+
+> BI-0172 now records PR #123 as in review. I followed the shape of sibling BI-0137 (PR #111) and checked the result by reading the note back:
+> - Frontmatter: `status` is `in-review` (was `planned`); this value is in the backlog-item status list in Vault Frontmatter Convention. `spec_branch` is set to `090-classify-missing-destination` and `updated` to 2026-11-02.
+> - `## Status` section: a new first paragraph, "**In review — 2026-11-02.**", links https://github.com/marwansaab/obsidian-cli-mcp/pull/123 and names the spec branch and the feature folder `specs/090-classify-missing-destination`. It says the PR is awaiting owner merge.
+> - Footer: a dated HTML comment says Relay run obsidian-cli-mcp-bi-0172-2026-11-02 produced PR #123.
+>
+> The specify prompt is unchanged. The note stays all-LF.
