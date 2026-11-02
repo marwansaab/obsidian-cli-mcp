@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-11-02T05:18:42.678Z |
 | Finished | not yet |
-| Elapsed | 25 min 52 s |
+| Elapsed | 36 min 43 s |
 | Questions | 2 (2 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 2 |
@@ -56,6 +56,7 @@
 ### pre-implementation (`fe55b0db-fbd7-4560-87c1-fe6eb4b1687f`)
 
 - Condition `shell-exit-0` (run_when): met. "node -e "process.exit('' === '' ? 0 : 1)"" exited 0.
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\specs\086-fix-section-replacement\tasks.md exists.
 
 - **specify**: done, 14 turns.
 
@@ -109,16 +110,34 @@
 >
 > Row ranges are updated everywhere to H1–H12 and B1–B6.
 
-- **resolve-analysis**: in progress.
+- **resolve-analysis**: done, 6 turns.
+
+> Every finding from the analysis report was already resolved in the previous step, which applied all ten remediations: G1, I1, I2, C1 and C2 (MEDIUM) and A1, U1, U2, C3 and I3 (LOW). The report had no CRITICAL or HIGH findings, none needed a further product decision, and nothing is left open.
+>
+> What changed: spec.md (FR-002 and FR-014 made subject to FR-006; FR-012 and FR-017 require UNSAFE_PLACEMENT in each published description's typed-error list; SC-006 names the two moving fingerprints); plan.md and research.md (owner's conditional approval of the test-block deletion); tasks.md (grep gates in T007, T008 and T013, T015 now points at T021, B6 added to T010, H11 and H12 added to T016, the real-walker check in T003, and a revert in T009 that never uses git stash); the contract (rows B6, H11, H12 and an extended N3); quickstart.md; and the checklist notes. The approval is also recorded under item 5 of .memory/refactor-decisions.md, which is gitignored.
+>
+> I committed the feature folder as d81d797 on 086-fix-section-replacement, following the CONTRIBUTING.md format (docs(086) subject, a body listing each finding ID and severity, and the Co-Authored-By trailer). It is not pushed.
+>
+> Left uncommitted on purpose, because the instruction was to commit the feature folder only: CLAUDE.md (plan pointer moved to the 086 plan by hand, since the agent-context hook could not run without Python/PyYAML) and .specify/feature.json (points at the 086 folder). In spec 085 the pointer change was committed separately (commit b222418), so it can go in a later docs commit.
+
 
 ### continue
 
-- **prepare**: not run.
+Skipped.
 
-### implementation
+- Condition `shell-exit-0` (run_when): not met. "node -e "process.exit('' === '' ? 1 : 0)"" exited 1.
 
-- **implement**: not run.
-- **open-pr**: not run.
+- **prepare**: skipped.
+
+### implementation (`6c0859c9-55f5-4440-beec-59a68bb4787a`)
+
+- Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\specs\086-fix-section-replacement\tasks.md exists, and Obsidian has TestVault-Obsidian-CLI-MCP focused.
+
+- **implement**: done, 130 turns.
+
+> Implemented spec 086 (T001–T026 all marked [X]). New leaf src/tools/_note-lines.ts (splitNoteLines, lineText, insertEnding, joinNoteLines, lineStart, keepsOriginalAround) plus vitest-free _line-ending-fixtures.ts. patch_heading and patch_block now split lines per-terminator, keep kept lines' endings, give added lines the marker line's ending, and refuse unsafe edits with CLI_REPORTED_ERROR / UNSAFE_PLACEMENT before any write. Both detectLineEnding exports and their test blocks were deleted after the grep gate showed no callers. Descriptions, help pages and CHANGELOG updated; baseline regenerated (two description fingerprints plus the routine generatedFromBranch stamp). New tests: N1–N9, H1–H12, B1–B6, U1–U2, S5. Red evidence and the quickstart red check are recorded in post-implement.md. Full gate: typecheck, lint, 4304 tests pass, coverage slightly up. format:check fails repo-wide, as it did before (autocrlf working copy; CI does not run it). Optional live check T026 not run. Nothing committed; the optional after_implement commit hook was skipped.
+
+- **open-pr**: in progress.
 
 ### review
 
