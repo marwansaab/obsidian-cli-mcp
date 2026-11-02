@@ -230,3 +230,60 @@ Edits:
 > Do not change any expected `text`, `count`, `truncated` or argv value. If any other existing assertion fails, stop and raise it, and do not edit that test. Record this in refactor-decisions item 5.
 >
 > Why: this is the owner's ruling. It keeps production code free of the trimmed-text fallback that Principle IV forbids, which is consistent with the FR-007 answer.
+
+## 5. implementation / implement (2026-11-02T08:07:42.225Z)
+
+**Question (verbatim):**
+
+> T014 stopped: two existing assertions fail outside the approved test-edit scope (contract §E, refactor-decisions item 5, spec 088 entry). Neither test has been edited. Full output is in specs/088-preserve-match-whitespace/post-implement.md under "T014 approved test edits — STOPPED for owner review".
+>
+> 1. `src/tools/context_search/handler.test.ts`, "response key-set — exactly ['count','matches','truncated'] when truncated": it stubs the same 1,000 notes as the H14 1,000-note test, so the read-back needs several calls under READ_BACK_CODE_MAX. The approved scope gives it one extra response, and it fails with `unexpected spawn invocation #3; only 2 response(s) configured`.
+> 2. `src/tools/_plugin-noise.test.ts:263`, "covers every eval-composed tool named in spec 080 Key Entities": the noise matrix builds its cohort by running the typed-result fixtures and keeping those that spawn a wrapped eval. context_search now does, so it joins the cohort and the hard-coded 24-name set no longer matches (received has an extra "context_search"). Every N1–N11 noise row passes for context_search.
+>
+> How should I proceed?
+>
+> | Option | Edit | Effect |
+> |---|---|---|
+> | A (recommended) | (1) The key-set test queues one read-back response per batch, using the same `readBackResponses(wire, 1000)` helper as the two H14 tests. (2) Add "context_search" to the `_plugin-noise.test.ts` inventory set. No expected `text`, `count`, `truncated` or argv value changes. | Both are direct consequences of the design you already approved. (1) is the same case as the second ruling's H14 tests. (2) records that context_search is now an eval-composed tool, and it gains noise-matrix coverage. I would record the extension in refactor-decisions item 5 and post-implement.md, then continue with T015–T022. |
+> | B | Approve (1) only, and keep context_search out of the noise cohort by excluding it in `_plugin-noise.test.ts`. | This still edits `_plugin-noise.test.ts`, and the new eval path loses noise coverage. Not recommended. |
+> | C | Approve neither. | Implementation stays stopped. The design would need revisiting, for example a way to answer the read-back without extra spawns, which the F10 shim limit rules out for a single call. |
+>
+> Recommended: Option A. Both edits only add stub responses or a name to a list, they change no expected behaviour value, and they follow from the owner rulings already given (option A and the post-F10 batching ruling).
+
+**Advisor** (escalate: decision: The owner's ruling (recorded on BI-0170, 2026-11-02) says any existing-test failure outside the approved scope stops the work for owner review. Both failures are outside that scope, so widening it needs the owner.):
+
+> Recommended: A. Extend the approved test-edit scope by exactly two edits, then continue with T015–T022:
+> (1) In the `handler.test.ts` key-set (truncated) test, queue one read-back response per batch via `readBackResponses(wire, 1000)`, the same as the H14 tests.
+> (2) Add `"context_search"` to the hard-coded eval-composed inventory set in `_plugin-noise.test.ts:263`.
+> Do not change any expected `text`/`count`/`truncated`/argv value. Record the extension in refactor-decisions item 5 and in post-implement.md. If any further failure falls outside the scope, stop again.
+>
+> Why: both edits follow directly from the approved design, which adds an eval read-back. (1) is the H14 case again. (2) puts the new eval path under noise-matrix coverage, which Constitution Principle II favours. B's exclusion would drop that coverage. Owner sign-off needed: the BI-0170 ruling says any other existing-test failure stops the work for owner review.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Constitution.md`
+
+**Advisor, after the owner ruled** (escalate: none):
+
+> A. Owner approved both edits:
+> (1) In the `handler.test.ts` key-set (truncated) test, queue one read-back response per batch using `readBackResponses(wire, 1000)`, the same way the H14 tests do.
+> (2) Add `"context_search"` to the `_plugin-noise.test.ts:263` inventory set.
+>
+> No expected `text`, `count`, `truncated` or argv value changes. Record the scope extension in refactor-decisions item 5 and in post-implement.md, then continue with T015–T022. If any further existing-test failure falls outside this scope, stop again for owner review.
+>
+> Why: this is the owner's ruling, now recorded on the BI-0170 note. The new eval path stays under noise-matrix coverage (Constitution Principle II).
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Constitution.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md`: Appended a dated HTML-comment clarify record: owner ruling A on the T014 stop. The test-edit scope is extended by the key-set read-back batching edit and the context_search entry in the _plugin-noise inventory, with the stop condition restated.
+
+**Owner:** choice 1 (A: approve both edits), via cli, 2026-11-02T08:20:38.363Z.
+
+**Sent to the step:**
+
+> A. Owner approved both edits:
+> (1) In the `handler.test.ts` key-set (truncated) test, queue one read-back response per batch using `readBackResponses(wire, 1000)`, the same way the H14 tests do.
+> (2) Add `"context_search"` to the `_plugin-noise.test.ts:263` inventory set.
+>
+> No expected `text`, `count`, `truncated` or argv value changes. Record the scope extension in refactor-decisions item 5 and in post-implement.md, then continue with T015–T022. If any further existing-test failure falls outside this scope, stop again for owner review.
+>
+> Why: this is the owner's ruling, now recorded on the BI-0170 note. The new eval path stays under noise-matrix coverage (Constitution Principle II).

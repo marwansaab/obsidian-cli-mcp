@@ -7,11 +7,11 @@
 | Status | running |
 | Started | 2026-11-02T07:12:25.952Z |
 | Finished | not yet |
-| Elapsed | 45 min 58 s |
-| Questions | 2 (1 needed the owner) |
+| Elapsed | 1 h 14 min |
+| Questions | 3 (2 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
-| Escalations | 2 |
-| Edits by the advisor | 1 |
+| Escalations | 3 |
+| Edits by the advisor | 2 |
 
 ## Inputs
 
@@ -55,6 +55,7 @@
 ### pre-implementation (`51dc7520-5fd1-467e-b4b3-d5b99e68898f`)
 
 - Condition `shell-exit-0` (run_when): met. "node -e "process.exit('' === '' ? 0 : 1)"" exited 0.
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\specs\088-preserve-match-whitespace\tasks.md exists.
 
 - **specify**: done, 18 turns.
 
@@ -130,16 +131,58 @@
 >
 > Recommendation: fix I1, I2, C1 and C2 (and U1 if wanted) before /speckit-implement. Implementation may proceed as is, since nothing is CRITICAL.
 
-- **resolve-analysis**: in progress.
+- **resolve-analysis**: done, 30 turns.
+
+> All 9 analyze findings are fixed, with no new questions: the spec, plan, constitution, Q1 and the owner rulings already settled each one. No CRITICAL or HIGH finding was open.
+>
+> MEDIUM findings:
+> - **I1**: FR-006 now also allows failures of the read-back step itself. They surface through existing codes with no partial or trimmed result, as Principle IV and research D4 already required.
+> - **I2**: the quickstart §2 surface gate no longer runs an exit-code diff on context_search/schema.ts, which T010 changes on purpose. That file now gets an "additions only" diff check.
+> - **C1**: T016 and the contract's help-page text now also correct the help page's "Migration from search" section to three differences, adding a Whitespace bullet (FR-009).
+> - **C2**: the spec's byte-order-mark assumption now says line 1 is returned without the mark. It is enforced in V8 and T011 and tested by R15 and H34.
+> - **U1**: quickstart §3 and T022 now measure wall time and eval count for a 300-note call and a limit-1000 call. The figures go to post-implement.md and the help page's Latency note. The plan notes the single-flight queue cost.
+>
+> LOW findings:
+> - **U2**: T011 now uses a per-path state map next to the per-line map, and R16 tests it.
+> - **F1**: `_handler-fixtures.ts` is added to the plan's source tree.
+> - **F2**: the plan's import list for read-back.ts now matches T011.
+> - **D1**: H35 covers a repeated line with whitespace.
+>
+> Row ranges were updated to R1–R16 and H20–H35, and the plan also states the F10 shim limit correctly.
+>
+> Committed as f2a81eb `docs(088): specify, plan and task untrimmed context_search lines (BI-0170)` on 088-preserve-match-whitespace, following CONTRIBUTING.md. It covers the whole feature folder, including relay-digest.md and relay-qa-log.md. Not pushed.
+>
+> Left open, with reasons:
+> 1. CLAUDE.md (plan pointer moved to 088) and .specify/feature.json (pointing at 088) are modified but uncommitted, because the request scoped the commit to the feature folder. 087 committed the agent-context pointer separately.
+> 2. The spec sets no latency target. U1 is resolved by measuring, and setting a target would be a product decision nobody asked for.
+> 3. The plan follow-up remains: other eval-composed tools need checking against the F10 shim limit, as a separate backlog item.
+
 
 ### continue
 
-- **prepare**: not run.
+Skipped.
 
-### implementation
+- Condition `shell-exit-0` (run_when): not met. "node -e "process.exit('' === '' ? 1 : 0)"" exited 1.
 
-- **implement**: not run.
-- **open-pr**: not run.
+- **prepare**: skipped.
+
+### implementation (`4db48819-35a3-4f1f-9ad3-d57f38adae8a`)
+
+- Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\specs\088-preserve-match-whitespace\tasks.md exists; focused TestVault-Obsidian-CLI-MCP in Obsidian (it had My-Setup-Vault focused).
+
+- **implement**: done, 120 turns, 1 questions.
+
+> Applied the owner's option-A edits: the key-set truncated test now queues `readBackResponses(wire, 1000)`, and "context_search" is added to the `_plugin-noise.test.ts` inventory. No expected text, count, truncated or argv value changed. The ruling is recorded in refactor-decisions item 5 and post-implement.md. No other existing test failed. T015–T022 are done:
+> - US2 bite check: the required tests fail under both temporary changes.
+> - Help page: carries the contract text and the observed latency.
+> - CHANGELOG: spec line and Fixed entry added.
+> - Full gate: npm test passed 4,416 tests (6 skipped), coverage floor and FR-018 baseline passing; typecheck and lint clean. Both red checks bite.
+> - Surface gate: the git diff is empty for the baseline, both index.ts files, search's handler and schema, errors.ts and cli-adapter.
+> - Structural verification: no new codes or DI imports, imports one-directional, every new export has a production caller.
+> - Live check: 12 of 12 cases passed through the built server against TestVault-Obsidian-CLI-MCP. 6 fixtures took 1 read-back eval and 188 ms; 300 notes took 10 evals and 894 ms; limit 1000 took 10 evals and 934 ms. The longest eval code was 2,946 characters. Sandbox is restored with no residue.
+> All tasks in tasks.md are marked [X]. Nothing is committed or pushed. The optional after_implement commit hook was skipped.
+
+- **open-pr**: in progress.
 
 ### review
 
@@ -169,12 +212,16 @@
    (b) Under any smaller budget, the existing H14 tests with 1000 and 999 notes in context_search/handler.test.ts need two or more read-back responses. That is beyond th
   - Choices: 1. Retry step; 2. Skip step; 3. Abort run
   - Answer: "Obsidian has been restarted; the CLI answers again (obsidian vaults lists TestVault-Obsidian-CLI-MCP and My-Setup-Vault). Rulings: (1) Bounded live probe authorised: read-only evals against TestVault-Obsidian-CLI-MCP only, stepping up from 2,000 characters with a per-call timeout; stop at the first failure or timeout and set the batch budget with a safety margin below the last success. Never send an eval larger than the next probe step. (2) The H14 1000-note and 999-note tests in context_search/handler.test.ts may queue as many read-back responses as their batches need, with no change to any expected value; record this in refactor-decisions item 5. The approved literal-phrase scope shrinks to C1, C4, C5 and C6. Any other failing existing assertion still stops for review. Then re-run /speckit-tasks." via cli
+- **BI-0170 (dry run: no): implement question needs you (decision)** (advisor, 2026-11-02T08:07:57.484Z): The owner's ruling (recorded on BI-0170, 2026-11-02) says any existing-test failure outside the approved scope stops the work for owner review. Both failures are outside that scope, so widening it needs the owner.
+  - Choices: 1. A: approve both edits; 2. B: key-set only, exclude from noise; 3. C: approve neither
+  - Answer: choice 1 (A: approve both edits) via cli
 
 ## Edits made by the advisor
 
 | File | Change | Triggered by |
 |---|---|---|
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md` | Appended a dated HTML-comment clarify record: owner ruling A on existing-test edits (refactor-decisions item 5, exact scope and stop condition), plus the FR-007 answer (fail the whole call with UpstreamError naming path + line, no new top-level code). | pre-implementation / plan: **Question:** May the plan edit the existing context_search tests that the second Obsidian call brea |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md` | Appended a dated HTML-comment clarify record: owner ruling A on the T014 stop. The test-edit scope is extended by the key-set read-back batching edit and the context_search entry in the _plugin-noise inventory, with the stop condition restated. | implementation / implement: T014 stopped: two existing assertions fail outside the approved test-edit scope (contract §E, refact |
 
 ## Files
 
