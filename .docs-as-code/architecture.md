@@ -688,6 +688,21 @@ mode, as defence in depth behind the schema. And it reclassifies the CLI's
 exit-0 `Vault not found.` stdout as `CLI_REPORTED_ERROR`, so every typed tool
 gets the same unknown-vault failure.
 
+Since PR #124 (spec 091, BI-0173) `invokeBoundedCli` does too, with a stricter
+rule: only when the call names a vault and its whole stdout, trimmed, is
+exactly `Vault not found.`, because `obsidian_exec` returns raw note text that
+may legitimately start with that sentence. Before PR #124 the raw facade had
+no check, and an unknown vault came back from `obsidian_exec` as a success.
+Both facades check inside `queue.run` after `dispatchCli` returns, so the
+answer is outside the cold-start retry and never triggers a launch; both read
+the one `UNKNOWN_VAULT_ANSWER` literal in `_dispatch.ts`, which does not
+classify it itself. `code`, `message` and `details.message` match across the
+two facades; the raw facade's `details` add `argv`, `command`, `stdout`,
+`stderr` and `exitCode` through `exitZeroDetails`
+([ADR-061](decisions/ADR-061-obsidian-exec-fails-an-unknown-vault-only-on-the-exact-answer.md),
+obsidian_exec Fails an Unknown Vault Only on the CLI's Exact Answer to a
+Named Vault).
+
 **Typed evals have their own entry point** (PR #110, spec 080, BI-0135).
 Obsidian plugins print to the same stdout that carries an `eval` answer, so a
 plugin line ahead of the answer used to turn a success into a parse failure.
@@ -843,6 +858,13 @@ reports the first physical line. When a typed eval succeeds, dispatch hands
 the answer it found back as `DispatchOutput.evalAnswer`, so `invokeEval` does
 not scan stdout a second time. The field is set only when the input carried a
 tag, which keeps it out of `obsidian_exec`'s raw output.
+
+Priorities (b) and (c) build their `details` with `exitZeroDetails` in
+`_dispatch.ts` (`{ argv, command, stdout, stderr, exitCode: 0, message }`),
+which the raw facade's unknown-vault failure also uses (PR #124 review). The
+CLI's `Vault not found.` answer is not in this table: dispatch returns it as
+a success and each facade classifies it afterwards
+([runtime spine](#runtime-spine)).
 
 Alongside those: `CLI_TIMEOUT`, `CLI_OUTPUT_TOO_LARGE`, `CLI_BINARY_NOT_FOUND`
 from dispatch; `VALIDATION_ERROR`, `INTERNAL_ERROR` from registration

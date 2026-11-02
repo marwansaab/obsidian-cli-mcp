@@ -192,3 +192,9 @@ applies. Records written since:
   absolute folder out of every other failure, withholding the text when the
   root cannot be looked up; a pre-check, withholding everywhere and a
   before-the-move lookup were rejected (PR #123).
+- [decisions/ADR-061-obsidian-exec-fails-an-unknown-vault-only-on-the-exact-answer.md](decisions/ADR-061-obsidian-exec-fails-an-unknown-vault-only-on-the-exact-answer.md)
+  — `obsidian_exec` fails with the typed tools' `CLI_REPORTED_ERROR` /
+  `Vault not found.` only when the call names a vault and its whole trimmed
+  stdout is exactly that answer, checked in the raw facade after dispatch;
+  the typed tools' prefix rule and a private copy of the literal were
+  rejected (PR #124).
