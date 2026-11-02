@@ -309,3 +309,44 @@ Edits:
 > I3. Update the requirements-checklist Notes: `patch_block` is in scope (Session 2026-11-02 ruling).
 >
 > Rationale: owner ruling 2026-11-02, recorded on BI-0168. BI-0168's "no silent corruption" acceptance criterion and Constitution Principle II support adding every coverage row.
+
+## 5. record / record-in-vault (2026-11-02T06:10:18.719Z)
+
+**Question (verbatim):**
+
+> The work for job BI-0168 is now a reviewed, documented pull request. Record that on the job's note, following the vault's conventions for backlog items:
+> - the spec branch: 086-fix-section-replacement
+> - the feature folder in the code repository: specs/086-fix-section-replacement
+> - the pull request: https://github.com/marwansaab/obsidian-cli-mcp/pull/119 (number 119)
+> - the status that means "in review" in this vault (if the vault has no such status, escalate `decision` with up to 3 choices)
+> - a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0168-2026-11-02 produced it.
+>
+> Dry run: no. In a dry run, change nothing: list each edit you would make in `vault_edits`, starting its change with "Would". Otherwise list each edit you made.
+
+**Advisor** (escalate: none):
+
+> Recorded on BI-0168, following the same pattern as sibling BI-0167 (also in review):
+> - Frontmatter `status`: changed from `planned` to `in-review`. This is the vault's existing "in review" value; 18 other Obsidian CLI MCP BIs already use it.
+> - Frontmatter `spec_branch`: set to `086-fix-section-replacement`.
+> - `## Status`: added a dated paragraph at the top: "In review — 2026-11-02". It links PR #119, names spec branch `086-fix-section-replacement` and feature folder `specs/086-fix-section-replacement`, notes that the fix covers both `patch_heading` and `patch_block`, and says it is awaiting the owner's merge.
+> - Added a dated HTML comment at the end of the note: Relay run obsidian-cli-mcp-bi-0168-2026-11-02 produced PR #119.
+>
+> Read the whole note back afterwards: all four edits are in place, the frontmatter is intact, and the `updated` date is still 2026-11-02.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0168 - Fix Patch Heading Replace On Mixed Line Ending Notes.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0167 - Apply Smart Connections Query Limit After Tie Break Sort.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0168 - Fix Patch Heading Replace On Mixed Line Ending Notes.md`: Frontmatter status: planned → in-review.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0168 - Fix Patch Heading Replace On Mixed Line Ending Notes.md`: Frontmatter spec_branch set to 086-fix-section-replacement.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0168 - Fix Patch Heading Replace On Mixed Line Ending Notes.md`: Added a dated 'In review — 2026-11-02' paragraph at the top of the Status section, with PR #119, the spec branch and the feature folder specs/086-fix-section-replacement.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0168 - Fix Patch Heading Replace On Mixed Line Ending Notes.md`: Appended a dated HTML comment: Relay run obsidian-cli-mcp-bi-0168-2026-11-02 produced PR #119.
+
+**Sent to the step:**
+
+> Recorded on BI-0168, following the same pattern as sibling BI-0167 (also in review):
+> - Frontmatter `status`: changed from `planned` to `in-review`. This is the vault's existing "in review" value; 18 other Obsidian CLI MCP BIs already use it.
+> - Frontmatter `spec_branch`: set to `086-fix-section-replacement`.
+> - `## Status`: added a dated paragraph at the top: "In review — 2026-11-02". It links PR #119, names spec branch `086-fix-section-replacement` and feature folder `specs/086-fix-section-replacement`, notes that the fix covers both `patch_heading` and `patch_block`, and says it is awaiting the owner's merge.
+> - Added a dated HTML comment at the end of the note: Relay run obsidian-cli-mcp-bi-0168-2026-11-02 produced PR #119.
+>
+> Read the whole note back afterwards: all four edits are in place, the frontmatter is intact, and the `updated` date is still 2026-11-02.

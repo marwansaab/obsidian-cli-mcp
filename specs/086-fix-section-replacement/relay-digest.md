@@ -4,14 +4,14 @@
 |---|---|
 | Run | `obsidian-cli-mcp-bi-0168-2026-11-02` |
 | Project | obsidian-cli-mcp (pack speckit) |
-| Status | running |
+| Status | done |
 | Started | 2026-11-02T05:18:42.678Z |
-| Finished | not yet |
-| Elapsed | 36 min 43 s |
+| Finished | 2026-11-02T06:10:58.012Z |
+| Elapsed | 52 min 15 s |
 | Questions | 2 (2 needed the owner) |
-| Requests to the advisor | 2 (0 needed the owner) |
+| Requests to the advisor | 3 (0 needed the owner) |
 | Escalations | 2 |
-| Edits by the advisor | 4 |
+| Edits by the advisor | 8 |
 
 ## Inputs
 
@@ -132,26 +132,57 @@ Skipped.
 ### implementation (`6c0859c9-55f5-4440-beec-59a68bb4787a`)
 
 - Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\specs\086-fix-section-replacement\tasks.md exists, and Obsidian has TestVault-Obsidian-CLI-MCP focused.
+- Condition `gh-pr-open` (done_when): met. Pull request #119 is open.
 
 - **implement**: done, 130 turns.
 
 > Implemented spec 086 (T001–T026 all marked [X]). New leaf src/tools/_note-lines.ts (splitNoteLines, lineText, insertEnding, joinNoteLines, lineStart, keepsOriginalAround) plus vitest-free _line-ending-fixtures.ts. patch_heading and patch_block now split lines per-terminator, keep kept lines' endings, give added lines the marker line's ending, and refuse unsafe edits with CLI_REPORTED_ERROR / UNSAFE_PLACEMENT before any write. Both detectLineEnding exports and their test blocks were deleted after the grep gate showed no callers. Descriptions, help pages and CHANGELOG updated; baseline regenerated (two description fingerprints plus the routine generatedFromBranch stamp). New tests: N1–N9, H1–H12, B1–B6, U1–U2, S5. Red evidence and the quickstart red check are recorded in post-implement.md. Full gate: typecheck, lint, 4304 tests pass, coverage slightly up. format:check fails repo-wide, as it did before (autocrlf working copy; CI does not run it). Optional live check T026 not run. Nothing committed; the optional after_implement commit hook was skipped.
 
-- **open-pr**: in progress.
+- **open-pr**: done, 16 turns.
 
-### review
+> Committed the spec 086 work on 086-fix-section-replacement in two commits following CONTRIBUTING.md: 211ad03 fix(086) has the code, tests, help pages, CHANGELOG, tasks.md and post-implement.md; 8104e1a docs(086) has the agent context and Relay digest. A first commit attempt failed to pick up its message file. The resulting local, unpushed commit was soft-reset and redone, with no work lost and no force-push. Typecheck, lint and build pass, and npm test passes (4304 tests, 6 skipped). format:check fails as it did before (autocrlf working copy; not a CI gate). Pushed the branch to origin and opened PR #119 into main, not a draft (dry run: no). The description follows the PR #116 layout, because the repo has no PR template, and includes the Constitution Compliance table. Not merged.
 
-- **code-review**: not run.
-- **fix**: not run.
 
-### docs
+### review (`f2f1187f-312c-48da-9f71-f7f7ac89e6f3`)
 
-- **document**: not run.
-- **ci**: not run.
+- Condition `gh-pr-open` (start_when): met. Pull request #119 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #119 is open.
 
-### record
+- **code-review**: done, 18 turns.
 
-- **record-in-vault**: not run.
+> Thermo-nuclear code-quality review of PR #119 complete. Not approved as is: two structural findings. (1) HIGH: the finders' line-split rule now lives in four copies (splitLinesForScan in heading-walk.ts:68 and block-scan.ts:65, splitNoteLines+lineText in _note-lines.ts, inline lambda in _note-lines.test.ts:34) — the bug was finder/editor split disagreement, so export one splitter from _note-lines.ts and have both finders import it (moves a private function; no finder test changes). (2) MED-HIGH: the join + agreement check + keepsOriginalAround + UNSAFE_PLACEMENT throw block is duplicated in patch_heading/handler.ts:145-170 and patch_block/handler.ts:140-163 — extract one _note-lines.ts entry returning text|null (cf. realpathOrThrow precedent); handlers keep only their error. Deleting the then-orphaned detectTrailingNewline exports needs owner approval (item 5); otherwise keep the flag. (3) MEDIUM: Math.min(reachEndLineIndex, lines.length) at patch_heading/handler.ts:161 is redundant with lineStart's own clamp and inconsistent with patch_block — drop it. (4) LOW: patch_heading handler header comment lists pipeline order wrong (placement check before body edit). Settled research decisions (splice API, mode-specific suffix, vi.mock, the guard itself) not re-raised. No file crosses 1k lines. Appended item 46 to .memory/refactor-decisions.md. No code changed.
+
+- **fix**: done, 41 turns.
+
+> All four review findings fixed in commit c069194, pushed to 086-fix-section-replacement (PR #119). No spec-required behaviour changed: existing tests pass unedited and the fingerprint baseline did not move. (1) `splitLinesForScan` now lives in `src/tools/_note-lines.ts` and both finders import it; their private copies are deleted, `lineText` shares the CR strip, and the N3 test uses the export. (2) New `placeEdit` joins the edited lines and runs the placement check, returning text or null; each handler only builds its UNSAFE_PLACEMENT error (byte-identical details and message). (3) Redundant `Math.min` in patch_heading removed, since `lineStart` already clamps. (4) patch_heading header comment now lists steps in code order. Added `splitLinesForScan` and `placeEdit` tests to `_note-lines.test.ts`, updated `post-implement.md` T025, marked memory item 46 fixed. Gates: lint, typecheck and build clean; 4308/4308 pass, 6 skipped (was 4304, +4 new); coverage 96.89% statements. Left: `trailingNewline` stays a `placeEdit` parameter, because deriving it would orphan both `detectTrailingNewline` exports, and deleting them with their tests needs owner approval. Prettier drift in untouched lines of heading-walk.ts and block-scan.ts predates this PR and was not reformatted.
+
+
+### docs (`7773e82e-3f1e-4346-8f3a-86533719a9ee`)
+
+- Condition `gh-pr-open` (start_when): met. Pull request #119 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #119 is open.
+
+- **document**: done, 33 turns.
+
+> Documented PR #119 (open, 086-fix-section-replacement -> main) and pushed commit 7bff3b6 onto the PR branch. CI is re-running; npm test was not run because no docs/tools/ file changed. Pages: capabilities/mutate.md (new line-endings and placement-check section, plus new known limits), architecture.md (UNSAFE_PLACEMENT in the error model and the shared line module), the new decisions/ADR-056, and the README.md index. The PR body's Documentation section now lists them. The working tree held only Relay's own relay-digest.md change on the same branch, so the run went ahead and left that file out of the commit. The PR body's Summary and its list of what the new module provides predate review; the pages follow the code after review. The CHANGELOG entry and the docs/tools pages were already correct.
+
+- **ci**: done, 3 turns.
+
+> CI passed on the latest commit of PR #119 (7bff3b6), run 41397943971. All four checks of the Lint / Typecheck / Test / Build job passed: ubuntu-latest on Node 22 (1m7s) and Node 24 (1m22s), and windows-latest on Node 22 (2m26s) and Node 24 (2m32s). Nothing failed, so no fixes were pushed. The PR is ready for the owner's merge decision.
+
+
+### record (`1a40eea1-d577-4a74-b7b1-37665e2874d1`)
+
+- **record-in-vault**: done.
+
+> Recorded on BI-0168, following the same pattern as sibling BI-0167 (also in review):
+> - Frontmatter `status`: changed from `planned` to `in-review`. This is the vault's existing "in review" value; 18 other Obsidian CLI MCP BIs already use it.
+> - Frontmatter `spec_branch`: set to `086-fix-section-replacement`.
+> - `## Status`: added a dated paragraph at the top: "In review — 2026-11-02". It links PR #119, names spec branch `086-fix-section-replacement` and feature folder `specs/086-fix-section-replacement`, notes that the fix covers both `patch_heading` and `patch_block`, and says it is awaiting the owner's merge.
+> - Added a dated HTML comment at the end of the note: Relay run obsidian-cli-mcp-bi-0168-2026-11-02 produced PR #119.
+>
+> Read the whole note back afterwards: all four edits are in place, the frontmatter is intact, and the `updated` date is still 2026-11-02.
+
 
 ## Escalations
 
@@ -170,6 +201,10 @@ Skipped.
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0168 - Fix Patch Heading Replace On Mixed Line Ending Notes.md` | Related section: added a [[patch_block]] link noting the in-scope ruling. | pre-implementation / clarify: **Question:** Should this feature also fix `patch_block`, which lands its edits in the wrong place o |
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0168 - Fix Patch Heading Replace On Mixed Line Ending Notes.md` | Frontmatter updated: 2026-10-31 → 2026-11-02; added a dated HTML audit comment at the end of the note. | pre-implementation / clarify: **Question:** Should this feature also fix `patch_block`, which lands its edits in the wrong place o |
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0168 - Fix Patch Heading Replace On Mixed Line Ending Notes.md` | Appended a dated HTML audit comment recording the owner's G1 ruling: delete the detectLineEnding test blocks only if detectLineEnding has no callers left in src/, otherwise use the fallback (keep it exported, with its tests). | pre-implementation / analyze: Specification Analysis Report |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0168 - Fix Patch Heading Replace On Mixed Line Ending Notes.md` | Frontmatter status: planned → in-review. | record / record-in-vault: The work for job BI-0168 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0168 - Fix Patch Heading Replace On Mixed Line Ending Notes.md` | Frontmatter spec_branch set to 086-fix-section-replacement. | record / record-in-vault: The work for job BI-0168 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0168 - Fix Patch Heading Replace On Mixed Line Ending Notes.md` | Added a dated 'In review — 2026-11-02' paragraph at the top of the Status section, with PR #119, the spec branch and the feature folder specs/086-fix-section-replacement. | record / record-in-vault: The work for job BI-0168 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0168 - Fix Patch Heading Replace On Mixed Line Ending Notes.md` | Appended a dated HTML comment: Relay run obsidian-cli-mcp-bi-0168-2026-11-02 produced PR #119. | record / record-in-vault: The work for job BI-0168 is now a reviewed, documented pull request. Record that on the job's note,  |
 
 ## Files
 
