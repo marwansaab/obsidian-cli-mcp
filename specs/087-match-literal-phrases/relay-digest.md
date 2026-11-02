@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-11-02T06:14:00.936Z |
 | Finished | not yet |
-| Elapsed | 27 min 24 s |
+| Elapsed | 37 min 37 s |
 | Questions | 5 (2 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 2 |
@@ -58,6 +58,7 @@
 ### pre-implementation (`eacb96cd-cf33-472a-9761-c61185816dd1`)
 
 - Condition `shell-exit-0` (run_when): met. "node -e "process.exit('' === '' ? 0 : 1)"" exited 0.
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\specs\087-match-literal-phrases\tasks.md exists.
 
 - **specify**: done, 22 turns.
 
@@ -79,16 +80,45 @@
 
 > Applied owner ruling option A (2026-11-02, BI-0169). T029, the live check against the built server in the TestVault Sandbox, is now required, with results recorded in post-implement.md before the work is complete. The reversal of plan D6 is recorded as an amendment in research.md D6. plan.md, quickstart.md §3, the contract's live column and tasks.md T029 are updated. FR-013 is unchanged: the automated rows prove the escaped, quoted query is sent, and T029 proves phrase-only matching (SC-001, SC-003, SC-006). All six analysis findings are resolved. Nothing is committed. Next step: /speckit-implement.
 
-- **resolve-analysis**: in progress.
+- **resolve-analysis**: done, 9 turns.
+
+> All six analysis findings are resolved and no CRITICAL or HIGH finding is open. C1 (HIGH): S9/C9 multi-word case rows were added, and owner ruling A made live check T029 required, reversing D6. U1: S8 expects case=true. I1: the single-word edge case agrees with FR-010. C2: S3 covers both modes and C3 both whitespace ends. C3: L6 adds AND and file:. I2: research notes the bare case probe. Committed the feature folder as b781b19 on 087-match-literal-phrases, following CONTRIBUTING.md; not pushed. Left open: CLAUDE.md (plan pointer) and .specify/feature.json are modified but not committed, because they sit outside the feature folder the commit was scoped to. The ASCII-fold wording drift and the undocumented line-text trimming are recorded follow-ups, out of scope.
+
 
 ### continue
 
-- **prepare**: not run.
+Skipped.
 
-### implementation
+- Condition `shell-exit-0` (run_when): not met. "node -e "process.exit('' === '' ? 1 : 0)"" exited 1.
 
-- **implement**: not run.
-- **open-pr**: not run.
+- **prepare**: skipped.
+
+### implementation (`fe8debe9-82e6-4bf0-8f23-7e6474f03989`)
+
+- Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\specs\087-match-literal-phrases\tasks.md exists; focused TestVault-Obsidian-CLI-MCP in Obsidian (it had Game-Server-Vault focused).
+
+- **implement**: done, 109 turns.
+
+> All 29 tasks in specs/087-match-literal-phrases/tasks.md are done and marked [X].
+>
+> What changed:
+> - New src/tools/search/literal-phrase.ts with two helpers. `literalPhraseQuery` sends the query to the CLI as one double-quoted phrase, with `\` and `"` escaped. `oneMatchPerLine` keeps the first entry for each line, and returns no lines when the query contains a line break.
+> - Both search/handler.ts and context_search/handler.ts call `literalPhraseQuery` for the query and `oneMatchPerLine` in their line-level paths. Their header comments describe the new steps.
+> - Three new co-located test files cover contract rows L1–L8, S1–S9 and C1–C9.
+> - In the existing tests, only the two owner-approved lines changed (search/handler.test.ts:41 and context_search/handler.test.ts:44). The approval's condition held: when the existing suites were run unedited, those two were the only failures.
+> - The search and context_search help pages and CHANGELOG [Unreleased] now carry the contract's text.
+>
+> Checks:
+> - `npm test` passes: 4352 tests, statements 96.9%, and the FR-018 baseline gate passes without regenerating the baseline. Typecheck and lint pass; lint first flagged an import-order error, which was fixed.
+> - The two-step red check fails the expected rows at each step, and the suite is green again after restoring.
+> - The surface diff (P1/P2: baseline, both schema.ts and index.ts files, errors.ts) is empty.
+> - CodeGraph structural verification found no deviations: no kernel node touched, no new error code, and the new module's only importers are the two handlers and its test.
+>
+> The required live check (T029) ran the built server over stdio against `TestVault-Obsidian-CLI-MCP` in `Sandbox/087-live-20261102175037/`. 10 of 10 calls passed, covering the queries alpha beta, say "hello" twice, -draft, tag:urgent and a\b against both tools. The fixtures were removed, and `Welcome.md` is still present.
+>
+> Everything is recorded in post-implement.md. One follow-up is noted there for `/speckit-docs-as-code`: the missing-folder walkthrough in docs/tools/context_search.md still shows `query=anything` in its argv example. The contract said to change nothing else on that page, so it was left as is. The optional after_implement commit hook was skipped, so nothing is committed yet.
+
+- **open-pr**: in progress.
 
 ### review
 
