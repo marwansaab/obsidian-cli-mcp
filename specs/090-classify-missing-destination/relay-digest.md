@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-11-02T09:32:36.119Z |
 | Finished | not yet |
-| Elapsed | 21 min 49 s |
+| Elapsed | 35 min 46 s |
 | Questions | 5 (0 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 0 |
@@ -56,6 +56,7 @@
 ### pre-implementation (`7e2d67e1-e620-40bb-8218-20e93c9513d7`)
 
 - Condition `shell-exit-0` (run_when): met. "node -e "process.exit('' === '' ? 0 : 1)"" exited 0.
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\specs\090-classify-missing-destination\tasks.md exists.
 
 - **specify**: done, 17 turns.
 
@@ -139,16 +140,46 @@
 >
 > The low findings (I1, I2, C2, C3, A1) were left as they are, since the owner approved only the three. Nothing is committed. The next step is /speckit-implement.
 
-- **resolve-analysis**: in progress.
+- **resolve-analysis**: done, 22 turns.
+
+> All analysis findings are resolved, and none needed a product, scope or design decision. Commit f4f0dc5 on 090-classify-missing-destination ("docs(090): specify, plan and task the missing-destination classification", CONTRIBUTING.md convention, not pushed) covers the whole feature folder.
+>
+> The three MEDIUM findings were settled earlier by owner ruling:
+> - **F1**: M13 now expects "Vault not found.".
+> - **U1**: on a lookup failure the raw output is withheld, with the code kept, the source and destination named, and the lookup error as the cause. Row M18 covers it.
+> - **C1**: row M19 covers the backslash destination.
+>
+> The five LOW findings were settled by the existing artifacts, so no questions were needed:
+> - **I1**: the spec's Assumption now says the probe ran live on Windows only; macOS and Linux are inferred from research F5 and row M7.
+> - **I2**: the tasks.md structural note now lists resolveVaultPath's injected-dep consumers correctly.
+> - **C2**: new row M20 covers the rewrite of a parse-stage failure's stdout. It has a T009 bullet, and the red-check, US2 and range updates are carried through to M1–M20.
+> - **C3**: M15's Covers column names the file-as-folder edge case (probe P5).
+> - **A1**: the plan's SC-001 mapping lists M1, M7 and M19 under CI on Linux and Windows, and states that there is no macOS lane.
+>
+> These are recorded in research.md and plan.md under analyze-time alignment. No CRITICAL or HIGH finding is open.
+>
+> Left open:
+> - **CLAUDE.md and .specify/feature.json are uncommitted.** The instruction scoped the commit to the feature folder. The CLAUDE.md change is the after_plan pointer edit, made by hand because PyYAML is missing on this host.
+> - **Spec markdown is not prettier-formatted.** The committed spec 089 files fail prettier the same way, and I did not touch the Relay-written digest and Q&A logs.
+
 
 ### continue
 
-- **prepare**: not run.
+Skipped.
 
-### implementation
+- Condition `shell-exit-0` (run_when): not met. "node -e "process.exit('' === '' ? 1 : 0)"" exited 1.
 
-- **implement**: not run.
-- **open-pr**: not run.
+- **prepare**: skipped.
+
+### implementation (`3352c8ec-dc10-458e-b0e5-ae8208aa3f85`)
+
+- Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\specs\090-classify-missing-destination\tasks.md exists; focused TestVault-Obsidian-CLI-MCP in Obsidian (it had My-Setup-Vault focused).
+
+- **implement**: done, 115 turns.
+
+> Implemented spec 090; all 23 tasks are done and marked [X]. move now reports a missing destination folder as CLI_REPORTED_ERROR with details { code: FOLDER_NOT_FOUND, folder }, vault-relative with forward slashes and no extra call. Every other move failure has the vault's absolute folder removed. If the specific-mode registry lookup fails, the CLI text is withheld and the lookup error becomes the cause; an unregistered vault returns the original error; CLI_BINARY_NOT_FOUND passes through unchanged. move now takes vaultRegistry; the only server.ts change is that argument. The move description gained one sentence and the fingerprint baseline was regenerated: only move's description fingerprint moved. docs/tools/move.md and CHANGELOG.md updated; errors.ts and schemas untouched. Added M1–M20 and R1 plus only the approved field edits X1–X6. The rows failed against the old code as planned (M13 and M15–M17 passed). Two row mistakes were fixed in the rows while the handler was still unchanged: three expected details.argv without the binary name; M13 asserted a post-change registry lookup the contract does not ask for. Typecheck, lint and npm test pass (4458 passed, 6 skipped; coverage floor holds). Live check L1–L7 against TestVault-Obsidian-CLI-MCP passed 7/7 and the vault is back to its starting state. npm run format:check fails across 1355 files, but the main versions of every pre-existing touched file already fail it and CI does not run it; prettier --write was run only on the new test file. move/handler.ts has 100% line coverage; four branches are not reached by the contract rows. Nothing committed; the optional after_implement commit hook was skipped. Results per task are in post-implement.md.
+
+- **open-pr**: in progress.
 
 ### review
 
