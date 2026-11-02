@@ -116,6 +116,12 @@ describe("createPatchBlockTool — descriptor (BI-043 / ADR-005)", () => {
     expect(tool.descriptor.description).toBe(PATCH_BLOCK_DESCRIPTION);
   });
 
+  it("S5 (spec 086): the typed-error list includes UNSAFE_PLACEMENT", () => {
+    const at = PATCH_BLOCK_DESCRIPTION.indexOf("Typed errors via");
+    expect(at).toBeGreaterThanOrEqual(0);
+    expect(PATCH_BLOCK_DESCRIPTION.slice(at)).toContain("`UNSAFE_PLACEMENT`");
+  });
+
   it("docs/tools/patch_block.md exists at the expected path", () => {
     const docsPath = resolve(
       dirname(fileURLToPath(import.meta.url)),

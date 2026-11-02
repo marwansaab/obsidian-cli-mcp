@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 import {
   applyDetachReattach,
   applyVerbatimMarkerPreserve,
-  detectLineEnding,
   detectTrailingNewline,
 } from "./block-edit.js";
 
@@ -191,24 +190,6 @@ describe("applyVerbatimMarkerPreserve — separately-placed shape (FR-010)", () 
     expect(out).toEqual(["| z |", "^foo", "post-1"]);
     expect(out).toHaveLength(3);
     expect(out[1]).toBe("^foo");
-  });
-});
-
-describe("detectLineEnding (FR-013)", () => {
-  it("LF input → 'lf'", () => {
-    expect(detectLineEnding("a\nb\n")).toBe("lf");
-  });
-
-  it("CRLF input → 'crlf'", () => {
-    expect(detectLineEnding("a\r\nb\r\n")).toBe("crlf");
-  });
-
-  it("empty string → 'lf' (default)", () => {
-    expect(detectLineEnding("")).toBe("lf");
-  });
-
-  it("any CRLF in the file → 'crlf' (mixed input picks CRLF)", () => {
-    expect(detectLineEnding("a\nb\r\nc\n")).toBe("crlf");
   });
 });
 

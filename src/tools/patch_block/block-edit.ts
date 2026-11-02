@@ -1,4 +1,4 @@
-// Original — no upstream. patch_block block-edit pure helpers per BI-043 / data-model §Block-edit-algorithm — applyDetachReattach for paragraph + list-item shapes (FR-008 / FR-009 marker-position invariant with body swap; single ASCII-space separator preserved); applyVerbatimMarkerPreserve for separately-placed shapes (FR-010 marker-line byte-stability; block-body swap). Line-ending detection (FR-013) and trailing-newline detection (FR-012) helpers so the handler can preserve the file's existing conventions. Pure functions: no fs access, no UpstreamError throwing.
+// Original — no upstream. patch_block block-edit pure helpers per BI-043 / data-model §Block-edit-algorithm — applyDetachReattach for paragraph + list-item shapes (FR-008 / FR-009 marker-position invariant with body swap; single ASCII-space separator preserved); applyVerbatimMarkerPreserve for separately-placed shapes (FR-010 marker-line byte-stability; block-body swap). Trailing-newline detection (FR-012) helper so the handler can preserve the file's existing convention; line endings are kept per line by the handler (spec 086). Pure functions: no fs access, no UpstreamError throwing.
 import type { BlockMatch } from "./block-scan.js";
 
 const LIST_ITEM_PREFIX_RE = /^([ \t]*([-*+]|\d+\.) )/;
@@ -110,16 +110,6 @@ export function applyVerbatimMarkerPreserve(
     ...contentLines,
     ...lines.slice(match.blockEndLineIndex + 1),
   ];
-}
-
-/**
- * Detects the file's line-ending convention by scanning raw bytes for any `\r\n`.
- * A single CRLF anywhere in the file classifies the whole file as CRLF; otherwise
- * LF. The handler uses this to preserve FR-013 (line-ending preservation across
- * the modified region's boundaries).
- */
-export function detectLineEnding(rawContent: string): "lf" | "crlf" {
-  return rawContent.includes("\r\n") ? "crlf" : "lf";
 }
 
 /**

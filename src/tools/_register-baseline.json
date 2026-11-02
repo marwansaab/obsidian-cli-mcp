@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedFromBranch": "085-stabilise-query-ordering",
+  "generatedFromBranch": "086-fix-section-replacement",
   "generatedAt": "2026-11-02",
   "tools": [
     {
@@ -133,7 +133,7 @@
     },
     {
       "name": "patch_block",
-      "descriptionFingerprint": "5464f5f810c0ee4e6d32d70e857958020a88a05f57c9f0eb350a9e60505375bd",
+      "descriptionFingerprint": "a2812e1bbb0a2f98b61e73b25704ac1ac29c0825719522346379c474348f4530",
       "schemaFingerprint": "b4fde5f50df8f082289dfd18411c4c6455f4dae804f21a75912e0714cb5b8d39",
       "titleFingerprint": "9c4af05b67851af83c79920a6379bfad5f1a9cac683ad1f65dea85b47c1cb224",
       "annotationsFingerprint": "d72d3cb182e3d7fcf0b1c6782251eee772cdf2a99470e1a4bd6a006b5c8f4e25",
@@ -141,7 +141,7 @@
     },
     {
       "name": "patch_heading",
-      "descriptionFingerprint": "3995a62afb1b4c8519f639b1df0b4f610a50c9bca1345c945f9c4f1d2fdbb7d8",
+      "descriptionFingerprint": "142fcf68392ffe3359da79eda1c2b63bda10d550964d4504ad460311d74e7b4b",
       "schemaFingerprint": "fb021a74d39174aa1b83874a2825dd5d0fcff4ca78a017807594c5d7d867023f",
       "titleFingerprint": "28f7bb84489352f6f0c1d3245afaa834ea4b18b44e56eb054ce69a1a759b7253",
       "annotationsFingerprint": "d72d3cb182e3d7fcf0b1c6782251eee772cdf2a99470e1a4bd6a006b5c8f4e25",

@@ -44,7 +44,7 @@ description: "Task list for 086 Fix section replacement"
 
 **Purpose**: a known-green starting point.
 
-- [ ] T001 Before any edit, run `npm run typecheck; if ($?) { npm run lint }; if ($?) { npm test }` in PowerShell on branch `086-fix-section-replacement`. Record the result in `specs/086-fix-section-replacement/post-implement.md`; create the file, headed `# Post-implement: 086 Fix section replacement`. A failure here is pre-existing: report it, and do not fix it in this feature.
+- [X] T001 Before any edit, run `npm run typecheck; if ($?) { npm run lint }; if ($?) { npm test }` in PowerShell on branch `086-fix-section-replacement`. Record the result in `specs/086-fix-section-replacement/post-implement.md`; create the file, headed `# Post-implement: 086 Fix section replacement`. A failure here is pre-existing: report it, and do not fix it in this feature.
 
 ---
 
@@ -52,7 +52,7 @@ description: "Task list for 086 Fix section replacement"
 
 **Purpose**: the shared line model (research D1, data-model E2–E6) and the shared test fixtures.
 
-- [ ] T002 [P] Create `src/tools/_line-ending-fixtures.ts`.
+- [X] T002 [P] Create `src/tools/_line-ending-fixtures.ts`.
 
   **Header**: `// Original — no upstream. Vitest-free line-ending fixtures for the patch_heading / patch_block mixed-line-ending tests (spec 086): LF templates plus converters, so a mixed note and its uniform twin share their text by construction.`
 
@@ -100,9 +100,9 @@ description: "Task list for 086 Fix section replacement"
 
   The file name matches the `src/**/_*fixtures.ts` excludes in `tsconfig.build.json` and `vitest.config.ts`; do not edit either config. No `vitest` import.
 
-- [ ] T003 [P] Create `src/tools/_note-lines.test.ts` with header `// Original — no upstream. Unit tests for the shared note-line model (spec 086, contracts/placement-contract.md N1–N9).` It holds rows N1–N9 exactly as specified in the contract. For N3, import `walkHeadings`'s scan view indirectly: assert, for every index `i` of `mixFmLfBodyCrlf(HEADING_TEMPLATE)`, that `lineText(splitNoteLines(raw)[i])` equals `raw.split("\n").map(l => l.endsWith("\r") ? l.slice(0, -1) : l)[i]`. This is the scanners' `splitLinesForScan` rule, restated, because that function is not exported. Also assert through the real walker: import `walkHeadings` from `./patch_heading/heading-walk.js`. In both mixes, for every heading path of `HEADING_TEMPLATE` (`Top#First`, `Top#Middle`, `Top#Middle#Child`, `Top#Last`), resolve `r = walkHeadings(raw, path.split("#"))`, and assert `lineText(splitNoteLines(raw)[r.markerLineIndex]) === r.markerLineText`. This catches a future change to the scanner's split that the restated rule would miss (contract N3). The test-only import is from a tool module into a cohort-leaf test; no production edge. The file must fail (the module does not exist yet).
+- [X] T003 [P] Create `src/tools/_note-lines.test.ts` with header `// Original — no upstream. Unit tests for the shared note-line model (spec 086, contracts/placement-contract.md N1–N9).` It holds rows N1–N9 exactly as specified in the contract. For N3, import `walkHeadings`'s scan view indirectly: assert, for every index `i` of `mixFmLfBodyCrlf(HEADING_TEMPLATE)`, that `lineText(splitNoteLines(raw)[i])` equals `raw.split("\n").map(l => l.endsWith("\r") ? l.slice(0, -1) : l)[i]`. This is the scanners' `splitLinesForScan` rule, restated, because that function is not exported. Also assert through the real walker: import `walkHeadings` from `./patch_heading/heading-walk.js`. In both mixes, for every heading path of `HEADING_TEMPLATE` (`Top#First`, `Top#Middle`, `Top#Middle#Child`, `Top#Last`), resolve `r = walkHeadings(raw, path.split("#"))`, and assert `lineText(splitNoteLines(raw)[r.markerLineIndex]) === r.markerLineText`. This catches a future change to the scanner's split that the restated rule would miss (contract N3). The test-only import is from a tool module into a cohort-leaf test; no production edge. The file must fail (the module does not exist yet).
 
-- [ ] T004 Create `src/tools/_note-lines.ts`. It imports nothing.
+- [X] T004 Create `src/tools/_note-lines.ts`. It imports nothing.
 
   **Header**: `// Original — no upstream. Shared note-line model for the direct-fs editors patch_heading and patch_block (spec 086): splits a note at every line feed — the same points both finders split at — keeping each line's own terminator, so the finders' line indices address the same lines in the edit array on uniform and mixed-ending notes alike; picks the ending for added lines from the target's marker line; reassembles without touching kept lines' terminators; and checks that an edit kept the original bytes around it.`
 
@@ -134,7 +134,7 @@ description: "Task list for 086 Fix section replacement"
 
 ### Tests for User Story 1 (write first; H1–H5 must fail before T008)
 
-- [ ] T005 [US1] Create `src/tools/patch_heading/handler.line-endings.test.ts`.
+- [X] T005 [US1] Create `src/tools/patch_heading/handler.line-endings.test.ts`.
 
   **Header**: `// Original — no upstream. patch_heading handler tests for notes with mixed line endings (spec 086, contracts/placement-contract.md H1–H12): placement in all three modes, mixed-versus-uniform equivalence, kept terminators, final line break, agent-typed endings, lone CR, and unchanged bytes on uniform notes.`
 
@@ -152,14 +152,14 @@ description: "Task list for 086 Fix section replacement"
 
 ### Implementation for User Story 1
 
-- [ ] T006 [US1] In `src/tools/patch_heading/handler.ts` (research D2):
+- [X] T006 [US1] In `src/tools/patch_heading/handler.ts` (research D2):
   - import `splitNoteLines`, `insertEnding` and `joinNoteLines` from `../_note-lines.js`;
   - replace the `detectLineEnding` call, the `trimmedForSplit` block and the `split` with `const lines = splitNoteLines(originalContent);`;
   - keep `const trailingNewline = detectTrailingNewline(originalContent);`;
   - after the mode switch, set `const editedContent = joinNoteLines(editedLines, insertEnding(lines, resolved.markerLineIndex), trailingNewline);`;
   - delete the local `reassemble` function and remove `detectLineEnding` from the import;
   - in the file header comment, after "mode-dispatched body edit", add: "on per-line-terminator lines (spec 086: the edit array splits where the heading walk splits; kept lines keep their own line endings, added lines take the heading line's)".
-- [ ] T007 [US1] **Approval gate first** (owner ruling 2026-11-02, recorded in `.memory/refactor-decisions.md` §5): after T006, run a Grep for `detectLineEnding` over `src/`, excluding `*.test.ts` and `append_note/` (whose `detectLineEnding` is a different symbol). Record the result in `post-implement.md`.
+- [X] T007 [US1] **Approval gate first** (owner ruling 2026-11-02, recorded in `.memory/refactor-decisions.md` §5): after T006, run a Grep for `detectLineEnding` over `src/`, excluding `*.test.ts` and `append_note/` (whose `detectLineEnding` is a different symbol). Record the result in `post-implement.md`.
   - **If no caller of `patch_heading/body-edit.ts`'s `detectLineEnding` remains in `src/`**, do the edits below and T008.
   - **If any caller remains**, take the fallback: keep `detectLineEnding` exported and its tests unchanged. Make only the doc-comment corrections below, and skip T008's deletion.
 
@@ -169,7 +169,7 @@ description: "Task list for 086 Fix section replacement"
   - in `splitContentLines`' doc comment, replace "The handler glues the segments with the file's detected line ending on reassembly." with "The handler glues the segments with the heading line's line ending on reassembly (spec 086).".
 
   No function body changes.
-- [ ] T008 [US1] Only if T007's gate allowed the deletion: in `src/tools/patch_heading/body-edit.test.ts`, delete the `describe("detectLineEnding", …)` block and remove `detectLineEnding` from the import list. Change nothing else (`.memory/refactor-decisions.md` §5; plan Test-edit scope). Under the fallback, leave the file untouched. Then run `npx vitest run src/tools/patch_heading`. H1–H5 and H10 pass, and every pre-existing file passes unedited apart from this deletion.
+- [X] T008 [US1] Only if T007's gate allowed the deletion: in `src/tools/patch_heading/body-edit.test.ts`, delete the `describe("detectLineEnding", …)` block and remove `detectLineEnding` from the import list. Change nothing else (`.memory/refactor-decisions.md` §5; plan Test-edit scope). Under the fallback, leave the file untouched. Then run `npx vitest run src/tools/patch_heading`. H1–H5 and H10 pass, and every pre-existing file passes unedited apart from this deletion.
 
 **Checkpoint**: US1 is deliverable on its own. It is the MVP: `patch_heading` no longer corrupts mixed notes.
 
@@ -181,7 +181,7 @@ description: "Task list for 086 Fix section replacement"
 
 **Independent Test**: `npx vitest run src/tools/patch_heading/handler.line-endings.test.ts -t "US2"` passes H6 and H9.
 
-- [ ] T009 [US2] In `src/tools/patch_heading/handler.line-endings.test.ts`, add `describe("US2 …")`:
+- [X] T009 [US2] In `src/tools/patch_heading/handler.line-endings.test.ts`, add `describe("US2 …")`:
   - **H6**: for each mode and the targets `Top#First`, `Top#Middle` and `Top#Last`, run the same call on `HEADING_TEMPLATE`, `toCrlf(HEADING_TEMPLATE)`, `mixFmLfBodyCrlf(HEADING_TEMPLATE)` and `mixFmCrlfBodyLf(HEADING_TEMPLATE)`. Assert that `toLf(written)` is identical across all four.
   - **H9**: for `HEADING_TEMPLATE` and `toCrlf(HEADING_TEMPLATE)`, `replace` `Top#Middle` with `"x"`, plus one `append` and one `prepend`. Assert the written text equals a **literal** expected string, written out by hand from today's behaviour (not computed through `_note-lines`).
 
@@ -209,7 +209,7 @@ description: "Task list for 086 Fix section replacement"
 
 ### Tests for User Story 5 (write first; B1, B2 and U2 must fail before T012–T014)
 
-- [ ] T010 [P] [US5] Create `src/tools/patch_block/handler.line-endings.test.ts`.
+- [X] T010 [P] [US5] Create `src/tools/patch_block/handler.line-endings.test.ts`.
 
   **Header**: `// Original — no upstream. patch_block handler tests for notes with mixed line endings (spec 086, contracts/placement-contract.md B1–B6).`
 
@@ -230,7 +230,7 @@ description: "Task list for 086 Fix section replacement"
     - `"---\nkey: ^fm\n---\nbody\n"`: replacing `fm` rejects with `CLI_REPORTED_ERROR`, `details.code: "BLOCK_NOT_FOUND"`.
 
     For both, the fake fs records 0 writes and 0 renames. This pins that a mixed frontmatter does not change which block is found or refused (spec Edge Cases; FR-016).
-- [ ] T011 [P] [US5] Create `src/tools/patch_block/handler.unsafe-placement.test.ts`.
+- [X] T011 [P] [US5] Create `src/tools/patch_block/handler.unsafe-placement.test.ts`.
 
   **Header**: `// Original — no upstream. Forces a wrong block index through the real patch_block handler to pin the UNSAFE_PLACEMENT refusal (spec 086 FR-016, contracts/placement-contract.md U2).`
 
@@ -243,7 +243,7 @@ description: "Task list for 086 Fix section replacement"
 
 ### Implementation for User Story 5
 
-- [ ] T012 [US5] In `src/tools/patch_block/handler.ts`, apply the T006 pattern:
+- [X] T012 [US5] In `src/tools/patch_block/handler.ts`, apply the T006 pattern:
   - `splitNoteLines(originalContent)`;
   - unchanged `applyVerbatimMarkerPreserve` / `applyDetachReattach`;
   - `joinNoteLines(editedLines, insertEnding(lines, match.markerLineIndex), trailingNewline)`;
@@ -267,13 +267,13 @@ description: "Task list for 086 Fix section replacement"
   ```
 
   Update the header comment: "per-shape surgery on per-line-terminator lines (spec 086) → placement check (UNSAFE_PLACEMENT, no write) → atomic tmp+rename".
-- [ ] T013 [US5] **Approval gate first** (owner ruling 2026-11-02, `.memory/refactor-decisions.md` §5): after T012, run a Grep for `detectLineEnding` over `src/`, excluding `*.test.ts` and `append_note/`. Record the result in `post-implement.md`.
+- [X] T013 [US5] **Approval gate first** (owner ruling 2026-11-02, `.memory/refactor-decisions.md` §5): after T012, run a Grep for `detectLineEnding` over `src/`, excluding `*.test.ts` and `append_note/`. Record the result in `post-implement.md`.
   - **If no caller of `patch_block/block-edit.ts`'s `detectLineEnding` remains**: in `src/tools/patch_block/block-edit.ts`, delete `detectLineEnding` and its doc comment. In `src/tools/patch_block/block-edit.test.ts`, delete the `describe("detectLineEnding (FR-013)", …)` block and remove `detectLineEnding` from the import.
   - **If any caller remains (fallback)**: keep the export and its tests unchanged.
 
   In both cases, correct any doc comment in `block-edit.ts` that says the handler uses the file's detected line ending. Nothing else changes (§5).
-- [ ] T014 [US5] In `src/tools/patch_block/index.ts`, in `PATCH_BLOCK_DESCRIPTION`'s "Typed errors via `UpstreamError.details.code`:" list, insert `` `UNSAFE_PLACEMENT` (note unchanged; re-read and retry once) `` after `` `BLOCK_ON_HEADING` (use `patch_heading`) ``. In `src/tools/patch_block/index.test.ts`, add one case (S5): the description contains `` `UNSAFE_PLACEMENT` `` after `Typed errors via`.
-- [ ] T015 [US5] In `docs/tools/patch_block.md`:
+- [X] T014 [US5] In `src/tools/patch_block/index.ts`, in `PATCH_BLOCK_DESCRIPTION`'s "Typed errors via `UpstreamError.details.code`:" list, insert `` `UNSAFE_PLACEMENT` (note unchanged; re-read and retry once) `` after `` `BLOCK_ON_HEADING` (use `patch_heading`) ``. In `src/tools/patch_block/index.test.ts`, add one case (S5): the description contains `` `UNSAFE_PLACEMENT` `` after `Typed errors via`.
+- [X] T015 [US5] In `docs/tools/patch_block.md`:
   - add the contract's `UNSAFE_PLACEMENT` row to the Error states table, after `BLOCK_ON_HEADING`, worded for blocks;
   - under "Single placement mode (replace)", add one paragraph: "Line endings: the note may mix LF and CRLF. Every line outside the block keeps its own line ending; lines the edit adds take the line ending of the block's marker line (or, if that line is the note's last and has none, of the nearest earlier line; LF if the note has no line breaks). Whether the note ends with a line break is unchanged."
 
@@ -289,7 +289,7 @@ description: "Task list for 086 Fix section replacement"
 
 **Independent Test**: `npx vitest run src/tools/patch_heading/handler.line-endings.test.ts -t "US3"` passes H7, H8, H11 and H12.
 
-- [ ] T016 [US3] In `src/tools/patch_heading/handler.line-endings.test.ts`, add `describe("US3 …")`:
+- [X] T016 [US3] In `src/tools/patch_heading/handler.line-endings.test.ts`, add `describe("US3 …")`:
   - **H7**: for both mixes, every mode, and every target, map `splitNoteLines(original)` and `splitNoteLines(written)` to `[lineText, terminator]` pairs. Assert that every original line outside the edit point appears in the output with an identical terminator. Use the contract's E3 edit point:
     - `replace`: the lines `[reachStart, directBodyEnd)` are removed;
     - `append` / `prepend`: no line is removed.
@@ -311,7 +311,7 @@ description: "Task list for 086 Fix section replacement"
 
 ### Tests for User Story 4 (write first; U1 must fail before T018)
 
-- [ ] T017 [P] [US4] Create `src/tools/patch_heading/handler.unsafe-placement.test.ts`.
+- [X] T017 [P] [US4] Create `src/tools/patch_heading/handler.unsafe-placement.test.ts`.
 
   **Header**: `// Original — no upstream. Forces a wrong heading index through the real patch_heading handler to pin the UNSAFE_PLACEMENT refusal (spec 086 FR-009/FR-010, contracts/placement-contract.md U1).`
 
@@ -322,7 +322,7 @@ description: "Task list for 086 Fix section replacement"
 
 ### Implementation for User Story 4
 
-- [ ] T018 [US4] In `src/tools/patch_heading/handler.ts`, add the placement check immediately after `editedContent` is computed and before the race re-read (research D3):
+- [X] T018 [US4] In `src/tools/patch_heading/handler.ts`, add the placement check immediately after `editedContent` is computed and before the race re-read (research D3):
 
   ```ts
   const markerLine = lines[resolved.markerLineIndex] ?? "";
@@ -343,8 +343,8 @@ description: "Task list for 086 Fix section replacement"
   ```
 
   `REACH_END_EOF` is `Number.MAX_SAFE_INTEGER`, so `Math.min` clamps it. Import `lineText`, `lineStart` and `keepsOriginalAround`. In the header comment, add "→ placement check (UNSAFE_PLACEMENT, no write)" before "→ race-check", and add `UNSAFE_PLACEMENT` to its list of error states.
-- [ ] T019 [US4] In `src/tools/patch_heading/index.ts`, in `PATCH_HEADING_DESCRIPTION`'s "Typed errors via `UpstreamError.details.code`:" list, insert `` `UNSAFE_PLACEMENT` (note unchanged; re-read and retry once) `` after `` `HEADING_RACE` ``. In `src/tools/patch_heading/index.test.ts`, add one case (S5): the description contains `` `UNSAFE_PLACEMENT` `` after `Typed errors via`.
-- [ ] T020 [US4] In `docs/tools/patch_heading.md`:
+- [X] T019 [US4] In `src/tools/patch_heading/index.ts`, in `PATCH_HEADING_DESCRIPTION`'s "Typed errors via `UpstreamError.details.code`:" list, insert `` `UNSAFE_PLACEMENT` (note unchanged; re-read and retry once) `` after `` `HEADING_RACE` ``. In `src/tools/patch_heading/index.test.ts`, add one case (S5): the description contains `` `UNSAFE_PLACEMENT` `` after `Typed errors via`.
+- [X] T020 [US4] In `docs/tools/patch_heading.md`:
   - add the contract's `UNSAFE_PLACEMENT` row to the Error states table, after `HEADING_RACE`;
   - in "Body-shape gotchas", replace the "Multi-line content" bullet's clause "the file's detected line ending is used on reassembly" with "the added lines take the heading line's line ending";
   - replace the "Line-ending preservation" bullet with: "**Line endings**: the note may mix LF and CRLF (a property edit can leave an LF frontmatter on a CRLF note). Every line outside the edit keeps its own line ending; lines the edit adds take the heading line's line ending (or, if the heading is the note's last line and has none, the nearest earlier line's; LF if the note has no line breaks). No normalisation."
@@ -357,24 +357,24 @@ description: "Task list for 086 Fix section replacement"
 
 ## Phase 8: Polish & Cross-Cutting
 
-- [ ] T021 Run `npm run baseline:write`, then `git diff src/tools/_register-baseline.json` (contract S1). Exactly two lines may change: the `descriptionFingerprint` of `patch_heading` and of `patch_block`. If any other line moved, stop and find the cause; do not commit it. Then `npx vitest run src/tools/_register.test.ts src/tools/_surface.test.ts` must pass.
-- [ ] T022 [P] In `CHANGELOG.md`, under `## [Unreleased]`:
+- [X] T021 Run `npm run baseline:write`, then `git diff src/tools/_register-baseline.json` (contract S1). Exactly two lines may change: the `descriptionFingerprint` of `patch_heading` and of `patch_block`. If any other line moved, stop and find the cause; do not commit it. Then `npx vitest run src/tools/_register.test.ts src/tools/_surface.test.ts` must pass.
+- [X] T022 [P] In `CHANGELOG.md`, under `## [Unreleased]`:
   - add the line `Spec 086-fix-section-replacement (BI-0168).` after the 085 line, following the existing pattern;
   - add a `### Fixed` entry in the style of the existing entries: "`patch_heading` and `patch_block` now place edits at the named heading or found block on notes that mix LF and CRLF line endings (for example after a property edit on a Windows note). Previously the edit could land further down the note and overwrite unrelated text while reporting success. Kept lines keep their line endings, and an edit that cannot be placed safely is refused with `CLI_REPORTED_ERROR` / `UNSAFE_PLACEMENT` without writing."
-- [ ] T023 Run the full gate: `npm run typecheck; if ($?) { npm run lint }; if ($?) { npm run format:check }; if ($?) { npm test }`. All must pass, including the coverage floor. Confirm `git diff --stat` shows these unchanged:
+- [X] T023 Run the full gate: `npm run typecheck; if ($?) { npm run lint }; if ($?) { npm run format:check }; if ($?) { npm test }`. All must pass, including the coverage floor. Confirm `git diff --stat` shows these unchanged:
   - `src/errors.ts`;
   - `heading-walk.ts` and `block-scan.ts`;
   - both `schema.ts`;
   - `src/server.ts`;
   - both `handler.test.ts` and both `handler.bytes-written.test.ts` (contract S4, U3).
-- [ ] T024 Run the quickstart §1 red check:
+- [X] T024 Run the quickstart §1 red check:
   1. Temporarily restore the old split in `patch_heading/handler.ts`. H1–H5 must fail as `UNSAFE_PLACEMENT`.
   2. Also bypass the check. H1–H5 must fail on wrong bytes.
   3. Undo both.
   4. Repeat for `patch_block` (B1, B2).
 
   Record the outcomes in `post-implement.md`.
-- [ ] T025 Post-implement structural verification (CLAUDE.md; plan "CodeGraph structural check"). Run `codegraph sync`, then `codegraph_explore` on `_note-lines.ts`'s exports, `executePatchHeading` and `executePatchBlock`. Verify points 1–4 of the plan's list:
+- [X] T025 Post-implement structural verification (CLAUDE.md; plan "CodeGraph structural check"). Run `codegraph sync`, then `codegraph_explore` on `_note-lines.ts`'s exports, `executePatchHeading` and `executePatchBlock`. Verify points 1–4 of the plan's list:
   - no new error code or class;
   - no DI-factory import;
   - `_note-lines.ts` imports nothing, and only the two handlers (plus tests) import it;
@@ -382,7 +382,7 @@ description: "Task list for 086 Fix section replacement"
   - no `detectLineEnding` remains in either tool.
 
   Record the result in `post-implement.md`.
-- [ ] T026 Optional: run the live check in quickstart §3, under `.memory/test-execution-instructions.md` (Sandbox only, focus check, clean up). Record run / not run and the outcome in `post-implement.md`. If it is not run, say so explicitly.
+- [X] T026 Optional: run the live check in quickstart §3, under `.memory/test-execution-instructions.md` (Sandbox only, focus check, clean up). Record run / not run and the outcome in `post-implement.md`. If it is not run, say so explicitly.
 
 ---
 

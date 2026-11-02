@@ -5,7 +5,6 @@ import {
   applyAppend,
   applyPrepend,
   applyReplace,
-  detectLineEnding,
   detectTrailingNewline,
 } from "./body-edit.js";
 import { REACH_END_EOF, walkHeadings } from "./heading-walk.js";
@@ -195,20 +194,6 @@ describe("no-modify guarantee", () => {
     expect(out[1]).toBe("## A");        // marker
     expect(out[3]).toBe("### Child");   // child subtree preserved
     expect(out[5]).toBe("## B");        // next sibling preserved
-  });
-});
-
-describe("detectLineEnding", () => {
-  it("returns 'lf' for LF-only content", () => {
-    expect(detectLineEnding("# Top\n## A\n")).toBe("lf");
-  });
-
-  it("returns 'crlf' when any CRLF is present", () => {
-    expect(detectLineEnding("# Top\r\n## A\n")).toBe("crlf");
-  });
-
-  it("returns 'lf' for content with no newlines", () => {
-    expect(detectLineEnding("no-newlines")).toBe("lf");
   });
 });
 

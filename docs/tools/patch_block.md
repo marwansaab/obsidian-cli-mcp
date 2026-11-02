@@ -60,6 +60,8 @@ The wrapper resolves the focused note via a small `obsidian eval` call. When no 
 
 `patch_block` has one placement mode — `replace`. The mechanic dispatched depends on the block shape the wrapper resolves from the `^block-id` marker. Three success shapes:
 
+Line endings: the note may mix LF and CRLF. Every line outside the block keeps its own line ending; lines the edit adds take the line ending of the block's marker line (or, if that line is the note's last and has none, of the nearest earlier line; LF if the note has no line breaks). Whether the note ends with a line break is unchanged.
+
 ### `paragraph` shape
 
 When the marker is the trailing token on a paragraph's final line:
@@ -172,6 +174,7 @@ Every failure routes through `UpstreamError`.
 | `VALIDATION_ERROR` | — | — | Schema-layer rejection of the `block_id` shape (empty, invalid characters, leading `^`, over 1000 units). The rule broken is named by the `block_id` issue's `message` in `details.issues`. |
 | `CLI_REPORTED_ERROR` | `BLOCK_NOT_FOUND` | — | The id was not present in the resolved file's body. |
 | `CLI_REPORTED_ERROR` | `BLOCK_ON_HEADING` | — (carries `details.heading_shape: "atx" \| "setext"`) | The id resolved to a marker attached to a heading line. Route to [`patch_heading`](./patch_heading.md). |
+| `CLI_REPORTED_ERROR` | `UNSAFE_PLACEMENT` | — | The edit could not be placed safely on the found block, so the tool refused it. The note was not changed. Re-read the note and retry once; if it fails again, report it. This should not happen on any note. Carries `details.block_id` and `details.path`. |
 | `CLI_REPORTED_ERROR` | `NOTE_NOT_FOUND` | — | The target file does not exist. |
 | `CLI_REPORTED_ERROR` | `EXTERNAL_EDITOR_CONFLICT` | `file-locked` (reserved: `unsaved-changes`) | An external editor holds the file (Windows). Ask the user to save and close, retry. |
 | `VAULT_NOT_FOUND` | — | `unknown` | Vault is not registered. |
