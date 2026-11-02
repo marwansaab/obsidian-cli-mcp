@@ -45,7 +45,7 @@ Before any code edit, load the `karpathy-guidelines` skill and read `.memory/ref
 
 **Purpose**: confirm the plan's drift inventory against the BI-0122 audit records before closing the stories that depend on it.
 
-- [ ] T003 Read TC-00586 and TC-00587 in My-Setup-Vault through `obsidian-cli-mcp` (`search` / `read` with `vault: "My-Setup-Vault"`; the owner must allow those tools). List every item they record under four headings: stale tool name, invalid example, outdated message, vault name. Record each against research F2–F5 in `specs/084-reconcile-help-docs/post-implement.md` (create it, headed `# Post-implement: 084 Reconcile Help Documentation`). Any item the plan missed becomes a sub-bullet of the matching story task before that task is closed: stale tool names → T013, invalid examples → T015, outdated messages → T027, vault names → T026. If the records cannot be read, say so in `post-implement.md` and apply research D8's fallback rule instead.
+- [ ] T003 Read TC-00586 and TC-00587 in My-Setup-Vault through `obsidian-cli-mcp` (`search` / `read` with `vault: "My-Setup-Vault"`; the owner must allow those tools). The records cover removed tool names and `argv` call shapes only; they hold no vault names (clarification U1). List every item they record under two headings: stale or removed tool name, invalid call shape. Record each against research F2–F5 in `specs/084-reconcile-help-docs/post-implement.md` (create it, headed `# Post-implement: 084 Reconcile Help Documentation`). Any item the plan missed becomes a sub-bullet of the matching story task before that task is closed: stale or removed tool names → T013, invalid call shapes → T015. If the records cannot be read, say so in `post-implement.md`; T013 and T015 then rest on the repository scan and probe alone.
 
 **Checkpoint**: inventory confirmed. US1 and US4 do not depend on it and can start in parallel with T003.
 
@@ -188,7 +188,12 @@ Before any code edit, load the `karpathy-guidelines` skill and read `.memory/ref
 - [ ] T023 [P] [US5] In `docs/tools/search.md` Example 7, change the quoted issue message to `query is empty or whitespace-only (FR-010)`.
 - [ ] T024 [P] [US5] In `docs/tools/properties.md` (Example 5, about line 180, and the unknown-key sentence, about line 184), replace the zod 3 wording with what zod 4 returns: `Too small: expected string to have >=1 characters` and `Unrecognized key: "file"`. Get the exact strings from a `safeParse` run (T002 probe or a one-off REPL), not from memory.
 - [ ] T025 [P] [US5] In `docs/tools/views_base.md`, correct the claim that the wrong-extension rejection carries `params.code` / `params.reason`. This applies to Example 7 (about line 150), the supported-types sentence (about line 5) and the error-table row (about line 57). The error is the generic envelope: `message: "views_base input failed schema validation"` and `details.issues[0]` = `{ path: ["base_path"], message: "INVALID_BASE_PATH/wrong-extension: base_path must end with .base", code: "custom" }`. Get the exact top-level message from a handler run. Do not change `views_base` code (research D6; the fix is a follow-up).
-- [ ] T026 [US5] Apply research D8 for vault names. Fix every vault-name item from T003. If T003 found the records unreadable, check each example whose response or prose names a vault against its own request and current behaviour, and fix only real mismatches. Leave placeholders (`MyVault`, `Demo`, `Work`, `<vault name>`). Record each change (page:line, before → after) or "none found" in `post-implement.md`.
+- [ ] T026 [US5] Apply the FR-011 rule (research D8, clarification U1 = B) to every example in `docs/tools/*.md` that names a vault.
+  - **Agreement**: the vault name in the request, the shown response and the surrounding prose agree.
+  - **Allowed names**: each name is a generic placeholder (`MyVault`, `Demo`, `Work`, `<vault name>`, …) or `TestVault-Obsidian-CLI-MCP`.
+  - **Fixes**: replace any other real vault name with a generic placeholder, and make any disagreeing example consistent.
+  - **Fixed check**: `grep -rn "The Setup" docs/tools src/tools/*/index.ts src/tools/*/schema.ts` returns nothing. The named instance, `smart_connections_similar` Example 6 with `"vault": "The Setup"`, was already deleted by commit `e637b24` (spec 072) and is absent at HEAD (research F9). If it reappears, change the name to a generic placeholder. `src/vault-registry/registry.test.ts` fixtures are test data, not published guidance, and are out of scope.
+  - **Record**: each change (page:line, before → after), or "none found", and the fixed-check result in `post-implement.md`.
 - [ ] T027 [US5] Re-run the T002 probe (call and bare-argument blocks). Compare each failing-labelled example's quoted message with the probe's reported message for that input; all must match. Fix any bare-argument failing example whose quoted message differs, as in T022–T025. Record the result in `post-implement.md`.
 
 **Checkpoint**: all five stories are complete.
@@ -230,7 +235,7 @@ Before any code edit, load the `karpathy-guidelines` skill and read `.memory/ref
 ### Phase dependencies
 
 - **Setup (T001–T002)**: start immediately. T002 feeds T015, T024, T027.
-- **Foundational (T003)**: blocks the sign-off tasks T013, T015 and T026 only; US1 and US4 do not wait for it.
+- **Foundational (T003)**: blocks the sign-off tasks T013 and T015 only; US1 and US4 do not wait for it.
 - **US1 (T004–T008)**, **US2 (T009–T013)**, **US3 (T014–T015)**, **US4 (T016–T021)**, **US5 (T022–T027)**: independent of each other after Setup, with the cross-story notes below.
 - **Polish (T028–T033)**: after all stories.
 

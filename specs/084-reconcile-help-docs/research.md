@@ -2,7 +2,7 @@
 
 **Feature**: [spec.md](spec.md) | **Plan**: [plan.md](plan.md) | **Date**: 2026-11-02 | **HEAD**: `52fd0eb`
 
-All findings below come from reading the code at HEAD (CodeGraph and direct reads) and from one in-process probe. No live CLI call was made at plan time. The BI-0122 audit records (TC-00586, TC-00587) live in My-Setup-Vault; reading them through the vault tools was not permitted in this session, so the inventory below was rebuilt from the repository. Implementation cross-checks it against those records (task note in [plan.md](plan.md)).
+All findings below come from reading the code at HEAD (CodeGraph and direct reads) and from one in-process probe. No live CLI call was made at plan time. The BI-0122 audit records (TC-00586, TC-00587) live in My-Setup-Vault; reading them through the vault tools was not permitted in this session, so the inventory below was rebuilt from the repository. Those records cover removed tool names and `argv` call shapes only (F1–F3); implementation cross-checks those two lists against them (tasks T003). They hold no vault names, which are covered by F9 and D8.
 
 ## Findings
 
@@ -77,6 +77,13 @@ The invalid working example sends `obsidian_exec` an `argv` array. `obsidianExec
 
 These are outside the spec's listed items (Out of scope: "Re-auditing the whole surface for drift not listed here"). They are recorded as follow-ups for the recurring BI-0122 audit.
 
+### F9 — Vault names in examples
+
+- BI-0166 Impact item 6 names the single known stale vault name: `smart_connections_similar` help Example 6 ("Closed-but-registered vault retry pattern") used `"vault": "The Setup"`, the name of My-Setup-Vault before its 2026-10-20 rename. No TC asserts vault names.
+- At HEAD `52fd0eb` that example is already gone. Commit `e637b24` (spec 072, "retire closed-vault stage, document vault unavailable", 2026-10-31, on `main`) deleted Example 6 with the rest of the closed-vault documentation (`git log -S "The Setup" -- docs/tools`). `docs/tools/smart_connections_similar.md` now ends its worked examples at Example 5.
+- `grep -rn "The Setup"` over `docs/tools/`, `src/tools/*/{index,schema}.ts` and `src/instructions/` finds nothing. The only occurrences in the repository are test fixtures in `src/vault-registry/registry.test.ts`, which are not published guidance and are out of scope.
+- Every vault name in `docs/tools` examples is a generic placeholder (`MyVault`, `Demo`, `Work`, `Knowledge`, `Research`, `NoSuchVault`, `<vault name>`, …) or `TestVault-Obsidian-CLI-MCP` (`tag.md:194`). Agreement between request, response and prose within each example is checked at implementation (T026).
+
 ## Decisions
 
 ### D1 — Withdraw the two placeholder pages and their index entries
@@ -131,8 +138,12 @@ These are outside the spec's listed items (Out of scope: "Re-auditing the whole 
 
 ### D8 — Vault names in examples (US5, FR-011)
 
-- **Decision**: at implementation, read TC-00586 / TC-00587 (owner-authorised vault read) and fix each listed vault-name item. If the records cannot be read, check every example whose response or prose names a vault against its request and against current behaviour (for example, an example whose response reports a different vault than its request names). Placeholder names (`MyVault`, `Demo`, `Work`, `<vault name>`) are acceptable as they are.
-- **Rationale**: the repository alone does not identify which vault names the audit flagged. The requirement fixes the outcome, and the spec's Assumptions already defer the list to the audit records.
+- **Decision** (clarification U1 = B): FR-011 is checked by an objective rule, not by the audit records.
+  - **Rule**: within each example, the vault name in the request, the shown response and the surrounding prose agree, and each name is a generic placeholder (`MyVault`, `Demo`, `Work`, `<vault name>`, …) or `TestVault-Obsidian-CLI-MCP`.
+  - **Fixed check**: no file under `docs/tools/` and no tool description (`src/tools/*/{index,schema}.ts`) contains `The Setup`.
+  - **Named instance**: the `smart_connections_similar` Example 6 with "The Setup" is already removed at HEAD (F9). The task verifies its absence; if it is ever present again it is changed to a generic placeholder.
+- **Rationale**: TC-00586 / TC-00587 hold no vault names, and BI-0166 Impact item 6 gives the single known instance. A fixed rule gives FR-011 a pass/fail test that needs no vault access.
+- **Alternatives considered**: reading the audit records (rejected: they hold no vault names); deferring to the BI-0122 audit (rejected: the owner kept FR-011 in scope).
 
 ### D9 — CHANGELOG and docs-as-code
 

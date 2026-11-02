@@ -7,8 +7,8 @@
 | Status | running |
 | Started | 2026-11-02T03:34:43.499Z |
 | Finished | not yet |
-| Elapsed | 21 min 8 s |
-| Questions | 6 (0 needed the owner) |
+| Elapsed | 23 min 2 s |
+| Questions | 7 (0 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 0 |
 | Edits by the advisor | 3 |
@@ -79,7 +79,16 @@
 
 > Remediation applied; the plan still passes the Constitution Check and nothing is committed. C1 (HIGH): the T002 probe now checks call blocks and bare-argument blocks, lists <…> placeholder templates without parsing them, and flags deprecated_parameters (also covers U2). T015/T027, contract X2, quickstart §2 and research F3 updated to match. I1 = A: FR-008 reworded so only the help page must name details.code/reason/field and the short description must not contradict them; the description and fingerprint stay unchanged (ADR-040). Clarification recorded; US4, plan and research aligned. C2 = A: FR-009 now requires tests pinning details.command, details.message and the top-level message, with no production change. Contract S1a/S1b added, S2 narrowed; plan Test-edit scope, unchanged-file list and the Constitution II row updated. New task T020 (H7 assertions plus a new index.test.ts case); old T020–T032 renumbered to T021–T033, and T003's routing note corrected. tasks.md has 33 tasks (US1 5, US2 5, US3 2, US4 6, US5 6). FR-012's single guard is unchanged. Not addressed (outside the requested scope): U1 (FR-011 needs the vault read tools for TC-00586/TC-00587) and LOW I2, I3, U3. Next step: /speckit-implement, or /speckit-analyze again for a check.
 
-- **resolve-analysis**: in progress.
+- **resolve-analysis**: in progress, 15 turns, 1 questions.
+
+> Applied every remediation the artifacts already settle, then committed 5c317c8 on 084-reconcile-help-docs (feature folder only, not pushed). Changes this round:
+> - I2 (LOW): spec Assumptions now say the drift lists came from the repository at plan time and are confirmed against TC-00586/TC-00587 at implementation (T003).
+> - I3 (LOW): FR-008 states that the three create_base rejections' top-level message becomes the issue's own message; details.issues is kept and other failures keep the generic envelope.
+> - U3 (LOW): the T013 scan and contract N3 now cover src/instructions/instructions.ts.
+> - Plan's spec-alignment note updated for all three.
+> - Earlier this session: C1 (HIGH), I1, C2, U2.
+> The commit also includes relay-digest.md and relay-qa-log.md, which were already in the feature folder. CLAUDE.md and .specify/feature.json pointer edits are left uncommitted for a separate chore commit, as with 083. No CRITICAL or HIGH finding is open. U1 (MEDIUM, FR-011 vault names) needs a decision on how FR-011 is verified when the audit records cannot be read, and is asked below.
+
 
 ### continue
 

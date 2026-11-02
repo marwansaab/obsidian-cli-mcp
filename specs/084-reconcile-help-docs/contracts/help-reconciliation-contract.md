@@ -33,7 +33,8 @@ Each row is a testable promise. "Test" names where it is pinned; "verify" means 
 | X3 | `context_search.md` Ex. 6, `search.md` Ex. 7 | compare quoted message | equals the returned message, `(FR-008)` / `(FR-010)` suffix included | verify |
 | X4 | `properties.md` Ex. 5 + unknown-key sentence | compare | zod 4 wording | verify |
 | X5 | `views_base.md` Ex. 7 (+ `:5`, `:57`) | compare | describes `details.issues[]` with the `INVALID_BASE_PATH/wrong-extension:` message prefix; no `params.*` claim | verify |
-| X6 | every example naming a vault | compare | consistent with its request and current behaviour (D8) | verify (TC-00586 / TC-00587) |
+| X6 | every example naming a vault | compare | request, shown response and prose name the same vault, and each name is a generic placeholder or `TestVault-Obsidian-CLI-MCP` (D8) | verify (tasks T026) |
+| X7 | `docs/tools/**` and `src/tools/*/{index,schema}.ts` | search for `The Setup` | no match | verify (tasks T026) |
 
 ## §4 `create_base` validation errors (FR-008, Q1 = B)
 

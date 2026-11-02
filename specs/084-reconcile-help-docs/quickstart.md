@@ -28,6 +28,8 @@ npx vitest run src/tools/_register.test.ts
 
 Expected: the FR-018 fingerprint test passes **without** `npm run baseline:write` (contract §6). If it fails, a description or schema moved: stop and find out why.
 
+Vault-name check (contract X7): `git grep -n "The Setup" -- docs/tools "src/tools/*/index.ts" "src/tools/*/schema.ts"` must print nothing.
+
 Example re-validation (contract X1–X2): re-run the example probe (tasks T002) against the edited pages. It covers both call blocks (`{ "name", "arguments" }`) and bare-argument blocks (attributed to the page's own tool), and skips `<…>` templates. Every validated block without a failing label must parse. The failing-labelled blocks are `context_search` Ex. 6, `search` Ex. 7, `properties` Ex. 5, `pattern_search` Ex. 4, `read_heading` Ex. 4, `vaults` Ex. 3, `views_base` Ex. 7, `rename` (vi) and `write_note` (iv)'s legacy form. Each must show the error its input actually returns.
 
 ## §3 Live checks (T0, test vault only)

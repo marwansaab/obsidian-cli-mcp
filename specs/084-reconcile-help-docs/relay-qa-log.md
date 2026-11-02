@@ -372,3 +372,44 @@ Sources: `Obsidian CLI MCP - Constitution`, `Obsidian CLI MCP - Architecture`, `
 > C2. A
 >
 > Under Constitution Principle II, tests are the only enforcement of the agent contract. Architecture (folder-existence two-call probe) already names `details.command: "folder"` as the contract. Pinning it adds no production change, so the FR-009 docs-only clarification and the frozen cli-adapter both hold.
+
+## 9. pre-implementation / resolve-analysis (2026-11-02T03:57:15.296Z)
+
+**Question (verbatim):**
+
+> ## Question U1: how FR-011 (vault names in examples) is verified
+>
+> **Context**: FR-011 says every vault name shown in an example must be an evident placeholder or consistent with the behaviour the example describes. The plan (research D8, tasks T003 / T026) takes the list of stale vault names from the BI-0122 audit records TC-00586 / TC-00587 in My-Setup-Vault. This session could not read them: the obsidian-cli-mcp vault tools were not permitted. The fallback rule, "check each example against its request and current behaviour", is a judgement call. A repository scan found only placeholder-looking names in examples (`MyVault`, `Demo`, `Work`, `Knowledge`, `Research`, `NoSuchVault`, …) plus the authorised test vault `TestVault-Obsidian-CLI-MCP` in `docs/tools/tag.md:194`. It found no `"vault": null` response fields and no objective mismatch.
+>
+> **Question:** How should FR-011 be verified: from the audit records, with an objective fallback rule if they cannot be read; by an objective rule alone; or deferred to the recurring BI-0122 audit?
+>
+> **Why it matters**: As written, FR-011 can only be checked against records this pipeline cannot read. Without a decision, story 5's vault-name half has no pass/fail test.
+>
+> **Recommended:** Option A. The records are the authoritative source for what the audit flagged. The objective fallback means implementation never stalls and FR-011 always gets a pass/fail check.
+>
+> | Option | Description |
+> |--------|-------------|
+> | A | Records first, with an objective fallback. T003 reads TC-00586 / TC-00587; you allow the vault read tools for `/speckit-implement`. If they still cannot be read, FR-011 is checked by a fixed rule: within each example, every vault name in the request, the shown response and the surrounding prose agree, and each name is a generic placeholder or `TestVault-Obsidian-CLI-MCP`. Spec FR-011, research D8 and T026 gain that rule. |
+> | B | Objective rule only: FR-011 is defined by the fixed rule in A, and the audit records are not consulted for vault names. |
+> | C | Defer: vault-name drift moves out of this feature to the next BI-0122 audit run. FR-011 and story 5's vault scenario are removed, and T026 is dropped. This reduces the feature's scope. |
+> | Short | Provide a different short answer (<=5 words) |
+>
+> You can reply with the option letter (e.g., "A"), accept the recommendation by saying "yes" or "recommended", or provide your own short answer.
+
+**Advisor** (escalate: none):
+
+> U1. Use the objective rule (B) as the FR-011 pass/fail test, plus one named instance: `smart_connections_similar` help Example 6 still names vault "The Setup". Change it to a generic placeholder. Drop TC-00586 and TC-00587 as the source for vault names in research D8 and T003.
+>
+> Rule for spec FR-011, D8 and T026: within each example, the vault name in the request, the shown response and the surrounding prose agree, and each name is a generic placeholder or `TestVault-Obsidian-CLI-MCP`. Also add a fixed check: no file under `docs/tools/` and no description contains `The Setup`.
+>
+> TC-00586 and TC-00587 hold no vault names: they cover removed tool names and `argv` call shapes only. BI-0166 Impact item 6 says "no TC asserts these" and gives the single known stale name. It was re-validated as still present on 0.9.0-local on 2026-10-31, so a repository scan that misses it is incomplete. The vault was renamed `My-Setup-Vault` on 2026-10-20.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0166 - Reconcile 0.9.0 Help Doc And Description Drift.md`, `TC-00586 - Help Returns A Doc For Every Registered Tool And None For Removed Names`, `TC-00587 - Descriptions And Help Docs Reference Only Existing Tools And Valid Call Shapes`
+
+**Sent to the step:**
+
+> U1. Use the objective rule (B) as the FR-011 pass/fail test, plus one named instance: `smart_connections_similar` help Example 6 still names vault "The Setup". Change it to a generic placeholder. Drop TC-00586 and TC-00587 as the source for vault names in research D8 and T003.
+>
+> Rule for spec FR-011, D8 and T026: within each example, the vault name in the request, the shown response and the surrounding prose agree, and each name is a generic placeholder or `TestVault-Obsidian-CLI-MCP`. Also add a fixed check: no file under `docs/tools/` and no description contains `The Setup`.
+>
+> TC-00586 and TC-00587 hold no vault names: they cover removed tool names and `argv` call shapes only. BI-0166 Impact item 6 says "no TC asserts these" and gives the single known stale name. It was re-validated as still present on 0.9.0-local on 2026-10-31, so a repository scan that misses it is incomplete. The vault was renamed `My-Setup-Vault` on 2026-10-20.

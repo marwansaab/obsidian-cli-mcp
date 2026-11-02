@@ -27,7 +27,7 @@ The decisions:
 - **D5**: valid `obsidian_exec` migration example.
 - **D6**: message and detail corrections in failing examples.
 - **D7**: `context_search` Example 4 shows the error as returned.
-- **D8**: vault names from the TC-00586 / TC-00587 records.
+- **D8**: vault names checked by a fixed rule (request, response and prose agree; placeholder or `TestVault-Obsidian-CLI-MCP`), plus a fixed check that `The Setup` appears in no help page or description (clarification U1 = B).
 - **D9**: CHANGELOG; docs-as-code after review.
 
 The row-by-row behaviour is in [contracts/help-reconciliation-contract.md](contracts/help-reconciliation-contract.md).
@@ -156,7 +156,7 @@ No other existing assertion changes.
 - **F1–F8**: code findings (CodeGraph and direct reads) plus one in-process probe. The probe ran all 157 example calls through their tools' Zod schemas.
 - **D1–D9**: decisions, summarised above.
 - **Follow-ups**: two items outside the listed scope (`query_base` `details.reason`; `UPSTREAM_TIMEOUT`).
-- **Audit records**: TC-00586 / TC-00587 could not be read at plan time (the vault tools were not permitted in this session). The repository rebuild in F1–F5 is the plan's inventory. Implementation cross-checks it against the records before closing US2, US3 and US5.
+- **Audit records**: TC-00586 / TC-00587 could not be read at plan time (the vault tools were not permitted in this session). The repository rebuild in F1–F5 is the plan's inventory. The records cover removed tool names and `argv` call shapes only, and implementation cross-checks those against them before closing US2 and US3 (T003). They hold no vault names: US5's vault half uses the D8 rule (F9).
 
 **Output**: research.md, with no `NEEDS CLARIFICATION` remaining.
 
@@ -189,10 +189,10 @@ No other existing assertion changes.
 - **FR-009 / D7 (tests)**: per analysis C2 = A, the missing-folder error's `details.command`, `details.message` and top-level message are pinned in `context_search`'s tests. The fix stays docs-only for production code; `src/cli-adapter/**` and `context_search/{handler,index,schema}.ts` are unchanged.
 - **FR-008 / D3**: the clarification's Option B is implemented additively. `details.issues` stays, following `find_and_replace`'s precedent, so no field an agent can read today disappears and no existing assertion changes. The help page names `details.code` / `details.reason` / `details.field` as the fields to branch on.
 - **FR-007 / D6 (`views_base`)**: Example 7 is a labelled failing example, so its `params.*` claim is in scope as a docs fix. The same claim on that page (`:5`, `:57`) is corrected with it, so the page does not contradict itself. `views_base`'s error shape is not changed. That would be the same fix as D3, and it is recorded as a follow-up with `query_base`.
-- **FR-011 / D8**: the plan fixes the rule; the item list comes from the audit records.
+- **FR-011 / D8**: an objective rule plus a fixed `The Setup` check (clarification U1 = B). The one known instance (`smart_connections_similar` Example 6) was already removed by commit `e637b24` on `main` (research F9), so T026 verifies its absence.
 - **SC-003 / SC-004**: verified once (contract X1–X2, N3) by re-running the research probe and scan, per Q3 = A. The scan also covers the server instructions (analysis U3), and the probe covers bare-argument example blocks (analysis C1).
 - **FR-008 / D3 (message)**: the spec now states that the three rejections' top-level message becomes the issue's own message, matching contract C1–C8 and data-model E5 (analysis I3).
-- **Audit records**: spec Assumptions now say the drift lists came from the repository at plan time and are confirmed against TC-00586 / TC-00587 at implementation (T003), matching Phase 0 (analysis I2).
+- **Audit records**: spec Assumptions now say the drift lists came from the repository at plan time and confirm the tool-name and call-shape lists against TC-00586 / TC-00587 at implementation (T003), matching Phase 0 (analysis I2); vault names use the D8 rule (U1).
 
 ### CodeGraph structural check
 
