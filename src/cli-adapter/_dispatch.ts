@@ -23,6 +23,13 @@ export const LAUNCH_POLL_INTERVAL_MS = 750;
 /** The poll count the readiness budget allows: the `total` of the auto-launch progress reports (068 data-model §10). */
 export const LAUNCH_MAX_POLLS = Math.ceil(OBSIDIAN_LAUNCH_READINESS_TIMEOUT_MS / LAUNCH_POLL_INTERVAL_MS);
 
+/**
+ * The CLI's exit-0 answer, on stdout, to any command naming a vault it does not know (BI 011 T0.4;
+ * spec 091 research F1). Dispatch does not classify it: each facade applies its own rule after
+ * dispatch returns (the typed facade a start-of-output match, the raw facade an exact match).
+ */
+export const UNKNOWN_VAULT_ANSWER = "Vault not found.";
+
 /** The launcher seam type — the real `launchObsidian`, substitutable in tests. */
 export type LaunchFn = typeof launchObsidian;
 
@@ -175,6 +182,18 @@ interface InspectedLine {
 function inspectedLines(command: unknown, stdout: string): InspectedLine[] {
   if (command === "eval") return stdoutLines(stdout).map((text) => ({ text, message: text.trim() }));
   return [{ text: stdout.trimStart(), message: stdout.split("\n", 1)[0]!.trim() }];
+}
+
+/**
+ * The `details` of an exit-0 answer reported as a failure: dispatch's priorities (b) and (c), and the
+ * raw facade's unknown-vault answer (spec 091 FR-003), share this shape and key order.
+ */
+export function exitZeroDetails(
+  out: Pick<DispatchOutput, "argv" | "stdout" | "stderr">,
+  command: string,
+  message: string,
+): Record<string, unknown> {
+  return { argv: out.argv, command, stdout: out.stdout, stderr: out.stderr, exitCode: 0, message };
 }
 
 /**
@@ -617,7 +636,7 @@ async function dispatchOnce(
           new UpstreamError({
             code: "ERR_NO_ACTIVE_FILE",
             cause: null,
-            details: { argv, command: input.command, stdout, stderr, exitCode: 0, message },
+            details: exitZeroDetails({ argv, stdout, stderr }, input.command, message),
             message:
               'No active file in Obsidian. Open a note in the editor, or call this tool with target_mode: "specific" and an explicit vault/file.',
           }),
@@ -634,7 +653,7 @@ async function dispatchOnce(
           new UpstreamError({
             code: "CLI_REPORTED_ERROR",
             cause: null,
-            details: { argv, command: input.command, stdout, stderr, exitCode: 0, message },
+            details: exitZeroDetails({ argv, stdout, stderr }, input.command, message),
           }),
         );
         return;

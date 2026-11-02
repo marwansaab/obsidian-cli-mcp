@@ -1,6 +1,8 @@
-// Original — no upstream. invokeBoundedCli escape-hatch facade: queue-wrapped dispatch with default 30 s / 10 MiB; the timeoutMs override is bounded at 120 s by the obsidian_exec schema (ADR-007, FR-011). 068 R11: the per-call signal and progress reporter pass to the queue and to dispatchCli.
+// Original — no upstream. invokeBoundedCli escape-hatch facade: queue-wrapped dispatch with default 30 s / 10 MiB; the timeoutMs override is bounded at 120 s by the obsidian_exec schema (ADR-007, FR-011). 068 R11: the per-call signal and progress reporter pass to the queue and to dispatchCli. Spec 091: a call that names a vault and whose whole stdout, trimmed, is the CLI's "Vault not found." answer fails as CLI_REPORTED_ERROR; any other output, or a call without a vault, is returned unchanged.
 import {
   dispatchCli,
+  exitZeroDetails,
+  UNKNOWN_VAULT_ANSWER,
   type CallScope,
   type DispatchInput,
   type DispatchOutput,
@@ -8,6 +10,7 @@ import {
   type ResolveBinaryFn,
   type SpawnLike,
 } from "./_dispatch.js";
+import { UpstreamError } from "../errors.js";
 
 import type { Logger } from "../logger.js";
 import type { Queue } from "../queue.js";
@@ -77,6 +80,14 @@ export function invokeBoundedCli(
       signal: deps.signal,
       reportProgress: deps.reportProgress,
     });
+    if (input.vault !== undefined && out.stdout.trim() === UNKNOWN_VAULT_ANSWER) {
+      throw new UpstreamError({
+        code: "CLI_REPORTED_ERROR",
+        cause: null,
+        details: exitZeroDetails(out, input.command, UNKNOWN_VAULT_ANSWER),
+        message: UNKNOWN_VAULT_ANSWER,
+      });
+    }
     return out;
   }, { signal: deps.signal });
 }

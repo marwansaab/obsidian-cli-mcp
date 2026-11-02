@@ -33,6 +33,21 @@ every other tool. Bypassing those is the one thing an escape hatch here
 cannot do: `architecture.test.ts` keeps `dispatchCli` reachable only through
 the two facades.
 
+Since PR #124 (spec 091, BI-0173) it also fails on the CLI's unknown-vault
+answer, which every command gives on exit 0. Until then a mistyped `vault`
+returned a success whose `stdout` was `Vault not found.`, because only the
+typed facade checked for it. The raw facade's rule is stricter than the
+typed tools': the call must name a vault (`vault=` inside `parameters` does
+not count, since the CLI ignores it after the command) and its whole stdout,
+trimmed, must be exactly the sentence. A note or search result that merely
+starts with it is still returned. The failure is `CLI_REPORTED_ERROR` with
+`message` and `details.message` `Vault not found.`, as the typed tools give
+it, plus the raw tool's usual `argv`, `command`, `stdout`, `stderr` and
+`exitCode` in `details`. The check sits after dispatch, so the call spawns
+once and never launches Obsidian
+([architecture](../architecture.md#runtime-spine),
+[ADR-061](../decisions/ADR-061-obsidian-exec-fails-an-unknown-vault-only-on-the-exact-answer.md)).
+
 Its `eval` (when the gate below is open) is the one `eval` the server does
 not tag. Since PR #110 dispatch reads `eval` output line by line
 ([architecture](../architecture.md#error-spine)), and for an untagged call any
@@ -149,7 +164,9 @@ start if any registered tool lacks its doc file
   still reads "Invoke any Obsidian Integrated CLI subcommand". PR #88 left
   every descriptor unchanged. PR #90's descriptor pass removed only its
   call-help sentence and did not add the blocked list, so the `help` page and
-  the README are still the only places that carry it. Since PR #90 the tool is
+  the README are still the only places that carry it. PR #124 added
+  `unknown vault` to the description's list of structured failures, and
+  regenerated its fingerprint on purpose. Since PR #90 the tool is
   published with the passthrough hint row — destructive and open-world, the
   only open-world tool. Its optional `vault` is the shared
   `focusedVaultField`.
