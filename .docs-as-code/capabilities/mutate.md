@@ -623,6 +623,68 @@ as given and the CLI keeps the basename, which keeps Markdown `file`-mode
 arguments byte-stable (spec 070 `contracts/tool-support.md` invariant 4,
 upheld by review ruling Q2).
 
+### Missing destination folder and vault-relative failures
+
+Until PR #123 (spec 090, BI-0172) a `move` into a folder that does not exist
+came back as the CLI's raw line, `Error: ENOENT: no such file or directory,
+rename '<abs>' -> '<abs>'`, passed through as `CLI_REPORTED_ERROR` with no
+`details.code` and the vault's absolute folder twice in the payload. The CLI
+reports it on exit 0, moves nothing and creates no folder (research F1, F2).
+
+`executeMove` now wraps the CLI call and the response parse in one `try`, and
+its catch is `throw await moveFailure(e, target, resolvedTo, vaultRegistry)`.
+Classification happens only after the CLI has reported the failure; a
+successful move makes exactly the calls it made before
+([ADR-060](../decisions/ADR-060-move-classifies-its-failure-after-the-cli-and-keeps-the-vault-folder-out.md)).
+
+```mermaid
+flowchart TD
+  e[move-step failure] --> b{UpstreamError, and not CLI_BINARY_NOT_FOUND?}
+  b -- no --> pass[rethrow unchanged]
+  b -- yes --> m{"ENOENT rename line, and destination folder is not the vault root?"}
+  m -- yes --> f["CLI_REPORTED_ERROR, details { code: FOLDER_NOT_FOUND, folder }, cause null"]
+  m -- no --> l[fileTargetVaultRoot]
+  l -- root --> r[withVaultRelativePaths]
+  l -- "VALIDATION_ERROR (unregistered vault)" --> pass
+  l -- any other failure --> w["withheld: code kept, details { source, destination }, lookup error as cause"]
+```
+
+- **`FOLDER_NOT_FOUND`.** A `CLI_REPORTED_ERROR` whose `details.message`
+  starts with the ENOENT rename line is a missing destination: the CLI
+  reports a missing source with its own line before it attempts the rename
+  (research F3). `details.folder` is the folder part of the already-computed
+  `resolvedTo`, with forward slashes, so no lookup is made; nested missing
+  folders report the one the caller asked for. `cause` is `null` because the
+  CLI's error carries the absolute paths. A root-level destination that gets
+  ENOENT is not reported as a missing folder, since the vault root exists.
+  The message names the only recovery today: write a note into the folder
+  with `write_note`, which creates it, then retry.
+- **Every other failure** from the move step keeps its code and wording, with
+  the vault's folder rewritten out by the shared `withVaultRelativePaths`
+  ([architecture](../architecture.md#error-spine)). The root comes from
+  `fileTargetVaultRoot`: the focused-file eval's `base` in active mode, the
+  vault registry in specific mode, consulted only after the failure so an
+  unknown vault still fails at the CLI. `createServer` now passes
+  `vaultRegistry` to `createMoveTool`; that argument is PR #123's only change
+  to the boot spine.
+- **Lookup failures.** An unregistered vault (the registry's
+  `VALIDATION_ERROR`) is one the CLI did not act on, so its `Vault not found.`
+  failure is rethrown untouched. Any other lookup failure, such as a cold
+  registry whose probe times out, leaves the root unknown, so the CLI text is
+  withheld: the code is kept, `details` is `{ source, destination }`, and the
+  lookup error is the `cause`. The plan first rethrew the original on any
+  lookup failure; the pre-implement analysis (finding U1) showed that leaked
+  the root on a cold-cache probe, and the owner ruled for withholding.
+- **Exceptions.** `CLI_BINARY_NOT_FOUND` passes through: its search paths
+  describe the CLI install, not a vault (Clarification Q1). Cancellation is
+  not an `UpstreamError` and is rethrown untouched.
+
+PR #123's review (commit `7c42952`) moved the rewrite out of `move`'s handler
+into the leaf module, so another tool can use it, and gave `read` and `move`
+one shared `fileTargetVaultRoot` in place of `read`'s inline copy. The live
+check drove the built server over stdio against the test vault, L1–L7 all
+passing, with no failure payload carrying the vault's path.
+
 ## File types
 
 Since PR #97 (BI-0060, spec 070) every tool here that takes a file locator
@@ -721,6 +783,20 @@ from their schema would have reached the client as SDK free text rather than
   still act in another vault if the focused **vault** switches between that
   lookup and the action (ADR-044); the owner accepted the same residual for
   the metadata refresh below.
+- No tool creates an empty folder, and the CLI has no `mkdir` subcommand.
+  `move`'s `FOLDER_NOT_FOUND` recovery therefore goes through `write_note`,
+  which creates parent folders but also creates a note (spec 090 research
+  F12). A folder-creation capability is a follow-up of PR #123.
+- PR #123 keeps the vault's absolute folder out of `move`'s failures only.
+  `rename` still passes Node's file error text, absolute paths included,
+  straight through, and the resolution-stage failures every file-path tool
+  shares (`_active-file.ts`) are not rewritten; their observed forms carry no
+  absolute path, but a malformed focused-file eval answer could echo one
+  (spec 090 research Follow-ups).
+- `move`'s missing-folder test reads the source as checked first. If the
+  source is deleted between Obsidian's own check and the rename, that ENOENT
+  is reported as `FOLDER_NOT_FOUND`; the retry then reports the missing
+  source (spec 090 research D2, an accepted residual).
 - `patch_heading` and `patch_block` were outside spec 070 (FR-013): they do
   not run the type check and their descriptions carry no supported-types
   sentence. PR #122 gave them the shared resolver but still no type check

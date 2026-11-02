@@ -908,6 +908,12 @@ than added as new codes:
   `CLI_REPORTED_ERROR`: a line the search found could not be read back from
   its note, so the call returns nothing
   ([ADR-058](decisions/ADR-058-context-search-reads-matched-lines-back-and-fails-when-one-cannot-be.md)).
+  Since PR #123 `move` also raises `"FOLDER_NOT_FOUND"` under
+  `CLI_REPORTED_ERROR`, with the `details.folder` shape `paths` and
+  `pattern_search` already publish, for a destination folder that does not
+  exist. It reuses the pair rather than adding one, and carries no
+  `details.reason` because the condition has one state (spec 090
+  Clarification Q2; [mutate](capabilities/mutate.md#missing-destination-folder-and-vault-relative-failures)).
 - `details.reason` separates the states of one multi-state condition (ADR-015,
   Sub-Discriminators via details.reason for Multi-State Error Codes) — for
   example `obsidian-not-running` on `CLI_NON_ZERO_EXIT`, `named-missing` and
@@ -927,6 +933,21 @@ than added as new codes:
   `not-open`, "a vault that is registered but closed", as the example. That
   state was never produced through the CLI the server drives, and PR #100
   withdrew it ([ADR-045](decisions/ADR-045-closed-vaults-recovered-only-by-the-dispatch-retry.md)).
+
+A failure the CLI reports can carry the operator's disk layout: Node's file
+errors name both absolute paths (`Error: ENOENT: …, rename '<abs>' -> '<abs>'`),
+and the dispatch layer copies the CLI's text into `details.message`,
+`details.stdout` and the other raw-output keys unchanged. Since PR #123 the
+leaf module [src/tools/_vault-relative-error.ts](../src/tools/_vault-relative-error.ts)
+holds `withVaultRelativePaths(e, root)`, which rewrites a vault's absolute
+folder out of an `UpstreamError`: `<root><sep>` becomes `""` and a bare root
+`.`, in the message and in every string inside `details` (arrays and plain
+records included), with either separator and any letter case, stopping at a
+path-segment boundary so a sibling folder such as `<root>shop` is left alone.
+The code and `cause` are kept, and the same object comes back when nothing
+matched. The helper is tool-agnostic: the caller supplies the root and
+decides which failures pass through. `move` is its only caller so far
+([ADR-060](decisions/ADR-060-move-classifies-its-failure-after-the-cli-and-keeps-the-vault-folder-out.md)).
 
 The per-tool error roster — which codes and sub-codes a given tool can return
 — is in that tool's `docs/tools/<name>.md`.
@@ -1061,11 +1082,15 @@ flowchart LR
   the registry out of these four tools again. That still holds for what they
   forward. Since PR #102 `FileTarget` is a union: in active mode, where
   `vault` is `undefined`, it also carries `vaultRoot`, the focused-file
-  `eval`'s `base`, and `vault === undefined` narrows to it. `read` alone uses
-  it, for the disk read that corrects the CLI's text, and in specific mode
-  `read` asks the vault registry for the root only after the CLI read has
+  `eval`'s `base`, and `vault === undefined` narrows to it. Until PR #123
+  `read` alone used it, for the disk read that corrects the CLI's text, asking
+  the vault registry for the root in specific mode only after the CLI read had
   succeeded ([read](capabilities/read.md#exact-content-the-clis-text-corrected-from-the-disk-bytes)).
-  `rename`, `move` and `outline` ignore it.
+  PR #123's review moved that per-mode choice into `fileTargetVaultRoot(target,
+  vaultRegistry)` beside the resolver (commit `7c42952`), and `move` became its
+  second caller: after a failed move it looks the root up to rewrite it out of
+  the error. Neither tool uses the root to build what it forwards, so active
+  calls still send no `vault=`. `rename` and `outline` ignore it.
 - `resolveFsTarget` serves the direct-filesystem tools that need the vault
   root (`append_note`, `prepend`, and since PR #122 `patch_heading` and
   `patch_block`). It replaced an identical private `resolveLocator` in each,
