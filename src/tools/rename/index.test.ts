@@ -137,8 +137,9 @@ describe("docs/tools/rename.md exists and is non-stub (FR-014)", () => {
     expect(body).toMatch(/##\s+Scope/i);
     // Link-rewriting caveat
     expect(body).toMatch(/Automatically update internal links/);
-    // move_note recovery hint surfaced
-    expect(body).toContain("move_note");
+    // `move` recovery hint surfaced (spec 084 N1: the retired `move_note` name is gone)
+    expect(body).toMatch(/use move to relocate/);
+    expect(body).not.toContain("move_note");
   });
 });
 

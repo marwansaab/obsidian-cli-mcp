@@ -177,11 +177,11 @@ The empty-string `vault` fails `.min(1)`:
 ```json
 {
   "isError": true,
-  "content": [{ "type": "text", "text": "{\"code\":\"VALIDATION_ERROR\",\"message\":\"properties input failed schema validation\",\"details\":{\"issues\":[{\"path\":[\"vault\"],\"message\":\"String must contain at least 1 character(s)\",\"code\":\"too_small\"}]}}" }]
+  "content": [{ "type": "text", "text": "{\"code\":\"VALIDATION_ERROR\",\"message\":\"properties input failed schema validation\",\"details\":{\"issues\":[{\"path\":[\"vault\"],\"message\":\"Too small: expected string to have >=1 characters\",\"code\":\"too_small\"}]}}" }]
 }
 ```
 
-Unknown top-level keys (e.g. `{ "file": "note.md" }`) fail `additionalProperties: false` and surface as `VALIDATION_ERROR — Unrecognized key(s) in object: 'file'`.
+Unknown top-level keys (e.g. `{ "file": "note.md" }`) fail `additionalProperties: false` and surface as `VALIDATION_ERROR — Unrecognized key: "file"`.
 
 ### Example 6 — Case-variant collapse
 

@@ -1,10 +1,18 @@
-// Original — no upstream.
+// Original — no upstream. create_base tool registration via registerTool; spec 084: a mapValidationError hook lifts the first INVALID_BASE_PATH / INVALID_NAME / CONTENT_TOO_LARGE issue's ADR-015 params to details.code, details.reason (when present) and details.field, with that issue's own message, next to the unchanged generic details.issues; every other validation failure keeps the generic envelope.
+import { type z } from "zod";
+
 import { withDeprecatedParameters } from "../_deprecated-params.js";
 import { registerTool } from "../_register.js";
 import { CREATE_BASE_SUPPORTED, executeCreateBase, type ExecuteDeps } from "./handler.js";
 import { createBaseInputSchema, createBaseOutputSchema, MAX_CONTENT_LENGTH } from "./schema.js";
 import { describeSupport } from "../../file-type/file-type.js";
-import { ADDITIVE_WRITE_HINTS, closedVaultNote, type BootDeps, type RegisteredTool } from "../_shared.js";
+import {
+  ADDITIVE_WRITE_HINTS,
+  closedVaultNote,
+  type BootDeps,
+  type RegisteredTool,
+  type ToolErrorPayload,
+} from "../_shared.js";
 
 export const CREATE_BASE_TOOL_NAME = "create_base";
 
@@ -25,6 +33,34 @@ ${closedVaultNote("base:create")}`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 
+const DISCRIMINATED_CODES = new Set(["INVALID_BASE_PATH", "INVALID_NAME", "CONTENT_TOO_LARGE"]);
+
+function mapZodIssuesToToolError(issues: z.core.$ZodIssue[]): ToolErrorPayload {
+  const mappedIssues = issues.map((i) => ({ path: i.path, message: i.message, code: i.code }));
+  // The schema's custom issues carry ADR-015 params (`appendBasePathIssues` and the name /
+  // content checks); the first one, in superRefine order, is the error the caller acts on.
+  for (const issue of issues) {
+    if (issue.code !== "custom") continue;
+    const params = issue.params as { code?: string; reason?: string; field?: string } | undefined;
+    if (params?.code === undefined || !DISCRIMINATED_CODES.has(params.code)) continue;
+    return {
+      code: "VALIDATION_ERROR",
+      message: issue.message,
+      details: {
+        code: params.code,
+        ...(params.reason === undefined ? {} : { reason: params.reason }),
+        field: params.field,
+        issues: mappedIssues,
+      },
+    };
+  }
+  return {
+    code: "VALIDATION_ERROR",
+    message: `${CREATE_BASE_TOOL_NAME} input failed schema validation`,
+    details: { issues: mappedIssues },
+  };
+}
+
 export function createCreateBaseTool(deps: RegisterDeps): RegisteredTool {
   return registerTool({
     name: CREATE_BASE_TOOL_NAME,
@@ -35,5 +71,6 @@ export function createCreateBaseTool(deps: RegisterDeps): RegisteredTool {
     outputSchema: createBaseOutputSchema,
     deps,
     handler: async (input, d) => withDeprecatedParameters(await executeCreateBase(input, d), input.deprecated_parameters),
+    mapValidationError: mapZodIssuesToToolError,
   });
 }

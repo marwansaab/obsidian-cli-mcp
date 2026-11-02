@@ -64,7 +64,7 @@ A call with an unknown tool name fails with `HELP_TOOL_NOT_FOUND`:
   "isError": true,
   "content": [{
     "type": "text",
-    "text": "{\"code\":\"HELP_TOOL_NOT_FOUND\",\"message\":\"No documentation file for the requested tool. Available tools: append_note, help, list_notes, obsidian_exec, read, search_vault, vaults, write_note.\",\"details\":{\"requestedName\":\"unknown_xyz\",\"availableTools\":[\"append_note\",\"help\",\"list_notes\",\"obsidian_exec\",\"read\",\"search_vault\",\"vaults\",\"write_note\"]}}"
+    "text": "{\"code\":\"HELP_TOOL_NOT_FOUND\",\"message\":\"No documentation file for the requested tool. Available tools: append_note, backlinks, bases, context_search, create_base, delete, files, find_and_replace, find_by_property, get_active_file, help, links, move, obsidian_exec, open_file, outline, patch_block, patch_heading, paths, pattern_search, prepend, properties, query_base, read, read_heading, read_property, rename, search, set_property, smart_connections_query, smart_connections_similar, tag, vaults, views_base, write_note.\",\"details\":{\"requestedName\":\"unknown_xyz\",\"availableTools\":[\"append_note\",\"backlinks\",\"bases\",\"context_search\",\"create_base\",\"delete\",\"files\",\"find_and_replace\",\"find_by_property\",\"get_active_file\",\"help\",\"links\",\"move\",\"obsidian_exec\",\"open_file\",\"outline\",\"patch_block\",\"patch_heading\",\"paths\",\"pattern_search\",\"prepend\",\"properties\",\"query_base\",\"read\",\"read_heading\",\"read_property\",\"rename\",\"search\",\"set_property\",\"smart_connections_query\",\"smart_connections_similar\",\"tag\",\"vaults\",\"views_base\",\"write_note\"]}}"
   }]
 }
 ```

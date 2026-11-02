@@ -145,6 +145,68 @@ describe("createCreateBaseTool — descriptor", () => {
   });
 });
 
+describe("createCreateBaseTool — validation error discriminators (spec 084 FR-008)", () => {
+  type ErrorPayload = {
+    code: string;
+    message: string;
+    details: { code?: string; reason?: string; field?: string; issues: Array<{ path: unknown[]; message: string; code: string }> };
+  };
+
+  async function rejected(args: Record<string, unknown>): Promise<ErrorPayload> {
+    const { spawnFn, getCount } = makeQueuedSpawn([]);
+    const tool = createCreateBaseTool({ logger: silentLogger(), queue: createQueue(), vaultRegistry: registry, spawnFn });
+    const result = await tool.handler(args);
+    expect(getCount()).toBe(0);
+    expect("isError" in result && result.isError).toBe(true);
+    return JSON.parse(result.content[0]!.text) as ErrorPayload;
+  }
+
+  it.each([
+    { id: "C1", args: { base_path: "", name: "x" }, message: "INVALID_BASE_PATH/empty: base_path is empty", code: "INVALID_BASE_PATH", reason: "empty", field: "base_path" },
+    { id: "C2", args: { base_path: "a/b.md", name: "x" }, message: "INVALID_BASE_PATH/wrong-extension: base_path must end with .base", code: "INVALID_BASE_PATH", reason: "wrong-extension", field: "base_path" },
+    { id: "C3", args: { base_path: "../x.base", name: "x" }, message: "INVALID_BASE_PATH/path-traversal: base_path contains path-traversal shapes", code: "INVALID_BASE_PATH", reason: "path-traversal", field: "base_path" },
+    { id: "C4", args: { base_path: `${"a".repeat(996)}.base`, name: "x" }, message: "INVALID_BASE_PATH/too-long: base_path exceeds 1000 UTF-16 code units", code: "INVALID_BASE_PATH", reason: "too-long", field: "base_path" },
+    { id: "C5", args: { base_path: "T.base", name: "" }, message: "INVALID_NAME/empty: name is empty", code: "INVALID_NAME", reason: "empty", field: "name" },
+    { id: "C6", args: { base_path: "T.base", name: "n".repeat(1001) }, message: "INVALID_NAME/too-long: name exceeds 1000 UTF-16 code units", code: "INVALID_NAME", reason: "too-long", field: "name" },
+    { id: "C7", args: { base_path: "T.base", name: "x", content: "c".repeat(3073) }, message: "CONTENT_TOO_LARGE: content exceeds 3072 UTF-16 code units", code: "CONTENT_TOO_LARGE", reason: undefined, field: "content" },
+    { id: "C8", args: { path: "a.md", name: "x" }, message: "INVALID_BASE_PATH/wrong-extension: base_path must end with .base", code: "INVALID_BASE_PATH", reason: "wrong-extension", field: "base_path" },
+  ])("$id: $code/$reason → details.code, details.reason and details.field beside details.issues, nothing spawned", async (row) => {
+    const payload = await rejected(row.args);
+    expect(payload.code).toBe("VALIDATION_ERROR");
+    expect(payload.message).toBe(row.message);
+    expect(payload.details.code).toBe(row.code);
+    if (row.reason === undefined) expect(payload.details).not.toHaveProperty("reason");
+    else expect(payload.details.reason).toBe(row.reason);
+    expect(payload.details.field).toBe(row.field);
+    expect(Array.isArray(payload.details.issues)).toBe(true);
+    expect(payload.details.issues[0]!.path[0]).toBe(payload.details.field);
+  });
+
+  it("C9: any other validation failure keeps the generic envelope unchanged", async () => {
+    const payload = await rejected({ base_path: "T.base" });
+    expect(payload.code).toBe("VALIDATION_ERROR");
+    expect(payload.message).toBe("create_base input failed schema validation");
+    expect(payload.details.code).toBeUndefined();
+    expect(Object.keys(payload.details)).toEqual(["issues"]);
+    expect(payload.details.issues.length).toBeGreaterThan(0);
+  });
+
+  it("C10: a valid call is unchanged", async () => {
+    const tool = createCreateBaseTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      vaultRegistry: registry,
+      spawnFn: makeStubSpawn({ stdout: "Created: New item.md\n" }),
+    });
+    const result = (await tool.handler({ base_path: "T.base", name: "x" })) as {
+      isError?: boolean;
+      structuredContent?: Record<string, unknown>;
+    };
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent).toEqual({ path: "T/New item.md", name: "New item.md" });
+  });
+});
+
 describe("createCreateBaseTool — deprecated names (spec 073)", () => {
   type Result = { isError?: boolean; content: { text: string }[]; structuredContent?: Record<string, unknown> };
 

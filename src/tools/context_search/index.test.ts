@@ -78,6 +78,30 @@ describe("createContextSearchTool — handler closure executes on VALID input", 
   });
 });
 
+// Spec 084 S1b: the missing-folder error as the registered tool returns it, the shape
+// docs/tools/context_search.md Example 4 shows.
+describe("createContextSearchTool — missing folder error envelope", () => {
+  it("returns CLI_REPORTED_ERROR with the generic top-level message and the folder probe in details", async () => {
+    __resetInFlightRegistryForTests();
+    const { spawnFn } = makeQueuedSpawn([
+      { stdout: "\nNo matches found.\n", exitCode: 0 },
+      { stdout: 'Error: Folder "DoesNotExist" not found.\n', exitCode: 0 },
+    ]);
+    const tool = createContextSearchTool({ logger: silentLogger(), queue: createQueue(), spawnFn });
+    const result = (await tool.handler({ query: "x", folder: "DoesNotExist" })) as {
+      content: Array<{ type: string; text: string }>;
+      isError?: boolean;
+    };
+    expect(result.isError).toBe(true);
+    const payload = JSON.parse(result.content[0]!.text);
+    expect(payload.code).toBe("CLI_REPORTED_ERROR");
+    expect(payload.message).toBe("CLI bridge upstream error: CLI_REPORTED_ERROR");
+    expect(payload.details.command).toBe("folder");
+    expect(payload.details.message).toBe('Error: Folder "DoesNotExist" not found.');
+    __resetInFlightRegistryForTests();
+  });
+});
+
 describe("FR-018 baseline contains context_search entry (post-baseline roll-forward)", () => {
   it("baseline JSON includes a tools[] entry with name === 'context_search'", () => {
     const baselinePath = resolve(dirname(fileURLToPath(import.meta.url)), "../_register-baseline.json");
