@@ -54,7 +54,8 @@ extends it.
     `find_and_replace`, `prepend` and its empty-body correction (PR #104)
     and missing-note check (PR #105), its UTF-8 byte limit (PR #106),
     line endings and the placement check in `patch_heading` and
-    `patch_block` (PR #119), `set_property`, `delete`, `rename`, `move`.
+    `patch_block` (PR #119), how they resolve a note name (PR #122),
+    `set_property`, `delete`, `rename`, `move`.
   - [capabilities/list-and-inventory.md](capabilities/list-and-inventory.md) —
     `files`, `paths`, `outline`, `properties`, `vaults`.
   - [capabilities/bases.md](capabilities/bases.md) — `bases`, `views_base`,
@@ -180,3 +181,8 @@ applies. Records written since:
   `MATCH_LINE_UNAVAILABLE` when one cannot be; reading from disk, an
   unbounded `eval` and a trimmed fallback were rejected, and review replaced
   `lineMatches` with `selectLines` and `lineOutput` (PR #121).
+- [decisions/ADR-059-section-editors-resolve-note-names-through-the-shared-lookup.md](decisions/ADR-059-section-editors-resolve-note-names-through-the-shared-lookup.md)
+  — `patch_heading` and `patch_block` resolve a `file` name through the
+  shared `resolveFsTarget` lookup and pass its not-found failure through
+  unchanged, as `read` gives it; a `NOTE_NOT_FOUND` conversion and a
+  literal-path fallback were rejected (PR #122).
