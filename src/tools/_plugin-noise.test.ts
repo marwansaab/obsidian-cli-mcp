@@ -264,6 +264,7 @@ describe("noise matrix inventory", () => {
     expect(new Set(COHORT.map((c) => c.name))).toEqual(
       new Set([
         "backlinks",
+        "context_search",
         "links",
         "get_active_file",
         "open_file",

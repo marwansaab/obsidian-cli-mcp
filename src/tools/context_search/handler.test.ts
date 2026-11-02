@@ -11,7 +11,9 @@
 // All upstream mocked at the spawn boundary (parity with search/handler.test.ts).
 import { afterEach, beforeEach, expect, test } from "vitest";
 
+import { readBackResponse } from "./_handler-fixtures.js";
 import { executeContextSearch } from "./handler.js";
+import { planReadBack } from "./read-back.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
@@ -20,10 +22,19 @@ import {
   findKv,
   makeQueuedSpawn,
   silentLogger,
+  type StubResponse,
 } from "../_handler-test-fixtures.js";
+import { selectLines } from "../search/line-matches.js";
+
+import type { SearchContextWireFile } from "../search/schema.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
+}
+
+/** One read-back response per batch the selected rows of `wire` need at applied cap `cap` (spec 088). */
+function readBackResponses(wire: SearchContextWireFile[], cap: number): StubResponse[] {
+  return planReadBack(selectLines("x", wire, cap).rows).map(() => readBackResponse(wire));
 }
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -31,13 +42,14 @@ afterEach(() => __resetInFlightRegistryForTests());
 
 // =================== T010 — H1 happy path single file, two matches ===================
 
-test("H1 happy path — single file with two matches, single CLI call, sorted output", async () => {
+test("H1 happy path — single file with two matches, sorted output", async () => {
   const wire = [{ file: "a.md", matches: [{ line: 2, text: "foo" }, { line: 5, text: "foo" }] }];
   const { spawnFn, recorded } = makeQueuedSpawn([
     { stdout: JSON.stringify(wire), exitCode: 0 },
+    readBackResponse(wire),
   ]);
   const r = await executeContextSearch({ query: "foo" }, deps(spawnFn));
-  expect(recorded).toHaveLength(1);
+  expect(recorded).toHaveLength(2);
   const argv = recorded[0]!.argv;
   expect(argv).toContain("search:context");
   expect(argv).toContain('query="foo"');
@@ -59,12 +71,14 @@ test("H3 vault flow-through — argv contains vault=X verbatim when set; absent 
   const wire = [{ file: "a.md", matches: [{ line: 1, text: "x" }] }];
   const { spawnFn: sSet, recorded: rSet } = makeQueuedSpawn([
     { stdout: JSON.stringify(wire), exitCode: 0 },
+    readBackResponse(wire),
   ]);
   await executeContextSearch({ query: "foo", vault: "MyVault" }, deps(sSet));
   expect(rSet[0]!.argv).toContain("vault=MyVault");
 
   const { spawnFn: sOmit, recorded: rOmit } = makeQueuedSpawn([
     { stdout: JSON.stringify(wire), exitCode: 0 },
+    readBackResponse(wire),
   ]);
   await executeContextSearch({ query: "foo" }, deps(sOmit));
   expect(rOmit[0]!.argv.find((a) => a.startsWith("vault="))).toBeUndefined();
@@ -115,7 +129,7 @@ test("H10 non-.md wire entry filtered (FR-017 / R10)", async () => {
     { file: "Sandbox/note.md", matches: [{ line: 1, text: "x" }] },
     { file: "Sandbox/note.canvas", matches: [{ line: 1, text: "y" }] },
   ];
-  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }, readBackResponse(wire)]);
   const r = await executeContextSearch({ query: "x" }, deps(spawnFn));
   expect(r.matches).toEqual([{ path: "Sandbox/note.md", line: 1, text: "x" }]);
   expect(r.count).toBe(1);
@@ -126,7 +140,7 @@ test("H10 non-.md wire entry filtered (FR-017 / R10)", async () => {
 test("H11 per-line text > 500 chars capped + U+2026 marker (FR-012 / R5)", async () => {
   const text501 = "x".repeat(501);
   const wire = [{ file: "a.md", matches: [{ line: 1, text: text501 }] }];
-  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }, readBackResponse(wire)]);
   const r = await executeContextSearch({ query: "x" }, deps(spawnFn));
   expect(r.matches[0]!.text).toBe("x".repeat(500) + "…");
   expect(r.matches[0]!.text.length).toBe(501);
@@ -137,7 +151,7 @@ test("H11 per-line text > 500 chars capped + U+2026 marker (FR-012 / R5)", async
 test("H12 per-line text === 500 chars verbatim (no ellipsis)", async () => {
   const text500 = "x".repeat(500);
   const wire = [{ file: "a.md", matches: [{ line: 1, text: text500 }] }];
-  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }, readBackResponse(wire)]);
   const r = await executeContextSearch({ query: "x" }, deps(spawnFn));
   expect(r.matches[0]!.text).toBe(text500);
   expect(r.matches[0]!.text.length).toBe(500);
@@ -148,28 +162,28 @@ test("H12 per-line text === 500 chars verbatim (no ellipsis)", async () => {
 
 test("H13 CRLF strip — (a) trailing \\r stripped", async () => {
   const wire = [{ file: "a.md", matches: [{ line: 1, text: "foo\r" }] }];
-  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }, readBackResponse(wire)]);
   const r = await executeContextSearch({ query: "x" }, deps(spawnFn));
   expect(r.matches[0]!.text).toBe("foo");
 });
 
 test("H13 CRLF strip — (b) trailing spaces before \\r preserved (only \\r stripped)", async () => {
   const wire = [{ file: "a.md", matches: [{ line: 1, text: "foo  \r" }] }];
-  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }, readBackResponse(wire)]);
   const r = await executeContextSearch({ query: "x" }, deps(spawnFn));
   expect(r.matches[0]!.text).toBe("foo  ");
 });
 
 test("H13 CRLF strip — (c) embedded mid-line \\r NOT stripped", async () => {
   const wire = [{ file: "a.md", matches: [{ line: 1, text: "foo\rbar" }] }];
-  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }, readBackResponse(wire)]);
   const r = await executeContextSearch({ query: "x" }, deps(spawnFn));
   expect(r.matches[0]!.text).toBe("foo\rbar");
 });
 
 test("H13 CRLF strip — (d) LF-only line verbatim (no trailing \\r)", async () => {
   const wire = [{ file: "a.md", matches: [{ line: 1, text: "foo" }] }];
-  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }, readBackResponse(wire)]);
   const r = await executeContextSearch({ query: "x" }, deps(spawnFn));
   expect(r.matches[0]!.text).toBe("foo");
 });
@@ -181,7 +195,7 @@ test("H14a deterministic sort by (path, line) ascending (FR-018)", async () => {
     { file: "z.md", matches: [{ line: 1, text: "x" }] },
     { file: "a.md", matches: [{ line: 5, text: "y" }, { line: 2, text: "z" }] },
   ];
-  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }, readBackResponse(wire)]);
   const r = await executeContextSearch({ query: "x" }, deps(spawnFn));
   expect(r.matches).toEqual([
     { path: "a.md", line: 2, text: "z" },
@@ -234,7 +248,7 @@ test("validation rejects unknown key before any spawn", async () => {
 
 test("response key-set — exactly ['count','matches'] when not truncated", async () => {
   const wire = [{ file: "a.md", matches: [{ line: 1, text: "x" }] }];
-  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }, readBackResponse(wire)]);
   const r = await executeContextSearch({ query: "x" }, deps(spawnFn));
   expect(Object.keys(r).sort()).toEqual(["count", "matches"]);
 });
@@ -244,7 +258,7 @@ test("response key-set — exactly ['count','matches','truncated'] when truncate
     file: `f${String(i).padStart(4, "0")}.md`,
     matches: [{ line: 1, text: "x" }],
   }));
-  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }, ...readBackResponses(wire, 1000)]);
   const r = await executeContextSearch({ query: "x" }, deps(spawnFn));
   expect(Object.keys(r).sort()).toEqual(["count", "matches", "truncated"]);
 });
@@ -257,8 +271,8 @@ test("byte-identical repeated call — same upstream → JSON.stringify equality
     { file: "a.md", matches: [{ line: 2, text: "y" }] },
   ];
   const upstream = JSON.stringify(wire);
-  const { spawnFn: s1 } = makeQueuedSpawn([{ stdout: upstream, exitCode: 0 }]);
-  const { spawnFn: s2 } = makeQueuedSpawn([{ stdout: upstream, exitCode: 0 }]);
+  const { spawnFn: s1 } = makeQueuedSpawn([{ stdout: upstream, exitCode: 0 }, readBackResponse(wire)]);
+  const { spawnFn: s2 } = makeQueuedSpawn([{ stdout: upstream, exitCode: 0 }, readBackResponse(wire)]);
   const r1 = await executeContextSearch({ query: "x" }, deps(s1));
   const r2 = await executeContextSearch({ query: "x" }, deps(s2));
   expect(JSON.stringify(r1)).toBe(JSON.stringify(r2));
@@ -271,7 +285,7 @@ test("drop file entries with empty matches: [] (R8 inherited from BI-033 R9)", a
     { file: "a.md", matches: [] },
     { file: "b.md", matches: [{ line: 1, text: "y" }] },
   ];
-  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }, readBackResponse(wire)]);
   const r = await executeContextSearch({ query: "x" }, deps(spawnFn));
   expect(r).toEqual({ count: 1, matches: [{ path: "b.md", line: 1, text: "y" }] });
 });
@@ -301,13 +315,14 @@ test("T023a CLI_OUTPUT_TOO_LARGE inherited pass-through — handler re-raises un
 
 // =================== T031 — H2 folder + results found, single call ===================
 
-test("H2 folder supplied + results found, single CLI call", async () => {
+test("H2 folder supplied + results found", async () => {
   const wire = [{ file: "Projects/x.md", matches: [{ line: 1, text: "foo" }] }];
   const { spawnFn, recorded } = makeQueuedSpawn([
     { stdout: JSON.stringify(wire), exitCode: 0 },
+    readBackResponse(wire),
   ]);
   await executeContextSearch({ query: "foo", folder: "Projects" }, deps(spawnFn));
-  expect(recorded).toHaveLength(1);
+  expect(recorded).toHaveLength(2);
   expect(findKv(recorded[0]!.argv, "path")).toBe("Projects");
 });
 
@@ -318,6 +333,7 @@ test("folder normalisation — /Projects/, Projects/, /Projects, Projects all no
     const wire = [{ file: "Projects/x.md", matches: [{ line: 1, text: "foo" }] }];
     const { spawnFn, recorded } = makeQueuedSpawn([
       { stdout: JSON.stringify(wire), exitCode: 0 },
+      readBackResponse(wire),
     ]);
     await executeContextSearch({ query: "foo", folder }, deps(spawnFn));
     expect(findKv(recorded[0]!.argv, "path")).toBe("Projects");
@@ -342,6 +358,7 @@ test("folder undefined — path parameter absent", async () => {
   const wire = [{ file: "a.md", matches: [{ line: 1, text: "x" }] }];
   const { spawnFn, recorded } = makeQueuedSpawn([
     { stdout: JSON.stringify(wire), exitCode: 0 },
+    readBackResponse(wire),
   ]);
   await executeContextSearch({ query: "foo" }, deps(spawnFn));
   expect(findKv(recorded[0]!.argv, "path")).toBeUndefined();
@@ -353,6 +370,7 @@ test("H4 case_sensitive=true sets `case` flag (presence-only boolean)", async ()
   const wire = [{ file: "a.md", matches: [{ line: 1, text: "Foo" }] }];
   const { spawnFn, recorded } = makeQueuedSpawn([
     { stdout: JSON.stringify(wire), exitCode: 0 },
+    readBackResponse(wire),
   ]);
   await executeContextSearch({ query: "Foo", case_sensitive: true }, deps(spawnFn));
   expect(recorded[0]!.argv).toContain("case=true");
@@ -362,6 +380,7 @@ test("case_sensitive=false → argv lacks any 'case=' token", async () => {
   const wire = [{ file: "a.md", matches: [{ line: 1, text: "Foo" }] }];
   const { spawnFn, recorded } = makeQueuedSpawn([
     { stdout: JSON.stringify(wire), exitCode: 0 },
+    readBackResponse(wire),
   ]);
   await executeContextSearch({ query: "Foo", case_sensitive: false }, deps(spawnFn));
   expect(recorded[0]!.argv.find((a) => a.startsWith("case="))).toBeUndefined();
@@ -371,6 +390,7 @@ test("case_sensitive omitted → argv lacks any 'case=' token", async () => {
   const wire = [{ file: "a.md", matches: [{ line: 1, text: "Foo" }] }];
   const { spawnFn, recorded } = makeQueuedSpawn([
     { stdout: JSON.stringify(wire), exitCode: 0 },
+    readBackResponse(wire),
   ]);
   await executeContextSearch({ query: "Foo" }, deps(spawnFn));
   expect(recorded[0]!.argv.find((a) => a.startsWith("case="))).toBeUndefined();
@@ -386,6 +406,7 @@ test("H14 truncation — limit=3, CLI returns 3 files × 1 match each → trunca
   ];
   const { spawnFn, recorded } = makeQueuedSpawn([
     { stdout: JSON.stringify(wire), exitCode: 0 },
+    readBackResponse(wire),
   ]);
   const r = await executeContextSearch({ query: "x", limit: 3 }, deps(spawnFn));
   expect(findKv(recorded[0]!.argv, "limit")).toBeUndefined();
@@ -401,7 +422,7 @@ test("H14 truncation — limit=3, CLI returns 3 files × 2 matches each → flat
     { file: "b.md", matches: [{ line: 1, text: "x" }, { line: 2, text: "y" }] },
     { file: "c.md", matches: [{ line: 1, text: "x" }, { line: 2, text: "y" }] },
   ];
-  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }, readBackResponse(wire)]);
   const r = await executeContextSearch({ query: "x", limit: 3 }, deps(spawnFn));
   expect(r.count).toBe(3);
   expect(r.matches.length).toBe(3);
@@ -413,7 +434,7 @@ test("H14 truncation — limit=3, CLI returns 2 files × 1 match each → under 
     { file: "a.md", matches: [{ line: 1, text: "x" }] },
     { file: "b.md", matches: [{ line: 1, text: "y" }] },
   ];
-  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }, readBackResponse(wire)]);
   const r = await executeContextSearch({ query: "x", limit: 3 }, deps(spawnFn));
   expect(r.count).toBe(2);
   expect(Object.hasOwn(r, "truncated")).toBe(false);
@@ -426,6 +447,7 @@ test("H14 truncation — limit omitted, CLI returns 1000 files × 1 match each �
   }));
   const { spawnFn, recorded } = makeQueuedSpawn([
     { stdout: JSON.stringify(wire), exitCode: 0 },
+    ...readBackResponses(wire, 1000),
   ]);
   const r = await executeContextSearch({ query: "x" }, deps(spawnFn));
   expect(findKv(recorded[0]!.argv, "limit")).toBeUndefined();
@@ -439,7 +461,7 @@ test("H14 truncation — limit omitted, CLI returns 999 files × 1 match each �
     file: `f${String(i).padStart(4, "0")}.md`,
     matches: [{ line: 1, text: "x" }],
   }));
-  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }, ...readBackResponses(wire, 1000)]);
   const r = await executeContextSearch({ query: "x" }, deps(spawnFn));
   expect(r.count).toBe(999);
   expect(Object.hasOwn(r, "truncated")).toBe(false);
@@ -456,6 +478,7 @@ test("leading-N identity — limit=3 with 4 files in reverse order returns first
   ];
   const { spawnFn } = makeQueuedSpawn([
     { stdout: JSON.stringify(wire), exitCode: 0 },
+    readBackResponse(wire),
   ]);
   const r = await executeContextSearch({ query: "foo", limit: 3 }, deps(spawnFn));
   expect(r.matches).toEqual([
@@ -475,7 +498,7 @@ test("T036a recursive subtree-prefix — nested subfolder rows forwarded verbati
     { file: "Projects/sub/bar.md", matches: [{ line: 1, text: "y" }] },
     { file: "Projects/a/b/c.md", matches: [{ line: 1, text: "z" }] },
   ];
-  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }, readBackResponse(wire)]);
   const r = await executeContextSearch({ query: "foo", folder: "Projects" }, deps(spawnFn));
   expect(r.matches).toEqual([
     { path: "Projects/a/b/c.md", line: 1, text: "z" },
@@ -550,7 +573,7 @@ const SCRAMBLED_FILES = ["body-3.md", "body-5.md", "body-2.md", "body-4.md", "bo
 
 test("BI-055 leading-N — limit=2 over scrambled 5 files (one match each) → covers [body-1, body-2], count 2, truncated true", async () => {
   const wire = SCRAMBLED_FILES.map((file) => ({ file, matches: [{ line: 1, text: "m" }] }));
-  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }, readBackResponse(wire)]);
   const r = await executeContextSearch({ query: "foo", limit: 2 }, deps(spawnFn));
   expect(r.matches.map((m) => m.path)).toEqual(["body-1.md", "body-2.md"]);
   expect(r.count).toBe(2);
@@ -562,7 +585,7 @@ test("BI-055 conservative — S > cap fires, count === cap", async () => {
   const wire = [
     { file: "a.md", matches: [{ line: 1, text: "x" }, { line: 2, text: "y" }, { line: 3, text: "z" }] },
   ];
-  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }, readBackResponse(wire)]);
   const r = await executeContextSearch({ query: "x", limit: 2 }, deps(spawnFn));
   expect(r.count).toBe(2);
   if ("truncated" in r) expect(r.truncated).toBe(true);
@@ -575,7 +598,7 @@ test("BI-055 conservative — S === cap with NO drop → truncated true (fileCou
   const wire = [
     { file: "a.md", matches: [{ line: 1, text: "x" }, { line: 2, text: "y" }, { line: 3, text: "z" }] },
   ];
-  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }, readBackResponse(wire)]);
   const r = await executeContextSearch({ query: "x", limit: 3 }, deps(spawnFn));
   expect(r.count).toBe(3);
   if ("truncated" in r) expect(r.truncated).toBe(true);
@@ -587,7 +610,7 @@ test("BI-055 — S < cap → all path-ascending, no truncated, no drop", async (
     { file: "b.md", matches: [{ line: 1, text: "x" }] },
     { file: "a.md", matches: [{ line: 1, text: "y" }] },
   ];
-  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }, readBackResponse(wire)]);
   const r = await executeContextSearch({ query: "x", limit: 10 }, deps(spawnFn));
   expect(r.matches.map((m) => m.path)).toEqual(["a.md", "b.md"]);
   expect(r.count).toBe(2);

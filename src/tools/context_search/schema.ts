@@ -1,7 +1,7 @@
 // Original — no upstream. context_search input/output schemas — vault-scoped
 // per-line context primitive. NO context_lines flag (the tool always returns
 // line-level matches). Re-uses search/schema.ts's wire shape (searchContextWireSchema)
-// for the upstream parse step (R8).
+// for the upstream parse step (R8). Also the read-back answer schema (spec 088).
 import { z } from "zod";
 
 import { focusedVaultField } from "../_vault-field.js";
@@ -53,6 +53,23 @@ export const contextSearchOutputSchema = z
   })
   .refine((o) => o.count === o.matches.length, "count must equal matches.length");
 
+// The read-back eval's answer (spec 088, data-model E4): per note, its requested lines raw
+// (null past the end), or why the note could not be read.
+export const contextSearchReadBackSchema = z.strictObject({
+  notes: z.array(
+    z.discriminatedUnion("state", [
+      z.strictObject({
+        path: z.string(),
+        state: z.literal("read"),
+        lines: z.array(z.strictObject({ line: z.number().int(), raw: z.string().nullable() })),
+      }),
+      z.strictObject({ path: z.string(), state: z.literal("note-not-found") }),
+      z.strictObject({ path: z.string(), state: z.literal("read-failed"), detail: z.string() }),
+    ]),
+  ),
+});
+
 export type ContextSearchInput = z.infer<typeof contextSearchInputSchema>;
 export type ContextSearchMatch = z.infer<typeof contextSearchMatchSchema>;
 export type ContextSearchOutput = z.infer<typeof contextSearchOutputSchema>;
+export type ContextSearchReadBack = z.infer<typeof contextSearchReadBackSchema>;
