@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-11-02T04:31:49.866Z |
 | Finished | not yet |
-| Elapsed | 14 min 46 s |
+| Elapsed | 23 min 48 s |
 | Questions | 2 (0 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 0 |
@@ -57,6 +57,7 @@
 ### pre-implementation (`1186435d-bf55-4cd5-8066-ba24363077c5`)
 
 - Condition `shell-exit-0` (run_when): met. "node -e "process.exit('' === '' ? 0 : 1)"" exited 0.
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\specs\085-stabilise-query-ordering\tasks.md exists.
 
 - **specify**: done, 15 turns.
 
@@ -181,16 +182,42 @@
 >
 > The checklist note is updated and all 16 items still pass. Next step is /speckit-implement.
 
-- **resolve-analysis**: in progress.
+- **resolve-analysis**: done, 6 turns.
+
+> The analysis findings are all resolved. None was CRITICAL or HIGH, so no question was needed. I committed the feature folder on 085-stabilise-query-ordering as ccd87b1, a docs(085) commit written to the CONTRIBUTING.md convention. Nothing was pushed.
+>
+> Changes, all made in the previous turn and included in the commit:
+> - **Scope**: smart_connections_similar is now in scope, under the BI-0167 exception. Research confirmed that its `_template.ts:29` calls `find_connections({limit:a.limit})` and only then sorts and slices. The change covers that one step: always ask for 100 candidates, then cut to `limit`. Its self-exclusion, lifecycle checks and errors stay as they are, and scoring and the limits are unchanged for both tools. spec.md, research (D5), data-model, the contract (rows T10–T15 and S4–S5), plan.md and tasks.md (now T001–T025) cover both tools.
+> - **I1 (MEDIUM)**: contract S3, quickstart §2 and task T017 now expect exactly two fingerprint changes, plus the branch and date metadata that `baseline:write` rewrites.
+> - **U1 (MEDIUM)**: SC-005 gained a fallback, and task T025 makes recording it mandatory.
+> - **I2 (LOW)**: the tests check every limit pair, not a sample.
+> - **C1 (LOW)**: row T4 now repeats the call and checks the result is the same.
+> - **D1 (LOW)**: no change; FR-001 states the mechanism and FR-003 the property.
+>
+> Left open:
+> - `CLAUDE.md` (plan pointer) and `.specify/feature.json` (feature pointer) are changed but not committed, because the instruction covered only the feature folder. The 084 run committed these in a separate chore commit.
+> - SC-005 can only be checked live where a vault with Smart Connections is available. Task T025 records the result either way.
+>
+> Next step is /speckit-implement.
+
 
 ### continue
 
-- **prepare**: not run.
+Skipped.
 
-### implementation
+- Condition `shell-exit-0` (run_when): not met. "node -e "process.exit('' === '' ? 1 : 0)"" exited 1.
 
-- **implement**: not run.
-- **open-pr**: not run.
+- **prepare**: skipped.
+
+### implementation (`8183fa13-7aa6-4e03-ae10-603178236c1f`)
+
+- Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\specs\085-stabilise-query-ordering\tasks.md exists, and Obsidian has TestVault-Obsidian-CLI-MCP focused.
+
+- **implement**: done, 87 turns.
+
+> Spec 085 implemented, all 25 tasks marked [X]; nothing committed. Both eval templates now always ask the plugin for MAX_LIMIT (100) candidates, then filter, sort and cut to limit. MAX_LIMIT is a new per-tool constant in each schema.ts, also used by .max(). New node:vm tests in each tool's _template.test.ts cover contract rows T1–T15, including all 4,950 limit pairs. With the old request restored they fail (T1, T2, T4, T5, T7, T10–T13), and all 21 pass after restoring the fix. Each tool description and help page now states the leading-slice guarantee and the 100-candidate tie edge, pinned by checks S1, S2, S4, S5. The baseline was regenerated: only the two descriptionFingerprints and generatedFromBranch changed. CHANGELOG has a Fixed entry. typecheck, lint and tests pass (4,207 tests, existing handler and schema tests unedited). The structural check passed: src/errors.ts and src/server.ts unchanged, no kernel node touched, no tool-to-tool import. Two things to know. First, I reworded the similar help page's limit bullet ('applied after the sort and the filters below') so it matches contract check S5; this is recorded in post-implement.md. Second, format:check fails repo-wide (1,019 files even with line endings normalised); this was already true before this feature, CI does not run it, and the files I added or edited introduce no new issues. SC-005 is recorded as unverified live because permission for the local Obsidian MCP tools was not granted; the fallback evidence is cited. The optional after_implement commit hook was skipped.
+
+- **open-pr**: in progress.
 
 ### review
 
