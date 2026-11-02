@@ -1067,14 +1067,22 @@ flowchart LR
   succeeded ([read](capabilities/read.md#exact-content-the-clis-text-corrected-from-the-disk-bytes)).
   `rename`, `move` and `outline` ignore it.
 - `resolveFsTarget` serves the direct-filesystem tools that need the vault
-  root (`append_note`, `prepend`). It replaced an identical private
-  `resolveLocator` in each, keeping their order: the registry lookup runs
-  before the TSV spawn, so an unknown vault costs no spawn. `write_note` keeps
-  its own resolution and checks the path it computes.
+  root (`append_note`, `prepend`, and since PR #122 `patch_heading` and
+  `patch_block`). It replaced an identical private `resolveLocator` in each,
+  keeping their order: the registry lookup runs before the TSV spawn, so an
+  unknown vault costs no spawn. The two section editors' copies differed in
+  one way that mattered: they never ran the TSV lookup, and used a `file`
+  name as a literal path (spec 089 research F1;
+  [mutate](capabilities/mutate.md#note-names-in-the-section-editors),
+  [ADR-059](decisions/ADR-059-section-editors-resolve-note-names-through-the-shared-lookup.md)).
+  `write_note` keeps its own resolution and checks the path it computes. The
+  section editors use the resolver for the locator only; they still run no
+  type check.
 
 The cost is one extra CLI round-trip for `file` and active calls of the four
-pass-through tools. `path` calls, which the server instructions recommend for
-automation, pay nothing.
+pass-through tools, and for `file` calls of the direct-filesystem tools above.
+`path` calls, which the server instructions recommend for automation, pay
+nothing.
 
 ## Two ways to touch a note: through the CLI, or directly
 

@@ -1,4 +1,4 @@
-// Original — no upstream. patch_block handler per BI-043 / ADR-009 — specific-mode vault-registry resolve OR active-mode focused-file eval → Layer 2 canonical path check → fs.readFile (ENOENT → NOTE_NOT_FOUND per FR-018) → block-scan + first-match resolve (BLOCK_NOT_FOUND per FR-017) → block-on-heading short-circuit (BLOCK_ON_HEADING per FR-019a, both ATX and setext) → per-shape surgery on per-line-terminator lines (spec 086) → placement check (UNSAFE_PLACEMENT, no write) → atomic tmp+rename with EBUSY/EPERM EXTERNAL_EDITOR_CONFLICT classification (FR-021) → best-effort metadataCache refresh eval in the written vault (logged on failure) → typed output envelope. No race detection — FR-026 publishes last-write-wins per R4 (deliberate divergence from sibling patch_heading). 075: bytes_written = edited minus original byte length (the size change).
+// Original — no upstream. patch_block handler per BI-043 / ADR-009 — locator via the shared resolveFsTarget (specific mode: vault-registry resolve, then a `file` name through the `obsidian file` lookup — spec 089; active mode: focused-file eval) → Layer 2 canonical path check → fs.readFile (ENOENT → NOTE_NOT_FOUND per FR-018) → block-scan + first-match resolve (BLOCK_NOT_FOUND per FR-017) → block-on-heading short-circuit (BLOCK_ON_HEADING per FR-019a, both ATX and setext) → per-shape surgery on per-line-terminator lines (spec 086) → placement check (UNSAFE_PLACEMENT, no write) → atomic tmp+rename with EBUSY/EPERM EXTERNAL_EDITOR_CONFLICT classification (FR-021) → best-effort metadataCache refresh eval in the written vault (logged on failure) → typed output envelope. No race detection — FR-026 publishes last-write-wins per R4 (deliberate divergence from sibling patch_heading). 075: bytes_written = edited minus original byte length (the size change).
 import { randomUUID } from "node:crypto";
 import * as nodeFs from "node:fs/promises";
 
@@ -10,7 +10,8 @@ import {
 import { findBlock } from "./block-scan.js";
 import { type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import { assertCanonicalPath, resolveActiveLocatorWithVault } from "../_active-file.js";
+import { assertCanonicalPath } from "../_active-file.js";
+import { resolveFsTarget } from "../_file-target.js";
 import { getErrno, mapFsWriteError, noteNotFound } from "../_fs-errors.js";
 import { invalidateMetadataCache, sizeChange, writeAtomic } from "../_note-io.js";
 import { lineStart, placeEdit, splitNoteLines } from "../_note-lines.js";
@@ -54,25 +55,17 @@ const DEFAULT_FS: ExecuteFs = {
 // That divergence is the explicit `conflictErrnos` arg to mapFsWriteError.
 const EDITOR_CONFLICT_ERRNOS = new Set(["EBUSY", "EPERM"]);
 
-async function resolveLocator(
-  input: PatchBlockInput,
-  deps: ExecuteDeps,
-): Promise<{ vaultRoot: string; relPath: string; vaultDisplayName: string }> {
-  if (input.target_mode === "active") {
-    return resolveActiveLocatorWithVault(deps, "patch_block");
-  }
-  const vaultRoot = await deps.vaultRegistry.resolveVaultPath(input.vault!);
-  const relPath = (input.file ?? input.path)!;
-  return { vaultRoot, relPath, vaultDisplayName: input.vault! };
-}
-
 export async function executePatchBlock(
   input: PatchBlockInput,
   deps: ExecuteDeps,
 ): Promise<PatchBlockOutput> {
   const fs = deps.fs ?? DEFAULT_FS;
 
-  const { vaultRoot, relPath, vaultDisplayName } = await resolveLocator(input, deps);
+  const { vaultRoot, relPath, vaultDisplayName } = await resolveFsTarget(
+    input,
+    deps,
+    "patch_block",
+  );
   const mapWriteErr = (e: unknown): UpstreamError =>
     mapFsWriteError(e, { relPath, conflictErrnos: EDITOR_CONFLICT_ERRNOS, conflictVerb: "patch" });
 

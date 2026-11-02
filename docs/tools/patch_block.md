@@ -39,7 +39,7 @@ The schema is strict: `additionalProperties: false`. Unknown fields trigger `VAL
 |---|---|---|---|
 | `target_mode` | `"specific" \| "active"` | YES | Discriminator. |
 | `vault` | string ≥ 1 char | iff specific | Resolved via the lazy vault registry. Unknown vault → `VALIDATION_ERROR`. |
-| `file` | string ≥ 1 char (structurally safe) | XOR with `path`, iff specific | Vault-relative file path. |
+| `file` | string ≥ 1 char (structurally safe) | XOR with `path`, iff specific | Note name, resolved like a wikilink (e.g. "Meeting Notes", "Projects/Meeting Notes" or "Meeting Notes.md"). A pre-flight `obsidian file` call resolves the name to a vault-relative path before the note is read; the edit and the response's `path` use that path. A name two notes share resolves to the same note `read` picks. |
 | `path` | string ≥ 1 char (structurally safe) | XOR with `file`, iff specific | Vault-relative file path. |
 | `block_id` | string, 1–1000 chars, `^[A-Za-z0-9-]+$` | YES | See *The block-id locator* below. |
 | `content` | string | YES | Any string including empty (legitimate "clear the body" operation). |
@@ -179,6 +179,7 @@ Every failure routes through `UpstreamError`.
 | `CLI_REPORTED_ERROR` | `EXTERNAL_EDITOR_CONFLICT` | `file-locked` (reserved: `unsaved-changes`) | An external editor holds the file (Windows). Ask the user to save and close, retry. |
 | `VAULT_NOT_FOUND` | — | `unknown` | Vault is not registered. |
 | `ERR_NO_ACTIVE_FILE` | — | — | Active mode but no note is focused. |
+| `CLI_REPORTED_ERROR` | — | — | A `file` name matches no note. The message is Obsidian's own, `Error: File "<name>" not found.`, the same failure [`read`](./read.md) returns for that name. Nothing is read or written. Check the name, or pass the note's `path`. |
 | `PATH_ESCAPES_VAULT` | — | — | Resolved path escapes the vault root (symlink traversal, `..` segments). Fix the path. |
 | `FS_WRITE_FAILED` | — | — (carries `details.errno`) | Generic fs failure (ENOSPC, EACCES, etc.). Inspect `details.errno`. |
 

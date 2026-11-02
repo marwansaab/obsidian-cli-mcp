@@ -38,7 +38,7 @@ The schema is strict: `additionalProperties: false`. Unknown fields trigger `VAL
 |---|---|---|---|
 | `target_mode` | `"specific" \| "active"` | YES | Discriminator. |
 | `vault` | string ≥ 1 char | iff specific | Resolved via the lazy vault registry. Unknown vault → `VALIDATION_ERROR`. |
-| `file` | string ≥ 1 char (structurally safe) | XOR with `path`, iff specific | Vault-relative file path. |
+| `file` | string ≥ 1 char (structurally safe) | XOR with `path`, iff specific | Note name, resolved like a wikilink (e.g. "Meeting Notes", "Projects/Meeting Notes" or "Meeting Notes.md"). A pre-flight `obsidian file` call resolves the name to a vault-relative path before the note is read; the edit and the response's `path` use that path. A name two notes share resolves to the same note `read` picks. |
 | `path` | string ≥ 1 char (structurally safe) | XOR with `file`, iff specific | Vault-relative file path. |
 | `heading_path` | string, 1–1000 chars | YES | Starts at the note's level-1 heading, one segment per level; the target is level 2 or deeper, so at least two segments. See *The heading_path locator* below. |
 | `mode` | `"append" \| "prepend" \| "replace"` | YES | See *Three placement modes* below. |
@@ -198,7 +198,7 @@ The returned `path` is the vault-relative path of the focused file (or `null` wh
 
 | Field | Meaning |
 |---|---|
-| `path` | Vault-relative path of the note that was patched. For specific mode, echoes the input's `file`/`path`. For active mode, the focused-file path returned by the eval. |
+| `path` | Vault-relative path of the note that was patched. For a `path` input, echoes it; for a `file` name, the path the name resolved to; for active mode, the focused-file path returned by the eval. |
 | `vault` | Vault display name. For specific mode, echoes the input's `vault`. For active mode, the display name resolved via the registry's reverse lookup (`basePath → name`), falling back to the basePath literal if the basePath is not a registered vault. |
 | `heading_path` | The supplied path, echoed verbatim. |
 | `mode` | The placement mode that was applied. |
@@ -222,6 +222,7 @@ Every failure routes through `UpstreamError`.
 | `CLI_REPORTED_ERROR` | `UNSAFE_PLACEMENT` | — | The edit could not be placed safely under the named heading, so the tool refused it. The note was not changed. Re-read the note and retry once; if it fails again, report it. This should not happen on any note. Carries `details.heading_path` and `details.path`. |
 | `CLI_REPORTED_ERROR` | `EXTERNAL_EDITOR_CONFLICT` | `file-locked` | OS-level `fs.rename` / `fs.writeFile` failed with `EBUSY`/`EPERM`/`EACCES`. Ask the user to save and close the file in the external editor, then retry. Carries `details.errno` and `details.path`. |
 | | | `unsaved-changes` | Reserved for forward compatibility; the wrapper never emits it today. |
+| `CLI_REPORTED_ERROR` | — | — | A `file` name matches no note. The message is Obsidian's own, `Error: File "<name>" not found.`, the same failure [`read`](./read.md) returns for that name. Nothing is read or written. Check the name, or pass the note's `path`. |
 | `PATH_ESCAPES_VAULT` | — | — | Canonical-path check detected a symlink escape. Fix the path. |
 | `FS_WRITE_FAILED` | — | — | Generic `fs` failure not classified as `EXTERNAL_EDITOR_CONFLICT` (e.g. `ENOSPC`, `EROFS`, or `ENOENT` on a non-existent target — `patch_heading` does not create files). |
 | `VALIDATION_ERROR` | — | — | Unknown vault, registry lookup failure (existing top-level surface). |

@@ -43,7 +43,12 @@ flowchart LR
   mode a focused-file `eval` supplies the path. The helpers are shared in
   `src/tools/_active-file.ts`; since PR #97 `append_note` and `prepend` reach
   them through `resolveFsTarget` in `src/tools/_file-target.ts`, which
-  replaced the identical private `resolveLocator` each had.
+  replaced the identical private `resolveLocator` each had. Until PR #122 this
+  bullet was wrong for `patch_heading` and `patch_block`: they kept their own
+  `resolveLocator`, which used `file` as a literal path from the vault root,
+  so a `file` name was never resolved
+  ([below](#note-names-in-the-section-editors)). `write_note` still resolves
+  its own path.
 - **Type check** (PR #97). `write_note` and `append_note` reject a resolved
   path that is not a Markdown note with `UNSUPPORTED_FILE_TYPE` before the
   guard, so nothing is read or written
@@ -245,6 +250,64 @@ purpose ([ADR-046](../decisions/ADR-046-shared-parameter-names-within-a-tool-fam
 first exception). Aligning them, a
 runtime hint in the heading-not-found message, and reaching the unreachable
 sections are spec 079 plan Follow-ups.
+
+## Note names in the section editors
+
+`patch_heading` and `patch_block` publish the shared `file` description, "a
+note name resolved like a wikilink". Until PR #122 (spec 089, BI-0171) that
+was not true. Each handler had a private `resolveLocator` that joined `file`
+to the vault root as a literal path (spec 089 research F1), so a note in a
+sub-folder could not be edited by its bare name, a root note needed its
+`.md`, and a name that matched nothing failed as a filesystem error on a file
+that was never going to exist.
+
+Since PR #122 both copies are deleted and each handler calls
+`resolveFsTarget(input, deps, "<tool>")`, the locator `append_note` and
+`prepend` already used:
+
+```mermaid
+flowchart LR
+  reg[vault registry: root] --> f{locator}
+  f -- path --> rel[relPath as given]
+  f -- file --> tsv["obsidian file file=name (TSV)"]
+  tsv -- found --> rel
+  tsv -- "Error: File … not found." --> miss["CLI_REPORTED_ERROR, no details.code"]
+  f -- active --> ev[focused-file eval] --> rel
+  rel --> guard[canonical path check] --> read[fs.readFile] --> rest[walk / scan, edit, write]
+```
+
+- **Order.** The registry resolves the vault before the lookup, so an
+  unknown vault still fails with no spawn. A `file` name costs one
+  `obsidian file` call before any filesystem access; `path` and active mode
+  make the same spawns, filesystem calls and errors as before (FR-007).
+- **The resolved path is used everywhere after it.** The canonical path
+  check, the read, the write, the metadata refresh and the response's `path`
+  all use the path the name resolved to, so a name cannot reach outside the
+  vault any more than a `path` can. A name two notes share edits the note
+  `read` picks (research F12); no ambiguous-name error was added.
+- **No new error.** A name that matches no note fails with the resolver's
+  failure unchanged: `CLI_REPORTED_ERROR` whose message is Obsidian's own
+  `Error: File "<name>" not found.`, with no `details.code` — the failure
+  `read`, `append_note` and `prepend` give for that name (Clarification Q2;
+  [ADR-059](../decisions/ADR-059-section-editors-resolve-note-names-through-the-shared-lookup.md)).
+  An unparseable answer fails `details.stage: "file-tsv-parse"`. A note
+  removed between the lookup and the read still gets each tool's old
+  missing-file failure.
+- **Tests.** Rows N1–N9 of `specs/089-resolve-note-names/contracts/note-name-contract.md`
+  run once per editor from `describeNoteNameLocator` in
+  `src/tools/_note-name-locator-cases.ts`. Each editor keeps its co-located
+  `handler.note-name.test.ts`, which supplies only the handler call, its
+  fixture note, the edit check and its `HEADING_NOT_FOUND` /
+  `BLOCK_NOT_FOUND` code. As first implemented the two suites were
+  near-copies; the PR #122 code-quality review moved the rows into the
+  shared module (commit `f69c5f6`), which imports vitest and so is excluded
+  from the build ([tech stack](../tech-stack.md)).
+
+The descriptions, schemas, annotations and `_register-baseline.json` did not
+move. PR #122's live check drove the built server over stdio against the
+test vault: both editors edited a note two folders down by its bare name,
+an unmatched name created nothing, and a duplicate name edited the note
+`read` returned.
 
 ## Line endings and the placement check
 
@@ -660,7 +723,18 @@ from their schema would have reached the client as SDK free text rather than
   the metadata refresh below.
 - `patch_heading` and `patch_block` were outside spec 070 (FR-013): they do
   not run the type check and their descriptions carry no supported-types
-  sentence.
+  sentence. PR #122 gave them the shared resolver but still no type check
+  (spec 089 research D2).
+- A missing note fails three ways in the section editors since PR #122: a
+  `file` name with the resolver's `CLI_REPORTED_ERROR` and no
+  `details.code`, a missing `path` in `patch_block` with `NOTE_NOT_FOUND`,
+  and a missing `path` in `patch_heading` with `FS_WRITE_FAILED` (`ENOENT`).
+  `PATCH_HEADING_DESCRIPTION` and its help page list `NOTE_NOT_FOUND`, which
+  the handler never throws (spec 089 research F9). Fixing it changes a
+  published error, so it is its own item.
+- The section editors' `file` field still accepts `[[` / `]]`, which
+  `append_note` and `prepend` reject; aligning them changes the published
+  schema (spec 089 follow-ups).
 - PR #119 fixed where the patch tools write on a mixed-ending note, not how
   notes become mixed. `set_property` writing an LF frontmatter on a CRLF
   note, the usual cause, is tracked as its own item. `patch_block` still has
