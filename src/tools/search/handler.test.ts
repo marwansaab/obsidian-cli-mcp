@@ -38,7 +38,7 @@ test("Q-1 default-mode happy path — invokes `search` subcommand with format=js
   expect(recorded).toHaveLength(1);
   const argv = recorded[0]!.argv;
   expect(argv).toContain("search");
-  expect(argv).toContain("query=foo");
+  expect(argv).toContain('query="foo"');
   expect(argv).toContain("format=json");
   expect(findKv(argv, "limit")).toBeUndefined();
   expect(r).toEqual({ count: 2, paths: ["a.md", "b.md"] });

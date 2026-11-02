@@ -1,16 +1,18 @@
 // Original — no upstream. search handler — two-subcommand router (`search` /
 // `search:context`) wrapping the native CLI; subcommand selection keyed on
-// input.context_lines (R2). Zero-match sentinel detection on `No matches found.`
-// stdout returns the empty envelope for the active mode rather than an error
-// (FR-012 / R4 / F2). Staged parse — JSON.parse failures throw CLI_REPORTED_ERROR
+// input.context_lines (R2). The query is sent as one escaped, double-quoted phrase
+// (spec 087, literal-phrase.ts) so the CLI matches it literally in both subcommands.
+// Zero-match sentinel detection on `No matches found.` stdout returns the empty
+// envelope for the active mode rather than an error (FR-012 / R4 / F2). Staged parse — JSON.parse failures throw CLI_REPORTED_ERROR
 // with details.stage="json-parse"; wire-schema failures with details.stage=
 // "wire-parse" (I-7 / I-8). No `limit` is forwarded upstream (BI-055): upstream
 // returns the full match set, the wrapper sorts it, then slices to appliedCap, so
 // the visible subset is the path-ascending leading N across the entire match set.
 // Default-mode pipeline: filter to `.md`, sort UTF-16 ascending, detect truncation
 // precisely via `mdOnly.length > appliedCap`, slice to appliedCap when truncated.
-// Line-mode pipeline: file-level `.md` filter, flatMap to flat rows (drops empty
-// `matches: []` entries naturally — R9), cap each text at 500 chars + U+2026 ellipsis
+// Line-mode pipeline: file-level `.md` filter, keep one entry per line (none for a
+// line-break query; spec 087), flatMap to flat rows (drops empty `matches: []`
+// entries naturally — R9), cap each text at 500 chars + U+2026 ellipsis
 // (FR-024 / R10), detect truncation conservatively via `flat.length >= appliedCap`
 // (fires on a real drop and at flat===cap with no drop — FR-005), sort by path asc
 // then line asc (FR-019 / R11), slice to appliedCap. Output schemas
@@ -18,6 +20,7 @@
 // FR-023). Folder leading/trailing `/` normalised wrapper-side (FR-006 / I-5);
 // empty post-strip omits the `path` parameter from CLI invocation. Zero new
 // top-level error codes; zero new details.code values — Principle IV preserved.
+import { literalPhraseQuery, oneMatchPerLine } from "./literal-phrase.js";
 import {
   searchContextWireSchema,
   searchDefaultOutputSchema,
@@ -60,7 +63,7 @@ export async function executeSearch(
   const appliedCap = input.limit ?? DEFAULT_CAP;
 
   const parameters: Record<string, string | true> = {
-    query: input.query,
+    query: literalPhraseQuery(input.query),
     format: "json",
   };
   if (input.folder !== undefined) {
@@ -109,7 +112,10 @@ export async function executeSearch(
       });
     }
     const wire = wireParsed.data;
-    const mdOnly = wire.filter((f) => f.file.toLowerCase().endsWith(".md"));
+    const mdOnly = oneMatchPerLine(
+      input.query,
+      wire.filter((f) => f.file.toLowerCase().endsWith(".md")),
+    );
     const flat = mdOnly.flatMap((f) =>
       f.matches.map((m) => ({
         path: f.file,
