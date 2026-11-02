@@ -179,3 +179,47 @@ Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Constitution
 >
 > Keep the scope fixed: no changes to scoring, to the default or maximum `limit`, or to `smart_connections_similar`. The one exception is if `smart_connections_similar` turns out to share the same slice-before-sort step, which the BI's out-of-scope note says to fix together.
 > Rationale: the Constitution's spec-kit workflow requires underspecified items to be resolved before `/speckit-plan` and `/speckit-implement`. The BI sets the scope fence.
+
+## 5. record / record-in-vault (2026-11-02T05:13:30.418Z)
+
+**Question (verbatim):**
+
+> The work for job BI-0167 is now a reviewed, documented pull request. Record that on the job's note, following the vault's conventions for backlog items:
+> - the spec branch: 085-stabilise-query-ordering
+> - the feature folder in the code repository: specs/085-stabilise-query-ordering
+> - the pull request: https://github.com/marwansaab/obsidian-cli-mcp/pull/117 (number 117)
+> - the status that means "in review" in this vault (if the vault has no such status, escalate `decision` with up to 3 choices)
+> - a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0167-2026-11-02 produced it.
+>
+> Dry run: no. In a dry run, change nothing: list each edit you would make in `vault_edits`, starting its change with "Would". Otherwise list each edit you made.
+
+**Advisor** (escalate: none):
+
+> Recorded on the BI-0167 note, and I read the note back to check every edit. The note now shows:
+> - Status: `in-review`, the in-review value the vault already uses on BI-0138 and BI-0166. It was `planned`.
+> - Spec branch: `085-stabilise-query-ordering`, in the frontmatter.
+> - Updated: 2026-11-02.
+> - A dated "In review — 2026-11-02" line at the top of `## Status`, with a link to PR #117 (https://github.com/marwansaab/obsidian-cli-mcp/pull/117), the spec branch and the feature folder `specs/085-stabilise-query-ordering`. It says the PR is awaiting owner merge.
+> - A dated HTML comment at the end of the note saying Relay run obsidian-cli-mcp-bi-0167-2026-11-02 produced the PR, with the branch, the folder and the status change.
+>
+> These follow the pattern already used on BI-0166 and BI-0138.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0167 - Apply Smart Connections Query Limit After Tie Break Sort.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0166 - Reconcile 0.9.0 Help Doc And Description Drift.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0138 - Fix Active File Messaging.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0167 - Apply Smart Connections Query Limit After Tie Break Sort.md`: Frontmatter status: planned → in-review.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0167 - Apply Smart Connections Query Limit After Tie Break Sort.md`: Frontmatter updated: 2026-10-31 → 2026-11-02.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0167 - Apply Smart Connections Query Limit After Tie Break Sort.md`: Added frontmatter spec_branch: 085-stabilise-query-ordering.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0167 - Apply Smart Connections Query Limit After Tie Break Sort.md`: Prepended a dated 'In review — 2026-11-02' line to ## Status, with links to PR #117, the spec branch and the feature folder specs/085-stabilise-query-ordering.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0167 - Apply Smart Connections Query Limit After Tie Break Sort.md`: Appended a dated HTML comment: Relay run obsidian-cli-mcp-bi-0167-2026-11-02 produced PR #117 (branch, folder, status change).
+
+**Sent to the step:**
+
+> Recorded on the BI-0167 note, and I read the note back to check every edit. The note now shows:
+> - Status: `in-review`, the in-review value the vault already uses on BI-0138 and BI-0166. It was `planned`.
+> - Spec branch: `085-stabilise-query-ordering`, in the frontmatter.
+> - Updated: 2026-11-02.
+> - A dated "In review — 2026-11-02" line at the top of `## Status`, with a link to PR #117 (https://github.com/marwansaab/obsidian-cli-mcp/pull/117), the spec branch and the feature folder `specs/085-stabilise-query-ordering`. It says the PR is awaiting owner merge.
+> - A dated HTML comment at the end of the note saying Relay run obsidian-cli-mcp-bi-0167-2026-11-02 produced the PR, with the branch, the folder and the status change.
+>
+> These follow the pattern already used on BI-0166 and BI-0138.
