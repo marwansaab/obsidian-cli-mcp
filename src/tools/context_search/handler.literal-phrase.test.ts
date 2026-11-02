@@ -1,6 +1,7 @@
 // Original — no upstream. context_search handler tests for literal phrase matching (spec 087): the quoted query, one entry per line, line-break queries, and the unchanged folder probe.
 import { afterEach, beforeEach, expect, test } from "vitest";
 
+import { readBackResponse } from "./_handler-fixtures.js";
 import { executeContextSearch } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
@@ -22,6 +23,7 @@ test("C1 a multi-word query is sent as one double-quoted phrase", async () => {
   const wire = [{ file: "a.md", matches: [{ line: 3, text: "alpha beta" }] }];
   const { spawnFn, recorded } = makeQueuedSpawn([
     { stdout: JSON.stringify(wire), exitCode: 0 },
+    readBackResponse(wire),
   ]);
   const r = await executeContextSearch({ query: "alpha beta" }, deps(spawnFn));
   expect(recorded[0]!.argv).toContain('query="alpha beta"');
@@ -76,7 +78,7 @@ function fileWithLines(file: string, lines: number[], text = "alpha beta") {
 
 test("C4 a line listed once per occurrence appears once, across files", async () => {
   const wire = [fileWithLines("a.md", [2, 2, 5]), fileWithLines("b.md", [1, 1])];
-  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }, readBackResponse(wire)]);
   const r = await executeContextSearch({ query: "alpha beta" }, deps(spawnFn));
   expect(r).toEqual({
     count: 3,
@@ -90,7 +92,7 @@ test("C4 a line listed once per occurrence appears once, across files", async ()
 
 test("C5 truncation counts lines: 2 distinct lines at limit 2 is truncated", async () => {
   const wire = [fileWithLines("a.md", [1, 1, 1]), fileWithLines("b.md", [1])];
-  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }, readBackResponse(wire)]);
   const r = await executeContextSearch({ query: "alpha beta", limit: 2 }, deps(spawnFn));
   expect(r).toEqual({
     count: 2,
@@ -104,7 +106,7 @@ test("C5 truncation counts lines: 2 distinct lines at limit 2 is truncated", asy
 
 test("C6 the CR strip still applies after one entry per line is kept", async () => {
   const wire = [fileWithLines("a.md", [1, 1], "x\r")];
-  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+  const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }, readBackResponse(wire)]);
   const r = await executeContextSearch({ query: "alpha beta" }, deps(spawnFn));
   expect(r).toEqual({ count: 1, matches: [{ path: "a.md", line: 1, text: "x" }] });
 });

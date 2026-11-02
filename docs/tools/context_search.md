@@ -262,7 +262,7 @@ Whitespace-only `query` fails the schema:
 | Code | When | Recovery |
 |------|------|----------|
 | `VALIDATION_ERROR` | Input failed the schema: missing / empty / whitespace-only / oversize `query`; `limit` out of `1..10000` or non-integer; unknown top-level key; empty `vault` / `folder`. | Retry with corrected input. `details.issues` carries per-issue zod context. |
-| `CLI_REPORTED_ERROR` | (a) CLI stdout was not JSON AND not the zero-match sentinel (`details.stage: "json-parse"`); (b) CLI JSON failed wire-schema parse (`details.stage: "wire-parse"`); (c) folder-not-found (`details.message` starts `Error: Folder`); (d) unknown vault (`details.message: "Vault not found."`). | (a)+(b) investigate as an upstream-contract regression; (c) supply a valid folder, or use the no-`folder` form to scan the whole vault; (d) supply a valid vault name. |
+| `CLI_REPORTED_ERROR` | (a) CLI stdout was not JSON AND not the zero-match sentinel (`details.stage: "json-parse"`); (b) CLI JSON failed wire-schema parse (`details.stage: "wire-parse"`); (c) folder-not-found (`details.message` starts `Error: Folder`); (d) unknown vault (`details.message: "Vault not found."`); (e) a matched line could not be read back (`details.code: "MATCH_LINE_UNAVAILABLE"`, `details.reason` `note-not-found` / `read-failed` / `line-changed`, with `details.path` and `details.line`); (f) the read-back call's answer was not JSON (`details.stage: "json-parse"`) or had an unexpected shape (`details.stage: "envelope-parse"`). | (a)+(b)+(f) investigate as an upstream-contract regression; (c) supply a valid folder, or use the no-`folder` form to scan the whole vault; (d) supply a valid vault name; (e) run the search again; the note changed while the search ran. |
 | `CLI_NON_ZERO_EXIT` | The Obsidian CLI exited with a non-zero code (typical cause: output-cap kill on extreme result sets). | `details.{exitCode, signal, stdout, stderr}` carry the failure context. Reduce scope with `folder` or a narrower `query` (lowering `limit` does not reduce upstream output bytes). |
 | `CLI_BINARY_NOT_FOUND` | The `obsidian` CLI binary is not on `PATH` and `OBSIDIAN_BIN` was unset/invalid. | Operator-side: install the Obsidian CLI, OR set `OBSIDIAN_BIN`. |
 | `CLI_TIMEOUT` | The CLI exceeded the 10-second typed-tool timeout. | Reduce scope with `folder` or a narrower `query`. |
@@ -270,9 +270,9 @@ Whitespace-only `query` fails the schema:
 
 ## Behavioural notes
 
-### Single-call architecture (no probe path)
+### Calls per request
 
-When `folder` is omitted or `folder: "/"` alone is supplied, each MCP request fires exactly **one** `invokeCli` invocation.
+When the search finds lines, context_search reads those lines back from the notes with one more Obsidian call (more for very large results), because Obsidian's search reports each line with its surrounding whitespace removed. A search that finds no lines makes exactly one call, except for the folder probe below, which is unchanged.
 
 ### Two-call architecture (probe path)
 
@@ -292,7 +292,7 @@ Upstream natively restricts to `.md`; the wrapper defensively re-filters via `en
 
 ### CRLF normalisation
 
-Each match's `text` field has a single trailing `\r` stripped before the 500-char cap is measured. Embedded mid-line `\r` characters are NOT stripped; trailing spaces before the `\r` are preserved verbatim.
+Each match's `text` is the matching line exactly as it is in the note, without its line ending (`\n` or `\r\n`). Leading and trailing spaces, tabs and other whitespace are kept, and so is a `\r` in the middle of a line. Text longer than 500 characters is cut to 500 and followed by `…`; leading whitespace counts towards the 500.
 
 ### Folder matching is case-sensitive byte-equal
 
@@ -317,9 +317,10 @@ migrate by:
 1. Change the tool name from `search` to `context_search`.
 2. Drop the `context_lines` field.
 
-Same response shape; same `truncated` semantics; identical sort order. Two behavioural differences:
+Same response shape; same `truncated` semantics; identical sort order. Three behavioural differences:
 
 - **CRLF strip**: the new tool strips trailing `\r` from `text`; `search`'s line-mode does not.
+- **Whitespace**: the new tool returns each line with its leading and trailing whitespace; `search`'s line mode returns the line trimmed, as Obsidian's search reports it.
 - **Folder-not-found**: the new tool surfaces a structured `CLI_REPORTED_ERROR` for a missing folder; `search`'s line-mode returns `count=0`.
 
 ## Inherited limitations
@@ -338,4 +339,4 @@ The query is matched as one literal substring — no regex queries (use [`patter
 
 ### Latency
 
-Approximately 1× a single-call typed tool typical; up to 2× on the cold folder-not-found probe path.
+Approximately 1× a single-call typed tool typical; up to 2× on the cold folder-not-found probe path. A search that finds lines makes one more Obsidian call to read them back, plus one per further batch for results spread over many notes. Observed on one Windows machine (2026-11-02, measurements, not guarantees): 6 lines in 6 notes took 1 read-back call and about 0.2 s end to end; 300 lines in 300 notes took 10 read-back calls and about 0.9 s; 306 lines with `limit: 1000` took 10 calls and about 0.9 s.

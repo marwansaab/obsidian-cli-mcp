@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { readBackResponse } from "./_handler-fixtures.js";
 import {
   createContextSearchTool,
   CONTEXT_SEARCH_DESCRIPTION,
@@ -64,7 +65,7 @@ describe("createContextSearchTool — handler closure executes on VALID input", 
   it("tool.handler(valid input) drives the closure → executeContextSearch → success envelope", async () => {
     __resetInFlightRegistryForTests();
     const wire = [{ file: "a.md", matches: [{ line: 2, text: "foo" }] }];
-    const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }]);
+    const { spawnFn } = makeQueuedSpawn([{ stdout: JSON.stringify(wire), exitCode: 0 }, readBackResponse(wire)]);
     const tool = createContextSearchTool({ logger: silentLogger(), queue: createQueue(), spawnFn });
     const result = (await tool.handler({ query: "foo" })) as {
       content: Array<{ type: string; text: string }>;

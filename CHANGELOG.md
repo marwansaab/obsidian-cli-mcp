@@ -39,6 +39,8 @@ Spec 086-fix-section-replacement (BI-0168).
 
 Spec 087-match-literal-phrases (BI-0169).
 
+Spec 088-preserve-match-whitespace (BI-0170).
+
 ### Added
 
 - **`write_note` reports `bytes_written`**, with the same meaning, counting a new note's old size as 0. If the existing note's size cannot be read before an overwrite, the call fails with `FS_WRITE_FAILED` before anything is written. Its `details` shape is unchanged; `details.syscall` now reads `"stat"` where the old existence probe reported `"realpath"`.
@@ -83,6 +85,7 @@ Spec 087-match-literal-phrases (BI-0169).
 - **`smart_connections_query` and `smart_connections_similar`: the result `limit` is now applied after the documented score / path / headingPath ordering**, to a fixed list of up to 100 plugin candidates, so a smaller limit always returns a leading slice of a larger one and equal-score results no longer depend on the limit (spec 085).
 - **`patch_heading` and `patch_block` now place edits at the named heading or found block on notes that mix LF and CRLF line endings** (for example after a property edit on a Windows note) (spec 086). Previously the edit could land further down the note and overwrite unrelated text while reporting success. Kept lines keep their line endings, and an edit that cannot be placed safely is refused with `CLI_REPORTED_ERROR` / `UNSAFE_PLACEMENT` without writing.
 - **`search` and `context_search` match the whole query as one literal phrase** (spec 087). A query with spaces no longer matches notes that contain its words separately or in another order, and characters that mean something in Obsidian's search syntax (`"`, a leading `-`, `OR`, parentheses, square brackets, `tag:` / `path:` / `file:` prefixes, `/…/`, `*`, `\`) are matched as text, with nothing to escape. Line-level results (`context_search`, and `search` with `context_lines: true`) list each matching line once, so `count` and `truncated` count lines, not occurrences; a query containing a line break returns no lines there. File-name matching, case handling and folder scoping are unchanged.
+- **`context_search` returns each matching line as it is in the note** (spec 088). Leading indentation, trailing spaces (Markdown hard line breaks), tabs and other whitespace are kept; only the line ending is removed, as the help page always said. Obsidian's search trims each line, so the matched lines are now read back from the notes in one extra call (more for very large results); if a note changes between the search and the read-back, the call fails with `CLI_REPORTED_ERROR` / `details.code: "MATCH_LINE_UNAVAILABLE"` instead of returning stale text. `search`'s deprecated `context_lines` mode is unchanged.
 
 ## [0.9.0] - 2026-10-30
 

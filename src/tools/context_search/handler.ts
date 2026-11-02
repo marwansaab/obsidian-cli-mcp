@@ -10,13 +10,18 @@
 // Zero-match sentinel branch — if folder was supplied and normalises non-empty, fire a
 // second invokeCli(folder) probe so a missing folder surfaces as the inherited
 // dispatch-classifier CLI_REPORTED_ERROR instead of count=0. JSON.parse / wire-parse
-// failures emit CLI_REPORTED_ERROR(details.stage). The rows come from lineMatches
+// failures emit CLI_REPORTED_ERROR(details.stage). The rows come from selectLines
 // (search/line-matches.ts, shared with search's line mode): one entry per line (none
-// for a line-break query; spec 087), a single trailing \r stripped per FR-012, text
-// capped at 500 chars + U+2026 marker, conservative truncation via
+// for a line-break query; spec 087), conservative truncation via
 // `flat.length >= appliedCap` (fires on a real drop and at flat===cap with no drop —
-// FR-005), sorted by (path, line) ascending, sliced to appliedCap. Output
-// boundary-validated via contextSearchOutputSchema.
+// FR-005), sorted by (path, line) ascending, sliced to appliedCap. Obsidian's search
+// trims each line, so the selected lines are read back from the notes through
+// readBackLines (read-back.ts, spec 088): `text` is the note's line minus its line
+// ending, capped at 500 chars + U+2026 marker by lineOutput after the read-back. A search
+// with no lines makes no read-back; a line that cannot be read back fails the call with
+// CLI_REPORTED_ERROR / details.code MATCH_LINE_UNAVAILABLE. Output boundary-validated
+// via contextSearchOutputSchema.
+import { readBackLines } from "./read-back.js";
 import {
   contextSearchOutputSchema,
   type ContextSearchInput,
@@ -25,7 +30,7 @@ import {
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import { stripBoundarySlashes } from "../search/handler.js";
-import { lineMatches } from "../search/line-matches.js";
+import { lineOutput, selectLines } from "../search/line-matches.js";
 import { literalPhraseQuery } from "../search/literal-phrase.js";
 import { searchContextWireSchema } from "../search/schema.js";
 
@@ -41,10 +46,6 @@ export interface ExecuteDeps extends CallScope {
 
 const DEFAULT_CAP = 1000;
 const ZERO_MATCH_SENTINEL = "No matches found.";
-
-function stripCr(s: string): string {
-  return s.endsWith("\r") ? s.slice(0, -1) : s;
-}
 
 export async function executeContextSearch(
   input: ContextSearchInput,
@@ -121,7 +122,8 @@ export async function executeContextSearch(
     });
   }
 
+  const { rows, truncated } = selectLines(input.query, wireParsed.data, appliedCap);
   return contextSearchOutputSchema.parse(
-    lineMatches(input.query, wireParsed.data, appliedCap, stripCr),
+    lineOutput({ rows: await readBackLines(rows, input.vault, deps), truncated }),
   );
 }

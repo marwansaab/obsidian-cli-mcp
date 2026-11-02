@@ -9,6 +9,7 @@ import { makeQueuedSpawn, makeStubSpawn, silentLogger, type StubResponse } from 
 import { createAppendNoteTool } from "./append_note/index.js";
 import { createBacklinksTool } from "./backlinks/index.js";
 import { createBasesTool } from "./bases/index.js";
+import { readBackResponse } from "./context_search/_handler-fixtures.js";
 import { createContextSearchTool } from "./context_search/index.js";
 import { createCreateBaseTool } from "./create_base/index.js";
 import { createDeleteTool } from "./delete/index.js";
@@ -133,7 +134,10 @@ export const TYPED_RESULT_FIXTURES: readonly TypedResultFixture[] = [
   },
   {
     name: "context_search",
-    build: () => createContextSearchTool(cli(out(JSON.stringify([{ file: "a.md", matches: [{ line: 2, text: "foo" }] }])))),
+    build: () => {
+      const wire = [{ file: "a.md", matches: [{ line: 2, text: "foo" }] }];
+      return createContextSearchTool(cli(out(JSON.stringify(wire)), readBackResponse(wire)));
+    },
     args: { query: "foo" },
   },
   {
