@@ -76,7 +76,7 @@ Every field is rejected at the boundary as `VALIDATION_ERROR` if the constraints
 - **`vault`** — **Closed vault**: a registered vault that is not open in Obsidian is opened automatically, and the call returns its normal result (the first call takes longer while the server retries once). If the vault cannot be brought up, for example because its command-line integration is disabled, the call fails with `CLI_REPORTED_ERROR` whose `details.stdout` starts `Error: Command "eval" not found.` (vault unavailable; see the error roster). That is a failure, never an empty result.
 - **`file`** — wikilink-style file name (resolved inside the eval JS via `app.metadataCache.getFirstLinkpathDest`). The `.md` extension is accepted but not required.
 - **`path`** — exact vault-relative path. Path-traversal patterns (`../escape.md`, absolute paths) are looked up against `app.vault.getAbstractFileByPath` — Obsidian's index uses vault-relative keys without `..` resolution, so the lookup returns null and the wrapper surfaces `CLI_REPORTED_ERROR(FILE_NOT_FOUND)`. No filesystem mutation occurs outside the vault.
-- **`limit`** — caps the matches list length AND the count. Mirrors the plugin's `find_connections({limit})` parameter. The wrapper also applies a final `.slice(0, limit)` after sorting so that any plugin-internal cap below `limit` is honoured.
+- **`limit`** — caps the matches list length AND the count. The wrapper always asks the plugin's `find_connections` for 100 candidates, whatever `limit` is; `limit` is applied after the sort and the filters below, so a smaller `limit` always returns a leading slice of a larger one: the same entries, in the same order.
 - **`total`** — when `true`, the response carries `matches: []` with `count` set to the total match count. The `count` is identical between `total: false` and `total: true` for the same note state at the same instant.
 
 ## Output shape
@@ -278,6 +278,10 @@ The Smart Connections plugin honours user-configured folder exclusions silently 
 ### Plugin-version drift surfaces as `SMART_CONNECTIONS_NOT_READY`
 
 No runtime version check. API drift between minor plugin releases that changes the `env.smart_sources.items[<key>].find_connections` path surfaces deterministically as `SMART_CONNECTIONS_NOT_READY` via Stage 4 of the JS template. The wrapper will NOT silently return wrong results for an incompatible plugin version.
+
+### Ties at the 100-candidate edge
+
+The wrapper asks the plugin for 100 candidates on every call, whatever `limit` is. If several matches share the score of the plugin's 100th candidate, the plugin decides which of them are in that list; the documented tie-break orders only the ones it returned. This does not depend on `limit`, so smaller limits are still leading slices of larger ones. The source note's own blocks are removed after the 100-candidate fetch, so a call can return fewer than `limit` matches even when the plugin has more; this is the same at every `limit`.
 
 ### Multi-vault basename ambiguity
 

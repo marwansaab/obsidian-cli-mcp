@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedFromBranch": "083-enable-cross-vault-bases",
+  "generatedFromBranch": "085-stabilise-query-ordering",
   "generatedAt": "2026-11-02",
   "tools": [
     {
@@ -237,7 +237,7 @@
     },
     {
       "name": "smart_connections_query",
-      "descriptionFingerprint": "c63f2151ae88d13e6ec3de1770a6f27e19a2f7188251e15b8de0fecfba99816a",
+      "descriptionFingerprint": "c2065d9504acbeadecd8c9922d6e1bdebba6d4e3eff9f8ecec00e6d0d982e7e0",
       "schemaFingerprint": "23f6c5454e7464e08b1bc62e1a965bff03676d6e14e3c20ce3cf5397216c3d99",
       "titleFingerprint": "48a6c2197bed455245cb51697d0bed3868a882848f57c02a440b642a37a741db",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",
@@ -245,7 +245,7 @@
     },
     {
       "name": "smart_connections_similar",
-      "descriptionFingerprint": "d4b98b30d86e369549096eee7921b94c7ae58b1093c2d2558ae1d0feffc2b34b",
+      "descriptionFingerprint": "e70785e3c4fb23dbeddb65fc3b14a89de1ae7db54490f63557d00ddaf2f36928",
       "schemaFingerprint": "4456cf3eb306a37317caeecc1c23e89784e1d47c9b94c3a6e85e646447f8a122",
       "titleFingerprint": "6c55797a3eace33aafe663b176bbeac2b082049945feeb3421476c0a44ff9acf",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",
