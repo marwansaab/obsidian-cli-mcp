@@ -4,14 +4,14 @@
 |---|---|
 | Run | `obsidian-cli-mcp-bi-0170-2026-11-02` |
 | Project | obsidian-cli-mcp (pack speckit) |
-| Status | running |
+| Status | done |
 | Started | 2026-11-02T07:12:25.952Z |
-| Finished | not yet |
-| Elapsed | 1 h 14 min |
+| Finished | 2026-11-02T08:44:49.900Z |
+| Elapsed | 1 h 32 min |
 | Questions | 3 (2 needed the owner) |
-| Requests to the advisor | 2 (0 needed the owner) |
+| Requests to the advisor | 3 (0 needed the owner) |
 | Escalations | 3 |
-| Edits by the advisor | 2 |
+| Edits by the advisor | 7 |
 
 ## Inputs
 
@@ -169,6 +169,7 @@ Skipped.
 ### implementation (`4db48819-35a3-4f1f-9ad3-d57f38adae8a`)
 
 - Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\specs\088-preserve-match-whitespace\tasks.md exists; focused TestVault-Obsidian-CLI-MCP in Obsidian (it had My-Setup-Vault focused).
+- Condition `gh-pr-open` (done_when): met. Pull request #121 is open.
 
 - **implement**: done, 120 turns, 1 questions.
 
@@ -182,21 +183,49 @@ Skipped.
 > - Live check: 12 of 12 cases passed through the built server against TestVault-Obsidian-CLI-MCP. 6 fixtures took 1 read-back eval and 188 ms; 300 notes took 10 evals and 894 ms; limit 1000 took 10 evals and 934 ms. The longest eval code was 2,946 characters. Sandbox is restored with no residue.
 > All tasks in tasks.md are marked [X]. Nothing is committed or pushed. The optional after_implement commit hook was skipped.
 
-- **open-pr**: in progress.
+- **open-pr**: done, 17 turns.
 
-### review
+> Committed the spec 088 work on 088-preserve-match-whitespace in four CONTRIBUTING.md-style commits: refactor (selectLines/capLine split), fix (read-back, tests, approved test edits), docs (help page, CHANGELOG), and docs (post-implement record, tasks, agent context, Relay logs). Before committing, lint, typecheck, build and npm test all passed (4416 passed, 6 skipped; 96.95% statements; FR-018 baseline gate green). Pushed the branch to origin and opened PR #121 into main. There is no PR template in the repo, so the body follows PR #120's structure and includes the Constitution Compliance table. The PR is not merged.
 
-- **code-review**: not run.
-- **fix**: not run.
 
-### docs
+### review (`b4ce9116-16c1-4017-8da6-9f9ac8f95ac6`)
 
-- **document**: not run.
-- **ci**: not run.
+- Condition `gh-pr-open` (start_when): met. Pull request #121 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #121 is open.
 
-### record
+- **code-review**: done, 15 turns.
 
-- **record-in-vault**: not run.
+> Code-quality review of PR #121 (spec 088, untrimmed context_search lines) is complete. Not approved as is. The overall design holds up: a read-back eval, batching under READ_BACK_CODE_MAX, and reconciling across all batches (pinned by R16). Six findings remain, and each fix needs owner approval because it edits a test (refactor-decisions item 5). (1) lineMatches' normaliseText parameter is now always (text) => text, its only caller being search. The simpler shape is one exported lineOutput({rows, truncated}) used by both handlers, capLine private again, and readBackLines returning rows with their text replaced instead of an index-aligned string[]. (2) The handler's rows.length===0 guard is dead code, since readBackLines([]) starts no CLI call. (3) readBackLines copies decodeEvalEnvelope; only the two new error messages differ. (4) stdoutOfRow is an array that must stay in the same order as the rows; a Map keyed by line behaves the same. (5) lineUnavailable takes reason: string instead of the closed set of reasons, and drops an empty detail. (6) BYTE_ORDER_MARK is a literal invisible U+FEFF in the source. No code was changed. The rules learned were added to .memory/refactor-decisions.md (new item 48, plus a note on item 47(d)).
+
+- **fix**: done, 48 turns.
+
+> Fixed all six review findings in commit f88c9af and pushed it to 088-preserve-match-whitespace (PR #121). None changes behaviour the spec requires, so there was nothing to ask. (1) lineMatches and its do-nothing normaliseText parameter are gone: line-matches.ts exports selectLines and lineOutput({rows, truncated}), which caps each line at 500 characters and builds the result; capLine is private again; both handlers use the pair; readBackLines returns the rows with their text replaced, so context_search no longer builds its result by hand or uses texts[i]!. (2) Removed the unnecessary rows.length===0 check in the handler; an empty read-back still makes no CLI call. (3) The read-back decodes through the shared decodeEvalEnvelope: same error codes and stages, but the two messages now read like the other tools' (the contract pins only the stages). (4) The array that had to stay in step with the rows is now a map keyed by path and line; behaviour is the same. (5) lineUnavailable only accepts the three real reasons, and an empty detail is now kept instead of dropped. (6) The byte-order mark constant is written "﻿". In the tests, only how results are compared and the expected error messages changed, plus one new empty-detail case and a 500-character cap check; no expected count, truncated, path, line or text value changed. research.md D2, data-model.md and tasks.md were updated to match. Gates: lint, typecheck and build clean; 4417 tests pass, 6 skipped; coverage 96.94%. Left on purpose: relay-digest.md already had uncommitted changes before this step and was not committed; Prettier would also reformat three files this PR added, which I left because CI has no formatting check (I only reformatted the two handlers my edits had changed); .docs-as-code/ still names lineMatches, which is for the /speckit-docs-as-code 121 pass.
+
+
+### docs (`ef25a2a7-13ac-48c4-97a8-f9a8265f91f9`)
+
+- Condition `gh-pr-open` (start_when): met. Pull request #121 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #121 is open.
+
+- **document**: done, 35 turns.
+
+> Ran /speckit-docs-as-code 121 in PR mode. Added ADR-058 (context_search reads its matched lines back through a batched eval under READ_BACK_CODE_MAX and fails the whole call with MATCH_LINE_UNAVAILABLE; it records the rejected alternatives) and a forward link in ADR-057. Updated capabilities/search-and-discovery.md (selectLines → readBackLines → lineOutput with a sequence diagram, the new failure, the F9 known limit rewritten), architecture.md (the shim's eval code length limit F10, the node:vm template test, MATCH_LINE_UNAVAILABLE in the error model) and the .docs-as-code README index. Added case (f) to docs/tools/context_search.md's error roster for the read-back's json-parse/envelope-parse stages. npm test passes (4417 passed, 6 skipped). Committed f62d465, pushed to the PR branch, and extended the PR body's Documentation section. The PR body's D2 describes the pre-review lineMatches shape; the pages follow the diff. relay-digest.md was already modified before the run and was left unstaged.
+
+- **ci**: done, 3 turns.
+
+> CI on PR #121 at f62d465 passed with no fixes needed: Lint / Typecheck / Test / Build passed on ubuntu-latest Node 22 (1m48s), ubuntu-latest Node 24 (1m12s), windows-latest Node 22 (2m42s) and windows-latest Node 24 (2m30s). Nothing was pushed.
+
+
+### record (`02965640-f015-4574-917c-465dc35be35c`)
+
+- **record-in-vault**: done.
+
+> Recorded on BI-0170 that the work is in review; both frontmatter changes read back correctly. The note is `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md`, updated in the same way as BI-0169.
+> - `status` changed from planned to `in-review`. That is the vault's in-review value, listed in Vault Frontmatter Convention.
+> - `spec_branch: 088-preserve-match-whitespace` and `npm_version_shipped: ""` were added after `feature`. `updated` changed from 2026-10-31 to 2026-11-02.
+> - The `## Status` section now opens with a line saying the work is in review as of 2026-11-02. It links PR #121 and names the spec branch and the feature folder `specs/088-preserve-match-whitespace`.
+> - A dated HTML comment at the end of the note says Relay run obsidian-cli-mcp-bi-0170-2026-11-02 produced PR #121.
+
 
 ## Escalations
 
@@ -222,6 +251,11 @@ Skipped.
 |---|---|---|
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md` | Appended a dated HTML-comment clarify record: owner ruling A on existing-test edits (refactor-decisions item 5, exact scope and stop condition), plus the FR-007 answer (fail the whole call with UpstreamError naming path + line, no new top-level code). | pre-implementation / plan: **Question:** May the plan edit the existing context_search tests that the second Obsidian call brea |
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md` | Appended a dated HTML-comment clarify record: owner ruling A on the T014 stop. The test-edit scope is extended by the key-set read-back batching edit and the context_search entry in the _plugin-noise inventory, with the stop condition restated. | implementation / implement: T014 stopped: two existing assertions fail outside the approved test-edit scope (contract §E, refact |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md` | Frontmatter `status` changed from planned to `in-review`. | record / record-in-vault: The work for job BI-0170 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md` | Frontmatter: added `spec_branch: 088-preserve-match-whitespace` and `npm_version_shipped: ""` after `feature`. | record / record-in-vault: The work for job BI-0170 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md` | Frontmatter `updated` changed from 2026-10-31 to 2026-11-02. | record / record-in-vault: The work for job BI-0170 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md` | ## Status: added an opening line saying the work is in review as of 2026-11-02, linking PR #121 and naming the spec branch 088-preserve-match-whitespace and the feature folder specs/088-preserve-match-whitespace. | record / record-in-vault: The work for job BI-0170 is now a reviewed, documented pull request. Record that on the job's note,  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md` | Appended a dated HTML comment: Relay run obsidian-cli-mcp-bi-0170-2026-11-02 produced PR #121 (spec branch and feature folder named; status and spec_branch updated). | record / record-in-vault: The work for job BI-0170 is now a reviewed, documented pull request. Record that on the job's note,  |
 
 ## Files
 

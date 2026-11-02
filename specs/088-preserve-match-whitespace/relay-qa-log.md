@@ -287,3 +287,41 @@ Edits:
 > No expected `text`, `count`, `truncated` or argv value changes. Record the scope extension in refactor-decisions item 5 and in post-implement.md, then continue with T015–T022. If any further existing-test failure falls outside this scope, stop again for owner review.
 >
 > Why: this is the owner's ruling, now recorded on the BI-0170 note. The new eval path stays under noise-matrix coverage (Constitution Principle II).
+
+## 6. record / record-in-vault (2026-11-02T08:43:44.615Z)
+
+**Question (verbatim):**
+
+> The work for job BI-0170 is now a reviewed, documented pull request. Record that on the job's note, following the vault's conventions for backlog items:
+> - the spec branch: 088-preserve-match-whitespace
+> - the feature folder in the code repository: specs/088-preserve-match-whitespace
+> - the pull request: https://github.com/marwansaab/obsidian-cli-mcp/pull/121 (number 121)
+> - the status that means "in review" in this vault (if the vault has no such status, escalate `decision` with up to 3 choices)
+> - a dated HTML comment saying Relay run obsidian-cli-mcp-bi-0170-2026-11-02 produced it.
+>
+> Dry run: no. In a dry run, change nothing: list each edit you would make in `vault_edits`, starting its change with "Would". Otherwise list each edit you made.
+
+**Advisor** (escalate: none):
+
+> Recorded on BI-0170 that the work is in review; both frontmatter changes read back correctly. The note is `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md`, updated in the same way as BI-0169.
+> - `status` changed from planned to `in-review`. That is the vault's in-review value, listed in Vault Frontmatter Convention.
+> - `spec_branch: 088-preserve-match-whitespace` and `npm_version_shipped: ""` were added after `feature`. `updated` changed from 2026-10-31 to 2026-11-02.
+> - The `## Status` section now opens with a line saying the work is in review as of 2026-11-02. It links PR #121 and names the spec branch and the feature folder `specs/088-preserve-match-whitespace`.
+> - A dated HTML comment at the end of the note says Relay run obsidian-cli-mcp-bi-0170-2026-11-02 produced PR #121.
+
+Sources: `000-Meta/Vault Frontmatter Convention.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0169 - Match Multi Word Search Queries As Literal Phrases.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md`: Frontmatter `status` changed from planned to `in-review`.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md`: Frontmatter: added `spec_branch: 088-preserve-match-whitespace` and `npm_version_shipped: ""` after `feature`.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md`: Frontmatter `updated` changed from 2026-10-31 to 2026-11-02.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md`: ## Status: added an opening line saying the work is in review as of 2026-11-02, linking PR #121 and naming the spec branch 088-preserve-match-whitespace and the feature folder specs/088-preserve-match-whitespace.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md`: Appended a dated HTML comment: Relay run obsidian-cli-mcp-bi-0170-2026-11-02 produced PR #121 (spec branch and feature folder named; status and spec_branch updated).
+
+**Sent to the step:**
+
+> Recorded on BI-0170 that the work is in review; both frontmatter changes read back correctly. The note is `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md`, updated in the same way as BI-0169.
+> - `status` changed from planned to `in-review`. That is the vault's in-review value, listed in Vault Frontmatter Convention.
+> - `spec_branch: 088-preserve-match-whitespace` and `npm_version_shipped: ""` were added after `feature`. `updated` changed from 2026-10-31 to 2026-11-02.
+> - The `## Status` section now opens with a line saying the work is in review as of 2026-11-02. It links PR #121 and names the spec branch and the feature folder `specs/088-preserve-match-whitespace`.
+> - A dated HTML comment at the end of the note says Relay run obsidian-cli-mcp-bi-0170-2026-11-02 produced PR #121.
