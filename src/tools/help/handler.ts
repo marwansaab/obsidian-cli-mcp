@@ -78,17 +78,21 @@ export async function executeHelp(input: HelpInput, deps: HelpDeps = {}): Promis
   }
 }
 
-async function notFound(requestedName: string, docsDir: string): Promise<UpstreamError> {
-  let entries: string[];
-  try {
-    entries = await readdir(docsDir);
-  } catch {
-    entries = [];
-  }
-  const availableTools = entries
+/** The tool names that have a help page in `docsDir` (every `<name>.md` but `index.md`), sorted. */
+export async function listToolPages(docsDir: string): Promise<string[]> {
+  return (await readdir(docsDir))
     .filter((f) => f.endsWith(".md") && f !== "index.md")
     .map((f) => f.slice(0, -".md".length))
     .sort();
+}
+
+async function notFound(requestedName: string, docsDir: string): Promise<UpstreamError> {
+  let availableTools: string[];
+  try {
+    availableTools = await listToolPages(docsDir);
+  } catch {
+    availableTools = [];
+  }
   return new UpstreamError({
     code: "HELP_TOOL_NOT_FOUND",
     cause: null,

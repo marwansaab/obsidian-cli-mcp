@@ -1,9 +1,10 @@
 // Original — no upstream. Help-docs drift guard (spec 084 FR-012): the help pages and index entries in docs/tools match the offered tools exactly, the reverse of assertToolDocsExist.
-import { readdirSync, readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { DOCS_DIR, listToolPages } from "./handler.js";
 import { connectModernClient, quietServer } from "../_mcp-client-fixtures.js";
 
 interface HelpDocsDrift {
@@ -62,18 +63,18 @@ describe("helpDocsDrift (self-tests)", () => {
 
 describe("help docs match the offered tools (spec 084 H1, H2)", () => {
   it("docs/tools pages and index.md entries name exactly the tools in tools/list", async () => {
-    const client = await connectModernClient(quietServer(), "docs-sync");
+    // The default server: no OBSIDIAN_MCP_* access flag from the shell narrows the offered set.
+    const client = await connectModernClient(quietServer({}), "docs-sync");
     let toolNames: string[];
     try {
       toolNames = (await client.listTools()).tools.map((t) => t.name);
     } finally {
       await client.close();
     }
-    const docsDir = join(process.cwd(), "docs", "tools");
-    const pageNames = readdirSync(docsDir)
-      .filter((f) => f.endsWith(".md") && f !== "index.md")
-      .map((f) => f.slice(0, -".md".length));
-    const indexText = readFileSync(join(docsDir, "index.md"), "utf8");
+    // The pages help lists as `availableTools`. `missingPages` cannot fire here: createServer's
+    // assertToolDocsExist refuses to boot first, so only the H3 self-test exercises it.
+    const pageNames = await listToolPages(DOCS_DIR);
+    const indexText = await readFile(join(DOCS_DIR, "index.md"), "utf8");
 
     expect(helpDocsDrift(toolNames, pageNames, indexText)).toEqual(NO_DRIFT);
   });

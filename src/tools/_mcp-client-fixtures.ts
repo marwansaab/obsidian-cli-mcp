@@ -31,10 +31,13 @@ export async function connectModernClient(app: Pick<CreatedServer, "buildMcpServ
   return client;
 }
 
-/** The real composition root with its logger silenced and no signal handlers or exit. */
-export function quietServer(): CreatedServer {
+/**
+ * The real composition root with its logger silenced and no signal handlers or exit. `env` is the
+ * access-flag environment (`createServer`'s `ctx.env`); omitted, the flags are read from `process.env`.
+ */
+export function quietServer(env?: NodeJS.ProcessEnv): CreatedServer {
   const sink = new Writable({ write: (_chunk, _enc, cb) => cb() });
-  return createServer({ loggerStream: sink, registerSignalHandlers: false, exit: () => undefined });
+  return createServer({ loggerStream: sink, registerSignalHandlers: false, exit: () => undefined, env });
 }
 
 /** Serve `tool` alone on a fresh McpServer and connect a 2025-era client named `clientName` to it. */

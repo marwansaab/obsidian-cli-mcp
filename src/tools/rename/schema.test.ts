@@ -157,7 +157,6 @@ test("name with forward slash rejects with `move` recovery hint (Story 6 AC#8 / 
     expect(nameIssues.length).toBeGreaterThanOrEqual(1);
     const messages = nameIssues.map((i) => i.message).join(" | ");
     expect(messages).toBe("name must not contain folder separators; use move to relocate the file to a different folder");
-    expect(messages).not.toMatch(/move_note/);
   }
 });
 
@@ -175,7 +174,6 @@ test("name with backslash rejects with `move` recovery hint (Story 6 AC#8 / Q2; 
     expect(nameIssues.length).toBeGreaterThanOrEqual(1);
     const messages = nameIssues.map((i) => i.message).join(" | ");
     expect(messages).toBe("name must not contain folder separators; use move to relocate the file to a different folder");
-    expect(messages).not.toMatch(/move_note/);
   }
 });
 
