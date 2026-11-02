@@ -2,7 +2,7 @@
 import { registerTool } from "../_register.js";
 import { executeBases, type ExecuteDeps } from "./handler.js";
 import { basesInputSchema, basesOutputSchema } from "./schema.js";
-import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
+import { closedVaultNote, READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const BASES_TOOL_NAME = "bases";
 
@@ -11,11 +11,13 @@ export const BASES_DESCRIPTION =
 
 Response: \`{ bases: string[], count: number }\`. Paths are sorted lexicographically (path-ascending). Empty vault returns \`{ bases: [], count: 0 }\`. No truncation — all paths returned unconditionally.
 
-Optional \`vault\` (string): accepted for cohort parity but currently silently ignored by the underlying CLI — the tool always operates on the active vault context regardless of the value provided. This is an inherited CLI limitation; the parameter is preserved for forward compatibility.
+Optional \`vault\` (string): lists that vault's Bases. Omit to list the vault in front.
 
 Read-only — the tool never mutates vault contents.
 
-Typed errors via \`UpstreamError.code\`: \`CLI_REPORTED_ERROR\` (upstream CLI failure); \`VALIDATION_ERROR\` (malformed input, e.g. unknown keys in strict mode).`;
+Typed errors via \`UpstreamError.code\`: \`CLI_REPORTED_ERROR\` (upstream CLI failure); \`CLI_REPORTED_ERROR\` with \`details.code: "VAULT_NOT_FOUND"\` (\`details.reason: "unknown"\`) for an unregistered \`vault\`; \`VALIDATION_ERROR\` (malformed input, e.g. unknown keys in strict mode).
+
+${closedVaultNote("bases")}`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

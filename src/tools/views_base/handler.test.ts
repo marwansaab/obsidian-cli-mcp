@@ -157,6 +157,8 @@ test("US2 named + vault: registry resolved, eval routed cross-vault with vault=,
   expect(commandsOf(recorded)).toEqual(["eval", "base:views"]);
   // The focus eval carried vault= for cross-vault routing (specific mode).
   expect(recorded[0]!.argv.some((a) => a === "vault=Other")).toBe(true);
+  // 083 V6: the listing spawn reads the named vault too (FR-013 permits the argv difference).
+  expect(recorded[1]!.argv).toContain("vault=Other");
 });
 
 test("US2 open-Base regression: no base_path → a single active base:views, no eval", async () => {
@@ -168,21 +170,108 @@ test("US2 open-Base regression: no base_path → a single active base:views, no 
   expect(commandsOf(recorded)).toEqual(["base:views"]);
 });
 
-test("US2: vault without base_path is an inherited no-op (open mode), registry not consulted", async () => {
+// ───────────────────── spec 083 — default path pinned (US4) ─────────────────────
+
+function recordingRegistry(): { registry: VaultRegistry; consulted: () => boolean } {
   let consulted = false;
-  const registry: VaultRegistry = {
-    async resolveVaultPath(name) {
-      consulted = true;
-      return `C:/vaults/${name}`;
+  return {
+    registry: {
+      async resolveVaultPath(name) {
+        consulted = true;
+        return `C:/vaults/${name}`;
+      },
     },
+    consulted: () => consulted,
   };
+}
+
+test("083 V1: no vault, no base_path → one base:views with no vault= arg; registry not consulted", async () => {
+  const { registry, consulted } = recordingRegistry();
   const { deps, recorded } = makeDeps([{ stdout: "All\ttable\n" }], registry);
 
-  const result = await executeViewsBase({ vault: "MyVault" }, deps);
+  const result = await executeViewsBase({}, deps);
 
   expect(result).toEqual({ views: ["All"], count: 1 });
-  expect(consulted).toBe(false);
   expect(commandsOf(recorded)).toEqual(["base:views"]);
+  expect(recorded[0]!.argv.some((a) => a.startsWith("vault="))).toBe(false);
+  expect(consulted()).toBe(false);
+});
+
+test("083 V7: base_path without vault → neither spawn carries vault=", async () => {
+  const { deps, recorded } = makeDeps([evalOk("Tasks.base"), { stdout: "All\ttable\n" }]);
+
+  await executeViewsBase({ base_path: "Tasks.base" }, deps);
+
+  expect(commandsOf(recorded)).toEqual(["eval", "base:views"]);
+  expect(recorded.every((r) => !r.argv.some((a) => a.startsWith("vault=")))).toBe(true);
+});
+
+test("083 V8: no vault, active file not a base → BASE_NOT_FOUND/not-open details and message unchanged", async () => {
+  const { deps } = makeDeps([{ stdout: "Error: Active file is not a base file: Notes/a.md", exitCode: 0 }]);
+
+  const ue = await expectErr(executeViewsBase({}, deps));
+
+  expect(ue.code).toBe("CLI_REPORTED_ERROR");
+  expect(ue.details).toEqual({ code: "BASE_NOT_FOUND", reason: "not-open" });
+  expect(ue.message).toBe("views_base: active file is not a base file");
+});
+
+// ─────────────────── spec 083 — open mode in a named vault (US3) ───────────────────
+
+test("083 V2: vault without base_path → one base:views carrying vault=Work; that vault's open-Base views", async () => {
+  const { deps, recorded } = makeDeps([{ stdout: "All\ttable\n" }]);
+
+  const result = await executeViewsBase({ vault: "Work" }, deps);
+
+  expect(result).toEqual({ views: ["All"], count: 1 });
+  expect(commandsOf(recorded)).toEqual(["base:views"]);
+  expect(recorded[0]!.argv).toContain("vault=Work");
+});
+
+test("083 V3: named vault whose active file is not a base → BASE_NOT_FOUND/not-open naming the vault", async () => {
+  const { deps } = makeDeps([{ stdout: "Error: Active file is not a base file: Notes/a.md", exitCode: 0 }]);
+
+  const ue = await expectErr(executeViewsBase({ vault: "Work" }, deps));
+
+  expect(ue.code).toBe("CLI_REPORTED_ERROR");
+  expect(ue.details).toEqual({ code: "BASE_NOT_FOUND", reason: "not-open", vault: "Work" });
+  expect(ue.message).toBe('views_base: active file in vault "Work" is not a base file');
+});
+
+test("083 V4: named vault whose open Base has invalid YAML → BASE_MALFORMED/invalid-yaml as in open mode", async () => {
+  const { deps } = makeDeps([{ stdout: YAML_COMPLAINT, exitCode: 0 }]);
+
+  const ue = await expectErr(executeViewsBase({ vault: "Work" }, deps));
+
+  expectInvalidYaml(ue, undefined);
+  expect(ue.message).toBe(OPEN_MALFORMED_HEADLINE);
+  expect(ue.details.message).toBe(YAML_COMPLAINT);
+});
+
+test("083 V5: unregistered vault without base_path → VAULT_NOT_FOUND/unknown, not BASE_NOT_FOUND; nothing spawned", async () => {
+  const { deps, recorded } = makeDeps([]);
+
+  const ue = await expectErr(executeViewsBase({ vault: "Nope" }, deps));
+
+  expect(ue.code).toBe("CLI_REPORTED_ERROR");
+  expect(ue.details).toEqual({ code: "VAULT_NOT_FOUND", reason: "unknown", vault: "Nope" });
+  expect(recorded.length).toBe(0);
+});
+
+test("083 V9: no file active in the named vault → the same error as the default path, never BASE_NOT_FOUND", async () => {
+  // The dispatch layer classifies `Error: No active file.` (priority (b)); nothing in views_base maps it.
+  const named = await expectErr(
+    executeViewsBase({ vault: "Work" }, makeDeps([{ stdout: "Error: No active file.", exitCode: 0 }]).deps),
+  );
+  const front = await expectErr(executeViewsBase({}, makeDeps([{ stdout: "Error: No active file.", exitCode: 0 }]).deps));
+
+  for (const ue of [named, front]) {
+    expect(ue.code).toBe("ERR_NO_ACTIVE_FILE");
+    expect(ue.details.code).toBeUndefined();
+    expect(String(ue.details.stdout).startsWith("Error: No active file.")).toBe(true);
+  }
+  expect(named.message).toBe(front.message);
+  expect(named.details.stdout).toBe(front.details.stdout);
 });
 
 // ───────────────────────── US3 — distinguishable failures ──────────────────────

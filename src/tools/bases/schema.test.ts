@@ -52,6 +52,12 @@ test("output: count mismatch rejected (refine fires)", () => {
   expect(r.success).toBe(false);
 });
 
+test("083: the vault description says it is honoured and names the front-vault default", () => {
+  const description = basesInputSchema.shape.vault.description ?? "";
+  expect(description).not.toMatch(/ignored/i);
+  expect(description).toContain("the vault in front");
+});
+
 test("z.toJSONSchema emits expected shape", () => {
   const json = z.toJSONSchema(basesInputSchema, { io: "input", target: "draft-2020-12" }) as Record<string, unknown>;
   expect(json.type).toBe("object");

@@ -9,7 +9,7 @@ run a view, and create an item in one. Per-tool contracts are the
 | `bases` | native CLI `bases` | [docs/tools/bases.md](../../docs/tools/bases.md) |
 | `views_base` | native CLI `base:views`, with an `eval` to focus a named Base | [docs/tools/views_base.md](../../docs/tools/views_base.md) |
 | `query_base` | native CLI `base:query`, with `fs.stat` pre-flight | [docs/tools/query_base.md](../../docs/tools/query_base.md) |
-| `create_base` | native CLI `base:create` | [docs/tools/create_base.md](../../docs/tools/create_base.md) |
+| `create_base` | native CLI `base:create`; with `vault`, an `eval` for the item folder and realpath checks before and after | [docs/tools/create_base.md](../../docs/tools/create_base.md) |
 
 ## How it is built
 
@@ -74,6 +74,80 @@ call site carries that reason.
 added that filter after an empty vault returned the CLI's "no bases" message
 as a fake Base entry. An empty vault now returns `count: 0`.
 
+### Routing by the named vault
+
+**All four tools act on the vault the caller names** (spec 083, BI-0139,
+PR #114). Before PR #114 only `query_base` and named-mode `views_base` did.
+`bases` and open-mode `views_base` spawned in active mode, and `create_base`
+spawned `base:create` with no `vault=`, so all three answered for the vault in
+front (research F1 to F3). The plan-time probes showed that `bases`,
+`base:views` and `base:create` all honour `vault=` (research P1, P3, P4): the
+wrapper was dropping the name, not the CLI.
+
+- **One call shape.** `bases` and `views_base`'s listing call now pass
+  `target_mode: "specific"` with `vault: input.vault`, the form `read`,
+  `outline`, `rename` and `move` use. With no `vault`, `assembleArgv` puts no
+  `vault=` on the argv, and neither subcommand takes a parameter that active
+  mode would strip, so the argv is the one active mode produced. As first
+  written each handler switched `target_mode` on whether `vault` was set; the
+  code-quality review of PR #114 removed that switch as dead (commit
+  `dc827e2`). Named-mode `views_base`'s listing spawn now carries `vault=`
+  too (research D3, FR-013); its focus eval already ran in the named vault.
+- **Unknown vault before any spawn.** `resolveVaultRootOrRemap`
+  (`src/tools/_active-file.ts`) runs first on all three, so an unregistered
+  name fails with `VAULT_NOT_FOUND` / `unknown` and the subcommand never runs.
+  `bases` and `create_base` gained a required `vaultRegistry` on their
+  `ExecuteDeps`, passed by `createServer()` from the registry it already
+  built, and `views_base`'s check moved to the top of the handler so it covers
+  both modes.
+- **The vault is named in the error.** `views_base`'s `BASE_NOT_FOUND` /
+  `not-open` and `create_base`'s `BASE_NOT_FOUND` add `details.vault`, and a
+  message naming it, only when a vault is named (research D4).
+- **Focus.** None of the three moves Obsidian's focus when the named vault is
+  open. The T002 re-probe found `base:create vault=` focus-free in three of
+  three calls. A closed vault is brought up by the dispatch layer's
+  cold-start retry (ADR-029, Retry Once on Cold-Start Vault-Launch Failure;
+  [ADR-045](../decisions/ADR-045-closed-vaults-recovered-only-by-the-dispatch-retry.md)),
+  which raises that vault's window (T040 L8). No tool has a closed-vault stage
+  of its own.
+
+**`create_base` checks containment in a named vault**
+([ADR-053](../decisions/ADR-053-create-base-contains-a-named-vault-item-and-reports-an-escape-it-cannot-prevent.md)).
+`create_base` writes through Obsidian, which picks the item's folder and
+reports it only on the `Created:` line. With `vault`, the handler runs a
+staged pipeline (research D5); with none, it runs `base:create` exactly as
+before (FR-011).
+
+```mermaid
+flowchart TD
+  A[create_base with vault] --> B[resolve vault root<br/>VAULT_NOT_FOUND / unknown]
+  B --> C[realpath check base_path<br/>PATH_ESCAPES_VAULT]
+  C --> D[eval ITEM_FOLDER_TEMPLATE in vault<br/>BASE_NOT_FOUND with details.vault]
+  D --> E[realpath check item folder + dirname of name<br/>PATH_ESCAPES_VAULT]
+  E --> F[base:create vault=]
+  F --> G[realpath check the Created: path<br/>PATH_ESCAPES_VAULT with createdPath, item kept]
+  G --> H[result]
+```
+
+`containNamedVaultTarget` in `src/tools/create_base/handler.ts` runs stages
+B to E and returns stage G as a closure. `ITEM_FOLDER_TEMPLATE` is the cohort's
+second frozen eval template, beside `views_base`'s focus template, and follows
+the [eval template pattern](../architecture.md#reaching-obsidian-internals-the-eval-template-pattern).
+It reads the `.base` and takes the folder of a single top-level
+`file.inFolder("<f>")` filter, or Obsidian's new-note folder otherwise.
+
+The plan had the template parse the `.base` with Obsidian's `parseYaml`
+(research F7). That was wrong: in the T040 live run the eval context had
+neither `parseYaml` nor `require('obsidian')`, and every filtered Base fell to
+the new-note branch, so the first check only ever checked the vault root. The
+template now scans the block-style YAML Obsidian writes: a `filters:` scalar,
+or a block `and:` list of string entries. Flow style and `or` / `not` groups
+are not read, and the post-creation check is what covers them. Review of
+PR #114 asked whether to move the scan into a TypeScript function; the owner
+kept the template (commit `7e338fb`), and
+`src/tools/create_base/_template.test.ts` runs it in `node:vm`, one case per
+contract §4 row.
+
 Published surface (PR #90; [architecture](../architecture.md#registration--the-one-path-from-a-schema-to-a-published-tool)):
 `bases`, `views_base` and `query_base` carry the read-only hint row;
 `create_base` is an additive write (not read-only, not destructive, not
@@ -83,6 +157,12 @@ idempotent). `query_base`'s `base_path` publishes
 "Required (or the deprecated path)."; `views_base` interpolates `BASE_PATH_MAX` into its
 own, so the stated limit cannot drift from the enforced one. `query_base`'s optional
 `vault` is the shared `focusedVaultField` (`src/tools/_vault-field.ts`).
+Since PR #114 the `vault` descriptions of `bases`, `views_base` and
+`create_base` say the call acts on that vault, the three descriptions list
+`VAULT_NOT_FOUND` (and `create_base`'s `PATH_ESCAPES_VAULT`), and each
+appends `closedVaultNote`. The `bases` description leaves out "Obsidian vault
+display name", because the `_surface.test.ts` rule bars tool descriptions
+from restating it; its parameter description keeps it.
 Since PR #91 all four publish an `outputSchema` and return their result as
 `structuredContent` beside the identical text
 ([typed results](../architecture.md#typed-results-outputschema-and-structuredcontent)).
@@ -116,7 +196,15 @@ report both.
 
 Errors are `CLI_REPORTED_ERROR` with `details.code` — `BASE_NOT_FOUND`,
 `BASE_MALFORMED`, `VIEW_NOT_FOUND` — or `VALIDATION_ERROR` for bad paths and
-view names. `create_base` content over 3072 UTF-16 code units fails fast with
+view names. Since PR #114 an unregistered `vault` is `CLI_REPORTED_ERROR` with
+`details.code: "VAULT_NOT_FOUND"`, `details.reason: "unknown"` and
+`details.vault` on all four tools, raised before the subcommand runs; on
+`bases` and `create_base` it used to be the front vault's answer, or an
+untyped `Vault not found.`. A named-vault `create_base` can also fail with
+`PATH_ESCAPES_VAULT`: before creation nothing is written, and after creation
+`details.createdPath` names the item, which is kept. Only additive `details`
+keys (`vault`, `createdPath`) were added; no code or `details.reason` was.
+`create_base` content over 3072 UTF-16 code units fails fast with
 `CONTENT_TOO_LARGE`, before the CLI is called, for the same argv reason as
 `prepend` ([mutate](mutate.md#the-cli-wrapped-tools)). Unlike `prepend`
 since PR #106, it has no UTF-8 byte limit, so non-Latin content inside the
@@ -164,9 +252,24 @@ had a further stage between steps 3 and 4 that turned an empty answer into
 
 These are inherited from the CLI and documented in each tool's description:
 
-- `bases` and `create_base` accept `vault` but the CLI ignores it; they always
-  act on the active vault. `views_base` without `base_path` ignores `vault`
-  the same way.
+- This page used to say that `bases` and `create_base` accept `vault` but
+  the CLI ignores it, and that `views_base` without `base_path` ignores it the
+  same way. The behaviour was real, but the cause was wrong: the CLI honours
+  `vault=` on all three subcommands, and the wrapper never sent it. PR #114
+  routes all three by the named vault ([above](#routing-by-the-named-vault)).
+- `create_base` checks containment only when `vault` is named. With no
+  `vault` the default path writes where Obsidian puts it, unchecked, as before
+  PR #114 (Clarifications Q1; a recorded follow-up).
+- `create_base`'s pre-creation folder check reads only block-style filters.
+  A flow-style filter or one inside an `or` / `not` group is checked as the
+  new-note folder, and only the post-creation check sees the real folder; an
+  escape found there leaves the item written
+  ([ADR-053](../decisions/ADR-053-create-base-contains-a-named-vault-item-and-reports-an-escape-it-cannot-prevent.md)).
+- `create_base`'s response `path` is built as `<baseDir>/<baseName>/<created>`,
+  which matches neither shape Obsidian was seen to use (research P6; visible
+  in PR #114's L4 results). Also left for follow-ups by PR #114: a missing
+  filter folder surfaces as a raw `ENOENT` (P8), and folder segments in
+  `name` are not rejected at validation (P7).
 - `create_base` does not validate `view_name`: the CLI accepts a view name that
   does not exist. On a name collision the CLI auto-increments the new note's
   name, and the response reports the actual name.
@@ -178,8 +281,9 @@ These are inherited from the CLI and documented in each tool's description:
   BI-0137 rules out changing it. The difference is stated in
   [docs/tools/query_base.md](../../docs/tools/query_base.md#error-roster);
   bounding it is a candidate backlog item for cohort parity.
-- Since PR #90 the `vault` field descriptions of `bases` and `create_base` say
-  it is accepted but ignored by the CLI. `create_base`'s `content` ("Default:
+- From PR #90 until PR #114 the `vault` field descriptions of `bases` and
+  `create_base` said it is accepted but ignored by the CLI; PR #114 replaced
+  that wording with the routed behaviour. `create_base`'s `content` ("Default:
   none") and `view` ("omit for the default") descriptions are hedged, because
   the CLI's behaviour when they are omitted was not confirmed; the PR body
   leaves them for the owner to check. PR #101 renamed `view` to `view_name`

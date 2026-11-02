@@ -953,8 +953,10 @@ byte-identical by construction. `get_active_file` passes its own message,
 because "folder-scoped" misdescribed a tool whose target is the active file.
 A message is invisible to JSON Schema, so the change moved no
 `schemaFingerprint` in the register baseline. The Bases tools take only an optional `vault`, and
-omitting it means the focused vault. (`bases` accepts `vault`, but the CLI
-currently ignores it; its doc says so.)
+omitting it means the focused vault. This page used to add that `bases`
+accepts `vault` but the CLI ignores it. The CLI honours it; the wrapper never
+sent it. Since PR #114 all four Bases tools act on the named vault
+([Bases](capabilities/bases.md#routing-by-the-named-vault)).
 
 Because active mode is implicit state, `get_active_file` (PR #70) exists so a
 client can ask which file is focused before acting on it.
@@ -1153,6 +1155,13 @@ content reaches its result, so there is no containment check and no write
 ([ADR-047](decisions/ADR-047-read-corrects-the-cli-text-from-two-disk-facts.md),
 Read Corrects the CLI's Text From Two Disk Facts).
 
+Since PR #114 `create_base` joins `prepend` as a CLI-path writer that reuses
+items 1 and 2, but only when a vault is named. Obsidian writes the item and picks its
+folder, so the handler checks `base_path` and a derived item folder before
+`base:create`, and the `Created:` path after it; it has no item 3
+([ADR-053](decisions/ADR-053-create-base-contains-a-named-vault-item-and-reports-an-escape-it-cannot-prevent.md);
+[Bases](capabilities/bases.md#routing-by-the-named-vault)).
+
 ## Reaching Obsidian internals: the `eval` template pattern
 
 Tools that need data the CLI has no subcommand for — backlinks, the tag index,
@@ -1217,6 +1226,14 @@ them:
   not `eval`) — share one description sentence, `closedVaultNote(command)` in
   [src/tools/_shared.ts](../src/tools/_shared.ts), and a `_surface.test.ts`
   case allows only `views_base` to mention a `not-open` state (PR #100).
+  Since PR #114 `bases`, `views_base` and `create_base` append it too, now
+  that they act on the named vault.
+- **No YAML parser in the eval context.** The T040 live run for PR #114
+  found `parseYaml` undefined (`ReferenceError`) and `require('obsidian')`
+  unresolvable inside `obsidian eval`; a template has the `app` global and
+  plain JavaScript. `create_base`'s `ITEM_FOLDER_TEMPLATE` therefore scans the
+  block YAML Obsidian writes instead of parsing it
+  ([ADR-053](decisions/ADR-053-create-base-contains-a-named-vault-item-and-reports-an-escape-it-cannot-prevent.md)).
 
   This page used to say the opposite: that a closed vault answers with
   **empty stdout on exit 0**, which `src/tools/_eval-vault-closed-detection/`
@@ -1250,7 +1267,11 @@ them:
   editor-derived display labels that no mocked handler test could catch
   ([search and discovery](capabilities/search-and-discovery.md)).
   `src/tools/_shared.test.ts` already ran the payload decode in `node:vm`, but
-  not a tool template. The other `_template.test.ts` files (`open_file`,
+  not a tool template. `src/tools/create_base/_template.test.ts` is the
+  second: the PR #114 code-quality review (commit `dc827e2`) found that
+  `ITEM_FOLDER_TEMPLATE`'s `filters:` scanner had only substring checks, and
+  added one `node:vm` case per contract row, plus CRLF, comments, nested
+  groups and flow style. The other `_template.test.ts` files (`open_file`,
   `get_active_file`, `views_base`) check the template string, meaning its
   bytes, its payload encoding and which calls it contains. They do not run
   it. Every other template's transforms are covered only by live probes

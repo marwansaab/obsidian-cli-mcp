@@ -19,7 +19,8 @@ List the views defined inside an Obsidian Bases (`.base`) file. Member of the Ba
 
 | `base_path` | `vault` | Behaviour |
 |---|---|---|
-| absent | any | **Open-Base mode.** List the views of the `.base` currently focused in Obsidian. (`vault` is an inherited no-op here.) |
+| absent | absent | **Open-Base mode.** List the views of the `.base` focused in the vault in front. |
+| absent | present | **Open-Base mode, named vault.** List the views of the `.base` open in the named vault, whether that vault is in front, open behind another vault, or closed. |
 | present | absent | **Named-Base mode.** List the views of the named `.base` in the focused vault, regardless of what is focused. |
 | present | present | **Named-Base, cross-vault.** List the views of the named `.base` in the named vault — reached whether that vault is focused, open-but-unfocused, or closed. |
 
@@ -30,7 +31,7 @@ A named Base **always wins** over whatever is focused; the open Base is never si
 | Field       | Type   | Required | Notes |
 |-------------|--------|----------|-------|
 | `base_path` | string | no       | Vault-relative path to the `.base` file (the identifier `bases` emits and `query_base`/`create_base` accept). Omit to read the focused Base. Validated like `query_base.base_path` (must be a structurally safe path ending in `.base`, ≤ 1000 UTF-16 units). |
-| `vault`     | string | no       | Vault display name (min length 1). With `base_path`, routes the listing cross-vault. Without `base_path`, ignored by the underlying active subcommand (preserved for cohort parity). |
+| `vault`     | string | no       | Vault display name (min length 1). Routes to that vault in both modes: with `base_path`, the named Base in that vault; without it, the Base open in that vault. Omit for the vault in front. An unregistered name fails with `VAULT_NOT_FOUND` before the CLI runs. |
 
 ## Output
 
@@ -55,12 +56,14 @@ The native `base:views` subcommand emits each line as `<view name>\t<view type>`
 |----------------------|--------------------|------------------|------|----------|
 | `VALIDATION_ERROR`   | —                  | `params.code: "INVALID_BASE_PATH"` (`empty` / `too-long` / `path-traversal` / `wrong-extension`) | `base_path` is malformed (empty, > 1000 units, traversal shape, or not ending in `.base`) | Fix the `base_path` value. A non-`.base` path is a validation failure, distinct from "named Base not found". |
 | `CLI_REPORTED_ERROR` | `BASE_NOT_FOUND`   | `named-missing`  | A named `.base` does not exist at `base_path` in the resolved vault | Check the path with `bases`; the named Base is not substituted by the open one. |
-| `CLI_REPORTED_ERROR` | `BASE_NOT_FOUND`   | `not-open`       | Open-Base mode: the focused file is not a `.base`, or nothing is focused | Focus a `.base` in Obsidian, or pass `base_path`. |
+| `CLI_REPORTED_ERROR` | `BASE_NOT_FOUND`   | `not-open`       | Open-Base mode: the focused file is not a `.base`. With `vault` named, `details.vault` names the vault and the message names it too | Focus a `.base` in Obsidian, or pass `base_path`. |
 | `CLI_REPORTED_ERROR` | `BASE_MALFORMED`   | `invalid-yaml`   | Named or open mode: Obsidian cannot parse the `.base` file's YAML | Repair the YAML in the `.base` file (the bounded parser report is in `details.message`). |
 | `CLI_REPORTED_ERROR` | `BASE_MALFORMED`   | `unknown`        | Named mode: the `.base` exists but Obsidian reports it is not usable as a Base, with no parser complaint | Open the file in Obsidian and investigate. |
 | `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND`  | `unknown`        | The `vault` display name is not registered with Obsidian | Check the name with `vaults`. A vault added after the server started is found without a restart. |
 | `CLI_REPORTED_ERROR` | —                  | —                | Other upstream CLI failure / app down / binary missing | Retry; confirm Obsidian is running. |
 | `UPSTREAM_TIMEOUT`   | —                  | —                | Subprocess exceeded 10 s | Retry. |
+
+In open-Base mode, a vault with no file open at all (the vault in front, or the named vault) fails with top-level `ERR_NO_ACTIVE_FILE`, not `BASE_NOT_FOUND`; naming a vault does not change that answer.
 
 `BASE_NOT_FOUND` carries a `details.reason` so "named Base not found" (`named-missing`) and "no Base open" (`not-open`) stay distinguishable under one code. No named-path failure is ever resolved by returning the views of whatever Base happened to be focused.
 
@@ -94,7 +97,21 @@ Lists the views of `Projects/Tasks.base` even if a different note or Base is foc
 
 Reaches `Planning/Roadmap.base` in the `Work` vault whether it is focused, unfocused, or closed.
 
-### Example 4 — Round-trip into `query_base`
+### Example 4 — Open Base in a named vault
+
+```json
+{ "name": "views_base", "arguments": { "vault": "Work" } }
+```
+
+Lists the views of the Base open in the `Work` vault, even when another vault is in front:
+
+```json
+{ "views": ["All", "By Status"], "count": 2 }
+```
+
+When the file open in `Work` is not a `.base`, the call fails with `CLI_REPORTED_ERROR`, `details: { "code": "BASE_NOT_FOUND", "reason": "not-open", "vault": "Work" }` and the message `views_base: active file in vault "Work" is not a base file`. A closed vault is opened automatically (the first call takes longer); if it cannot be brought up, the call fails with `CLI_REPORTED_ERROR` whose `details.stdout` starts `Error: Command "base:views" not found.`.
+
+### Example 5 — Round-trip into `query_base`
 
 ```json
 { "name": "views_base", "arguments": { "base_path": "Projects/Tasks.base" } }
@@ -110,7 +127,7 @@ Each name is fed verbatim into `query_base` — no edits:
 { "name": "query_base", "arguments": { "base_path": "Projects/Tasks.base", "view_name": "Done (archived)" } }
 ```
 
-### Example 5 — Named Base not found vs no Base open
+### Example 6 — Named Base not found vs no Base open
 
 ```json
 { "name": "views_base", "arguments": { "base_path": "Nope/Missing.base" } }
@@ -124,7 +141,7 @@ Returns `CLI_REPORTED_ERROR` with `details.code: "BASE_NOT_FOUND"`, `details.rea
 
 with a non-`.base` note focused returns `CLI_REPORTED_ERROR` with `details.code: "BASE_NOT_FOUND"`, `details.reason: "not-open"` — a distinct cause.
 
-### Example 6 — Invalid locator
+### Example 7 — Invalid locator
 
 ```json
 { "name": "views_base", "arguments": { "base_path": "Notes/Daily.md" } }
@@ -132,7 +149,7 @@ with a non-`.base` note focused returns `CLI_REPORTED_ERROR` with `details.code:
 
 Returns `VALIDATION_ERROR` with `params.code: "INVALID_BASE_PATH"`, `params.reason: "wrong-extension"` — distinct from "named Base not found".
 
-### Example 7 — Malformed Base (YAML Obsidian cannot parse)
+### Example 8 — Malformed Base (YAML Obsidian cannot parse)
 
 ```json
 { "name": "views_base", "arguments": { "base_path": "Projects/Broken.base" } }

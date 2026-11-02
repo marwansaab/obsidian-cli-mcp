@@ -1,4 +1,8 @@
 // Original — no upstream.
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -8,8 +12,14 @@ import {
 } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import { silentLogger, stubVaultRegistry } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
+import { closedVaultNote } from "../_shared.js";
+
+const registry = stubVaultRegistry("Work", "/vaults/Work");
+
+// The pre-083 wording that said `vault` was not honoured (spec 083 SC-005).
+const STALE_VAULT_CLAIM = /ignored|no-op|parity|inherited|forward compatibility/i;
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -19,6 +29,7 @@ describe("createBasesTool — descriptor", () => {
     const tool = createBasesTool({
       logger: silentLogger(),
       queue: createQueue(),
+      vaultRegistry: registry,
       spawnFn: makeStubSpawn(),
     });
     expect(tool.descriptor.name).toBe(BASES_TOOL_NAME);
@@ -29,6 +40,7 @@ describe("createBasesTool — descriptor", () => {
     const tool = createBasesTool({
       logger: silentLogger(),
       queue: createQueue(),
+      vaultRegistry: registry,
       spawnFn: makeStubSpawn(),
     });
     expect(tool.descriptor.description.length).toBeGreaterThanOrEqual(400);
@@ -38,6 +50,7 @@ describe("createBasesTool — descriptor", () => {
     const tool = createBasesTool({
       logger: silentLogger(),
       queue: createQueue(),
+      vaultRegistry: registry,
       spawnFn: makeStubSpawn(),
     });
     expect(tool.descriptor.description).toBe(BASES_DESCRIPTION);
@@ -47,6 +60,7 @@ describe("createBasesTool — descriptor", () => {
     const tool = createBasesTool({
       logger: silentLogger(),
       queue: createQueue(),
+      vaultRegistry: registry,
       spawnFn: makeStubSpawn(),
     });
     const schema = tool.descriptor.inputSchema as Record<string, unknown>;
@@ -58,6 +72,7 @@ describe("createBasesTool — descriptor", () => {
     const tool = createBasesTool({
       logger: silentLogger(),
       queue: createQueue(),
+      vaultRegistry: registry,
       spawnFn: makeStubSpawn(),
     });
     const desc = tool.descriptor.description;
@@ -66,11 +81,27 @@ describe("createBasesTool — descriptor", () => {
     expect(desc).toContain("create_base");
   });
 
+  it("083: description states the routed vault, VAULT_NOT_FOUND and the closed-vault note", () => {
+    expect(BASES_DESCRIPTION).toContain(closedVaultNote("bases"));
+    expect(BASES_DESCRIPTION).toContain("VAULT_NOT_FOUND");
+    expect(BASES_DESCRIPTION).toContain(
+      "Optional `vault` (string): lists that vault's Bases. Omit to list the vault in front.",
+    );
+    expect(BASES_DESCRIPTION).not.toMatch(STALE_VAULT_CLAIM);
+  });
+
+  it("083: docs/tools/bases.md makes no stale claim about vault", () => {
+    const doc = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../../docs/tools/bases.md"), "utf8");
+    const stale = doc.split("\n").filter((line) => /vault/i.test(line) && STALE_VAULT_CLAIM.test(line));
+    expect(stale).toEqual([]);
+  });
+
   it("deps wired through: handler receives stubbed CLI and produces typed response", async () => {
     const stdout = "a.base\nb.base\n";
     const tool = createBasesTool({
       logger: silentLogger(),
       queue: createQueue(),
+      vaultRegistry: registry,
       spawnFn: makeStubSpawn({ stdout }),
     });
 

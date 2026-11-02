@@ -4,8 +4,10 @@
 // Both share one enumeration + label-strip path. T0 P1: `base:views` emits `<name>\t<type>` (TAB
 // delimiter); stripTypeLabel removes the trailing `\t<type>` only when <type> ∈ {table, cards, list}
 // (the closed set captured live from the Bases registry), so internal spaces/hyphens/punctuation in
-// the name survive (FR-003). T0 P2: `base:views` ignores path=/vault= (active-only) — the named path
-// is delivered by focus-then-active (T0 P3: reliable), NOT a path= call. Zero new top-level error
+// the name survive (FR-003). `base:views` takes no path= — the named path is delivered by
+// focus-then-active (T0 P3: reliable), NOT a path= call. It does honour vault= (spec 083 research
+// P3), so both modes route by vault= when a vault is named: open mode reads the Base open in that
+// vault, and its not-open error carries details.vault. Zero new top-level error
 // codes (Principle IV); BASE_NOT_FOUND gains an additive details.reason (named-missing | not-open) per
 // ADR-015 so the two base-not-found states stay distinguishable under one code, cohort-consistent with
 // query_base. No silent open-Base substitution on any named-path failure (FR-009). Spec 081: a YAML
@@ -39,9 +41,9 @@ export interface ExecuteDeps extends CallScope {
   logger: Logger;
   queue: Queue;
   /**
-   * Injected at the composition root (server.ts) — used by the named-Base + `vault`
-   * arm to surface a typed VAULT_NOT_FOUND/unknown (via resolveVaultRootOrRemap)
-   * BEFORE any focus eval is spawned. The handler never constructs it (DI discipline).
+   * Injected at the composition root (server.ts) — used whenever `vault` is named (either
+   * mode) to surface a typed VAULT_NOT_FOUND/unknown (via resolveVaultRootOrRemap)
+   * BEFORE anything is spawned. The handler never constructs it (DI discipline).
    */
   vaultRegistry: VaultRegistry;
   spawnFn?: SpawnLike;
@@ -113,17 +115,22 @@ function recogniseFailure(report: string, notABaseText: string | null): FocusedB
  * the spec 080 rule. `cause` is the originating dispatch error, or null on a clean exit.
  */
 function focusedBaseError(
-  basePath: string | undefined,
+  input: ViewsBaseInput,
   failure: FocusedBaseFailure,
   cause: unknown,
   report: string,
 ): UpstreamError {
+  const { base_path: basePath, vault } = input;
   if (basePath === undefined && failure === "not-a-base") {
+    // Spec 083 D4: a named vault is attributed; with none, details and message are unchanged.
     return new UpstreamError({
       code: "CLI_REPORTED_ERROR",
       cause,
-      details: { code: "BASE_NOT_FOUND", reason: "not-open" },
-      message: "views_base: active file is not a base file",
+      details: { code: "BASE_NOT_FOUND", reason: "not-open", ...(vault === undefined ? {} : { vault }) },
+      message:
+        vault === undefined
+          ? "views_base: active file is not a base file"
+          : `views_base: active file in vault "${vault}" is not a base file`,
     });
   }
   const base = basePath === undefined ? "the open base file" : `base file at "${basePath}"`;
@@ -145,24 +152,33 @@ function focusedBaseError(
 }
 
 /**
- * Run active-mode `base:views` and return the clean `{views, count}` envelope. A recognised
+ * Run `base:views` (in the named `vault` when one is given, else in the vault in front) and
+ * return the clean `{views, count}` envelope. A recognised
  * failure on the dispatch-error path (CLI_REPORTED_ERROR / CLI_NON_ZERO_EXIT) or the
  * clean-exit path throws `focusedBaseError`; anything else is rethrown unchanged. On the
  * clean-exit path view lines are left out of the YAML scan, so a view named "YAML notes"
  * never trips it.
  */
-async function listFocusedViews(deps: ExecuteDeps, basePath: string | undefined): Promise<ViewsBaseOutput> {
+async function listFocusedViews(deps: ExecuteDeps, input: ViewsBaseInput): Promise<ViewsBaseOutput> {
   let cliResult: { stdout: string; stderr: string };
   try {
+    // "specific" with no `vault` puts no `vault=` on the argv, so it matches active mode here:
+    // `base:views` takes no parameters for active mode to strip.
     cliResult = await invokeCli(
-      { command: "base:views", parameters: {}, flags: [], target_mode: "active" },
+      {
+        command: "base:views",
+        vault: input.vault,
+        parameters: {},
+        flags: [],
+        target_mode: "specific",
+      },
       deps,
     );
   } catch (err) {
     if (err instanceof UpstreamError && (err.code === "CLI_REPORTED_ERROR" || err.code === "CLI_NON_ZERO_EXIT")) {
       const report = upstreamReport(stringDetail(err.details, "stderr"), stringDetail(err.details, "stdout"));
       const failure = recogniseFailure(report, err.code === "CLI_REPORTED_ERROR" ? report : null);
-      if (failure !== null) throw focusedBaseError(basePath, failure, err, report);
+      if (failure !== null) throw focusedBaseError(input, failure, err, report);
     }
     throw err;
   }
@@ -173,7 +189,7 @@ async function listFocusedViews(deps: ExecuteDeps, basePath: string | undefined)
   // Reading `report` instead would change clean-exit listing (a view named "Active file is not
   // a base file" would list), which spec 081 leaves as shipped (FR-012, BI-0137 Out of scope).
   const failure = recogniseFailure(report, `${cliResult.stdout}\n${cliResult.stderr}`);
-  if (failure !== null) throw focusedBaseError(basePath, failure, null, report);
+  if (failure !== null) throw focusedBaseError(input, failure, null, report);
 
   const views = lines.map(stripTypeLabel);
   return viewsBaseOutputSchema.parse({ views, count: views.length });
@@ -183,13 +199,13 @@ export async function executeViewsBase(
   input: ViewsBaseInput,
   deps: ExecuteDeps,
 ): Promise<ViewsBaseOutput> {
+  // Typed unknown-vault error BEFORE anything is spawned, in both modes (cohort parity).
+  if (input.vault !== undefined) {
+    await resolveVaultRootOrRemap(deps.vaultRegistry, input.vault, TOOL_NAME);
+  }
+
   // ── Named-Base mode (focus-then-active) ──────────────────────────────────────
   if (input.base_path !== undefined) {
-    // Typed unknown-vault error BEFORE any eval is spawned (cohort parity).
-    if (input.vault !== undefined) {
-      await resolveVaultRootOrRemap(deps.vaultRegistry, input.vault, TOOL_NAME);
-    }
-
     // Focus the named `.base` via the proven open mechanism. The eval runs in the
     // requested vault (target_mode:"specific" + vault=) when a vault is named —
     // recovery (closed vault cold-launch) inherited from dispatchCli — else in the
@@ -217,7 +233,7 @@ export async function executeViewsBase(
     // but Obsidian cannot use it → BASE_MALFORMED (see focusedBaseError).
   }
 
-  // Both modes list the focused Base's views; open mode (no base_path) reads whatever
-  // Base is focused.
-  return listFocusedViews(deps, input.base_path);
+  // Both modes list the focused Base's views, in the named vault when one is given (spec 083
+  // D3); open mode (no base_path) reads whatever Base is focused there.
+  return listFocusedViews(deps, input);
 }

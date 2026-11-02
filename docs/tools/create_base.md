@@ -21,7 +21,7 @@ Create a new item (Markdown note) within an Obsidian Bases (`.base`) file. Membe
 | `name`    | string | yes      | Name for the new item (becomes the Markdown filename). Length cap 1000 UTF-16 code units. |
 | `content` | string | no       | Body text for the new item. Max 3072 UTF-16 code units — over-limit fails fast with `CONTENT_TOO_LARGE` before invoking the CLI. |
 | `view_name` | string | no     | Exact, case-sensitive name of the view to create the item in (as listed by `views_base`). Not validated by the CLI — nonexistent view names are silently accepted. |
-| `vault`   | string | no       | Vault display name. **Note**: silently ignored by the current CLI. Accepted for forward compatibility. |
+| `vault`   | string | no       | Vault display name (min length 1). Creates the item in that vault's Base. Omit for the vault in front. See *Vault routing and containment*. |
 
 ### Deprecated names
 
@@ -60,9 +60,16 @@ Example: requesting `name: "Task"` when `Task.md` already exists yields `name: "
 
 The `content` parameter is accepted by the CLI but is not listed in the CLI's help text. It is subject to a size limit of 3072 UTF-16 code units (matching the `prepend` tool's cap), bounded by an upstream Obsidian CLI defect that hangs the host process around 4 KB on Windows.
 
-## Vault routing limitation
+## Vault routing and containment
 
-The `vault` parameter is silently ignored by the underlying CLI for the `base:create` subcommand. This is an inherited CLI limitation, preserved for cohort parity with `query_base`.
+- **`vault` omitted**: the item is created in the vault in front, exactly as before. No containment check runs on this path.
+- **`vault` named**: the item is created in that vault's Base, whether the vault is in front, open behind another vault, or closed. The vault in front stays in front. Before anything is created, the tool checks that two paths resolve inside the named vault (following links):
+  1. `base_path`;
+  2. the folder the item will land in. Obsidian chooses it; the tool mirrors the choice as the Base's folder when its top-level `filters` is a single `file.inFolder("<folder>")` expression, or a block-style `and:` list with exactly one such entry, and otherwise the vault's new-note folder. Any folder part of `name` (for example `sub/Item`) is added to it. A filter written in flow style (`filters: {and: [...]}`) or inside an `or`/`not` group is not read, so the new-note folder is checked instead; the check after creation still applies.
+
+  If either escapes, the call fails with `PATH_ESCAPES_VAULT` and nothing is created. After creation, the path the CLI reports is checked again. If it resolves outside the vault, the call fails with `PATH_ESCAPES_VAULT` whose `details.createdPath` names the item: the item was written and is **not** deleted, so you can inspect or remove it.
+- **Closed vault**: a registered vault that is not open is opened automatically and the call returns its normal result (the first call takes longer). If it cannot be brought up — for example, its command-line integration is disabled — the call fails with `CLI_REPORTED_ERROR` whose `details.stdout` starts `Error: Command "base:create" not found.`: open the vault in Obsidian, then call again.
+- **Unregistered name**: the call fails with `VAULT_NOT_FOUND` before the CLI runs; nothing is created in any vault.
 
 ## Error roster
 
@@ -71,7 +78,9 @@ The `vault` parameter is silently ignored by the underlying CLI for the `base:cr
 | `VALIDATION_ERROR`   | `INVALID_BASE_PATH`  | Empty / over-cap / wrong-extension / path-traversal | Inspect `details.reason`; supply a valid vault-relative `.base` path. |
 | `VALIDATION_ERROR`   | `INVALID_NAME`       | Empty / over-cap | Supply a non-empty name within the length cap. |
 | `VALIDATION_ERROR`   | `CONTENT_TOO_LARGE`  | Content exceeds 3072 UTF-16 code units | Reduce content size; use `write_note` for larger content. |
-| `CLI_REPORTED_ERROR` | `BASE_NOT_FOUND`     | Specified `.base` file does not exist (`details.path` carries the `base_path` value) | Verify the `base_path`; use `bases` to enumerate `.base` files in the vault. |
+| `CLI_REPORTED_ERROR` | `BASE_NOT_FOUND`     | Specified `.base` file does not exist (`details.path` carries the `base_path` value; with `vault` named, `details.vault` names the vault and the message names it too) | Verify the `base_path`; use `bases` to enumerate `.base` files in the vault. |
+| `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND` (`details.reason: "unknown"`) | The `vault` display name is not registered with Obsidian | Check the name with `vaults`. A vault added after the server started is found without a restart. |
+| `PATH_ESCAPES_VAULT` | —                    | `vault` named only: `base_path`, the item's folder, or the created path resolves outside the vault (`details.vault`, `details.attemptedPath`, `details.resolvedPath`; plus `details.createdPath` when caught after creation) | Before creation nothing was written; after creation, inspect the item at `details.createdPath`. |
 | `UPSTREAM_TIMEOUT`   | —                    | Subprocess exceeded 10 s | Retry. |
 
 ## Worked examples
@@ -133,7 +142,22 @@ When `New feature request.md` already exists:
 
 Returns `CLI_REPORTED_ERROR` with `details.code: "BASE_NOT_FOUND"`. Use `bases` to find valid `.base` file paths.
 
-### Example 4 — Content too large
+### Example 4 — A named vault
+
+```json
+{
+  "name": "create_base",
+  "arguments": {
+    "vault": "Work",
+    "base_path": "Projects/Tasks.base",
+    "name": "Write release notes"
+  }
+}
+```
+
+Creates the item in the `Work` vault, even when another vault is in front. When `Projects/Tasks.base` filters on `file.inFolder("Projects/Tasks")`, the item lands in `Projects/Tasks`; both that folder and `Projects/Tasks.base` are checked to stay inside `Work` before the item is created. A `base_path` that does not exist in `Work` fails with `details: { "code": "BASE_NOT_FOUND", "path": "Projects/Tasks.base", "vault": "Work" }`.
+
+### Example 5 — Content too large
 
 ```json
 {

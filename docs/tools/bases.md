@@ -15,7 +15,7 @@ Enumerate all Obsidian Bases (`.base`) files in the vault and return their vault
 
 | Field   | Type   | Required | Notes |
 |---------|--------|----------|-------|
-| `vault` | string | no       | Vault display name. **Note**: silently ignored by the current CLI — the tool always operates on the active vault context. Accepted for forward compatibility. |
+| `vault` | string | no       | Vault display name (min length 1). Lists that vault's Bases. Omit to list the vault in front. |
 
 ## Output
 
@@ -35,15 +35,19 @@ Enumerate all Obsidian Bases (`.base`) files in the vault and return their vault
 - Empty vault returns `{ "bases": [], "count": 0 }`.
 - No truncation — all paths returned unconditionally.
 
-## Vault routing limitation
+## Vault routing
 
-The `vault` parameter is silently ignored by the underlying CLI for the `bases` subcommand. The tool always returns bases from the currently active vault context, regardless of the `vault` value provided. This is an inherited CLI limitation. The parameter is preserved for cohort parity with `query_base` (which does honour vault routing) and for forward compatibility.
+- **`vault` named**: the tool lists that vault's Bases, whether the vault is in front, open behind another vault, or closed. The vault in front stays in front.
+- **`vault` omitted**: the tool lists the Bases of the vault in front.
+- **Closed vault**: a registered vault that is not open is opened automatically and the call returns its normal result (the first call takes longer). If it cannot be brought up — for example, its command-line integration is disabled — the call fails with `CLI_REPORTED_ERROR` whose `details.stdout` starts `Error: Command "bases" not found.`: open the vault in Obsidian, then call again.
+- **Unregistered name**: the call fails with `VAULT_NOT_FOUND` before the CLI runs, so another vault's Bases are never returned in its place.
 
 ## Error roster
 
 | Top-level `code`     | When | Recovery |
 |----------------------|------|----------|
 | `CLI_REPORTED_ERROR` | Upstream CLI failure | Retry; check that Obsidian is running. |
+| `CLI_REPORTED_ERROR` with `details.code: "VAULT_NOT_FOUND"`, `details.reason: "unknown"` | The `vault` display name is not registered with Obsidian | Check the name with `vaults`. A vault added after the server started is found without a restart. |
 | `VALIDATION_ERROR`   | Malformed input (e.g. unknown keys in strict mode) | Fix input shape. |
 | `UPSTREAM_TIMEOUT`   | Subprocess exceeded 10 s | Retry; investigate vault size. |
 
@@ -84,7 +88,7 @@ Response:
 { "bases": [], "count": 0 }
 ```
 
-### Example 3 — With vault parameter (ignored)
+### Example 3 — A named vault
 
 ```json
 {
@@ -93,4 +97,8 @@ Response:
 }
 ```
 
-Returns bases from the active vault context, not the specified vault. The `vault` parameter is silently ignored.
+Lists the Bases of the `Work` vault, even when another vault is in front:
+
+```json
+{ "bases": ["Planning/Roadmap.base", "Projects/Tasks.base"], "count": 2 }
+```
