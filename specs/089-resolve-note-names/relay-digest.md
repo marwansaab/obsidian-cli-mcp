@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-11-02T08:48:40.973Z |
 | Finished | not yet |
-| Elapsed | 15 min 57 s |
+| Elapsed | 24 min 43 s |
 | Questions | 3 (0 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 0 |
@@ -56,6 +56,7 @@
 ### pre-implementation (`1529752f-b15c-4f9b-a8d1-9e28267a455e`)
 
 - Condition `shell-exit-0` (run_when): met. "node -e "process.exit('' === '' ? 0 : 1)"" exited 0.
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\specs\089-resolve-note-names\tasks.md exists.
 
 - **specify**: done, 36 turns, 1 questions.
 
@@ -81,16 +82,38 @@
 > - I2: research D5 no longer promises a separate "Targeting" help paragraph. Its `file` row bullet now names the lookup Obsidian runs first, so contract §H is the only source for the help-page text.
 > The plan's Phase 0 section now records these three analyze-time alignments. The four LOW findings were left as they are. Next step is /speckit-implement.
 
-- **resolve-analysis**: in progress.
+- **resolve-analysis**: done, 16 turns.
+
+> All analysis findings are fixed. There were no CRITICAL or HIGH findings. The spec, plan, research and clarifications already settled every finding, so I asked no questions. Changes:
+> - I1, C1, I2 (MEDIUM): applied in the previous step. US1 AS3 no longer claims a root-level bare-name edit works "as today". A new vault-root boundary row, N9, is in both suites, the red check and the gates. Contract §H is the single source of help-page text.
+> - U1: row N3 gets a second case for the folder-without-`.md` form named in US1 AS4 (contract and T002).
+> - A1: the spec's Assumptions name `read` as the reference reading tool, the only one probed live (research F11, F12). The other reading tools are assumed to agree.
+> - U2: row N2 now checks, with an `fs.readFile` override that records `getCount()`, that the name lookup runs before the first file read on a successful call (FR-002). The contract, T002 and T003 are updated.
+> - L1: the quickstart's test filter named a `_file-target` test that does not exist; it now names `src/tools/_active-file`.
+> plan.md records all seven as analyze-time alignment. I committed the whole `specs/089-resolve-note-names/` folder on 089-resolve-note-names as 2253a41, `docs(089): specify, plan and task note-name resolution for the editors`, following the CONTRIBUTING.md convention. It is not pushed.
+> Left open, with reasons:
+> - `CLAUDE.md` (the plan pointer) and `.specify/feature.json` are modified but not committed, because the instruction covered only the feature folder. They can go into the implementation's docs commit, as spec 088 did.
+> - Three research follow-ups are deferred as outside BI-0171. Fixing patch_heading's published `NOTE_NOT_FOUND`, when a missing path actually gives `FS_WRITE_FAILED`, would change a published error. Rejecting `[[`/`]]` in the editors' `file` field would change the published schema. Neither editor has a file-type check.
+> Next step is /speckit-implement.
+
 
 ### continue
 
-- **prepare**: not run.
+Skipped.
 
-### implementation
+- Condition `shell-exit-0` (run_when): not met. "node -e "process.exit('' === '' ? 1 : 0)"" exited 1.
 
-- **implement**: not run.
-- **open-pr**: not run.
+- **prepare**: skipped.
+
+### implementation (`5eb0f321-a462-44cf-8ada-b02722b6ae6e`)
+
+- Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\specs\089-resolve-note-names\tasks.md exists, and Obsidian has TestVault-Obsidian-CLI-MCP focused.
+
+- **implement**: done, 86 turns.
+
+> Implemented spec 089: patch_heading and patch_block now look up a `file` name through the shared resolveFsTarget (the same `obsidian file` lookup read uses) instead of using it as a literal path; each editor's own resolveLocator is deleted. Two new N1–N9 suites were added. Run against the old handlers first, N1–N5, N7 and N9 failed in both suites and N6 and N8 passed; after the switch all rows pass and no existing test was edited. Help pages, the _file-target.ts header and the CHANGELOG were updated. The published fingerprint and errors.ts show no diff against main. The live check (L1–L5) passed 5/5 against TestVault-Obsidian-CLI-MCP; fixtures were removed and Sandbox/ is back to 13 entries. Typecheck, lint and npm test pass (4437 tests). npm run format:check fails repo-wide (1343 files), as it already did before this change: .prettierrc.json requires LF line endings but the checkout uses CRLF, main's copies of the two help pages and CHANGELOG.md fail even ignoring line endings, and CI does not run the check. All 16 tasks are marked [X], with evidence in post-implement.md. The optional after_implement commit hook was skipped and nothing is committed.
+
+- **open-pr**: in progress.
 
 ### review
 
