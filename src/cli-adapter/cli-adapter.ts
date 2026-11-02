@@ -2,6 +2,7 @@
 import {
   dispatchCli,
   killInFlightChildren,
+  UNKNOWN_VAULT_ANSWER,
   type CallScope,
   type DispatchInput,
   type DispatchOutput,
@@ -82,9 +83,6 @@ function stripTargetLocators(
   return stripped;
 }
 
-// The raw facade (invoke-bounded-cli.ts) checks the same answer under a stricter rule: named vault, whole stdout (spec 091).
-const UNKNOWN_VAULT_PREFIX = "Vault not found.";
-
 export function invokeCli(input: InvokeCliInput, deps: InvokeCliDeps): Promise<InvokeCliSuccess> {
   // Defence-in-depth strip in active mode: the typed-tool target_mode schema
   // already rejects vault/file/path at the boundary, but a hypothetical future
@@ -151,7 +149,7 @@ function runTyped(dispatchInput: DispatchInput, deps: InvokeCliDeps): Promise<Di
     // typed tools inherit the structured failure surface. Spec 080 C5: skipped when the eval's
     // tagged answer was found, since a `Vault not found.` line ahead of it is then plugin noise.
     const trimmed = out.stdout.trimStart();
-    if (out.evalAnswer === undefined && trimmed.startsWith(UNKNOWN_VAULT_PREFIX)) {
+    if (out.evalAnswer === undefined && trimmed.startsWith(UNKNOWN_VAULT_ANSWER)) {
       const message = trimmed.split("\n", 1)[0]!.trim();
       throw new UpstreamError({
         code: "CLI_REPORTED_ERROR",

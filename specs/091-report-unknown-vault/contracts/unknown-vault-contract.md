@@ -41,7 +41,8 @@ Stubs come from `src/tools/_handler-test-fixtures.ts` (`makeQueuedSpawn`, `makeS
 | U13 | `{ command: "files", vault: "NoSuchVault" }` | stdout `"Vault not found.\n"`, stderr `"warn\n"` / 0 | **Fails**, with `details.stderr` = `"warn\n"` |
 | U14a | `{ command: "files", vault: "NoSuchVault" }` | `"Vault not found.\n"` / exit 1 | `CLI_NON_ZERO_EXIT`, unchanged (E-3) |
 | U14b | `{ command: "files", vault: "NoSuchVault" }` | `"Error: something\n"` / 0 | `CLI_REPORTED_ERROR` with `details.message` = `"Error: something"` and the default top-level message, unchanged (E-3) |
-| U14c | `{ command: "eval", vault: "NoSuchVault" }`, `allowEval` absent | `makeQueuedSpawn([])` | `VALIDATION_ERROR` / `COMMAND_BLOCKED`. The spawn count (overflow-counted) is 0. |
+
+**Blocked commands (FR-006)**: the blocked-command gate matches `command` alone and runs before any spawn, so it never reaches the check. The existing `handler.test.ts` COMMAND_BLOCKED rows pin it; a U14c row naming an unknown vault was dropped in the PR #124 review as a repeat of them.
 
 **No retry and no launch (FR-007)**: U1 asserts a spawn count of 1 (`makeQueuedSpawn([...]).getCount()`). The no-launch assertion lives in B1, because `obsidian_exec`'s `ExecuteDeps` has no `launchFn` seam and the facade's deps do.
 
@@ -49,7 +50,7 @@ Stubs come from `src/tools/_handler-test-fixtures.ts` (`makeQueuedSpawn`, `makeS
 
 | Row | Call | Expected |
 |---|---|---|
-| B1 | `invokeBoundedCli({ command: "files", vault: "NoSuchVault" }, {}, deps)`, stub `"Vault not found.\n"` / 0, with a recording `launchFn` in `deps` | Rejects with E-1 (`toEqual` on `code`, `message`, `details`). Spawned once, and `launchFn` never called (FR-007). |
+| B1 | `invokeBoundedCli({ command: "files", vault: "NoSuchVault" }, {}, deps)`, stub `"Vault not found.\n"` / 0, with a recording `launchFn` in `deps` | Rejects with `CLI_REPORTED_ERROR` (U1 pins E-1's full shape). Spawned once, and `launchFn` never called (FR-007). |
 | B2 | the same stub answers `invokeCli({ target_mode: "specific", command: "files", vault: "NoSuchVault", parameters: {}, flags: [] }, deps)` and B1's call | `code`, `message` and `details.message` are equal across the two errors (E-4, SC-002) |
 
 ### `src/tools/obsidian_exec/index.test.ts` (new `it`, appended)

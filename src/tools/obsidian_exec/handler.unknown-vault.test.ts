@@ -175,17 +175,4 @@ describe("obsidian_exec — other failures keep their classification (spec 091 F
       message: "Error: something",
     });
   });
-
-  it("U14c: a blocked command naming an unknown vault is refused before any spawn", async () => {
-    const stub = makeQueuedSpawn([]);
-    const err = (await captureRejection(
-      executeObsidianExec(
-        { command: "eval", vault: UNKNOWN },
-        { logger: silentLogger(), queue: createQueue(), spawnFn: stub.spawnFn, env: {} },
-      ),
-    )) as UpstreamError;
-    expect(err.code).toBe("VALIDATION_ERROR");
-    expect(err.details).toMatchObject({ code: "COMMAND_BLOCKED", command: "eval" });
-    expect(stub.getCount()).toBe(0);
-  });
 });

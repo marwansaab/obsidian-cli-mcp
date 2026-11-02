@@ -36,7 +36,7 @@ Decisions:
 - **D1**: the check goes in `invokeBoundedCli`, after `dispatchCli`, inside `queue.run`.
 - **D2**: the rule is `input.vault !== undefined && out.stdout.trim() === "Vault not found."` (Clarification Q1, option C).
 - **D3**: the error shape (data-model E4).
-- **D4**: a private local constant, not shared with `cli-adapter.ts`.
+- **D4**: a private local constant, not shared with `cli-adapter.ts`. Amended by the PR #124 review: one `UNKNOWN_VAULT_ANSWER` exported from `_dispatch.ts` serves both facades' rules (research D4).
 - **D5**: the description, help page and CHANGELOG.
 - **D6**: the test rows U1–U14, B1, B2 and R1, with no existing-test edits.
 
@@ -65,7 +65,7 @@ Decisions:
 - FR-004 / FR-006: every other success and failure is byte-identical.
 - Principle IV: no new code (P3).
 - Refactor-decisions item 5: no existing-test edit is planned (§X). Any failing existing test stops implement.
-- Item 25: the `command` refine and the blocked-command gate are untouched; the gate still runs before any spawn (U14c).
+- Item 25: the `command` refine and the blocked-command gate are untouched; the gate still runs before any spawn (the existing `handler.test.ts` COMMAND_BLOCKED rows; U14c was dropped as their repeat in the PR #124 review).
 - Item 29: `executeObsidianExec` still passes its deps whole to `invokeBoundedCli`.
 - Item 41: `invokeBoundedCli` still never carries `evalAnswer`, and the check needs none (F6).
 
@@ -201,7 +201,7 @@ CHANGELOG.md                                            # §C
 - **FR-003**: D3, E4; U1, U2, U13 (`details` `toEqual`).
 - **FR-004**: E-2, V2; U6–U11; L4, L5.
 - **FR-005**: F6; U12.
-- **FR-006**: E-3, V3; U14a–c, plus the existing facade suites for timeout, output cap, cancellation and missing binary. The check runs only after `dispatchCli` resolves (V3), so those failures never reach it.
+- **FR-006**: E-3, V3; U14a–b, the existing COMMAND_BLOCKED rows, plus the existing facade suites for timeout, output cap, cancellation and missing binary. The check runs only after `dispatchCli` resolves (V3), so those failures never reach it.
 - **FR-007**: F5, V3; U1 (spawn count 1), B1 (spawned once, no launch).
 - **FR-008**: V5; B2 and the existing typed-tool suites, unchanged.
 - **FR-009**: D5, §H1; P1, P2.

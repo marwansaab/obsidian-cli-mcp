@@ -24,7 +24,7 @@ The `obsidian_exec` input as the schema parses it (`src/tools/obsidian_exec/sche
 A dispatch result is the unknown-vault answer when both of these hold:
 
 1. the call named a vault (`E1.vault !== undefined`); and
-2. `E2.stdout.trim() === "Vault not found."` (the private `UNKNOWN_VAULT_ANSWER` constant).
+2. `E2.stdout.trim() === "Vault not found."` (`UNKNOWN_VAULT_ANSWER`, exported by `_dispatch.ts` and shared with the typed facade's start-of-output rule; PR #124 review).
 
 Live form: `"Vault not found.\n"`, stderr `""`, exit 0, for every command (research F1).
 
@@ -72,7 +72,7 @@ On the wire, `registerTool` returns the error as an `isError: true` result whose
 - **V2 — exact answer only.** Any stdout other than the bare sentence after trimming resolves unchanged, with `stdout`, `stderr`, `exitCode` and `argv` byte-identical to today (FR-004, SC-003).
 - **V3 — after dispatch.** The check runs only on a dispatch success, so every other classification, and its precedence, is unchanged (FR-006). It sits outside the cold-start retry and the auto-launch recovery, so it adds no spawn and no launch (FR-007). The call spawns exactly once.
 - **V4 — no new code.** The error uses the existing `CLI_REPORTED_ERROR` code. `src/errors.ts` is unchanged (spec Assumption, Principle IV).
-- **V5 — typed facade untouched.** `runTyped`, `UNKNOWN_VAULT_PREFIX` and every dedicated tool's behaviour are unchanged (FR-008).
+- **V5 — typed facade untouched.** `runTyped`'s rule and every dedicated tool's behaviour are unchanged (FR-008). Its literal now comes from `_dispatch.ts`'s `UNKNOWN_VAULT_ANSWER` instead of the private `UNKNOWN_VAULT_PREFIX` (PR #124 review).
 
 ## Per-call flow
 

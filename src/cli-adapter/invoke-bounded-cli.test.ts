@@ -359,19 +359,8 @@ describe("invokeBoundedCli — unknown-vault answer (spec 091)", () => {
         { spawnFn, env: {}, logger: captureLines().logger, queue: createQueue(), resolveBinary: stubResolveBinary, launchFn },
       ),
     );
-    expect({ code: err.code, message: err.message, cause: err.cause, details: err.details }).toEqual({
-      code: "CLI_REPORTED_ERROR",
-      message: "Vault not found.",
-      cause: null,
-      details: {
-        argv: [recorded[0]!.binary, "vault=NoSuchVault", "files"],
-        command: "files",
-        stdout: "Vault not found.\n",
-        stderr: "",
-        exitCode: 0,
-        message: "Vault not found.",
-      },
-    });
+    // handler.unknown-vault.test.ts U1 pins the full error shape; B1 adds what the tool cannot see.
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
     expect(recorded).toHaveLength(1);
     expect(launches).toBe(0);
   });
