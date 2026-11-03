@@ -312,3 +312,25 @@ export function answeredCall(
     confirm: (message) => confirmFromResponse({ confirm: answer }, toolName, message),
   };
 }
+
+/**
+ * {@link answeredCall} that also records each question `confirm` was asked, in order, in
+ * `asked` (an empty `asked` proves no confirmation was requested).
+ */
+export function recordingCall(
+  toolName: string,
+  answer?: Parameters<typeof answeredCall>[1],
+): { call: Confirmation; asked: string[] } {
+  const answered = answeredCall(toolName, answer);
+  const asked: string[] = [];
+  return {
+    call: {
+      ...answered,
+      confirm: (message) => {
+        asked.push(message);
+        answered.confirm(message);
+      },
+    },
+    asked,
+  };
+}

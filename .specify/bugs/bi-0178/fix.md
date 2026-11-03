@@ -14,7 +14,10 @@
 | File | Change | Notes |
 |------|--------|-------|
 | `src/tools/find_and_replace/handler.ts` | modified | `resolveSingleNoteScope`'s `file` branch calls `findFileByTsv` (was `resolveFileByTsv`); a `null` result throws `invalidNoteNotFound(name, null)`. New private `invalidNoteNotFound(note, cause)` builds the FR-008 envelope; `assertExists` now uses it for the `path` form (byte-identical code, message and details). Import swapped from `resolveFileByTsv` to `findFileByTsv`; the `resolveSingleNoteScope` doc comment names the new behaviour. |
-| `src/tools/find_and_replace/scope.test.ts` | added tests | Four BI-0178 cases beside the existing path-miss case (US1 describe block); imports `answeredCall` and `fileNotFoundResponse` from `_handler-test-fixtures.ts`. |
+| `src/tools/find_and_replace/scope.test.ts` | added tests | Four BI-0178 cases beside the existing path-miss case (US1 describe block); imports `recordingCall` and `fileNotFoundResponse` from `_handler-test-fixtures.ts`. |
+| `src/tools/_active-file.ts` | comment only | PR #134 review fix (a): `findFileByTsv`'s doc comment and the module header state the general contract (`null` only on Obsidian's not-found line, the caller decides what a miss means) and name both consumers. |
+| `src/tools/_handler-test-fixtures.ts` | added helper | PR #134 review fix (b), owner ruling A: `recordingCall(toolName, answer?)` returns `{ call, asked }`, an `answeredCall` whose `confirm` records each question. |
+| `src/tools/find_and_replace/confirm.test.ts` | call construction only | PR #134 review fix (b), owner ruling A: the "confirmed" and "subfolder scope" tests build their call with `recordingCall` instead of a hand-written recording wrapper. No assertion, expected value or title changed. |
 
 ## Diff Highlights (optional)
 
@@ -56,6 +59,7 @@ The helper is named `invalidNoteNotFound`, not `noteNotFound` as the assessment 
   - `npm run typecheck` → clean.
   - `npx eslint src/tools/find_and_replace` → clean.
   - `npm test` (full suite with coverage) → 196 files passed, 1 skipped; 4811 tests passed, 6 skipped.
+  - After the PR #134 review fixes: `npm run lint`, `npm run typecheck` and `npm run build` clean; `npm test` → 196 files passed, 1 skipped; 4811 tests passed, 6 skipped; no existing test failed.
   - `npx prettier --check` on the two touched files reports style warnings, but it reports the same warnings on both files at HEAD before this change (pre-existing drift; not reformatted, to keep the diff surgical).
 - Manual checks: none. The live check against the authorised test vault (TC-00784 name form, TC-00783 path form) belongs to `/speckit-bug-test`, per `.memory/test-execution-instructions.md`.
 

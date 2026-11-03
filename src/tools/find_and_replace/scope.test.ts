@@ -24,10 +24,10 @@ import {
 import { UpstreamError } from "../../errors.js";
 import { linkRealpath } from "../../path-safety/_realpath-fixtures.js";
 import {
-  answeredCall,
   captureLogger,
   fileNotFoundResponse,
   makeQueuedSpawn,
+  recordingCall,
 } from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
@@ -191,15 +191,8 @@ describe("066-file-scope US1 — named single-note scope by path", () => {
   it("missing named file (commit, confirming client) → same envelope; no confirmation asked, nothing written (BI-0178)", async () => {
     const { fs, state } = inMemoryFs([], VAULT_ROOT);
     const { spawnFn, getCount } = makeQueuedSpawn([fileNotFoundResponse("ghost")]);
-    const asked: string[] = [];
-    const confirmed = answeredCall("find_and_replace");
-    const err = await executeFindAndReplace(nameMissInput(true), baseDeps({ fs, spawnFn }), {
-      ...confirmed,
-      confirm: (message) => {
-        asked.push(message);
-        confirmed.confirm(message);
-      },
-    }).catch((e) => e);
+    const { call, asked } = recordingCall("find_and_replace");
+    const err = await executeFindAndReplace(nameMissInput(true), baseDeps({ fs, spawnFn }), call).catch((e) => e);
     expect((err as UpstreamError).code).toBe("VALIDATION_ERROR");
     expect((err as UpstreamError).details).toEqual({ code: "INVALID_NOTE", reason: "not-found", note: "ghost" });
     expect(asked).toEqual([]);
