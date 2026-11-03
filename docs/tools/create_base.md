@@ -34,7 +34,7 @@ Spec 073 aligned this tool's parameter names with `query_base` and `views_base`.
 
 - A successful call that uses an old name gets the same result as the new name, plus a `deprecated_parameters` field (see *Output*). Error responses do not carry `deprecated_parameters`.
 - A call that sends an old name together with its new name (even with the same value) fails with `VALIDATION_ERROR`, before the CLI is invoked. The issue sits at the old name's path and names both.
-- Validation reports the new name whichever key was used: an `INVALID_BASE_PATH` error carries `details.field: "base_path"`, and its issue in `details.issues` carries `path: ["base_path"]`. Likewise `view: ""` fails exactly like `view_name: ""`, with its issue at `path: ["view_name"]`.
+- Validation reports the new name whichever key was used: an `INVALID_BASE_PATH` error carries `details.field: "base_path"`, and its issue in `details.issues` carries `path: ["base_path"]`. Likewise an empty `view` is reported as `view_name`: `view: ""` gets the same issue as `view_name: ""`, at `path: ["view_name"]`. If the call has another mistake too, the `view` call also reports it, while the `view_name` call stops at the `view_name` issue; every issue names the current key.
 - The old keys stay in the published input schema, marked `deprecated: true`.
 
 ## Output

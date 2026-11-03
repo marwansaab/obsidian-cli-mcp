@@ -169,6 +169,7 @@ describe("spec 073 — deprecated names", () => {
     FIND_BY_PROPERTY_RENAMES,
     { vault: "V", name: "id", value: "x", folder: "F" },
     { name: "id", array_match: false, case_sensitive: false },
+    { name: "" },
   );
   it.each(cases.equivalence)("O2: $old parses like its replacement, plus the notice", ({ viaOld, viaNew, notice }) => {
     expect(findByPropertyInputSchema.parse(viaOld)).toEqual({
@@ -193,12 +194,20 @@ describe("spec 073 — deprecated names", () => {
     expect(result.error?.issues).toEqual([expect.objectContaining(issue)]);
   });
 
-  it("BI-0182: empty property reports the same single issue as empty name, at [name]", () => {
-    const viaOld = findByPropertyInputSchema.safeParse({ property: "", value: "x" });
-    const viaNew = findByPropertyInputSchema.safeParse({ name: "", value: "x" });
-    expect(viaOld.success).toBe(false);
-    expect(viaOld.error?.issues).toEqual([expect.objectContaining({ path: ["name"], code: "too_small" })]);
-    expect(viaOld.error?.issues).toEqual(viaNew.error?.issues);
+  // BI-0182 — an invalid value fails under the old name exactly as under the new one
+  it.each(cases.invalid)("BI-0182: invalid $old fails with the same issues as its replacement", ({ viaOld, viaNew }) => {
+    const resultNew = findByPropertyInputSchema.safeParse(viaNew);
+    expect(resultNew.success).toBe(false);
+    expect(findByPropertyInputSchema.safeParse(viaOld).error?.issues).toEqual(resultNew.error?.issues);
+  });
+
+  // BI-0182 Q4 = A: with a second mistake, the old-name call also reports it (the new-name call stops at
+  // the published `name` check first); every issue still names the new key.
+  it("BI-0182: empty property plus an array value reports both issues, the first at [name]", () => {
+    const viaOld = findByPropertyInputSchema.safeParse({ property: "", value: ["x"] });
+    const viaNew = findByPropertyInputSchema.safeParse({ name: "", value: ["x"] });
+    expect(viaOld.error?.issues.map((i) => i.path)).toEqual([["name"], ["value"]]);
+    expect(viaNew.error?.issues.map((i) => i.path)).toEqual([["name"]]);
   });
 
   // O6 — the array check runs on the resolved value and names array_match

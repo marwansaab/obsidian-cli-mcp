@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import {
   deprecatedAlias,
+  deprecatedNamesNote,
   deprecatedParametersField,
   foldDeprecatedAliases,
   withDeprecatedParameters,
@@ -43,6 +44,14 @@ describe("deprecatedAlias", () => {
     expect(field.parse(undefined)).toBeUndefined();
     expect(field.parse("x")).toBe("x");
     expect(field.safeParse("").success).toBe(false);
+  });
+});
+
+describe("deprecatedNamesNote", () => {
+  it("lists the renames in table order, marking an inverted one", () => {
+    expect(deprecatedNamesNote([INVERTED, PLAIN])).toBe(
+      "Deprecated names (accepted until the next major release; a successful call that uses one gets `deprecated_parameters` in its result; error responses do not carry it): `case_insensitive` → `case_sensitive` (opposite value), `subfolder` → `folder`.",
+    );
   });
 });
 

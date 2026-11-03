@@ -26,12 +26,26 @@ export const deprecatedParametersField = z
     "Present only when the call used a deprecated parameter name: each old name, its replacement and any note. Old names are accepted until the next major release.",
   );
 
-/** Wrap `field` as the optional, published-deprecated alias key of `rename.replacement`. */
+/**
+ * Wrap `field` as the optional, published-deprecated alias key of `rename.replacement`.
+ *
+ * Give `field` the value's type only, never a value check such as `.min(1)`: a check on the
+ * published object fails before the fold, so it would report the old key. The folded schema
+ * checks the value once, under the replacement name (spec 073 D6, BI-0182).
+ */
 export function deprecatedAlias<T extends z.ZodType>(field: T, rename: ParameterRename) {
   const description = rename.inverted
     ? `Deprecated: use ${rename.replacement} with the opposite value (${rename.old}: true equals ${rename.replacement}: false); accepted until the next major release.`
     : `Deprecated: use ${rename.replacement} (accepted until the next major release).`;
   return field.optional().meta({ description, deprecated: true });
+}
+
+/** The "Deprecated names" line of a renamed tool's description, listing `renames` in table order. */
+export function deprecatedNamesNote(renames: readonly ParameterRename[]): string {
+  const list = renames
+    .map((r) => `\`${r.old}\` → \`${r.replacement}\`${r.inverted === true ? " (opposite value)" : ""}`)
+    .join(", ");
+  return `Deprecated names (accepted until the next major release; a successful call that uses one gets \`deprecated_parameters\` in its result; error responses do not carry it): ${list}.`;
 }
 
 function noticeFor(rename: ParameterRename): DeprecatedParameter {

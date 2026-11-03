@@ -296,6 +296,7 @@ const aliasCases = deprecatedAliasCases(
   CREATE_BASE_RENAMES,
   { base_path: "Tasks.base", name: "x", content: "c", vault: "W", view_name: "All" },
   { base_path: "Tasks.base", view_name: "All" },
+  { base_path: "", view_name: "" },
 );
 
 test.each(aliasCases.equivalence)("spec 073 O2: $old parses like its replacement, plus the notice", ({ viaOld, viaNew, notice }) => {
@@ -313,12 +314,19 @@ test("spec 073 O4: view alongside a different view_name is rejected too", () => 
   expect(r.error?.issues).toEqual([expect.objectContaining({ path: ["view"] })]);
 });
 
-test("BI-0182: empty view reports the same single issue as empty view_name, at [view_name]", () => {
-  const viaOld = createBaseInputSchema.safeParse({ base_path: "Tasks.base", name: "x", view: "" });
-  const viaNew = createBaseInputSchema.safeParse({ base_path: "Tasks.base", name: "x", view_name: "" });
-  expect(viaOld.success).toBe(false);
-  expect(viaOld.error?.issues).toEqual([expect.objectContaining({ path: ["view_name"], code: "too_small" })]);
-  expect(viaOld.error?.issues).toEqual(viaNew.error?.issues);
+test.each(aliasCases.invalid)("BI-0182: invalid $old fails with the same issues as its replacement", ({ viaOld, viaNew }) => {
+  const resultNew = createBaseInputSchema.safeParse(viaNew);
+  expect(resultNew.success).toBe(false);
+  expect(createBaseInputSchema.safeParse(viaOld).error?.issues).toEqual(resultNew.error?.issues);
+});
+
+// BI-0182 Q4 = A: with a second mistake, the old-name call also reports it (the new-name call stops at
+// the published `view_name` check first); every issue still names the new key.
+test("BI-0182: empty view plus an empty name reports both issues, the first at [view_name]", () => {
+  const viaOld = createBaseInputSchema.safeParse({ base_path: "Tasks.base", name: "", view: "" });
+  const viaNew = createBaseInputSchema.safeParse({ base_path: "Tasks.base", name: "", view_name: "" });
+  expect(viaOld.error?.issues.map((i) => i.path)).toEqual([["view_name"], ["name"]]);
+  expect(viaNew.error?.issues.map((i) => i.path)).toEqual([["view_name"]]);
 });
 
 test("spec 073 O6: deprecated path with a wrong extension → INVALID_BASE_PATH naming base_path", () => {

@@ -29,7 +29,6 @@ const findByPropertyArgsSchema = z
       .min(1)
       .optional()
       .describe('Frontmatter property name to match, matched exactly (e.g. "status"). Required (or the deprecated property).'),
-    // No min(1) on the alias: the folded `name` checks the value, so an empty `property` reports `name`.
     property: deprecatedAlias(z.string(), PROPERTY_RENAME),
     value: z
       .union([

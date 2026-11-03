@@ -360,7 +360,7 @@ describe("findAndReplaceInputSchema — deprecated names (spec 073)", () => {
     note: "case_insensitive: true equals case_sensitive: false (opposite polarity).",
   };
 
-  const cases = deprecatedAliasCases(FIND_AND_REPLACE_RENAMES, base, { case_sensitive: false, folder: "Notes" });
+  const cases = deprecatedAliasCases(FIND_AND_REPLACE_RENAMES, base, { case_sensitive: false, folder: "Notes" }, { folder: "../x" });
 
   it.each(cases.equivalence)("O2: $old parses like its replacement, plus the notice", ({ old, viaOld, viaNew, notice }) => {
     const parsed = findAndReplaceInputSchema.parse(viaOld);
@@ -381,6 +381,12 @@ describe("findAndReplaceInputSchema — deprecated names (spec 073)", () => {
   it("O2: both old names list both notices in rename-table order", () => {
     const parsed = findAndReplaceInputSchema.parse({ ...base, subfolder: "N", case_insensitive: true });
     expect(parsed.deprecated_parameters).toEqual([CASE_NOTE, { parameter: "subfolder", replacement: "folder" }]);
+  });
+
+  it.each(cases.invalid)("BI-0182: invalid $old fails with the same issues as its replacement", ({ viaOld, viaNew }) => {
+    const resultNew = findAndReplaceInputSchema.safeParse(viaNew);
+    expect(resultNew.success).toBe(false);
+    expect(findAndReplaceInputSchema.safeParse(viaOld).error?.issues).toEqual(resultNew.error?.issues);
   });
 
   it.each(cases.conflict)("O4: $old alongside its replacement → one conflict issue at [old]", ({ input, issue }) => {
