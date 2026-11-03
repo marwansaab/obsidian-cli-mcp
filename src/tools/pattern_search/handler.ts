@@ -1,10 +1,9 @@
-// Original — no upstream. pattern_search handler — single invokeEval call with the frozen JS template + base64 JSON payload (R12 anti-injection); single-call architecture (R2); folder normalisation via stripBoundarySlashes (R5 sibling-consumption from ../search/handler.ts); a closed vault is brought up by the dispatch layer's cold-start retry (ADR-029), and an empty answer falls through to the json-parse failure; multi-stage parse (JSON.parse → envelope safeParse → discriminate on ok) with structured CLI_REPORTED_ERROR on json-parse / envelope-parse / FOLDER_NOT_FOUND; (path, line, offset) ascending sort (R2); zero new top-level error codes; zero new details.code values — Principle IV streak preserved.
+// Original — no upstream. pattern_search handler — single invokeEval call with the frozen JS template + base64 JSON payload (R12 anti-injection); single-call architecture (R2); folder normalisation via stripBoundarySlashes (R5 sibling-consumption from ../search/handler.ts); a closed vault is brought up by the dispatch layer's cold-start retry (ADR-029), and an empty answer falls through to the json-parse failure; multi-stage parse (JSON.parse → envelope safeParse → discriminate on ok) with structured CLI_REPORTED_ERROR on json-parse / envelope-parse / FOLDER_NOT_FOUND; envelope match order kept as is, because the template owns the (path, line, offset) order: it sorts notes by path before its capped scan, so no handler-side sort could repair a capped subset (BI-0183); zero new top-level error codes; zero new details.code values — Principle IV streak preserved.
 import { JS_TEMPLATE } from "./_template.js";
 import {
   patternSearchEvalEnvelopeSchema,
   patternSearchOutputSchema,
   type PatternSearchInput,
-  type PatternSearchMatch,
   type PatternSearchOutput,
 } from "./schema.js";
 import { invokeEval, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
@@ -89,19 +88,11 @@ export async function executePatternSearch(
     });
   }
 
-  // === Stage 8 — post-process ok branch (R6 defensive .md filter, R2 sort, output validation) ===
+  // === Stage 8 — post-process ok branch (R6 defensive .md filter, output validation; order is the template's, BI-0183) ===
   const mdOnly = validated.data.matches.filter((m) => m.path.toLowerCase().endsWith(".md"));
-  const sorted = [...mdOnly].sort(comparePatternSearchMatch);
   return patternSearchOutputSchema.parse({
-    count: sorted.length,
-    matches: sorted,
+    count: mdOnly.length,
+    matches: mdOnly,
     ...(validated.data.truncated ? { truncated: true as const } : {}),
   });
-}
-
-function comparePatternSearchMatch(a: PatternSearchMatch, b: PatternSearchMatch): number {
-  if (a.path < b.path) return -1;
-  if (a.path > b.path) return 1;
-  if (a.line !== b.line) return a.line - b.line;
-  return a.offset - b.offset;
 }

@@ -134,6 +134,8 @@ and report `truncated: true` when the cap applied. Truncated results are the
 **first N of a deterministic sort of the full match set**, not whatever the CLI
 happened to emit first. That was corrected across PRs #48, #55 and #57 after
 the earlier docs claimed a "visible subset" the code did not deliver.
+This page made that claim for `pattern_search` too, and until PR #132
+(BI-0183) it was wrong there: see *Sort before the cap* below.
 `find_by_property`, `tag` and `links` have no cap. `tag`, `links` and
 `backlinks` take `total: true` to return only the count, and for `backlinks`
 that also bypasses the cap.
@@ -242,6 +244,27 @@ code-quality review moved it onto the fragment, the pattern the
 page describes. `find_by_property/_template.test.ts` runs the template under
 `node:vm` over a mixed cache.
 
+**Sort before the cap in `pattern_search`** (PR #132, BI-0183;
+[ADR-065](../decisions/ADR-065-pattern-search-sorts-notes-before-its-capped-scan-and-owns-result-order.md)).
+`pattern_search`'s template applies `limit` inside its scan and stops early,
+which keeps its output bounded (`CLI_OUTPUT_TOO_LARGE`, `CLI_TIMEOUT`). It
+used to walk notes in `app.vault.getMarkdownFiles()` order, Obsidian's
+file-map order, while the handler sorted only the matches that survived the
+cap. A small `limit` therefore returned an arbitrary subset that looked like
+the top of the list: in the PR's live check, `limit: 5` over 76 backlog
+matches returned the last five in path order. The template now sorts the
+filtered note list by path, by UTF-16 code unit (`B` before `a`, `a.md`
+before `a/c.md`), before the scan. A note's matches already come out in
+`(line, offset)` order, so the cap keeps exactly the leading `limit` matches
+and `truncated` stays exact. As first written the fix kept the handler's
+`(path, line, offset)` re-sort as a defensive step; the PR #132 code review
+removed it, because a sort after a capped scan can only reorder the subset it
+was given, so a template regression would come back looking sorted and
+holding the wrong matches. The template is now the one owner of result
+order, and the handler keeps the envelope's order after its `.md` filter.
+`pattern_search/_template.test.ts` runs the template under `node:vm` over
+notes listed out of path order and checks the first N for every N.
+
 ## Failure
 
 Shared across the group: an unknown vault (`CLI_REPORTED_ERROR`,
@@ -319,6 +342,14 @@ produced; PR #100 deleted the check
   `#…` and a new note cached raw; Obsidian's own trigger for the `#` form did
   not fire that session, and an MCP-client round trip, macOS and Linux were
   not run.
+- PR #132's live check showed the `pattern_search` symptom and its fix only
+  in `My-Setup-Vault`; the bare test vault already listed notes in path
+  order, so there it shows only that the sort does no harm. It called the
+  built handler directly, with no MCP-client round trip, and ran on Windows
+  only. `PATTERN_SEARCH_DESCRIPTION` still says only that `limit` "caps the
+  response `matches` array"; spelling out the leading-slice guarantee there
+  moves the tool's fingerprint and was left out of the bug fix
+  (`.specify/bugs/bi-0183/fix.md` Follow-ups).
 - `search` and `context_search` describe their default case handling as an
   ASCII-only fold, in their published descriptions and help pages, but the
   CLI also folds at least Latin-1 letters: `CAFÉ` matches `café` (spec 087

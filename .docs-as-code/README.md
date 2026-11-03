@@ -217,3 +217,8 @@ applies. Records written since:
   with or without it; the rule lives in `_tag-hash.ts` with an in-eval
   fragment, as review argued the fix into; query expansion, the `#` form and
   forcing the cache were rejected (PR #131).
+- [decisions/ADR-065-pattern-search-sorts-notes-before-its-capped-scan-and-owns-result-order.md](decisions/ADR-065-pattern-search-sorts-notes-before-its-capped-scan-and-owns-result-order.md)
+  — `pattern_search`'s template sorts notes by path before its capped scan,
+  so `limit` keeps the leading matches, and it owns result order, as review
+  argued the fix into; a handler-side sort and slice, a collect-all template
+  and keeping the handler's re-sort were rejected (PR #132).
