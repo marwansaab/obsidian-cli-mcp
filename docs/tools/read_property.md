@@ -80,7 +80,7 @@ The schema enforces "exactly one of `file` or `path`": providing both is rejecte
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `value` | `string \| number \| boolean \| unknown[] \| Record<string, unknown> \| null` | The property's native runtime value as JSON-decoded by Obsidian. Verbatim — no flattening, no coercion. The object branch covers YAML mapping values. |
+| `value` | `string \| number \| boolean \| unknown[] \| Record<string, unknown> \| null` | The property's native runtime value as JSON-decoded by Obsidian. Verbatim — no flattening, no coercion — except that `tags` values lose one leading `#` (see *Tags* below). The object branch covers YAML mapping values. |
 | `type` | `"text" \| "list" \| "number" \| "checkbox" \| "date" \| "datetime" \| "unknown"` | Obsidian's resolved property type, translated through the wrapper's lookup table (Obsidian's internal `multitext` / `aliases` / `tags` all map to `"list"`; `unknown` passes through verbatim; unrecognised future labels fall back to `"unknown"`). |
 
 ### Absent properties and frontmatter-less notes
@@ -126,6 +126,10 @@ Line endings (LF vs CRLF) in the source file do not affect the parsed `value`. T
 ### Heterogeneous list values
 
 A frontmatter list with mixed runtime types (e.g. `mixed: [1, "two", 3]`) gets `type: "unknown"` natively from Obsidian. The wrapper also defensively downgrades `type: "list"` to `"unknown"` when the JSON array contains heterogeneous element types — this guarantees the typed-list invariant holds even if a future Obsidian version mislabels a heterogeneous list as `multitext`.
+
+### Tags
+
+Obsidian's metadata cache reports a note's `tags` values with a leading `#` (`#bi-0166`) once the note has been updated through Obsidian's own frontmatter writer — for example after `set_property` changes another property — and without it (`bi-0166`) when the file watcher last read the note, while the file text has no `#`. So that the value does not change with cache state, for the property named exactly `tags` the wrapper removes **one** leading `#` from each string element of a list value, or from a scalar string value, and returns the form written in the file. A tag written as `'#y'` in the YAML therefore reads back as `y` (the same tag in Obsidian's model), and `##x` reads back as `#x`. Non-string elements, `type`, and the heterogeneous-list downgrade are unaffected. Every other property, including `Tags` and `tag`, is returned verbatim. `find_by_property` ignores the leading `#` on `tags` by the same rule.
 
 ### `name` field semantics
 

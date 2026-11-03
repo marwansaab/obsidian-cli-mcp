@@ -1,6 +1,7 @@
-// Original — no upstream. read_property handler: two-call invokeCli wrapper (Call A file-scoped value + Call B vault-scoped type metadata) per R3; type-label translation per R6; No-frontmatter short-circuit per R7; absent-key short-circuit; verbatim name passthrough per FR-018.
+// Original — no upstream. read_property handler: two-call invokeCli wrapper (Call A file-scoped value + Call B vault-scoped type metadata) per R3; type-label translation per R6; No-frontmatter short-circuit per R7; absent-key short-circuit; verbatim name passthrough per FR-018; BI-0181: one leading `#` stripped from `tags` values (the property named exactly `tags`), whatever form the metadata cache holds.
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
+import { stripTagHash } from "../_tag-hash.js";
 
 import type { PropertyTypeLabel, ReadPropertyInput, ReadPropertyOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
@@ -21,6 +22,16 @@ const translateObsidianType = (label: string): PropertyTypeLabel =>
   OBSIDIAN_TYPE_TO_SPEC_TYPE[label] ?? "unknown";
 
 const NO_FRONTMATTER_PREFIX = "No frontmatter found.";
+
+// BI-0181: the metadata cache reports `tags` values with or without a leading `#`, depending on which
+// path last refreshed the note. Return the written form (no `#`) so the value does not follow cache state.
+const TAGS_PROPERTY = "tags";
+
+function withoutTagHash(value: unknown): unknown {
+  if (typeof value === "string") return stripTagHash(value);
+  if (Array.isArray(value)) return value.map((e: unknown) => (typeof e === "string" ? stripTagHash(e) : e));
+  return value;
+}
 
 function parseOrThrow<T>(stdout: string, call: "A" | "B"): T {
   try {
@@ -59,7 +70,7 @@ export async function executeReadProperty(
   if (!Object.prototype.hasOwnProperty.call(parsedA, input.name)) {
     return { value: null, type: "unknown" };
   }
-  const value = parsedA[input.name];
+  const value = input.name === TAGS_PROPERTY ? withoutTagHash(parsedA[input.name]) : parsedA[input.name];
   const callB = await invokeCli(
     { command: "properties", vault, parameters: { format: "json" }, flags: [], target_mode: input.target_mode },
     deps,

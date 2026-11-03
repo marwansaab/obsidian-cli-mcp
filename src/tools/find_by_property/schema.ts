@@ -38,7 +38,7 @@ const findByPropertyArgsSchema = z
         z.null(),
         z.array(scalarValueSchema),
       ])
-      .describe("Value to match: string, number, boolean, null, or an array of scalars; compared type-faithfully (7 is not \"7\")."),
+      .describe("Value to match: string, number, boolean, null, or an array of scalars; compared type-faithfully (7 is not \"7\"). For the property tags, one leading \"#\" is ignored on both sides (\"#x\" and \"x\" match the same notes)."),
     folder: z
       .string()
       .refine(

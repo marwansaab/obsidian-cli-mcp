@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedFromBranch": "fix/bi-0176",
+  "generatedFromBranch": "fix/bi-0181",
   "generatedAt": "2026-11-03",
   "tools": [
     {
@@ -70,7 +70,7 @@
     {
       "name": "find_by_property",
       "descriptionFingerprint": "142ac9422c9c8a68a7bfbe400a60343d8f64ec898b3d88826c29838d01886ecd",
-      "schemaFingerprint": "0ac6c66832888f1803646d243a56ed3a4aa912c7c6ee4a14954794c158c8dfff",
+      "schemaFingerprint": "320aca2202d1ab524dfbcca8601ee2f33cd15018fbf3128eaca4bc42704c4221",
       "titleFingerprint": "d46f63728bf0b32fbc5102d4f9bb295b98a1e36f1a8c15db79babb07cf2513b0",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",
       "outputSchemaFingerprint": "6e0b9c6203ac8c7e2c16f756b1452fde64e8b1f0d496728f5f3031e9581b02b6"
@@ -205,7 +205,7 @@
     },
     {
       "name": "read_property",
-      "descriptionFingerprint": "9f25a9b52d18a9b0c155c217ef4813a7a80cf8c952a8da3674fe9a049dfc3089",
+      "descriptionFingerprint": "be955a2de7834234dc95827588224cdbbb7e16741f5ed54a085afc015ea837dd",
       "schemaFingerprint": "d891d3affb12751ae42a9334bd804a6fa0b8a754a98e4b41a3885606b710faa4",
       "titleFingerprint": "77bbc9d3095e032e503a7fb8f376f803f1229576d46a97549c4c849244601cc0",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",

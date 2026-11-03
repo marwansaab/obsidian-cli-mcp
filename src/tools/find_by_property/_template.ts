@@ -1,10 +1,11 @@
-// Original — no upstream. Frozen JS template for the find_by_property eval subcommand — base64 payload anti-injection (R6); walks `app.metadataCache.fileCache` × `app.metadataCache.metadataCache` directly; folder-prefix narrowing (trailing slash trim); per-property `eq`/`arrEq` comparators support case-sensitive / case-insensitive matching on strings and exact array equality with `arrayMatch: false` (or "any element matches" with `arrayMatch: true`); type-faithful equality on numbers/booleans/null. BI-034 (spec branch 034-fix-unicode-lookups): extracted from inlined `handler.ts` JS_TEMPLATE so the cohort layout becomes uniform (Principle I) and the decode line adopts the shared UTF-8-safe `B64_PAYLOAD_DECODE_EXPR`.
+// Original — no upstream. Frozen JS template for the find_by_property eval subcommand — base64 payload anti-injection (R6); walks `app.metadataCache.fileCache` × `app.metadataCache.metadataCache` directly; folder-prefix narrowing (trailing slash trim); per-property `eq`/`arrEq` comparators support case-sensitive / case-insensitive matching on strings and exact array equality with `arrayMatch: false` (or "any element matches" with `arrayMatch: true`); type-faithful equality on numbers/booleans/null. BI-034 (spec branch 034-fix-unicode-lookups): extracted from inlined `handler.ts` JS_TEMPLATE so the cohort layout becomes uniform (Principle I) and the decode line adopts the shared UTF-8-safe `B64_PAYLOAD_DECODE_EXPR`. BI-0181: Obsidian's metadata cache holds a note's `tags` values with or without a leading `#` depending on which path last refreshed it, so for the property `tags` only, `nt` strips one leading `#` from both the cached string and the queried string before `eq` compares them (inline copy of `stripTagHash` in `../_tag-hash.ts`; the template cannot import).
 import { B64_PAYLOAD_DECODE_EXPR } from "../_shared.js";
 
 export const JS_TEMPLATE = `(()=>{
 const a=JSON.parse(${B64_PAYLOAD_DECODE_EXPR});
 const m=[];
-const eq=(x,y)=>(typeof x==='string'&&typeof y==='string'&&!a.caseSensitive)?x.toLowerCase()===y.toLowerCase():x===y;
+const nt=a.property==='tags'?(x=>typeof x==='string'&&x.startsWith('#')?x.slice(1):x):(x=>x);
+const eq=(x,y)=>(x=nt(x),y=nt(y),(typeof x==='string'&&typeof y==='string'&&!a.caseSensitive)?x.toLowerCase()===y.toLowerCase():x===y);
 const arrEq=(x,y)=>Array.isArray(x)&&Array.isArray(y)&&x.length===y.length&&x.every((e,i)=>eq(e,y[i]));
 const prefix=a.folder?a.folder.replace(/[/\\\\]+$/,'')+'/':'';
 const fc=app.metadataCache.fileCache;

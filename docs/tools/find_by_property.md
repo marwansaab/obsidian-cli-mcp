@@ -37,9 +37,9 @@ Unlike most typed tools, `find_by_property` is **inherently vault-wide**: it has
 |-------|------|----------|---------|------------|
 | `vault` | string | optional | (focused vault) | length ≥ 1; when omitted, the underlying CLI resolves to its focused-vault default — see *Multi-vault default ambiguity* below. |
 | `name` | string | YES (or the deprecated `property`) | none | length ≥ 1; passed through verbatim — no sanitisation, no escaping. Not in the published `required` list during the transition, so that calls using `property` validate; a call with neither fails with `name is required`. |
-| `value` | `string \| number \| boolean \| null \| Array<scalar>` | YES | none | Type-faithful comparison: number `7` is distinct from string `"7"`. Array branch is allowed only when `array_match: false`; pairing array with the default `array_match: true` is rejected at the schema layer. |
+| `value` | `string \| number \| boolean \| null \| Array<scalar>` | YES | none | Type-faithful comparison: number `7` is distinct from string `"7"`. For `name: "tags"`, one leading `#` is ignored on both sides — see *Tags and the leading `#`* below. Array branch is allowed only when `array_match: false`; pairing array with the default `array_match: true` is rejected at the schema layer. |
 | `folder` | string | optional | `""` (whole vault) | Vault-relative folder. Rejected at the schema layer if it contains any `..` path segment OR starts with `/` or `\` — see *Folder path-traversal closure* below. |
-| `array_match` | boolean | optional | `true` | When the property's stored value is a YAML list, `true` performs **contains-semantics** (any element strict-equals the query); `false` performs **order-sensitive exact-equality** with an array `value`. |
+| `array_match` | boolean | optional | `true` | When the property's stored value is a YAML list, `true` performs **contains-semantics** (any element strict-equals the query, after the `tags` `#` rule); `false` performs **order-sensitive exact-equality** with an array `value`. |
 | `case_sensitive` | boolean | optional | `true` | When `false`, string-vs-string comparisons fold case via `toLowerCase()`. Numeric / boolean / null / mixed-type comparisons remain strict-equality. |
 
 `additionalProperties: false`. Unknown top-level keys are rejected.
@@ -87,9 +87,13 @@ When `vault` is omitted, the underlying Obsidian CLI resolves to its **focused-v
 
 `array_match: false` with an array `value` performs **positional** comparison via `every((e, i) => eq(e, y[i]))`. `[alpha, beta]` does NOT equal `[beta, alpha]`. Set-membership / multiset matching is not supported; callers needing it can compose two `array_match: true` calls and intersect the result paths client-side, OR run an `array_match: false` call against every plausible permutation.
 
+### Tags and the leading `#`
+
+Obsidian's metadata cache reports a note's `tags` values with a leading `#` (`#bi-0166`) once the note has been updated through Obsidian's own frontmatter writer — for example after `set_property` changes another property — and without it (`bi-0166`) when the file watcher last read the note. The file text is the same either way. So that a lookup does not depend on which form the cache holds, for the property named exactly `tags` the wrapper removes **one** leading `#` from the stored value (each list element, or a scalar string) and from the query (`value`, or each element of an array `value`) before comparing. `"x"` and `"#x"` therefore find the same notes. Exactly one `#` is removed: a stored `##x` compares as `#x` and is matched only by the query `"##x"`. Case folding (`case_sensitive: false`) applies after the strip; numbers, booleans and null compare as before. Every other property, including `Tags` and `tag`, keeps strict comparison. `read_property` returns `tags` values without the leading `#` by the same rule, and the `tag` tool accepts its tag with or without one.
+
 ### Hierarchical-tag rollup is NOT performed
 
-A query with `name: "tags"` and `value: "work"` does NOT match a note tagged `tags: [work/tasks]`. The wrapper treats frontmatter tags as opaque values — `===` only. Callers wanting hierarchical-rollup semantics must enumerate the descendant tags themselves.
+A query with `name: "tags"` and `value: "work"` does NOT match a note tagged `tags: [work/tasks]`. Apart from the leading-`#` rule above, the wrapper treats frontmatter tags as opaque values — `===` only. Callers wanting hierarchical-rollup semantics must enumerate the descendant tags themselves.
 
 ### List-of-mappings non-match
 
@@ -174,7 +178,7 @@ Returns matches restricted to notes whose vault-relative path begins with `backl
 }
 ```
 
-Matches every note whose `tags` list contains `"alpha"` as an element. The default `array_match: true` plus a scalar `value` gives contains-semantics. Note: hierarchical tags do NOT roll up — a note tagged `tags: [alpha/sub]` does not match a query for `"alpha"`.
+Matches every note whose `tags` list contains `"alpha"` as an element, whether the cache holds it as `alpha` or `#alpha`; `"value": "#alpha"` returns the same notes. The default `array_match: true` plus a scalar `value` gives contains-semantics. Note: hierarchical tags do NOT roll up — a note tagged `tags: [alpha/sub]` does not match a query for `"alpha"`.
 
 ### Example 4 — Case-insensitive opt-in
 
