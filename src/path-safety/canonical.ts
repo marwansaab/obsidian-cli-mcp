@@ -49,14 +49,29 @@ async function realpathNearestExisting(p: string, deps: CanonicalCheckDeps): Pro
   }
 }
 
+/** Realpath `vaultRoot`, then run {@link checkUnderCanonicalRoot} against it. */
 export async function checkCanonicalPath(
   vaultRoot: string,
   inputPath: string,
   deps: CanonicalCheckDeps,
 ): Promise<CanonicalCheckOutcome> {
+  return checkUnderCanonicalRoot(vaultRoot, await deps.realpath(vaultRoot), inputPath, deps);
+}
+
+/**
+ * The canonical check against a vault root the caller has already realpathed (`canonicalRoot`), so a
+ * caller that must tell a root failure apart from a failure below the root can resolve the root itself
+ * (BI-0185). `inputPath` is resolved lexically against `vaultRoot`, then its nearest existing ancestor
+ * is realpathed; the root is not realpathed again. Any non-ENOENT realpath error propagates as-is.
+ */
+export async function checkUnderCanonicalRoot(
+  vaultRoot: string,
+  canonicalRoot: string,
+  inputPath: string,
+  deps: CanonicalCheckDeps,
+): Promise<CanonicalCheckOutcome> {
   const lexicalAbs = resolve(vaultRoot, inputPath);
   const canonicalAbs = await realpathNearestExisting(lexicalAbs, deps);
-  const canonicalRoot = await deps.realpath(vaultRoot);
 
   const isUnderRoot =
     canonicalAbs === canonicalRoot ||

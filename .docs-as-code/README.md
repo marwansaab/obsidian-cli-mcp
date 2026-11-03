@@ -235,3 +235,9 @@ applies. Records written since:
   their published `.min(1)`, so issue-list parity holds for one mistake only;
   the `deprecated_parameters` notice is for successful calls; moving the
   checks into the folded schema was rejected (PR #135).
+- [decisions/ADR-068-a-vault-root-that-cannot-be-resolved-fails-as-the-vaults-folder.md](decisions/ADR-068-a-vault-root-that-cannot-be-resolved-fails-as-the-vaults-folder.md)
+  — the canonical-path guard realpaths a registered vault's root first and
+  classifies only that failure, as `VAULT_NOT_FOUND` / `folder-missing` or a
+  `vault-root-check` stage, with no disk path; mapping any escaping errno,
+  re-probing the root after the check, and a third check outcome were
+  rejected (PR #136).

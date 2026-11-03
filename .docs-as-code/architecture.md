@@ -978,6 +978,14 @@ than added as new codes:
   ([ADR-051](decisions/ADR-051-prepend-caps-content-in-utf-8-bytes-as-a-second-limit.md)).
   `MATCH_LINE_UNAVAILABLE` (PR #121) shipped with three reasons from its first
   release: `note-not-found`, `read-failed` and `line-changed`.
+  Since PR #136 `VAULT_NOT_FOUND` under `CLI_REPORTED_ERROR` has two
+  sub-states: `unknown`, the vault name is not registered (from
+  `remapVaultNotFound`), and `folder-missing`, the vault is registered but
+  its folder is gone from disk (from the canonical-path guard). The same PR
+  wraps any other failure to resolve the vault's folder as
+  `CLI_REPORTED_ERROR` with `details.stage: "vault-root-check"` and
+  `details.errno`, rather than a third reason, because its cause is not
+  known ([ADR-068](decisions/ADR-068-a-vault-root-that-cannot-be-resolved-fails-as-the-vaults-folder.md)).
   This page used to give `VAULT_NOT_FOUND` /
   `not-open`, "a vault that is registered but closed", as the example. That
   state was never produced through the CLI the server drives, and PR #100
@@ -1226,6 +1234,24 @@ The direct path needs three things the CLI used to provide:
    and a Windows vault root given in different letter case failed the
    comparison. Real-filesystem tests (a junction on Windows, a directory
    symlink elsewhere) now pin both cases.
+
+   The check assumes the vault root exists. Until PR #136 (BI-0185) a vault
+   Obsidian had registered but whose folder was renamed, deleted or on a
+   missing drive made the root's `realpath` throw Node's `ENOENT`, which
+   nothing classified: the client got the SDK's free text
+   `ENOENT: … realpath '<absolute vault path>'`, with no code and the host's
+   disk path. Since PR #136 the tools-layer guard `assertCanonicalPath`
+   (`src/tools/_active-file.ts`) realpaths the root first and classifies
+   only that failure, then runs the new `checkUnderCanonicalRoot`
+   (`canonical.ts`), the containment check against a root already resolved.
+   `ENOENT` / `ENOTDIR` on the root is `CLI_REPORTED_ERROR` /
+   `VAULT_NOT_FOUND` / `folder-missing`; any other errno there is
+   `CLI_REPORTED_ERROR` with `details.stage: "vault-root-check"`. A failure
+   below a root that resolved still propagates unchanged — so an `ENOTDIR`,
+   `EACCES` or `ELOOP` on a sub-path is still raw, a known gap left for its
+   own BI. `path-safety` gained no `UpstreamError` knowledge; the split keeps
+   the classification in the tools layer
+   ([ADR-068](decisions/ADR-068-a-vault-root-that-cannot-be-resolved-fails-as-the-vaults-folder.md)).
 3. **An atomic write that Obsidian notices.**
    [src/tools/_note-io.ts](../src/tools/_note-io.ts) writes to a
    UUID-named temporary file and renames it over the target. It then asks

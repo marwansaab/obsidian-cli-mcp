@@ -133,6 +133,8 @@ interface AppendNoteOutput {
 | `PATH_ESCAPES_VAULT` | — | The resolved path escapes the vault root (symlink traversal, `..` segments). | Fix the path. The path must resolve inside the vault. |
 | `FS_WRITE_FAILED` | — | Filesystem errno other than the editor-conflict / ENOENT cohort (`ENOSPC`, `EROFS`, `EISDIR`, etc.). | Inspect `details.errno`; surface a user-facing message naming the underlying cause. |
 | `VAULT_NOT_FOUND` | — | The supplied `vault` display name is not registered with the Obsidian CLI. | Recheck the vault name (case-sensitive). The user can list registered vaults with `obsidian vaults`. |
+| `CLI_REPORTED_ERROR` | `details.code: VAULT_NOT_FOUND`, `details.reason: "folder-missing"` | The vault is registered, but its folder is missing on disk (`details.vault`; no disk path in the message). Nothing is read or written. | Ask the user to restore the folder, or re-open the vault in Obsidian, then call again. |
+| `CLI_REPORTED_ERROR` | `details.stage: "vault-root-check"` | The vault's folder could not be checked for another reason (`details.errno`, `details.vault`). Nothing is read or written. | Inspect `details.errno` (for example a permission problem); fix it, then call again. |
 | `ERR_NO_ACTIVE_FILE` | — | Active mode but no note is focused in Obsidian. | Switch to specific mode with explicit `vault` + `file`/`path`, OR ask the user to open a note first. |
 
 ## Size ceiling

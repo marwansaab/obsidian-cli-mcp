@@ -9,7 +9,12 @@ import { executePatchBlock } from "./handler.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createLogger } from "../../logger.js";
-import { makeQueuedSpawn, type StubResponse } from "../_handler-test-fixtures.js";
+import {
+  folderMissingDetails,
+  makeQueuedSpawn,
+  missingFolderRealpath,
+  type StubResponse,
+} from "../_handler-test-fixtures.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -247,6 +252,23 @@ describe("US1 frontmatter preservation (FR-014)", () => {
     expect(written).toContain("decoy: text ^foo");
     // Body paragraph patched.
     expect(written).toContain("Replaced. ^foo");
+  });
+});
+
+describe("BI-0185 missing vault folder", () => {
+  test("registered vault whose folder is missing → VAULT_NOT_FOUND/folder-missing, no spawn, no read", async () => {
+    const fs = fakeFs({}, { realpath: missingFolderRealpath(VAULT_ROOT) });
+    const { spawnFn, getCount } = makeQueuedSpawn([]);
+    const err = await executePatchBlock(
+      { target_mode: "specific", vault: "TestVault", path: "n.md", block_id: "foo", content: "x" },
+      deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+    ).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(UpstreamError);
+    expect((err as UpstreamError).code).toBe("CLI_REPORTED_ERROR");
+    expect((err as UpstreamError).details).toEqual(folderMissingDetails("TestVault"));
+    expect((err as UpstreamError).message).not.toContain(VAULT_ROOT);
+    expect(getCount()).toBe(0);
+    expect(fs.reads).toEqual([]);
   });
 });
 

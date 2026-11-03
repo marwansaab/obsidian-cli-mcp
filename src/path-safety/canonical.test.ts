@@ -6,7 +6,7 @@ import { join, resolve, sep } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, test } from "vitest";
 
 import { linkRealpath } from "./_realpath-fixtures.js";
-import { checkCanonicalPath } from "./canonical.js";
+import { checkCanonicalPath, checkUnderCanonicalRoot } from "./canonical.js";
 
 // Use path.resolve to make expectations OS-portable (POSIX uses '/'; Windows uses backslash + drive prefix).
 const VAULT_ROOT = resolve("/vault");
@@ -130,6 +130,39 @@ test("existing note that is a link to a file outside the vault → ok=false", as
     realpath: linkRealpath({ [link]: resolve("/elsewhere", "secret.md") }),
   });
   expect(result.ok).toBe(false);
+});
+
+// (11) checkUnderCanonicalRoot (BI-0185): the caller supplies the realpathed root, so the root is
+// never realpathed again; the input still resolves lexically against the root it was given.
+test("checkUnderCanonicalRoot: input under the supplied canonical root → ok=true, root not realpathed", async () => {
+  const SYMLINK_ROOT = resolve("/symlink-vault");
+  const REAL_ROOT = resolve("/real-vault");
+  const asked: string[] = [];
+  const links = linkRealpath({ [SYMLINK_ROOT]: REAL_ROOT });
+  const realpath = (p: string): Promise<string> => {
+    asked.push(p);
+    return links(p);
+  };
+  const result = await checkUnderCanonicalRoot(SYMLINK_ROOT, REAL_ROOT, "Sandbox/note.md", { realpath });
+  expect(result).toEqual({ ok: true, resolvedPath: resolve(REAL_ROOT, "Sandbox", "note.md") });
+  expect(asked).not.toContain(SYMLINK_ROOT);
+});
+
+// (12) checkUnderCanonicalRoot: a target outside the supplied canonical root escapes, and a
+// non-ENOENT error from below the root propagates as-is.
+test("checkUnderCanonicalRoot: link out of the supplied root → ok=false; non-ENOENT walk error propagates", async () => {
+  const escapeLink = resolve(VAULT_ROOT, "escape");
+  const escaped = await checkUnderCanonicalRoot(VAULT_ROOT, VAULT_ROOT, "escape/passwd.md", {
+    realpath: linkRealpath({ [escapeLink]: resolve("/etc") }),
+  });
+  expect(escaped).toEqual({ ok: false, attemptedPath: "escape/passwd.md", resolvedPath: resolve("/etc", "passwd.md") });
+
+  const enotdir = Object.assign(new Error("ENOTDIR"), { code: "ENOTDIR" });
+  await expect(
+    checkUnderCanonicalRoot(VAULT_ROOT, VAULT_ROOT, "Welcome.md/x.md", {
+      realpath: () => Promise.reject(enotdir),
+    }),
+  ).rejects.toBe(enotdir);
 });
 
 // Real-filesystem containment cases (spec 068 US2 / SC-002). A directory link is a junction on

@@ -20,6 +20,7 @@
 // emitted verbatim, for tests that need exact bytes (noise, look-alikes).
 import { type SpawnOptions } from "node:child_process";
 import { EventEmitter } from "node:events";
+import { sep } from "node:path";
 import { Readable, Writable } from "node:stream";
 
 import { type SpawnLike } from "../cli-adapter/_dispatch.js";
@@ -235,6 +236,26 @@ export function stubVaultRegistry(name: string, root: string): VaultRegistry {
     resolveVaultPath: async () => root,
     resolveVaultDisplayName: (base) => (base === root ? name : null),
   };
+}
+
+/**
+ * An `fs.realpath` for a registered vault whose folder cannot be resolved (BI-0185): it fails with
+ * `code` (ENOENT by default, a folder that is gone) for `root` and everything under it, and is the
+ * identity for every other path (its ancestors still exist). The error message carries the path, as
+ * Node's does, so tests can check that it never reaches the response.
+ */
+export function missingFolderRealpath(root: string, code = "ENOENT"): (p: string) => Promise<string> {
+  return async (p) => {
+    if (p === root || p.startsWith(root + sep)) {
+      throw Object.assign(new Error(`${code}: realpath '${p}'`), { code });
+    }
+    return p;
+  };
+}
+
+/** The `details` a missing vault folder fails with (BI-0185). */
+export function folderMissingDetails(vault: string | null): Record<string, unknown> {
+  return { code: "VAULT_NOT_FOUND", reason: "folder-missing", vault };
 }
 
 /** The `obsidian file file=<name>` TSV reply resolving to `relPath` (the `resolveFileByTsv` round-trip). */

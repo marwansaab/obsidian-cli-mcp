@@ -61,7 +61,15 @@ flowchart LR
   spec 070's scope (FR-013) and do not run it; `find_and_replace` keeps its
   own `INVALID_NOTE` rejection.
 - **Guard.** Both path-safety layers run before anything touches the disk; a
-  miss is `PATH_ESCAPES_VAULT`.
+  miss is `PATH_ESCAPES_VAULT`. Since PR #136 (BI-0185) the guard resolves
+  the vault's own folder first: a registered vault whose folder is missing
+  fails `write_note`, `append_note`, `prepend`, `patch_block`,
+  `patch_heading` and `find_and_replace` (both scopes) with
+  `CLI_REPORTED_ERROR` / `VAULT_NOT_FOUND` / `folder-missing`, and any other
+  failure to resolve it with `details.stage: "vault-root-check"`, before
+  any read, write or CLI call and with no disk path in the error. Before,
+  it was Node's raw `ENOENT` text with the absolute vault path
+  ([ADR-068](../decisions/ADR-068-a-vault-root-that-cannot-be-resolved-fails-as-the-vaults-folder.md)).
 - **Edit.** The change itself is a pure function over the file text — for
   example `appendEdit`, or the heading walk and block scan under
   `patch_heading/` and `patch_block/` — tested separately from the I/O.
@@ -949,7 +957,14 @@ from their schema would have reached the client as SDK free text rather than
   straight through, and the resolution-stage failures every file-path tool
   shares (`_active-file.ts`) are not rewritten; their observed forms carry no
   absolute path, but a malformed focused-file eval answer could echo one
-  (spec 090 research Follow-ups).
+  (spec 090 research Follow-ups). One shared failure did carry it: a
+  registered vault whose folder was missing gave the canonical guard's raw
+  `ENOENT … realpath '<absolute vault path>'`, until PR #136 typed it.
+- The canonical guard types only a failure of the vault root (PR #136). An
+  errno from a segment *below* a root that exists — `ENOTDIR` for
+  `Welcome.md/x.md` on Linux, `EACCES` on a sub-folder, `ELOOP` — still
+  escapes as Node's raw error, as before; it is outside BI-0185 by ruling
+  and a candidate BI (`.specify/bugs/bi-0185/fix.md` Follow-ups).
 - `move`'s missing-folder test reads the source as checked first. If the
   source is deleted between Obsidian's own check and the rename, that ENOENT
   is reported as `FOLDER_NOT_FOUND`; the retry then reports the missing

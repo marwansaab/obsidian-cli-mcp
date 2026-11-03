@@ -178,6 +178,8 @@ Every failure routes through `UpstreamError`.
 | `CLI_REPORTED_ERROR` | `NOTE_NOT_FOUND` | — | The target file does not exist. |
 | `CLI_REPORTED_ERROR` | `EXTERNAL_EDITOR_CONFLICT` | `file-locked` (reserved: `unsaved-changes`) | An external editor holds the file (Windows). Ask the user to save and close, retry. |
 | `VAULT_NOT_FOUND` | — | `unknown` | Vault is not registered. |
+| `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND` | `folder-missing` | The vault is registered, but its folder is missing on disk (`details.vault`; no disk path in the message). Nothing is read or written. Ask the user to restore the folder, or re-open the vault in Obsidian, then call again. |
+| `CLI_REPORTED_ERROR` | — | — (carries `details.stage: "vault-root-check"`, `details.errno`, `details.vault`) | The vault's folder could not be checked for another reason. Nothing is read or written. Inspect `details.errno` (for example a permission problem). |
 | `ERR_NO_ACTIVE_FILE` | — | — | Active mode but no note is focused. |
 | `CLI_REPORTED_ERROR` | — | — | A `file` name matches no note. The message is Obsidian's own, `Error: File "<name>" not found.`, the same failure [`read`](./read.md) returns for that name. Nothing is read or written. Check the name, or pass the note's `path`. |
 | `PATH_ESCAPES_VAULT` | — | — | Resolved path escapes the vault root (symlink traversal, `..` segments). Fix the path. |

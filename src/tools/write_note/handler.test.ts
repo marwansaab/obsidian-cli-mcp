@@ -12,7 +12,15 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { UpstreamError } from "../../errors.js";
 import { createLogger, type Logger } from "../../logger.js";
 import { createVaultRegistry } from "../../vault-registry/registry.js";
-import { captureLogger, fileNotFoundResponse, makeQueuedSpawn, type StubResponse, unwrapEvalCode } from "../_handler-test-fixtures.js";
+import {
+  captureLogger,
+  fileNotFoundResponse,
+  folderMissingDetails,
+  makeQueuedSpawn,
+  missingFolderRealpath,
+  type StubResponse,
+  unwrapEvalCode,
+} from "../_handler-test-fixtures.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -121,6 +129,23 @@ test("vault=Unknown propagates VALIDATION_ERROR from registry", async () => {
   ).catch((e) => e);
   expect(err).toBeInstanceOf(UpstreamError);
   expect((err as UpstreamError).code).toBe("VALIDATION_ERROR");
+});
+
+// BI-0185: a registered vault whose folder is missing fails typed, before any spawn or write.
+test("registered vault whose folder is missing → VAULT_NOT_FOUND/folder-missing, no spawn, no write", async () => {
+  const fs = fakeFs({ realpath: missingFolderRealpath(VAULT_ROOT) });
+  const { spawnFn, getCount } = makeQueuedSpawn([]);
+  const err = await executeWriteNote(
+    { target_mode: "specific", vault: "TestVault", path: "n.md", content: "x", overwrite: true },
+    deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+  ).catch((e: unknown) => e);
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect((err as UpstreamError).code).toBe("CLI_REPORTED_ERROR");
+  expect((err as UpstreamError).details).toEqual(folderMissingDetails("TestVault"));
+  expect((err as UpstreamError).message).not.toContain(VAULT_ROOT);
+  expect(getCount()).toBe(0);
+  expect(fs.mkdirs).toEqual([]);
+  expect(fs.writes).toEqual([]);
 });
 
 // (#9) Atomic write: tmp file orphaned cleanly when rename fails (best-effort unlink per T002 (e))
