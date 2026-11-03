@@ -351,6 +351,39 @@ test.each<[string, string]>([
   expect(result).toEqual({ value: "value-here", type: "text" });
 });
 
+// (BI-0181) tags values come back without one leading `#`, whichever form the metadata cache holds.
+async function readTags(callA: Record<string, unknown>, name = "tags", obsidianType = "tags") {
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: JSON.stringify(callA) + "\n", exitCode: 0 },
+    { stdout: JSON.stringify([{ name, type: obsidianType, count: 1 }]) + "\n", exitCode: 0 },
+  ]);
+  return executeReadProperty({ target_mode: "specific", vault: "V", path: "x.md", name }, deps(spawnFn));
+}
+
+test("BI-0181: cached #-form tags list → values without # (type list)", async () => {
+  expect(await readTags({ tags: ["#bi-0166", "x"] })).toEqual({ value: ["bi-0166", "x"], type: "list" });
+});
+
+test("BI-0181: raw and #-form cache entries read back identically", async () => {
+  const raw = await readTags({ tags: ["bi-0166"] });
+  expect(raw).toEqual({ value: ["bi-0166"], type: "list" });
+  expect(await readTags({ tags: ["#bi-0166"] })).toEqual(raw);
+});
+
+test("BI-0181: scalar tags string loses one leading # only", async () => {
+  expect(await readTags({ tags: "#solo" }, "tags", "text")).toEqual({ value: "solo", type: "text" });
+  expect(await readTags({ tags: "##solo" }, "tags", "text")).toEqual({ value: "#solo", type: "text" });
+});
+
+test("BI-0181 boundary: other properties keep their # verbatim (keywords, Tags)", async () => {
+  expect(await readTags({ keywords: ["#a"] }, "keywords", "multitext")).toEqual({ value: ["#a"], type: "list" });
+  expect(await readTags({ Tags: ["#a"] }, "Tags", "multitext")).toEqual({ value: ["#a"], type: "list" });
+});
+
+test("BI-0181: heterogeneous tags list strips strings only and still downgrades to unknown", async () => {
+  expect(await readTags({ tags: ["#a", 1] })).toEqual({ value: ["a", 1], type: "unknown" });
+});
+
 // (22) F5 — FR-021 CLI_NON_ZERO_EXIT propagation
 test("non-zero exit on Call A → CLI_NON_ZERO_EXIT verbatim (F5 / FR-021)", async () => {
   const { spawnFn } = makeQueuedSpawn([

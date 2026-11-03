@@ -1,6 +1,7 @@
 // Original — no upstream. tag input/output/eval-envelope schemas — vault-only surface (NO target_mode discriminator per FR-001/R4); structural normalisation chain (trim → strip-leading-`#` → empty/length/segment refinements); discriminated-union eval-envelope wire format with two ok:true mode variants (default {count, paths} and count-only {total}) per cross-mode envelope architecture (R3 / FR-019); third-rail base64-decoded payload is anti-injection (FR-020) and rides on the frozen JS template.
 import { z } from "zod";
 
+import { stripTagHash } from "../_tag-hash.js";
 import { focusedVaultField } from "../_vault-field.js";
 
 export const tagInputSchema = z
@@ -10,7 +11,7 @@ export const tagInputSchema = z
       .min(1, "tag is required")
       .max(220, "tag too long (raw input max 220 chars; structural max 200 post-trim/post-#-strip)")
       .transform((s) => s.trim())
-      .transform((s) => (s.startsWith("#") ? s.slice(1) : s))
+      .transform(stripTagHash)
       .refine((s) => s.length > 0, "tag is empty post-trim/post-#-strip")
       .refine((s) => s.length <= 200, "tag exceeds 200 chars post-strip")
       .refine(

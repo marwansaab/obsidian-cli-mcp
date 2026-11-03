@@ -1338,6 +1338,19 @@ them:
   characters ([search and discovery](capabilities/search-and-discovery.md),
   [ADR-058](decisions/ADR-058-context-search-reads-matched-lines-back-and-fails-when-one-cannot-be.md)).
   Other templates whose payload grows with their input are not budgeted yet.
+- **Shared rules travel as in-eval fragments.** A template cannot import at
+  run time, but it is a TypeScript template literal, so a rule shared with
+  TypeScript code is exported as JavaScript source and interpolated when the
+  module loads: `B64_PAYLOAD_DECODE_EXPR`, `SORT_SLICE_AND_EMIT` in
+  `src/tools/_smart-connections.ts`, and since PR #131 `WITHOUT_TAG_HASH_JS`
+  in `src/tools/_tag-hash.ts`, the one-leading-`#` tag rule that
+  `find_by_property`'s template applies and `read_property` applies through
+  its TypeScript twin `withoutTagHash`. The twin and the fragment are pinned
+  by a parity table that runs the fragment under `node:vm`. PR #131's fix
+  first kept an inline copy in the template on the premise that it could not
+  import; its code-quality review replaced the copy with the fragment
+  ([ADR-064](decisions/ADR-064-tags-are-compared-and-returned-without-one-leading-hash.md)).
+  The payload stays base64 JSON; a fragment is fixed source, never input.
 - **No YAML parser in the eval context.** The T040 live run for PR #114
   found `parseYaml` undefined (`ReferenceError`) and `require('obsidian')`
   unresolvable inside `obsidian eval`; a template has the `app` global and
@@ -1384,7 +1397,10 @@ them:
   groups and flow style. `src/tools/context_search/_template.test.ts`
   (PR #121) runs the read-back template the same way, over raw whitespace,
   CRLF, a line past the end, a missing note and a folder, a rejected read and
-  the 900-character size pin. The other `_template.test.ts` files (`open_file`,
+  the 900-character size pin. `src/tools/find_by_property/_template.test.ts`
+  (PR #131) runs that template through the shared `runEvalTemplate` fixture
+  over a stub cache that mixes `#` and raw `tags` forms. The other
+  `_template.test.ts` files (`open_file`,
   `get_active_file`, `views_base`) check the template string, meaning its
   bytes, its payload encoding and which calls it contains. They do not run
   it. Every other template's transforms are covered only by live probes

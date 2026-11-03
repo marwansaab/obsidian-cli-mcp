@@ -1,6 +1,7 @@
-// Original — no upstream. read_property handler: two-call invokeCli wrapper (Call A file-scoped value + Call B vault-scoped type metadata) per R3; type-label translation per R6; No-frontmatter short-circuit per R7; absent-key short-circuit; verbatim name passthrough per FR-018.
+// Original — no upstream. read_property handler: two-call invokeCli wrapper (Call A file-scoped value + Call B vault-scoped type metadata) per R3; type-label translation per R6; No-frontmatter short-circuit per R7; absent-key short-circuit; verbatim name passthrough per FR-018; BI-0181: one leading `#` stripped from `tags` values (the property named exactly `tags`), whatever form the metadata cache holds.
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
+import { TAGS_PROPERTY, withoutTagHash } from "../_tag-hash.js";
 
 import type { PropertyTypeLabel, ReadPropertyInput, ReadPropertyOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
@@ -59,7 +60,7 @@ export async function executeReadProperty(
   if (!Object.prototype.hasOwnProperty.call(parsedA, input.name)) {
     return { value: null, type: "unknown" };
   }
-  const value = parsedA[input.name];
+  const value = input.name === TAGS_PROPERTY ? withoutTagHash(parsedA[input.name]) : parsedA[input.name];
   const callB = await invokeCli(
     { command: "properties", vault, parameters: { format: "json" }, flags: [], target_mode: input.target_mode },
     deps,

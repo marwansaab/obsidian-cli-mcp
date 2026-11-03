@@ -143,6 +143,19 @@ the per-layout table is in that page's "Start of body" section.
 `read_property` (PR #15) returns `{ value, type }` with the YAML type
 preserved, so a client can tell the number `7` from the string `"7"`.
 
+Since PR #131 (BI-0181;
+[ADR-064](../decisions/ADR-064-tags-are-compared-and-returned-without-one-leading-hash.md))
+the value is verbatim from Obsidian's metadata cache except for the property
+named exactly `tags`. The cache holds `tags` with a leading `#` after
+Obsidian's own frontmatter writer has updated the note and without it after
+a file-watcher parse, so the same note read back two ways. The handler now
+passes a `tags` value through `withoutTagHash` (`src/tools/_tag-hash.ts`),
+which removes one leading `#` from a scalar string or each string in a list
+and returns the form written in the file. A tag written as `'#y'` in the YAML
+reads back as `y`, and `##x` as `#x`; `type` and the heterogeneous-list
+downgrade are unchanged. `find_by_property` compares `tags` by the same rule
+([search and discovery](search-and-discovery.md)).
+
 Published surface (PR #90; [architecture](../architecture.md#registration--the-one-path-from-a-schema-to-a-published-tool)):
 all three carry the read-only hint row, so a client that honours annotations
 can run them in parallel without a "may modify data" prompt (068 SC-006). Their
