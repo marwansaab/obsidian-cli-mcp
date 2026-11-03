@@ -228,3 +228,120 @@ Edits:
 > B
 >
 > Map `EBUSY` and `EPERM` to `EXTERNAL_EDITOR_CONFLICT`. Keep `EACCES` as `FS_WRITE_FAILED`, with a vault-relative `details.path`. ADR-009 Decision point 7 names EACCES as a generic fs failure that must surface as `FS_WRITE_FAILED`. The write_note feature page also routes OS-reserved names (`CON.md` and similar, typically EACCES) to `FS_WRITE_FAILED`. Option A would reverse that for write_note. B still fixes the observed EPERM case and matches every sibling on the errnos they all treat as a lock.
+
+## 5. repair / bug-fix (2026-11-03T06:03:03.281Z)
+
+**Question (verbatim):**
+
+> Q1 — Which name-lookup design should write_note use for a specific-mode `file`?
+>
+> Context: the assessment's Proposed Remediation (the contract for /speckit-bug-fix) says: call `resolveFileByTsv(deps, vault, file, "write_note")` (the `obsidian file` TSV lookup the sibling editors use via `resolveFsTarget`), and fall back to the vault-root short-form rule only when Obsidian answers `Error: File "<name>" not found.`. But `.memory/refactor-decisions.md` item 51 — which the code-quality review reads — records an owner ruling from the closed dry-run PR #126 (scope (a), 2026-11-03), marked "Settled … do NOT re-raise": write_note resolves the name through its own vault-confirming eval (`write_note/_template.ts` `NAME_LOOKUP_TEMPLATE` → `{vault: app.vault.getName(), path: getFirstLinkpathDest(file, '')?.path ?? null}`), NOT `resolveFileByTsv`, because the TSV cannot say which vault answered; a non-named vault gives `CLI_REPORTED_ERROR` / `details.code: "VAULT_MISMATCH"` `{vault, answeredBy, file}` with nothing written; null `path` falls back to the short-form rule; the lookup lives in `lookupNoteByName(deps, vault, file): Promise<string | null>`. That ruling came from a bug-test escalation that the dry run itself later called a false alarm (the probe had put `vault=` after the subcommand), but the vault check was kept "as protection against any misrouting, at no extra call". The dry run's code (commits 6afc4ad, cbcce78) still exists in the object store and passed the full suite and live probes. CodeGraph/assessment facts: `resolveFileByTsv` lives in `src/tools/_active-file.ts` and is shared by `_file-target.ts` and `find_and_replace`; either design adds no top-level error code and touches no kernel node.
+>
+> | Option | What I would build | Trade-off |
+> |---|---|---|
+> | A (recommended) | Follow refactor-decisions item 51: vault-confirming eval (`NAME_LOOKUP_TEMPLATE` + `nameLookupEvalResponseSchema` + `lookupNoteByName`, `VAULT_MISMATCH` sub-code under `CLI_REPORTED_ERROR`), ported from the dry run; errors via `mapFsWriteError` with `{EBUSY, EPERM}` as the assessment says. Logged in fix.md under Deviations from Assessment. | Matches the standing owner ruling, so the code review will not ask for the same restructuring again; already proven live in the dry run. Adds a `details.code` (`VAULT_MISMATCH`) the assessment did not name, and diverges from the sibling editors' TSV lookup. |
+> | B | Follow the assessment as written: `resolveFileByTsv` + not-found fallback (`Error: File "<name>" not found.`). | Simpler, same lookup as `read`/`patch_*`, no new sub-code. Contradicts memory item 51, which the review will likely flag; item 51 would then need correcting as stale. |
+>
+> Recommendation: A — the memory explicitly says the ruling is settled and not to re-raise it, and the Relay rules ask me to follow the review memory's standing rules as I write.
+
+**Advisor** (escalate: conflict: The assessment and the vault (BI-0176's acceptance criterion and ADR-032's cohort-parity rule) point to the shared TSV lookup. The repo's refactor-decisions item 51 records an owner ruling from closed dry-run PR #126 for a vault-confirming eval with a new VAULT_MISMATCH sub-code. Only the owner can say whether that ruling still stands, given its trigger was later called a false alarm.):
+
+> B (recommended, pending owner)
+>
+> Use `resolveFileByTsv(deps, vault, file, "write_note")`, the same lookup as `read`, `patch_heading` and `patch_block`. Fall back to the vault-root short-form rule only on `Error: File "<name>" not found.`. Add no `VAULT_MISMATCH` sub-code. Map errors via `mapFsWriteError` with `{EBUSY, EPERM}`.
+>
+> Rationale: the BI's acceptance criterion is "the note chosen is the one reading by that name returns". ADR-032 names `resolveFileByTsv` as the cohort's single name-resolution path, "avoiding the 'name resolves differently than the rest of the surface' failure". The vault has no record of the PR #126 ruling or of `VAULT_MISMATCH`. By the agent's own account, that ruling rests on a probe the dry run later called a false alarm. Hold the build until the owner confirms whether item 51 still stands. If item 51 still stands, build A and log it under Deviations from Assessment.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md`, `200-Decisions/ADR-032 - Find And Replace File Scope via Sibling Locators.md`, `000-Meta/MCP Tool Notes/Obsidian CLI MCP - Tool Notes.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0171 - Resolve File Locator In Patch Heading.md`, `XXX-Fix-It/Obsidian CLI MCP Discrepancies - 7 Repo-Internal Drift.md`
+
+**Advisor, after the owner ruled** (escalate: none):
+
+> B
+>
+> The owner ruled for B. Use `resolveFileByTsv(deps, vault, file, "write_note")`, the same `obsidian file` lookup `read`, `patch_heading` and `patch_block` use. Fall back to the vault-root short-form rule only on `Error: File "<name>" not found.`. Build no vault-confirming eval and no `VAULT_MISMATCH` sub-code. Map errors via `mapFsWriteError` with `{EBUSY, EPERM}`. Item 51 of `.memory/refactor-decisions.md` is superseded by this ruling. Note this in fix.md so the code review does not apply item 51.
+>
+> Rationale: owner ruling 2026-11-03, now recorded on BI-0176. It matches the BI's acceptance criterion ("the note chosen is the one reading by that name returns") and ADR-032's cohort parity rule.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md`, `200-Decisions/ADR-032 - Find And Replace File Scope via Sibling Locators.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md`: Recorded the owner ruling 2026-11-03 (Q1 = B) in the Impact section: write_note resolves `file` via resolveFileByTsv with not-found fallback to the vault-root rule, no VAULT_MISMATCH; it supersedes refactor-decisions item 51, which needs correcting in a repo session.
+
+**Owner:** choice 1 (B: TSV lookup, as assessed), via ntfy, 2026-11-03T06:04:34.515Z.
+
+**Sent to the step:**
+
+> B
+>
+> The owner ruled for B. Use `resolveFileByTsv(deps, vault, file, "write_note")`, the same `obsidian file` lookup `read`, `patch_heading` and `patch_block` use. Fall back to the vault-root short-form rule only on `Error: File "<name>" not found.`. Build no vault-confirming eval and no `VAULT_MISMATCH` sub-code. Map errors via `mapFsWriteError` with `{EBUSY, EPERM}`. Item 51 of `.memory/refactor-decisions.md` is superseded by this ruling. Note this in fix.md so the code review does not apply item 51.
+>
+> Rationale: owner ruling 2026-11-03, now recorded on BI-0176. It matches the BI's acceptance criterion ("the note chosen is the one reading by that name returns") and ADR-032's cohort parity rule.
+
+## 6. repair / bug-fix (2026-11-03T06:04:59.062Z)
+
+**Question (verbatim):**
+
+> Q2 — May I make these edits to existing tests (refactor-decisions item 5 requires explicit sign-off before touching existing tests)?
+>
+> The new lookup spawn and the deliberate error-contract change (assessment: EPERM → EXTERNAL_EDITOR_CONFLICT; every FS_WRITE_FAILED carries a vault-relative `details.path`) make these existing cases fail unchanged:
+>
+> 1. `src/tools/write_note/handler.test.ts`: the four `020/US1` `file`-based cases (short-form → `<file>.md`, internal periods, `.md` verbatim, folder-separator rejection) each queue one extra lookup reply (a "no note has this name" answer) ahead of their existing responses — no assertion changes; test #9 (rename `EPERM`) changes its expected code from `FS_WRITE_FAILED` to `CLI_REPORTED_ERROR` with `details.code: "EXTERNAL_EDITOR_CONFLICT"` and its title accordingly (tmp-unlink assertion unchanged).
+> 2. `src/tools/write_note/handler.file-type.test.ts`: the `file`-based cases (`Plan.canvas`, `version_1.2.3`, the ACCEPTED `test.each` rows that use `file`, the other-core-type `test.each`) queue the same extra lookup reply — no assertion changes.
+> 3. `src/tools/write_note/handler.bytes-written.test.ts`: the stat-`EACCES` case's expected `details.path` changes from `"/test-vault/n.md"` to `"n.md"`.
+>
+> New tests go in new co-located files (`handler.note-name.test.ts`, `handler.fs-errors.test.ts`, and `_template.test.ts` under Q1 option A); `_handler-fixtures.ts` gains one canned lookup-reply helper. If any other existing assertion fails, I stop and raise it rather than edit it.
+>
+> | Option | Meaning |
+> |---|---|
+> | A (recommended) | Approve exactly the edits above, nothing else. |
+> | B | Do not edit existing tests; I stop and report the fix as not-applied. |
+>
+> Recommendation: A — every edit follows from the assessment's deliberate contract change or from the new lookup spawn, and no expected `path`, `created` or `bytes_written` value changes.
+
+**Advisor** (escalate: decision: The project rule (refactor-decisions item 5) reserves edits to existing tests for the owner's explicit sign-off. Only the owner can approve this list.):
+
+> A (recommended, pending owner sign-off)
+>
+> Edit exactly the listed existing tests and nothing else:
+> 1. `write_note/handler.test.ts`: the four `020/US1` `file` cases each queue one extra lookup reply ("not found" from the TSV lookup), with no assertion changes. In test #9 (rename EPERM), the expected code becomes `CLI_REPORTED_ERROR` with `details.code: "EXTERNAL_EDITOR_CONFLICT"`, and the title changes to match.
+> 2. `handler.file-type.test.ts`: the listed `file` cases queue the same extra reply, with no assertion changes.
+> 3. `handler.bytes-written.test.ts`: in the stat-EACCES case, the expected `details.path` changes from `/test-vault/n.md` to `n.md`. The code stays `FS_WRITE_FAILED`, per Q2.
+>
+> Drop `_template.test.ts`. Q1 was ruled B, so no eval template is built. Any other existing assertion that fails: stop and raise it.
+>
+> Rationale: every edit follows from the Q1 = B ruling (TSV lookup spawn) and the BI's lock acceptance criterion (sibling-matching code, no absolute path). Item 5 of refactor-decisions reserves existing-test edits for the owner, as the earlier test-edit approvals recorded on BI-0169 and BI-0170 show.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0169 - Match Multi Word Search Queries As Literal Phrases.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md`
+
+**Advisor, after the owner ruled** (escalate: none):
+
+> A
+>
+> The owner approved exactly these edits:
+> - `write_note/handler.test.ts`: the four `020/US1` `file` cases each queue one extra lookup "not found" reply, with no assertion changes. In test #9 (rename EPERM), the expected code becomes `CLI_REPORTED_ERROR` with `details.code: "EXTERNAL_EDITOR_CONFLICT"`, and the title changes to match. The tmp-unlink assertion stays as is.
+> - `handler.file-type.test.ts`: the listed `file` cases queue the same extra reply, with no assertion changes.
+> - `handler.bytes-written.test.ts`: in the stat-EACCES case, the expected `details.path` changes from `/test-vault/n.md` to `n.md`. The code stays `FS_WRITE_FAILED`.
+>
+> Don't add `_template.test.ts`, since Q1 was ruled B. Any other existing assertion that fails: stop and raise it.
+>
+> Rationale: owner ruling 2026-11-03 under refactor-decisions item 5, now recorded on BI-0176.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md`: Appended an audit comment recording the owner ruling 2026-11-03 (Q2 = A): the exact approved existing-test edits in the three write_note test files, no _template.test.ts, any other failure stops for owner review.
+
+**Owner:** choice 1 (A: approve exactly these edits), via ntfy, 2026-11-03T06:05:45.175Z.
+
+**Sent to the step:**
+
+> A
+>
+> The owner approved exactly these edits:
+> - `write_note/handler.test.ts`: the four `020/US1` `file` cases each queue one extra lookup "not found" reply, with no assertion changes. In test #9 (rename EPERM), the expected code becomes `CLI_REPORTED_ERROR` with `details.code: "EXTERNAL_EDITOR_CONFLICT"`, and the title changes to match. The tmp-unlink assertion stays as is.
+> - `handler.file-type.test.ts`: the listed `file` cases queue the same extra reply, with no assertion changes.
+> - `handler.bytes-written.test.ts`: in the stat-EACCES case, the expected `details.path` changes from `/test-vault/n.md` to `n.md`. The code stays `FS_WRITE_FAILED`.
+>
+> Don't add `_template.test.ts`, since Q1 was ruled B. Any other existing assertion that fails: stop and raise it.
+>
+> Rationale: owner ruling 2026-11-03 under refactor-decisions item 5, now recorded on BI-0176.

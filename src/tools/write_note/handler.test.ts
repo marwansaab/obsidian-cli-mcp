@@ -6,7 +6,16 @@ import { Writable } from "node:stream";
 
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
-import { BAR_ROOT, deps, EVAL_OK, fakeFs, fakeRegistry, FOO_ROOT, VAULT_ROOT } from "./_handler-fixtures.js";
+import {
+  BAR_ROOT,
+  deps,
+  EVAL_OK,
+  fakeFs,
+  fakeRegistry,
+  fileNotFoundResponse,
+  FOO_ROOT,
+  VAULT_ROOT,
+} from "./_handler-fixtures.js";
 import { executeWriteNote } from "./handler.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
@@ -124,7 +133,8 @@ test("vault=Unknown propagates VALIDATION_ERROR from registry", async () => {
 });
 
 // (#9) Atomic write: tmp file orphaned cleanly when rename fails (best-effort unlink per T002 (e))
-test("rename failure → tmp file unlinked best-effort, FS_WRITE_FAILED raised", async () => {
+// BI-0176: an EPERM rename is a lock, reported as the cohort's EXTERNAL_EDITOR_CONFLICT (was FS_WRITE_FAILED).
+test("rename failure → tmp file unlinked best-effort, EXTERNAL_EDITOR_CONFLICT raised", async () => {
   const renameError = Object.assign(new Error("EPERM"), { code: "EPERM", syscall: "rename" });
   const fs = fakeFs({
     rename: vi.fn(async () => {
@@ -143,7 +153,8 @@ test("rename failure → tmp file unlinked best-effort, FS_WRITE_FAILED raised",
     deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
   ).catch((e) => e);
   expect(err).toBeInstanceOf(UpstreamError);
-  expect((err as UpstreamError).code).toBe("FS_WRITE_FAILED");
+  expect((err as UpstreamError).code).toBe("CLI_REPORTED_ERROR");
+  expect((err as UpstreamError).details.code).toBe("EXTERNAL_EDITOR_CONFLICT");
   expect(fs.unlinks.length).toBe(1);
 });
 
@@ -779,7 +790,7 @@ test("output envelope has exactly three keys: bytes_written + created + path", a
 // FR-003 / Story 1 AC#1.
 test("020/US1 canonical short-form file → <file>.md at vault root", async () => {
   const fs = fakeFs();
-  const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
+  const { spawnFn } = makeQueuedSpawn([fileNotFoundResponse("Acceptance Probe"), EVAL_OK]);
   const result = await executeWriteNote(
     {
       target_mode: "specific",
@@ -803,7 +814,7 @@ test("020/US1 canonical short-form file → <file>.md at vault root", async () =
 // invariant H6 / Story 1 AC#5.
 test("020/US1 canonical short-form preserves internal periods", async () => {
   const fs = fakeFs();
-  const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
+  const { spawnFn } = makeQueuedSpawn([fileNotFoundResponse("version_1.2.3"), EVAL_OK]);
   const result = await executeWriteNote(
     {
       target_mode: "specific",
@@ -821,7 +832,7 @@ test("020/US1 canonical short-form preserves internal periods", async () => {
 // verbatim, NO double-extension. Story 1 AC#6.
 test("020/US1 file ending in .md passes through verbatim (no double-extension)", async () => {
   const fs = fakeFs();
-  const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
+  const { spawnFn } = makeQueuedSpawn([fileNotFoundResponse("Notes.md"), EVAL_OK]);
   const result = await executeWriteNote(
     {
       target_mode: "specific",
@@ -844,7 +855,7 @@ test("020/US1 file ending in .md passes through verbatim (no double-extension)",
 // the no-append rule for a file with a folder separator but rejects the non-note target.
 test("020/US1 file with folder separator is not given .md — and, extensionless, is rejected (spec 070)", async () => {
   const fs = fakeFs();
-  const { spawnFn } = makeQueuedSpawn([]);
+  const { spawnFn } = makeQueuedSpawn([fileNotFoundResponse("Folder/Note")]);
   const err = (await executeWriteNote(
     {
       target_mode: "specific",
