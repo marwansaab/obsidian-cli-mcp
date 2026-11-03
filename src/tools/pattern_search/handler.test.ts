@@ -64,8 +64,8 @@ test("US1 (2) zero-match envelope → { count:0, matches:[] }", async () => {
   expect(r).toEqual({ count: 0, matches: [] });
 });
 
-// (3) multi-match per line, sorted by offset ascending
-test("US1 (3) multi-match per line: 3 entries differing only in offset, sorted asc", async () => {
+// (3) multi-match per line: the handler preserves envelope order (the template owns order, BI-0183)
+test("US1 (3) multi-match per line: entries differing only in offset keep the envelope's order", async () => {
   const line = "foo and foo again and foo";
   const matches = [
     { path: "m.md", line: 1, offset: 0, match: "foo", text: line },
@@ -74,11 +74,11 @@ test("US1 (3) multi-match per line: 3 entries differing only in offset, sorted a
   ];
   const { spawnFn } = makeQueuedSpawn([{ stdout: okEnv({ count: 3, matches }), exitCode: 0 }]);
   const r = await executePatternSearch({ pattern: "foo", vault: "Demo" }, deps(spawnFn));
-  expect(r.matches.map((m) => m.offset)).toEqual([0, 8, 22]);
+  expect(r.matches).toEqual(matches);
 });
 
-// (4) cross-file matches sorted by path UTF-16 first
-test("US1 (4) cross-file matches sorted by path UTF-16 ascending", async () => {
+// (4) cross-file matches: the handler preserves envelope order (the template owns order, BI-0183)
+test("US1 (4) cross-file matches keep the envelope's order", async () => {
   const matches = [
     { path: "z.md", line: 1, offset: 0, match: "x", text: "x" },
     { path: "a.md", line: 99, offset: 5, match: "x", text: "x" },
@@ -86,7 +86,7 @@ test("US1 (4) cross-file matches sorted by path UTF-16 ascending", async () => {
   ];
   const { spawnFn } = makeQueuedSpawn([{ stdout: okEnv({ count: 3, matches }), exitCode: 0 }]);
   const r = await executePatternSearch({ pattern: "x", vault: "Demo" }, deps(spawnFn));
-  expect(r.matches.map((m) => m.path)).toEqual(["a.md", "m.md", "z.md"]);
+  expect(r.matches).toEqual(matches);
 });
 
 // =====================================================================
@@ -451,26 +451,6 @@ test("SC-003 (26) byte-identical repeated call: same envelope → JSON.stringify
   const r1 = await executePatternSearch({ pattern: "x", vault: "Demo" }, deps(s1));
   const r2 = await executePatternSearch({ pattern: "x", vault: "Demo" }, deps(s2));
   expect(JSON.stringify(r1)).toBe(JSON.stringify(r2));
-});
-
-// (27) sort invariant
-test("(27) unsorted envelope matches → response sorted (path, line, offset) ascending", async () => {
-  const matches = [
-    { path: "b.md", line: 5, offset: 3, match: "x", text: "x" },
-    { path: "a.md", line: 2, offset: 9, match: "x", text: "x" },
-    { path: "a.md", line: 2, offset: 1, match: "x", text: "x" },
-    { path: "a.md", line: 1, offset: 0, match: "x", text: "x" },
-  ];
-  const { spawnFn } = makeQueuedSpawn([
-    { stdout: okEnv({ count: 4, matches }), exitCode: 0 },
-  ]);
-  const r = await executePatternSearch({ pattern: "x", vault: "Demo" }, deps(spawnFn));
-  expect(r.matches.map((m) => `${m.path}#${m.line}:${m.offset}`)).toEqual([
-    "a.md#1:0",
-    "a.md#2:1",
-    "a.md#2:9",
-    "b.md#5:3",
-  ]);
 });
 
 // (28) response-key-set invariant + locator no-echo

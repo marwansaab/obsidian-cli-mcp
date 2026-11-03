@@ -1,4 +1,4 @@
-// Original — no upstream. Template-execution tests for the pattern_search eval template (BI-0183): renders JS_TEMPLATE through composeEvalCode and runs it in node:vm against a stub `app` whose getMarkdownFiles() lists notes out of path order, checking that the in-template `limit` cap keeps the leading matches of the full (path, line, offset) order, that every smaller cap is a prefix of every larger one, and that `truncated` appears exactly when matches were left out.
+// Original — no upstream. Template-execution tests for the pattern_search eval template (BI-0183): renders JS_TEMPLATE through composeEvalCode and runs it in node:vm against a stub `app` whose getMarkdownFiles() lists notes out of path order, checking that the in-template `limit` cap keeps the leading matches of the full (path, line, offset) order (so every smaller cap is a prefix of every larger one), and that `truncated` appears exactly when matches were left out.
 import { describe, expect, it } from "vitest";
 
 import { JS_TEMPLATE } from "./_template.js";
@@ -61,21 +61,13 @@ describe("pattern_search template: limit keeps the leading matches of the sorted
     expect(env.count).toBe(TOTAL);
   });
 
+  // Every page equals FULL_ORDER.slice(0, n), so for N < M the N results are the first N of the M
+  // results (acceptance criterion 3) without a separate all-pairs loop.
   it("returns exactly the first N of the full order for every N below the total", async () => {
     for (let n = 1; n < TOTAL; n++) {
       const env = await runTemplate(n);
       expect(keys(env), `limit ${n}`).toEqual(FULL_ORDER.slice(0, n));
       expect(env.count, `limit ${n}`).toBe(n);
-    }
-  });
-
-  it("makes every smaller cap a prefix of every larger cap", async () => {
-    const pages = new Map<number, Array<[string, number, number, string]>>();
-    for (let n = 1; n <= TOTAL; n++) pages.set(n, keys(await runTemplate(n)));
-    for (let n = 1; n <= TOTAL; n++) {
-      for (let m = n + 1; m <= TOTAL; m++) {
-        expect(pages.get(n), `limit ${n} vs ${m}`).toEqual(pages.get(m)!.slice(0, n));
-      }
     }
   });
 

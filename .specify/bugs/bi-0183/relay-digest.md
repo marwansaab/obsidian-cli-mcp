@@ -7,11 +7,11 @@
 | Status | running |
 | Started | 2026-11-03T11:07:17.940Z |
 | Finished | not yet |
-| Elapsed | 8 min 9 s |
-| Questions | 0 (0 needed the owner) |
+| Elapsed | 17 min 14 s |
+| Questions | 1 (1 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
-| Escalations | 0 |
-| Edits by the advisor | 0 |
+| Escalations | 1 |
+| Edits by the advisor | 1 |
 
 ## Inputs
 
@@ -71,6 +71,7 @@
 ### repair (`2b3394fd-d2c1-48e7-9d74-7a3991b12bd0`)
 
 - Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\.specify\bugs\bi-0183\assessment.md exists, and Obsidian has TestVault-Obsidian-CLI-MCP focused.
+- Condition `gh-pr-open` (done_when): met. Pull request #132 is open.
 
 - **bug-fix**: done, 20 turns.
 
@@ -84,12 +85,20 @@
 
 > The final result in .specify/bugs/bi-0183/test.md is `verified`, so no extra fix or test round was run. With the fix, the report's search in My-Setup-Vault returns the first five matches at limit 5 (BI-0103..BI-0107), where the pre-fix template returned the tail (BI-0182..BI-0186). Prefix and truncation checks pass for every limit, and the full suite, type-check and lint pass. Nothing is committed.
 
-- **open-pr**: in progress.
+- **open-pr**: done, 13 turns.
 
-### review
+> All bi-0183 work is committed on fix/bi-0183: 9bb9a05 fix(bi-0183) holds the template sort and the new vm test, and 63e52ca docs(bi-0183) holds fix.md, test.md and the Relay digest, on top of the assessment commit 9c1821d. Commit subjects follow CONTRIBUTING.md. Before committing, the full suite passed (4804 passed, 6 skipped, statements 97.08%), and lint, typecheck and build were clean. The branch is pushed to origin and draft PR #132 is open into main. The repository has no PR template, so the body follows the layout of the previous bug-fix PR (#131): summary, links to the assessment, fix and test reports, live evidence, test results, the Constitution Compliance table (all Y or N/A, no kernel node touched), out of scope, and the docs follow-up. Not merged.
 
-- **code-review**: not run.
-- **fix**: not run.
+
+### review (`41030a56-7754-4da4-8901-b666e80d8e34`)
+
+- Condition `gh-pr-open` (start_when): met. Pull request #132 is open.
+
+- **code-review**: done, 38 turns, 1 questions.
+
+> I reviewed PR #132 and applied the owner's ruling, option A. The order rule now lives only in the template. I deleted `comparePatternSearchMatch` and the handler's re-sort, removed the import of the `PatternSearchMatch` type that only the comparator used, and rewrote the header and Stage 8 comments in handler.ts to say the template owns the order. I also removed the template header's mention of the handler's comparator. Under the item-5 approval, handler tests (3) and (4) now check that the handler keeps the envelope's order: their input is unsorted and they assert `toEqual(matches)`. Test (27) is deleted because (3) and (4) cover it. fix.md now lists the review-fix files in Changes, records the departure from spec R2 under Deviations (with the reasons: FEAT-023 step 5 and the BI-0167 smart_connections shape), adds the post-fix test results to Local Verification, and notes the removed symbol in CodeGraph check 4. Results: pattern_search suites 71/71, typecheck and eslint clean, full `npm test` 196 files and 4803 tests passing with 6 skipped (one fewer than before, the deleted (27)), statement coverage 97.08%. The new memory entry, `.memory/refactor-decisions.md` item 54, records the ruling as fixed. The low finding about the redundant prefix test was not ruled on, so that test stays. The changes are not committed or pushed.
+
+- **fix**: in progress.
 
 ### docs
 
@@ -102,12 +111,15 @@
 
 ## Escalations
 
-None.
-
+- **BI-0183 (dry run: no): code-review question needs you (decision)** (advisor, 2026-11-03T11:19:41.256Z): Option A needs the owner's approval to edit or delete three existing tests (handler.test.ts 3, 4, 27), which the project reserves for the owner (item 5). It also departs from spec R2's handler-side sort. The vault (FEAT-023 step 5) supports A, but it can't give that sign-off.
+  - Choices: 1. A: approve the 3 test edits; 2. C: keep both sorts, note why; 3. Stop the run
+  - Answer: choice 1 (A: approve the 3 test edits) via cli
 
 ## Edits made by the advisor
 
-None.
+| File | Change | Triggered by |
+|---|---|---|
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0183 - Apply Pattern Search Limit After Path Sort.md` | Added a ## Clarifications section (before Out of scope) recording bug-fix Q1: the template owns result order, the handler re-sort is removed, and the owner's 2026-11-03 approval of the edits to handler tests (3), (4) and (27), plus the spec R2 deviation. | review / code-review: Question 1 of 1 — pattern_search now sorts in two places. Which one should own the result order? |
 
 ## Files
 

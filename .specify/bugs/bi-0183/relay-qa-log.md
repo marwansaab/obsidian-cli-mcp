@@ -155,3 +155,48 @@ Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0
 > - Changing the default or maximum limit.
 > - Adding paging or offset controls.
 > - Other search tools, which already return leading results.
+
+## 3. review / code-review (2026-11-03T11:19:28.317Z)
+
+**Question (verbatim):**
+
+> Question 1 of 1 — pattern_search now sorts in two places. Which one should own the result order?
+>
+> Context: PR #132 adds `.sort((x,y)=>x.path<y.path?-1:x.path>y.path?1:0)` to `src/tools/pattern_search/_template.ts:9`, before the capped scan. Within a note, matches already come out in (line, offset) order, and paths are unique, so the envelope the template returns is already in the full (path, line, offset) order. That makes `executePatternSearch`'s `[...mdOnly].sort(comparePatternSearchMatch)` (`handler.ts:94`, comparator at `handler.ts:102-107`, whose only caller is that line per CodeGraph) a no-op on every real response. The assessment kept it as a 'defensive step', but it cannot defend anything. The cap is applied inside the template, so if the template's order were ever wrong, the handler sort would make the response look sorted while the subset stayed wrong. That is exactly the BI-0183 symptom, and it is why handler tests never caught the bug: (3), (4) and (27) stub out-of-order envelopes and pass on that broken state. The path rule is also now written twice, and the template header keeps the two in step only by naming `comparePatternSearchMatch` in a comment (refactor-decisions item 53: an inline copy kept in step by prose).
+>
+> | Option | What changes | Trade-off |
+> |---|---|---|
+> | A (recommended) | Delete `comparePatternSearchMatch` and the handler sort (`return` builds from `mdOnly`), and update handler.ts's header and Stage 8 comments. Under item 5, approve exactly these test edits: `handler.test.ts` (3) and (4) drop their sort assertions or become 'handler preserves envelope order' rows, and (27) is deleted or rewritten the same way. Order is pinned once, by `_template.test.ts`'s full-order rows. Record the change from spec R2's handler-side sort in fix.md under Deviations. | One owner of order and no comment-enforced parity. Every real response stays byte-identical. Only a stubbed out-of-order envelope behaves differently. Costs three test edits. |
+> | B | Keep both sorts and share the path comparator, as item 53 does: a leaf module exports a TS `comparePath` and a JS fragment that the template interpolates, plus a parity table. | Keeps the defensive sort but adds a module and a parity test for a one-line comparator, and the handler sort can still hide a template order bug. |
+> | C | Keep the PR as is, and record in fix.md why the handler sort stays. | No churn. The rule stays duplicated, and the handler sort still hides template order regressions. |
+>
+> Recommended: A. It removes the duplicate rule and the misleading sort instead of reorganising them, and it is the shape the smart_connections template already uses (sort, slice and emit in the template, no handler re-sort; refactor-decisions item 45).
+
+**Advisor** (escalate: decision: Option A needs the owner's approval to edit or delete three existing tests (handler.test.ts 3, 4, 27), which the project reserves for the owner (item 5). It also departs from spec R2's handler-side sort. The vault (FEAT-023 step 5) supports A, but it can't give that sign-off.):
+
+> 1. A
+>
+> The template owns order: per FEAT-023 "How it works" step 5, the template sorts by path → line → offset, then applies the cap and sets `truncated`. The handler re-sort is not part of that contract and hides template order bugs (the BI-0183 class, which BI-0167 already fixed on smart_connections the same way). The test edits to `handler.test.ts` (3), (4) and (27) still need the owner's approval under item 5. Make them only once that approval arrives.
+
+Sources: `pattern_search (FEAT-023) — How it works, step 5`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0183 - Apply Pattern Search Limit After Path Sort.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Constitution.md — Principle II`
+
+**Advisor, after the owner ruled** (escalate: none):
+
+> 1. A
+>
+> Owner approved the three test edits (ruling 2026-11-03): `handler.test.ts` (3) and (4) drop their sort assertions or become "handler preserves envelope order" rows, and (27) is deleted or rewritten the same way. Remove `comparePatternSearchMatch` and the handler re-sort, and update handler.ts's header and Stage 8 comments. Order is pinned once, by `_template.test.ts`. Record the departure from spec R2 under Deviations in fix.md.
+> Per FEAT-023 "How it works" step 5, the template sorts, then caps, then sets `truncated`, so it owns order. Same shape as the smart_connections template after BI-0167.
+
+Sources: `pattern_search (FEAT-023) — How it works, step 5`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0183 - Apply Pattern Search Limit After Path Sort.md`, `Owner ruling on escalation, 2026-11-03: A, approve the 3 test edits`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0183 - Apply Pattern Search Limit After Path Sort.md`: Added a ## Clarifications section (before Out of scope) recording bug-fix Q1: the template owns result order, the handler re-sort is removed, and the owner's 2026-11-03 approval of the edits to handler tests (3), (4) and (27), plus the spec R2 deviation.
+
+**Owner:** choice 1 (A: approve the 3 test edits), via cli, 2026-11-03T11:22:19.864Z.
+
+**Sent to the step:**
+
+> 1. A
+>
+> Owner approved the three test edits (ruling 2026-11-03): `handler.test.ts` (3) and (4) drop their sort assertions or become "handler preserves envelope order" rows, and (27) is deleted or rewritten the same way. Remove `comparePatternSearchMatch` and the handler re-sort, and update handler.ts's header and Stage 8 comments. Order is pinned once, by `_template.test.ts`. Record the departure from spec R2 under Deviations in fix.md.
+> Per FEAT-023 "How it works" step 5, the template sorts, then caps, then sets `truncated`, so it owns order. Same shape as the smart_connections template after BI-0167.
