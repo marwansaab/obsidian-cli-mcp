@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-11-03T11:43:04.701Z |
 | Finished | not yet |
-| Elapsed | 3 min 22 s |
+| Elapsed | 9 min 3 s |
 | Questions | 0 (0 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 0 |
@@ -54,6 +54,8 @@
 
 ### assess (`68bbb9a5-a388-42f7-b04a-ba0b24c4f0f6`)
 
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\.specify\bugs\bi-0180\assessment.md exists.
+
 - **branch**: done, 4 turns.
 
 > Working tree was clean. Fetched origin; main already up to date with origin/main (05d663d). No fix/bi-0180 existed locally or on origin. Created and checked out fix/bi-0180 from main. No other change made.
@@ -62,14 +64,37 @@
 
 > I wrote the assessment for BI-0180 (slug from the user, normalised to bi-0180). Verdict: valid. Severity: high. The cause is in `executeCreateBase` (src/tools/create_base/handler.ts:174-181). It builds the response path as <baseDir>/<baseName>/<Created:> and returns the raw `Created:` value as `name`. Obsidian's `Created:` line already gives the item's vault-relative path (spec 083 research P6/P7), so the composed path is wrong for every Base shape. The proposed fix: return the `Created:` value as `path` and its basename (with `.md`) as `name`. The named-vault backstop already checks that same value, so the reported path and the checked path become one. The fix also corrects CREATE_BASE_DESCRIPTION and docs/tools/create_base.md, regenerates the description fingerprint baseline, and updates the tests that pin the wrong shape. It touches no kernel nodes and adds no error codes. No extension hooks are registered for bug-assess. Nothing is committed yet. Next step: /speckit-bug-fix slug=bi-0180.
 
-- **resolve-assessment**: in progress.
+- **resolve-assessment**: done, 7 turns.
 
-### repair
+> I settled the BI-0180 assessment and committed it as f8dd2b0 on fix/bi-0180. Nothing was pushed.
+>
+> - **Verdict:** valid.
+> - **Severity:** high.
+> - **Cause:** `executeCreateBase` (src/tools/create_base/handler.ts:174-181) builds the item path as `<baseDir>/<baseName>/<Created:>` and returns the raw `Created:` value as `name`. Obsidian's `Created:` line already gives the item's vault-relative path, so the reported path points to a file that doesn't exist.
+> - **Remediation:** return the `Created:` value, with backslashes turned into forward slashes, as `path`, and its basename (which keeps `.md`) as `name`. The named-vault backstop then checks the same path the caller gets back. The fix also corrects CREATE_BASE_DESCRIPTION and docs/tools/create_base.md, regenerates the description fingerprint as a deliberate change, and updates the tests that pin the old shape.
+> - **Scope:** the output schema stays the same and no kernel nodes are touched. This is a repair within the report's acceptance criteria, so I didn't escalate it.
+> - **Questions:** there were no `[NEEDS CLARIFICATION]` items or open questions, so I asked nothing. I added one 'Resolved (Relay):' line to Open Questions saying that.
+>
+> The commit includes two files Relay had put in the folder, relay-digest.md and relay-qa-log.md, because the step said to commit all of .specify/bugs/bi-0180.
 
-- **bug-fix**: not run.
-- **bug-test**: not run.
-- **settle-verdict**: not run.
-- **open-pr**: not run.
+
+### repair (`3f9b0c37-9a1b-4072-bdab-273304b2b8d8`)
+
+- Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\.specify\bugs\bi-0180\assessment.md exists, and Obsidian has TestVault-Obsidian-CLI-MCP focused.
+
+- **bug-fix**: done, 42 turns.
+
+> Slug bi-0180 came from the explicit input. The fix is applied and recorded in .specify/bugs/bi-0180/fix.md with status "applied". executeCreateBase now returns the path from Obsidian's "Created:" line (trimmed, with backslashes changed to "/") as `path`, and that path's file name as `name`. The old <baseDir>/<baseName>/... composition is gone, and the named-vault backstop checks the same path the response reports. CREATE_BASE_DESCRIPTION and docs/tools/create_base.md now describe where Obsidian places the item. The registry baseline was regenerated, and only create_base's descriptionFingerprint changed. Five BI-0180 handler tests were added. The existing handler and index tests that expected the old composed path or the old description text were updated. That includes three handler tests and one description check the assessment didn't list, which fix.md records under Deviations. Full vitest run: 4807 passed, 6 skipped. Typecheck and lint are clean. With only handler.ts reverted to the old code, 15 create_base tests fail. The structural checks held and no kernel nodes were touched. No after_bug_fix hooks are registered. Nothing has been committed yet. Next step: /speckit-bug-test slug=bi-0180, which includes the live check in the test vault.
+
+- **bug-test**: done, 11 turns.
+
+> Slug bi-0180 came from the explicit input. The result is verified, recorded in .specify/bugs/bi-0180/test.md. I built dist and drove create_base through the real MCP server against TestVault-Obsidian-CLI-MCP, with fixtures under Sandbox/. All 5 live cases returned the path of the note Obsidian created, with `name` set to its file name: a folder-filtered Base with and without `vault`, a name collision, and a Base with no folder rule where `name` has a folder part, with and without `vault`. Each returned path matched the file on disk and opened with `read`. Full vitest run: 4807 passed, 6 skipped. Typecheck and lint are clean, and the fingerprint gate passes. Sandbox fixtures were removed and the vault root was not touched. Residual risk: the item-at-vault-root case was not run live, because the vault rules forbid root writes; unit tests cover it. No after_bug_test hooks are registered. Nothing has been committed yet: fix.md, test.md and the code changes are still uncommitted.
+
+- **settle-verdict**: done, 2 turns.
+
+> Final result: verified. No extra round was needed. test.md records 5/5 live create_base cases against TestVault-Obsidian-CLI-MCP: each response's `path` was the note Obsidian created, `name` was its file name, and `read` opened each path. The full suite passed (4807 passed, 6 skipped), and typecheck and lint are clean. One case wasn't run live: an item at the vault root, because the vault rules forbid root writes; unit tests cover it, and test.md lists it under Residual Risks. Nothing has been committed yet: the code changes, fix.md and test.md are still uncommitted on fix/bi-0180.
+
+- **open-pr**: in progress.
 
 ### review
 
