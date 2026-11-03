@@ -13,7 +13,9 @@
 
 | File | Change | Notes |
 |------|--------|-------|
-| `src/tools/_active-file.ts` | modified | `assertCanonicalPath` wraps `checkCanonicalPath`; on a throw, the private `canonicalCheckFailure` re-probes the vault root and classifies it, reading the errno with the shared `getErrno` (`_fs-errors.ts`, PR #136 review). Header comment names the new classification. One new import edge, `_active-file.ts` → `_fs-errors.ts`, two tools-layer leaf modules; `_fs-errors.ts` imports only `../errors.js`, so there is no cycle. The `CanonicalCheckOutcome` type comes from the module already imported. |
+| `src/tools/_active-file.ts` | modified | `assertCanonicalPath` realpaths the vault root first; a failure there is classified by the private, synchronous `vaultRootFailure(err, vaultLabel): UpstreamError`, which reads the errno with the shared `getErrno` (`_fs-errors.ts`). It then calls `checkUnderCanonicalRoot` without a wrapper, so a failure below a root that resolves propagates unchanged (PR #136 review, see Deviations 6). Header comment names the new classification. One new import edge, `_active-file.ts` → `_fs-errors.ts`, two tools-layer leaf modules; `_fs-errors.ts` imports only `../errors.js`, so there is no cycle. |
+| `src/path-safety/canonical.ts` | modified | New pure export `checkUnderCanonicalRoot(vaultRoot, canonicalRoot, inputPath, deps)`: the former body of `checkCanonicalPath` without its own root `realpath`. `checkCanonicalPath` is now realpath(root) followed by it. No new import; no error-envelope or `UpstreamError` knowledge (PR #136 review, see Deviations 6). |
+| `src/path-safety/canonical.test.ts` | added tests | (11) happy path for `checkUnderCanonicalRoot` against a supplied canonical root that is never realpathed again; (12) failure: a link out of the supplied root escapes, and a non-ENOENT walk error propagates as-is. The ten existing cases pass unchanged. |
 | `src/tools/_active-file.test.ts` | added tests | New `describe` block "vault root cannot be resolved (BI-0185)": 8 cases. |
 | `src/tools/_handler-test-fixtures.ts` | added fixtures | `missingFolderRealpath(root, code = "ENOENT")` and `folderMissingDetails(vault)`, shared by the nine new handler/index cases and, through `code`, by the ENOTDIR / EPERM / EIO cases in `_active-file.test.ts` (PR #136 review). Vitest-free, like the rest of the module. |
 | `src/tools/query_base/handler.test.ts` | added test | Handler-level case, no spawn. |
@@ -32,15 +34,13 @@
 ## Diff Highlights
 
 ```ts
-let check: CanonicalCheckOutcome;
-try {
-  check = await checkCanonicalPath(vaultRoot, inputPath, { realpath: ctx.realpath });
-} catch (err) {
-  throw await canonicalCheckFailure(err, vaultRoot, ctx);
-}
+const canonicalRoot = await ctx.realpath(vaultRoot).catch((err: unknown) => {
+  throw vaultRootFailure(err, ctx.vaultLabel);
+});
+const check = await checkUnderCanonicalRoot(vaultRoot, canonicalRoot, inputPath, { realpath: ctx.realpath });
 ```
 
-`canonicalCheckFailure` realpaths `vaultRoot` once more. If that succeeds, the original failure came from below the root and is returned unchanged. If it fails, its errno decides the envelope:
+Only the root's own `realpath` is classified. Its errno decides the envelope:
 
 ```ts
 details: { code: "VAULT_NOT_FOUND", reason: "folder-missing", vault },
@@ -60,7 +60,8 @@ With a null `vaultLabel` (active mode) the subject reads "The focused vault" / "
   - a missing drive (ENOENT at every ancestor) → the same folder-missing envelope (test b).
   - a null vault label reads as the focused vault.
   - `EPERM` and `EIO` on the root → `{stage: "vault-root-check", errno, vault}`, exact message, no hint, no path (test c).
-  - a failure below a root that resolves (ENOTDIR on `Welcome.md/x.md`) is rethrown unchanged (see Deviations 1).
+  - a failure below a root that resolves (ENOTDIR on `Welcome.md/x.md`) is rethrown unchanged (see Deviations 1 and 6).
+- `src/path-safety/canonical.test.ts`: (11) and (12) for `checkUnderCanonicalRoot`, added in the PR #136 review fix.
   - The three existing success / escape cases pass unchanged (test d).
 - One handler-level case per affected tool (query_base, create_base, find_and_replace ×2, write_note, append_note, prepend, patch_block, patch_heading): known vault + `missingFolderRealpath(root)` → `folderMissingDetails(vault)`, message without the root path, `makeQueuedSpawn([])` with `getCount() === 0` (create_base: `recorded.length === 0`), and no fs read / write where the fixture tracks it.
 - `src/tools/query_base/index.test.ts`: the registered tool returns `isError: true` with the JSON `{code, message, details}` text, the recovery hint, and no root path in the text.
@@ -98,22 +99,23 @@ No errno other than ENOENT was observed, because nothing was run live.
 
 ## CodeGraph structural verification
 
-Run with `codegraph_explore` on `canonicalCheckFailure`, `getErrno`, `assertCanonicalPath`, `missingFolderRealpath` and `folderMissingDetails`.
+Run with `codegraph_explore` on `vaultRootFailure`, `checkUnderCanonicalRoot`, `getErrno`, `assertCanonicalPath`, `missingFolderRealpath` and `folderMissingDetails`.
 
 1. **No new top-level error codes**: both envelopes use the existing `CLI_REPORTED_ERROR`. No error class was added and `src/errors.ts` is unchanged. One new `details.reason` value (`folder-missing`) sits under the existing `VAULT_NOT_FOUND` discriminator (ADR-015). `stage: "vault-root-check"` reuses the existing `details.stage` key.
 2. **No boot-time DI factory imports**: `_active-file.ts`'s only new import is `getErrno` from `./_fs-errors.js`. `createLogger` / `createQueue` stay confined to `server.ts` (the test fixture module already imported `createLogger`, unchanged).
-3. **Module placement and direction**: the new private helpers sit in `src/tools/_active-file.ts` next to `assertCanonicalPath`. The import changes are the type-only `CanonicalCheckOutcome` from `../path-safety/canonical.js`, a module that file already imported downward, and `getErrno` from the sibling leaf `./_fs-errors.js` (which imports only `../errors.js`, so no cycle). `src/path-safety/canonical.ts` is unchanged.
-4. **Reachability**: `canonicalCheckFailure` → called by `assertCanonicalPath` (production, 19 call sites across the eight handlers); `getErrno` (existing, shared) → now also called by `canonicalCheckFailure`. The two fixtures are test-support exports with nine callers each, all in tests, as expected.
+3. **Module placement and direction**: the private `vaultRootFailure` sits in `src/tools/_active-file.ts` next to `assertCanonicalPath`, so classification stays in the tools layer. `_active-file.ts` now imports `checkUnderCanonicalRoot` (instead of `checkCanonicalPath`) from `../path-safety/canonical.js`, a module it already imported downward, and `getErrno` from the sibling leaf `./_fs-errors.js` (which imports only `../errors.js`, so no cycle). `src/path-safety/canonical.ts` gains the pure `checkUnderCanonicalRoot` and no import (Deviations 6).
+4. **Reachability**: `vaultRootFailure` and `checkUnderCanonicalRoot` → called by `assertCanonicalPath` (production, 19 call sites across the eight handlers); `getErrno` (existing, shared) → now also called by `vaultRootFailure`. `checkCanonicalPath` keeps its signature and behaviour, but its only callers are now the `canonical.test.ts` cases, which still pin the walk through it. The two fixtures are test-support exports with nine callers each, all in tests, as expected.
 
 **Kernel-node claim held**: the assessment said the fix touches none of the kernel nodes. `createLogger()`, `createQueue()` and `createServer()` are untouched. `UpstreamError` is only constructed with an existing code; the class is unchanged.
 
 ## Deviations from Assessment
 
-1. **The root is re-probed before classifying.** The assessment maps any ENOENT / ENOTDIR thrown by `checkCanonicalPath` to `folder-missing`. ENOENT can only escape for the root, but ENOTDIR (and EACCES, ELOOP and the like) can also come from a path segment *below* an existing root. For example, on Linux `path: "Welcome.md/x.md"` makes `realpath` throw ENOTDIR at the first step of the walk. Mapped blindly, that would tell the agent the vault folder is missing, and it would change a call on an available vault (acceptance criterion 4). So `canonicalCheckFailure` realpaths the root once more (only on the failure path). If the root fails, its own errno picks the folder-missing or `vault-root-check` envelope. If the root resolves, the original error is rethrown unchanged, as before this fix. This matches the Q4 ruling's wording ("errnos on the vault root", "ENOTDIR when a path segment [of the vault path] is not a folder"). Errors below an existing root are not caused by a missing vault folder, so they stay out of this BI (see Follow-ups).
+1. **The root is re-probed before classifying.** The assessment maps any ENOENT / ENOTDIR thrown by `checkCanonicalPath` to `folder-missing`. ENOENT can only escape for the root, but ENOTDIR (and EACCES, ELOOP and the like) can also come from a path segment *below* an existing root. For example, on Linux `path: "Welcome.md/x.md"` makes `realpath` throw ENOTDIR at the first step of the walk. Mapped blindly, that would tell the agent the vault folder is missing, and it would change a call on an available vault (acceptance criterion 4). So only the root's own `realpath` is classified: if it fails, its errno picks the folder-missing or `vault-root-check` envelope; if it resolves, any later error is rethrown unchanged, as before this fix. (The first version re-probed the root after the check threw; the PR #136 review replaced that with a root-first order, see Deviations 6.) This matches the Q4 ruling's wording ("errnos on the vault root", "ENOTDIR when a path segment [of the vault path] is not a folder"). Errors below an existing root are not caused by a missing vault folder, so they stay out of this BI (see Follow-ups).
 2. **The Q3 live probe was replaced by a code-reading check.** The live probe could not be set up unattended (see Q3 route probe above). No raw-escaping route was found, so the diff stays within `_active-file.ts` and the tests.
 3. **The rosters also list the `vault-root-check` row.** The Q2 ruling names the `folder-missing` row. The `vault-root-check` envelope (Q4) is a new failure state of the same tools, so it is listed next to it, so the help pages describe every new failure. `index.ts` descriptions and the baseline are still unchanged.
 4. **Shared test fixtures.** `missingFolderRealpath` and `folderMissingDetails` were added to `src/tools/_handler-test-fixtures.ts`, a file the assessment did not list, so the nine new cases share one fixture instead of nine copies.
 5. **Null vault label.** In active mode `vaultLabel` is null, so the message reads "The focused vault …" and `details.vault` is `null`. The assessment's message assumed a named vault.
+6. **`src/path-safety/canonical.ts` changed (PR #136 review, finding (a), owner ruling option A, 2026-11-04).** The assessment kept `canonical.ts` "read, not changed". The first version of the fix therefore re-ran `realpath(vaultRoot)` after `checkCanonicalPath` threw, to find out which step had failed, and returned `Promise<unknown>` (the original error or a new envelope) for `throw await`. That contract went against Principle IV's typed propagation. The owner ruled that the assessment's line, not BI-0185 (whose scope is behaviour), set the limit, and chose option A. `canonical.ts` now exports the pure `checkUnderCanonicalRoot(vaultRoot, canonicalRoot, inputPath, deps)`, with no error-envelope or `UpstreamError` import, so imports still run tools → path-safety (Principle I) and classification stays in the tools layer. `assertCanonicalPath` realpaths the root first and classifies only that call. The second realpath, the try/catch around the check, the `return err` branch and the `unknown` return are gone. On an available vault the results are unchanged: the number of realpath calls is the same (only their order changed, root first, and no test records that order), and the wire bytes are identical. The existing `canonical.test.ts` and `_active-file.test.ts` cases pass unchanged. This is not the third-outcome alternative the assessment rejected: `CanonicalCheckOutcome` is unchanged.
 
 ## Follow-ups
 

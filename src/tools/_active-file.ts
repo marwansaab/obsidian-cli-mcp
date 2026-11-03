@@ -10,7 +10,7 @@ import {
   type SpawnLike,
 } from "../cli-adapter/cli-adapter.js";
 import { stringDetail, UpstreamError } from "../errors.js";
-import { checkCanonicalPath, type CanonicalCheckOutcome } from "../path-safety/canonical.js";
+import { checkUnderCanonicalRoot } from "../path-safety/canonical.js";
 
 import type { Logger } from "../logger.js";
 import type { Queue } from "../queue.js";
@@ -344,7 +344,7 @@ export interface CanonicalGuardContext {
   vaultLabel: string | null;
   /**
    * What gets logged + echoed as `attemptedPath`. Defaults to `inputPath`. Override
-   * only where the logged label diverges from the value handed to checkCanonicalPath
+   * only where the logged label diverges from the value handed to checkUnderCanonicalRoot
    * (e.g. find_and_replace logs the forward-slash `rel` but resolves the
    * separator-joined path).
    */
@@ -352,29 +352,19 @@ export interface CanonicalGuardContext {
 }
 
 /**
- * Classify a failure of the canonical check (BI-0185). When the vault root itself cannot be
- * realpathed, the vault's folder is the problem: ENOENT / ENOTDIR become
- * CLI_REPORTED_ERROR / VAULT_NOT_FOUND / `folder-missing` (the ADR-015 sibling of
- * `remapVaultNotFound`'s `unknown`), and any other errno becomes CLI_REPORTED_ERROR with
- * `stage: "vault-root-check"`. Neither message nor `details` carries the absolute path; the
- * errno stays on `cause`, which never goes on the wire. When the root resolves, the failure
- * came from below it and is returned unchanged, as before.
+ * The failure for a vault root that cannot be realpathed (BI-0185): the vault's folder is the
+ * problem. ENOENT / ENOTDIR become CLI_REPORTED_ERROR / VAULT_NOT_FOUND / `folder-missing` (the
+ * ADR-015 sibling of `remapVaultNotFound`'s `unknown`), and any other errno becomes
+ * CLI_REPORTED_ERROR with `stage: "vault-root-check"`. Neither message nor `details` carries the
+ * absolute path; the errno stays on `cause`, which never goes on the wire.
  */
-async function canonicalCheckFailure(err: unknown, vaultRoot: string, ctx: CanonicalGuardContext): Promise<unknown> {
-  let rootErr: unknown;
-  try {
-    await ctx.realpath(vaultRoot);
-    return err;
-  } catch (e) {
-    rootErr = e;
-  }
-  const errno = getErrno(rootErr);
-  const vault = ctx.vaultLabel;
+function vaultRootFailure(err: unknown, vault: string | null): UpstreamError {
+  const errno = getErrno(err);
   if (errno === "ENOENT" || errno === "ENOTDIR") {
     const subject = vault === null ? "The focused vault" : `Vault "${vault}"`;
     return new UpstreamError({
       code: "CLI_REPORTED_ERROR",
-      cause: rootErr,
+      cause: err,
       details: { code: "VAULT_NOT_FOUND", reason: "folder-missing", vault },
       message:
         `${subject} is registered with Obsidian, but its folder could not be found on disk. ` +
@@ -384,7 +374,7 @@ async function canonicalCheckFailure(err: unknown, vaultRoot: string, ctx: Canon
   const subject = vault === null ? "the focused vault" : `vault "${vault}"`;
   return new UpstreamError({
     code: "CLI_REPORTED_ERROR",
-    cause: rootErr,
+    cause: err,
     details: { stage: "vault-root-check", errno: errno ?? null, vault },
     message: `The folder of ${subject} could not be checked (${errno ?? "no error code"}).`,
   });
@@ -395,19 +385,18 @@ async function canonicalCheckFailure(err: unknown, vaultRoot: string, ctx: Canon
  * throw PATH_ESCAPES_VAULT. Returns the canonical absolute path on success.
  * Byte-identical to the prior inlined PATH_ESCAPES_VAULT blocks across all seven
  * consumers (the `details` shape is `{vault, attemptedPath, resolvedPath}`).
- * A vault root that cannot be resolved fails as classified by {@link canonicalCheckFailure}.
+ * The vault root is realpathed first, so a root that cannot be resolved fails as
+ * {@link vaultRootFailure}; a failure below a root that resolves propagates unchanged.
  */
 export async function assertCanonicalPath(
   vaultRoot: string,
   inputPath: string,
   ctx: CanonicalGuardContext,
 ): Promise<string> {
-  let check: CanonicalCheckOutcome;
-  try {
-    check = await checkCanonicalPath(vaultRoot, inputPath, { realpath: ctx.realpath });
-  } catch (err) {
-    throw await canonicalCheckFailure(err, vaultRoot, ctx);
-  }
+  const canonicalRoot = await ctx.realpath(vaultRoot).catch((err: unknown) => {
+    throw vaultRootFailure(err, ctx.vaultLabel);
+  });
+  const check = await checkUnderCanonicalRoot(vaultRoot, canonicalRoot, inputPath, { realpath: ctx.realpath });
   if (!check.ok) {
     const attemptedPath = ctx.attemptedPathLabel ?? check.attemptedPath;
     ctx.logger.pathEscapeAttempt({ vault: ctx.vaultLabel, attemptedPath });
