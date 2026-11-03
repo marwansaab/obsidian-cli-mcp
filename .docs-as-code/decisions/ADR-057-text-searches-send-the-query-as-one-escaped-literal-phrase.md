@@ -2,7 +2,9 @@
 
 - **Status:** Accepted; decision 4's `lineMatches` shape replaced by
   [ADR-058](ADR-058-context-search-reads-matched-lines-back-and-fails-when-one-cannot-be.md)
-  (PR #121)
+  (PR #121); decision 1 superseded by
+  [ADR-063](ADR-063-text-searches-send-the-query-as-an-escaped-regular-expression.md)
+  (PR #130), because a quoted phrase matches whole words only
 - **Date:** 2026-11-02
 - **Source:** PR #120 (`specs/087-match-literal-phrases/`, BI-0169,
   FR-001 to FR-013, Clarifications Q1 and Q2, research F5 to F9 and D1 to

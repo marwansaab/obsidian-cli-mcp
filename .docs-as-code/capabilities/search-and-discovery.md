@@ -43,10 +43,26 @@ and operators. Until PR #120 both wrappers forwarded the query unchanged, so
 `alpha beta` matched notes holding the two words anywhere, `-draft` matched
 notes *without* `draft`, and `tag:urgent` matched the tag, not the text,
 while the descriptions promised a literal substring. Both handlers now send
-`literalPhraseQuery(input.query)` from `src/tools/search/literal-phrase.ts`:
-the query in double quotes, with `\` and `"` escaped. File-name and metadata
-matching, the case flag and folder scoping are the CLI's own and did not
-change.
+`literalPhraseQuery(input.query)` from `src/tools/search/literal-phrase.ts`.
+File-name and metadata matching, the case flag and folder scoping are the
+CLI's own and did not change.
+
+PR #120's form was wrong, and PR #130 (BI-0175;
+[ADR-063](../decisions/ADR-063-text-searches-send-the-query-as-an-escaped-regular-expression.md))
+replaced it. PR #120 sent the query in double quotes, with `\` and `"`
+escaped, and its probes used whole words only. Obsidian matches a quoted
+phrase on whole-word boundaries, so a query that started or ended inside a
+word silently found nothing (`ead170` missed `lead170`, `TC-0078` missed
+`TC-00783`). The helper now returns the query as a regular expression,
+`/…/`, with each of `\ ^ $ . * + ? ( ) [ ] { } |` and `/` escaped, which the
+CLI matches as the literal character sequence anywhere, inside words too.
+Everything else PR #120 settled is unchanged (live-probed): syntax
+characters are text, a multi-word query matches only the exact phrase, and
+the case fold, file-name matches, folder scoping and the line-break rule are
+as before. The helper kept its name. Its completeness is tested without the
+CLI: L11 in `literal-phrase.test.ts` compiles the escaped body for a large
+pseudo-random input set, with and without the `u` flag, and checks that it
+matches its input and nothing else.
 
 **One line-level pipeline, in two steps.** `context_search` and `search`
 with `context_lines: true` both build their rows in
@@ -88,7 +104,7 @@ sequenceDiagram
     participant S as line-matches.ts
     participant R as readBackLines
     participant O as Obsidian CLI
-    H->>O: search:context (literal phrase)
+    H->>O: search:context (escaped /…/ query)
     O-->>H: trimmed lines
     H->>S: selectLines
     S-->>H: rows, truncated
@@ -292,6 +308,18 @@ produced; PR #100 deleted the check
   (PR #120): `OR`, a leading `-`, `tag:`, `path:` and the rest are matched as
   text. Raw syntax goes through `obsidian_exec`, which passes the CLI's
   `search` command its query unchanged.
+- Since PR #130 a query also matches inside longer words (`decision` finds
+  `decisions`). That is the published contract, but callers used to
+  0.9.0-local's whole-word results see more hits.
+- The regex escape exists in three copies: `literalPhraseQuery`,
+  `find_and_replace`'s `escapeRegex` (the same set without `/`), and an
+  inline set in `src/tools/_vault-relative-error.ts`. One shared module was
+  deferred by the PR #130 review (owner ruling Q1 = C) because it edits tools
+  outside BI-0175. The name `literalPhraseQuery` also predates the regex form;
+  a rename waits until the files are next touched.
+- PR #130's live check did not exercise a path-mode phrase that spans a line
+  break, or macOS and Linux. The report's original `|` query was never
+  recorded; synthetic `|` rows stand in for it.
 - `backlinks`'s description still keeps a "Targeting:" paragraph that
   restates the locator rule now carried by the field descriptions. PR #90's
   T051 list did not include it, and the PR body leaves its removal to the

@@ -1515,7 +1515,9 @@ One tool-to-tool edge exists, and it runs one way: `context_search` and
 that folder beside the wire schema it reads, rather than in an `_*.ts` leaf:
 `literal-phrase.ts` and `line-matches.ts` since PR #120
 ([search and discovery](capabilities/search-and-discovery.md),
-[ADR-057](decisions/ADR-057-text-searches-send-the-query-as-one-escaped-literal-phrase.md)).
+[ADR-057](decisions/ADR-057-text-searches-send-the-query-as-one-escaped-literal-phrase.md);
+since PR #130 `literal-phrase.ts` builds an escaped regular expression,
+[ADR-063](decisions/ADR-063-text-searches-send-the-query-as-an-escaped-regular-expression.md)).
 
 Every production source file starts with an attribution header: either an
 upstream reference with SPDX licence and version, or `Original — no upstream`
