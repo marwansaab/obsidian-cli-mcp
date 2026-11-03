@@ -90,6 +90,14 @@ Queried with `codegraph_explore` on `stripTagHash`, `withoutTagHash`, `TAGS_PROP
 - **Added `src/tools/_tag-hash.ts` and `_tag-hash.test.ts`**: the assessment allowed for the helper ("if factored out") without naming the file. The test is co-located per Principle II.
 - No other deviation. The template edit, the `read_property` strip, the key scope (exactly `tags`, case-sensitive), the one-`#` rule and the description, docs and CHANGELOG changes follow the Proposed Remediation and its resolved questions.
 
+## Code-review fixes (PR #131)
+
+The thermo-nuclear code-quality review found that the template's inline copy was avoidable: a frozen template can interpolate a JS-source fragment from a leaf module, as it already does with `B64_PAYLOAD_DECODE_EXPR`, and as the smart_connections templates do with `SORT_SLICE_AND_EMIT`. It also found that the value-level rule lived only in `read_property`. Both are fixed, with behaviour unchanged:
+
+- `src/tools/_tag-hash.ts` now owns `TAGS_PROPERTY`, `withoutTagHash` (moved from `read_property/handler.ts`) and `WITHOUT_TAG_HASH_JS`, the same value-level rule as in-eval source.
+- `find_by_property/_template.ts` interpolates `WITHOUT_TAG_HASH_JS` as `tg` and applies it once to the stored value and once to the query (`q`). `eq` is back to the bytes on `main`. The *Diff Highlights* above show the first version.
+- `_tag-hash.test.ts` gains a parity table: `withoutTagHash` and `WITHOUT_TAG_HASH_JS` (run under `node:vm`) give the same answers. The `_template.test.ts` and `read_property` tests pass unchanged, and the fingerprint baseline did not move.
+
 ## Follow-ups
 
 - Run the assessment's live check in `/speckit-bug-test`: seed two `Sandbox/` notes tagged `bi0181-live`, bring one into the `#` cache form with `property:set` on another key, confirm `find_by_property` with `bi0181-live` and `#bi0181-live` both return both notes and `read_property` on `tags` returns `["bi0181-live"]` for both, then clean up.
