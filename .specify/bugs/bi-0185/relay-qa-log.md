@@ -296,3 +296,50 @@ Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Constitution
 > 4. Map ENOENT and ENOTDIR on the vault root to `VAULT_NOT_FOUND` / `folder-missing`. Do not rethrow other errnos (EPERM, EIO, UNKNOWN, …) raw: wrap each in an existing structured `UpstreamError` envelope that keeps the errno code in `details`, without the `folder-missing` reason or hint and without the absolute path in the message. Add no new code or reason for them. Record any errno the live check turns up in the spec.
 >
 > Basis: Constitution Principle IV says errors crossing the boundary MUST be `UpstreamError` with `code` / `cause` / `details`, so "rethrow unchanged" would leave a raw escape the fix is touching. BI-0185's user story keeps disk paths out of messages. Use the folder-missing hint only where the folder really is gone (ENOENT, or ENOTDIR when a path segment is not a folder), so a real permission or I/O fault is not misreported.
+
+## 7. repair / settle-verdict (2026-11-03T21:53:12.404Z)
+
+**Question (verbatim):**
+
+> BI-0185 bug-test result: partial. The fix works for all eight affected tools on the real file system (query_base, create_base, find_and_replace, write_note, append_note, prepend, patch_block, patch_heading). Before the fix, each one returned the exact TC-00727 raw ENOENT text with the disk path. After it, each returns CLI_REPORTED_ERROR with VAULT_NOT_FOUND / folder-missing, the recovery hint, no disk path and no CLI call. A missing drive letter gets the same result, a call on an existing folder answers the same before and after, and the full suite (4837 passed, 6 skipped), typecheck and lint pass.
+>
+> Two checks were not run:
+> 1. Live TC-00727: query_base through the MCP server against a vault that Obsidian has registered but whose folder was renamed. This needs that vault to exist. Obsidian keeps its vault list in memory, and neither the CLI nor an obsidian:// link can register a vault, so the setup has to be done by hand in Obsidian's vault switcher: "Open folder as vault" on a scratch folder under %TEMP%, then rename the folder. Removing the vault afterwards also needs the switcher ("Remove from list"). The probes so far replaced only the vault-name lookup with a stub; everything after it ran as in production.
+> 2. Live answers on the routes that ask Obsidian before checking the folder: the `file` (note name) locator on write_note / append_note / prepend / patch_block / patch_heading, plus bases and views_base. They need the same vault. Reading the code says none of them can return a raw system error, because they reach Obsidian only through the CLI wrapper, which always returns structured errors. So the evidence shows no wider fix is needed. What Obsidian actually answers there is still unseen.
+>
+> | Option | What happens |
+> |---|---|
+> | A (recommended) | Accept the partial result and open the pull request. Both gaps are already recorded in test.md under "Residual Risks", and the live TC-00727 re-run is left as a follow-up for the next validation pass. |
+> | B | Before the PR, you register a scratch vault in Obsidian's vault switcher and rename its folder (tell me its name). I then re-run TC-00727 and the file-locator, bases and views_base routes live, and rewrite test.md. A route that turns out to leak a raw error gets fixed in this BI. You remove the vault from the switcher afterwards. |
+> | C | Widen the fix to the other raw errors from inside an existing vault folder (for example ENOTDIR for `Welcome.md/x.md` on Linux, EACCES on a subfolder). Not recommended: that is not a missing vault folder, so it falls outside BI-0185, and fix.md already proposes it as its own BI. It does nothing for the two unexercised checks. |
+>
+> Recommended: A. The real-file-system evidence covers the reported failure for every affected tool, and the gaps need only a manual Obsidian setup, not a code change.
+
+**Advisor** (escalate: decision: This asks for sign-off on accepting a partial bug-test result, and the alternative (B) needs you to register and rename a scratch vault by hand in Obsidian. Only you can approve the gap or commit to the manual setup.):
+
+> A. Accept the partial result. Keep both unrun checks under "Residual Risks" in test.md and name TC-00727 there as the live re-run for the next owner-input validation pass. Do not widen the fix (C): errors raised inside an existing vault folder are not a missing vault folder and fall outside BI-0185's Feature and acceptance criteria.
+>
+> Basis: TC-00727 is `owner_input: required` (the owner registers and renames the scratch vault). Live checks of that kind run in owner-input regression passes (see the 0.9.0 owner-input regression task in the Session Handover). The real-file-system evidence covers every acceptance criterion except the live Obsidian route.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0185 - Return Structured Error When Named Vault Folder Is Missing.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Test Cases/TC-00727 - Registered Vault That Cannot Be Brought Up Returns Vault Unavailable Failure.md`, `220-Planning/Session Handover.md`
+
+**Advisor, after the owner ruled** (escalate: none):
+
+> A
+>
+> Owner ruling, 2026-11-04: the partial bug-test result is accepted. Keep both unrun checks under "Residual Risks" in test.md: the live TC-00727 run, and Obsidian's live answer on the `file`-locator, `bases` and `views_base` routes. Name TC-00727 as the re-run for the next owner-input validation pass. Do not widen the fix (C is outside BI-0185).
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0185 - Return Structured Error When Named Vault Folder Is Missing.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Test Cases/TC-00727 - Registered Vault That Cannot Be Brought Up Returns Vault Unavailable Failure.md`, `220-Planning/Session Handover.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0185 - Return Structured Error When Named Vault Folder Is Missing.md`: Appended to ## Status the owner ruling of 2026-11-04 accepting the partial bug-test result: eight tools verified on the real file system; live TC-00727 and the CLI-first routes recorded as residual risks; TC-00727 re-run deferred to the next owner-input pass.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0185 - Return Structured Error When Named Vault Folder Is Missing.md`: Related: query_base line now names the seven further folder-resolving tools the bug-fix run confirmed, replacing 'to be confirmed'.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0185 - Return Structured Error When Named Vault Folder Is Missing.md`: Appended a dated HTML audit comment recording the bug-test ruling.
+
+**Owner:** choice 1 (A: accept partial result), via cli, 2026-11-03T21:57:48.177Z.
+
+**Sent to the step:**
+
+> A
+>
+> Owner ruling, 2026-11-04: the partial bug-test result is accepted. Keep both unrun checks under "Residual Risks" in test.md: the live TC-00727 run, and Obsidian's live answer on the `file`-locator, `bases` and `views_base` routes. Name TC-00727 as the re-run for the next owner-input validation pass. Do not widen the fix (C is outside BI-0185).
