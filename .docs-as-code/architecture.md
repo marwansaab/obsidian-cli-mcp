@@ -1122,9 +1122,17 @@ flowchart LR
   name as a literal path (spec 089 research F1;
   [mutate](capabilities/mutate.md#note-names-in-the-section-editors),
   [ADR-059](decisions/ADR-059-section-editors-resolve-note-names-through-the-shared-lookup.md)).
-  `write_note` keeps its own resolution and checks the path it computes. The
-  section editors use the resolver for the locator only; they still run no
-  type check.
+  `write_note` keeps its own resolution, because it creates a note when no
+  name matches. Since BI-0176 (PR #127, PR #128) it resolves a `file` name
+  through `findFileByTsv`, which `_active-file.ts` exports beside
+  `FILE_NOT_FOUND_LINE`: `resolveFileByTsv` with a `null` for Obsidian's
+  not-found answer, on which `write_note` falls back to its vault-root
+  short-form rule; every other lookup failure propagates. Before BI-0176 it
+  applied that rule to every name, so a note in a sub-folder was never found
+  by name ([mutate](capabilities/mutate.md#note-names-in-write_note),
+  [ADR-062](decisions/ADR-062-write-note-resolves-names-through-the-shared-lookup-and-creates-only-on-obsidians-not-found.md)).
+  It type-checks the path it ends up with. The section editors use the
+  resolver for the locator only; they still run no type check.
 
 The cost is one extra CLI round-trip for `file` and active calls of the four
 pass-through tools, and for `file` calls of the direct-filesystem tools above.
