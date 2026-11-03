@@ -103,7 +103,7 @@ describe("createCreateBaseTool — descriptor", () => {
       logger: silentLogger(),
       queue: createQueue(),
       vaultRegistry: registry,
-      spawnFn: makeStubSpawn({ stdout: "Created: New item.md\n" }),
+      spawnFn: makeStubSpawn({ stdout: "Created: Tasks/New item.md\n" }),
     });
 
     const result = await tool.handler({
@@ -203,7 +203,7 @@ describe("createCreateBaseTool — validation error discriminators (spec 084 FR-
       structuredContent?: Record<string, unknown>;
     };
     expect(result.isError).toBeUndefined();
-    expect(result.structuredContent).toEqual({ path: "T/New item.md", name: "New item.md" });
+    expect(result.structuredContent).toEqual({ path: "New item.md", name: "New item.md" });
   });
 });
 
@@ -211,13 +211,13 @@ describe("createCreateBaseTool — deprecated names (spec 073)", () => {
   type Result = { isError?: boolean; content: { text: string }[]; structuredContent?: Record<string, unknown> };
 
   it("O1: a new-name call carries no deprecated_parameters", async () => {
-    const tool = createCreateBaseTool({ logger: silentLogger(), queue: createQueue(), vaultRegistry: registry, spawnFn: makeStubSpawn({ stdout: "Created: New item.md\n" }) });
+    const tool = createCreateBaseTool({ logger: silentLogger(), queue: createQueue(), vaultRegistry: registry, spawnFn: makeStubSpawn({ stdout: "Created: Tasks/New item.md\n" }) });
     const result = (await tool.handler({ base_path: "Tasks.base", name: "New item", view_name: "All" })) as Result;
     expect(result.structuredContent).toEqual({ path: "Tasks/New item.md", name: "New item.md" });
   });
 
   it("O2: an old-name call gets today's result plus the notice, identical in text and structuredContent", async () => {
-    const tool = createCreateBaseTool({ logger: silentLogger(), queue: createQueue(), vaultRegistry: registry, spawnFn: makeStubSpawn({ stdout: "Created: New item.md\n" }) });
+    const tool = createCreateBaseTool({ logger: silentLogger(), queue: createQueue(), vaultRegistry: registry, spawnFn: makeStubSpawn({ stdout: "Created: Tasks/New item.md\n" }) });
     const result = (await tool.handler({ path: "Tasks.base", name: "New item", view: "All" })) as Result;
     expect(result.isError).toBeUndefined();
     expect(result.structuredContent).toEqual({
@@ -239,7 +239,7 @@ describe("createCreateBaseTool — deprecated names (spec 073)", () => {
       fs: { realpath: async (p: string) => p },
       spawnFn: makeQueuedSpawn([
         { stdout: `=> ${JSON.stringify({ ok: true, folder: "Tasks" })}` },
-        { stdout: "Created: New item.md\n" },
+        { stdout: "Created: Tasks/New item.md\n" },
       ]).spawnFn,
     });
     const result = (await tool.handler({ path: "Tasks.base", name: "New item", view: "All", vault: "Work" })) as Result;
@@ -294,7 +294,8 @@ describe("createCreateBaseTool — deprecated names (spec 073)", () => {
   it("description uses the new names and lists the deprecated ones", () => {
     expect(CREATE_BASE_DESCRIPTION).toContain("Required `base_path` (string, 1..1000 chars)");
     expect(CREATE_BASE_DESCRIPTION).toContain("Optional `view_name` (string)");
-    expect(CREATE_BASE_DESCRIPTION).toContain("`path` in the response is the wrapper-constructed vault-relative path of the created item");
+    expect(CREATE_BASE_DESCRIPTION).toContain("`path` is the vault-relative path of the note Obsidian created");
+    expect(CREATE_BASE_DESCRIPTION).not.toContain("wrapper-constructed");
     expect(CREATE_BASE_DESCRIPTION).toContain(
       "Deprecated names (accepted until the next major release; a call that uses one gets `deprecated_parameters` in its result): `path` → `base_path`, `view` → `view_name`.",
     );

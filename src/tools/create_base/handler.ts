@@ -167,16 +167,15 @@ export async function executeCreateBase(
         stage: "response-parse",
         stdout: cliResult.stdout.slice(0, 500),
       },
-      message: "create_base: CLI stdout did not contain expected 'Created: <filename>' pattern",
+      message: "create_base: CLI stdout did not contain expected 'Created: <path>' pattern",
     });
   }
 
-  const createdFilename = match[1]!.trim();
-  await checkCreated?.(createdFilename);
-  const baseDir = posix.dirname(input.base_path.replace(/\\/g, "/"));
-  const baseName = posix.basename(input.base_path.replace(/\\/g, "/"), ".base");
-  const itemDir = baseDir === "." ? baseName : `${baseDir}/${baseName}`;
-  const itemPath = `${itemDir}/${createdFilename}`;
+  // `Created:` carries the vault-relative path Obsidian chose (the Base's `file.inFolder` folder,
+  // else the new-note location, joined with any folder part of `name`), so it is the response path
+  // as-is, and the same value the named-vault backstop checks.
+  const createdPath = match[1]!.trim().replace(/\\/g, "/");
+  await checkCreated?.(createdPath);
 
-  return createBaseOutputSchema.parse({ path: itemPath, name: createdFilename });
+  return createBaseOutputSchema.parse({ path: createdPath, name: posix.basename(createdPath) });
 }

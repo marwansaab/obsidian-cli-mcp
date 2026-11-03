@@ -41,18 +41,18 @@ Spec 073 aligned this tool's parameter names with `query_base` and `views_base`.
 
 ```json
 {
-  "path": "220-Planning/Backlog (Base)/New feature request.md",
+  "path": "220-Planning/Backlog/New feature request.md",
   "name": "New feature request.md"
 }
 ```
 
-- `path` — vault-relative path of the created item (wrapper-constructed from the base file's directory + the CLI-returned filename). This is the created note, not the `.base` file, which the input names `base_path`.
-- `name` — actual filename of the created item. May differ from the requested name due to auto-increment on collision.
+- `path` — vault-relative path of the note Obsidian created, as the CLI reports it. Obsidian places the item in the Base's `file.inFolder("<folder>")` folder when its top-level `filters` has one, otherwise in the vault's new-note location, joined with any folder part of `name`. The path does not depend on where the `.base` file sits. This is the created note, not the `.base` file, which the input names `base_path`; read or edit the item with this `path`.
+- `name` — file name of the created item (the last segment of `path`, with `.md`). May differ from the requested name due to auto-increment on collision.
 - `deprecated_parameters` — present only when the call used a deprecated name, e.g. `[{ "parameter": "path", "replacement": "base_path" }]`. Absent otherwise.
 
 ## Name collision auto-increment
 
-When a note with the requested name already exists in the base's directory, the CLI auto-increments the filename by appending ` 1`, ` 2`, etc. The wrapper surfaces the **actual** created filename in the `name` field, which may differ from what was requested.
+When a note with the requested name already exists in the folder the item lands in, the CLI auto-increments the filename by appending ` 1`, ` 2`, etc. The wrapper surfaces the **actual** created filename in the `name` field, which may differ from what was requested.
 
 Example: requesting `name: "Task"` when `Task.md` already exists yields `name: "Task 1.md"`.
 
@@ -100,11 +100,11 @@ These three validation errors carry `details.code`, `details.reason` (when the r
 }
 ```
 
-Response:
+Response, when the Base's top-level `filters` is `file.inFolder("220-Planning/Backlog")`:
 
 ```json
 {
-  "path": "220-Planning/Backlog (Base)/New feature request.md",
+  "path": "220-Planning/Backlog/New feature request.md",
   "name": "New feature request.md"
 }
 ```
@@ -125,7 +125,7 @@ When `New feature request.md` already exists:
 
 ```json
 {
-  "path": "220-Planning/Backlog (Base)/New feature request 1.md",
+  "path": "220-Planning/Backlog/New feature request 1.md",
   "name": "New feature request 1.md"
 }
 ```
