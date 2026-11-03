@@ -530,11 +530,25 @@ flowchart LR
 - **The new-name schema** is the published object with the old keys omitted,
   `required` and today's defaults restored, and the tool's existing
   refinements, which now name only the new parameter. Every validation issue
-  on the resolved value therefore reports the new name.
+  on the resolved value therefore reports the new name — provided the alias
+  field on the published side carries the value's type only. Until PR #135
+  (BI-0182) this page said so unconditionally, and it was wrong for two
+  aliases: `find_by_property.property` and `create_base.view` carried their
+  twins' `min(1)`, which zod runs on the published object before the fold, so
+  `property: ""` and `view: ""` were reported at the old key. PR #135 dropped
+  both checks; the rule now lives in the `deprecatedAlias` doc comment
+  ([ADR-067](decisions/ADR-067-deprecated-aliases-carry-the-type-only-and-the-current-name-keeps-its-checks.md)).
+  A wrong-typed old-name value (`arrayMatch: "x"`) still fails the alias's
+  type check and reports the old key, by ruling.
 - **The notice** reaches the result through `withDeprecatedParameters` in each
   tool's `index.ts`, and `deprecatedParametersField` is declared on each output
   schema (both `find_and_replace` branches), so it is identical in the text
-  and in `structuredContent` and absent when a call used only new names.
+  and in `structuredContent` and absent when a call used only new names. Only
+  a successful result carries it; error responses do not (spec 073 FR-011,
+  stated in the descriptions and help pages since PR #135). Each tool's
+  "Deprecated names" description line is built by `deprecatedNamesNote` from
+  its `*_RENAMES` table (PR #135, byte-identical to the hand-written lines it
+  replaced).
 
 Two published-surface costs of the transition, both deliberate: a renamed
 concept that was required (`find_by_property.name`, `create_base.base_path`)
@@ -558,8 +572,21 @@ pipe and is reported alone, so `subfolder` + `folder` + `path` returns the
 generic conflict issue instead of `SCOPE_CONFLICT`. The per-rename O2 and O4
 test cases come from `deprecatedAliasCases` in
 `src/tools/_deprecated-params-test-cases.ts`, which is excluded from the build
-like `_target-mode-test-cases.ts`. Removing the old names (FR-014) is a
+like `_target-mode-test-cases.ts`. Since PR #135 it also builds parity rows
+from an optional invalid value per replacement: the old-name and new-name
+payloads must fail with identical issues. Removing the old names (FR-014) is a
 follow-up for the next major release.
+
+A second trade-off PR #135's review settled (owner ruling Q4): the current-name
+keys `find_by_property.name` and `create_base.view_name` keep `.min(1)` on the
+published object. An issue there stops the pipe before the new-name schema's
+refinements run, so with a second mistake the old-name call reports both
+issues and the current-name call only the first. Every issue still names the
+current key; identical issue lists are guaranteed for one mistake only.
+Moving the checks into the folded schema would have given full parity but
+dropped `minLength: 1` from the published schema of the current names, and was
+declined
+([ADR-067](decisions/ADR-067-deprecated-aliases-carry-the-type-only-and-the-current-name-keeps-its-checks.md)).
 
 ### Server instructions
 

@@ -330,7 +330,11 @@ produced; PR #100 deleted the check
   published `required` list, and `array_match` and `case_sensitive` publish no
   JSON Schema `default` (their defaults, both `true`, are applied at parse time
   and stated in the descriptions). The eval payload the template receives kept
-  its keys, so the CLI call is byte-identical.
+  its keys, so the CLI call is byte-identical. Until PR #135 (BI-0182)
+  `property: ""` was reported at `["property"]` rather than `["name"]`,
+  because the alias kept its own `min(1)`; it now gets the same issue as
+  `name: ""`, and only a successful call carries the notice
+  ([ADR-067](../decisions/ADR-067-deprecated-aliases-carry-the-type-only-and-the-current-name-keeps-its-checks.md)).
 - `tag` folds case with ASCII lower-casing only, so non-ASCII tags match
   case-sensitively.
 - The one-`#` tag rule has a third copy: `tag/_template.ts`'s `normTag`
