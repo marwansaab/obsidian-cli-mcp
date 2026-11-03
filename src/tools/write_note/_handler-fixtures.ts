@@ -104,3 +104,11 @@ export function deps(opts: {
 }
 
 export const EVAL_OK: StubResponse = { stdout: "=> undefined\n", exitCode: 0 };
+
+/**
+ * BI-0176: the `file` name lookup eval's answer (NAME_LOOKUP_TEMPLATE): the note `path` resolves to,
+ * or null when no note has the name, as answered by the vault named `vault`.
+ */
+export function nameLookupResponse(path: string | null, vault = "TestVault"): StubResponse {
+  return { stdout: `=> ${JSON.stringify({ vault, path })}\n`, exitCode: 0 };
+}

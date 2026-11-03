@@ -1,9 +1,11 @@
-// Original — no upstream. write_note handler per ADR-009 — direct-fs-write: specific-mode resolveVaultPath / active-mode focused-file eval → note-only file-type check (spec 070: a non-note target is rejected as UNSUPPORTED_FILE_TYPE before any write) → checkCanonicalPath → mkdir → stat probe (overwrite=true: existence and old size, ENOENT → created with old size 0, any other errno → FS_WRITE_FAILED before the write; spec 075) → atomic temp+rename (overwrite=true) or wx-flag write (overwrite=false → FILE_EXISTS; old size 0) → best-effort metadataCache refresh eval on the vault-relative path in the written vault (logged on failure) → optional best-effort openLinkText eval (specific + open=true, vault-relative path, vault=) → return { created, path, bytes_written } (bytes_written = byteLength(content) − old size). User content NEVER crosses the CLI argv pipe at any size (FR-005, SC-007).
+// Original — no upstream. write_note handler per ADR-009 — direct-fs-write: specific-mode resolveVaultPath, then for a `file` name one vault-targeted lookup eval (BI-0176: an existing note is written wherever it is; the lookup must report the named vault, else CLI_REPORTED_ERROR / VAULT_MISMATCH and nothing is written; only a name no note has falls back to the vault-root short-form rule) / active-mode focused-file eval → note-only file-type check (spec 070: a non-note target is rejected as UNSUPPORTED_FILE_TYPE before any write) → checkCanonicalPath → mkdir → stat probe (overwrite=true: existence and old size, ENOENT → created with old size 0, any other errno fails before the write; spec 075; fs failures map through the cohort's mapFsWriteError, EBUSY / EPERM → EXTERNAL_EDITOR_CONFLICT, BI-0176) → atomic temp+rename (overwrite=true) or wx-flag write (overwrite=false → FILE_EXISTS; old size 0) → best-effort metadataCache refresh eval on the vault-relative path in the written vault (logged on failure) → optional best-effort openLinkText eval (specific + open=true, vault-relative path, vault=) → return { created, path, bytes_written } (bytes_written = byteLength(content) − old size). User content NEVER crosses the CLI argv pipe at any size (FR-005, SC-007).
 import { randomUUID } from "node:crypto";
 import * as nodeFs from "node:fs/promises";
 import { dirname } from "node:path";
 
-import { type SpawnLike } from "../../cli-adapter/cli-adapter.js";
+import { NAME_LOOKUP_TEMPLATE } from "./_template.js";
+import { nameLookupEvalResponseSchema } from "./schema.js";
+import { invokeEval, type SpawnLike } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import {
   assertSupportedFileType,
@@ -11,9 +13,10 @@ import {
   extensionOf,
   type SupportDeclaration,
 } from "../../file-type/file-type.js";
-import { assertCanonicalPath, resolveActiveFocusedFile } from "../_active-file.js";
-import { getErrno } from "../_fs-errors.js";
+import { assertCanonicalPath, decodeEvalEnvelope, resolveActiveFocusedFile } from "../_active-file.js";
+import { getErrno, mapFsWriteError } from "../_fs-errors.js";
 import { invalidateMetadataCache, openNote, writeAtomic } from "../_note-io.js";
+import { composeEvalCode } from "../_shared.js";
 
 import type { WriteNoteInput, WriteNoteOutput } from "./schema.js";
 import type { Logger } from "../../logger.js";
@@ -69,36 +72,50 @@ function isCanonicalShortForm(file: string): boolean {
   );
 }
 
-// FR-001 / R1 specific-mode path resolution: `input.path` passes through
-// verbatim; `input.file` resolves to `<file>.md` at vault root for canonical
-// short-form inputs and passes through verbatim otherwise (FR-001a).
-function resolveSpecificModePath(input: WriteNoteInput): string {
+// BI-0176: a lock on the target is the cohort's editor conflict. EBUSY / EPERM is
+// patch_block's set; EACCES stays a permissions failure (FS_WRITE_FAILED).
+const CONFLICT_ERRNOS: ReadonlySet<string> = new Set(["EBUSY", "EPERM"]);
+
+// Specific-mode path resolution: `input.path` passes through verbatim. BI-0176: a
+// `file` name is resolved like a wikilink by one eval in the named vault, so an
+// existing note is the one written wherever it is. The eval reports the vault it ran
+// in; unless that is the named vault, nothing is written (owner ruling, scope (a)):
+// neither the root fallback nor a path from another vault's lookup is trusted. Only a
+// name no note has in the named vault falls back to the FR-001 / FR-001a rule:
+// `<file>.md` at the vault root for a canonical short form, verbatim otherwise.
+async function resolveSpecificModePath(input: WriteNoteInput, deps: ExecuteDeps): Promise<string> {
   if (input.path !== undefined) return input.path;
   const file = input.file!;
+  const vault = input.vault!;
+  const result = await invokeEval({ code: composeEvalCode(NAME_LOOKUP_TEMPLATE, { file }), vault }, deps);
+  const lookup = decodeEvalEnvelope(result, nameLookupEvalResponseSchema, {
+    toolName: "write_note",
+    malformedCode: "CLI_REPORTED_ERROR",
+  });
+  if (lookup.vault !== vault) {
+    throw new UpstreamError({
+      code: "CLI_REPORTED_ERROR",
+      cause: null,
+      details: { code: "VAULT_MISMATCH", vault, answeredBy: lookup.vault, file },
+      message: `write_note: the lookup of "${file}" ran in vault "${lookup.vault}", not "${vault}", so nothing was written. Retry, or address the note by path.`,
+    });
+  }
+  if (lookup.path !== null) return lookup.path;
   return isCanonicalShortForm(file) ? `${file}.md` : file;
 }
 
-function mapFsError(e: unknown): UpstreamError {
-  // Raw-cast errno extraction (not getErrno) to stay byte-exact: getErrno's
-  // string-guard would remap a non-string `.code` to "UNKNOWN", changing
-  // details.errno + the message. The fixed-string predicate checks below use
-  // getErrno (provably equivalent for string literals).
-  const errno = (e as NodeJS.ErrnoException | null)?.code ?? "UNKNOWN";
-  if (errno === "EEXIST") {
+// EEXIST keeps its `{ errno }`-only FILE_EXISTS shape (test-pinned asymmetry with the
+// `wx` create's FILE_EXISTS); every other errno maps like the sibling writers, with
+// the vault-relative path and no OS path (BI-0176).
+function mapFsError(e: unknown, relPath: string): UpstreamError {
+  if (getErrno(e) === "EEXIST") {
     return new UpstreamError({
       code: "FILE_EXISTS",
       cause: e,
-      details: { errno },
+      details: { errno: "EEXIST" },
     });
   }
-  const syscall = (e as NodeJS.ErrnoException | null)?.syscall;
-  const path = (e as NodeJS.ErrnoException | null)?.path;
-  return new UpstreamError({
-    code: "FS_WRITE_FAILED",
-    cause: e,
-    details: { errno, syscall, path },
-    message: `Filesystem write failed: ${errno}${syscall ? ` on ${syscall}` : ""}${path ? ` for ${path}` : ""}`,
-  });
+  return mapFsWriteError(e, { relPath, conflictErrnos: CONFLICT_ERRNOS, conflictVerb: "write" });
 }
 
 export async function executeWriteNote(
@@ -114,7 +131,7 @@ export async function executeWriteNote(
     ({ vaultRoot, relPath } = await resolveActiveFocusedFile(deps, "write_note"));
   } else {
     vaultRoot = await deps.vaultRegistry.resolveVaultPath(input.vault!);
-    relPath = resolveSpecificModePath(input);
+    relPath = await resolveSpecificModePath(input, deps);
   }
 
   assertSupportedFileType({ relPath, supported: WRITE_NOTE_SUPPORTED, toolName: "write_note" });
@@ -128,7 +145,7 @@ export async function executeWriteNote(
   try {
     await fs.mkdir(dirname(absPath), { recursive: true });
   } catch (e) {
-    throw mapFsError(e);
+    throw mapFsError(e, relPath);
   }
 
   // Spec 075: the note's size before the write, null when it did not exist (the
@@ -140,13 +157,13 @@ export async function executeWriteNote(
     try {
       sizeBefore = (await fs.stat(absPath)).size;
     } catch (e) {
-      if (getErrno(e) !== "ENOENT") throw mapFsError(e);
+      if (getErrno(e) !== "ENOENT") throw mapFsError(e, relPath);
     }
 
     try {
       await writeAtomic(fs, absPath, input.content, randomUUID);
     } catch (e) {
-      throw mapFsError(e);
+      throw mapFsError(e, relPath);
     }
   } else {
     // overwrite=false: atomic create-or-fail via O_CREAT|O_EXCL (the `wx` flag).
@@ -164,7 +181,7 @@ export async function executeWriteNote(
           message: `File already exists at "${relPath}" and overwrite is false.`,
         });
       }
-      throw mapFsError(e);
+      throw mapFsError(e, relPath);
     }
   }
 

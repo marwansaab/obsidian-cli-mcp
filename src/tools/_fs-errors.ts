@@ -1,4 +1,4 @@
-// Original — no upstream. Shared filesystem-error mapping for the single-file write/edit cohort (F4 of the thermo-nuclear code-quality review). Centralises `getErrno` / `getSyscall` and the EXTERNAL_EDITOR_CONFLICT / FS_WRITE_FAILED classification skeleton previously copy-pasted across append_note, patch_block, and patch_heading. The per-tool divergences are explicit parameters — which errnos count as an external-editor conflict (patch_heading classifies EACCES as a conflict; patch_block does not), the action verb in the conflict message ("append to" vs "patch"), and whether the raw errno path is echoed as `details.fsPath` (patch_heading only) — so each difference is a visible choice rather than a one-token edit buried in a near-duplicate function. Byte-preserving per consumer. write_note (FILE_EXISTS, no editor-conflict) and find_and_replace (reason-keyed, vault-wide) have distinct shapes and keep their own mappers. `noteNotFound` is the cohort's one NOTE_NOT_FOUND builder (spec 077 PR #105 review).
+// Original — no upstream. Shared filesystem-error mapping for the single-file write/edit cohort (F4 of the thermo-nuclear code-quality review). Centralises `getErrno` / `getSyscall` and the EXTERNAL_EDITOR_CONFLICT / FS_WRITE_FAILED classification skeleton previously copy-pasted across append_note, patch_block, and patch_heading. The per-tool divergences are explicit parameters — which errnos count as an external-editor conflict (patch_heading classifies EACCES as a conflict; patch_block does not), the action verb in the conflict message ("append to" vs "patch"), and whether the raw errno path is echoed as `details.fsPath` (patch_heading only) — so each difference is a visible choice rather than a one-token edit buried in a near-duplicate function. Byte-preserving per consumer. write_note keeps its own EEXIST → FILE_EXISTS branch and routes every other errno here (BI-0176); find_and_replace (reason-keyed, vault-wide) has a distinct shape and keeps its own mapper. `noteNotFound` is the cohort's one NOTE_NOT_FOUND builder (spec 077 PR #105 review).
 import { UpstreamError } from "../errors.js";
 
 /** Narrow an unknown thrown value to its NodeJS errno `code`, if present. */
@@ -21,7 +21,7 @@ export interface FsWriteErrorOptions {
   /**
    * Errnos that signal an external editor holding the file open (Windows
    * sharing violations). Differs per tool: patch_heading + append_note include
-   * EACCES; patch_block does not (it routes EACCES to FS_WRITE_FAILED).
+   * EACCES; patch_block and write_note do not (they route EACCES to FS_WRITE_FAILED).
    */
   conflictErrnos: ReadonlySet<string>;
   /** Action verb for the conflict message — e.g. `"append to"` or `"patch"`. */

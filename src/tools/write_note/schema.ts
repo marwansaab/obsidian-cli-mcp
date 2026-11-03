@@ -22,7 +22,9 @@ export const writeNoteInputSchema = applyTargetModeRefinement(
   targetModeBaseSchema.extend({
     file: safePathField
       .optional()
-      .describe(`${TARGET_MODE_FILE_DESCRIPTION} For a new note, the name is created at the vault root.`),
+      .describe(
+        `${TARGET_MODE_FILE_DESCRIPTION} An existing note of that name is the one written, wherever it is; a name no note has is created at the vault root.`,
+      ),
     path: safePathField.optional().describe(TARGET_MODE_PATH_DESCRIPTION),
     content: z.string().describe("Full note body to write, as UTF-8 Markdown; replaces any existing content."),
     overwrite: z
@@ -62,6 +64,15 @@ export const writeNoteOutputSchema = z
     path: z.string(),
     bytes_written: z.number().int().describe(BYTES_WRITTEN_DESCRIPTION),
   });
+
+/**
+ * The answer of the `file` name lookup eval (BI-0176, NAME_LOOKUP_TEMPLATE): the name of the vault the
+ * eval ran in, and the resolved note's vault-relative path, or null when no note has the name.
+ */
+export const nameLookupEvalResponseSchema = z.strictObject({
+  vault: z.string(),
+  path: z.string().nullable(),
+});
 
 export type WriteNoteInput = z.infer<typeof writeNoteInputSchema>;
 export type WriteNoteOutput = z.infer<typeof writeNoteOutputSchema>;

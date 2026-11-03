@@ -280,3 +280,60 @@ Edits:
 > Do not wait for the reporter's program or timing details.
 >
 > Rationale: TC-00412 shows a PowerShell lock without Delete sharing deterministically produces EPERM on the rename, and Notepad-style editors do not lock.
+
+## 6. repair / bug-test (2026-11-03T01:36:26.398Z)
+
+**Question (verbatim):**
+
+> .specify/bugs/bi-0176/test.md already exists (result: partial, written 2026-11-03 12:34). Nothing has changed since it was written: no code edits, and fix.md is the same. The open issue is still the CLI finding: `obsidian file/read/eval` ignore `vault=` when the named vault is not the focused one, so a name-based write_note to an unfocused vault can still create a duplicate at the vault root, or write to a folder path taken from the focused vault. How should this step proceed?
+>
+> | Option | Answer | Effect |
+> |---|---|---|
+> | A (recommended) | Keep the existing test.md and decide the scope first: (a) widen the fix (write_note checks that the lookup ran in the named vault, and fails instead of falling back when it did not), or (b) accept the gap, document that writing by name needs the named vault focused, and open a separate BI for the vault= behaviour across all the tools that look up names | test.md stays as it is. Under (a), the step goes back to /speckit-bug-fix and then re-tests. Under (b), test.md gains a note recording the accepted residual, and the run continues. |
+> | B | Overwrite test.md: re-run every check and probe now, with no change in scope | Same live probes, same partial result and the same escalation, because nothing has changed. |
+> | C | Keep test.md and accept it as the bug-test result, with no further action in this step | The run continues with result partial and the gap stays open, unrecorded as an owner decision. |
+>
+> Recommendation: A. A re-run can't change the outcome until the scope is decided. Option (a) closes the original symptom in every case. Option (b) is the smaller change, but leaves a silent wrong-write path in write_note.
+
+**Advisor** (escalate: conflict: The developer says `file`/`read`/`eval` ignore `vault=` for an unfocused vault, but the Tool Notes (checked 2026-11-02) and the Architecture note say they do honour it. Either way, widening the fix or accepting the gap changes the job's scope, which only the owner can rule on.):
+
+> Recommended: A, scope (a), with a check first.
+>
+> 1. Keep test.md as it is. Do not re-run.
+> 2. Before relying on the CLI finding, record whether the named vault was open-but-unfocused or closed-but-registered when the probe ran. Vault notes say `read`/`eval` with `vault=<other>` route to an open background vault. A closed vault that gets cold-launched can answer from the wrong vault; the Architecture note lists that as a known out-of-scope case (FR-013).
+> 3. Under (a): widen write_note only. When resolving a `file` name, confirm the lookup ran in the named vault. If that cannot be confirmed, fail with a structured error and write nothing: no fallback to the vault root and no folder path taken from another vault. Then go back to the fix and re-test.
+> 4. Record the cross-tool `vault=` behaviour as a separate BI. Do not fix it here.
+>
+> Rationale: the BI's story "never create a duplicate by accident" and Constitution Principle IV (no silent wrong result) both rule out accepting a silent wrong-vault write inside write_note. Option (b) leaves that path open.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md`, `000-Meta/MCP Tool Notes/Obsidian CLI MCP - Tool Notes.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Architecture.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Constitution.md`, `210-Guidelines/Best Practices.md`
+
+**Advisor, after the owner ruled** (escalate: none):
+
+> A, with scope (a). Follow the owner ruling:
+>
+> 1. Keep test.md as it is. Do not re-run.
+> 2. Widen the fix in write_note only. When a `file` name is resolved, confirm the lookup ran in the named vault. If that cannot be confirmed, fail with a structured error and write nothing: no fallback to the vault root, and no folder path taken from another vault's lookup.
+> 3. In the test notes, record whether the named vault was open-but-unfocused or closed-but-registered when the probe ran. The vault notes say `vault=` routes to an open background vault, so that state matters.
+> 4. Then go back to the fix and re-test. Add a failure-path test for the unconfirmed-vault case, as Constitution Principle II requires.
+>
+> Rationale: owner ruling on BI-0176. Also the BI's story "never create a duplicate by accident" and Constitution Principle IV (no silent wrong result).
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Constitution.md`, `000-Meta/MCP Tool Notes/Obsidian CLI MCP - Tool Notes.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Architecture.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md`: Would append to the Impact section: '*Owner ruling 2026-11-03 (bug-test escalation):* scope widened. When write_note resolves a `file` name it must confirm the lookup ran in the named vault; if it cannot, it fails with a structured error and writes nothing, with no fallback to the vault root and no folder path from another vault. Prompted by the developer finding that the `file`/`read`/`eval` lookup may not honour `vault=` for an unfocused vault, which the Tool Notes contradict (still unverified).'
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md`: Would append an HTML audit comment at the end of the note: '<!-- 2026-11-03: Owner ruling on the bug-test escalation: option (a), widen write_note to fail when the name lookup cannot be confirmed to have run in the named vault. -->'
+
+**Owner:** choice 1 ((a) Widen: fail on unconfirmed vault), via ntfy, 2026-11-03T01:37:14.552Z.
+
+**Sent to the step:**
+
+> A, with scope (a). Follow the owner ruling:
+>
+> 1. Keep test.md as it is. Do not re-run.
+> 2. Widen the fix in write_note only. When a `file` name is resolved, confirm the lookup ran in the named vault. If that cannot be confirmed, fail with a structured error and write nothing: no fallback to the vault root, and no folder path taken from another vault's lookup.
+> 3. In the test notes, record whether the named vault was open-but-unfocused or closed-but-registered when the probe ran. The vault notes say `vault=` routes to an open background vault, so that state matters.
+> 4. Then go back to the fix and re-test. Add a failure-path test for the unconfirmed-vault case, as Constitution Principle II requires.
+>
+> Rationale: owner ruling on BI-0176. Also the BI's story "never create a duplicate by accident" and Constitution Principle IV (no silent wrong result).

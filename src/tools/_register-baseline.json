@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "generatedFromBranch": "091-report-unknown-vault",
-  "generatedAt": "2026-11-02",
+  "generatedFromBranch": "fix/bi-0176",
+  "generatedAt": "2026-11-03",
   "tools": [
     {
       "name": "append_note",
@@ -278,7 +278,7 @@
     {
       "name": "write_note",
       "descriptionFingerprint": "6e01f1671115affaca6f18efe5fd106e2f6e9355368e36b4b37ab37c9a6a875c",
-      "schemaFingerprint": "b791b9e9e1755d65d815cfe5c0579bcb3c747738c25ecb14c735bebc772aaa3d",
+      "schemaFingerprint": "141cb494f1673b70f23daccb68c2e39a4a1e0a1336fc861484101ff996a46580",
       "titleFingerprint": "9879595288c11fef687d30326a66af6f79ffae68cd9560300853cc0e24ff757e",
       "annotationsFingerprint": "b15393126f12ebd7533afe7d31a1beb8938a1e37d0bb2a52c382aaba4373f265",
       "outputSchemaFingerprint": "75e4b759e131a7988910724bc99b5d42f6a67f54e4c3e7c97ee2436854decb56"
