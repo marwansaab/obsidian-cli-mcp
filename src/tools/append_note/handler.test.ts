@@ -9,7 +9,13 @@ import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapt
 import { UpstreamError } from "../../errors.js";
 import { createLogger, type Logger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn, silentLogger, type StubResponse } from "../_handler-test-fixtures.js";
+import {
+  folderMissingDetails,
+  makeQueuedSpawn,
+  missingFolderRealpath,
+  silentLogger,
+  type StubResponse,
+} from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -376,6 +382,23 @@ describe("US1 PATH_ESCAPES_VAULT", () => {
     const escapeEvent = events.find((e) => e.event === "pathEscapeAttempt");
     expect(escapeEvent).toBeDefined();
     expect(fs.writes.length).toBe(0);
+  });
+});
+
+describe("BI-0185 missing vault folder", () => {
+  test("registered vault whose folder is missing → VAULT_NOT_FOUND/folder-missing, no spawn, no read", async () => {
+    const fs = fakeFs({}, { realpath: missingFolderRealpath(VAULT_ROOT) });
+    const { spawnFn, getCount } = makeQueuedSpawn([]);
+    const err = await executeAppendNote(
+      { target_mode: "specific", vault: "TestVault", path: "n.md", content: "x", inline: false },
+      deps({ spawnFn, vaultRegistry: fakeRegistry({ TestVault: VAULT_ROOT }), fs }),
+    ).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(UpstreamError);
+    expect((err as UpstreamError).code).toBe("CLI_REPORTED_ERROR");
+    expect((err as UpstreamError).details).toEqual(folderMissingDetails("TestVault"));
+    expect((err as UpstreamError).message).not.toContain(VAULT_ROOT);
+    expect(getCount()).toBe(0);
+    expect(fs.reads).toEqual([]);
   });
 });
 

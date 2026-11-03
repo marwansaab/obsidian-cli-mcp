@@ -19,7 +19,14 @@ import {
 import { UpstreamError } from "../../errors.js";
 import { type Logger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn, silentLogger, captureRejection, coldStartResponse } from "../_handler-test-fixtures.js";
+import {
+  makeQueuedSpawn,
+  silentLogger,
+  captureRejection,
+  coldStartResponse,
+  folderMissingDetails,
+  missingFolderRealpath,
+} from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -387,6 +394,18 @@ test("US1: vault unknown via vaultRegistry resolveVaultPath → CLI_REPORTED_ERR
     reason: "unknown",
     vault: "X",
   });
+});
+
+test("BI-0185: registered vault whose folder is missing → VAULT_NOT_FOUND/folder-missing, no spawn, no path", async () => {
+  const { spawnFn, getCount } = makeQueuedSpawn([]);
+  const err = (await captureRejection(
+    executeQueryBase(HAPPY_INPUT, deps({ spawnFn, fsRealpath: missingFolderRealpath(TEST_VAULT_ROOT) })),
+  )) as UpstreamError;
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual(folderMissingDetails("Demo"));
+  expect(err.message).not.toContain(TEST_VAULT_ROOT);
+  expect(getCount()).toBe(0);
 });
 
 // =====================================================================

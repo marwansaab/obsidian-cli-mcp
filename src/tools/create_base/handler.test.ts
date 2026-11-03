@@ -10,7 +10,9 @@ import { linkRealpath } from "../../path-safety/_realpath-fixtures.js";
 import { createQueue } from "../../queue.js";
 import {
   captureLogger,
+  folderMissingDetails,
   makeQueuedSpawn,
+  missingFolderRealpath,
   silentLogger,
   type SpawnRecording,
   type StubResponse,
@@ -269,6 +271,18 @@ test("083 C3: unregistered vault → VAULT_NOT_FOUND/unknown, nothing spawned", 
 
   expect(err.code).toBe("CLI_REPORTED_ERROR");
   expect(err.details).toEqual({ code: "VAULT_NOT_FOUND", reason: "unknown", vault: "Nope" });
+  expect(recorded.length).toBe(0);
+});
+
+test("BI-0185: registered vault whose folder is missing → VAULT_NOT_FOUND/folder-missing, nothing spawned", async () => {
+  const { deps, recorded } = makeDeps([]);
+  deps.fs = { realpath: missingFolderRealpath(WORK_ROOT) };
+
+  const err = await rejectionOf(executeCreateBase({ base_path: "Tasks.base", name: "x", vault: "Work" }, deps));
+
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual(folderMissingDetails("Work"));
+  expect(err.message).not.toContain(WORK_ROOT);
   expect(recorded.length).toBe(0);
 });
 

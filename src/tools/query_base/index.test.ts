@@ -13,7 +13,7 @@ import {
 } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { silentLogger } from "../_handler-test-fixtures.js";
+import { folderMissingDetails, missingFolderRealpath, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 import { closedVaultNote } from "../_shared.js";
 
@@ -163,5 +163,25 @@ describe("createQueryBaseTool — descriptor", () => {
         ),
       ).toBe(true);
     }
+  });
+
+  // BI-0185 acceptance criterion 6: the registered tool answers a missing vault folder with the
+  // JSON {code, message, details} envelope, never the SDK's free-text error.
+  it("registered vault whose folder is missing → isError JSON envelope, VAULT_NOT_FOUND/folder-missing, no path", async () => {
+    const tool = createQueryBaseTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      spawnFn: makeStubSpawn(),
+      vaultRegistry: stubRegistry(),
+      fs: { ...stubFs(), realpath: missingFolderRealpath(TEST_VAULT_ROOT) },
+    });
+    const result = await tool.handler({ base_path: "x.base", view_name: "All", vault: "Gone" });
+    expect("isError" in result && result.isError).toBe(true);
+    const text = result.content[0]!.text;
+    const payload = JSON.parse(text) as { code: string; message: string; details: unknown };
+    expect(payload.code).toBe("CLI_REPORTED_ERROR");
+    expect(payload.details).toEqual(folderMissingDetails("Gone"));
+    expect(payload.message).toContain("Restore the folder, or re-open the vault in Obsidian");
+    expect(text).not.toContain(JSON.stringify(TEST_VAULT_ROOT).slice(1, -1));
   });
 });

@@ -380,3 +380,93 @@ describe("assertCanonicalPath", () => {
     expect(events).toEqual([{ vault: null, attemptedPath: "../escape.md" }]);
   });
 });
+
+// BI-0185: a registered vault whose folder is missing fails typed, never as a raw errno.
+describe("assertCanonicalPath — vault root cannot be resolved (BI-0185)", () => {
+  const vaultRoot = resolve("missing-vault");
+
+  function errno(code: string, p: string): NodeJS.ErrnoException {
+    return Object.assign(new Error(`${code}: realpath '${p}'`), { code });
+  }
+
+  // realpath fails with `code` for the root and everything under it; paths outside resolve.
+  function rootFails(code: string, root = vaultRoot): (p: string) => Promise<string> {
+    return (p) =>
+      p === root || p.startsWith(root + sep) ? Promise.reject(errno(code, p)) : Promise.resolve(p);
+  }
+
+  function expectNoRootPath(err: UpstreamError): void {
+    expect(err.message).not.toContain(vaultRoot);
+    expect(JSON.stringify(err.details)).not.toContain(JSON.stringify(vaultRoot).slice(1, -1));
+  }
+
+  test.each(["ENOENT", "ENOTDIR"])("%s on the root → VAULT_NOT_FOUND / folder-missing, no path", async (code) => {
+    const { logger, events } = recordingLogger();
+    const err = await assertCanonicalPath(vaultRoot, "x.base", {
+      realpath: rootFails(code),
+      logger,
+      vaultLabel: "Gone",
+    }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(UpstreamError);
+    const u = err as UpstreamError;
+    expect(u.code).toBe("CLI_REPORTED_ERROR");
+    expect(u.details).toEqual({ code: "VAULT_NOT_FOUND", reason: "folder-missing", vault: "Gone" });
+    expect(u.message).toBe(
+      'Vault "Gone" is registered with Obsidian, but its folder could not be found on disk. ' +
+        "Restore the folder, or re-open the vault in Obsidian, then call again.",
+    );
+    expect((u.cause as NodeJS.ErrnoException).code).toBe(code);
+    expectNoRootPath(u);
+    expect(events).toEqual([]);
+  });
+
+  test("a missing drive (ENOENT at every ancestor) → the same folder-missing envelope", async () => {
+    const err = await assertCanonicalPath(vaultRoot, "Notes/a.md", {
+      realpath: (p) => Promise.reject(errno("ENOENT", p)),
+      logger: recordingLogger().logger,
+      vaultLabel: "Gone",
+    }).catch((e: unknown) => e);
+    expect(err).toMatchObject({
+      code: "CLI_REPORTED_ERROR",
+      details: { code: "VAULT_NOT_FOUND", reason: "folder-missing", vault: "Gone" },
+    });
+    expectNoRootPath(err as UpstreamError);
+  });
+
+  test("a null vault label reads as the focused vault", async () => {
+    const err = await assertCanonicalPath(vaultRoot, ".", {
+      realpath: rootFails("ENOENT"),
+      logger: recordingLogger().logger,
+      vaultLabel: null,
+    }).catch((e: unknown) => e);
+    expect(err).toMatchObject({
+      details: { code: "VAULT_NOT_FOUND", reason: "folder-missing", vault: null },
+      message: expect.stringMatching(/^The focused vault is registered with Obsidian/),
+    });
+  });
+
+  test.each(["EPERM", "EIO"])("%s on the root → stage vault-root-check with the errno, no hint, no path", async (code) => {
+    const err = await assertCanonicalPath(vaultRoot, "x.base", {
+      realpath: rootFails(code),
+      logger: recordingLogger().logger,
+      vaultLabel: "Locked",
+    }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(UpstreamError);
+    const u = err as UpstreamError;
+    expect(u.code).toBe("CLI_REPORTED_ERROR");
+    expect(u.details).toEqual({ stage: "vault-root-check", errno: code, vault: "Locked" });
+    expect(u.message).toBe(`The folder of vault "Locked" could not be checked (${code}).`);
+    expect((u.cause as NodeJS.ErrnoException).code).toBe(code);
+    expectNoRootPath(u);
+  });
+
+  test("a failure below a root that resolves is rethrown unchanged", async () => {
+    const below = errno("ENOTDIR", resolve(vaultRoot, "Welcome.md", "x.md"));
+    const err = await assertCanonicalPath(vaultRoot, "Welcome.md/x.md", {
+      realpath: (p) => (p === vaultRoot ? Promise.resolve(p) : Promise.reject(below)),
+      logger: recordingLogger().logger,
+      vaultLabel: "Here",
+    }).catch((e: unknown) => e);
+    expect(err).toBe(below);
+  });
+});

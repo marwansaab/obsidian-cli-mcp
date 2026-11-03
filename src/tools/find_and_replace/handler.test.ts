@@ -28,7 +28,15 @@ import {
 } from "./handler.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { answeredCall, answerLine, answerTagFromArgv, captureLogger, makeQueuedSpawn } from "../_handler-test-fixtures.js";
+import {
+  answeredCall,
+  answerLine,
+  answerTagFromArgv,
+  captureLogger,
+  folderMissingDetails,
+  makeQueuedSpawn,
+  missingFolderRealpath,
+} from "../_handler-test-fixtures.js";
 
 import type { FindAndReplaceInput } from "./schema.js";
 
@@ -413,6 +421,24 @@ describe("US1 — vault registry errors", () => {
     expect((err as UpstreamError).details.code).toBe("VAULT_NOT_FOUND");
     expect((err as UpstreamError).details.reason).toBe("unknown");
     expect((err as UpstreamError).details.vault).toBe("Typo");
+  });
+
+  // BI-0185: a registered vault whose folder is missing, for both scope shapes.
+  it.each([
+    { title: "vault-wide", scope: {} },
+    { title: "single note by path", scope: { path: "n.md" } },
+  ])("registered vault whose folder is missing ($title) → VAULT_NOT_FOUND/folder-missing, no spawn", async ({ scope }) => {
+    const { fs } = inMemoryFs([], VAULT_ROOT, { realpathOverride: missingFolderRealpath(VAULT_ROOT) });
+    const { spawnFn, getCount } = makeQueuedSpawn([]);
+    const err = await executeFindAndReplace(
+      { pattern: "x", replacement: "_", mode: "literal", vault: "V", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false, ...scope },
+      baseDeps({ fs, spawnFn }),
+    ).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(UpstreamError);
+    expect((err as UpstreamError).code).toBe("CLI_REPORTED_ERROR");
+    expect((err as UpstreamError).details).toEqual(folderMissingDetails("V"));
+    expect((err as UpstreamError).message).not.toContain(VAULT_ROOT);
+    expect(getCount()).toBe(0);
   });
 });
 

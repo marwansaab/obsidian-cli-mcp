@@ -226,6 +226,8 @@ Every failure routes through `UpstreamError`.
 | `PATH_ESCAPES_VAULT` | — | — | Canonical-path check detected a symlink escape. Fix the path. |
 | `FS_WRITE_FAILED` | — | — | Generic `fs` failure not classified as `EXTERNAL_EDITOR_CONFLICT` (e.g. `ENOSPC`, `EROFS`, or `ENOENT` on a non-existent target — `patch_heading` does not create files). |
 | `VALIDATION_ERROR` | — | — | Unknown vault, registry lookup failure (existing top-level surface). |
+| `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND` | `folder-missing` | The vault is registered, but its folder is missing on disk (`details.vault`; no disk path in the message). Nothing is read or written. Ask the user to restore the folder, or re-open the vault in Obsidian, then call again. |
+| `CLI_REPORTED_ERROR` | — | — (carries `details.stage: "vault-root-check"`, `details.errno`, `details.vault`) | The vault's folder could not be checked for another reason. Nothing is read or written. Inspect `details.errno` (for example a permission problem). |
 | `ERR_NO_ACTIVE_FILE` | — | — | Active mode with no focused note. Open a note in the editor, or call again with `target_mode: "specific"` + an explicit `vault` + `file`/`path`. |
 
 ## Platform-specific behaviour: EXTERNAL_EDITOR_CONFLICT

@@ -1,4 +1,4 @@
-// Original — no upstream. Shared active/specific locator resolution for the write + vault-scan tool cohorts (F1 of the thermo-nuclear code-quality review). Centralises the focused-file / focused-vault `obsidian eval` round-trip, the eval answer parse (spec 080: the call's tagged answer line, other plugins' output ignored, parse errors carrying the stdout excerpt), the cohort-uniform ERR_NO_ACTIVE_FILE message, the registry VALIDATION_ERROR -> CLI_REPORTED_ERROR/VAULT_NOT_FOUND remap, the `obsidian file` TSV path resolver (plus `findFileByTsv`, its null-on-not-found variant whose caller decides what a miss means — write_note's create-by-name, BI-0176, and find_and_replace's INVALID_NOTE/not-found, BI-0178 — and Obsidian's `FILE_NOT_FOUND_LINE`), the canonical-path / PATH_ESCAPES_VAULT guard, and the reverse vault display-name lookup that were previously copy-pasted across write_note, append_note, prepend, patch_block, patch_heading, find_and_replace, and query_base. Every helper preserves the prior inlined behaviour byte-for-byte (template strings, error codes, messages, and `details` shapes); divergences between consumers (tool name in messages, the no-active-file label, the per-note attempted-path label) surface as explicit parameters rather than forked copies. It also hosts `decodeEvalEnvelope` — the eval-composed cohort's shared `parseEvalAnswer` + `safeParse` envelope decoder (backlinks, links, open_file, get_active_file, views_base, paths, read_heading, tag, smart_connections_query, smart_connections_similar), with the per-tool malformed-eval code (CLI_REPORTED_ERROR vs INTERNAL_ERROR) as an explicit parameter.
+// Original — no upstream. Shared active/specific locator resolution for the write + vault-scan tool cohorts (F1 of the thermo-nuclear code-quality review). Centralises the focused-file / focused-vault `obsidian eval` round-trip, the eval answer parse (spec 080: the call's tagged answer line, other plugins' output ignored, parse errors carrying the stdout excerpt), the cohort-uniform ERR_NO_ACTIVE_FILE message, the registry VALIDATION_ERROR -> CLI_REPORTED_ERROR/VAULT_NOT_FOUND remap, the `obsidian file` TSV path resolver (plus `findFileByTsv`, its null-on-not-found variant whose caller decides what a miss means — write_note's create-by-name, BI-0176, and find_and_replace's INVALID_NOTE/not-found, BI-0178 — and Obsidian's `FILE_NOT_FOUND_LINE`), the canonical-path / PATH_ESCAPES_VAULT guard (with its missing-vault-folder classification, BI-0185), and the reverse vault display-name lookup that were previously copy-pasted across write_note, append_note, prepend, patch_block, patch_heading, find_and_replace, and query_base. Every helper preserves the prior inlined behaviour byte-for-byte (template strings, error codes, messages, and `details` shapes); divergences between consumers (tool name in messages, the no-active-file label, the per-note attempted-path label) surface as explicit parameters rather than forked copies. It also hosts `decodeEvalEnvelope` — the eval-composed cohort's shared `parseEvalAnswer` + `safeParse` envelope decoder (backlinks, links, open_file, get_active_file, views_base, paths, read_heading, tag, smart_connections_query, smart_connections_similar), with the per-tool malformed-eval code (CLI_REPORTED_ERROR vs INTERNAL_ERROR) as an explicit parameter.
 
 import { parseEvalAnswer, stdoutDetails } from "./_eval-parse.js";
 import {
@@ -9,7 +9,7 @@ import {
   type SpawnLike,
 } from "../cli-adapter/cli-adapter.js";
 import { stringDetail, UpstreamError } from "../errors.js";
-import { checkCanonicalPath } from "../path-safety/canonical.js";
+import { checkCanonicalPath, type CanonicalCheckOutcome } from "../path-safety/canonical.js";
 
 import type { Logger } from "../logger.js";
 import type { Queue } from "../queue.js";
@@ -350,18 +350,68 @@ export interface CanonicalGuardContext {
   attemptedPathLabel?: string;
 }
 
+function errnoCode(err: unknown): string | undefined {
+  const code = typeof err === "object" && err !== null ? (err as NodeJS.ErrnoException).code : undefined;
+  return typeof code === "string" ? code : undefined;
+}
+
+/**
+ * Classify a failure of the canonical check (BI-0185). When the vault root itself cannot be
+ * realpathed, the vault's folder is the problem: ENOENT / ENOTDIR become
+ * CLI_REPORTED_ERROR / VAULT_NOT_FOUND / `folder-missing` (the ADR-015 sibling of
+ * `remapVaultNotFound`'s `unknown`), and any other errno becomes CLI_REPORTED_ERROR with
+ * `stage: "vault-root-check"`. Neither message nor `details` carries the absolute path; the
+ * errno stays on `cause`, which never goes on the wire. When the root resolves, the failure
+ * came from below it and is returned unchanged, as before.
+ */
+async function canonicalCheckFailure(err: unknown, vaultRoot: string, ctx: CanonicalGuardContext): Promise<unknown> {
+  let rootErr: unknown;
+  try {
+    await ctx.realpath(vaultRoot);
+    return err;
+  } catch (e) {
+    rootErr = e;
+  }
+  const errno = errnoCode(rootErr);
+  const vault = ctx.vaultLabel;
+  if (errno === "ENOENT" || errno === "ENOTDIR") {
+    const subject = vault === null ? "The focused vault" : `Vault "${vault}"`;
+    return new UpstreamError({
+      code: "CLI_REPORTED_ERROR",
+      cause: rootErr,
+      details: { code: "VAULT_NOT_FOUND", reason: "folder-missing", vault },
+      message:
+        `${subject} is registered with Obsidian, but its folder could not be found on disk. ` +
+        "Restore the folder, or re-open the vault in Obsidian, then call again.",
+    });
+  }
+  const subject = vault === null ? "the focused vault" : `vault "${vault}"`;
+  return new UpstreamError({
+    code: "CLI_REPORTED_ERROR",
+    cause: rootErr,
+    details: { stage: "vault-root-check", errno: errno ?? null, vault },
+    message: `The folder of ${subject} could not be checked (${errno ?? "no error code"}).`,
+  });
+}
+
 /**
  * Run the Layer-2 canonical-path check and, on escape, log `pathEscapeAttempt` and
  * throw PATH_ESCAPES_VAULT. Returns the canonical absolute path on success.
  * Byte-identical to the prior inlined PATH_ESCAPES_VAULT blocks across all seven
  * consumers (the `details` shape is `{vault, attemptedPath, resolvedPath}`).
+ * A vault root that cannot be resolved fails as classified by {@link canonicalCheckFailure}.
  */
 export async function assertCanonicalPath(
   vaultRoot: string,
   inputPath: string,
   ctx: CanonicalGuardContext,
 ): Promise<string> {
-  const check = await checkCanonicalPath(vaultRoot, inputPath, { realpath: ctx.realpath });
+  let check: CanonicalCheckOutcome;
+  try {
+    check = await checkCanonicalPath(vaultRoot, inputPath, { realpath: ctx.realpath });
+  } catch (err) {
+    throw await canonicalCheckFailure(err, vaultRoot, ctx);
+  }
   if (!check.ok) {
     const attemptedPath = ctx.attemptedPathLabel ?? check.attemptedPath;
     ctx.logger.pathEscapeAttempt({ vault: ctx.vaultLabel, attemptedPath });
