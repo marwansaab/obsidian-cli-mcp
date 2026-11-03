@@ -59,82 +59,71 @@ function makeDeps(responses: StubResponse[], vaultRegistry?: VaultRegistry): {
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
 
-test("happy: path is the Created: path, not composed from the base's location", async () => {
-  const { deps } = makeDeps([{ stdout: "Created: New item.md\n" }]);
+// BI-0180: the response reports the path Obsidian created. `path` is the `Created:` value (backslashes
+// as forward slashes), never composed from the base's own location; `name` is its last segment.
+test.each([
+  {
+    title: "root item from a base in a folder",
+    created: "New item.md",
+    base_path: "220-Planning/Backlog (Base).base",
+    name: "New item",
+    expected: { path: "New item.md", name: "New item.md" },
+  },
+  {
+    title: "root-level base, root new-note location",
+    created: "Test.md",
+    base_path: "Tasks.base",
+    name: "Test",
+    expected: { path: "Test.md", name: "Test.md" },
+  },
+  {
+    title: "name collision auto-increment (R-005)",
+    created: "New item 1.md",
+    base_path: "220-Planning/Backlog (Base).base",
+    name: "New item",
+    expected: { path: "New item 1.md", name: "New item 1.md" },
+  },
+  {
+    title: "folder-filtered base → the filter folder's item",
+    created: "Fixtures/X/Items/New Item.md",
+    base_path: "Fixtures/X/Filtered.base",
+    name: "New Item",
+    expected: { path: "Fixtures/X/Items/New Item.md", name: "New Item.md" },
+  },
+  {
+    title: "base with no folder rule, root new-note location",
+    created: "Task1.md",
+    base_path: "Fixtures/BI-0083/target.base",
+    name: "Task1",
+    expected: { path: "Task1.md", name: "Task1.md" },
+  },
+  {
+    title: "folder part in name → path keeps it, name is the last segment",
+    created: "Items/sub/Item.md",
+    base_path: "Tasks.base",
+    name: "sub/Item",
+    expected: { path: "Items/sub/Item.md", name: "Item.md" },
+  },
+  {
+    title: "collision in a folder → name carries the suffix",
+    created: "Items/Task 1.md",
+    base_path: "Tasks.base",
+    name: "Task",
+    expected: { path: "Items/Task 1.md", name: "Task 1.md" },
+  },
+  {
+    title: "backslash-separated Created: path, CRLF → forward slashes",
+    created: "Items\\sub\\Item.md\r",
+    base_path: "Tasks.base",
+    name: "sub/Item",
+    expected: { path: "Items/sub/Item.md", name: "Item.md" },
+  },
+])("happy: $title", async ({ created, base_path, name, expected }) => {
+  const { deps } = makeDeps([{ stdout: `Created: ${created}\n` }]);
 
-  const result = await executeCreateBase(
-    { base_path: "220-Planning/Backlog (Base).base", name: "New item" },
-    deps,
-  );
+  const result = await executeCreateBase({ base_path, name }, deps);
 
-  expect(result.name).toBe("New item.md");
-  expect(result.path).toBe("New item.md");
-});
-
-test("happy: root-level base, root new-note location", async () => {
-  const { deps } = makeDeps([{ stdout: "Created: Test.md\n" }]);
-
-  const result = await executeCreateBase(
-    { base_path: "Tasks.base", name: "Test" },
-    deps,
-  );
-
-  expect(result.name).toBe("Test.md");
-  expect(result.path).toBe("Test.md");
-});
-
-test("name collision auto-increment (R-005)", async () => {
-  const { deps } = makeDeps([{ stdout: "Created: New item 1.md\n" }]);
-
-  const result = await executeCreateBase(
-    { base_path: "220-Planning/Backlog (Base).base", name: "New item" },
-    deps,
-  );
-
-  expect(result.name).toBe("New item 1.md");
-  expect(result.path).toBe("New item 1.md");
-});
-
-// ───────────── BI-0180 — the response reports the path Obsidian created ─────────────
-
-test("BI-0180: folder-filtered base → path is the filter folder's item, name is the file name", async () => {
-  const { deps } = makeDeps([{ stdout: "Created: Fixtures/X/Items/New Item.md\n" }]);
-
-  const result = await executeCreateBase({ base_path: "Fixtures/X/Filtered.base", name: "New Item" }, deps);
-
-  expect(result).toEqual({ path: "Fixtures/X/Items/New Item.md", name: "New Item.md" });
-});
-
-test("BI-0180: base with no folder rule, root new-note location → path is the root file", async () => {
-  const { deps } = makeDeps([{ stdout: "Created: Task1.md\n" }]);
-
-  const result = await executeCreateBase({ base_path: "Fixtures/BI-0083/target.base", name: "Task1" }, deps);
-
-  expect(result).toEqual({ path: "Task1.md", name: "Task1.md" });
-});
-
-test("BI-0180: folder part in name → path keeps it, name is the last segment", async () => {
-  const { deps } = makeDeps([{ stdout: "Created: Items/sub/Item.md\n" }]);
-
-  const result = await executeCreateBase({ base_path: "Tasks.base", name: "sub/Item" }, deps);
-
-  expect(result).toEqual({ path: "Items/sub/Item.md", name: "Item.md" });
-});
-
-test("BI-0180: collision in a folder → name carries the suffix", async () => {
-  const { deps } = makeDeps([{ stdout: "Created: Items/Task 1.md\n" }]);
-
-  const result = await executeCreateBase({ base_path: "Tasks.base", name: "Task" }, deps);
-
-  expect(result).toEqual({ path: "Items/Task 1.md", name: "Task 1.md" });
-});
-
-test("BI-0180: a backslash-separated Created: path is reported with forward slashes", async () => {
-  const { deps } = makeDeps([{ stdout: "Created: Items\\sub\\Item.md\r\n" }]);
-
-  const result = await executeCreateBase({ base_path: "Tasks.base", name: "sub/Item" }, deps);
-
-  expect(result).toEqual({ path: "Items/sub/Item.md", name: "Item.md" });
+  expect(result).toEqual(expected);
 });
 
 test("content parameter passthrough", async () => {
