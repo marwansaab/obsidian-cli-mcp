@@ -18,7 +18,7 @@
 | `src/cli-adapter/invoke-bounded-cli.test.ts` | added tests | `obsidian_exec` path with and without `vault` (2 cases). |
 | `src/cli-adapter/cli-adapter.test.ts` | added tests | `invokeCli`, `invokeEval`, and the unknown-vault rule unaffected (3 cases). |
 | `src/tools/read/handler.test.ts` | added test | The notice fails `read`: no content returned, no disk read. |
-| `src/tools/vaults/handler.test.ts` | added test | Registry probe through the real `invokeCli`: `vaults` and `resolveVaultPath` fail with cli-disabled, then recover in the same registry instance. Header comment extended. |
+| `src/tools/vaults/handler.test.ts` | added test | A probe that rejects with the cli-disabled error: `vaults` and `resolveVaultPath` reject with that same error object, then recover in the same registry instance. Header comment extended. |
 | `src/tools/_shared.ts` | modified | `closedVaultNote` drops "— for example, its command-line integration is disabled —". |
 | `src/tools/_register-baseline.json` | regenerated | `npm run baseline:write`. This deliberately moves the FR-018 description fingerprints of exactly the nine `closedVaultNote` tools (bases, create_base, paths, pattern_search, query_base, smart_connections_query, smart_connections_similar, tag, views_base), plus `generatedFromBranch`. |
 | `docs/tools/{bases,create_base,paths,pattern_search,query_base,smart_connections_query,smart_connections_similar,tag}.md` | modified | Removed the "command-line integration is disabled" example from the closed-vault text and the vault-unavailable rows, and the "(or enable its CLI integration)" remedy. |
@@ -56,7 +56,7 @@ if (stdout.trim() === CLI_DISABLED_ANSWER) {
 - `invoke-bounded-cli.test.ts` › "obsidian_exec with a vault / without a vault gets the cli-disabled failure …": one spawn, no launch, original notice in `details.stdout`.
 - `cli-adapter.test.ts` › `invokeCli` and `invokeEval` reject with the cli-disabled failure (no json-parse of the notice), and "the unknown-vault rule is unaffected".
 - `read/handler.test.ts` › "BI-0132 the command-line-disabled notice fails the read …".
-- `vaults/handler.test.ts` › "BI-0132: … vaults and a named-vault lookup fail with cli-disabled, then recover in the same session".
+- `vaults/handler.test.ts` › "BI-0132: … vaults and a named-vault lookup fail with cli-disabled, then recover in the same session": the probe rejects twice with a cli-disabled `UpstreamError`, both calls reject with that same object (`toBe`), and the third call lists the vault.
 - No existing assertion was changed. No existing test pinned the reworded `closedVaultNote` sentence, so only the FR-018 baseline moved.
 
 ## Local Verification
@@ -80,7 +80,7 @@ if (stdout.trim() === CLI_DISABLED_ANSWER) {
 
 ## Deviations from Assessment
 
-- The assessment listed `src/vault-registry/registry.test.ts` **and/or** `src/tools/vaults/handler.test.ts` for the registry case. Only `vaults/handler.test.ts` got the test, because it can wire the probe through the real `invokeCli` as `server.ts` does. `registry.test.ts` lives in `vault-registry/`, which does not import `cli-adapter`, and it already covers the generic "probe failure propagates, the next call retries" behaviour (its tests 5–7).
+- The assessment listed `src/vault-registry/registry.test.ts` **and/or** `src/tools/vaults/handler.test.ts` for the registry case. Only `vaults/handler.test.ts` got the test, at the tool surface; `registry.test.ts` already covers the generic "probe failure propagates, the next call retries" behaviour (its tests 5–7). The test's probe is a stub that rejects with the cli-disabled error, as the assessment describes. The first version wired the probe through the real `invokeCli` by hand-copying `server.ts`'s `invokeProbe`; the PR #137 code-quality review found that this checked a copy of the wiring rather than the wiring itself, and that the classification is already pinned in `cli-adapter.test.ts`, so the review fix replaced it with the stub.
 - `_shared.test.ts` and the nine `index.test.ts` files needed no change, because none pins the removed sentence.
 - `.docs-as-code/architecture.md:811`, `.docs-as-code/decisions/ADR-045-…md:46` and `CHANGELOG.md:56` still use the "command-line integration is disabled" example. They were not in the assessment's file list and belong to the `/speckit-docs-as-code` pass (see Follow-ups).
 

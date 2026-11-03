@@ -1,15 +1,9 @@
-// Original — no upstream. Tests for the vaults handler: listing, empty list, duplicate names kept, registry failure propagated (068 FR-036); BI-0132 the command-line-disabled notice fails the listing and recovers in the same session.
+// Original — no upstream. Tests for the vaults handler: listing, empty list, duplicate names kept, registry failure propagated (068 FR-036); BI-0132 a cli-disabled probe failure fails the listing and lookup, and recovers in the same session.
 import { expect, test, vi } from "vitest";
 
 import { executeVaults } from "./handler.js";
-import { CLI_DISABLED_ANSWER } from "../../cli-adapter/_dispatch.js";
-import { invokeCli } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import { createQueue } from "../../queue.js";
 import { createVaultRegistry } from "../../vault-registry/registry.js";
-import { captureRejection, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
-
-import type { SpawnLike } from "../../cli-adapter/_dispatch.js";
 
 function registryOver(stdout: string) {
   const invokeProbe = vi.fn().mockResolvedValue(stdout);
@@ -52,27 +46,15 @@ test("a CLI failure propagates as the UpstreamError, not an empty list", async (
   await expect(executeVaults({}, { vaultRegistry })).rejects.toBe(failure);
 });
 
-/** A registry whose probe runs `vaults verbose` through the real invokeCli, as server.ts wires it. */
-function registryThroughCli(spawnFn: SpawnLike) {
-  const cliDeps = { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
-  return createVaultRegistry({
-    invokeProbe: async () =>
-      (await invokeCli({ command: "vaults", parameters: {}, flags: ["verbose"], target_mode: "specific" }, cliDeps)).stdout,
-  });
-}
-
+// BI-0132: the probe rejects as invokeCli does on the disabled-CLI notice (that classification is
+// pinned in cli-adapter.test.ts). The same error object must reach the caller, not [] or VALIDATION_ERROR.
 test("BI-0132: with the command line disabled, vaults and a named-vault lookup fail with cli-disabled, then recover in the same session", async () => {
-  const notice = { stdout: `${CLI_DISABLED_ANSWER}\n`, exitCode: 0 };
-  const { spawnFn } = makeQueuedSpawn([notice, notice, { stdout: "Work\t/w\n", exitCode: 0 }]);
-  const vaultRegistry = registryThroughCli(spawnFn);
+  const failure = new UpstreamError({ code: "CLI_REPORTED_ERROR", cause: null, details: { reason: "cli-disabled" } });
+  const invokeProbe = vi.fn().mockRejectedValueOnce(failure).mockRejectedValueOnce(failure).mockResolvedValue("Work\t/w\n");
+  const vaultRegistry = createVaultRegistry({ invokeProbe });
 
-  const listed = (await captureRejection(executeVaults({}, { vaultRegistry }))) as UpstreamError;
-  expect(listed.code).toBe("CLI_REPORTED_ERROR"); // not { count: 0, vaults: [] }
-  expect(listed.details.reason).toBe("cli-disabled");
-
-  const lookup = (await captureRejection(vaultRegistry.resolveVaultPath("Work"))) as UpstreamError;
-  expect(lookup.code).toBe("CLI_REPORTED_ERROR"); // not VALIDATION_ERROR "is not registered"
-  expect(lookup.details.reason).toBe("cli-disabled");
+  await expect(executeVaults({}, { vaultRegistry })).rejects.toBe(failure); // not { count: 0, vaults: [] }
+  await expect(vaultRegistry.resolveVaultPath("Work")).rejects.toBe(failure); // not "is not registered"
 
   // The owner turns the setting back on: the next call succeeds without a restart.
   expect(await executeVaults({}, { vaultRegistry })).toEqual({ count: 1, vaults: [{ name: "Work", path: "/w", open: null }] });
