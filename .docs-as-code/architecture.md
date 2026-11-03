@@ -1351,6 +1351,15 @@ them:
   import; its code-quality review replaced the copy with the fragment
   ([ADR-064](decisions/ADR-064-tags-are-compared-and-returned-without-one-leading-hash.md)).
   The payload stays base64 JSON; a fragment is fixed source, never input.
+- **A template that caps owns the order it caps in.** When `limit` is
+  applied inside a template, the sort has to run there first, because a
+  handler can only reorder the subset it receives. The Smart Connections
+  templates sort a fixed candidate list and then cut
+  ([ADR-055](decisions/ADR-055-smart-connections-tools-fetch-a-fixed-candidate-list-before-sorting.md));
+  since PR #132 (BI-0183) `pattern_search`'s template sorts notes by path
+  before its early-exit scan, and its handler no longer re-sorts, so the
+  template is the one place the order lives and is tested
+  ([ADR-065](decisions/ADR-065-pattern-search-sorts-notes-before-its-capped-scan-and-owns-result-order.md)).
 - **No YAML parser in the eval context.** The T040 live run for PR #114
   found `parseYaml` undefined (`ReferenceError`) and `require('obsidian')`
   unresolvable inside `obsidian eval`; a template has the `app` global and
