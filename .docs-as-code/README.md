@@ -211,3 +211,9 @@ applies. Records written since:
   words only; it supersedes ADR-057's quoting decision, and raw single-word
   queries, an `eval` search and a shared escape module (deferred) were not
   taken (PR #130).
+- [decisions/ADR-064-tags-are-compared-and-returned-without-one-leading-hash.md](decisions/ADR-064-tags-are-compared-and-returned-without-one-leading-hash.md)
+  — `find_by_property` and `read_property` remove one leading `#` from
+  `tags` values (the exact key only), because Obsidian's cache holds them
+  with or without it; the rule lives in `_tag-hash.ts` with an in-eval
+  fragment, as review argued the fix into; query expansion, the `#` form and
+  forcing the cache were rejected (PR #131).

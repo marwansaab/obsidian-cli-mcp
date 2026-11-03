@@ -220,6 +220,28 @@ The fix ships with the first test that runs a tool's `eval` template
 Handler tests mock the envelope, which is how the derived labels shipped
 unnoticed.
 
+**Tags and the leading `#` in `find_by_property`** (PR #131, BI-0181;
+[ADR-064](../decisions/ADR-064-tags-are-compared-and-returned-without-one-leading-hash.md)).
+Obsidian's metadata cache holds a note's `tags` as written (`bi-0166`) after
+a file-watcher parse, and with a leading `#` (`#bi-0166`) after Obsidian's
+own frontmatter writer has updated the note, while the file text has no `#`.
+The template compared with strict `===`, so a tag lookup silently missed
+every note cached in the other form, and the result changed as notes were
+refreshed. For the property named exactly `tags`, the template now builds
+`tg` from the shared in-eval fragment `WITHOUT_TAG_HASH_JS`
+(`src/tools/_tag-hash.ts`) and applies it once to each stored value and once
+to the query (`q`), so `x` and `#x` find the same notes and the unchanged
+`eq` / `arrEq` see the same shapes as before. Scalar, contains and
+exact-array matching all follow it; case folding runs after it; every other
+property, `Tags` and `tag` included, stays strict. `read_property` returns
+`tags` by the same rule ([read](read.md)), and `tag`'s input schema calls the
+same `stripTagHash`. The fix as first written kept an inline copy in the
+template, on the premise that a template cannot import; the PR #131
+code-quality review moved it onto the fragment, the pattern the
+[architecture](../architecture.md#reaching-obsidian-internals-the-eval-template-pattern)
+page describes. `find_by_property/_template.test.ts` runs the template under
+`node:vm` over a mixed cache.
+
 ## Failure
 
 Shared across the group: an unknown vault (`CLI_REPORTED_ERROR`,
@@ -288,6 +310,15 @@ produced; PR #100 deleted the check
   its keys, so the CLI call is byte-identical.
 - `tag` folds case with ASCII lower-casing only, so non-ASCII tags match
   case-sensitively.
+- The one-`#` tag rule has a third copy: `tag/_template.ts`'s `normTag`
+  still strips inline rather than interpolating `WITHOUT_TAG_HASH_JS`. It
+  already handles both cache forms; the owner ruled to move it when the tag
+  template is next touched (PR #131, `.specify/bugs/bi-0181/fix.md`
+  Follow-ups).
+- PR #131's live check built a mixed cache from a fixture already cached as
+  `#…` and a new note cached raw; Obsidian's own trigger for the `#` form did
+  not fire that session, and an MCP-client round trip, macOS and Linux were
+  not run.
 - `search` and `context_search` describe their default case handling as an
   ASCII-only fold, in their published descriptions and help pages, but the
   CLI also folds at least Latin-1 letters: `CAFÉ` matches `café` (spec 087
