@@ -21,6 +21,14 @@ Every PR ends with a documentation pass, after review and before merge:
 /speckit-implement → /speckit-git-commit → open PR → /code-review + fixes → /speckit-docs-as-code <n> → merge
 ```
 
+A bug fix (a BI whose `variant` is `bug-fix`) takes spec-kit's shorter bug path instead of specify through implement:
+
+```
+/speckit-bug-assess → /speckit-bug-fix → /speckit-bug-test → open PR → /code-review + fixes → /speckit-docs-as-code <n> → merge
+```
+
+Its records are `assessment.md`, `fix.md` and `test.md` in `.specify/bugs/<slug>/`, committed with the fix, and they stand in for the spec, plan and tasks. Where the constitution asks for a Complexity Tracking entry in the plan (an `N` on the PR's Constitution Compliance checklist), a bug fix records it in a `## Complexity Tracking` section of `assessment.md`, or of `fix.md` when the deviation arises during the fix (`/speckit-bug-fix` never edits the assessment).
+
 [`/speckit-docs-as-code <n>`](.claude/skills/speckit-docs-as-code/SKILL.md) reads the PR as review left it, updates `.docs-as-code/` (the tracked, living description of the system as built), corrects any `docs/tools/**`, `README.md` or `CONTRIBUTING.md` text the change made wrong, and pushes that commit onto the PR's own branch so the docs merge with the code. A PR whose code moved and whose documentation did not is not done. Run with no argument, the skill baselines the whole repository once, and audits the baseline for drift after that.
 
 `.docs-as-code/` is the shipped counterpart to the gitignored `.decisions/` and `.architecture/`: ADR numbers are one project-wide series across both, and pages cite gitignored ADRs by ID and title, never by link.
@@ -103,6 +111,12 @@ Spec Kit phases run on intent (the spec) and structure (the codebase). The code 
   4. New production code is reachable, not orphaned: each new production symbol has a caller outside its own tests (test files are expected to have few dependents; production files are not).
 
 Document any structural deviations in the BI's analyze artifact (or the post-implement artifact, depending on which phase surfaces them) with rationale. The code index is the structural truth-check on whether the plan's intent matches the implementation's reality.
+
+The bug path (see *Pull Request Lifecycle and Docs-as-Code*) has no plan, tasks or analyze phase, so two rules carry the same checks:
+
+- **`/speckit-bug-assess`** (the bug path's counterpart of `/speckit-plan`): while locating the suspected code paths, run `codegraph_explore` on the symbols the report names, on the symbols the proposed remediation changes, and on the kernel nodes. Add a `## CodeGraph structural check` section to `assessment.md` with the affected modules, their blast radius, and an explicit statement of whether the fix touches any of the kernel nodes; the post-fix verification checks against that claim. Open questions the assessment raises follow the `/speckit-clarify` rule above: when a question trips one of its structural triggers, ground it in an index fact before writing its options.
+
+- **Post-fix structural verification** (after `/speckit-bug-fix` changes code, before `/speckit-bug-test`): run the four checks of the post-implement structural verification above on the new and changed symbols. Record the results, whether the kernel-node claim in `assessment.md` held, and any deviation with its rationale, in a `## CodeGraph structural verification` section of `fix.md`. For a docs-only fix this rule is N/A; note the N/A in `fix.md`.
 
 ### Validated architectural facts
 

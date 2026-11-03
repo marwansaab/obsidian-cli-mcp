@@ -118,7 +118,9 @@ gh pr view <n> --json commits --jq '.commits[].messageBody'   # the WHY per comm
 
 If the PR belongs to a BI, also read `specs/<NNN>-<name>/spec.md` and
 `plan.md` for the identifiers (FR-NNN, SC-NNN, TNNN, RNN) the pages will cite.
-Read them; do not copy them.
+A bug fix has no spec folder: read `.specify/bugs/<slug>/assessment.md`,
+`fix.md` and `test.md` instead, for the root cause, the change and the
+verification evidence. Read them; do not copy them.
 
 Read the **full diff**, not the file list. Do not echo any of it into chat.
 
@@ -291,9 +293,11 @@ it — the next reader is less likely to repeat the mistake.
   most-depended-on symbols", "the boot-time DI factory". Never embed caller
   counts, index statistics or test counts in a page — they drift.
 - **Do not restate the constitution or the specs.** Link to
-  `.specify/memory/constitution.md` and `specs/*/` instead. A copy drifts.
+  `.specify/memory/constitution.md`, `specs/*/` and `.specify/bugs/*/`
+  instead. A copy drifts.
 - **Never rewrite history.** This skill does not edit `specs/`,
-  `.specify/memory/`, `.decisions/`, `.architecture/` or `.memory/`.
+  `.specify/memory/`, `.specify/bugs/`, `.decisions/`, `.architecture/` or
+  `.memory/`.
 - **Do not touch product code.** `src/**`, tests, `scripts/` and configuration
   are out of scope. If writing the documentation reveals a bug or a wrong name,
   report it — a code change smuggled in under a docs commit is a change nobody
