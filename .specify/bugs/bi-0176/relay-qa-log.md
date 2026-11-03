@@ -345,3 +345,74 @@ Edits:
 > Don't add `_template.test.ts`, since Q1 was ruled B. Any other existing assertion that fails: stop and raise it.
 >
 > Rationale: owner ruling 2026-11-03 under refactor-decisions item 5, now recorded on BI-0176.
+
+## 7. review / fix (2026-11-03T06:22:39.064Z)
+
+**Question (verbatim):**
+
+> The PR #127 review found that the editor-conflict errno sets are now written out four times: `new Set(["EBUSY", "EPERM"])` in patch_block and write_note, and `new Set(["EBUSY", "EPERM", "EACCES"])` in append_note and patch_heading. write_note's comment even says "patch_block's set". The fix is to export two named sets from `src/tools/_fs-errors.ts` and have each tool pick one, which keeps each tool's choice visible. It changes no behaviour and no tests. But it edits `append_note/handler.ts`, `patch_block/handler.ts` and `patch_heading/handler.ts`, which the bi-0176 assessment does not cover. How should I handle it?
+>
+> | Option | What happens |
+> |---|---|
+> | A | Do it on this PR: export `LOCK_ERRNOS = {EBUSY, EPERM}` and `LOCK_OR_ACCESS_ERRNOS = {EBUSY, EPERM, EACCES}` from `_fs-errors.ts`, switch all four handlers to them (no change in behaviour), update fix.md, re-run the gates, commit and push to fix/bi-0176. |
+> | B | Leave it out of this bug fix and record it in fix.md's Follow-ups as a cleanup to do the next time those handlers are touched. The PR stays limited to write_note plus the shared not-found lookup. |
+>
+> **Recommended: B.** The duplication is low-severity and harmless (each set is a deliberate per-tool choice, documented by the ADR-009 Decision point 7 split). Editing three sibling handlers inside a bug fix widens the PR's blast radius for a cosmetic gain, and the assessment settled an inline set for write_note.
+
+**Advisor** (escalate: none):
+
+> B
+>
+> Leave the shared-constant refactor out of PR #127. Record it in fix.md Follow-ups as a no-behaviour-change cleanup, to do the next time those handlers are touched. Keep write_note's inline `{EBUSY, EPERM}` as is.
+>
+> Rationale: BI-0176 Out of scope excludes "Appending, prepending or patching notes", so editing the append_note, patch_heading and patch_block handlers would widen the job's scope. The Q2 clarification on BI-0176 settled write_note's own set.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md`, `200-Decisions/ADR-009 - Direct Filesystem Write Path Alongside CLI Bridge.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md`: Added an Out of scope bullet: sharing the editor-conflict errno sets as named constants across the four fs-direct writers is a no-behaviour-change cleanup from the PR #127 review, left for the next change touching those handlers.
+
+**Sent to the step:**
+
+> B
+>
+> Leave the shared-constant refactor out of PR #127. Record it in fix.md Follow-ups as a no-behaviour-change cleanup, to do the next time those handlers are touched. Keep write_note's inline `{EBUSY, EPERM}` as is.
+>
+> Rationale: BI-0176 Out of scope excludes "Appending, prepending or patching notes", so editing the append_note, patch_heading and patch_block handlers would widen the job's scope. The Q2 clarification on BI-0176 settled write_note's own set.
+
+## 8. record / record-in-vault (2026-11-03T06:30:43.580Z)
+
+**Question (verbatim):**
+
+> The fix for job BI-0176 is now a reviewed, documented pull request. Record that on the job's note, following the vault's conventions for backlog items:
+> - the fix branch: fix/bi-0176
+> - the bug folder in the code repository, with its assessment, fix and test reports: .specify/bugs/bi-0176
+> - the pull request: https://github.com/marwansaab/obsidian-cli-mcp/pull/128 (number 128)
+> - the status that means "in review" in this vault (if the vault has no such status, escalate `decision` with up to 3 choices)
+> - a dated HTML comment saying Relay run obsidian-cli-mcp-bugfix-bi-0176-2026-11-03 produced it.
+>
+> Dry run: no. In a dry run, change nothing: list each edit you would make in `vault_edits`, starting its change with "Would". Otherwise list each edit you made.
+
+**Advisor** (escalate: none):
+
+> BI-0176 now records the fix as in review, set up the same way as BI-0171:
+> - Frontmatter `status`: `planned` → `in-review`. That value is in the backlog-item list in Vault Frontmatter Convention.
+> - Frontmatter `spec_branch: fix/bi-0176`, which reads back correctly. The Backlog Item Template has no separate branch field, so `spec_branch` holds the fix branch.
+> - New Status paragraph at the top of that section, "**In review — 2026-11-03.**". It gives PR [marwansaab/obsidian-cli-mcp#128](https://github.com/marwansaab/obsidian-cli-mcp/pull/128), branch `fix/bi-0176`, and the bug folder `.specify/bugs/bi-0176` with its assessment, fix and test reports. It says the fix awaits the owner's merge. The earlier *Planned.* paragraph is kept.
+> - Dated HTML comment at the end of the note. It says Relay run obsidian-cli-mcp-bugfix-bi-0176-2026-11-03 produced PR #128.
+
+Sources: `000-Meta/Vault Frontmatter Convention.md`, `000-Meta/Templates/Backlog Item Template.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0171 - Resolve File Locator In Patch Heading.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md`: Frontmatter status planned → in-review.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md`: Added frontmatter spec_branch: fix/bi-0176.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md`: Prepended an 'In review — 2026-11-03' paragraph to the Status section naming PR #128, fix branch fix/bi-0176 and bug folder .specify/bugs/bi-0176.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md`: Appended dated HTML comment: Relay run obsidian-cli-mcp-bugfix-bi-0176-2026-11-03 produced PR #128.
+
+**Sent to the step:**
+
+> BI-0176 now records the fix as in review, set up the same way as BI-0171:
+> - Frontmatter `status`: `planned` → `in-review`. That value is in the backlog-item list in Vault Frontmatter Convention.
+> - Frontmatter `spec_branch: fix/bi-0176`, which reads back correctly. The Backlog Item Template has no separate branch field, so `spec_branch` holds the fix branch.
+> - New Status paragraph at the top of that section, "**In review — 2026-11-03.**". It gives PR [marwansaab/obsidian-cli-mcp#128](https://github.com/marwansaab/obsidian-cli-mcp/pull/128), branch `fix/bi-0176`, and the bug folder `.specify/bugs/bi-0176` with its assessment, fix and test reports. It says the fix awaits the owner's merge. The earlier *Planned.* paragraph is kept.
+> - Dated HTML comment at the end of the note. It says Relay run obsidian-cli-mcp-bugfix-bi-0176-2026-11-03 produced PR #128.
