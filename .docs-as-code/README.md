@@ -198,3 +198,9 @@ applies. Records written since:
   stdout is exactly that answer, checked in the raw facade after dispatch;
   the typed tools' prefix rule and a private copy of the literal were
   rejected (PR #124).
+- [decisions/ADR-062-write-note-resolves-names-through-the-shared-lookup-and-creates-only-on-obsidians-not-found.md](decisions/ADR-062-write-note-resolves-names-through-the-shared-lookup-and-creates-only-on-obsidians-not-found.md)
+  — `write_note` looks a `file` name up with the shared `obsidian file`
+  lookup and falls back to its vault-root rule only on Obsidian's not-found
+  answer, owned by `_active-file.ts` as review argued the fix into; a lock is
+  the cohort's `EXTERNAL_EDITOR_CONFLICT`; failing on a miss, a disk scan and
+  a vault-confirming eval were rejected (PR #127, PR #128).

@@ -3,13 +3,14 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
-import { deps, EVAL_OK, fakeFs, fakeRegistry, fileNotFoundResponse, VAULT_ROOT } from "./_handler-fixtures.js";
+import { deps, EVAL_OK, fakeFs, fakeRegistry, VAULT_ROOT } from "./_handler-fixtures.js";
 import { executeWriteNote } from "./handler.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import {
   captureRejection,
   coldStartResponse,
+  fileNotFoundResponse,
   fileTsvResponse,
   focusedFileResponse,
   makeQueuedSpawn,

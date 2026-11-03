@@ -47,8 +47,13 @@ flowchart LR
   bullet was wrong for `patch_heading` and `patch_block`: they kept their own
   `resolveLocator`, which used `file` as a literal path from the vault root,
   so a `file` name was never resolved
-  ([below](#note-names-in-the-section-editors)). `write_note` still resolves
-  its own path.
+  ([below](#note-names-in-the-section-editors)). `write_note` resolves its
+  own path, because it must also create a note no name matches: since
+  BI-0176 (PR #127, PR #128) a `file` name goes through `findFileByTsv`, the
+  same `obsidian file` lookup with a `null` for a name Obsidian reports as
+  not found ([below](#note-names-in-write_note)). Until then it applied a
+  vault-root rule to every name, so this bullet's "resolved through
+  `obsidian file` first" was not true of it.
 - **Type check** (PR #97). `write_note` and `append_note` reject a resolved
   path that is not a Markdown note with `UNSUPPORTED_FILE_TYPE` before the
   guard, so nothing is read or written
@@ -62,10 +67,18 @@ flowchart LR
   `patch_heading/` and `patch_block/` — tested separately from the I/O.
 - **Write.** `writeAtomic` in `src/tools/_note-io.ts`. `EBUSY` and `EPERM`
   are classified as `EXTERNAL_EDITOR_CONFLICT` — and so is `EACCES`, for
-  `append_note` and `patch_heading` but not `patch_block` —
+  `append_note` and `patch_heading` but not `patch_block` or `write_note` —
   because on Windows they mean another program holds the file. Anything else
   is `FS_WRITE_FAILED`. The per-tool differences are explicit parameters of
-  the shared mapper in `src/tools/_fs-errors.ts` (PR #58). Since PR #102 that
+  the shared mapper in `src/tools/_fs-errors.ts` (PR #58). `write_note` kept
+  a private mapper until BI-0176 (PR #127): a lock was `FS_WRITE_FAILED`
+  with the absolute disk path in `details.path`. It now puts its
+  `EEXIST → FILE_EXISTS` branch in front of `mapFsWriteError` with
+  `{EBUSY, EPERM}`, so a lock is the cohort's `EXTERNAL_EDITOR_CONFLICT` and
+  every `FS_WRITE_FAILED` carries the vault-relative path. `EACCES` stays
+  `FS_WRITE_FAILED` for it, as ADR-009 (Direct Filesystem Write Path
+  Alongside CLI Bridge) Decision point 7 requires
+  ([below](#note-names-in-write_note)). Since PR #102 that
   module also exports `getSyscall` beside `getErrno`; the mapper,
   `find_and_replace`'s own `mapFsError` and `read`'s disk-read failure all
   use it instead of three hand-rolled casts. Since PR #105 it also exports
@@ -308,6 +321,87 @@ move. PR #122's live check drove the built server over stdio against the
 test vault: both editors edited a note two folders down by its bare name,
 an unmatched name created nothing, and a duplicate name edited the note
 `read` returned.
+
+## Note names in `write_note`
+
+`write_note` publishes the same shared `file` description, and until
+BI-0176 (PR #127) it did not honour it either. `resolveSpecificModePath`
+applied a lexical vault-root rule to every name (`<name>.md` at the root for
+a short form, the name verbatim otherwise). PR #122 moved the section
+editors onto `resolveFsTarget` and left `write_note` out, because that
+resolver fails on a miss, which is right for an editor and wrong for the one
+tool here that creates notes. So `file: "Alpha"` with `overwrite: true`
+for an existing `Sub/Alpha.md` created a second `Alpha.md` at the vault
+root and reported `created: true`, and the same call with
+`overwrite: false` created it too instead of returning `FILE_EXISTS`
+(`.specify/bugs/bi-0176/assessment.md`).
+
+Since PR #127 a `file` name is looked up first, and the old rule applies only
+to a name Obsidian says no note has:
+
+```mermaid
+flowchart LR
+  reg[vault registry: root] --> f{locator}
+  f -- path --> rel[relPath as given]
+  f -- file --> tsv["findFileByTsv: obsidian file file=name (TSV)"]
+  tsv -- found --> rel
+  tsv -- "null: Error: File … not found." --> short["short-form rule: name.md at root, or verbatim"] --> rel
+  tsv -- "any other failure" --> fail[propagates, nothing written]
+  f -- active --> ev[focused-file eval] --> rel
+  rel --> type[note-only type check] --> guard[canonical path check] --> write[stat / wx or atomic write]
+```
+
+- **The lookup is the shared one.** `findFileByTsv` in
+  `src/tools/_active-file.ts` is `resolveFileByTsv` returning `null` only for
+  a `CLI_REPORTED_ERROR` whose `details.message` matches
+  `FILE_NOT_FOUND_LINE`, Obsidian's `Error: File "<name>" not found.`
+  `resolveFileByTsv` itself is unchanged, so the tools that fail on a miss
+  still do. A name two notes share writes the note `read` returns; no
+  ambiguity error was added. The registry runs first, so an unknown vault
+  still costs no spawn; `path` and active mode make no lookup.
+- **A write never guesses its target.** Any other lookup failure — an
+  answer without a `path` line (`details.stage: "file-tsv-parse"`), another
+  `Error:` line, Obsidian not answering — fails the call before anything is
+  written. A registered vault that is not open yet is opened by the dispatch
+  retry and the lookup runs there.
+- **The resolved path is used everywhere after it**: the type check, the
+  canonical path check, the write, `created`, the response's `path`, the
+  metadata refresh and `open`. A name resolving to a canvas or attachment is
+  `UNSUPPORTED_FILE_TYPE`, and `overwrite: false` on an existing sub-folder
+  note is `FILE_EXISTS` for that note.
+- **Where the not-found text lives.** As first written in PR #127 the handler
+  caught the lookup's error and tested its message with a local regex, a
+  byte copy of the first entry of `prepend`'s `NOTE_NOT_FOUND_PATTERNS`. The
+  PR #127 code-quality review (its blocking finding, landed in PR #128,
+  commit `72f63c5`) moved the text to the module that runs the lookup:
+  `_active-file.ts` exports `FILE_NOT_FOUND_LINE` and `findFileByTsv`, and
+  `prepend` now takes its first pattern from that constant (the same regex,
+  so `prepend` is unchanged). The same review made `write_note`'s
+  `mapFsError` a closure built once after the path resolves, as in the
+  sibling writers.
+- **The error mapping moved with it** (PR #127). `EBUSY` / `EPERM` are
+  `CLI_REPORTED_ERROR` / `EXTERNAL_EDITOR_CONFLICT` (`reason: "file-locked"`),
+  and `FS_WRITE_FAILED`, `EACCES` included, gives the vault-relative path. The
+  conflict set is `patch_block`'s `{EBUSY, EPERM}`, not the `EACCES`-inclusive
+  set of `append_note` and `patch_heading`, because ADR-009 Decision point 7
+  names `EACCES` a generic failure and `write_note`'s page routes OS-reserved
+  names (typically `EACCES`) to `FS_WRITE_FAILED`.
+- **No new error code** (constitution Principle IV): every failure is an
+  existing code or the lookup's own
+  ([ADR-062](../decisions/ADR-062-write-note-resolves-names-through-the-shared-lookup-and-creates-only-on-obsidians-not-found.md)).
+
+The `file` description in `src/tools/write_note/schema.ts` gained "An
+existing note of that name is the one written, wherever it is; a name no note
+has is created at the vault root.", which moved `write_note`'s fingerprint in
+`_register-baseline.json`. The bug's live check (`.specify/bugs/bi-0176/test.md`)
+drove the built server against the test vault: a sub-folder note overwritten
+by bare name in place with nothing at the root, `read` by name returning the
+new text, `FILE_EXISTS` with `overwrite: false`, the same overwrite with the
+vault open but not focused, and a held file returning
+`EXTERNAL_EDITOR_CONFLICT` (`EPERM`) with the note unchanged and no absolute
+path in the envelope. The vault-root fallback for a bare name was not run
+live, because the test vault's rules forbid root writes; unit tests cover it
+with Obsidian's real not-found line.
 
 ## Line endings and the placement check
 
@@ -590,7 +684,10 @@ flowchart LR
   `vault=` (research F2).
 - **From Obsidian's report** (FR-001b). `/^\s*Error: File ".*" not found\.\s*$/m`
   now heads `NOTE_NOT_FOUND_PATTERNS` in `src/tools/prepend/handler.ts`, with
-  the dispatch error as `cause`. It catches what the `stat` cannot see: a
+  the dispatch error as `cause`. Since PR #128 that entry is
+  `FILE_NOT_FOUND_LINE`, exported from `src/tools/_active-file.ts` and shared
+  with `write_note`'s name lookup
+  ([above](#note-names-in-write_note)); the regex did not change. It catches what the `stat` cannot see: a
   path whose letter case differs from the note's (Obsidian's vault paths are
   case-sensitive, while `stat` succeeds on Windows and default macOS) and a
   note removed after the `stat`. The pattern requires `File` and a quoted
@@ -716,7 +813,11 @@ the file to a different folder", naming a tool the server no longer offers;
 since then it names `move` (spec 084 FR-004). Only the message changed: the
 pattern, and so the published schema, did not.
 
-`write_note` has no resolver to ask, so it checks the path it computes. Its
+`write_note` checks the path it ends up with. Until BI-0176 it had no
+resolver to ask and computed every path; since PR #127 a `file` name that
+matches a note is checked at the path the lookup returns, and only a name
+Obsidian does not find goes through the short form
+([above](#note-names-in-write_note)). Its
 short form used to add `.md` to any slash-free name not ending in `.md`, which
 made `file: "Plan.canvas"` into `Plan.canvas.md`. Since PR #97 a name ending
 in a canvas, base or attachment extension is not a short form; it passes
@@ -808,6 +909,19 @@ from their schema would have reached the client as SDK free text rather than
   `PATCH_HEADING_DESCRIPTION` and its help page list `NOTE_NOT_FOUND`, which
   the handler never throws (spec 089 research F9). Fixing it changes a
   published error, so it is its own item.
+- `write_note`'s create-by-name (PR #127) depends on Obsidian's exact
+  not-found wording. If it changes, a new name fails with the lookup's
+  `CLI_REPORTED_ERROR` instead of being created: loud, and never a write to
+  the wrong note. A `file` write now needs Obsidian to answer the lookup,
+  and a note moved or deleted between the lookup and the write is written at
+  its old path (an accepted residual in the BI-0176 assessment).
+- Each writer still passes its editor-conflict errno set inline:
+  `{EBUSY, EPERM}` in `patch_block` and `write_note`,
+  `{EBUSY, EPERM, EACCES}` in `append_note` and `patch_heading`. The PR #127
+  review proposed naming the two sets in `_fs-errors.ts`; the owner kept it
+  out of BI-0176, whose scope excludes the append and patch handlers, and
+  it is a no-behaviour-change follow-up for the next change to them
+  (`.specify/bugs/bi-0176/fix.md`, PR #128 commit `5f943b6`).
 - The section editors' `file` field still accepts `[[` / `]]`, which
   `append_note` and `prepend` reject; aligning them changes the published
   schema (spec 089 follow-ups).

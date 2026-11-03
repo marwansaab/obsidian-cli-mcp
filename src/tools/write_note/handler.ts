@@ -1,17 +1,17 @@
-// Original — no upstream. write_note handler per ADR-009 — direct-fs-write: specific-mode resolveVaultPath, then for a `file` name one `obsidian file` lookup (BI-0176: the same resolveFileByTsv lookup read / patch_heading / patch_block use, so an existing note is written wherever it is; only Obsidian's `Error: File "<name>" not found.` falls back to the vault-root short-form rule, and any other lookup failure propagates) / active-mode focused-file eval → note-only file-type check (spec 070: a non-note target is rejected as UNSUPPORTED_FILE_TYPE before any write) → checkCanonicalPath → mkdir → stat probe (overwrite=true: existence and old size, ENOENT → created with old size 0, any other errno fails before the write; spec 075; fs failures map through the cohort's mapFsWriteError with the vault-relative path, EBUSY / EPERM → EXTERNAL_EDITOR_CONFLICT, BI-0176) → atomic temp+rename (overwrite=true) or wx-flag write (overwrite=false → FILE_EXISTS; old size 0) → best-effort metadataCache refresh eval on the vault-relative path in the written vault (logged on failure) → optional best-effort openLinkText eval (specific + open=true, vault-relative path, vault=) → return { created, path, bytes_written } (bytes_written = byteLength(content) − old size). User content NEVER crosses the CLI argv pipe at any size (FR-005, SC-007).
+// Original — no upstream. write_note handler per ADR-009 — direct-fs-write: specific-mode resolveVaultPath, then for a `file` name one `obsidian file` lookup (BI-0176: findFileByTsv, the resolveFileByTsv lookup read / patch_heading / patch_block use with a null result for a name Obsidian reports as not found, so an existing note is written wherever it is; only Obsidian's `Error: File "<name>" not found.` falls back to the vault-root short-form rule, and any other lookup failure propagates) / active-mode focused-file eval → note-only file-type check (spec 070: a non-note target is rejected as UNSUPPORTED_FILE_TYPE before any write) → checkCanonicalPath → mkdir → stat probe (overwrite=true: existence and old size, ENOENT → created with old size 0, any other errno fails before the write; spec 075; fs failures map through the cohort's mapFsWriteError with the vault-relative path, EBUSY / EPERM → EXTERNAL_EDITOR_CONFLICT, BI-0176) → atomic temp+rename (overwrite=true) or wx-flag write (overwrite=false → FILE_EXISTS; old size 0) → best-effort metadataCache refresh eval on the vault-relative path in the written vault (logged on failure) → optional best-effort openLinkText eval (specific + open=true, vault-relative path, vault=) → return { created, path, bytes_written } (bytes_written = byteLength(content) − old size). User content NEVER crosses the CLI argv pipe at any size (FR-005, SC-007).
 import { randomUUID } from "node:crypto";
 import * as nodeFs from "node:fs/promises";
 import { dirname } from "node:path";
 
 import { type SpawnLike } from "../../cli-adapter/cli-adapter.js";
-import { stringDetail, UpstreamError } from "../../errors.js";
+import { UpstreamError } from "../../errors.js";
 import {
   assertSupportedFileType,
   categoryOf,
   extensionOf,
   type SupportDeclaration,
 } from "../../file-type/file-type.js";
-import { assertCanonicalPath, resolveActiveFocusedFile, resolveFileByTsv } from "../_active-file.js";
+import { assertCanonicalPath, findFileByTsv, resolveActiveFocusedFile } from "../_active-file.js";
 import { getErrno, mapFsWriteError } from "../_fs-errors.js";
 import { invalidateMetadataCache, openNote, writeAtomic } from "../_note-io.js";
 
@@ -74,41 +74,20 @@ function isCanonicalShortForm(file: string): boolean {
 // Decision point 7).
 const EDITOR_CONFLICT_ERRNOS: ReadonlySet<string> = new Set(["EBUSY", "EPERM"]);
 
-// Obsidian's answer to `obsidian file file=<name>` for a name no note has (stdout,
-// exit 0, surfaced as CLI_REPORTED_ERROR details.message; the line prepend matches).
-const FILE_NOT_FOUND_LINE = /^\s*Error: File ".*" not found\.\s*$/m;
-
 // Specific-mode path resolution: `input.path` passes through verbatim. BI-0176: a
 // `file` name is resolved like a wikilink by the same `obsidian file` lookup read and
 // the sibling editors use, so an existing note is the one written wherever it is.
-// Only a name Obsidian reports as not found falls back to the FR-001 / FR-001a rule:
-// `<file>.md` at the vault root for a canonical short form, verbatim otherwise. Any
-// other lookup failure propagates: a write must not guess its target.
+// Only a name Obsidian reports as not found (findFileByTsv → null) falls back to the
+// FR-001 / FR-001a rule: `<file>.md` at the vault root for a canonical short form,
+// verbatim otherwise. Any other lookup failure propagates: a write must not guess its
+// target.
 async function resolveSpecificModePath(input: WriteNoteInput, deps: ExecuteDeps): Promise<string> {
   if (input.path !== undefined) return input.path;
   const file = input.file!;
-  try {
-    return await resolveFileByTsv(deps, input.vault!, file, "write_note");
-  } catch (e) {
-    if (!(e instanceof UpstreamError) || !FILE_NOT_FOUND_LINE.test(stringDetail(e.details, "message"))) {
-      throw e;
-    }
-  }
-  return isCanonicalShortForm(file) ? `${file}.md` : file;
-}
-
-// EEXIST keeps its `{ errno }`-only FILE_EXISTS shape (test-pinned asymmetry with the
-// `wx` create's FILE_EXISTS); every other errno maps like the sibling writers, with
-// the vault-relative path and no OS path (BI-0176).
-function mapFsError(e: unknown, relPath: string): UpstreamError {
-  if (getErrno(e) === "EEXIST") {
-    return new UpstreamError({
-      code: "FILE_EXISTS",
-      cause: e,
-      details: { errno: "EEXIST" },
-    });
-  }
-  return mapFsWriteError(e, { relPath, conflictErrnos: EDITOR_CONFLICT_ERRNOS, conflictVerb: "write" });
+  return (
+    (await findFileByTsv(deps, input.vault!, file, "write_note")) ??
+    (isCanonicalShortForm(file) ? `${file}.md` : file)
+  );
 }
 
 export async function executeWriteNote(
@@ -128,6 +107,13 @@ export async function executeWriteNote(
   }
 
   assertSupportedFileType({ relPath, supported: WRITE_NOTE_SUPPORTED, toolName: "write_note" });
+  // EEXIST keeps its `{ errno }`-only FILE_EXISTS shape (test-pinned asymmetry with the
+  // `wx` create's FILE_EXISTS); every other errno maps like the sibling writers, with
+  // the vault-relative path and no OS path (BI-0176).
+  const mapFsError = (e: unknown): UpstreamError =>
+    getErrno(e) === "EEXIST"
+      ? new UpstreamError({ code: "FILE_EXISTS", cause: e, details: { errno: "EEXIST" } })
+      : mapFsWriteError(e, { relPath, conflictErrnos: EDITOR_CONFLICT_ERRNOS, conflictVerb: "write" });
 
   const absPath = await assertCanonicalPath(vaultRoot, relPath, {
     realpath: fs.realpath,
@@ -138,7 +124,7 @@ export async function executeWriteNote(
   try {
     await fs.mkdir(dirname(absPath), { recursive: true });
   } catch (e) {
-    throw mapFsError(e, relPath);
+    throw mapFsError(e);
   }
 
   // Spec 075: the note's size before the write, null when it did not exist (the
@@ -150,13 +136,13 @@ export async function executeWriteNote(
     try {
       sizeBefore = (await fs.stat(absPath)).size;
     } catch (e) {
-      if (getErrno(e) !== "ENOENT") throw mapFsError(e, relPath);
+      if (getErrno(e) !== "ENOENT") throw mapFsError(e);
     }
 
     try {
       await writeAtomic(fs, absPath, input.content, randomUUID);
     } catch (e) {
-      throw mapFsError(e, relPath);
+      throw mapFsError(e);
     }
   } else {
     // overwrite=false: atomic create-or-fail via O_CREAT|O_EXCL (the `wx` flag).
@@ -174,7 +160,7 @@ export async function executeWriteNote(
           message: `File already exists at "${relPath}" and overwrite is false.`,
         });
       }
-      throw mapFsError(e, relPath);
+      throw mapFsError(e);
     }
   }
 

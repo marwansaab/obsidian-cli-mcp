@@ -6,7 +6,7 @@ import { landedAtEmptyBody } from "./empty-body.js";
 import { invokeCli, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError, stringDetail } from "../../errors.js";
 import { assertSupportedFileType, type SupportDeclaration } from "../../file-type/file-type.js";
-import { assertCanonicalPath } from "../_active-file.js";
+import { assertCanonicalPath, FILE_NOT_FOUND_LINE } from "../_active-file.js";
 import { resolveFsTarget } from "../_file-target.js";
 import { getErrno, noteNotFound } from "../_fs-errors.js";
 import { invalidateMetadataCache, writeAtomic } from "../_note-io.js";
@@ -47,11 +47,12 @@ const DEFAULT_FS: ExecuteFs = {
 };
 
 // FR-016 — the first entry is Obsidian's confirmed missing-note line (spec 077 T0
-// probe, research F2: stdout, exit 0, default and inline mode). The remaining
-// entries are the original unconfirmed placeholders, kept so nothing they match
-// today is reported differently (spec 077 FR-007).
+// probe, research F2: stdout, exit 0, default and inline mode), shared with
+// write_note's name lookup (BI-0176). The remaining entries are the original
+// unconfirmed placeholders, kept so nothing they match today is reported
+// differently (spec 077 FR-007).
 const NOTE_NOT_FOUND_PATTERNS = [
-  /^\s*Error: File ".*" not found\.\s*$/m,
+  FILE_NOT_FOUND_LINE,
   /note not found/i,
   /file not found/i,
   /no such file/i,
