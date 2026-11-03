@@ -74,19 +74,13 @@ function isCanonicalShortForm(file: string): boolean {
 
 // BI-0176: a lock on the target is the cohort's editor conflict. EBUSY / EPERM is
 // patch_block's set; EACCES stays a permissions failure (FS_WRITE_FAILED).
-const CONFLICT_ERRNOS: ReadonlySet<string> = new Set(["EBUSY", "EPERM"]);
+const EDITOR_CONFLICT_ERRNOS: ReadonlySet<string> = new Set(["EBUSY", "EPERM"]);
 
-// Specific-mode path resolution: `input.path` passes through verbatim. BI-0176: a
-// `file` name is resolved like a wikilink by one eval in the named vault, so an
-// existing note is the one written wherever it is. The eval reports the vault it ran
+// BI-0176: the note `file` names in `vault`, resolved like a wikilink by one eval in
+// the named vault; null when no note has the name. The eval reports the vault it ran
 // in; unless that is the named vault, nothing is written (owner ruling, scope (a)):
-// neither the root fallback nor a path from another vault's lookup is trusted. Only a
-// name no note has in the named vault falls back to the FR-001 / FR-001a rule:
-// `<file>.md` at the vault root for a canonical short form, verbatim otherwise.
-async function resolveSpecificModePath(input: WriteNoteInput, deps: ExecuteDeps): Promise<string> {
-  if (input.path !== undefined) return input.path;
-  const file = input.file!;
-  const vault = input.vault!;
+// neither the root fallback nor a path from another vault's lookup is trusted.
+async function lookupNoteByName(deps: ExecuteDeps, vault: string, file: string): Promise<string | null> {
   const result = await invokeEval({ code: composeEvalCode(NAME_LOOKUP_TEMPLATE, { file }), vault }, deps);
   const lookup = decodeEvalEnvelope(result, nameLookupEvalResponseSchema, {
     toolName: "write_note",
@@ -100,8 +94,18 @@ async function resolveSpecificModePath(input: WriteNoteInput, deps: ExecuteDeps)
       message: `write_note: the lookup of "${file}" ran in vault "${lookup.vault}", not "${vault}", so nothing was written. Retry, or address the note by path.`,
     });
   }
-  if (lookup.path !== null) return lookup.path;
-  return isCanonicalShortForm(file) ? `${file}.md` : file;
+  return lookup.path;
+}
+
+// Specific-mode path resolution: `input.path` passes through verbatim; a `file` name
+// is the note it resolves to, wherever it is. Only a name no note has in the named
+// vault falls back to the FR-001 / FR-001a rule: `<file>.md` at the vault root for a
+// canonical short form, verbatim otherwise.
+async function resolveSpecificModePath(input: WriteNoteInput, deps: ExecuteDeps): Promise<string> {
+  if (input.path !== undefined) return input.path;
+  const file = input.file!;
+  const found = await lookupNoteByName(deps, input.vault!, file);
+  return found ?? (isCanonicalShortForm(file) ? `${file}.md` : file);
 }
 
 // EEXIST keeps its `{ errno }`-only FILE_EXISTS shape (test-pinned asymmetry with the
@@ -115,7 +119,7 @@ function mapFsError(e: unknown, relPath: string): UpstreamError {
       details: { errno: "EEXIST" },
     });
   }
-  return mapFsWriteError(e, { relPath, conflictErrnos: CONFLICT_ERRNOS, conflictVerb: "write" });
+  return mapFsWriteError(e, { relPath, conflictErrnos: EDITOR_CONFLICT_ERRNOS, conflictVerb: "write" });
 }
 
 export async function executeWriteNote(

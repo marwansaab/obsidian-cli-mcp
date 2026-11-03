@@ -152,3 +152,13 @@ The kernel-node claim still holds: none was touched.
 ### Deviation note
 
 The assessment's preferred remediation named `resolveFileByTsv`. The owner ruling (scope (a)) needs the lookup to confirm its own vault, which the `obsidian file` TSV cannot report, so write_note now resolves through a vault-targeted eval instead. `resolveFileByTsv` itself is unchanged, and its other callers see no difference.
+
+## Amendment: code-quality review (PR #126, 2026-11-03)
+
+- **Status**: applied
+
+Behaviour-preserving restructuring from the thermo-nuclear code-quality review; no test changed.
+
+- `resolveSpecificModePath` was split. The new `lookupNoteByName(deps, vault, file): Promise<string | null>` owns the lookup eval, its decode and the `VAULT_MISMATCH` check. `resolveSpecificModePath` keeps only the write_note rule: `path` as given, else the note the name resolves to, else the short-form fallback.
+- `CONFLICT_ERRNOS` was renamed `EDITOR_CONFLICT_ERRNOS`, the name `patch_block`, `patch_heading` and `append_note` use for the same role. The set is unchanged (`{EBUSY, EPERM}`).
+- Not done here: sharing the two conflict-errno sets as named exports of `_fs-errors.ts` across `append_note`, `patch_block`, `patch_heading` and `write_note`. It changes three tools outside this assessment's scope, so it is raised for an owner ruling.
