@@ -104,8 +104,3 @@ export function deps(opts: {
 }
 
 export const EVAL_OK: StubResponse = { stdout: "=> undefined\n", exitCode: 0 };
-
-/** BI-0176: Obsidian's answer to the `obsidian file file=<name>` lookup for a name no note has. */
-export function fileNotFoundResponse(name: string): StubResponse {
-  return { stdout: `Error: File "${name}" not found.\n`, exitCode: 0 };
-}

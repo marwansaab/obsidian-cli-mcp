@@ -111,5 +111,15 @@ Run with `codegraph_explore` (after `codegraph sync`) on `resolveSpecificModePat
 
 - `/speckit-bug-test slug=bi-0176`: run the live probes in the authorised test vault: a sub-folder note overwritten by bare name (in place, no root copy, `read` by name returns the new content), the not-found fallback, `overwrite: false` on a sub-folder name (`FILE_EXISTS`), and the Windows lock probe (expect `EXTERNAL_EDITOR_CONFLICT`, no absolute path, file unchanged).
 - `.memory/refactor-decisions.md` item 51 is stale: it describes the dry-run eval design that the owner ruling (Q1 = B) superseded. The owner, or the code review with the owner's leave, should rewrite or remove it. The note at its lines on `write_note.mapFsError` (conflict set `{EBUSY, EPERM}`, vault-relative `relPath`) is accurate for this change.
-- Share the `Error: File "<name>" not found.` pattern between `prepend` and `write_note` (byte-neutral for `prepend`) the next time either handler is touched.
+- ~~Share the `Error: File "<name>" not found.` pattern between `prepend` and `write_note`~~: done in the code-review fixes below.
 - `/speckit-docs-as-code` should update `.docs-as-code/` for write_note's name resolution and error mapping.
+
+## Code review fixes (PR #127, 2026-11-03)
+
+The thermo-nuclear code-quality review of PR #127 raised three findings. None changes behaviour, and no existing assertion changed.
+
+- **The not-found check moved to the lookup module.** `_active-file.ts` now exports `FILE_NOT_FOUND_LINE` (Obsidian's `Error: File "<name>" not found.` line) and `findFileByTsv`, which is `resolveFileByTsv` returning `null` only for a `CLI_REPORTED_ERROR` whose `details.message` is that line; every other failure propagates unchanged. `write_note`'s `resolveSpecificModePath` is now `path ?? findFileByTsv(...) ?? short-form rule`, without the try/catch, the local regex or the `stringDetail` import. `resolveFileByTsv` is unchanged. `prepend`'s `NOTE_NOT_FOUND_PATTERNS` takes its first entry from the shared constant (the same regex, so prepend is byte-neutral). New `findFileByTsv` cases in `_active-file.test.ts`. This supersedes the *Deviations* note that kept the pattern local.
+- **`mapFsError` is a closure built once after the path is resolved**, as in the sibling writers, instead of taking `relPath` at five call sites. Same mapping.
+- **`fileNotFoundResponse` moved to `_handler-test-fixtures.ts`** beside `fileTsvResponse`, because Obsidian's not-found answer is not specific to write_note. Other test files that type the line by hand are left until they are next touched.
+
+Left as they were: the duplicated `rejection()` test helper (the shared fixture module must stay free of vitest, and the battery's copy is private to it). The review's proposal to name the two editor-conflict errno sets in `_fs-errors.ts` would touch `append_note`, `patch_block` and `patch_heading`, which the assessment's remediation does not cover, so it was put to the owner as a question rather than done here.

@@ -1,4 +1,4 @@
-// Original — no upstream. Shared active/specific locator resolution for the write + vault-scan tool cohorts (F1 of the thermo-nuclear code-quality review). Centralises the focused-file / focused-vault `obsidian eval` round-trip, the eval answer parse (spec 080: the call's tagged answer line, other plugins' output ignored, parse errors carrying the stdout excerpt), the cohort-uniform ERR_NO_ACTIVE_FILE message, the registry VALIDATION_ERROR -> CLI_REPORTED_ERROR/VAULT_NOT_FOUND remap, the `obsidian file` TSV path resolver, the canonical-path / PATH_ESCAPES_VAULT guard, and the reverse vault display-name lookup that were previously copy-pasted across write_note, append_note, prepend, patch_block, patch_heading, find_and_replace, and query_base. Every helper preserves the prior inlined behaviour byte-for-byte (template strings, error codes, messages, and `details` shapes); divergences between consumers (tool name in messages, the no-active-file label, the per-note attempted-path label) surface as explicit parameters rather than forked copies. It also hosts `decodeEvalEnvelope` — the eval-composed cohort's shared `parseEvalAnswer` + `safeParse` envelope decoder (backlinks, links, open_file, get_active_file, views_base, paths, read_heading, tag, smart_connections_query, smart_connections_similar), with the per-tool malformed-eval code (CLI_REPORTED_ERROR vs INTERNAL_ERROR) as an explicit parameter.
+// Original — no upstream. Shared active/specific locator resolution for the write + vault-scan tool cohorts (F1 of the thermo-nuclear code-quality review). Centralises the focused-file / focused-vault `obsidian eval` round-trip, the eval answer parse (spec 080: the call's tagged answer line, other plugins' output ignored, parse errors carrying the stdout excerpt), the cohort-uniform ERR_NO_ACTIVE_FILE message, the registry VALIDATION_ERROR -> CLI_REPORTED_ERROR/VAULT_NOT_FOUND remap, the `obsidian file` TSV path resolver (plus `findFileByTsv`, its null-on-not-found variant for write_note's create-by-name, and Obsidian's `FILE_NOT_FOUND_LINE`, BI-0176), the canonical-path / PATH_ESCAPES_VAULT guard, and the reverse vault display-name lookup that were previously copy-pasted across write_note, append_note, prepend, patch_block, patch_heading, find_and_replace, and query_base. Every helper preserves the prior inlined behaviour byte-for-byte (template strings, error codes, messages, and `details` shapes); divergences between consumers (tool name in messages, the no-active-file label, the per-note attempted-path label) surface as explicit parameters rather than forked copies. It also hosts `decodeEvalEnvelope` — the eval-composed cohort's shared `parseEvalAnswer` + `safeParse` envelope decoder (backlinks, links, open_file, get_active_file, views_base, paths, read_heading, tag, smart_connections_query, smart_connections_similar), with the per-tool malformed-eval code (CLI_REPORTED_ERROR vs INTERNAL_ERROR) as an explicit parameter.
 
 import { parseEvalAnswer, stdoutDetails } from "./_eval-parse.js";
 import {
@@ -8,7 +8,7 @@ import {
   type InvokeEvalSuccess,
   type SpawnLike,
 } from "../cli-adapter/cli-adapter.js";
-import { UpstreamError } from "../errors.js";
+import { stringDetail, UpstreamError } from "../errors.js";
 import { checkCanonicalPath } from "../path-safety/canonical.js";
 
 import type { Logger } from "../logger.js";
@@ -260,6 +260,39 @@ export async function resolveFileByTsv(
     details: { stage: "file-tsv-parse", stdout: fileInfo.stdout.slice(0, 500) },
     message: `${toolName}: file subcommand stdout did not contain a path line`,
   });
+}
+
+/**
+ * Obsidian's answer when a file command names a file that does not exist: `Error: File
+ * "<name>" not found.` on stdout, exit 0 (spec 077 T0), surfaced by dispatch as
+ * CLI_REPORTED_ERROR with the line as `details.message`. prepend matches it on its own
+ * command's output.
+ */
+export const FILE_NOT_FOUND_LINE = /^\s*Error: File ".*" not found\.\s*$/m;
+
+/**
+ * {@link resolveFileByTsv} for a tool that creates the note when the name matches none
+ * (write_note, BI-0176): `null` when Obsidian reports the name as not found; every other
+ * failure propagates unchanged.
+ */
+export async function findFileByTsv(
+  deps: EvalDeps,
+  vault: string,
+  file: string,
+  toolName: string,
+): Promise<string | null> {
+  try {
+    return await resolveFileByTsv(deps, vault, file, toolName);
+  } catch (e) {
+    if (
+      e instanceof UpstreamError &&
+      e.code === "CLI_REPORTED_ERROR" &&
+      FILE_NOT_FOUND_LINE.test(stringDetail(e.details, "message"))
+    ) {
+      return null;
+    }
+    throw e;
+  }
 }
 
 /**

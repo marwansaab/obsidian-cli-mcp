@@ -242,6 +242,11 @@ export function fileTsvResponse(relPath: string): StubResponse {
   return { stdout: `path\t${relPath}\nname\tx\n`, exitCode: 0 };
 }
 
+/** Obsidian's answer to a file command naming a file that does not exist (stdout, exit 0), e.g. the `obsidian file file=<name>` lookup for a name no note has. */
+export function fileNotFoundResponse(name: string): StubResponse {
+  return { stdout: `Error: File "${name}" not found.\n`, exitCode: 0 };
+}
+
 /** The focused-file eval reply (FOCUSED_FILE_TEMPLATE): `relPath` (or no focused file) in the vault at `base`. */
 export function focusedFileResponse(relPath: string | null, base = "/vaults/MyVault"): StubResponse {
   return { stdout: `=> ${JSON.stringify({ path: relPath, base })}\n`, exitCode: 0 };

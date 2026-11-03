@@ -1,11 +1,11 @@
 // Original — no upstream. write_note handler tests for spec 070 (file-type support): every non-note target — a non-`.md` path, a `file` naming another core type, a focused canvas — is rejected as VALIDATION_ERROR + UNSUPPORTED_FILE_TYPE before any filesystem write, and every accepted input writes a `.md` path (US4 invariant). Split from handler.test.ts to keep each file under 1000 lines; shared fixtures live in _handler-fixtures.ts.
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
-import { deps, EVAL_OK, fakeFs, fakeRegistry, fileNotFoundResponse, VAULT_ROOT } from "./_handler-fixtures.js";
+import { deps, EVAL_OK, fakeFs, fakeRegistry, VAULT_ROOT } from "./_handler-fixtures.js";
 import { executeWriteNote } from "./handler.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
-import { focusedFileResponse, makeQueuedSpawn } from "../_handler-test-fixtures.js";
+import { fileNotFoundResponse, focusedFileResponse, makeQueuedSpawn } from "../_handler-test-fixtures.js";
 
 import type { WriteNoteInput } from "./schema.js";
 

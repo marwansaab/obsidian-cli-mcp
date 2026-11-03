@@ -8,6 +8,8 @@ import { z } from "zod";
 import {
   assertCanonicalPath,
   decodeEvalEnvelope,
+  FILE_NOT_FOUND_LINE,
+  findFileByTsv,
   FOCUSED_FILE_TEMPLATE,
   FOCUSED_VAULT_TEMPLATE,
   parseFocusedVault,
@@ -276,6 +278,33 @@ describe("resolveFileByTsv", () => {
       details: { stage: "file-tsv-parse" },
       message: 'prepend: file subcommand stdout did not contain a path line',
     });
+  });
+});
+
+describe("findFileByTsv (BI-0176)", () => {
+  test("returns the resolved path like resolveFileByTsv", async () => {
+    const deps = evalDeps("name\tFoo\npath\tNotes/Foo.md\n");
+    await expect(findFileByTsv(deps, "MyVault", "Foo", "write_note")).resolves.toBe("Notes/Foo.md");
+  });
+
+  test("returns null when Obsidian reports the name as not found", async () => {
+    const deps = evalDeps('Error: File "Foo" not found.\n');
+    await expect(findFileByTsv(deps, "MyVault", "Foo", "write_note")).resolves.toBeNull();
+  });
+
+  test("propagates any other failure unchanged (another Error: line, the TSV parse)", async () => {
+    await expect(
+      findFileByTsv(evalDeps("Error: Something else failed.\n"), "MyVault", "Foo", "write_note"),
+    ).rejects.toMatchObject({ code: "CLI_REPORTED_ERROR", details: { message: "Error: Something else failed." } });
+    await expect(findFileByTsv(evalDeps("name\tFoo\n"), "MyVault", "Foo", "write_note")).rejects.toMatchObject({
+      code: "CLI_REPORTED_ERROR",
+      details: { stage: "file-tsv-parse" },
+    });
+  });
+
+  test("FILE_NOT_FOUND_LINE matches Obsidian's line only", () => {
+    expect(FILE_NOT_FOUND_LINE.test('Error: File "Sub/Foo.md" not found.')).toBe(true);
+    expect(FILE_NOT_FOUND_LINE.test('Error: Folder "Sub" not found.')).toBe(false);
   });
 });
 

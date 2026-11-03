@@ -6,22 +6,13 @@ import { Writable } from "node:stream";
 
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
-import {
-  BAR_ROOT,
-  deps,
-  EVAL_OK,
-  fakeFs,
-  fakeRegistry,
-  fileNotFoundResponse,
-  FOO_ROOT,
-  VAULT_ROOT,
-} from "./_handler-fixtures.js";
+import { BAR_ROOT, deps, EVAL_OK, fakeFs, fakeRegistry, FOO_ROOT, VAULT_ROOT } from "./_handler-fixtures.js";
 import { executeWriteNote } from "./handler.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createLogger, type Logger } from "../../logger.js";
 import { createVaultRegistry } from "../../vault-registry/registry.js";
-import { captureLogger, makeQueuedSpawn, type StubResponse, unwrapEvalCode } from "../_handler-test-fixtures.js";
+import { captureLogger, fileNotFoundResponse, makeQueuedSpawn, type StubResponse, unwrapEvalCode } from "../_handler-test-fixtures.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
