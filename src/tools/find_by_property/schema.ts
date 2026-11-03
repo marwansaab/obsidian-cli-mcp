@@ -29,7 +29,7 @@ const findByPropertyArgsSchema = z
       .min(1)
       .optional()
       .describe('Frontmatter property name to match, matched exactly (e.g. "status"). Required (or the deprecated property).'),
-    property: deprecatedAlias(z.string().min(1), PROPERTY_RENAME),
+    property: deprecatedAlias(z.string(), PROPERTY_RENAME),
     value: z
       .union([
         z.string(),

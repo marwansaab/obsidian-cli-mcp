@@ -122,11 +122,26 @@ describe("createFindByPropertyTool — deprecated names (spec 073)", () => {
     expect(spawned).toBe(false);
   });
 
+  it("BI-0182: property: \"\" returns the same VALIDATION_ERROR envelope as name: \"\", at [name], with no notice", async () => {
+    const spawnSpy: SpawnLike = () => {
+      throw new Error("spawn on a rejected call");
+    };
+    const tool = createFindByPropertyTool({ logger: silentLogger(), queue: createQueue(), spawnFn: spawnSpy });
+    const viaOld = (await tool.handler({ property: "", value: "x" })) as Result;
+    const viaNew = (await tool.handler({ name: "", value: "x" })) as Result;
+    expect(viaOld.isError).toBe(true);
+    const payload = JSON.parse(viaOld.content[0]!.text);
+    expect(payload.code).toBe("VALIDATION_ERROR");
+    expect(payload.details.issues).toEqual([expect.objectContaining({ path: ["name"] })]);
+    expect(payload.details).not.toHaveProperty("deprecated_parameters");
+    expect(viaOld).toEqual(viaNew);
+  });
+
   it("description uses the new names, drops the property: NOTE and lists the deprecated ones", () => {
     expect(FIND_BY_PROPERTY_DESCRIPTION).toContain("Inputs: `{ vault?, name, value, folder?, array_match?, case_sensitive? }`.");
     expect(FIND_BY_PROPERTY_DESCRIPTION).not.toContain("NOTE — the property-name parameter");
     expect(FIND_BY_PROPERTY_DESCRIPTION).toContain(
-      "Deprecated names (accepted until the next major release; a call that uses one gets `deprecated_parameters` in its result): `property` → `name`, `arrayMatch` → `array_match`, `caseSensitive` → `case_sensitive`.",
+      "Deprecated names (accepted until the next major release; a successful call that uses one gets `deprecated_parameters` in its result; error responses do not carry it): `property` → `name`, `arrayMatch` → `array_match`, `caseSensitive` → `case_sensitive`.",
     );
   });
 });

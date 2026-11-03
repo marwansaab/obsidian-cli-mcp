@@ -208,9 +208,13 @@ note-targeting tool uses for a note, and the view `view`, while `views_base`
 and `query_base` say `base_path` and `view_name`. It now takes `base_path` and
 `view_name`, with the description its siblings use for each. `path` and `view`
 are accepted until the next major release, with a `deprecated_parameters`
-notice in the result
+notice in the result of a successful call
 ([architecture](../architecture.md#renamed-parameters-deprecated-aliases-folded-before-validation),
 [ADR-046](../decisions/ADR-046-shared-parameter-names-within-a-tool-family.md)).
+Until PR #135 (BI-0182) `view: ""` was reported at `["view"]` rather than
+`["view_name"]`, because the alias kept its own `min(1)`; it now gets the same
+issue as `view_name: ""`
+([ADR-067](../decisions/ADR-067-deprecated-aliases-carry-the-type-only-and-the-current-name-keeps-its-checks.md)).
 All three path-taking tools now validate the field `base_path`, so
 `create_base`'s `INVALID_BASE_PATH` issues report `field: "base_path"` where
 they used to say `"path"`; that is the PR's one machine-readable change. The

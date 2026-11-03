@@ -356,7 +356,7 @@ describe("createFindAndReplaceTool — deprecated names (spec 073)", () => {
     expect(FIND_AND_REPLACE_DESCRIPTION).toContain("Optional `case_sensitive` (boolean, default true).");
     expect(FIND_AND_REPLACE_DESCRIPTION).not.toContain("Optional `case_insensitive`");
     expect(FIND_AND_REPLACE_DESCRIPTION).toContain(
-      "Deprecated names (accepted until the next major release; a call that uses one gets `deprecated_parameters` in its result): `case_insensitive` → `case_sensitive` (opposite value), `subfolder` → `folder`.",
+      "Deprecated names (accepted until the next major release; a successful call that uses one gets `deprecated_parameters` in its result; error responses do not carry it): `case_insensitive` → `case_sensitive` (opposite value), `subfolder` → `folder`.",
     );
     expect(FIND_AND_REPLACE_DESCRIPTION.replace(/Deprecated names[^\n]*$/, "")).not.toContain("subfolder`");
   });

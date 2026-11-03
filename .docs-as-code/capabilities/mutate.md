@@ -208,7 +208,8 @@ negated onto `case_sensitive`, and its notice carries a polarity `note`
 [ADR-046](../decisions/ADR-046-shared-parameter-names-within-a-tool-family.md)).
 A `subfolder` scope is honoured exactly like `folder` and never widens to the
 whole vault. The `INVALID_SUBFOLDER` code, its reasons and its
-`details.subfolder` key are unchanged; the path-safety issue moved to
+`details.subfolder` key are unchanged, and by owner ruling on BI-0182 (PR #135)
+stay so until the next major release, which the help page now states; the path-safety issue moved to
 `["folder"]` ("folder is not structurally safe"), and the `SCOPE_CONFLICT` and
 not-found messages say `folder`. The internal scope predicate followed:
 `effectiveSubfolder` is now `effectiveFolder`. One edge moved in review

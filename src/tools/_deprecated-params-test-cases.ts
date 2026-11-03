@@ -1,4 +1,4 @@
-// Original — no upstream. Shared deprecated-alias battery for the spec 073 renamed tools: from a tool's rename table, a valid new-name payload and one value per renamed key, it builds the old-name equivalence cases (O2) and the old-plus-new conflict cases (O4) each tool's schema test runs. Pure and vitest-free; the expected notice and conflict message are spelled out here, not taken from `_deprecated-params.ts`, so the battery pins the contract rather than echoing the helper.
+// Original — no upstream. Shared deprecated-alias battery for the spec 073 renamed tools: from a tool's rename table, a valid new-name payload and one value per renamed key, it builds the old-name equivalence cases (O2), the old-plus-new conflict cases (O4) and, given an invalid value per replacement, the invalid-value parity cases (BI-0182) each tool's schema test runs. Pure and vitest-free; the expected notice and conflict message are spelled out here, not taken from `_deprecated-params.ts`, so the battery pins the contract rather than echoing the helper.
 import type { ParameterRename } from "./_deprecated-params.js";
 
 export interface AliasEquivalenceCase {
@@ -11,6 +11,14 @@ export interface AliasEquivalenceCase {
   notice: { parameter: string; replacement: string; note?: string };
 }
 
+export interface AliasInvalidCase {
+  old: string;
+  /** The payload with an invalid value under the old key. */
+  viaOld: Record<string, unknown>;
+  /** The same invalid value under the new name; both must fail with identical issues. */
+  viaNew: Record<string, unknown>;
+}
+
 export interface AliasConflictCase {
   old: string;
   /** The payload carrying both the old key and its replacement, with agreeing values. */
@@ -21,15 +29,18 @@ export interface AliasConflictCase {
 
 /**
  * `base` is a valid payload under the new names; `values` gives, per renamed key, the new-name
- * value to send. The old key gets the same value, negated for an inverted rename.
+ * value to send. The old key gets the same value, negated for an inverted rename. `invalid` gives,
+ * per renamed key, a value the new-name schema rejects; the old key gets it unchanged.
  */
 export function deprecatedAliasCases(
   renames: readonly ParameterRename[],
   base: Record<string, unknown>,
   values: Record<string, unknown>,
-): { equivalence: AliasEquivalenceCase[]; conflict: AliasConflictCase[] } {
+  invalid: Record<string, unknown> = {},
+): { equivalence: AliasEquivalenceCase[]; conflict: AliasConflictCase[]; invalid: AliasInvalidCase[] } {
   const equivalence: AliasEquivalenceCase[] = [];
   const conflict: AliasConflictCase[] = [];
+  const invalidCases: AliasInvalidCase[] = [];
   for (const { old, replacement, inverted } of renames) {
     const { [replacement]: _replaced, ...rest } = base;
     const newValue = values[replacement];
@@ -48,6 +59,9 @@ export function deprecatedAliasCases(
       input: { ...rest, [old]: oldValue, [replacement]: newValue },
       issue: { path: [old], message: `\`${old}\` is deprecated and replaced by \`${replacement}\`; supply only \`${replacement}\`` },
     });
+    if (replacement in invalid) {
+      invalidCases.push({ old, viaOld: { ...rest, [old]: invalid[replacement] }, viaNew: { ...rest, [replacement]: invalid[replacement] } });
+    }
   }
-  return { equivalence, conflict };
+  return { equivalence, conflict, invalid: invalidCases };
 }

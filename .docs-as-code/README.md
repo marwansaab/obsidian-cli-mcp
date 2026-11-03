@@ -229,3 +229,9 @@ applies. Records written since:
   gave, through the shared null-on-miss lookup and one builder; BI-0171's
   pass-through shape and a handler-side match of Obsidian's text were
   rejected (PR #134).
+- [decisions/ADR-067-deprecated-aliases-carry-the-type-only-and-the-current-name-keeps-its-checks.md](decisions/ADR-067-deprecated-aliases-carry-the-type-only-and-the-current-name-keeps-its-checks.md)
+  — a deprecated alias field carries the value's type only, so an empty
+  old-name value is reported under the new name; the current-name keys keep
+  their published `.min(1)`, so issue-list parity holds for one mistake only;
+  the `deprecated_parameters` notice is for successful calls; moving the
+  checks into the folded schema was rejected (PR #135).

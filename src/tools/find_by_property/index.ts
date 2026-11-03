@@ -1,8 +1,8 @@
 // Original — no upstream. find_by_property tool registration via registerTool — wraps the { count, paths } envelope for the MCP wire.
-import { withDeprecatedParameters } from "../_deprecated-params.js";
+import { deprecatedNamesNote, withDeprecatedParameters } from "../_deprecated-params.js";
 import { registerTool } from "../_register.js";
 import { executeFindByProperty, type ExecuteDeps } from "./handler.js";
-import { findByPropertyInputSchema, findByPropertyOutputSchema } from "./schema.js";
+import { FIND_BY_PROPERTY_RENAMES, findByPropertyInputSchema, findByPropertyOutputSchema } from "./schema.js";
 import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const FIND_BY_PROPERTY_TOOL_NAME = "find_by_property";
@@ -22,7 +22,7 @@ Inputs: \`{ vault?, name, value, folder?, array_match?, case_sensitive? }\`.
 
 \`vault\` should be passed explicitly in multi-vault setups to avoid focused-vault basename ambiguity.
 
-Deprecated names (accepted until the next major release; a call that uses one gets \`deprecated_parameters\` in its result): \`property\` → \`name\`, \`arrayMatch\` → \`array_match\`, \`caseSensitive\` → \`case_sensitive\`.`;
+${deprecatedNamesNote(FIND_BY_PROPERTY_RENAMES)}`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 
