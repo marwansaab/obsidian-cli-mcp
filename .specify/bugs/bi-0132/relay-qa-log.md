@@ -345,3 +345,121 @@ Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0
 > Q4. A
 >
 > Rationale: the BI records the verbatim notice (`Command line interface is not enabled. Please turn it on in Settings > General > Advanced.`). It treats the live check as one owner step: turn the setting OFF, run `obsidian_exec` and a typed tool against TestVault-Obsidian-CLI-MCP, record each result, then turn the setting back ON. That fits a single toggle session at test time. The spec's recovery story ("same session") is checked in that same run. (BI-0132 Status, "Queued — validation needs owner"; acceptance criteria under Story: recovery.)
+
+## 7. repair / settle-verdict (2026-11-03T22:38:11.444Z)
+
+**Question (verbatim):**
+
+> BI-0132 verification came back **partial**. The fix passes every automated check: the 15 BI-0132 tests, the full suite (4854 passed), tsc, lint and build. A read-only live probe of this branch with Obsidian's command line switched ON also passed. obsidian_exec, read, eval and the vault registry all returned normal results, so there is no false positive.
+>
+> **Checks not exercised, and what each needs:**
+> 1. **Live reproduction with the setting OFF** (assessment steps 1–5): `obsidian_exec files total`, `read`, `vaults` and one named-vault writer against TestVault-Obsidian-CLI-MCP should each return `CLI_REPORTED_ERROR` with `details.reason: "cli-disabled"` and the notice in `details.stdout`. *Needs:* you to turn off Settings > General > Advanced > Command line interface in Obsidian while I run the calls.
+> 2. **Live capture of the notice wording.** `CLI_DISABLED_ANSWER` is the string from the single 2026-05-30 probe. If today's Obsidian prints different words, the exact-match rule never fires. *Needs:* the same OFF session (item 1).
+> 3. **Live OFF→ON recovery in one session** (step 6). The ON half passed; the transition is proven only in unit tests. *Needs:* turning the setting back ON at the end of the same session.
+>
+> | Option | What happens |
+> |---|---|
+> | **A** | Accept the partial result and open the PR. Items 1–3 stay recorded in test.md under Residual Risks, and the owner check happens later. |
+> | **B** | Widen the fix, for example a prefix match on `Command line interface is not enabled.` so a reworded second sentence still matches. **Not supported by the evidence:** nothing shows the wording has changed, the assessment rejected the prefix form because note text starting with that sentence would be misclassified, and the gap is environmental, not in the code. |
+> | **C** | Run the owner toggle session now, before the PR (the assessment's settled live-confirmation ruling): you turn the setting OFF and reply; I run the four calls read-only against TestVault-Obsidian-CLI-MCP and capture the notice; you turn it back ON and I confirm the calls succeed. If the notice differs, I correct the constant and its test fixture (one fix round). Then I rerun /speckit-bug-test so the result can be `verified`. |
+>
+> **Recommended: C.** It is what the assessment's live-confirmation answer already decided ("If the captured notice differs from the pinned string, the constant is corrected before the PR"), and it is the only way to close items 1–3. Pick A if a toggle session isn't practical now. Which option?
+
+**Advisor** (escalate: decision: Option C needs you to switch Obsidian's Command line interface setting off and on now. Only you can do that or agree to it, so it's your call whether to do the toggle session now (C) or open the PR and check later (A).):
+
+> C. Run the owner toggle session before the PR. Turn the setting OFF, run the four calls read-only against TestVault-Obsidian-CLI-MCP and capture the notice. If the captured wording differs from `CLI_DISABLED_ANSWER`, correct the constant and its fixture. Turn the setting back ON and confirm recovery in the same session. Do not take B.
+>
+> Rationale: the Q4 ruling put the live check before the PR, with the constant corrected if the wording differs. The BI says reproducing the defect "means turning off Obsidian's Command line interface setting, which is an owner action". Q2 settled on an exact-match rule, so B would reverse it. A is the fallback only if the owner can't run a toggle session now. (BI-0132 Status and plan-stage notes; answers Q2 and Q4 in this run.)
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0132 - Classify CLI Disabled Stdout As Structured Error.md`
+
+**Advisor, after the owner ruled** (escalate: none):
+
+> C. Run the owner toggle session now, before the PR:
+> 1. Ask the owner to turn Settings > General > Advanced > Command line interface OFF, and wait for confirmation.
+> 2. Run `obsidian_exec files total`, `read`, `vaults` and one named-vault writer read-only against TestVault-Obsidian-CLI-MCP.
+> 3. Check that each returns `CLI_REPORTED_ERROR` with `details.reason: "cli-disabled"` and the notice in `details.stdout`.
+> 4. Capture the notice verbatim. If it differs from `CLI_DISABLED_ANSWER`, correct the constant and its fixture in one fix round. Keep the exact-match rule; no prefix match.
+> 5. Ask the owner to turn the setting back ON, then repeat the calls and confirm they succeed in the same session.
+> 6. Re-verify, then open the PR.
+>
+> Rationale: this is the owner's ruling of 2026-11-04, now recorded under Status on BI-0132. It is consistent with the Q2 (exact match) and Q4 (one toggle session, constant corrected before the PR) answers.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0132 - Classify CLI Disabled Stdout As Structured Error.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0132 - Classify CLI Disabled Stdout As Structured Error.md`: Added a paragraph at the top of Status: partial verification on 2026-11-04 and the owner ruling to run the OFF/ON toggle session before the PR, with the constant corrected if the wording differs and the exact-match rule kept.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0132 - Classify CLI Disabled Stdout As Structured Error.md`: Set frontmatter `updated` to 2026-11-04.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0132 - Classify CLI Disabled Stdout As Structured Error.md`: Added a 2026-11-04 audit-trail HTML comment at the end of the note recording the Relay run and the owner ruling.
+
+**Owner:** choice 1 (C: toggle session now, then PR), via cli, 2026-11-03T22:39:33.524Z.
+
+**Sent to the step:**
+
+> C. Run the owner toggle session now, before the PR:
+> 1. Ask the owner to turn Settings > General > Advanced > Command line interface OFF, and wait for confirmation.
+> 2. Run `obsidian_exec files total`, `read`, `vaults` and one named-vault writer read-only against TestVault-Obsidian-CLI-MCP.
+> 3. Check that each returns `CLI_REPORTED_ERROR` with `details.reason: "cli-disabled"` and the notice in `details.stdout`.
+> 4. Capture the notice verbatim. If it differs from `CLI_DISABLED_ANSWER`, correct the constant and its fixture in one fix round. Keep the exact-match rule; no prefix match.
+> 5. Ask the owner to turn the setting back ON, then repeat the calls and confirm they succeed in the same session.
+> 6. Re-verify, then open the PR.
+>
+> Rationale: this is the owner's ruling of 2026-11-04, now recorded under Status on BI-0132. It is consistent with the Q2 (exact match) and Q4 (one toggle session, constant corrected before the PR) answers.
+
+## 8. repair / settle-verdict (2026-11-03T22:40:43.538Z)
+
+**Question (verbatim):**
+
+> BI-0132 toggle session, step 1 of 5: please turn **OFF** Obsidian's command line in **Settings > General > Advanced > Command line interface**, leave Obsidian running, then reply "OFF".
+>
+> When you reply, I will run these four calls read-only against TestVault-Obsidian-CLI-MCP through this branch's build. Each should return `CLI_REPORTED_ERROR` with `details.reason: "cli-disabled"` and Obsidian's notice in `details.stdout`.
+> - `obsidian_exec files total`
+> - `read Welcome.md`
+> - `vaults`
+> - `find_and_replace` in preview mode on `Sandbox/`. This is the named-vault writer; preview writes nothing.
+>
+> I will also capture the raw notice from `Obsidian.com` word for word and compare it with `CLI_DISABLED_ANSWER`. After that I'll ask you to turn the setting back ON.
+>
+> The baseline with the setting ON already passed: all four calls returned normal results.
+
+**Advisor** (escalate: ungrounded: The developer agent needs you to switch Obsidian's Command line interface setting OFF and reply "OFF". Only you can make that change in the Obsidian app.):
+
+> Waiting for the owner to turn Settings > General > Advanced > Command line interface OFF. The vault cannot confirm the setting's state, so do not run the OFF calls until the owner's "OFF" reply arrives.
+>
+> One adjustment to the call list: the BI names `write_note`, `append_note`, `prepend`, `patch_heading`, `patch_block` and `query_base` as the named-vault calls that resolve through the vault registry. Use `find_and_replace` preview only if it resolves the vault through that same registry. Otherwise substitute `query_base` (read-only) against a TestVault `.base`, so the registry path the BI lists is the one exercised. (BI-0132 Status item 2; owner ruling 2026-11-04 recorded under Status.)
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0132 - Classify CLI Disabled Stdout As Structured Error.md`
+
+**Advisor, after the owner ruled** (escalate: none):
+
+> Don't run the toggle session. Open the PR with the partial result.
+>
+> Record these three OFF-state checks in test.md under Residual Risks as open, owner-run later:
+> 1. Live reproduction with the setting OFF: `obsidian_exec files total`, `read`, `vaults`, and one named-vault call that resolves through the registry.
+> 2. Live capture of the notice wording, compared against `CLI_DISABLED_ANSWER`.
+> 3. OFF→ON recovery in one session.
+>
+> Keep the exact-match rule; no prefix widening. In the PR description, state that the result is partial: automated checks passed and the ON-state probe was clean, but OFF-state verification is still to come.
+>
+> Rationale: owner ruling 2026-11-04, recorded under Status on BI-0132. It replaces the earlier "toggle session before the PR" timing.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0132 - Classify CLI Disabled Stdout As Structured Error.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0132 - Classify CLI Disabled Stdout As Structured Error.md`: Extended the 2026-11-04 Status paragraph with the owner's follow-up ruling: toggle session not possible now, PR opens with partial verification, and the three OFF-state checks stay open as residual risks for a later owner session.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0132 - Classify CLI Disabled Stdout As Structured Error.md`: Added a 2026-11-04 audit-trail HTML comment recording the follow-up ruling.
+
+**Owner:** choice 2 (Can't now: open PR, check later), via cli, 2026-11-03T22:48:57.372Z.
+
+**Sent to the step:**
+
+> Don't run the toggle session. Open the PR with the partial result.
+>
+> Record these three OFF-state checks in test.md under Residual Risks as open, owner-run later:
+> 1. Live reproduction with the setting OFF: `obsidian_exec files total`, `read`, `vaults`, and one named-vault call that resolves through the registry.
+> 2. Live capture of the notice wording, compared against `CLI_DISABLED_ANSWER`.
+> 3. OFF→ON recovery in one session.
+>
+> Keep the exact-match rule; no prefix widening. In the PR description, state that the result is partial: automated checks passed and the ON-state probe was clean, but OFF-state verification is still to come.
+>
+> Rationale: owner ruling 2026-11-04, recorded under Status on BI-0132. It replaces the earlier "toggle session before the PR" timing.
