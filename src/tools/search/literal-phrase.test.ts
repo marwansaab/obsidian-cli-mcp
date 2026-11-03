@@ -88,7 +88,20 @@ function sampleQueries(count: number): string[] {
   });
 }
 
-test.each([SYNTAX, `x${SYNTAX}x`, "o.bar(baz)", "a.b", ...sampleQueries(200)])(
+// L6's search-syntax inputs also run here, so they get the near-miss, index and `u`-flag checks too.
+const L6_INPUTS = [
+  "-draft",
+  "cats OR dogs",
+  "cats AND dogs",
+  "tag:urgent",
+  "file:Plan",
+  "/usr/bin/",
+  "[status]",
+  "(see note)",
+  "a*b",
+];
+
+test.each([SYNTAX, `x${SYNTAX}x`, "o.bar(baz)", "a.b", ...L6_INPUTS, ...sampleQueries(200)])(
   "L11 the regex body matches %j literally and only that, with and without the u flag",
   (input) => {
     const out = literalPhraseQuery(input);
