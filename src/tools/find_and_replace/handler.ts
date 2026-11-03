@@ -18,10 +18,10 @@ import { invokeEval, type SpawnLike, type CallScope } from "../../cli-adapter/cl
 import { UpstreamError } from "../../errors.js";
 import {
   assertCanonicalPath,
+  findFileByTsv,
   FOCUSED_VAULT_TEMPLATE,
   parseFocusedVault,
   resolveActiveFocusedFile,
-  resolveFileByTsv,
   resolveVaultDisplayName,
   resolveVaultRootOrRemap,
 } from "../_active-file.js";
@@ -423,23 +423,27 @@ async function realpathOrThrow(
 }
 
 /**
+ * The FR-008 missing-note error, `note` being the offending input: one envelope
+ * for a `path` that does not exist and a `file` name Obsidian reports as not
+ * found (BI-0178).
+ */
+function invalidNoteNotFound(note: string, cause: unknown): UpstreamError {
+  return new UpstreamError({
+    code: "VALIDATION_ERROR",
+    cause,
+    details: { code: "INVALID_NOTE", reason: "not-found", note },
+    message: `find_and_replace: note "${note}" does not exist in vault`,
+  });
+}
+
+/**
  * Existence check for an explicitly-targeted single note → VALIDATION_ERROR +
  * INVALID_NOTE/not-found (FR-008), parity with the INVALID_SUBFOLDER/not-found
  * shape. Runs before any content read.
  */
 async function assertExists(vaultRoot: string, relPath: string, fs: ExecuteFs): Promise<void> {
   const abs = resolve(vaultRoot, relPath.split("/").join(sep));
-  await realpathOrThrow(
-    abs,
-    fs,
-    (err) =>
-      new UpstreamError({
-        code: "VALIDATION_ERROR",
-        cause: err,
-        details: { code: "INVALID_NOTE", reason: "not-found", note: relPath },
-        message: `find_and_replace: note "${relPath}" does not exist in vault`,
-      }),
-  );
+  await realpathOrThrow(abs, fs, (err) => invalidNoteNotFound(relPath, err));
 }
 
 /**
@@ -448,7 +452,8 @@ async function assertExists(vaultRoot: string, relPath: string, fs: ExecuteFs): 
  * existence checks before emitting `eligible = [relPath]`:
  * - `active_note` → resolveActiveFocusedFile (throws ERR_NO_ACTIVE_FILE when none open);
  * - `path` → existing vault-root resolve + the given vault-relative path;
- * - `file` → existing vault-root resolve + resolveFileByTsv (shortest-unique-name parity).
+ * - `file` → existing vault-root resolve + findFileByTsv (shortest-unique-name parity;
+ *   a name Obsidian reports as not found → INVALID_NOTE/not-found, as for `path`).
  */
 async function resolveSingleNoteScope(
   input: FindAndReplaceInput,
@@ -480,9 +485,12 @@ async function resolveSingleNoteScope(
       // path, which `obsidian file vault=…` rejects (it wants a registered name).
       // Parity with resolveActiveLocatorWithVault + research D6.
       const vaultName = input.vault ?? resolveVaultDisplayName(deps.vaultRegistry, rawRoot);
-      relPath = toVaultRelative(
-        await resolveFileByTsv(deps, vaultName, input.file as string, "find_and_replace"),
-      );
+      const name = input.file as string;
+      // A name Obsidian reports as not found gets the same FR-008 envelope as a
+      // missing `path` (BI-0178); every other lookup failure propagates.
+      const found = await findFileByTsv(deps, vaultName, name, "find_and_replace");
+      if (found === null) throw invalidNoteNotFound(name, null);
+      relPath = toVaultRelative(found);
     }
   }
 

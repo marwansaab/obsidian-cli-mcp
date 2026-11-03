@@ -11,7 +11,7 @@ import {
   type ExecuteDeps,
 } from "./handler.js";
 import { UpstreamError } from "../../errors.js";
-import { answeredCall, captureLogger, makeQueuedSpawn } from "../_handler-test-fixtures.js";
+import { answeredCall, captureLogger, makeQueuedSpawn, recordingCall } from "../_handler-test-fixtures.js";
 
 import type { FindAndReplaceInput } from "./schema.js";
 
@@ -67,15 +67,8 @@ describe("068 R12 — multi-note commit confirmation (T080)", () => {
 
   it("confirmed: writes every note; the question carries the vault, scope and note count", async () => {
     const { fs, state } = inMemoryFs(threeNotes(), VAULT_ROOT);
-    const asked: string[] = [];
-    const confirmed = answeredCall("find_and_replace");
-    const result = await executeWithCall(commit(), baseDeps({ fs }), {
-      ...confirmed,
-      confirm: (message) => {
-        asked.push(message);
-        confirmed.confirm(message);
-      },
-    });
+    const { call, asked } = recordingCall("find_and_replace");
+    const result = await executeWithCall(commit(), baseDeps({ fs }), call);
     expect(result).toMatchObject({ mode: "commit", changed_notes: ["A.md", "Sub/B.md", "Sub/C.md"], partial: false });
     expect(state.renames).toHaveLength(3);
     expect(asked).toEqual(['Replace 3 occurrence(s) of "pat" in 3 note(s) across vault "V"? The notes are rewritten in place.']);
@@ -105,15 +98,8 @@ describe("068 R12 — multi-note commit confirmation (T080)", () => {
     const unavailable = await executeWithCall(commit({ folder: "Sub" }), baseDeps({ fs })).catch((e: unknown) => e);
     expect((unavailable as UpstreamError).details).toEqual({ code: "CONFIRMATION_UNAVAILABLE" });
 
-    const asked: string[] = [];
-    const confirmed = answeredCall("find_and_replace");
-    await executeWithCall(commit({ folder: "Sub" }), baseDeps({ fs }), {
-      ...confirmed,
-      confirm: (message) => {
-        asked.push(message);
-        confirmed.confirm(message);
-      },
-    });
+    const { call, asked } = recordingCall("find_and_replace");
+    await executeWithCall(commit({ folder: "Sub" }), baseDeps({ fs }), call);
     expect(asked[0]).toContain('in 2 note(s) under "Sub" in vault "V"');
   });
 

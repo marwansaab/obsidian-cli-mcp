@@ -23,7 +23,12 @@ import {
 } from "./handler.js";
 import { UpstreamError } from "../../errors.js";
 import { linkRealpath } from "../../path-safety/_realpath-fixtures.js";
-import { captureLogger, makeQueuedSpawn } from "../_handler-test-fixtures.js";
+import {
+  captureLogger,
+  fileNotFoundResponse,
+  makeQueuedSpawn,
+  recordingCall,
+} from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -160,6 +165,75 @@ describe("066-file-scope US1 — named single-note scope by path", () => {
     expect((err as UpstreamError).details.code).toBe("INVALID_NOTE");
     expect((err as UpstreamError).details.reason).toBe("not-found");
     expect((err as UpstreamError).details.note).toBe("Projects/Ghost.md");
+    expect(state.reads).toEqual([]);
+    expect(state.writes.length).toBe(0);
+  });
+
+  // BI-0178: a `file` name Obsidian reports as not found gets the same FR-008
+  // envelope as a missing `path`, not the lookup's pass-through CLI_REPORTED_ERROR.
+  const nameMissInput = (commit: boolean) => ({
+    pattern: "x", replacement: "y", mode: "literal" as const, vault: "V", file: "ghost", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit, active_note: false,
+  });
+
+  it("missing named file (preview) → INVALID_NOTE/not-found naming the name as given (BI-0178)", async () => {
+    const { fs, state } = inMemoryFs([], VAULT_ROOT);
+    const { spawnFn, getCount } = makeQueuedSpawn([fileNotFoundResponse("ghost")]);
+    const err = await executeFindAndReplace(nameMissInput(false), baseDeps({ fs, spawnFn })).catch((e) => e);
+    expect(err).toBeInstanceOf(UpstreamError);
+    expect((err as UpstreamError).code).toBe("VALIDATION_ERROR");
+    expect((err as UpstreamError).details).toEqual({ code: "INVALID_NOTE", reason: "not-found", note: "ghost" });
+    expect((err as UpstreamError).message).toBe('find_and_replace: note "ghost" does not exist in vault');
+    expect(getCount()).toBe(1); // the `obsidian file` lookup only
+    expect(state.reads).toEqual([]);
+    expect(state.writes.length).toBe(0);
+  });
+
+  it("missing named file (commit, confirming client) → same envelope; no confirmation asked, nothing written (BI-0178)", async () => {
+    const { fs, state } = inMemoryFs([], VAULT_ROOT);
+    const { spawnFn, getCount } = makeQueuedSpawn([fileNotFoundResponse("ghost")]);
+    const { call, asked } = recordingCall("find_and_replace");
+    const err = await executeFindAndReplace(nameMissInput(true), baseDeps({ fs, spawnFn }), call).catch((e) => e);
+    expect((err as UpstreamError).code).toBe("VALIDATION_ERROR");
+    expect((err as UpstreamError).details).toEqual({ code: "INVALID_NOTE", reason: "not-found", note: "ghost" });
+    expect(asked).toEqual([]);
+    expect(getCount()).toBe(1);
+    expect(state.reads).toEqual([]);
+    expect(state.writes.length).toBe(0);
+    expect(state.renames.length).toBe(0);
+  });
+
+  it("name miss and path miss share one envelope shape (BI-0178 parity)", async () => {
+    const ghostAbs = relToAbs("Ghost.md");
+    const { fs } = inMemoryFs([], VAULT_ROOT, {
+      realpathOverride: async (p: string) => {
+        if (p === ghostAbs) {
+          const e = new Error("ENOENT") as NodeJS.ErrnoException;
+          e.code = "ENOENT";
+          throw e;
+        }
+        return p;
+      },
+    });
+    const pathErr = (await executeFindAndReplace(
+      { pattern: "x", replacement: "y", mode: "literal", vault: "V", path: "Ghost.md", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
+      baseDeps({ fs }),
+    ).catch((e) => e)) as UpstreamError;
+    const { spawnFn } = makeQueuedSpawn([fileNotFoundResponse("ghost")]);
+    const nameErr = (await executeFindAndReplace(nameMissInput(false), baseDeps({ fs, spawnFn })).catch(
+      (e) => e,
+    )) as UpstreamError;
+    expect(nameErr.code).toBe(pathErr.code);
+    expect(Object.keys(nameErr.details)).toEqual(Object.keys(pathErr.details));
+    expect(nameErr.details.code).toBe(pathErr.details.code);
+    expect(nameErr.details.reason).toBe(pathErr.details.reason);
+  });
+
+  it("a lookup answer with no path line still fails as CLI_REPORTED_ERROR file-tsv-parse (BI-0178: only the not-found line maps)", async () => {
+    const { fs, state } = inMemoryFs([], VAULT_ROOT);
+    const { spawnFn } = makeQueuedSpawn([{ stdout: "name\tghost\n", exitCode: 0 }]);
+    const err = await executeFindAndReplace(nameMissInput(false), baseDeps({ fs, spawnFn })).catch((e) => e);
+    expect((err as UpstreamError).code).toBe("CLI_REPORTED_ERROR");
+    expect((err as UpstreamError).details.stage).toBe("file-tsv-parse");
     expect(state.reads).toEqual([]);
     expect(state.writes.length).toBe(0);
   });
