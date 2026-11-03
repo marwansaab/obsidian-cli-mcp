@@ -313,6 +313,14 @@ test("spec 073 O4: view alongside a different view_name is rejected too", () => 
   expect(r.error?.issues).toEqual([expect.objectContaining({ path: ["view"] })]);
 });
 
+test("BI-0182: empty view reports the same single issue as empty view_name, at [view_name]", () => {
+  const viaOld = createBaseInputSchema.safeParse({ base_path: "Tasks.base", name: "x", view: "" });
+  const viaNew = createBaseInputSchema.safeParse({ base_path: "Tasks.base", name: "x", view_name: "" });
+  expect(viaOld.success).toBe(false);
+  expect(viaOld.error?.issues).toEqual([expect.objectContaining({ path: ["view_name"], code: "too_small" })]);
+  expect(viaOld.error?.issues).toEqual(viaNew.error?.issues);
+});
+
 test("spec 073 O6: deprecated path with a wrong extension → INVALID_BASE_PATH naming base_path", () => {
   const r = createBaseInputSchema.safeParse({ path: "x.md", name: "x" });
   expect(r.error?.issues).toEqual([

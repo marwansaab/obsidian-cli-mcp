@@ -33,7 +33,8 @@ const createBaseArgsSchema = z.strictObject({
     .describe(
       "Exact, case-sensitive name of the view to create the item in (as listed by views_base). Not checked by the CLI; omit for the default.",
     ),
-  view: deprecatedAlias(z.string().min(1), VIEW_RENAME),
+  // No min(1) on the alias: the folded `view_name` checks the value, so an empty `view` reports `view_name`.
+  view: deprecatedAlias(z.string(), VIEW_RENAME),
   vault: z
     .string()
     .min(1)

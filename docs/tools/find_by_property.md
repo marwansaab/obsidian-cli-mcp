@@ -54,7 +54,8 @@ Spec 073 aligned this tool's parameter names with its families. The old names ar
 | `arrayMatch` | `array_match` |
 | `caseSensitive` | `case_sensitive` |
 
-- A call that uses an old name gets the same result as the new name, plus a `deprecated_parameters` field listing each old name used and its replacement (see *Output*).
+- A successful call that uses an old name gets the same result as the new name, plus a `deprecated_parameters` field listing each old name used and its replacement (see *Output*). Error responses do not carry `deprecated_parameters`.
+- Validation of the value reports the new name whichever key was used: `property: ""` fails exactly like `name: ""`, with its issue at `path: ["name"]`.
 - A call that sends an old name together with its new name (even with the same value) fails with `VALIDATION_ERROR`, before anything is spawned. The issue sits at the old name's path and names both.
 - The old keys stay in the published input schema, marked `deprecated: true`.
 - `array_match` and `case_sensitive` publish no JSON Schema `default` during the transition; the defaults (`true`, `true`) are applied at parse time.

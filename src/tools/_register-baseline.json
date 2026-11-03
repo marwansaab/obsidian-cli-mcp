@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedFromBranch": "fix/bi-0180",
+  "generatedFromBranch": "fix/bi-0182",
   "generatedAt": "2026-11-03",
   "tools": [
     {
@@ -37,8 +37,8 @@
     },
     {
       "name": "create_base",
-      "descriptionFingerprint": "7a9fa263a5a8890b0875d2e4c3c24590bc6bfdc5b44f9a7d7cfb8e10c7773c70",
-      "schemaFingerprint": "7fb74e8255513d4d1bc99c0099f6a45b26ea3e344cc5a4d423ebf6e8cb46a1f1",
+      "descriptionFingerprint": "a21af629e59704e1c02491a7940025df3df249c7b7876495d9be46a69b332133",
+      "schemaFingerprint": "e2cb1c511e6458c67a17dcf8881e068872030e930169ea36185e8ccaa254f5b1",
       "titleFingerprint": "d09213fea04104b836a8bcd13a551dcb0d5ce6fe7103e46a78a2d433c1f1eba5",
       "annotationsFingerprint": "d72d3cb182e3d7fcf0b1c6782251eee772cdf2a99470e1a4bd6a006b5c8f4e25",
       "outputSchemaFingerprint": "b962965cc6aa2be73aeb1045613290504e29c851aa7f16485f6e99f4c4438181"
@@ -61,7 +61,7 @@
     },
     {
       "name": "find_and_replace",
-      "descriptionFingerprint": "929198d6632ce29ffd9e3fed24bca3e1de908c259c94c2c100e68fd21a33de52",
+      "descriptionFingerprint": "0f65ac68d1388eaafc9c01a09bd02ef7a3c45a6ccf7c3a519de39152d82c59c2",
       "schemaFingerprint": "a71919f035828dc94320837f68f751261e07d0f075ee458f8903e569ed8996bb",
       "titleFingerprint": "770f80fa77ad69c756e602919e3c79b3d60a641d8949b7280c34dc0604be786f",
       "annotationsFingerprint": "b15393126f12ebd7533afe7d31a1beb8938a1e37d0bb2a52c382aaba4373f265",
@@ -69,8 +69,8 @@
     },
     {
       "name": "find_by_property",
-      "descriptionFingerprint": "142ac9422c9c8a68a7bfbe400a60343d8f64ec898b3d88826c29838d01886ecd",
-      "schemaFingerprint": "320aca2202d1ab524dfbcca8601ee2f33cd15018fbf3128eaca4bc42704c4221",
+      "descriptionFingerprint": "cc4c320c6425c63b88547c1911f91002bdd709e155e74d0281beffd8e60ecb4a",
+      "schemaFingerprint": "9a311364414f8fd962a95a021dfe1e6137b4413393a307c26df51e71004d335d",
       "titleFingerprint": "d46f63728bf0b32fbc5102d4f9bb295b98a1e36f1a8c15db79babb07cf2513b0",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",
       "outputSchemaFingerprint": "6e0b9c6203ac8c7e2c16f756b1452fde64e8b1f0d496728f5f3031e9581b02b6"

@@ -193,6 +193,14 @@ describe("spec 073 — deprecated names", () => {
     expect(result.error?.issues).toEqual([expect.objectContaining(issue)]);
   });
 
+  it("BI-0182: empty property reports the same single issue as empty name, at [name]", () => {
+    const viaOld = findByPropertyInputSchema.safeParse({ property: "", value: "x" });
+    const viaNew = findByPropertyInputSchema.safeParse({ name: "", value: "x" });
+    expect(viaOld.success).toBe(false);
+    expect(viaOld.error?.issues).toEqual([expect.objectContaining({ path: ["name"], code: "too_small" })]);
+    expect(viaOld.error?.issues).toEqual(viaNew.error?.issues);
+  });
+
   // O6 — the array check runs on the resolved value and names array_match
   it("O6: array value with the deprecated arrayMatch defaulted still names array_match", () => {
     const result = findByPropertyInputSchema.safeParse({ property: "tags", value: ["x"], arrayMatch: true });

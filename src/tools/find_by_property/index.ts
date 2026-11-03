@@ -22,7 +22,7 @@ Inputs: \`{ vault?, name, value, folder?, array_match?, case_sensitive? }\`.
 
 \`vault\` should be passed explicitly in multi-vault setups to avoid focused-vault basename ambiguity.
 
-Deprecated names (accepted until the next major release; a call that uses one gets \`deprecated_parameters\` in its result): \`property\` → \`name\`, \`arrayMatch\` → \`array_match\`, \`caseSensitive\` → \`case_sensitive\`.`;
+Deprecated names (accepted until the next major release; a successful call that uses one gets \`deprecated_parameters\` in its result; error responses do not carry it): \`property\` → \`name\`, \`arrayMatch\` → \`array_match\`, \`caseSensitive\` → \`case_sensitive\`.`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

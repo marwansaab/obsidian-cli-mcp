@@ -27,7 +27,7 @@ Write operation — creates a new Markdown note in the vault.
 
 Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (\`INVALID_BASE_PATH\` with sub-reasons \`empty\`/\`too-long\`/\`wrong-extension\`/\`path-traversal\`; \`INVALID_NAME\` with sub-reasons \`empty\`/\`too-long\`; \`CONTENT_TOO_LARGE\`); \`CLI_REPORTED_ERROR\` (\`BASE_NOT_FOUND\` when the specified base file does not exist, with \`details.vault\` when a vault is named; \`VAULT_NOT_FOUND\` with \`details.reason: "unknown"\` for an unregistered \`vault\`); \`PATH_ESCAPES_VAULT\` (only when \`vault\` is named: \`base_path\`, the item's folder or the created path resolves outside that vault; when the post-creation check catches it, \`details.createdPath\` names the item, which was written and is kept).
 
-Deprecated names (accepted until the next major release; a call that uses one gets \`deprecated_parameters\` in its result): \`path\` → \`base_path\`, \`view\` → \`view_name\`.
+Deprecated names (accepted until the next major release; a successful call that uses one gets \`deprecated_parameters\` in its result; error responses do not carry it): \`path\` → \`base_path\`, \`view\` → \`view_name\`.
 
 ${closedVaultNote("base:create")}`;
 

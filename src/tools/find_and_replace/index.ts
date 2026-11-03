@@ -43,7 +43,7 @@ Line-scoped only — \`\\n\` in \`pattern\` does NOT match cross-line; line endi
 
 Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` with sub-discriminators (\`INVALID_PATTERN\`/\`empty\`|\`too-long\`|\`regex-syntax\`; \`INVALID_REPLACEMENT\`; \`INVALID_SUBFOLDER\`/\`path-traversal\`|\`not-found\`; \`OCCURRENCE_COUNT_EXCEEDED\`; \`OCCURRENCE_COUNT_DRIFT\`); \`CLI_REPORTED_ERROR\` (\`VAULT_NOT_FOUND\`/\`unknown\`); \`PATH_ESCAPES_VAULT\` (canonical escape, security event logged); \`FS_WRITE_FAILED\` (\`details.reason: "read"\` no-op, OR \`"write"\` with \`partial: true\` + \`failing_note_locator\` + \`changed_notes\`).
 
-Deprecated names (accepted until the next major release; a call that uses one gets \`deprecated_parameters\` in its result): \`case_insensitive\` → \`case_sensitive\` (opposite value), \`subfolder\` → \`folder\`.`;
+Deprecated names (accepted until the next major release; a successful call that uses one gets \`deprecated_parameters\` in its result; error responses do not carry it): \`case_insensitive\` → \`case_sensitive\` (opposite value), \`subfolder\` → \`folder\`.`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

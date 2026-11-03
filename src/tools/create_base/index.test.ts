@@ -275,6 +275,24 @@ describe("createCreateBaseTool — deprecated names (spec 073)", () => {
     expect(spawned).toBe(false);
   });
 
+  it("BI-0182: view: \"\" returns the same VALIDATION_ERROR envelope as view_name: \"\", at [view_name]", async () => {
+    const tool = createCreateBaseTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      vaultRegistry: registry,
+      spawnFn: () => {
+        throw new Error("spawn on a rejected call");
+      },
+    });
+    const viaOld = (await tool.handler({ base_path: "Tasks.base", name: "x", view: "" })) as Result;
+    const viaNew = (await tool.handler({ base_path: "Tasks.base", name: "x", view_name: "" })) as Result;
+    expect(viaOld.isError).toBe(true);
+    const payload = JSON.parse(viaOld.content[0]!.text);
+    expect(payload.code).toBe("VALIDATION_ERROR");
+    expect(payload.details.issues).toEqual([expect.objectContaining({ path: ["view_name"] })]);
+    expect(viaOld).toEqual(viaNew);
+  });
+
   it("083: description states the routed vault, its containment errors and the closed-vault note", () => {
     expect(CREATE_BASE_DESCRIPTION).toContain(closedVaultNote("base:create"));
     expect(CREATE_BASE_DESCRIPTION).toContain("VAULT_NOT_FOUND");
@@ -297,7 +315,7 @@ describe("createCreateBaseTool — deprecated names (spec 073)", () => {
     expect(CREATE_BASE_DESCRIPTION).toContain("`path` is the vault-relative path of the note Obsidian created");
     expect(CREATE_BASE_DESCRIPTION).not.toContain("wrapper-constructed");
     expect(CREATE_BASE_DESCRIPTION).toContain(
-      "Deprecated names (accepted until the next major release; a call that uses one gets `deprecated_parameters` in its result): `path` → `base_path`, `view` → `view_name`.",
+      "Deprecated names (accepted until the next major release; a successful call that uses one gets `deprecated_parameters` in its result; error responses do not carry it): `path` → `base_path`, `view` → `view_name`.",
     );
   });
 });

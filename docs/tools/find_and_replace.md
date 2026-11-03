@@ -45,7 +45,8 @@ Spec 073 aligned this tool's parameter names with the search tools. The old name
 | `case_insensitive` | `case_sensitive`, with the opposite value (`case_insensitive: true` equals `case_sensitive: false`) |
 | `subfolder` | `folder` |
 
-- A call that uses an old name gets the same result as the new name, plus a `deprecated_parameters` field (see *Output shape*).
+- A successful call that uses an old name gets the same result as the new name, plus a `deprecated_parameters` field (see *Output shape*). Error responses do not carry `deprecated_parameters`.
+- The folder errors keep the stable code `INVALID_SUBFOLDER` and the `details.subfolder` key, whichever name was used, until the next major release, so callers that branch on them do not break. Their messages name `folder`.
 - A call that sends an old name together with its new name (even with agreeing values) fails with `VALIDATION_ERROR`, before any note is read. The issue sits at the old name's path and names both.
 - A `subfolder` scope is honoured exactly like `folder`: it is validated as `folder`, conflicts with `file` / `path` / `active_note` the same way, and never widens to the whole vault.
 - The old keys stay in the published input schema, marked `deprecated: true`. `case_sensitive` publishes no JSON Schema `default` during the transition; the default (`true`) is applied at parse time.
