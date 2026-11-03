@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-11-03T10:17:25.657Z |
 | Finished | not yet |
-| Elapsed | 9 min 27 s |
+| Elapsed | 17 min 34 s |
 | Questions | 3 (0 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 0 |
@@ -51,6 +51,8 @@
 
 ### assess (`b0c66d9f-5913-4b1a-beeb-685136f288dc`)
 
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\.specify\bugs\bi-0181\assessment.md exists.
+
 - **branch**: done, 4 turns.
 
 > Working tree was clean. Fetched origin; main already up to date with origin/main (fast-forward no-op). No existing fix/bi-0181 locally or on origin. Created and checked out fix/bi-0181 from main. No other changes.
@@ -59,17 +61,28 @@
 
 > Assessed BI-0181. Reproduced live in TestVault Sandbox (probe note cleaned up): Obsidian's metadata cache holds a `tags` list as written ("x") after a watcher parse but as "#x" after Obsidian's own frontmatter write (property:set, used by set_property) and once after computeFileMetadataAsync. Confirmed My-Setup-Vault's 11 bi-0166 notes have no '#' in file text. Root cause: find_by_property/_template.ts compares with strict === and read_property/handler.ts returns the cached value verbatim. Proposed fix: strip one leading '#' on `tags` only, in the template (both sides) and in read_property's returned value; documented form without '#'; update descriptions/docs, regenerate fingerprint baseline, add a node:vm template test. Verdict valid, severity high. No kernel-node touch. Wrote .specify/bugs/bi-0181/assessment.md (uncommitted). No bug-assess hooks registered.
 
-- **resolve-assessment**: in progress, 2 turns, 3 questions.
+- **resolve-assessment**: done, 9 turns, 3 questions.
 
-> Assessment verdict is valid (severity high). The remediation is a repair within the report's scope: tags-only normalisation on the read and compare sides, plus the description and doc text the report's "documented form" criterion needs. There are no [NEEDS CLARIFICATION] items. The Open Questions section holds three provisional decisions, asked here for confirmation before they are recorded as Resolved (Relay).
+> Settled the BI-0181 assessment. Verdict: valid. Severity: high. Obsidian's cache holds the tags list either as written or #-prefixed, depending on which path last updated the note (property:set adds the #). read_property returns the cached value as is, and find_by_property compares with ===, so lookups silently miss notes and give different results from call to call. Remediation, a repair within the report's scope: for the `tags` key only, strip one leading # on both sides of find_by_property's template comparison and from read_property's returned value. Add the rule to both tool descriptions and help pages, regenerate _register-baseline.json, and add a node:vm template test. No new error code, no kernel node touched. Answers recorded as Resolved (Relay): Q1=A, documented form without # (matches the file text, read and compare sides); Q2=A, exact case-sensitive `tags` key only (other properties out of scope, ADR-046's name lookup unchanged); Q3=A, exactly one leading # stripped (same rule as the tag tool). These confirmed the provisional choices, so no other section changed, and no [NEEDS CLARIFICATION] items remain. Committed .specify/bugs/bi-0181 (assessment.md plus Relay's digest and QA log) on fix/bi-0181 as 3a55525, following CONTRIBUTING.md. Not pushed.
 
 
-### repair
+### repair (`08cb31ac-263c-4b18-b7e1-456326d390ab`)
 
-- **bug-fix**: not run.
-- **bug-test**: not run.
-- **settle-verdict**: not run.
-- **open-pr**: not run.
+- Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\.specify\bugs\bi-0181\assessment.md exists, and Obsidian has TestVault-Obsidian-CLI-MCP focused.
+
+- **bug-fix**: done, 56 turns.
+
+> Applied the BI-0181 remediation; fix.md status `applied`, nothing committed. For the property `tags` only, find_by_property's comparison code (run inside Obsidian) now strips one leading `#` from both the cached value and the query, and read_property returns tags values without a leading `#`. The one-`#` rule lives in a new leaf module, src/tools/_tag-hash.ts (stripTagHash), used by read_property and the `tag` tool's schema. That schema change is beyond the assessment's file list; it is behaviour-identical and logged under Deviations. New tests: find_by_property/_template.test.ts (8 cases run under node:vm; 5 fail on the pre-fix template), 5 read_property handler cases, and _tag-hash.test.ts. Updated tool descriptions, the regenerated registration baseline (only find_by_property's schema fingerprint and read_property's description fingerprint moved), both docs/tools pages and CHANGELOG. Typecheck, lint and the full test suite (4788 passed, 6 skipped) are clean. CodeGraph checks pass, and the claim that no kernel node is touched held. The live check against the test vault is left for /speckit-bug-test. No after_bug_fix hooks are registered. Next step: /speckit-bug-test slug=bi-0181.
+
+- **bug-test**: done, 17 turns.
+
+> Wrote .specify/bugs/bi-0181/test.md; result `verified`. Live check in TestVault-Obsidian-CLI-MCP against a real mixed cache: Fixtures/BI-0076/closed-note.md cached as `#bi0076closed` (only read) plus a new Sandbox note cached as `bi0076closed`. Before the fix (comparison rebuilt by reversing the fix's two lines in the built template), each query found only 1 note, one per cache form. This branch's find_by_property returns both notes for `bi0076closed` (twice) and for `#bi0076closed`, and read_property returns ["bi0076closed"] for both, while the raw CLI reports `#bi0076closed` for the fixture. Obsidian's own trigger for the `#` form (property:set, computeFileMetadataAsync, processFrontMatter) did not fire this session; this is recorded as a residual risk, and the fix does not depend on it. The live run called the built handlers directly, not through an MCP client. Targeted suites (217 tests), full suite (4788 passed, 6 skipped), typecheck, lint and build pass. Sandbox restored and the fixture is unchanged; scratch scripts removed. No after_bug_test hooks registered.
+
+- **settle-verdict**: done, 2 turns.
+
+> Final result: `verified`, as recorded in .specify/bugs/bi-0181/test.md. No extra fix or re-test round was needed. Live check on a real mixed cache in the test vault: before the fix, each query form found only one of the two notes; after it, both forms return both notes on repeated calls, and read_property returns the written form (no `#`) for both. Full suite (4788 passed, 6 skipped), typecheck and lint pass. Recorded under Residual Risks in test.md: Obsidian's own trigger for the `#` cache form could not be reproduced on demand, so the check used a note already cached in that form; the fix does not depend on the trigger.
+
+- **open-pr**: in progress.
 
 ### review
 
