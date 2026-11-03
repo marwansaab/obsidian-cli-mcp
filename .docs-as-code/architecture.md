@@ -936,6 +936,14 @@ than added as new codes:
   exist. It reuses the pair rather than adding one, and carries no
   `details.reason` because the condition has one state (spec 090
   Clarification Q2; [mutate](capabilities/mutate.md#missing-destination-folder-and-vault-relative-failures)).
+  Since PR #126 `write_note` adds `"VAULT_MISMATCH"` under
+  `CLI_REPORTED_ERROR`, with `details.vault`, `answeredBy` and `file`: its
+  note-name lookup reported another vault than the named one, so nothing was
+  written. One state, so no `details.reason`
+  ([ADR-062](decisions/ADR-062-write-note-resolves-a-name-by-one-eval-that-reports-its-vault.md)).
+  The same PR moved `write_note`'s lock failure from `FS_WRITE_FAILED` to the
+  existing `EXTERNAL_EDITOR_CONFLICT` / `file-locked` pair the other writers
+  use.
 - `details.reason` separates the states of one multi-state condition (ADR-015,
   Sub-Discriminators via details.reason for Multi-State Error Codes) — for
   example `obsidian-not-running` on `CLI_NON_ZERO_EXIT`, `named-missing` and
@@ -1122,9 +1130,15 @@ flowchart LR
   name as a literal path (spec 089 research F1;
   [mutate](capabilities/mutate.md#note-names-in-the-section-editors),
   [ADR-059](decisions/ADR-059-section-editors-resolve-note-names-through-the-shared-lookup.md)).
-  `write_note` keeps its own resolution and checks the path it computes. The
-  section editors use the resolver for the locator only; they still run no
-  type check.
+  `write_note` keeps its own resolution and checks the path it computes.
+  Since PR #126 that resolution looks a `file` name up with one eval of its
+  own, which also reports the vault it ran in, because `write_note` must
+  create a note for an unmatched name and must not trust an answer from
+  another vault
+  ([mutate](capabilities/mutate.md#note-names-in-write_note),
+  [ADR-062](decisions/ADR-062-write-note-resolves-a-name-by-one-eval-that-reports-its-vault.md)).
+  The section editors use the resolver for the locator only; they still run
+  no type check.
 
 The cost is one extra CLI round-trip for `file` and active calls of the four
 pass-through tools, and for `file` calls of the direct-filesystem tools above.
@@ -1397,6 +1411,19 @@ Since ADR-031 (Cross-Vault Open via Vault-Targeted Focus; PR #66, verified
 across the read and query cohort in PR #67), an `eval` sent with `vault=<name>`
 runs against that vault even when another vault has focus. Tools therefore do
 not need to switch focus before reading a background vault.
+
+That holds only because `assembleArgv` puts `vault=` ahead of the
+subcommand. The CLI reads only a leading `vault=`; one placed after the
+subcommand (`obsidian file vault=<name> file=<note>`) is ignored without an
+error, and the focused vault answers. PR #126's first bug-test run hand-wrote
+its raw probes in that order and reported that `vault=` is ignored for an
+unfocused vault; the re-test with the production order found the routing
+correct for a vault that is open but unfocused and for one that is closed but
+registered (`.specify/bugs/bi-0176/test.md`, *Correction to the first run's
+finding*). Hand-written CLI probes must put `vault=` first. `write_note`'s
+note-name lookup, added in the same PR, also checks the vault the eval
+reports, so a misrouted answer fails rather than being used
+([mutate](capabilities/mutate.md#note-names-in-write_note)).
 
 ## Documentation as part of the runtime
 

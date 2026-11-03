@@ -48,7 +48,10 @@ flowchart LR
   `resolveLocator`, which used `file` as a literal path from the vault root,
   so a `file` name was never resolved
   ([below](#note-names-in-the-section-editors)). `write_note` still resolves
-  its own path.
+  its own path. Until PR #126 that meant a `file` name was never looked up
+  either: it became `<name>.md` at the vault root. Since PR #126 it asks the
+  named vault with one eval of its own
+  ([below](#note-names-in-write_note)).
 - **Type check** (PR #97). `write_note` and `append_note` reject a resolved
   path that is not a Markdown note with `UNSUPPORTED_FILE_TYPE` before the
   guard, so nothing is read or written
@@ -65,7 +68,12 @@ flowchart LR
   `append_note` and `patch_heading` but not `patch_block` —
   because on Windows they mean another program holds the file. Anything else
   is `FS_WRITE_FAILED`. The per-tool differences are explicit parameters of
-  the shared mapper in `src/tools/_fs-errors.ts` (PR #58). Since PR #102 that
+  the shared mapper in `src/tools/_fs-errors.ts` (PR #58). `write_note` kept
+  its own mapper until PR #126: every errno but `EEXIST` was
+  `FS_WRITE_FAILED`, a lock included, with the absolute disk path in
+  `details.path` and the message. Since then it keeps only its `EEXIST` →
+  `FILE_EXISTS { errno }` branch and passes everything else to the shared
+  mapper with `patch_block`'s set, `{EBUSY, EPERM}` (BI-0176 Q1). Since PR #102 that
   module also exports `getSyscall` beside `getErrno`; the mapper,
   `find_and_replace`'s own `mapFsError` and `read`'s disk-read failure all
   use it instead of three hand-rolled casts. Since PR #105 it also exports
@@ -308,6 +316,81 @@ move. PR #122's live check drove the built server over stdio against the
 test vault: both editors edited a note two folders down by its bare name,
 an unmatched name created nothing, and a duplicate name edited the note
 `read` returned.
+
+## Note names in `write_note`
+
+`write_note` publishes the same `file` description, and until PR #126
+(BI-0176) it was not true there either. `resolveSpecificModePath` turned a
+name into `<name>.md` at the vault root without asking Obsidian, so
+overwriting a note in a sub-folder by name created a second note at the root,
+with the same frontmatter id, and reported `created: true`; `overwrite: false`
+created the same duplicate (`.specify/bugs/bi-0176/assessment.md`).
+
+`write_note` does not use `resolveFsTarget`. It must create a note when the
+name matches none, and since the PR #126 owner ruling it must also know which
+vault answered, which the `obsidian file` TSV cannot say
+([ADR-062](../decisions/ADR-062-write-note-resolves-a-name-by-one-eval-that-reports-its-vault.md)):
+
+```mermaid
+flowchart LR
+  reg[vault registry: root] --> f{locator}
+  f -- path --> rel[relPath as given]
+  f -- file --> ev["NAME_LOOKUP_TEMPLATE eval, vault= first"]
+  ev -- "answered by another vault" --> mm["CLI_REPORTED_ERROR / VAULT_MISMATCH"]
+  ev -- "note found" --> rel
+  ev -- "no note has the name" --> sf["short-form rule: root name.md, or verbatim"] --> rel
+  ev -- "no answer / wrong shape" --> pf["CLI_REPORTED_ERROR, json-parse / envelope-parse"]
+  f -- active --> fe[focused-file eval] --> rel
+  rel --> type[type check] --> guard[canonical path check] --> write[mkdir, stat, write]
+```
+
+- **The lookup.** `lookupNoteByName` in `src/tools/write_note/handler.ts`
+  sends `NAME_LOOKUP_TEMPLATE` (`src/tools/write_note/_template.ts`) through
+  `invokeEval` with the name in the base64 payload. The eval returns
+  `getFirstLinkpathDest(name, '')`'s path, or `null`, and
+  `app.vault.getName()`; `nameLookupEvalResponseSchema` (a strict object, not
+  a published schema) reads it through `decodeEvalEnvelope`. `vault=` leads
+  the argv, so a registered vault that is not open is reopened by the
+  dispatch layer's cold-start retry and the lookup runs there. A live parity
+  probe found the eval picks the same note as `obsidian file` on six names,
+  including a name two notes share, so a shared name writes the note `read`
+  picks.
+- **Vault confirmation.** If the reported vault is not the named one, the
+  call fails with `CLI_REPORTED_ERROR`, `details: { code: "VAULT_MISMATCH",
+  vault, answeredBy, file }`, before any filesystem access: neither the root
+  fallback nor another vault's path is trusted. It is the owner's scope (a)
+  ruling on the first bug-test run, which had reported that `vault=` was
+  ignored for an unfocused vault. The re-test showed that came from the
+  probe putting `vault=` after the subcommand
+  ([architecture](../architecture.md#reaching-obsidian-internals-the-eval-template-pattern)), and
+  the owner kept the check as a guard at no extra call.
+- **What the answer decides.** A found note is the target wherever it is:
+  `overwrite: true` replaces it and reports `created: false`;
+  `overwrite: false` returns `FILE_EXISTS` for that note. Only a name the
+  named vault reports no note for falls back to the documented short-form
+  rule. `path` and active mode make no lookup and behave as before.
+- **Errors.** Since PR #126 a lock on the target is the cohort's
+  `EXTERNAL_EDITOR_CONFLICT` / `file-locked`, and `FS_WRITE_FAILED` carries
+  the vault-relative path ([above](#the-direct-filesystem-cohort)).
+- **Tests.** `handler.note-name.test.ts` covers the lookup, `VAULT_MISMATCH`
+  (another vault found a note or none, with either `overwrite`), the
+  cold-start reopen, the parse failures and the absent lookup for `path` and
+  active mode; `handler.fs-errors.test.ts` injects `EPERM` / `EBUSY` and
+  checks that no absolute path appears; `_template.test.ts` runs the eval
+  under `node:vm`. Unlike the section editors, `write_note` does not use the
+  shared `describeNoteNameLocator` rows, which assume the `obsidian file`
+  lookup and a miss that fails.
+
+The `file` description changed, so `_register-baseline.json` moved for
+`write_note`'s `schemaFingerprint` only. The PR #126 code-quality review
+(commit `cbcce78`) split the lookup and its vault check out of
+`resolveSpecificModePath` into `lookupNoteByName`, leaving the short-form
+fallback where it was. The live re-test drove the built server against the
+test vault with it open but unfocused, and again with it closed but
+registered: the sub-folder note was replaced by name with nothing at the
+root, and a held PowerShell lock (no `FileShare.Delete`) gave
+`EXTERNAL_EDITOR_CONFLICT` / `EPERM` with the file unchanged
+(`.specify/bugs/bi-0176/test.md`).
 
 ## Line endings and the placement check
 
@@ -716,8 +799,12 @@ the file to a different folder", naming a tool the server no longer offers;
 since then it names `move` (spec 084 FR-004). Only the message changed: the
 pattern, and so the published schema, did not.
 
-`write_note` has no resolver to ask, so it checks the path it computes. Its
-short form used to add `.md` to any slash-free name not ending in `.md`, which
+`write_note` does not use the shared resolver, so it checks the path it
+computes: the `path` as given, the note a `file` name resolved to, or the
+short-form result for a name no note has. Until PR #126 this page said it
+"has no resolver to ask"; since PR #126 a `file` name is looked up first
+([above](#note-names-in-write_note)), and a name that resolves to a
+non-note file is rejected on the resolved path. Its short form used to add `.md` to any slash-free name not ending in `.md`, which
 made `file: "Plan.canvas"` into `Plan.canvas.md`. Since PR #97 a name ending
 in a canvas, base or attachment extension is not a short form; it passes
 through as given and the type check rejects it. A deliberate side effect,
@@ -865,6 +952,25 @@ from their schema would have reached the client as SDK free text rather than
   `does not exist`). None matches any output Obsidian is known to produce;
   PR #105 kept them so nothing they match is reported differently, and
   replacing them is its own item.
+- `write_note`'s vault confirmation (PR #126) is its own. The other tools
+  that look a name up through `resolveFileByTsv` — `append_note`,
+  `prepend`, `patch_heading`, `patch_block`, `find_and_replace` and `read`'s
+  type check — trust the `obsidian file` answer without knowing which vault
+  gave it; the owner ruling scoped the check to `write_note`.
+- `VAULT_MISMATCH` is proven by unit tests only: with `vault=` first, the
+  CLI routed correctly in every vault state the PR #126 re-test tried. It
+  compares display names, so two vaults with the same name pass it, the
+  limit the vault registry already has. The bare-name fallback to the vault
+  root and the `EBUSY` lock were not run live either (the test vault forbids
+  root writes).
+- A `file` call to `write_note` now needs Obsidian to answer the lookup and
+  fails, writing nothing, when it cannot; before PR #126 it needed only the
+  vault registry.
+- The editor-conflict errno sets are still four per-handler constants:
+  `{EBUSY, EPERM, EACCES}` in `append_note` and `patch_heading`,
+  `{EBUSY, EPERM}` in `patch_block` and `write_note`. Sharing them through
+  `_fs-errors.ts` was proposed in PR #126's review and left, by owner ruling,
+  for the next change to that module or one of those handlers.
 - `write_note` dropped its `template` parameter in the ADR-009 rewrite;
   template-based creation goes through `obsidian_exec`.
 - Writes made by the direct path are visible to Obsidian through the

@@ -55,6 +55,7 @@ extends it.
     and missing-note check (PR #105), its UTF-8 byte limit (PR #106),
     line endings and the placement check in `patch_heading` and
     `patch_block` (PR #119), how they resolve a note name (PR #122),
+    how `write_note` resolves one and confirms the vault (PR #126),
     `set_property`, `delete`, `rename`, `move`.
   - [capabilities/list-and-inventory.md](capabilities/list-and-inventory.md) —
     `files`, `paths`, `outline`, `properties`, `vaults`.
@@ -198,3 +199,9 @@ applies. Records written since:
   stdout is exactly that answer, checked in the raw facade after dispatch;
   the typed tools' prefix rule and a private copy of the literal were
   rejected (PR #124).
+- [decisions/ADR-062-write-note-resolves-a-name-by-one-eval-that-reports-its-vault.md](decisions/ADR-062-write-note-resolves-a-name-by-one-eval-that-reports-its-vault.md)
+  — `write_note` resolves a `file` name by one vault-targeted eval that also
+  reports the vault it ran in, fails with `VAULT_MISMATCH` and writes nothing
+  when that is not the named vault, and falls back to the root short form
+  only for a name no note has; the shared `obsidian file` lookup, a separate
+  vault check and a cohort-wide confirmation were rejected (PR #126).
