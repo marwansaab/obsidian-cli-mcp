@@ -113,6 +113,7 @@ Run with `codegraph_explore` (after `codegraph sync`) on `resolveSpecificModePat
 - `.memory/refactor-decisions.md` item 51 is stale: it describes the dry-run eval design that the owner ruling (Q1 = B) superseded. The owner, or the code review with the owner's leave, should rewrite or remove it. The note at its lines on `write_note.mapFsError` (conflict set `{EBUSY, EPERM}`, vault-relative `relPath`) is accurate for this change.
 - ~~Share the `Error: File "<name>" not found.` pattern between `prepend` and `write_note`~~: done in the code-review fixes below.
 - `/speckit-docs-as-code` should update `.docs-as-code/` for write_note's name resolution and error mapping.
+- Name the two editor-conflict errno sets in `src/tools/_fs-errors.ts` (for example `{EBUSY, EPERM}` and `{EBUSY, EPERM, EACCES}`) and have `append_note`, `patch_block`, `patch_heading` and `write_note` pick one, the next time those handlers are touched. A cleanup with no behaviour change. Left out of PR #127 by owner ruling (below).
 
 ## Code review fixes (PR #127, 2026-11-03)
 
@@ -122,4 +123,4 @@ The thermo-nuclear code-quality review of PR #127 raised three findings. None ch
 - **`mapFsError` is a closure built once after the path is resolved**, as in the sibling writers, instead of taking `relPath` at five call sites. Same mapping.
 - **`fileNotFoundResponse` moved to `_handler-test-fixtures.ts`** beside `fileTsvResponse`, because Obsidian's not-found answer is not specific to write_note. Other test files that type the line by hand are left until they are next touched.
 
-Left as they were: the duplicated `rejection()` test helper (the shared fixture module must stay free of vitest, and the battery's copy is private to it). The review's proposal to name the two editor-conflict errno sets in `_fs-errors.ts` would touch `append_note`, `patch_block` and `patch_heading`, which the assessment's remediation does not cover, so it was put to the owner as a question rather than done here.
+Left as they were: the duplicated `rejection()` test helper (the shared fixture module must stay free of vitest, and the battery's copy is private to it). The review's proposal to name the two editor-conflict errno sets in `_fs-errors.ts` would touch `append_note`, `patch_block` and `patch_heading`, which the assessment's remediation does not cover, so it was put to the owner as a question rather than done here. **Owner ruling (2026-11-03): option B.** Leave it out of PR #127: BI-0176 Out of scope excludes "Appending, prepending or patching notes", so editing those handlers would widen the job, and the Q2 clarification on BI-0176 settled write_note's own set, so write_note keeps its inline `{EBUSY, EPERM}`. Recorded under *Follow-ups*.
