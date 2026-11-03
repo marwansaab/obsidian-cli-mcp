@@ -1,7 +1,7 @@
 // Original — no upstream. search handler — two-subcommand router (`search` /
 // `search:context`) wrapping the native CLI; subcommand selection keyed on
-// input.context_lines (R2). The query is sent as one escaped, double-quoted phrase
-// (spec 087, literal-phrase.ts) so the CLI matches it literally in both subcommands.
+// input.context_lines (R2). The query is sent as one escaped regular expression
+// (spec 087, BI-0175, literal-phrase.ts) so the CLI matches it literally in both subcommands.
 // Zero-match sentinel detection on `No matches found.` stdout returns the empty
 // envelope for the active mode rather than an error (FR-012 / R4 / F2). Staged
 // parse — JSON.parse failures throw CLI_REPORTED_ERROR with details.stage=

@@ -1,34 +1,34 @@
-// Original — no upstream. Pure tests for the literal-phrase helpers shared by search and context_search (spec 087): the escaped double-quoted CLI query (L1–L6) and the one-entry-per-line reduction (L7). L8 lives in line-matches.test.ts.
+// Original — no upstream. Pure tests for the literal-phrase helpers shared by search and context_search (spec 087, BI-0175): the escaped regular-expression CLI query (L1–L6, L9–L12) and the one-entry-per-line reduction (L7). L8 lives in line-matches.test.ts.
 import { expect, test } from "vitest";
 
 import { literalPhraseQuery, oneMatchPerLine } from "./literal-phrase.js";
 
 // =================== literalPhraseQuery ===================
 
-test("L1 a multi-word query is wrapped in double quotes", () => {
-  expect(literalPhraseQuery("alpha beta")).toBe('"alpha beta"');
+test("L1 a multi-word query is wrapped in regex delimiters", () => {
+  expect(literalPhraseQuery("alpha beta")).toBe("/alpha beta/");
 });
 
 test.each([
-  [" alpha ", '" alpha "'],
-  ["alpha\tbeta", '"alpha\tbeta"'],
-  ["alpha  beta", '"alpha  beta"'],
-])("L5 whitespace is kept byte-identical inside the quotes: %j", (input, expected) => {
+  [" alpha ", "/ alpha /"],
+  ["alpha\tbeta", "/alpha\tbeta/"],
+  ["alpha  beta", "/alpha  beta/"],
+])("L5 whitespace is kept byte-identical inside the delimiters: %j", (input, expected) => {
   expect(literalPhraseQuery(input)).toBe(expected);
 });
 
-test("L2 a double quote is escaped as \\\"", () => {
-  expect(literalPhraseQuery('say "hello" twice')).toBe('"say \\"hello\\" twice"');
+test("L2 a double quote passes through unescaped", () => {
+  expect(literalPhraseQuery('say "hello" twice')).toBe('/say "hello" twice/');
 });
 
 test("L3 a backslash is escaped as \\\\", () => {
-  // The 6 characters "a\\b".
-  expect(literalPhraseQuery("a\\b")).toBe('"a\\\\b"');
+  // The 6 characters /a\\b/.
+  expect(literalPhraseQuery("a\\b")).toBe("/a\\\\b/");
 });
 
-test("L4 a backslash before a quote is doubled, then the quote escaped", () => {
-  // Input a\"b; output the 8 characters "a\\\"b".
-  expect(literalPhraseQuery('a\\"b')).toBe('"a\\\\\\"b"');
+test("L4 a backslash before a quote is doubled and the quote kept", () => {
+  // Input a\"b; output the 7 characters /a\\"b/.
+  expect(literalPhraseQuery('a\\"b')).toBe('/a\\\\"b/');
 });
 
 test.each([
@@ -41,9 +41,84 @@ test.each([
   "[status]",
   "(see note)",
   "a*b",
-])("L6 search-syntax characters are wrapped unchanged: %j", (input) => {
-  expect(literalPhraseQuery(input)).toBe(`"${input}"`);
+])(
+  "L6 search-syntax characters come out as a regex matching only their literal text: %j",
+  (input) => {
+    expect(new RegExp(`^${literalPhraseQuery(input).slice(1, -1)}$`).test(input)).toBe(true);
+  },
+);
+
+// BI-0175: every regex syntax character and the `/` delimiter is escaped; nothing else is.
+test.each(["\\", "^", "$", ".", "*", "+", "?", "(", ")", "[", "]", "{", "}", "|", "/"])(
+  "L9 %j is escaped with a backslash",
+  (c) => {
+    expect(literalPhraseQuery(`a${c}b`)).toBe(`/a\\${c}b/`);
+  },
+);
+
+test.each(['"', "-", ":", "#", "abcXYZ", "0123456789", " lead", "trail ", "in ner", "a\tb", "é"])(
+  "L10 %j passes through unchanged",
+  (input) => {
+    expect(literalPhraseQuery(input)).toBe(`/${input}/`);
+  },
+);
+
+// BI-0175: a query that starts or ends part-way through a word, and the synthetic `|` rows (Q2).
+test.each([
+  ["ead170", "/ead170/"],
+  ["TC-0078", "/TC-0078/"],
+  ["pha bet", "/pha bet/"],
+  ["ol a | co", "/ol a \\| co/"],
+  ["|co", "/\\|co/"],
+  ["l b |", "/l b \\|/"],
+])("L12 %j is sent as %j", (input, expected) => {
+  expect(literalPhraseQuery(input)).toBe(expected);
 });
+
+const SYNTAX = "\\^$.*+?()[]{}|/";
+const POOL = `${SYNTAX}"-:# \tabcAZ09é`;
+
+/** Deterministic pseudo-random strings over POOL (a fixed linear congruential sequence). */
+function sampleQueries(count: number): string[] {
+  let seed = 175;
+  const next = () => (seed = (seed * 1103515245 + 12345) % 2147483648);
+  return Array.from({ length: count }, () => {
+    const length = 1 + (next() % 12);
+    return Array.from({ length }, () => POOL[next() % POOL.length]).join("");
+  });
+}
+
+// L6's search-syntax inputs also run here, so they get the near-miss, index and `u`-flag checks too.
+const L6_INPUTS = [
+  "-draft",
+  "cats OR dogs",
+  "cats AND dogs",
+  "tag:urgent",
+  "file:Plan",
+  "/usr/bin/",
+  "[status]",
+  "(see note)",
+  "a*b",
+];
+
+test.each([SYNTAX, `x${SYNTAX}x`, "o.bar(baz)", "a.b", ...L6_INPUTS, ...sampleQueries(200)])(
+  "L11 the regex body matches %j literally and only that, with and without the u flag",
+  (input) => {
+    const out = literalPhraseQuery(input);
+    expect(out.startsWith("/") && out.endsWith("/")).toBe(true);
+    const body = out.slice(1, -1);
+    for (const flags of ["", "u"]) {
+      const anchored = new RegExp(`^${body}$`, flags);
+      expect(anchored.test(input)).toBe(true);
+      // One character changed (or dropped) no longer matches: the body is not a pattern.
+      expect(anchored.test(`${input.slice(0, -1)}${input.endsWith("~") ? "!" : "~"}`)).toBe(false);
+      expect(anchored.test(input.slice(1))).toBe(false);
+      const found = new RegExp(body, flags).exec(`pre${input}post`);
+      expect(found?.index).toBe(3);
+      expect(found?.[0]).toBe(input);
+    }
+  },
+);
 
 // =================== oneMatchPerLine ===================
 

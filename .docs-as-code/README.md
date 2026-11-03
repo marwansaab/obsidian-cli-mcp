@@ -174,7 +174,8 @@ applies. Records written since:
   phrase with `\` and `"` escaped, so Obsidian search syntax is text, and
   their line-level modes list each line once through one shared
   `lineMatches` pipeline the review argued the PR into; wrapper-side
-  filtering and an `eval` search were rejected (PR #120).
+  filtering and an `eval` search were rejected (PR #120). Its quoting
+  decision is superseded by ADR-063.
 - [decisions/ADR-058-context-search-reads-matched-lines-back-and-fails-when-one-cannot-be.md](decisions/ADR-058-context-search-reads-matched-lines-back-and-fails-when-one-cannot-be.md)
   — `context_search` reads its selected lines back from the notes through a
   batched `eval` under a fixed code budget and fails the whole call with
@@ -204,3 +205,9 @@ applies. Records written since:
   answer, owned by `_active-file.ts` as review argued the fix into; a lock is
   the cohort's `EXTERNAL_EDITOR_CONFLICT`; failing on a miss, a disk scan and
   a vault-confirming eval were rejected (PR #127, PR #128).
+- [decisions/ADR-063-text-searches-send-the-query-as-an-escaped-regular-expression.md](decisions/ADR-063-text-searches-send-the-query-as-an-escaped-regular-expression.md)
+  — `search` and `context_search` send the query as `/…/` with every regex
+  syntax character and `/` escaped, because a quoted phrase matched whole
+  words only; it supersedes ADR-057's quoting decision, and raw single-word
+  queries, an `eval` search and a shared escape module (deferred) were not
+  taken (PR #130).

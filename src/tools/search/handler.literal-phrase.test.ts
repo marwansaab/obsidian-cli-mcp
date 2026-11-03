@@ -1,4 +1,4 @@
-// Original — no upstream. search handler tests for literal phrase matching (spec 087): the quoted query in both subcommands, one entry per line in line mode, and line-break queries.
+// Original — no upstream. search handler tests for literal phrase matching (spec 087): the escaped regex query in both subcommands, one entry per line in line mode, and line-break queries.
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { executeSearch } from "./handler.js";
@@ -15,32 +15,32 @@ afterEach(() => __resetInFlightRegistryForTests());
 
 const SENTINEL = { stdout: "\nNo matches found.\n", exitCode: 0 };
 
-// =================== US1 — the query is sent as one quoted phrase ===================
+// =================== US1 — the query is sent as one escaped regex ===================
 
-test("S1 a multi-word query is sent as one double-quoted phrase; the result is unchanged", async () => {
+test("S1 a multi-word query is sent as one escaped regex; the result is unchanged", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
     { stdout: JSON.stringify(["n1.md"]), exitCode: 0 },
   ]);
   const r = await executeSearch({ query: "alpha beta" }, deps(spawnFn));
   const argv = recorded[0]!.argv;
-  expect(argv).toContain('query="alpha beta"');
+  expect(argv).toContain("query=/alpha beta/");
   expect(argv).not.toContain("query=alpha beta");
   expect(r).toEqual({ count: 1, paths: ["n1.md"] });
 });
 
 test.each([false, true])(
-  "S3 leading and trailing whitespace is kept inside the quotes (context_lines: %s)",
+  "S3 leading and trailing whitespace is kept inside the delimiters (context_lines: %s)",
   async (contextLines) => {
     const { spawnFn, recorded } = makeQueuedSpawn([SENTINEL]);
     await executeSearch(
       { query: " alpha ", ...(contextLines ? { context_lines: true } : {}) },
       deps(spawnFn),
     );
-    expect(recorded[0]!.argv).toContain('query=" alpha "');
+    expect(recorded[0]!.argv).toContain("query=/ alpha /");
   },
 );
 
-test("S8 a single-word query is quoted; case and folder are forwarded as before", async () => {
+test("S8 a single-word query is sent as a regex; case and folder are forwarded as before", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
     { stdout: JSON.stringify(["P/a.md"]), exitCode: 0 },
   ]);
@@ -49,7 +49,7 @@ test("S8 a single-word query is quoted; case and folder are forwarded as before"
     deps(spawnFn),
   );
   const argv = recorded[0]!.argv;
-  expect(argv).toContain('query="alpha"');
+  expect(argv).toContain("query=/alpha/");
   expect(argv).toContain("case=true");
   expect(findKv(argv, "path")).toBe("P");
   expect(r).toEqual({ count: 1, paths: ["P/a.md"] });
@@ -61,7 +61,7 @@ test.each([
   [false, false],
   [false, true],
 ])(
-  "S9 a multi-word query keeps its case inside the quotes (case_sensitive: %s, context_lines: %s)",
+  "S9 a multi-word query keeps its case inside the delimiters (case_sensitive: %s, context_lines: %s)",
   async (caseSensitive, contextLines) => {
     const { spawnFn, recorded } = makeQueuedSpawn([SENTINEL]);
     await executeSearch(
@@ -73,7 +73,7 @@ test.each([
       deps(spawnFn),
     );
     const argv = recorded[0]!.argv;
-    expect(argv).toContain('query="ALPHA BETA"');
+    expect(argv).toContain("query=/ALPHA BETA/");
     if (caseSensitive) {
       expect(argv).toContain("case=true");
     } else {
@@ -147,14 +147,39 @@ test("S7 a line-break query returns no lines in line mode; default mode returns 
 // =================== US3 — search-syntax characters are matched as text ===================
 
 test.each([false, true])(
-  "S2 quotes and backslashes reach the CLI escaped inside the phrase (context_lines: %s)",
+  "S2 quotes pass through and backslashes reach the CLI escaped inside the regex (context_lines: %s)",
   async (contextLines) => {
     const { spawnFn, recorded } = makeQueuedSpawn([SENTINEL]);
     const r = await executeSearch(
       { query: 'say "hi" a\\b', ...(contextLines ? { context_lines: true } : {}) },
       deps(spawnFn),
     );
-    expect(recorded[0]!.argv).toContain('query="say \\"hi\\" a\\\\b"');
+    expect(recorded[0]!.argv).toContain('query=/say "hi" a\\\\b/');
     expect(r).toEqual(contextLines ? { count: 0, matches: [] } : { count: 0, paths: [] });
+  },
+);
+
+// =================== BI-0175 — a query matches part-way through a word ===================
+
+test.each([
+  ["ead170", "query=/ead170/", "lead170 cap170long here"],
+  ["pha bet", "query=/pha bet/", "alpha beta gamma"],
+])(
+  "S10 a query that starts or ends inside a word is sent as an escaped regex: %j",
+  async (query, expected, text) => {
+    const { spawnFn: s1, recorded: r1 } = makeQueuedSpawn([
+      { stdout: JSON.stringify(["n1.md"]), exitCode: 0 },
+    ]);
+    expect(await executeSearch({ query }, deps(s1))).toEqual({ count: 1, paths: ["n1.md"] });
+    expect(r1[0]!.argv).toContain(expected);
+
+    const { spawnFn: s2, recorded: r2 } = makeQueuedSpawn([
+      { stdout: JSON.stringify([{ file: "n1.md", matches: [{ line: 1, text }] }]), exitCode: 0 },
+    ]);
+    expect(await executeSearch({ query, context_lines: true }, deps(s2))).toEqual({
+      count: 1,
+      matches: [{ path: "n1.md", line: 1, text }],
+    });
+    expect(r2[0]!.argv).toContain(expected);
   },
 );

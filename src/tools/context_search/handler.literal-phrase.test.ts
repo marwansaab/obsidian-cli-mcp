@@ -1,4 +1,4 @@
-// Original — no upstream. context_search handler tests for literal phrase matching (spec 087): the quoted query, one entry per line, line-break queries, and the unchanged folder probe.
+// Original — no upstream. context_search handler tests for literal phrase matching (spec 087): the escaped regex query, one entry per line, line-break queries, and the unchanged folder probe.
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { readBackResponse } from "./_handler-fixtures.js";
@@ -17,29 +17,29 @@ afterEach(() => __resetInFlightRegistryForTests());
 
 const SENTINEL = { stdout: "\nNo matches found.\n", exitCode: 0 };
 
-// =================== US1 — the query is sent as one quoted phrase ===================
+// =================== US1 — the query is sent as one escaped regex ===================
 
-test("C1 a multi-word query is sent as one double-quoted phrase", async () => {
+test("C1 a multi-word query is sent as one escaped regex", async () => {
   const wire = [{ file: "a.md", matches: [{ line: 3, text: "alpha beta" }] }];
   const { spawnFn, recorded } = makeQueuedSpawn([
     { stdout: JSON.stringify(wire), exitCode: 0 },
     readBackResponse(wire),
   ]);
   const r = await executeContextSearch({ query: "alpha beta" }, deps(spawnFn));
-  expect(recorded[0]!.argv).toContain('query="alpha beta"');
+  expect(recorded[0]!.argv).toContain("query=/alpha beta/");
   expect(r).toEqual({ count: 1, matches: [{ path: "a.md", line: 3, text: "alpha beta" }] });
 });
 
 test.each([
-  ["alpha ", 'query="alpha "'],
-  [" alpha", 'query=" alpha"'],
-])("C3 surrounding whitespace is kept inside the quotes: %j", async (query, expected) => {
+  ["alpha ", "query=/alpha /"],
+  [" alpha", "query=/ alpha/"],
+])("C3 surrounding whitespace is kept inside the delimiters: %j", async (query, expected) => {
   const { spawnFn, recorded } = makeQueuedSpawn([SENTINEL]);
   await executeContextSearch({ query }, deps(spawnFn));
   expect(recorded[0]!.argv).toContain(expected);
 });
 
-test("C8 a missing folder still errors through the probe; the search carried the quoted query", async () => {
+test("C8 a missing folder still errors through the probe; the search carried the regex query", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
     SENTINEL,
     { stdout: 'Error: Folder "Missing" not found.\n', exitCode: 0 },
@@ -49,11 +49,11 @@ test("C8 a missing folder still errors through the probe; the search carried the
   );
   expect(err).toBeInstanceOf(UpstreamError);
   expect((err as UpstreamError).code).toBe("CLI_REPORTED_ERROR");
-  expect(recorded[0]!.argv).toContain('query="alpha beta"');
+  expect(recorded[0]!.argv).toContain("query=/alpha beta/");
 });
 
 test.each([true, false])(
-  "C9 a multi-word query keeps its case inside the quotes (case_sensitive: %s)",
+  "C9 a multi-word query keeps its case inside the delimiters (case_sensitive: %s)",
   async (caseSensitive) => {
     const { spawnFn, recorded } = makeQueuedSpawn([SENTINEL]);
     await executeContextSearch(
@@ -61,7 +61,7 @@ test.each([true, false])(
       deps(spawnFn),
     );
     const argv = recorded[0]!.argv;
-    expect(argv).toContain('query="ALPHA BETA"');
+    expect(argv).toContain("query=/ALPHA BETA/");
     if (caseSensitive) {
       expect(argv).toContain("case=true");
     } else {
@@ -121,12 +121,31 @@ test("C7 a line-break query returns no lines and runs no folder probe", async ()
 
 // =================== US3 — search-syntax characters are matched as text ===================
 
-test("C2 every search-syntax character group reaches the CLI as text inside the phrase", async () => {
+test("C2 every search-syntax character group reaches the CLI as escaped text inside the regex", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([SENTINEL]);
   const r = await executeContextSearch(
     { query: '"hello" -x tag:y /z/ [p] (q) a*b c\\d' },
     deps(spawnFn),
   );
-  expect(recorded[0]!.argv).toContain('query="\\"hello\\" -x tag:y /z/ [p] (q) a*b c\\\\d"');
+  expect(recorded[0]!.argv).toContain('query=/"hello" -x tag:y \\/z\\/ \\[p\\] \\(q\\) a\\*b c\\\\d/');
   expect(r).toEqual({ count: 0, matches: [] });
 });
+
+// =================== BI-0175 — a query matches part-way through a word ===================
+
+test.each([
+  ["ead170", "query=/ead170/", "lead170 cap170long here"],
+  ["pha bet", "query=/pha bet/", "alpha beta gamma"],
+])(
+  "C10 a query that starts or ends inside a word is sent as an escaped regex: %j",
+  async (query, expected, text) => {
+    const wire = [{ file: "n1.md", matches: [{ line: 1, text }] }];
+    const { spawnFn, recorded } = makeQueuedSpawn([
+      { stdout: JSON.stringify(wire), exitCode: 0 },
+      readBackResponse(wire),
+    ]);
+    const r = await executeContextSearch({ query }, deps(spawnFn));
+    expect(recorded[0]!.argv).toContain(expected);
+    expect(r).toEqual({ count: 1, matches: [{ path: "n1.md", line: 1, text }] });
+  },
+);
