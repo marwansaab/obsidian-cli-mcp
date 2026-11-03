@@ -1,7 +1,7 @@
 // Original — no upstream. write_note handler tests for spec 070 (file-type support): every non-note target — a non-`.md` path, a `file` naming another core type, a focused canvas — is rejected as VALIDATION_ERROR + UNSUPPORTED_FILE_TYPE before any filesystem write, and every accepted input writes a `.md` path (US4 invariant). Split from handler.test.ts to keep each file under 1000 lines; shared fixtures live in _handler-fixtures.ts.
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
-import { deps, EVAL_OK, fakeFs, fakeRegistry, VAULT_ROOT } from "./_handler-fixtures.js";
+import { deps, EVAL_OK, fakeFs, fakeRegistry, fileNotFoundResponse, VAULT_ROOT } from "./_handler-fixtures.js";
 import { executeWriteNote } from "./handler.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
@@ -46,7 +46,7 @@ describe("spec 070 — non-note targets are rejected before any write", () => {
 
   test("file='Plan.canvas' → rejected; no Plan.canvas.md is created", async () => {
     const fs = fakeFs();
-    const { spawnFn } = makeQueuedSpawn([]);
+    const { spawnFn } = makeQueuedSpawn([fileNotFoundResponse("Plan.canvas")]);
     const err = (await executeWriteNote(
       {
         target_mode: "specific",
@@ -88,7 +88,7 @@ describe("spec 070 — non-note targets are rejected before any write", () => {
 describe("spec 070 — notes are still written as before", () => {
   test("file='version_1.2.3' → writes version_1.2.3.md (unrecognised segment stays in the stem)", async () => {
     const fs = fakeFs();
-    const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
+    const { spawnFn } = makeQueuedSpawn([fileNotFoundResponse("version_1.2.3"), EVAL_OK]);
     const result = await executeWriteNote(
       {
         target_mode: "specific",
@@ -140,7 +140,8 @@ describe("spec 070 invariant — write_note only ever writes notes", () => {
 
   test.each(ACCEPTED)("accepted %j → .md path", async (input, path) => {
     const fs = fakeFs();
-    const { spawnFn } = makeQueuedSpawn([EVAL_OK]);
+    const lookup = input.file !== undefined ? [fileNotFoundResponse(input.file)] : [];
+    const { spawnFn } = makeQueuedSpawn([...lookup, EVAL_OK]);
     const result = await executeWriteNote(input, deps({ spawnFn, vaultRegistry: registry(), fs }));
     expect(result.path).toBe(path);
     expect(result.path.endsWith(".md")).toBe(true);
@@ -160,7 +161,7 @@ describe("spec 070 invariant — write_note only ever writes notes", () => {
     "file=%j (another core type) → rejected",
     async (file) => {
       const fs = fakeFs();
-      const { spawnFn } = makeQueuedSpawn([]);
+      const { spawnFn } = makeQueuedSpawn([fileNotFoundResponse(file)]);
       const err = (await executeWriteNote(
         { target_mode: "specific", vault: "TestVault", file, content: "x", overwrite: true },
         deps({ spawnFn, vaultRegistry: registry(), fs }),

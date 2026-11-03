@@ -22,7 +22,9 @@ export const writeNoteInputSchema = applyTargetModeRefinement(
   targetModeBaseSchema.extend({
     file: safePathField
       .optional()
-      .describe(`${TARGET_MODE_FILE_DESCRIPTION} For a new note, the name is created at the vault root.`),
+      .describe(
+        `${TARGET_MODE_FILE_DESCRIPTION} An existing note of that name is the one written, wherever it is; a name no note has is created at the vault root.`,
+      ),
     path: safePathField.optional().describe(TARGET_MODE_PATH_DESCRIPTION),
     content: z.string().describe("Full note body to write, as UTF-8 Markdown; replaces any existing content."),
     overwrite: z

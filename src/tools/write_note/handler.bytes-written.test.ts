@@ -83,7 +83,8 @@ describe("spec 075 contract §3 — write_note bytes_written", () => {
     ).catch((e) => e)) as UpstreamError;
     expect(err).toBeInstanceOf(UpstreamError);
     expect(err.code).toBe("FS_WRITE_FAILED");
-    expect(err.details).toEqual({ errno: "EACCES", syscall: "stat", path: "/test-vault/n.md" });
+    // BI-0176: details.path is the vault-relative path, never the OS path
+    expect(err.details).toEqual({ errno: "EACCES", syscall: "stat", path: "n.md" });
     expect(err.cause).toBe(eacces);
     expect(fs.writes).toHaveLength(0);
     expect(fs.renames).toHaveLength(0);
