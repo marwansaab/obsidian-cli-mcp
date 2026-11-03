@@ -51,7 +51,8 @@ extends it.
     `open_file`, `get_active_file`.
   - [capabilities/mutate.md](capabilities/mutate.md) — the direct-filesystem
     write cohort, what `bytes_written` reports (PR #103),
-    `find_and_replace`, `prepend` and its empty-body correction (PR #104)
+    `find_and_replace` and its missing-note envelope for both locator forms
+    (PR #134), `prepend` and its empty-body correction (PR #104)
     and missing-note check (PR #105), its UTF-8 byte limit (PR #106),
     line endings and the placement check in `patch_heading` and
     `patch_block` (PR #119), how they resolve a note name (PR #122),
@@ -222,3 +223,9 @@ applies. Records written since:
   so `limit` keeps the leading matches, and it owns result order, as review
   argued the fix into; a handler-side sort and slice, a collect-all template
   and keeping the handler's re-sort were rejected (PR #132).
+- [decisions/ADR-066-find-and-replace-reports-a-missing-named-note-as-invalid-note.md](decisions/ADR-066-find-and-replace-reports-a-missing-named-note-as-invalid-note.md)
+  — `find_and_replace` reports a `file` name Obsidian cannot find with the
+  documented `INVALID_NOTE` / `not-found` envelope a missing `path` already
+  gave, through the shared null-on-miss lookup and one builder; BI-0171's
+  pass-through shape and a handler-side match of Obsidian's text were
+  rejected (PR #134).

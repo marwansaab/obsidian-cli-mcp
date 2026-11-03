@@ -228,6 +228,56 @@ predicates, `isSingleNoteScope` and `effectiveFolder`, are shared by the
 confirmation gate and `resolveScope` since the PR #92 review (commit
 `ca25c67`), which had found the checks written twice.
 
+### A missing note in `find_and_replace`'s single-note scope
+
+A single-note scope that names no existing note fails with
+`VALIDATION_ERROR`, `details.code: "INVALID_NOTE"`,
+`details.reason: "not-found"` and `details.note` echoing the locator, by
+`path` or by `file` name (spec 066 FR-008). Until PR #134 (BI-0178) that was
+true of `path` only. `resolveSingleNoteScope` looked a `file` name up with
+`resolveFileByTsv`, which throws Obsidian's `Error: File "<name>" not found.`
+as a pass-through `CLI_REPORTED_ERROR` (`details.command: "file"`, the line
+in `details.stdout`) before `assertExists`, which builds the documented
+envelope, could run. The tool's description and help page already promised
+the envelope for both forms, so they were right and the code was wrong.
+
+```mermaid
+flowchart LR
+  s{single-note locator} -- path --> ex["assertExists: realpath"]
+  ex -- ENOENT --> inv["invalidNoteNotFound(note, cause)"]
+  s -- file --> tsv["findFileByTsv: obsidian file file=name"]
+  tsv -- "null: Error: File … not found." --> inv
+  tsv -- "any other failure" --> pass[propagates unchanged]
+  tsv -- found --> ok[eligible = the note]
+  ex -- exists --> ok
+  inv --> err["VALIDATION_ERROR · INVALID_NOTE / not-found · details.note"]
+```
+
+- **The lookup is `findFileByTsv`**, the null-on-miss variant `write_note`
+  uses ([below](#note-names-in-write_note)). Only Obsidian's not-found line
+  maps; an unknown vault, an answer with no `path` line
+  (`details.stage: "file-tsv-parse"`) or a missing binary fails as before.
+  The handler does not re-test Obsidian's text; the lookup module owns it.
+- **One envelope.** The private `invalidNoteNotFound(note, cause)` in
+  `src/tools/find_and_replace/handler.ts` builds the error for both forms,
+  byte-identical to what `assertExists` built before; `details.note` is the
+  name or path as given. It is not called `noteNotFound`, because that name
+  is the shared `NOTE_NOT_FOUND` builder in `_fs-errors.ts`.
+- **Nothing runs first.** The failure comes from `resolveScope`, before any
+  read and before the commit confirmation, so a `commit: true` call with a
+  confirming client is asked nothing and nothing is written. PR #134's live
+  check (TC-00783, TC-00784, the name preview) saw the same envelope for
+  both forms and no elicitation request.
+- **Accepted divergence.** A missing name is `INVALID_NOTE` here and
+  Obsidian's pass-through in `read`, `append_note`, `prepend`,
+  `patch_heading` and `patch_block`
+  ([below](#note-names-in-the-section-editors)), as the `path` form already
+  was. The owner chose the documented envelope over that pass-through
+  (BI-0178 Q1 = A;
+  [ADR-066](../decisions/ADR-066-find-and-replace-reports-a-missing-named-note-as-invalid-note.md)).
+  Callers that matched Obsidian's text in `details.stdout` must branch on
+  `details.code` instead; the CHANGELOG entry says so.
+
 ## Heading paths
 
 `patch_heading` finds its section with `walkHeadings`
@@ -356,7 +406,12 @@ flowchart LR
   a `CLI_REPORTED_ERROR` whose `details.message` matches
   `FILE_NOT_FOUND_LINE`, Obsidian's `Error: File "<name>" not found.`
   `resolveFileByTsv` itself is unchanged, so the tools that fail on a miss
-  still do. A name two notes share writes the note `read` returns; no
+  still do. Since PR #134 `find_and_replace` is its second consumer, with
+  the opposite miss policy: a `null` fails as `INVALID_NOTE` / `not-found`
+  ([above](#a-missing-note-in-find_and_replaces-single-note-scope)). The PR
+  #134 review (commit `1580876`) rewrote the helper's doc comment, which
+  still called it `write_note`'s create-by-name variant, to say the caller
+  decides what a miss means. A name two notes share writes the note `read` returns; no
   ambiguity error was added. The registry runs first, so an unknown vault
   still costs no spawn; `path` and active mode make no lookup.
 - **A write never guesses its target.** Any other lookup failure — an

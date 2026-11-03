@@ -1133,6 +1133,14 @@ flowchart LR
   [ADR-062](decisions/ADR-062-write-note-resolves-names-through-the-shared-lookup-and-creates-only-on-obsidians-not-found.md)).
   It type-checks the path it ends up with. The section editors use the
   resolver for the locator only; they still run no type check.
+- `find_and_replace`'s single-note `file` scope also calls `findFileByTsv`
+  since BI-0178 (PR #134), with the opposite miss policy: a `null` throws
+  its documented `VALIDATION_ERROR` / `INVALID_NOTE` / `not-found`, the
+  envelope a missing `path` already gave, instead of passing Obsidian's
+  answer through as `resolveFileByTsv` did. So the helper's contract is
+  "`null` only on Obsidian's not-found line; the caller decides what a miss
+  means" ([mutate](capabilities/mutate.md#a-missing-note-in-find_and_replaces-single-note-scope),
+  [ADR-066](decisions/ADR-066-find-and-replace-reports-a-missing-named-note-as-invalid-note.md)).
 
 The cost is one extra CLI round-trip for `file` and active calls of the four
 pass-through tools, and for `file` calls of the direct-filesystem tools above.
