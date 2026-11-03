@@ -236,6 +236,17 @@ untyped `Vault not found.`. A named-vault `create_base` can also fail with
 `PATH_ESCAPES_VAULT`: before creation nothing is written, and after creation
 `details.createdPath` names the item, which is kept. Only additive `details`
 keys (`vault`, `createdPath`) were added; no code or `details.reason` was.
+Since PR #136 (BI-0185) a vault that is registered but whose folder is
+missing fails `query_base` and named-vault `create_base` in their
+canonical-path check, before any spawn, with `CLI_REPORTED_ERROR` /
+`VAULT_NOT_FOUND` / `folder-missing` and `details.vault`; any other failure
+to resolve the folder is `CLI_REPORTED_ERROR` with
+`details.stage: "vault-root-check"`. Neither carries the disk path. Until
+then both tools returned Node's raw `ENOENT … realpath '<absolute vault
+path>'` text (TC-00727). `bases` and `views_base` do not run the guard; they
+reach Obsidian only through the CLI, whose failures were already typed, and
+what Obsidian answers there for a missing folder was not observed
+([ADR-068](../decisions/ADR-068-a-vault-root-that-cannot-be-resolved-fails-as-the-vaults-folder.md)).
 `create_base` content over 3072 UTF-16 code units fails fast with
 `CONTENT_TOO_LARGE`, before the CLI is called, for the same argv reason as
 `prepend` ([mutate](mutate.md#the-cli-wrapped-tools)). Unlike `prepend`
