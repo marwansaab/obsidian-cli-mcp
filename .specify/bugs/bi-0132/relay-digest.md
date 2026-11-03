@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-11-03T22:25:15.467Z |
 | Finished | not yet |
-| Elapsed | 24 min 8 s |
+| Elapsed | 26 min 39 s |
 | Questions | 6 (2 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 2 |
@@ -87,11 +87,11 @@
 
 > Wrote .specify/bugs/bi-0132/test.md (slug given explicitly). Result: partial. Everything automated passes: the 15 BI-0132 tests, the full suite (4854 passed, 6 skipped, including the FR-018 gate), tsc, lint and build. A read-only live probe with Obsidian's command line ON passed: raw Obsidian.com plus this branch's dist through obsidian_exec, invokeCli read, invokeEval and the vault registry (list and resolveVaultPath) all returned normal results, so the new rule raises no false positive. The OFF reproduction (assessment steps 1–5) was skipped because only the owner can turn off Settings > General > Advanced > Command line interface. That also leaves the notice wording (CLI_DISABLED_ANSWER) unconfirmed live. Recommendation: hold for the owner toggle session, then mark verified, correcting the constant first if the captured notice differs. No vault files were created; the temp probe script was deleted. No bug_test hooks are registered. No source changes; nothing committed or pushed.
 
-- **settle-verdict**: in progress, 10 turns, 2 questions.
+- **settle-verdict**: done, 23 turns, 2 questions.
 
-> Option C started. A probe of this branch's built server is ready, and a baseline with the command line ON came back clean on every call. The probe drives the real tool envelopes in memory, read-only: obsidian_exec files total, read Welcome.md, vaults, and find_and_replace in preview mode scoped to Sandbox/ as the named-vault writer. Step 1 of the owner ruling needs the owner to turn Obsidian's Command line interface setting OFF and confirm before I run the OFF checks.
+> Final result: partial, accepted by the owner (ruling 2026-11-04). No extra fix round ran and the toggle session was not held. test.md now lists the three OFF-state checks under Residual Risks as open and owner-run later: (1) live reproduction with obsidian_exec files total, read, vaults and one named-vault call that resolves through the registry; (2) live capture of the notice wording, compared with CLI_DISABLED_ANSWER; (3) OFF→ON recovery in one session. It also records the ON-state tool-envelope probe of the full server over an in-memory MCP client: all four calls were clean. The exact-match rule is unchanged. Gates before commit: npm test 4854 passed, 6 skipped, 97.09% statements; lint, typecheck and build pass. Committed 84f70e9 (the fix plus the fix.md and test.md records) on fix/bi-0132, pushed, and opened PR #137. Its description states the partial result: automated checks passed and the ON-state probe was clean, but OFF-state verification is still to come. Temporary probe files were deleted and nothing was written to the vault. The working tree is clean.
 
-- **open-pr**: not run.
+- **open-pr**: in progress.
 
 ### review
 
