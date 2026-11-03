@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import { executeReadNote, type ReadFs } from "./handler.js";
-import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
+import { __resetInFlightRegistryForTests, CLI_DISABLED_ANSWER } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
 import {
@@ -90,6 +90,19 @@ test("US2 specific+path invokes adapter and returns content (Story 2 AC#1)", asy
   );
   expect(result).toEqual({ content: stdoutText });
   expect(recorded[0]!.argv).toEqual(["vault=MyVault", "read", "path=Templates/Recipe.md"]);
+});
+
+// BI-0132: with Obsidian's command line switched off, the CLI's notice is a failure, never the note's content.
+test("BI-0132 the command-line-disabled notice fails the read with reason cli-disabled; no content, no disk read", async () => {
+  const notice = `${CLI_DISABLED_ANSWER}\n`;
+  const { spawnFn } = makeStubSpawn({ stdout: notice, exitCode: 0 });
+  const fs = diskFs(notice);
+  const err = await pendingRejection(
+    executeReadNote({ target_mode: "specific", vault: "MyVault", path: "Templates/Recipe.md" }, deps(spawnFn, fs)),
+  );
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toMatchObject({ reason: "cli-disabled", stdout: notice });
+  expect(fs.readFile).not.toHaveBeenCalled();
 });
 
 // --- US3: active mode (happy + ERR_NO_ACTIVE_FILE) ---

@@ -39,7 +39,7 @@ export function composeEvalCode(template: string, payload: unknown): string {
  * `Error: Command "<command>" not found.` answer.
  */
 export function closedVaultNote(command: string): string {
-  return `Closed vault: a registered vault that is not open is opened automatically and the call returns its normal result (the first call takes longer). If it cannot be brought up — for example, its command-line integration is disabled — the call fails with \`CLI_REPORTED_ERROR\` whose \`details.stdout\` starts \`Error: Command "${command}" not found.\` (vault unavailable): open the vault in Obsidian, then call again. This is a failure, never an empty result.`;
+  return `Closed vault: a registered vault that is not open is opened automatically and the call returns its normal result (the first call takes longer). If it cannot be brought up, the call fails with \`CLI_REPORTED_ERROR\` whose \`details.stdout\` starts \`Error: Command "${command}" not found.\` (vault unavailable): open the vault in Obsidian, then call again. This is a failure, never an empty result.`;
 }
 
 /** The `bytes_written` description shared by the output schemas of the five single-note text writers (spec 075 FR-008). */

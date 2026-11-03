@@ -253,6 +253,8 @@ Every failure is returned as an MCP error result with a `{ code, message, detail
 
 The specific condition goes in `details.code`, for example `FILE_NOT_FOUND`, `VAULT_NOT_FOUND`, `COMMAND_BLOCKED` or `CONFIRMATION_DECLINED`. The state of a condition goes in `details.reason`, for example `obsidian-not-running`. Each tool's `docs/tools/<name>.md` lists the codes it can return.
 
+**Obsidian's command line switched off.** When Obsidian's **Settings > General > Advanced > Command line interface** setting is off, every tool fails with `CLI_REPORTED_ERROR` and `details.reason: "cli-disabled"`. `details.stdout` holds Obsidian's own notice, `Command line interface is not enabled. Please turn it on in Settings > General > Advanced.` The server never retries this failure and never changes the setting: ask the user to turn the setting on, then call again. No restart is needed. Output that only contains the notice's words among other text is not affected.
+
 ## Tool inventory
 
 The server registers 35 tools. **Kind** is the tool's declared behaviour:

@@ -46,6 +46,20 @@ described the one they could: the post-retry error when a vault cannot be
 brought up at all, for example because its command-line integration is
 disabled.
 
+> **Correction (PR #137, BI-0132).** The example in the paragraph above was
+> wrong, and `closedVaultNote` and eight `docs/tools/` pages repeated it. With
+> Obsidian's Command line interface setting off, the CLI does not answer
+> `Error: Command "<cmd>" not found.`; it answers every command on exit 0
+> with the unprefixed notice `Command line interface is not enabled. Please
+> turn it on in Settings > General > Advanced.` (TC-00495, 2026-05-30). That
+> is a different failure, which dispatch now reports as `CLI_REPORTED_ERROR`
+> with `details.reason: "cli-disabled"`
+> ([ADR-069](ADR-069-a-disabled-command-line-fails-in-dispatch-on-the-exact-notice.md)).
+> PR #137 removed the example from the shared sentence and the pages. This
+> decision is unchanged: "vault unavailable" still has no `details.code` or
+> `details.reason`, and the text above is kept as the record of what was
+> written.
+
 ## Decision
 
 1. **The dispatch layer's cold-start retry is the only closed-vault

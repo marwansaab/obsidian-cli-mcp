@@ -99,8 +99,20 @@ and rejects anything but a note as `VALIDATION_ERROR` with
 
 `vaults` never returns an empty list for a failed probe: whatever dispatch
 raised (`CLI_BINARY_NOT_FOUND`, `CLI_TIMEOUT`, `CLI_NON_ZERO_EXIT` with
-`details.reason: "obsidian-not-running"` once auto-launch is exhausted) is
+`details.reason: "obsidian-not-running"` once auto-launch is exhausted, and
+since PR #137 `CLI_REPORTED_ERROR` with `details.reason: "cli-disabled"`) is
 surfaced as is. Any input key is `VALIDATION_ERROR`.
+
+Before PR #137 (BI-0132) a disabled Obsidian command line was the exception.
+The probe got the CLI's exit-0 notice as stdout, `parseVaultsVerboseOutput`
+skipped it as a line with no tab, and `vaults` returned `{ count: 0, vaults:
+[] }`, while every named-vault lookup failed as an unregistered vault. Now
+dispatch fails the probe, so `vaults` and the registry lookup that resolves a
+named vault's folder reject with the `cli-disabled` error unchanged. The
+registry caches nothing on a failed probe, so the next call after the user
+turns the setting on succeeds without a restart; `vaults/handler.test.ts`
+pins that recovery with a stubbed probe
+([ADR-069](../decisions/ADR-069-a-disabled-command-line-fails-in-dispatch-on-the-exact-notice.md)).
 
 ## Known limits
 

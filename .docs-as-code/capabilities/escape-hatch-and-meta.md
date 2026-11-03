@@ -48,6 +48,18 @@ once and never launches Obsidian
 ([architecture](../architecture.md#runtime-spine),
 [ADR-061](../decisions/ADR-061-obsidian-exec-fails-an-unknown-vault-only-on-the-exact-answer.md)).
 
+Since PR #137 (BI-0132) it also fails when Obsidian's Command line interface
+setting is off. The CLI then answers every command on exit 0 with an
+unprefixed notice, and `obsidian_exec` used to return that notice as a
+success, with or without `vault`. The rule is not the raw facade's own:
+dispatch fails an exit-0 stdout that is exactly the notice, for every tool,
+as `CLI_REPORTED_ERROR` with `details.reason: "cli-disabled"`, the notice in
+`details.stdout` and the raw tool's usual `argv`, `command`, `stderr` and
+`exitCode`. Output that only contains the words is still returned. The call
+spawns once and never launches Obsidian
+([architecture](../architecture.md#error-spine),
+[ADR-069](../decisions/ADR-069-a-disabled-command-line-fails-in-dispatch-on-the-exact-notice.md)).
+
 Its `eval` (when the gate below is open) is the one `eval` the server does
 not tag. Since PR #110 dispatch reads `eval` output line by line
 ([architecture](../architecture.md#error-spine)), and for an untagged call any

@@ -1,4 +1,4 @@
-// Original — no upstream. dispatchCli: the single spawn-and-collect primitive owning argv assembly, four-priority classification, always-on bounds, atomic in-flight registry, and failure-only stderr logging (ADR-007, FR-008..FR-018a). Wraps one `dispatchOnce` attempt with the ADR-029 single cold-start retry: a form-(a) cold-start signature (`CLI_REPORTED_ERROR` whose stdout matches COLD_START_PATTERN, the registry-not-ready `Error: Command "<cmd>" not found.`) on the first attempt triggers exactly one re-spawn whose outcome is authoritative; all other outcomes are single-shot. Form (b) `Stream closed` is NOT retried — a dropped transport pipe carries no evidence of lifecycle position, so retrying it could double-apply a mutation; the default-safe posture leaves it single-shot (form (a) only). Signature pinned by 2026-05-30 T0 probes against the production `Obsidian.com` shim. 068 R11 (FR-051, FR-054): a request's AbortSignal kills the running child through the same SIGTERM-then-SIGKILL path as a timeout and stops further attempts; the auto-launch readiness poll reports progress per poll when the request carried a progress token. Spec 080 (ADR-029 2026-11-01 amendment): for `eval` only, an answer line anywhere in stdout (the call's tagged line, or any `=> ` line when untagged) is success, and with no answer the no-active-file, `Error:` and cold-start lines are recognised at the start of any line; other commands stay head-anchored.
+// Original — no upstream. dispatchCli: the single spawn-and-collect primitive owning argv assembly, four-priority classification, always-on bounds, atomic in-flight registry, and failure-only stderr logging (ADR-007, FR-008..FR-018a). Wraps one `dispatchOnce` attempt with the ADR-029 single cold-start retry: a form-(a) cold-start signature (`CLI_REPORTED_ERROR` whose stdout matches COLD_START_PATTERN, the registry-not-ready `Error: Command "<cmd>" not found.`) on the first attempt triggers exactly one re-spawn whose outcome is authoritative; all other outcomes are single-shot. Form (b) `Stream closed` is NOT retried — a dropped transport pipe carries no evidence of lifecycle position, so retrying it could double-apply a mutation; the default-safe posture leaves it single-shot (form (a) only). Signature pinned by 2026-05-30 T0 probes against the production `Obsidian.com` shim. 068 R11 (FR-051, FR-054): a request's AbortSignal kills the running child through the same SIGTERM-then-SIGKILL path as a timeout and stops further attempts; the auto-launch readiness poll reports progress per poll when the request carried a progress token. Spec 080 (ADR-029 2026-11-01 amendment): for `eval` only, an answer line anywhere in stdout (the call's tagged line, or any `=> ` line when untagged) is success, and with no answer the no-active-file, `Error:` and cold-start lines are recognised at the start of any line; other commands stay head-anchored. BI-0132: an exit-0 stdout that is exactly the CLI-disabled notice (CLI_DISABLED_ANSWER) fails as `CLI_REPORTED_ERROR` with `details.reason: "cli-disabled"`, single-shot.
 import { spawn as nodeSpawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import * as fsPromises from "node:fs/promises";
@@ -29,6 +29,15 @@ export const LAUNCH_MAX_POLLS = Math.ceil(OBSIDIAN_LAUNCH_READINESS_TIMEOUT_MS /
  * dispatch returns (the typed facade a start-of-output match, the raw facade an exact match).
  */
 export const UNKNOWN_VAULT_ANSWER = "Vault not found.";
+
+/**
+ * The CLI's exit-0 answer, on stdout, to every command while Obsidian's Settings > General >
+ * Advanced > Command line interface toggle is off (BI-0132; TC-00495 probe, 2026-05-30). It has no
+ * `Error:` prefix, so dispatch rejects it by an exact match on the whole trimmed stdout: output
+ * that merely contains these words still succeeds.
+ */
+export const CLI_DISABLED_ANSWER =
+  "Command line interface is not enabled. Please turn it on in Settings > General > Advanced.";
 
 /** The launcher seam type — the real `launchObsidian`, substitutable in tests. */
 export type LaunchFn = typeof launchObsidian;
@@ -604,6 +613,25 @@ async function dispatchOnce(
             code: "CLI_NON_ZERO_EXIT",
             cause: { exitCode, signal: exitSignal },
             details: { argv, command: input.command, stdout, stderr, exitCode, signal: exitSignal, ...appDown },
+          }),
+        );
+        return;
+      }
+
+      // BI-0132: Obsidian's command line is switched off. The CLI answers every command with this
+      // exit-0 notice, so it is checked before any other exit-0 rule. It matches neither the
+      // cold-start nor the app-not-running signature, so it is single-shot (no retry, no launch).
+      if (stdout.trim() === CLI_DISABLED_ANSWER) {
+        reject(
+          new UpstreamError({
+            code: "CLI_REPORTED_ERROR",
+            cause: null,
+            details: {
+              ...exitZeroDetails({ argv, stdout, stderr }, input.command, CLI_DISABLED_ANSWER),
+              reason: "cli-disabled",
+            },
+            message:
+              "Obsidian's command line interface is turned off. Ask the user to turn on Settings > General > Advanced > Command line interface in Obsidian, then call again.",
           }),
         );
         return;

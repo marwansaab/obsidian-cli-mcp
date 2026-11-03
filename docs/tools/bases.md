@@ -39,7 +39,7 @@ Enumerate all Obsidian Bases (`.base`) files in the vault and return their vault
 
 - **`vault` named**: the tool lists that vault's Bases, whether the vault is in front, open behind another vault, or closed. The vault in front stays in front.
 - **`vault` omitted**: the tool lists the Bases of the vault in front.
-- **Closed vault**: a registered vault that is not open is opened automatically and the call returns its normal result (the first call takes longer). If it cannot be brought up — for example, its command-line integration is disabled — the call fails with `CLI_REPORTED_ERROR` whose `details.stdout` starts `Error: Command "bases" not found.`: open the vault in Obsidian, then call again.
+- **Closed vault**: a registered vault that is not open is opened automatically and the call returns its normal result (the first call takes longer). If it cannot be brought up, the call fails with `CLI_REPORTED_ERROR` whose `details.stdout` starts `Error: Command "bases" not found.`: open the vault in Obsidian, then call again.
 - **Unregistered name**: the call fails with `VAULT_NOT_FOUND` before the CLI runs, so another vault's Bases are never returned in its place.
 
 ## Error roster

@@ -807,12 +807,18 @@ sequenceDiagram
   Since PR #100 this retry is the server's only closed-vault handling
   ([ADR-045](decisions/ADR-045-closed-vaults-recovered-only-by-the-dispatch-retry.md),
   Closed Vaults Are Recovered Only by the Dispatch Retry). When the second
-  attempt answers the same way — the vault cannot be brought up, for example
-  because its command-line integration is disabled — its `CLI_REPORTED_ERROR`
-  reaches the caller unchanged, with the text in `details.stdout` and no
-  `details.code` or `details.reason`. Six read tools document that error as
-  "vault unavailable"
+  attempt answers the same way — the vault cannot be brought up — its
+  `CLI_REPORTED_ERROR` reaches the caller unchanged, with the text in
+  `details.stdout` and no `details.code` or `details.reason`. Six read tools
+  document that error as "vault unavailable"
   ([the `eval` pattern](#reaching-obsidian-internals-the-eval-template-pattern)).
+  This page used to give "its command-line integration is disabled" as an
+  example cause, and so did `closedVaultNote` and eight `docs/tools/` pages.
+  That was wrong: with Obsidian's Command line interface setting off, the CLI
+  never answers `Error: Command "<cmd>" not found.`; it answers every command
+  with an unprefixed notice on exit 0 (TC-00495, 2026-05-30), which dispatch
+  now fails as `cli-disabled` ([error spine](#error-spine)). PR #137
+  (BI-0132) removed the example everywhere.
 - **Application auto-launch** (ADR-030; PR #65). A non-zero exit whose stderr
   matches `unable to find Obsidian` is tagged `details.reason:
   "obsidian-not-running"`. Dispatch then opens the application once through
@@ -868,6 +874,7 @@ Dispatch classifies a finished child in a fixed priority order:
 | Priority | Condition | Code |
 | --- | --- | --- |
 | (a) | non-zero exit or signal | `CLI_NON_ZERO_EXIT` (with `details.reason` when the app is down) |
+| CD | exit 0, whole trimmed stdout is exactly `CLI_DISABLED_ANSWER` | `CLI_REPORTED_ERROR`, `details.reason: "cli-disabled"` |
 | C1 | `eval` only, exit 0, an answer line anywhere in stdout | success |
 | (b) | exit 0, stdout starts `Error: No active file` (case-insensitive); for `eval`, any line does | `ERR_NO_ACTIVE_FILE` |
 | (c) | exit 0, stdout starts `Error:`; for `eval`, any line does | `CLI_REPORTED_ERROR` |
@@ -892,6 +899,33 @@ which the raw facade's unknown-vault failure also uses (PR #124 review). The
 CLI's `Vault not found.` answer is not in this table: dispatch returns it as
 a success and each facade classifies it afterwards
 ([runtime spine](#runtime-spine)).
+
+Row CD came with PR #137 (BI-0132). With Obsidian's **Settings > General >
+Advanced > Command line interface** setting off, the CLI answers every
+command on exit 0 with `Command line interface is not enabled. Please turn it
+on in Settings > General > Advanced.`, which has no `Error:` prefix. Before
+PR #137 that reached (d) as a success, and each layer read it as its own
+output: `obsidian_exec` returned it, `read` returned it as the note's text,
+the vault-registry probe parsed it as an empty vault list (so `vaults` gave
+`{ count: 0 }` and named-vault calls failed "is not registered"), and
+eval-backed tools failed at `details.stage: "json-parse"`. The notice is
+exported as `CLI_DISABLED_ANSWER` beside `UNKNOWN_VAULT_ANSWER` in
+`_dispatch.ts`, and the row sits right after (a), so it runs before the
+eval-answer check and applies to `eval` too. Its `details` are
+`exitZeroDetails(…)` plus `reason: "cli-disabled"`, with Obsidian's notice in
+`details.stdout`, and its message asks the user to turn the setting on. The
+notice matches neither `COLD_START_PATTERN` nor the app-not-running
+signature, so the failure is single-shot: no retry, no launch. The registry
+caches nothing on a failed probe, so turning the setting back on recovers
+without a restart. Unlike `Vault not found.`, this answer is classified in
+dispatch rather than the facades, because one rule fits every surface; the
+match is exact on the whole output, so output that only contains the words
+still succeeds
+([ADR-069](decisions/ADR-069-a-disabled-command-line-fails-in-dispatch-on-the-exact-notice.md)).
+The wording is pinned from one 2026-05-30 probe. If Obsidian changes it, the
+row stops matching and the old success returns; PR #137 left the OFF-state
+live checks open for the owner (`.specify/bugs/bi-0132/test.md`, Residual
+Risks).
 
 Alongside those: `CLI_TIMEOUT`, `CLI_OUTPUT_TOO_LARGE`, `CLI_BINARY_NOT_FOUND`
 from dispatch; `VALIDATION_ERROR`, `INTERNAL_ERROR` from registration
@@ -965,7 +999,9 @@ than added as new codes:
   Clarification Q2; [mutate](capabilities/mutate.md#missing-destination-folder-and-vault-relative-failures)).
 - `details.reason` separates the states of one multi-state condition (ADR-015,
   Sub-Discriminators via details.reason for Multi-State Error Codes) — for
-  example `obsidian-not-running` on `CLI_NON_ZERO_EXIT`, `named-missing` and
+  example `obsidian-not-running` on `CLI_NON_ZERO_EXIT`, `cli-disabled` on
+  `CLI_REPORTED_ERROR` (PR #137, the other reason dispatch sets itself;
+  [error spine](#error-spine)), `named-missing` and
   `not-open` on `views_base`'s `BASE_NOT_FOUND` (a named Base that does not
   exist, against no Base focused), and `unsupported-type` or `type-change` on
   `UNSUPPORTED_FILE_TYPE` (PR #97). Since PR #104 `prepend` adds

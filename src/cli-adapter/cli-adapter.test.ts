@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createLogger } from "../logger.js";
 import { createQueue } from "../queue.js";
-import { __resetInFlightRegistryForTests } from "./_dispatch.js";
+import { __resetInFlightRegistryForTests, CLI_DISABLED_ANSWER } from "./_dispatch.js";
 import {
   invokeCli,
   invokeEval,
@@ -687,5 +687,41 @@ describe("invokeCli — cancellation (068 R11, T084)", () => {
     expect(await first).toBe("cancelled");
     expect((await second).stdout).toBe("second\n");
     expect(recorded.map((r) => r.argv[1])).toEqual(["read", "files"]);
+  });
+});
+
+describe("invokeCli / invokeEval — command line interface disabled (BI-0132)", () => {
+  const notice = `${CLI_DISABLED_ANSWER}\n`;
+
+  it("invokeCli rejects with the cli-disabled failure, not the notice as output", async () => {
+    const { spawnFn, recorded } = makeStubSpawn({ stdout: notice, exitCode: 0 });
+    const err = await captureRejection(
+      invokeCli(
+        { command: "read", vault: "TestVault", parameters: { path: "a.md" }, flags: [], target_mode: "specific" },
+        defaultDeps({ spawnFn, env: {} }),
+      ),
+    );
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.details).toMatchObject({ reason: "cli-disabled", stdout: notice, message: CLI_DISABLED_ANSWER });
+    expect(recorded).toHaveLength(1);
+  });
+
+  it("invokeEval rejects with the same failure, not a json-parse of the notice", async () => {
+    const { spawnFn } = makeStubSpawn({ stdout: notice, exitCode: 0 });
+    const err = await captureRejection(invokeEval({ code: "1", vault: "TestVault" }, defaultDeps({ spawnFn, env: {} })));
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.details).toMatchObject({ command: "eval", reason: "cli-disabled", stdout: notice });
+  });
+
+  it("the unknown-vault rule is unaffected", async () => {
+    const { spawnFn } = makeStubSpawn({ stdout: "Vault not found.\n", exitCode: 0 });
+    const err = await captureRejection(
+      invokeCli(
+        { command: "files", vault: "NoSuchVault", parameters: {}, flags: [], target_mode: "specific" },
+        defaultDeps({ spawnFn, env: {} }),
+      ),
+    );
+    expect(err.message).toBe("Vault not found.");
+    expect(err.details).not.toHaveProperty("reason");
   });
 });

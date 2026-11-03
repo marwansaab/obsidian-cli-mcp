@@ -13,6 +13,7 @@ import {
   APP_NOT_RUNNING_PATTERN,
   assembleArgv,
   autoLaunchEnabled,
+  CLI_DISABLED_ANSWER,
   COLD_START_PATTERN,
   dispatchCli,
   isAppNotRunning,
@@ -1805,5 +1806,74 @@ describe("dispatchCli — auto-launch progress (068 R11, T087)", () => {
       launchFn: makeLaunchSpy().launchFn,
     });
     expect(out.stdout).toBe("ok\n");
+  });
+});
+
+// BI-0132: Obsidian's Command line interface setting is off. CLI_DISABLED_STDOUT is the verbatim
+// notice the CLI printed (exit 0, no `Error:` prefix) in the TC-00495 probe of 2026-05-30. The
+// sanity test below pins it against CLI_DISABLED_ANSWER, so the constant cannot drift silently.
+const CLI_DISABLED_STDOUT =
+  "Command line interface is not enabled. Please turn it on in Settings > General > Advanced.\n";
+
+describe("dispatchCli — command line interface disabled (BI-0132)", () => {
+  const dispatchDisabled = (stdout: string, command = "read") => {
+    const { spawnFn, calls } = makeScriptedSpawn([{ stdout, exitCode: 0 }]);
+    const launch = makeLaunchSpy();
+    const result = dispatchCli(baseInput({ command }), {
+      spawnFn,
+      env: {},
+      logger: captureLines().logger,
+      resolveBinary: stubResolveBinary,
+      launchFn: launch.launchFn,
+    });
+    return { result, calls, launch };
+  };
+
+  it("the fixture is the pinned upstream notice", () => {
+    expect(CLI_DISABLED_STDOUT.trim()).toBe(CLI_DISABLED_ANSWER);
+    expect(CLI_DISABLED_STDOUT).not.toMatch(COLD_START_PATTERN);
+  });
+
+  it.each([
+    ["with a trailing newline", CLI_DISABLED_STDOUT],
+    ["without a trailing newline", CLI_DISABLED_ANSWER],
+    ["with CRLF", `${CLI_DISABLED_ANSWER}\r\n`],
+  ])("the notice %s → CLI_REPORTED_ERROR reason cli-disabled, one spawn, no launch", async (_label, stdout) => {
+    const { result, calls, launch } = dispatchDisabled(stdout);
+    const err = await captureRejection(result);
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.message).toBe(
+      "Obsidian's command line interface is turned off. Ask the user to turn on Settings > General > Advanced > Command line interface in Obsidian, then call again.",
+    );
+    expect(err.details).toEqual({
+      argv: ["obsidian", "read"],
+      command: "read",
+      stdout,
+      stderr: "",
+      exitCode: 0,
+      message: CLI_DISABLED_ANSWER,
+      reason: "cli-disabled",
+    });
+    expect(calls()).toBe(1); // no cold-start retry
+    expect(launch.count()).toBe(0); // no auto-launch
+  });
+
+  it("applies to eval as well", async () => {
+    const { result, calls } = dispatchDisabled(CLI_DISABLED_STDOUT, "eval");
+    const err = await captureRejection(result);
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.details.reason).toBe("cli-disabled");
+    expect(calls()).toBe(1);
+  });
+
+  it.each([
+    ["the notice followed by other text", `${CLI_DISABLED_STDOUT}more output\n`],
+    ["a line that mentions the notice", `Note: "${CLI_DISABLED_ANSWER}"\n`],
+    ["text before the notice", `# Heading\n${CLI_DISABLED_STDOUT}`],
+  ])("output that merely contains the words still succeeds: %s", async (_label, stdout) => {
+    const { result } = dispatchDisabled(stdout);
+    const out = await result;
+    expect(out.stdout).toBe(stdout);
+    expect(out.exitCode).toBe(0);
   });
 });

@@ -82,3 +82,12 @@ output, and the spec's third story forbids failing it.
   literal, the details builder) and still import nothing from each other.
 - Other unprefixed CLI messages are still returned as raw successes by
   `obsidian_exec`; reclassifying them is out of scope.
+
+> **Later (PR #137, BI-0132).** One unprefixed message is now reclassified:
+> the disabled-command-line notice, which dispatch fails as
+> `CLI_REPORTED_ERROR` with `details.reason: "cli-disabled"` for every
+> surface, `obsidian_exec` included. It is classified in dispatch rather than
+> in the facades, the alternative this decision rejected for
+> `Vault not found.`; why the rejection does not carry over is in
+> [ADR-069](ADR-069-a-disabled-command-line-fails-in-dispatch-on-the-exact-notice.md).
+> This decision is unchanged.

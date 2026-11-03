@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UpstreamError } from "../errors.js";
 import { createLogger, type Logger } from "../logger.js";
 import { createQueue } from "../queue.js";
-import { __resetInFlightRegistryForTests } from "./_dispatch.js";
+import { __resetInFlightRegistryForTests, CLI_DISABLED_ANSWER } from "./_dispatch.js";
 import { invokeCli } from "./cli-adapter.js";
 import {
   invokeBoundedCli,
@@ -374,5 +374,34 @@ describe("invokeBoundedCli — unknown-vault answer (spec 091)", () => {
     );
     const view = (e: UpstreamError) => ({ code: e.code, message: e.message, detailsMessage: e.details.message });
     expect(view(raw)).toEqual(view(typed));
+  });
+});
+
+describe("invokeBoundedCli — command line interface disabled (BI-0132)", () => {
+  it.each([
+    ["with a vault", { command: "files", flags: ["total"], vault: "TestVault" }],
+    ["without a vault", { command: "files", flags: ["total"] }],
+  ])("obsidian_exec %s gets the cli-disabled failure, not a success envelope; spawned once, never launched", async (_label, input) => {
+    const notice = `${CLI_DISABLED_ANSWER}\n`;
+    const { spawnFn, recorded } = makeStubSpawn({ stdout: notice, exitCode: 0 });
+    let launches = 0;
+    const launchFn: LaunchFn = async () => {
+      launches += 1;
+    };
+    const err = await pendingRejection(
+      invokeBoundedCli(input, {}, {
+        spawnFn,
+        env: {},
+        logger: captureLines().logger,
+        queue: createQueue(),
+        resolveBinary: stubResolveBinary,
+        launchFn,
+      }),
+    );
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.details.reason).toBe("cli-disabled");
+    expect(err.details.stdout).toBe(notice); // Obsidian's original notice reaches the caller
+    expect(recorded).toHaveLength(1);
+    expect(launches).toBe(0);
   });
 });
