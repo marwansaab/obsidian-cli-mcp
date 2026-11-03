@@ -241,3 +241,9 @@ applies. Records written since:
   `vault-root-check` stage, with no disk path; mapping any escaping errno,
   re-probing the root after the check, and a third check outcome were
   rejected (PR #136).
+- [decisions/ADR-069-a-disabled-command-line-fails-in-dispatch-on-the-exact-notice.md](decisions/ADR-069-a-disabled-command-line-fails-in-dispatch-on-the-exact-notice.md)
+  — with Obsidian's command line switched off, dispatch fails the CLI's
+  exit-0 notice for every surface as `CLI_REPORTED_ERROR` /
+  `cli-disabled`, on an exact whole-output match and single-shot;
+  facade-level rules, a prefix match and a new `details.code` were rejected
+  (PR #137).

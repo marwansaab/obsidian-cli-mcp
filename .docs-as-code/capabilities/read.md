@@ -183,6 +183,14 @@ section path that matches no heading. `read` adds `VALIDATION_ERROR` with
 file that is not a note, canvas or base (PR #97); resolution failures for a
 `file` name or the focused file surface first, unchanged.
 
+Before PR #137 (BI-0132) `read` returned Obsidian's disabled-command-line
+notice as the note's content, because the CLI answers every command with it
+on exit 0. Dispatch now fails that answer as `CLI_REPORTED_ERROR` with
+`details.reason: "cli-disabled"` before `read` sees any stdout, so no content
+is returned and the disk is not read; the read cohort's eval-backed tools get
+the same failure instead of a `json-parse` one
+([architecture](../architecture.md#error-spine)).
+
 Since PR #102 `read` has one failure that runs after a successful CLI read:
 the confirmation read of the file's bytes. If the file was deleted or locked
 in between, or the server cannot read the vault folder, the call fails as
