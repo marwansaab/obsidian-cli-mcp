@@ -107,3 +107,8 @@ filters when they pin one folder, and Obsidian's new-note folder otherwise.
   not match where Obsidian put the item (research P6, visible in the L4
   results). The backstop checks the `Created:` value, not that path. Fixing
   the response is a follow-up outside this record.
+  *Update, PR #133 (BI-0180):* that follow-up landed. The response `path` is
+  now the `Created:` value itself (forward-slash normalised) and `name` its
+  last segment, so the backstop in decision 3 checks the same path the
+  caller receives. The decisions above are unchanged
+  ([Bases](../capabilities/bases.md#routing-by-the-named-vault)).

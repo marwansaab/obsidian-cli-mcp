@@ -151,6 +151,19 @@ the [eval template pattern](../architecture.md#reaching-obsidian-internals-the-e
 It reads the `.base` and takes the folder of a single top-level
 `file.inFolder("<f>")` filter, or Obsidian's new-note folder otherwise.
 
+**The response reports the `Created:` path** (PR #133, BI-0180). Obsidian's
+`Created:` line carries the item's vault-relative path, in the folder the
+template above mirrors, joined with any folder part of `name` (spec 083
+research P6, P7). `executeCreateBase` returns that value, trimmed and with
+backslashes turned to `/`, as `path`, and its last segment as `name`; it
+reads nothing from where the `.base` file sits. Stage G checks the same
+value, so on a named vault the path the caller receives is the path that was
+contained. Before PR #133 the handler built `path` from the `.base` file's
+location and returned the raw `Created:` value as `name` (see
+[Known limits](#known-limits)). The output schema did not change; the
+description's Response paragraph did, so only `create_base`'s description
+fingerprint moved in `src/tools/_register-baseline.json`.
+
 The plan had the template parse the `.base` with Obsidian's `parseYaml`
 (research F7). That was wrong: in the T040 live run the eval context had
 neither `parseYaml` nor `require('obsidian')`, and every filtered Base fell to
@@ -280,11 +293,23 @@ These are inherited from the CLI and documented in each tool's description:
   new-note folder, and only the post-creation check sees the real folder; an
   escape found there leaves the item written
   ([ADR-053](../decisions/ADR-053-create-base-contains-a-named-vault-item-and-reports-an-escape-it-cannot-prevent.md)).
-- `create_base`'s response `path` is built as `<baseDir>/<baseName>/<created>`,
-  which matches neither shape Obsidian was seen to use (research P6; visible
-  in PR #114's L4 results). Also left for follow-ups by PR #114: a missing
-  filter folder surfaces as a raw `ENOENT` (P8), and folder segments in
-  `name` are not rejected at validation (P7).
+- Until PR #133 this page listed `create_base`'s response `path` as built
+  as `<baseDir>/<baseName>/<created>`, which matched neither shape Obsidian
+  was seen to use (research P6; visible in PR #114's L4 results). That path
+  named a file that did not exist for every Base shape (a folder-filtered
+  Base repeated its folder; a Base with no folder rule gave a folder named
+  after the `.base` file), and `name` held a whole path whenever the item
+  landed outside the vault root. The composition dated from spec 054 R-008,
+  whose probes created only root items, so `Created:` looked like a bare
+  file name. PR #133 (BI-0180) fixed it: the response now reports the
+  `Created:` path ([above](#routing-by-the-named-vault)). Callers that
+  stripped a prefix from `path`, or read `name` as a path, now get different
+  values. An item at the vault root and a vault whose new-note location is a
+  folder were not run live for that fix; unit tests cover both
+  ([test.md](../../.specify/bugs/bi-0180/test.md)).
+- Left for follow-ups by PR #114: a missing filter folder surfaces as a raw
+  `ENOENT` (P8), and folder segments in `name` are not rejected at
+  validation (P7).
 - `create_base` does not validate `view_name`: the CLI accepts a view name that
   does not exist. On a name collision the CLI auto-increments the new note's
   name, and the response reports the actual name.

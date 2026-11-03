@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedFromBranch": "fix/bi-0181",
+  "generatedFromBranch": "fix/bi-0180",
   "generatedAt": "2026-11-03",
   "tools": [
     {
@@ -37,7 +37,7 @@
     },
     {
       "name": "create_base",
-      "descriptionFingerprint": "e4d020d386e08e5b7c6dee2c2dafc55fbcac574e67f525d4773453171aaa61d4",
+      "descriptionFingerprint": "7a9fa263a5a8890b0875d2e4c3c24590bc6bfdc5b44f9a7d7cfb8e10c7773c70",
       "schemaFingerprint": "7fb74e8255513d4d1bc99c0099f6a45b26ea3e344cc5a4d423ebf6e8cb46a1f1",
       "titleFingerprint": "d09213fea04104b836a8bcd13a551dcb0d5ce6fe7103e46a78a2d433c1f1eba5",
       "annotationsFingerprint": "d72d3cb182e3d7fcf0b1c6782251eee772cdf2a99470e1a4bd6a006b5c8f4e25",
