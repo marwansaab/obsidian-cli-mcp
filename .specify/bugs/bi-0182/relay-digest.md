@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-11-03T12:34:24.565Z |
 | Finished | not yet |
-| Elapsed | 9 min 16 s |
+| Elapsed | 15 min 29 s |
 | Questions | 3 (1 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 1 |
@@ -59,6 +59,8 @@
 
 ### assess (`f9b15344-6ba5-425b-b6fe-c66d520d5ed4`)
 
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\.specify\bugs\bi-0182\assessment.md exists.
+
 - **branch**: done, 4 turns.
 
 > Working tree was clean. Fetched origin; main already matched origin/main (fast-forward was a no-op). No branch named fix/bi-0182 existed locally or on origin. Created and checked out fix/bi-0182 from main. No other changes made.
@@ -67,14 +69,28 @@
 
 > I recorded the owner's rulings in .specify/bugs/bi-0182/assessment.md, in a new Resolutions subsection under Open Questions. All three were option A. Q1: INVALID_SUBFOLDER and details.subfolder stay; sub-item 2 is closed as by design, and docs/tools/find_and_replace.md gets one sentence; no tests change. Q2: documentation only; descriptions and help pages say the deprecated_parameters notice comes only on successful calls. Q3: only the empty-value class is fixed, by dropping min(1) from the property and view alias fields. The Preferred remediation now reads as confirmed rather than provisional. Slug: bi-0182. Verdict: valid in part. Severity: low. Next step: /speckit-bug-fix slug=bi-0182.
 
-- **resolve-assessment**: in progress.
+- **resolve-assessment**: done, 9 turns.
 
-### repair
+> Assessment settled and committed on fix/bi-0182 as 3eb8737 (not pushed). The commit holds .specify/bugs/bi-0182, including Relay's relay-digest.md and relay-qa-log.md. The verdict is valid in part, not invalid. Severity is low. The remediation is a repair: it adds no behaviour or parameter, and the owner settled the one ADR conflict, so no escalation was needed. Remediation: drop the redundant min(1) from the deprecated `property` alias (find_by_property) and the `view` alias (create_base). An empty value under an old name is then reported at the new name and gives the same error as the new-name call. The three tool descriptions and three help pages will say that `deprecated_parameters` comes only on successful calls. One sentence goes into docs/tools/find_and_replace.md saying the folder errors keep INVALID_SUBFOLDER and details.subfolder until the next major release. The published fingerprint moves on purpose. No kernel node is touched. The owner had already answered all three open questions, so no new questions were asked. Each answer is now written under its question as "Resolved (Relay):". Q1 = A: keep INVALID_SUBFOLDER and details.subfolder per ADR-046, close sub-item 2 as by design, add the docs sentence, and change no tests. Q2 = A: notices on successful calls only, a documentation-only change. Q3 = A: fix only the empty-value class; a wrong-typed old-key value keeps reporting the old key. The answers confirm the root cause, remediation, files and tests as written. No [NEEDS CLARIFICATION] markers remain.
 
-- **bug-fix**: not run.
-- **bug-test**: not run.
-- **settle-verdict**: not run.
-- **open-pr**: not run.
+
+### repair (`b4bb8169-d865-49b0-9d26-6401825b14f8`)
+
+- Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\.specify\bugs\bi-0182\assessment.md exists; focused TestVault-Obsidian-CLI-MCP in Obsidian (it had Game-Server-Vault focused).
+
+- **bug-fix**: done, 44 turns.
+
+> Fix for bi-0182 applied (slug from explicit input); report at .specify/bugs/bi-0182/fix.md, status applied, nothing committed. An empty value under an old name (property: "", view: "") now fails exactly like the new name: the duplicate min(1) check is dropped from both old-name fields, so the error names name / view_name. The three tool descriptions and help pages now say only a successful call gets deprecated_parameters. find_and_replace.md gets one sentence saying INVALID_SUBFOLDER and details.subfolder stay until the next major release (Q1 A, no code change). The tool-list fingerprint was regenerated on purpose; only find_by_property, create_base and find_and_replace moved. Four new regression tests fail with the fix stashed and pass with it. Three existing description assertions were updated to the new wording, which the assessment allowed. npm test: 4815 passed, 6 skipped, coverage 97.08%; typecheck and lint clean. Prettier warnings on the changed files predate this fix. Structural checks pass and no kernel node was touched. ADR-046 wording ('successful') is left to the owner or the docs-as-code pass. Next step: /speckit-bug-test slug=bi-0182.
+
+- **bug-test**: done, 10 turns.
+
+> bi-0182 verified; report at .specify/bugs/bi-0182/test.md (slug from explicit input). The assessment's eight-input probe was re-run in-process against the fixed schemas: property: "" and view: "" now fail with the same issue as name: "" and view_name: "", at the new name. The inputs the owner's rulings left alone are unchanged (Q3: wrong-type values on old keys still name the old key; Q1: INVALID_SUBFOLDER unchanged). The four BI-0182 tests and the old/new-name batteries pass. Changed modules plus fingerprint, surface and docs-sync checks: 560 passed, 6 skipped. Full npm test: 4815 passed, 6 skipped, coverage 97.08%. Typecheck and lint pass. No description or help page still says every call gets deprecated_parameters. Nothing was run through a live MCP client; none is needed because validation fails before anything is spawned. ADR-046 still lacks the word 'successful', left to the owner or the docs-as-code pass. No bug-test hooks registered. Next step: open the PR.
+
+- **settle-verdict**: done, 3 turns.
+
+> The result in .specify/bugs/bi-0182/test.md is `verified`. No extra round was needed, and fix.md and test.md were not changed. The bug is fixed and the full test suite passes. The pull request can be opened next.
+
+- **open-pr**: in progress.
 
 ### review
 
