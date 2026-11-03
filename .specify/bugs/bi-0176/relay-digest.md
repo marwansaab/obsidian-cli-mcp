@@ -4,14 +4,14 @@
 |---|---|
 | Run | `obsidian-cli-mcp-bugfix-bi-0176-2026-11-03` |
 | Project | obsidian-cli-mcp-bugfix (pack speckit-bugfix) |
-| Status | running |
+| Status | done |
 | Started | 2026-11-03T05:55:00.816Z |
-| Finished | not yet |
-| Elapsed | 19 min 20 s |
-| Questions | 4 (2 needed the owner) |
-| Requests to the advisor | 2 (0 needed the owner) |
-| Escalations | 2 |
-| Edits by the advisor | 5 |
+| Finished | 2026-11-03T06:31:38.446Z |
+| Elapsed | 36 min 38 s |
+| Questions | 5 (2 needed the owner) |
+| Requests to the advisor | 3 (0 needed the owner) |
+| Escalations | 3 |
+| Edits by the advisor | 10 |
 
 ## Inputs
 
@@ -77,6 +77,7 @@
 ### repair (`6a4b9eaf-2bc1-43f6-9994-3e2a9534e731`)
 
 - Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\.specify\bugs\bi-0176\assessment.md exists, and Obsidian has TestVault-Obsidian-CLI-MCP focused.
+- Condition `gh-pr-open` (done_when): met. Pull request #127 is open.
 
 - **bug-fix**: done, 50 turns, 2 questions.
 
@@ -90,21 +91,50 @@
 
 > test.md result: verified, so per the instructions no extra round was run and fix.md and test.md are unchanged. Live probes in TestVault-Obsidian-CLI-MCP passed for every reproduction in the assessment: sub-folder overwrite by bare name (in place, no root copy, read by name returns the new content), overwrite:false returning FILE_EXISTS for the resolved note, and a held Windows lock returning EXTERNAL_EDITOR_CONFLICT (EPERM) with a vault-relative path. The overwrite also held with the test vault unfocused. npm test passes (4515 passed, 6 skipped); lint and typecheck are clean. Four cases are unit-tested only (bare-name root fallback, shared name, EBUSY, closed-but-registered vault); test.md records them under Residual Risks.
 
-- **open-pr**: in progress.
+- **open-pr**: done, 12 turns.
 
-### review
+> Re-ran the gates before committing: npm test 4515 passed, 6 skipped (main had 4491, so +24, no regressions), statements 97.07%; lint, typecheck and build clean. Committed all BI-0176 work as 4fac32d (code, tests, docs, CHANGELOG, baseline, and fix.md, test.md and the Relay logs in .specify/bugs/bi-0176) per CONTRIBUTING.md, on top of the assessment commit fd0380b. Pushed fix/bi-0176 to origin. Opened PR #127 into main, not a draft (dry run: no). The repo has no PR template, so the body follows the prior PR's layout: Summary, before/after table, linked assessment/fix/test reports, reviewer notes (including that refactor-decisions item 51 is superseded), Evidence, Test results, the full Constitution Compliance table with no N verdicts, Out of scope and Documentation. Not merged.
 
-- **code-review**: not run.
-- **fix**: not run.
 
-### docs
+### review (`d2d94458-d4c3-446a-807d-31ead825266b`)
 
-- **document**: not run.
-- **ci**: not run.
+- Condition `gh-pr-open` (start_when): met. Pull request #127 is open.
+- Condition `gh-pr-open` (done_when): not met. No open pull request from fix/bi-0176.
+- Condition `gh-pr-open` (done_when): met. Pull request #128 is open.
 
-### record
+- **code-review**: done, 15 turns.
 
-- **record-in-vault**: not run.
+> Thermo-nuclear code-quality review of PR #127 (fix/bi-0176 vs main). Verdict: changes requested. One blocker: write_note's handler recognises Obsidian's file-not-found answer by catching the lookup's error and running a regex over its text. That FILE_NOT_FOUND_LINE regex is a byte copy of prepend's NOTE_NOT_FOUND_PATTERNS[0]. The fix is to move the miss handling into _active-file.ts beside resolveFileByTsv (an exported pattern plus findFileByTsv returning string | null), so write_note becomes `path ?? findFileByTsv(...) ?? shortForm(file)`. Two smaller findings: the conflict errno sets are now declared four times (proposed: named sets in _fs-errors.ts; mapFsError also repeats relPath at five call sites), and fileNotFoundResponse belongs in _handler-test-fixtures.ts beside fileTsvResponse. Verified as fine: registry runs before the lookup, the {EBUSY, EPERM} set follows ADR-009 DP7, the EEXIST asymmetry is test-pinned, only write_note's schema fingerprint moved, no kernel node is touched, no new error codes, the non-reuse of describeNoteNameLocator is justified, and all files are under 1000 lines. The findings were recorded as item 51 in .memory/refactor-decisions.md. No source files were changed.
+
+- **fix**: done, 44 turns, 1 questions.
+
+> Every in-scope fix from the review is on fix/bi-0176 and PR #127. Commit 72f63c5 changes code. (F1) `_active-file.ts` now owns Obsidian's not-found line: it exports `FILE_NOT_FOUND_LINE` and `findFileByTsv`, which returns null only when Obsidian says the name matches no file. write_note's resolver is now `path ?? findFileByTsv(...) ?? short-form rule`. prepend takes its first not-found pattern from the shared constant; the regex is identical, so prepend behaves exactly as before. New tests cover `findFileByTsv`. (Nit) write_note's mapFsError is built once after the path is known, as in the sibling writers. (F3) `fileNotFoundResponse` moved to `_handler-test-fixtures.ts`. Results: lint, typecheck and build clean; 4519 tests pass and 6 skipped (4 new, none failing); statements coverage 97.07% (floor 91.3%). Commit 5f943b6 changes `fix.md` only. It records your option B ruling and adds the shared errno-set cleanup to Follow-ups, to do the next time those handlers are touched; write_note keeps its inline `{EBUSY, EPERM}`. Left as is: the duplicated `rejection()` test helper, because the shared fixture module must stay free of vitest. I left the uncommitted relay-digest.md and relay-qa-log.md changes alone. `.memory/refactor-decisions.md` item 51 records what was fixed and what was deferred.
+
+
+### docs (`b6d61ffb-c6ad-499b-98b1-08bf40953030`)
+
+- Condition `gh-pr-open` (start_when): met. Pull request #128 is open.
+- Condition `gh-pr-open` (done_when): met. Pull request #128 is open.
+
+- **document**: done, 28 turns.
+
+> Ran /speckit-docs-as-code 128. PR #128 (OPEN, fix/bi-0176 -> main) carries the review fixes of #127 (BI-0176). #127 merged before it had a docs pass, so this run documents both PRs. Wrote a new 'Note names in write_note' section in .docs-as-code/capabilities/mutate.md. In the same file, corrected the locator, write, prepend-pattern and file-type passages, which said write_note resolves no names, and added two known limits. Corrected architecture.md's resolver section. Added ADR-062: write_note shares the obsidian file lookup and creates by name only on Obsidian's not-found answer. ADR-062 also records the review's move of the not-found text into _active-file.ts, and the options that were rejected: the vault-confirming eval, EACCES in the conflict set, and shared errno sets. Indexed ADR-062 in README.md. Committed ed60ad1, pushed it to fix/bi-0176, and appended a Documentation section to the PR body. No docs/tools change, so npm test was not needed. CHANGELOG already has the BI-0176 entry. The Relay log files were left unstaged.
+
+- **ci**: done, 4 turns.
+
+> CI for PR #128 passed on the latest commit, ed60ad1 (run 41590005475). All four jobs passed: Lint / Typecheck / Test / Build on ubuntu-latest Node 22 (1m47s), ubuntu-latest Node 24 (1m7s), windows-latest Node 22 (2m34s) and windows-latest Node 24 (2m34s). No fixes were needed and nothing was pushed in this step.
+
+
+### record (`372b8ce2-b68a-4281-8003-d6474a2d06a3`)
+
+- **record-in-vault**: done.
+
+> BI-0176 now records the fix as in review, set up the same way as BI-0171:
+> - Frontmatter `status`: `planned` → `in-review`. That value is in the backlog-item list in Vault Frontmatter Convention.
+> - Frontmatter `spec_branch: fix/bi-0176`, which reads back correctly. The Backlog Item Template has no separate branch field, so `spec_branch` holds the fix branch.
+> - New Status paragraph at the top of that section, "**In review — 2026-11-03.**". It gives PR [marwansaab/obsidian-cli-mcp#128](https://github.com/marwansaab/obsidian-cli-mcp/pull/128), branch `fix/bi-0176`, and the bug folder `.specify/bugs/bi-0176` with its assessment, fix and test reports. It says the fix awaits the owner's merge. The earlier *Planned.* paragraph is kept.
+> - Dated HTML comment at the end of the note. It says Relay run obsidian-cli-mcp-bugfix-bi-0176-2026-11-03 produced PR #128.
+
 
 ## Escalations
 
@@ -114,6 +144,9 @@
 - **BI-0176 (dry run: no): bug-fix question needs you (decision)** (advisor, 2026-11-03T06:05:12.926Z): The project rule (refactor-decisions item 5) reserves edits to existing tests for the owner's explicit sign-off. Only the owner can approve this list.
   - Choices: 1. A: approve exactly these edits; 2. B: no existing-test edits; 3. Stop the run
   - Answer: choice 1 (A: approve exactly these edits) via ntfy
+- **speckit-bugfix / review: done_when not met** (condition, 2026-11-03T06:23:37.103Z): Condition gh-pr-open is not met before finishing session review. No open pull request from fix/bi-0176.
+  - Choices: 1. Check again; 2. Continue anyway; 3. Abort run
+  - Answer: choice 1 (Check again) via ntfy
 
 ## Edits made by the advisor
 
@@ -124,6 +157,11 @@
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md` | Added a 'Clarified 2026-11-03 (/speckit-bug-assess Q2)' sentence to the Impact section's secondary-defect paragraph: EBUSY/EPERM → EXTERNAL_EDITOR_CONFLICT; EACCES stays FS_WRITE_FAILED per ADR-009 point 7 and the write_note feature page. | assess / resolve-assessment: Q2 — Open Question: should `write_note`'s editor-conflict errno set be `{EBUSY, EPERM, EACCES}` (as  |
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md` | Recorded the owner ruling 2026-11-03 (Q1 = B) in the Impact section: write_note resolves `file` via resolveFileByTsv with not-found fallback to the vault-root rule, no VAULT_MISMATCH; it supersedes refactor-decisions item 51, which needs correcting in a repo session. | repair / bug-fix: Q1 — Which name-lookup design should write_note use for a specific-mode `file`? |
 | `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md` | Appended an audit comment recording the owner ruling 2026-11-03 (Q2 = A): the exact approved existing-test edits in the three write_note test files, no _template.test.ts, any other failure stops for owner review. | repair / bug-fix: Q2 — May I make these edits to existing tests (refactor-decisions item 5 requires explicit sign-off  |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md` | Added an Out of scope bullet: sharing the editor-conflict errno sets as named constants across the four fs-direct writers is a no-behaviour-change cleanup from the PR #127 review, left for the next change touching those handlers. | review / fix: The PR #127 review found that the editor-conflict errno sets are now written out four times: `new Se |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md` | Frontmatter status planned → in-review. | record / record-in-vault: The fix for job BI-0176 is now a reviewed, documented pull request. Record that on the job's note, f |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md` | Added frontmatter spec_branch: fix/bi-0176. | record / record-in-vault: The fix for job BI-0176 is now a reviewed, documented pull request. Record that on the job's note, f |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md` | Prepended an 'In review — 2026-11-03' paragraph to the Status section naming PR #128, fix branch fix/bi-0176 and bug folder .specify/bugs/bi-0176. | record / record-in-vault: The fix for job BI-0176 is now a reviewed, documented pull request. Record that on the job's note, f |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0176 - Resolve File Locator On Write Note Overwrite.md` | Appended dated HTML comment: Relay run obsidian-cli-mcp-bugfix-bi-0176-2026-11-03 produced PR #128. | record / record-in-vault: The fix for job BI-0176 is now a reviewed, documented pull request. Record that on the job's note, f |
 
 ## Files
 
