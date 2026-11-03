@@ -52,7 +52,7 @@ test("H1 happy path — single file with two matches, sorted output", async () =
   expect(recorded).toHaveLength(2);
   const argv = recorded[0]!.argv;
   expect(argv).toContain("search:context");
-  expect(argv).toContain('query="foo"');
+  expect(argv).toContain("query=/foo/");
   expect(argv).toContain("format=json");
   expect(findKv(argv, "limit")).toBeUndefined();
   expect(r).toEqual({

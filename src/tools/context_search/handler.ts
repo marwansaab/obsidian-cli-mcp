@@ -2,8 +2,8 @@
 // obsidian search:context with FR-013 post-empty folder-existence probe (R4) and
 // FR-012 CRLF strip (R5). Re-uses BI-033's stripBoundarySlashes + searchContextWireSchema
 // via direct imports (R6 / R8 — module direction context_search → search, no cycle).
-// Pipeline: assemble parameters (query as one escaped, double-quoted phrase per spec
-// 087, format=json, optional path, optional case) → invokeCli(search:context). No
+// Pipeline: assemble parameters (query as one escaped regular expression per spec
+// 087 / BI-0175, format=json, optional path, optional case) → invokeCli(search:context). No
 // `limit` is forwarded upstream (BI-055): upstream returns the full match set, the
 // wrapper sorts it, then slices to appliedCap, so the visible subset is the
 // (path asc, line asc) leading N across the entire match set.

@@ -47,7 +47,7 @@ This tool is **vault-scoped** — there is no `target_mode` discriminator, no `f
 
 ### Per-field policy
 
-- **`query`** — phrase-matched as a single literal substring. Internal whitespace preserved verbatim — `"foo bar"` matches `foo bar` but not `foobar` or `foo  bar`. Empty / whitespace-only rejected. The whole query is one literal phrase: its words must appear together, in order, with the same spacing. Characters that mean something in Obsidian's own search box (double quotes, a leading `-`, `OR`, parentheses, square brackets, `tag:` / `path:` / `file:`-style prefixes, `/…/`, `*`, `\`) are matched as ordinary text; nothing needs escaping.
+- **`query`** — phrase-matched as a single literal substring. Internal whitespace preserved verbatim — `"foo bar"` matches `foo bar` but not `foobar` or `foo  bar`. Empty / whitespace-only rejected. The whole query is one literal phrase: its words must appear together, in order, with the same spacing. It matches anywhere its characters occur, including part-way through a word: `ead170` finds `lead170`, `TC-0078` finds `TC-00783`, and `pha bet` finds `alpha beta`. Characters that mean something in Obsidian's own search box (double quotes, a leading `-`, `OR`, parentheses, square brackets, `tag:` / `path:` / `file:`-style prefixes, `/…/`, `*`, `\`) are matched as ordinary text; nothing needs escaping.
 - **`folder`** — vault-relative folder prefix; leading/trailing `/` stripped. `folder: "/"` alone normalises to empty (unscoped). Case-sensitive segment-boundary match enforced by upstream — `folder=Projects` does NOT match `projects/`.
 - **`limit`** — caps the returned array. Implicit cap is 1000.
 - **`case_sensitive`** — when `true`, upstream's `case` flag is set; otherwise ASCII-fold case-insensitive. Folding is ASCII-only — `É` does NOT match `é`.
@@ -263,7 +263,7 @@ The `truncated` flag carries the "did we hit the cap?" signal; explicit pre-flig
 
 ### No regex / boolean / surrounding-context
 
-The query is matched as one literal substring; boolean operators such as `OR` are matched as text. This section used to say upstream itself is substring-only. It is not: `obsidian search` reads Obsidian search syntax. The wrapper sends the query as one quoted, escaped phrase (spec 087). For regex use [`pattern_search`](./pattern_search.md). For surrounding-context lines (`N±k`) — not supported in either tool.
+The query is matched as one literal substring; boolean operators such as `OR` are matched as text. This section used to say upstream itself is substring-only. It is not: `obsidian search` reads Obsidian search syntax. The wrapper sends the query as one escaped regular expression, `/…/` with every regex syntax character and `/` escaped, so the CLI matches its characters literally, anywhere, including inside a word (spec 087, BI-0175). For regex use [`pattern_search`](./pattern_search.md). For surrounding-context lines (`N±k`) — not supported in either tool.
 
 ### Latency
 

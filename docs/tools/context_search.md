@@ -41,7 +41,7 @@ This tool is **vault-scoped** — there is no `target_mode` discriminator, no `f
 
 ### Per-field policy
 
-- **`query`** — phrase-matched as a single literal substring. Internal whitespace is preserved verbatim — `"foo bar"` matches `foo bar` but not `foobar` or `foo  bar`. Empty / whitespace-only is rejected with a custom validation issue on `path: ["query"]`. The whole query is one literal phrase: its words must appear together, in order, with the same spacing. Characters that mean something in Obsidian's own search box (double quotes, a leading `-`, `OR`, parentheses, square brackets, `tag:` / `path:` / `file:`-style prefixes, `/…/`, `*`, `\`) are matched as ordinary text; nothing needs escaping.
+- **`query`** — phrase-matched as a single literal substring. Internal whitespace is preserved verbatim — `"foo bar"` matches `foo bar` but not `foobar` or `foo  bar`. Empty / whitespace-only is rejected with a custom validation issue on `path: ["query"]`. The whole query is one literal phrase: its words must appear together, in order, with the same spacing. It matches anywhere its characters occur, including part-way through a word: `ead170` finds `lead170`, `TC-0078` finds `TC-00783`, and `pha bet` finds `alpha beta`. Characters that mean something in Obsidian's own search box (double quotes, a leading `-`, `OR`, parentheses, square brackets, `tag:` / `path:` / `file:`-style prefixes, `/…/`, `*`, `\`) are matched as ordinary text; nothing needs escaping.
 - **`folder`** — vault-relative folder prefix; leading/trailing `/` are stripped before forwarding. `folder: "/"` alone normalises to empty and is omitted (effectively unscoped). Recursive subtree-prefix match — `folder=Projects` matches `Projects/foo.md`, `Projects/sub/bar.md`, and `Projects/a/b/c.md`. Case-sensitive segment-boundary equality enforced by upstream — `folder=Projects` does NOT match `projects/`.
 - **`limit`** — caps the returned `matches` array (post-flatten, post-strip). The implicit cap is 1000.
 - **`case_sensitive`** — when `true`, the wrapper sets the upstream `case` flag; otherwise upstream's default insensitivity (ASCII fold only) applies. Folding is ASCII-only — `É` does NOT match `é`.
@@ -335,7 +335,7 @@ Upstream returns results in its own order; the wrapper imposes a deterministic s
 
 ### No regex / boolean / surrounding-context
 
-The query is matched as one literal substring — no regex queries (use [`pattern_search`](./pattern_search.md) for that), no `AND` / `OR` boolean operators, no surrounding-context-lines (lines `N±k`). Each match entry contains exactly the matching line itself. This section used to say upstream itself is substring-only. It is not: `obsidian search:context` reads Obsidian search syntax, including `OR`. The wrapper sends the query as one quoted, escaped phrase, so the operators are matched as text (spec 087).
+The query is matched as one literal substring — no regex queries (use [`pattern_search`](./pattern_search.md) for that), no `AND` / `OR` boolean operators, no surrounding-context-lines (lines `N±k`). Each match entry contains exactly the matching line itself. This section used to say upstream itself is substring-only. It is not: `obsidian search:context` reads Obsidian search syntax, including `OR`. The wrapper sends the query as one escaped regular expression, `/…/` with every regex syntax character and `/` escaped, so the operators are matched as text and the query matches anywhere, including inside a word (spec 087, BI-0175).
 
 ### Latency
 
