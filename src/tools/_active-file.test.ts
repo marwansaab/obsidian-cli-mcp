@@ -20,6 +20,7 @@ import {
   resolveVaultDisplayName,
   type EvalDeps,
 } from "./_active-file.js";
+import { missingFolderRealpath } from "./_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn } from "./_registration-stub.js";
 import { UpstreamError } from "../errors.js";
 import { createLogger, type Logger } from "../logger.js";
@@ -389,11 +390,6 @@ describe("assertCanonicalPath — vault root cannot be resolved (BI-0185)", () =
     return Object.assign(new Error(`${code}: realpath '${p}'`), { code });
   }
 
-  // realpath fails with `code` for the root and everything under it; paths outside resolve.
-  function rootFails(code: string, root = vaultRoot): (p: string) => Promise<string> {
-    return (p) =>
-      p === root || p.startsWith(root + sep) ? Promise.reject(errno(code, p)) : Promise.resolve(p);
-  }
 
   function expectNoRootPath(err: UpstreamError): void {
     expect(err.message).not.toContain(vaultRoot);
@@ -403,7 +399,7 @@ describe("assertCanonicalPath — vault root cannot be resolved (BI-0185)", () =
   test.each(["ENOENT", "ENOTDIR"])("%s on the root → VAULT_NOT_FOUND / folder-missing, no path", async (code) => {
     const { logger, events } = recordingLogger();
     const err = await assertCanonicalPath(vaultRoot, "x.base", {
-      realpath: rootFails(code),
+      realpath: missingFolderRealpath(vaultRoot, code),
       logger,
       vaultLabel: "Gone",
     }).catch((e: unknown) => e);
@@ -435,7 +431,7 @@ describe("assertCanonicalPath — vault root cannot be resolved (BI-0185)", () =
 
   test("a null vault label reads as the focused vault", async () => {
     const err = await assertCanonicalPath(vaultRoot, ".", {
-      realpath: rootFails("ENOENT"),
+      realpath: missingFolderRealpath(vaultRoot),
       logger: recordingLogger().logger,
       vaultLabel: null,
     }).catch((e: unknown) => e);
@@ -447,7 +443,7 @@ describe("assertCanonicalPath — vault root cannot be resolved (BI-0185)", () =
 
   test.each(["EPERM", "EIO"])("%s on the root → stage vault-root-check with the errno, no hint, no path", async (code) => {
     const err = await assertCanonicalPath(vaultRoot, "x.base", {
-      realpath: rootFails(code),
+      realpath: missingFolderRealpath(vaultRoot, code),
       logger: recordingLogger().logger,
       vaultLabel: "Locked",
     }).catch((e: unknown) => e);

@@ -239,13 +239,15 @@ export function stubVaultRegistry(name: string, root: string): VaultRegistry {
 }
 
 /**
- * An `fs.realpath` for a registered vault whose folder is gone (BI-0185): ENOENT for `root` and
- * everything under it, identity for every other path (its ancestors still exist).
+ * An `fs.realpath` for a registered vault whose folder cannot be resolved (BI-0185): it fails with
+ * `code` (ENOENT by default, a folder that is gone) for `root` and everything under it, and is the
+ * identity for every other path (its ancestors still exist). The error message carries the path, as
+ * Node's does, so tests can check that it never reaches the response.
  */
-export function missingFolderRealpath(root: string): (p: string) => Promise<string> {
+export function missingFolderRealpath(root: string, code = "ENOENT"): (p: string) => Promise<string> {
   return async (p) => {
     if (p === root || p.startsWith(root + sep)) {
-      throw Object.assign(new Error(`ENOENT: no such file or directory, realpath '${p}'`), { code: "ENOENT" });
+      throw Object.assign(new Error(`${code}: realpath '${p}'`), { code });
     }
     return p;
   };

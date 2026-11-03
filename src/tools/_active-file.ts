@@ -1,6 +1,7 @@
 // Original — no upstream. Shared active/specific locator resolution for the write + vault-scan tool cohorts (F1 of the thermo-nuclear code-quality review). Centralises the focused-file / focused-vault `obsidian eval` round-trip, the eval answer parse (spec 080: the call's tagged answer line, other plugins' output ignored, parse errors carrying the stdout excerpt), the cohort-uniform ERR_NO_ACTIVE_FILE message, the registry VALIDATION_ERROR -> CLI_REPORTED_ERROR/VAULT_NOT_FOUND remap, the `obsidian file` TSV path resolver (plus `findFileByTsv`, its null-on-not-found variant whose caller decides what a miss means — write_note's create-by-name, BI-0176, and find_and_replace's INVALID_NOTE/not-found, BI-0178 — and Obsidian's `FILE_NOT_FOUND_LINE`), the canonical-path / PATH_ESCAPES_VAULT guard (with its missing-vault-folder classification, BI-0185), and the reverse vault display-name lookup that were previously copy-pasted across write_note, append_note, prepend, patch_block, patch_heading, find_and_replace, and query_base. Every helper preserves the prior inlined behaviour byte-for-byte (template strings, error codes, messages, and `details` shapes); divergences between consumers (tool name in messages, the no-active-file label, the per-note attempted-path label) surface as explicit parameters rather than forked copies. It also hosts `decodeEvalEnvelope` — the eval-composed cohort's shared `parseEvalAnswer` + `safeParse` envelope decoder (backlinks, links, open_file, get_active_file, views_base, paths, read_heading, tag, smart_connections_query, smart_connections_similar), with the per-tool malformed-eval code (CLI_REPORTED_ERROR vs INTERNAL_ERROR) as an explicit parameter.
 
 import { parseEvalAnswer, stdoutDetails } from "./_eval-parse.js";
+import { getErrno } from "./_fs-errors.js";
 import {
   invokeCli,
   invokeEval,
@@ -350,11 +351,6 @@ export interface CanonicalGuardContext {
   attemptedPathLabel?: string;
 }
 
-function errnoCode(err: unknown): string | undefined {
-  const code = typeof err === "object" && err !== null ? (err as NodeJS.ErrnoException).code : undefined;
-  return typeof code === "string" ? code : undefined;
-}
-
 /**
  * Classify a failure of the canonical check (BI-0185). When the vault root itself cannot be
  * realpathed, the vault's folder is the problem: ENOENT / ENOTDIR become
@@ -372,7 +368,7 @@ async function canonicalCheckFailure(err: unknown, vaultRoot: string, ctx: Canon
   } catch (e) {
     rootErr = e;
   }
-  const errno = errnoCode(rootErr);
+  const errno = getErrno(rootErr);
   const vault = ctx.vaultLabel;
   if (errno === "ENOENT" || errno === "ENOTDIR") {
     const subject = vault === null ? "The focused vault" : `Vault "${vault}"`;

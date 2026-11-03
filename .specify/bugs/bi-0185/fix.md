@@ -13,9 +13,9 @@
 
 | File | Change | Notes |
 |------|--------|-------|
-| `src/tools/_active-file.ts` | modified | `assertCanonicalPath` wraps `checkCanonicalPath`; on a throw, the private `canonicalCheckFailure` re-probes the vault root and classifies it (private `errnoCode` reads the errno). Header comment names the new classification. No new import edge (the `CanonicalCheckOutcome` type comes from the module already imported). |
+| `src/tools/_active-file.ts` | modified | `assertCanonicalPath` wraps `checkCanonicalPath`; on a throw, the private `canonicalCheckFailure` re-probes the vault root and classifies it, reading the errno with the shared `getErrno` (`_fs-errors.ts`, PR #136 review). Header comment names the new classification. One new import edge, `_active-file.ts` → `_fs-errors.ts`, two tools-layer leaf modules; `_fs-errors.ts` imports only `../errors.js`, so there is no cycle. The `CanonicalCheckOutcome` type comes from the module already imported. |
 | `src/tools/_active-file.test.ts` | added tests | New `describe` block "vault root cannot be resolved (BI-0185)": 8 cases. |
-| `src/tools/_handler-test-fixtures.ts` | added fixtures | `missingFolderRealpath(root)` and `folderMissingDetails(vault)`, shared by the nine new handler/index cases. Vitest-free, like the rest of the module. |
+| `src/tools/_handler-test-fixtures.ts` | added fixtures | `missingFolderRealpath(root, code = "ENOENT")` and `folderMissingDetails(vault)`, shared by the nine new handler/index cases and, through `code`, by the ENOTDIR / EPERM / EIO cases in `_active-file.test.ts` (PR #136 review). Vitest-free, like the rest of the module. |
 | `src/tools/query_base/handler.test.ts` | added test | Handler-level case, no spawn. |
 | `src/tools/query_base/index.test.ts` | added test | Registered-tool case: `isError: true` JSON envelope, not free text (acceptance criterion 6). |
 | `src/tools/create_base/handler.test.ts` | added test | Named-vault mode, nothing spawned. |
@@ -98,12 +98,12 @@ No errno other than ENOENT was observed, because nothing was run live.
 
 ## CodeGraph structural verification
 
-Run with `codegraph_explore` on `canonicalCheckFailure`, `errnoCode`, `assertCanonicalPath`, `missingFolderRealpath` and `folderMissingDetails`.
+Run with `codegraph_explore` on `canonicalCheckFailure`, `getErrno`, `assertCanonicalPath`, `missingFolderRealpath` and `folderMissingDetails`.
 
 1. **No new top-level error codes**: both envelopes use the existing `CLI_REPORTED_ERROR`. No error class was added and `src/errors.ts` is unchanged. One new `details.reason` value (`folder-missing`) sits under the existing `VAULT_NOT_FOUND` discriminator (ADR-015). `stage: "vault-root-check"` reuses the existing `details.stage` key.
-2. **No boot-time DI factory imports**: `_active-file.ts` imports nothing new. `createLogger` / `createQueue` stay confined to `server.ts` (the test fixture module already imported `createLogger`, unchanged).
-3. **Module placement and direction**: the new private helpers sit in `src/tools/_active-file.ts` next to `assertCanonicalPath`. The only import change is the type-only `CanonicalCheckOutcome` from `../path-safety/canonical.js`, a module that file already imported downward. `src/path-safety/canonical.ts` is unchanged.
-4. **Reachability**: `canonicalCheckFailure` → called by `assertCanonicalPath` (production, 19 call sites across the eight handlers); `errnoCode` → called by `canonicalCheckFailure`. The two fixtures are test-support exports with nine callers each, all in tests, as expected.
+2. **No boot-time DI factory imports**: `_active-file.ts`'s only new import is `getErrno` from `./_fs-errors.js`. `createLogger` / `createQueue` stay confined to `server.ts` (the test fixture module already imported `createLogger`, unchanged).
+3. **Module placement and direction**: the new private helpers sit in `src/tools/_active-file.ts` next to `assertCanonicalPath`. The import changes are the type-only `CanonicalCheckOutcome` from `../path-safety/canonical.js`, a module that file already imported downward, and `getErrno` from the sibling leaf `./_fs-errors.js` (which imports only `../errors.js`, so no cycle). `src/path-safety/canonical.ts` is unchanged.
+4. **Reachability**: `canonicalCheckFailure` → called by `assertCanonicalPath` (production, 19 call sites across the eight handlers); `getErrno` (existing, shared) → now also called by `canonicalCheckFailure`. The two fixtures are test-support exports with nine callers each, all in tests, as expected.
 
 **Kernel-node claim held**: the assessment said the fix touches none of the kernel nodes. `createLogger()`, `createQueue()` and `createServer()` are untouched. `UpstreamError` is only constructed with an existing code; the class is unchanged.
 
