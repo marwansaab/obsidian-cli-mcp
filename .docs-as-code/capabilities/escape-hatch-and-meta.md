@@ -157,6 +157,18 @@ and `help` stays as the place for what a one-line description cannot hold:
 worked examples, error rosters and recovery hints. The server instructions'
 last rule points there.
 
+Since PR #143 (spec 092,
+[ADR-074](../decisions/ADR-074-tool-descriptions-route-within-a-budget-and-the-help-page-holds-the-contract.md))
+`help` carries more weight: tool descriptions are cut to at most 400
+characters, so result shapes, caps and error codes are on the help pages
+only. The pointer is stated twice. The instructions' last rule reads
+"`help` with a tool's name returns its full contract; with none, it lists
+every tool.", and `HELP_DESCRIPTION` says it returns any registered tool's
+full contract (inputs, output, errors and examples) by `tool_name`, for
+clients that do not show instructions. Each `index.md` entry is its tool's
+description's first sentence, and a standing test enforces the match
+([architecture](../architecture.md#descriptions-route-the-help-page-holds-the-contract)).
+
 With no argument it returns `docs/tools/index.md`; with `tool_name` it returns
 `docs/tools/<tool_name>.md`. Since PR #142 (BI-0174, TC-00586) every page it
 serves has H2 sections beginning `Input`, `Output`, `Errors` and
@@ -193,12 +205,16 @@ start if any registered tool lacks its doc file
   owner; adding any of them is a spec change.
 - `obsidian_exec`'s published description
   ([src/tools/obsidian_exec/index.ts](../../src/tools/obsidian_exec/index.ts))
-  still reads "Invoke any Obsidian Integrated CLI subcommand". PR #88 left
-  every descriptor unchanged. PR #90's descriptor pass removed only its
+  read "Invoke any Obsidian Integrated CLI subcommand" until PR #143. PR #88
+  left every descriptor unchanged. PR #90's descriptor pass removed only its
   call-help sentence and did not add the blocked list, so the `help` page and
-  the README are still the only places that carry it. PR #124 added
+  the README were the only places that carried it. PR #124 added
   `unknown vault` to the description's list of structured failures, and
-  regenerated its fingerprint on purpose. Since PR #90 the tool is
+  regenerated its fingerprint on purpose. PR #143 (spec 092) rewrote it: it
+  says what the tool returns, to use it for commands the typed tools do not
+  cover, and that commands that run code or drive developer tooling are
+  blocked unless `OBSIDIAN_MCP_ALLOW_EVAL` is set. The exact blocked list and
+  the failure roster are on the help page. Since PR #90 the tool is
   published with the passthrough hint row — destructive and open-world, the
   only open-world tool. Its optional `vault` is the shared
   `focusedVaultField`.

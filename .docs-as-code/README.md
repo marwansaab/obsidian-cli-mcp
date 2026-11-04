@@ -38,7 +38,8 @@ extends it.
   (PR #97); renamed parameters and their deprecated aliases (PR #101); the
   direct-filesystem write path; the
   `eval` template pattern and the per-call answer tag that keeps other
-  plugins' output out of it (PR #110); logging, shutdown and module layout.
+  plugins' output out of it (PR #110); the description budget and its audit
+  (PR #143); logging, shutdown and module layout.
 - [tech-stack.md](tech-stack.md) — what the server is built from, why each
   piece is here, and what it forces or rules out, including the current
   version holds.
@@ -113,7 +114,8 @@ applies. Records written since:
   — the ADR-029 cold-start retry is the only closed-vault handling; the six
   per-tool `not-open` stages are deleted, and the post-retry error is
   documented as "vault unavailable" rather than given a new sub-reason
-  (PR #100).
+  (PR #100); amended on 2026-11-04 so the help pages, not the descriptions,
+  carry it (PR #143).
 - [decisions/ADR-046-shared-parameter-names-within-a-tool-family.md](decisions/ADR-046-shared-parameter-names-within-a-tool-family.md)
   — within a tool family one concept carries one snake-case parameter name;
   seven parameters on three tools are renamed, with the old names accepted
@@ -275,3 +277,11 @@ applies. Records written since:
   `views_base` keeps the generic envelope its page describes; docs only,
   lifting `views_base` too, and lifting inside the generic envelope were
   rejected (PR #142).
+- [decisions/ADR-074-tool-descriptions-route-within-a-budget-and-the-help-page-holds-the-contract.md](decisions/ADR-074-tool-descriptions-route-within-a-budget-and-the-help-page-holds-the-contract.md)
+  — each tool description says what the tool does, when to choose it over
+  its named siblings and any data-loss caveat, in at most 400 characters and
+  12,000 in total, with the long reference on its help page and each index
+  entry its first sentence; mechanical checks gate, judgement verdicts only
+  flag a changed description for review; a hand-written report, gating on
+  judgement and a model evaluation were rejected; amends ADR-045's shared
+  closed-vault sentence (PR #143).

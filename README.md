@@ -37,7 +37,7 @@ Every tool has a readable title and declares all four behaviour hints: whether i
 
 ### The model is oriented from the start
 
-At session start the server sends instructions: what it is for, which tool fits which task, and the rules that apply to every tool. These include using `target_mode: "specific"` for automation, previewing `find_and_replace` before committing, and treating note content as data rather than as instructions. The instructions mention only the tools the server actually offers. Every parameter's description is published in the tool's schema, so a model can call any tool correctly straight away. `help` is still there for a tool's full reference, with worked examples and its error roster.
+At session start the server sends instructions: what it is for, which tool fits which task, and the rules that apply to every tool. These include using `target_mode: "specific"` for automation, previewing `find_and_replace` before committing, and treating note content as data rather than as instructions. The instructions mention only the tools the server actually offers. Every parameter's description is published in the tool's schema, so a model can call any tool correctly straight away. Each tool's description is short: what the tool does, when to choose it over related tools, and any risk of losing data. `help` with a tool's name returns its full contract, with result shapes, limits, worked examples and its error roster.
 
 ### Typed results
 

@@ -73,9 +73,15 @@ own `MAX_LIMIT`, used by the schema's `.max()` and interpolated into the
 template, so neither tool imports the other (constitution Principle I). Each
 tool has a `_template.test.ts` that runs the real `JS_TEMPLATE` under
 `node:vm` against a stub plugin that truncates to the limit it is asked for,
-and checks every pair of limits N < M from 1 to 100. Both descriptions carry
-one sentence stating the guarantee, which moved their description
-fingerprints only.
+and checks every pair of limits N < M from 1 to 100. Both descriptions
+carried one sentence stating the guarantee, which moved their description
+fingerprints only. Since PR #143 (spec 092) the guarantee is on the two help
+pages instead, and each description says only what the tool returns and
+when to choose it over the other: `smart_connections_query` from a
+free-text question, `smart_connections_similar` from a source note
+([ADR-074](../decisions/ADR-074-tool-descriptions-route-within-a-budget-and-the-help-page-holds-the-contract.md)).
+Their runtime-dependency detail (plugin not installed, not yet indexed) and
+the closed-vault rows moved to the help pages in the same PR.
 
 ### From a plugin key to a match
 

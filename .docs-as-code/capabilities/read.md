@@ -168,10 +168,17 @@ Typed results (PR #91; [architecture](../architecture.md#typed-results-outputsch
 result as `structuredContent` as well as the identical text. `read` does not:
 its `{ content }` text block is kept byte-identical (068 FR-041). That held
 the envelope's shape, not the value: since PR #102 `content` itself differs
-for a file with no final line break or with a leading byte-order mark. The
-published description now says "Returns the file's exact text as
+for a file with no final line break or with a leading byte-order mark.
+PR #102's description said "Returns the file's exact text as
 { content }: nothing added or removed", which moved only `read`'s description
-fingerprint in the register baseline (spec 074 FR-009).
+fingerprint in the register baseline (spec 074 FR-009). Since PR #143
+(spec 092) it opens "Read the exact text of a note, canvas or base in an
+Obsidian vault, with nothing added or removed.", names `read_heading`,
+`read_property` and `open_file` as the alternatives, and leaves the
+`{ content }` shape to the help page
+([ADR-074](../decisions/ADR-074-tool-descriptions-route-within-a-budget-and-the-help-page-holds-the-contract.md)).
+`read_property`'s input root description lost its internal identifiers in
+the same PR.
 
 ## Failure
 

@@ -382,6 +382,22 @@ fingerprint moved. Its review commit `4a00a58` rebuilt all three input schemas
 as a transform-and-pipe and passed the gate against that baseline without
 regenerating it.
 
+PR #143 (spec 092) regenerated the baseline on purpose for the description
+rewrite: all 35 `descriptionFingerprint`s moved, and four
+`schemaFingerprint`s (`properties`, `query_base`, `read_property`,
+`search`, whose input root descriptions lost their internal identifiers).
+No title, annotations or output-schema fingerprint moved. Its code-quality
+review (commit `867d939`, finding F2) made the gate's helpers shared:
+`listPublished(server, clientName)` in `_mcp-client-fixtures.ts` is the one
+published-surface lister and `fingerprintTool(tool)` in
+`_register-baseline.ts` the one per-tool fingerprint builder, used by both
+`fingerprintLiveRegistry` and the description audit's collector. The
+writer's generated-vitest runner moved to `scripts/_vitest-dump.ts`, shared
+with `npm run audit:descriptions`, and now sends vitest's output to stderr;
+on an unchanged tree the written baseline is byte-identical. The writer's
+default server still reads the ambient `OBSIDIAN_MCP_*` access settings,
+which the review left to the owner.
+
 A one-off check of the real stdio path is `npm run probe:stdio -- --era
 legacy|modern` ([scripts/probe-stdio.ts](../scripts/probe-stdio.ts), PR #89).
 It spawns the built `dist/index.js` with a v2 client and prints the negotiated
@@ -656,6 +672,16 @@ characters of the cap, so two sentences were shortened to fit: the opening's
 combinations." and the `help` rule, which lost "worked". The headroom left
 is a handful of characters; the next rule line will need a cut elsewhere or
 a deliberate change to FR-027's cap.
+
+Since PR #143 (spec 092 FR-008) the last rule is "`help` with a tool's name
+returns its full contract; with none, it lists every tool." It replaced
+"`help` holds each tool's long reference: examples, error codes and recovery
+hints.", because the descriptions no longer carry that reference and an
+agent needs to know where it went. The text is now 1,997 characters. The
+line names `help` in backticks, so like every other line it is dropped when
+`help` is not offered; `help`'s own description says the same thing for
+clients that do not show instructions
+([documentation as part of the runtime](#documentation-as-part-of-the-runtime)).
 
 Building the instructions is a touch on `createServer`, one of the kernel
 nodes; its return shape did not change, and `createLogger`, `createQueue` and
@@ -1510,11 +1536,17 @@ them:
   result is a success envelope with `count: 0`. The six tools that document
   this — `paths`, `tag`, `pattern_search`, `smart_connections_query`,
   `smart_connections_similar`, and `query_base` (which runs `base:query`,
-  not `eval`) — share one description sentence, `closedVaultNote(command)` in
-  [src/tools/_shared.ts](../src/tools/_shared.ts), and a `_surface.test.ts`
-  case allows only `views_base` to mention a `not-open` state (PR #100).
-  Since PR #114 `bases`, `views_base` and `create_base` append it too, now
-  that they act on the named vault.
+  not `eval`) — shared one description sentence, `closedVaultNote(command)` in
+  `src/tools/_shared.ts`, from PR #100, and since PR #114 `bases`,
+  `views_base` and `create_base` appended it too, now that they act on the
+  named vault. PR #143 deleted `closedVaultNote` under the owner's
+  2026-11-04 amendment to
+  [ADR-045](decisions/ADR-045-closed-vaults-recovered-only-by-the-dispatch-retry.md):
+  each of the nine help pages now states the vault-unavailable answer and
+  that a closed registered vault is opened automatically, and no
+  description does. The `_surface.test.ts` case that let only `views_base`
+  mention a `not-open` state now lets no description mention one;
+  `views_base`'s own `BASE_NOT_FOUND` / `not-open` is on its help page.
 - **The `eval` code has a length limit** (PR #121, spec 088 research F10).
   Through the `Obsidian.com` shim, an `eval` whose `code=` was 4,009
   characters answered, one of 5,009 returned empty stdout on exit 0, and one
@@ -1697,11 +1729,92 @@ content:
   for any published tool description longer than 4,096 characters, the
   length at which Claude Code cuts a description. `find_and_replace`'s was
   4,867, so its tail never reached an agent; PR #142 cut it to just under
-  the cap, the detail staying on its help page.
+  the cap, the detail staying on its help page. PR #143 replaced it as the
+  working limit with a 400-character budget
+  ([below](#descriptions-route-the-help-page-holds-the-contract)).
 
 Whether a quoted error is the one the server returns is still checked only
 by hand: PR #142 drove the built server over stdio against the test vault
 (`.specify/bugs/bi-0174/test.md`).
+
+### Descriptions route; the help page holds the contract
+
+PR #143 (spec 092,
+[ADR-074](decisions/ADR-074-tool-descriptions-route-within-a-budget-and-the-help-page-holds-the-contract.md))
+made the split between a tool's description and its help page a rule with
+numbers. A description says what the tool does, when to choose it over the
+family siblings it names in backticks, and any data-loss caveat (`write_note`
+overwrites, `delete` trashes unless `permanent: true`, `move` and `rename`
+rewrite links and keep the type, `find_and_replace` is vault-wide by default
+and changes nothing until `commit: true`, `obsidian_exec` blocks code-running
+commands unless `OBSIDIAN_MCP_ALLOW_EVAL` is set), then ADR-044's
+supported-types sentence. Result shapes, caps, error codes and examples are
+on the help page only. Each tool is at most 400 characters and all of them
+together at most 12,000; PR #143 cut the total from 62,067 to 9,847. Every
+fact cut was first found on, or added to, the tool's `docs/tools/` page
+(contract §H). The `docs/tools/index.md` entry for each tool is now its
+description's first sentence, word for word, so the index has one source.
+
+PR #142's 4,096-character test in `_surface.test.ts` is still there, now
+implied by the 400 check; deleting it is outside the approved existing-test
+edits and was left to the owner (PR #143 review finding F4). The four
+input root descriptions of `properties`, `query_base`, `read_property` and
+`search` are parameter text, so they are not budgeted; they lost only their
+internal identifiers and remain long.
+
+The checks are split by whether a machine can decide them:
+
+```mermaid
+flowchart LR
+  live["live tools/list + instructions + index.md<br/>(collectPublishedSurface, default server, empty access settings)"] --> audit["auditSurface"]
+  rec["_description-audit-record.json<br/>(reviewer verdicts + fingerprints)"] --> audit
+  audit --> mech["mechanical verdicts:<br/>budget, total, identifiers P1–P7,<br/>help pointer, index = first sentence"]
+  audit --> judge["judgement verdicts:<br/>purpose, safety, detail, self-contained,<br/>family, shared fields"]
+  mech --> gate["_description-quality.test.ts Q1–Q7<br/>(fails npm test)"]
+  mech --> report["npm run audit:descriptions<br/>(Markdown on stdout)"]
+  judge --> report
+```
+
+- **The module.** `src/tools/_description-audit.ts` holds the budgets, the
+  family roster (`FAMILIES`), the shared-field roster (`SHARED_FIELDS`), the
+  identifier patterns P1 to P7, the strict zod schema of the reviewer
+  record, the collector and `auditSurface(surface, record)`, which returns a
+  typed `AuditResult` with one `{ verdict, detail?, note? }` cell per check
+  per tool. `renderAuditReport` only formats that result. It is test
+  support, like `_register-baseline.ts`: imported by its tests and the
+  generated dumper, excluded from `dist/` by name in `tsconfig.build.json`.
+  The typed result is the PR #143 code-quality review's (commit `867d939`,
+  finding F1); the first version re-parsed verdict prefixes out of the
+  rendered text, and the standing checks applied the rules a second time.
+- **What gates.** `_description-quality.test.ts` runs Q1 to Q7 in
+  `npm test`: per-tool and total budgets, no internal identifiers in any
+  description, parameter description at any depth, the instructions or
+  `index.md`, the help pointer, index entries equal to first sentences, a
+  record that parses, and one report row per registered tool. Q1, Q2, Q4
+  and Q5 read `auditSurface`'s verdicts, so each rule is written once.
+  Public names an agent acts on (error codes, environment variables, tool
+  and parameter names) are not identifiers (FR-007); P7 applies only
+  outside backticks and quotes.
+- **What does not gate.** The judgement verdicts are hand-kept in
+  `src/tools/_description-audit-record.json`, each tool's entry carrying the
+  description and schema fingerprints it was judged against. When a
+  description moves, its cells render as `NEEDS REVIEW (was PASS)` in the
+  report and nothing fails. The record also holds the reviewer's
+  walk-through of every routing line in the instructions (15 at PR #143).
+  The PR's check: one word appended to `delete`'s description flagged its
+  six judgement cells, and in `npm test` only the baseline gate reacted.
+- **The report.** `npm run audit:descriptions`
+  (`scripts/audit-descriptions.ts`) prints the Markdown report with the
+  package version, short SHA, branch and date, a tool-count guard (tools =
+  help pages), the totals, the 9-column matrix, the gaps and the routing
+  walk-through. Node cannot import the `.js`-on-`.ts` sources directly, so
+  it writes a temporary vitest file through `runVitestDump`, the runner it
+  shares with the baseline writer. `npm run --silent` drops npm's banner
+  for a clean file. Filing the report as the release audit note is outside
+  spec 092.
+
+Help pages themselves are not scanned for internal identifiers, and still
+contain some; their wording beyond the facts PR #143 moved is out of scope.
 
 ## Logging and shutdown
 

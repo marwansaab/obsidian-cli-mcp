@@ -1,6 +1,6 @@
 # `help`
 
-Look up full Markdown documentation for any registered MCP tool. Every tool's `tools/list` entry carries a one-line description on each parameter; `help` returns the long reference that a one-liner cannot hold — worked examples, the error-code roster and recovery hints.
+Look up full Markdown documentation for any registered MCP tool. Every tool's `tools/list` entry carries a one-line description on each parameter; `help` returns the long reference that a one-liner cannot hold — worked examples, the error-code roster and recovery hints. Each tool's own description says only what the tool does, when to choose it over its siblings and any data-loss caveat, so its result shape, caps and error codes are on its page here, not in `tools/list`.
 
 This page used to describe `help` as the companion to a schema-stripping step that removed every parameter description from `tools/list` (ADR-005). That stopped being true in 0.9.0 (PR #90): parameter descriptions are now published, the "Call help(...) for full parameter docs" sentence is gone from tool descriptions, and ADR-040 (Published Parameter Descriptions and Server Instructions) supersedes ADR-005. `help` itself did not change.
 
