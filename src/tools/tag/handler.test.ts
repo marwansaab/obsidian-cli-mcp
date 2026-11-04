@@ -10,18 +10,10 @@ import {
 } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger, unwrapEvalCode } from "../_handler-test-fixtures.js";
+import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger, unwrapEvalCode, evalPayload } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
-}
-
-function decodePayload(argv: string[]): unknown {
-  const codeArg = argv.find((a) => a.startsWith("code="));
-  if (!codeArg) throw new Error("argv missing code= parameter");
-  const match = /atob\('([A-Za-z0-9+/=]+)'\)/.exec(codeArg);
-  if (!match) throw new Error("argv code= does not contain base64 atob(...) payload");
-  return JSON.parse(Buffer.from(match[1]!, "base64").toString("utf-8"));
 }
 
 // Envelope helpers — produce stdout in the BI-026 trimStart+startsWith shape.
@@ -77,7 +69,7 @@ test("argv: code= parameter contains the frozen template prefix", async () => {
 test("argv: base64 payload decodes to {query: input.tag, total: !!input.total}", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: defaultEnv([]), exitCode: 0 }]);
   await executeTag({ tag: "alpha", total: false }, deps(spawnFn));
-  expect(decodePayload(recorded[0]!.argv)).toEqual({ query: "alpha", total: false });
+  expect(evalPayload(recorded[0]!)).toEqual({ query: "alpha", total: false });
 });
 
 // (6) vault flows through when provided
@@ -337,7 +329,7 @@ test("anti-injection: shell metacharacters round-trip verbatim via base64", asyn
   // Raw payload not in source text:
   expect(codeArg).not.toContain(safe);
   // Round-trips through base64:
-  const payload = decodePayload(recorded[0]!.argv) as { query: string };
+  const payload = evalPayload(recorded[0]!) as { query: string };
   expect(payload.query).toBe(safe);
   // Reference variable to avoid lint warning about unused locals
   void hostile;
@@ -348,7 +340,7 @@ test("anti-injection: backticks round-trip verbatim via base64", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: defaultEnv([]), exitCode: 0 }]);
   const safe = "code`backtick";
   await executeTag({ tag: safe }, deps(spawnFn));
-  const payload = decodePayload(recorded[0]!.argv) as { query: string };
+  const payload = evalPayload(recorded[0]!) as { query: string };
   expect(payload.query).toBe(safe);
 });
 
@@ -357,7 +349,7 @@ test("anti-injection: Unicode + emoji round-trip verbatim via base64", async () 
   const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: defaultEnv([]), exitCode: 0 }]);
   const unicode = "漢字-emoji-🚀";
   await executeTag({ tag: unicode }, deps(spawnFn));
-  const payload = decodePayload(recorded[0]!.argv) as { query: string };
+  const payload = evalPayload(recorded[0]!) as { query: string };
   expect(payload.query).toBe(unicode);
 });
 
@@ -469,20 +461,20 @@ test("BI-034: non-ASCII tag query 'café-tag' round-trips through base64 (FR-009
   const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: defaultEnv(paths), exitCode: 0 }]);
   const result = await executeTag({ vault: "Demo", tag: "café-tag" }, deps(spawnFn));
   expect(result).toEqual({ count: 1, paths });
-  const payload = decodePayload(recorded[0]!.argv) as { query: unknown };
+  const payload = evalPayload(recorded[0]!) as { query: unknown };
   expect(payload.query).toBe("café-tag");
 });
 
 test("BI-034: non-ASCII tag query (CJK) round-trips through base64 (FR-009)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: defaultEnv([]), exitCode: 0 }]);
   await executeTag({ vault: "Demo", tag: "笔记" }, deps(spawnFn));
-  const payload = decodePayload(recorded[0]!.argv) as { query: unknown };
+  const payload = evalPayload(recorded[0]!) as { query: unknown };
   expect(payload.query).toBe("笔记");
 });
 
 test("BI-034: non-ASCII tag query (emoji) round-trips through base64 (FR-009)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: defaultEnv([]), exitCode: 0 }]);
   await executeTag({ vault: "Demo", tag: "🎉-launch" }, deps(spawnFn));
-  const payload = decodePayload(recorded[0]!.argv) as { query: unknown };
+  const payload = evalPayload(recorded[0]!) as { query: unknown };
   expect(payload.query).toBe("🎉-launch");
 });

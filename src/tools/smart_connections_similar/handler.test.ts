@@ -6,18 +6,10 @@ import { executeSmartConnectionsSimilar } from "./handler.js";
 import { __resetInFlightRegistryForTests, COLD_START_PATTERN, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger, unwrapEvalCode } from "../_handler-test-fixtures.js";
+import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger, unwrapEvalCode, evalPayload } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
-}
-
-function decodePayload(argv: string[]): unknown {
-  const codeArg = argv.find((a) => a.startsWith("code="));
-  if (!codeArg) throw new Error("argv missing code= parameter");
-  const match = /atob\('([A-Za-z0-9+/=]+)'\)/.exec(codeArg);
-  if (!match) throw new Error("argv code= does not contain base64 atob(...) payload");
-  return JSON.parse(Buffer.from(match[1]!, "base64").toString("utf-8"));
 }
 
 // Input with limit:20 default applied (the handler is called with already-validated
@@ -56,7 +48,7 @@ test("specific + path + mixed block-level matches: multi-entry response with cor
   expect(argv[0]).toBe("vault=Demo");
   expect(argv[1]).toBe("eval");
   expect(argv[2]!.startsWith("code=")).toBe(true);
-  expect(decodePayload(argv)).toEqual({
+  expect(evalPayload(recorded[0]!)).toEqual({
     active: false,
     path: "Source/Note.md",
     file: null,
@@ -76,7 +68,7 @@ test("specific + file (basename): payload carries file=<basename>, path=null", a
     deps(spawnFn),
   );
   expect(result).toEqual({ count: 0, matches: [] });
-  expect(decodePayload(recorded[0]!.argv)).toEqual({
+  expect(evalPayload(recorded[0]!)).toEqual({
     active: false,
     path: null,
     file: "brief",
@@ -102,7 +94,7 @@ test("specific + path + total:true: returns {count:N, matches:[]} (US4)", async 
     deps(spawnFn),
   );
   expect(result).toEqual({ count: 7, matches: [] });
-  expect(decodePayload(recorded[0]!.argv)).toEqual({
+  expect(evalPayload(recorded[0]!)).toEqual({
     active: false,
     path: "x.md",
     file: null,
@@ -142,7 +134,7 @@ test("active + focused-file: argv has no vault= AND payload active=true (US2)", 
   const argv = recorded[0]!.argv;
   expect(argv.some((a) => a.startsWith("vault="))).toBe(false);
   expect(argv[0]).toBe("eval");
-  expect(decodePayload(argv)).toEqual({
+  expect(evalPayload(recorded[0]!)).toEqual({
     active: true,
     path: null,
     file: null,
@@ -162,7 +154,7 @@ test("active + total:true: count-only response (US4)", async () => {
     deps(spawnFn),
   );
   expect(result).toEqual({ count: 12, matches: [] });
-  expect(decodePayload(recorded[0]!.argv)).toEqual({
+  expect(evalPayload(recorded[0]!)).toEqual({
     active: true,
     path: null,
     file: null,
@@ -441,7 +433,7 @@ test("limit:5: payload carries limit:5 (FR-006 / SC-017)", async () => {
     deps(spawnFn),
   );
   expect(result.matches.length).toBe(5);
-  const payload = decodePayload(recorded[0]!.argv) as { limit: number };
+  const payload = evalPayload(recorded[0]!) as { limit: number };
   expect(payload.limit).toBe(5);
 });
 
@@ -455,7 +447,7 @@ test("limit:100 (upper boundary): payload carries limit:100", async () => {
     { target_mode: "specific", vault: "Demo", path: "x.md", limit: 100 },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { limit: number };
+  const payload = evalPayload(recorded[0]!) as { limit: number };
   expect(payload.limit).toBe(100);
 });
 
@@ -849,7 +841,7 @@ test("R6 anti-injection: base64 payload round-trips verbatim incl. hostile bytes
   expect(codeArg).not.toContain(hostilePath); // raw path never in source
   const match = /atob\('([A-Za-z0-9+/=]+)'\)/.exec(codeArg);
   expect(match).not.toBeNull();
-  const payload = JSON.parse(Buffer.from(match![1]!, "base64").toString("utf-8"));
+  const payload = evalPayload(recorded[0]!);
   expect(payload).toEqual({
     active: false,
     path: hostilePath,
@@ -948,7 +940,7 @@ test("BI-034: non-ASCII path 'café-target.md' round-trips through base64 (FR-00
     { target_mode: "specific", vault: "Demo", path: "Sandbox/unicode/café-target.md", limit: defaultLimit },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { path: unknown };
+  const payload = evalPayload(recorded[0]!) as { path: unknown };
   expect(payload.path).toBe("Sandbox/unicode/café-target.md");
 });
 
@@ -961,6 +953,6 @@ test("BI-034: non-ASCII file wikilink (CJK) round-trips through base64 (FR-009)"
     { target_mode: "specific", vault: "Demo", file: "笔记", limit: defaultLimit },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { file: unknown };
+  const payload = evalPayload(recorded[0]!) as { file: unknown };
   expect(payload.file).toBe("笔记");
 });

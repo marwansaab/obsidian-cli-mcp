@@ -5,18 +5,10 @@ import { executeReadHeading } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, makeQueuedSpawn, silentLogger, unwrapEvalCode } from "../_handler-test-fixtures.js";
+import { captureRejection, makeQueuedSpawn, silentLogger, unwrapEvalCode, evalPayload } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
-}
-
-function decodePayload(argv: string[]): unknown {
-  const codeArg = argv.find((a) => a.startsWith("code="));
-  if (!codeArg) throw new Error("argv missing code= parameter");
-  const match = /atob\('([A-Za-z0-9+/=]+)'\)/.exec(codeArg);
-  if (!match) throw new Error("argv code= does not contain base64 atob(...) payload");
-  return JSON.parse(Buffer.from(match[1]!, "base64").toString("utf-8"));
 }
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -37,7 +29,7 @@ test("specific + path + 2-segment heading: returns body verbatim (US1 AC#1)", as
   expect(argv[0]).toBe("vault=Demo");
   expect(argv[1]).toBe("eval");
   expect(argv[2]!.startsWith("code=")).toBe(true);
-  expect(decodePayload(argv)).toEqual({
+  expect(evalPayload(recorded[0]!)).toEqual({
     active: false,
     path: "x.md",
     file: null,
@@ -60,7 +52,7 @@ test("specific + path + 3-segment heading: payload segments preserve nesting (US
     deps(spawnFn),
   );
   expect(result).toEqual({ content: "Use lowercase.\n" });
-  const payload = decodePayload(recorded[0]!.argv) as { segments: unknown };
+  const payload = evalPayload(recorded[0]!) as { segments: unknown };
   expect(payload.segments).toEqual(["Best Practices", "Naming", "Casing"]);
 });
 
@@ -74,7 +66,7 @@ test("specific + file (wikilink): payload carries file=<wikilink>, path=null", a
     deps(spawnFn),
   );
   expect(result).toEqual({ content: "x" });
-  expect(decodePayload(recorded[0]!.argv)).toEqual({
+  expect(evalPayload(recorded[0]!)).toEqual({
     active: false,
     path: null,
     file: "best-practices",
@@ -95,7 +87,7 @@ test("active mode: argv has no vault= AND payload active=true (US2 AC#1)", async
   const argv = recorded[0]!.argv;
   expect(argv.some((a) => a.startsWith("vault="))).toBe(false);
   expect(argv[0]).toBe("eval");
-  expect(decodePayload(argv)).toEqual({
+  expect(evalPayload(recorded[0]!)).toEqual({
     active: true,
     path: null,
     file: null,
@@ -217,7 +209,7 @@ test("closing-ATX segment: payload segments preserve text verbatim (FR-028)", as
     },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { segments: string[] };
+  const payload = evalPayload(recorded[0]!) as { segments: string[] };
   expect(payload.segments).toEqual(["Outer", "Heading With Closing ATX"]);
 });
 
@@ -235,7 +227,7 @@ test("surrounding-whitespace segment: payload segments verbatim (FR-028)", async
     },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { segments: string[] };
+  const payload = evalPayload(recorded[0]!) as { segments: string[] };
   expect(payload.segments).toEqual(["Outer", "Heading With Trailing Whitespace"]);
 });
 
@@ -248,7 +240,7 @@ test("inline markdown segment survives in payload; without ** returns HEADING_NO
     { target_mode: "specific", vault: "Demo", path: "x.md", heading: "Outer::My **Bold** Heading" },
     deps(spawnA),
   );
-  const payloadA = decodePayload(recordedA[0]!.argv) as { segments: string[] };
+  const payloadA = evalPayload(recordedA[0]!) as { segments: string[] };
   expect(payloadA.segments).toEqual(["Outer", "My **Bold** Heading"]);
 
   const { spawnFn: spawnB } = makeQueuedSpawn([
@@ -277,7 +269,7 @@ test("anchor segment ^anchor-id survives in payload; without anchor returns HEAD
     { target_mode: "specific", vault: "Demo", path: "x.md", heading: "Outer::Section ^my-anchor" },
     deps(spawnA),
   );
-  const payloadA = decodePayload(recordedA[0]!.argv) as { segments: string[] };
+  const payloadA = evalPayload(recordedA[0]!) as { segments: string[] };
   expect(payloadA.segments).toEqual(["Outer", "Section ^my-anchor"]);
 
   const { spawnFn: spawnB } = makeQueuedSpawn([
@@ -509,7 +501,7 @@ test("BI-034 US1 (a): em-dash single-segment heading round-trips verbatim (FR-00
     deps(spawnFn),
   );
   expect(result).toEqual({ content: "em-dash body." });
-  const payload = decodePayload(recorded[0]!.argv) as { segments: string[] };
+  const payload = evalPayload(recorded[0]!) as { segments: string[] };
   expect(payload.segments).toEqual([heading]);
 });
 
@@ -524,7 +516,7 @@ test("BI-034 US1 (b): accented-letter single-segment heading round-trips verbati
     deps(spawnFn),
   );
   expect(result).toEqual({ content: "accented body." });
-  const payload = decodePayload(recorded[0]!.argv) as { segments: string[] };
+  const payload = evalPayload(recorded[0]!) as { segments: string[] };
   expect(payload.segments).toEqual([heading]);
 });
 
@@ -539,7 +531,7 @@ test("BI-034 US1 (c): CJK single-segment heading round-trips verbatim (FR-009)",
     deps(spawnFn),
   );
   expect(result).toEqual({ content: "cjk body." });
-  const payload = decodePayload(recorded[0]!.argv) as { segments: string[] };
+  const payload = evalPayload(recorded[0]!) as { segments: string[] };
   expect(payload.segments).toEqual([heading]);
 });
 
@@ -554,7 +546,7 @@ test("BI-034 US1 (d): emoji single-segment heading round-trips verbatim (FR-009)
     deps(spawnFn),
   );
   expect(result).toEqual({ content: "emoji body." });
-  const payload = decodePayload(recorded[0]!.argv) as { segments: string[] };
+  const payload = evalPayload(recorded[0]!) as { segments: string[] };
   expect(payload.segments).toEqual([heading]);
 });
 
@@ -572,7 +564,7 @@ test("BI-034 US1 (e): nested ASCII-then-non-ASCII path round-trips verbatim (FR-
     },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { segments: string[] };
+  const payload = evalPayload(recorded[0]!) as { segments: string[] };
   expect(payload.segments).toEqual(["Outer", "café — naïve"]);
 });
 
@@ -596,7 +588,7 @@ test("R6 anti-injection: hostile heading segments survive base64 round-trip exac
   const match = /atob\('([A-Za-z0-9+/=]+)'\)/.exec(codeArg);
   expect(match).not.toBeNull();
   expect(/^[A-Za-z0-9+/=]+$/.test(match![1]!)).toBe(true);
-  const payload = JSON.parse(Buffer.from(match![1]!, "base64").toString("utf-8")) as {
+  const payload = evalPayload(recorded[0]!) as {
     segments: unknown;
   };
   expect(payload.segments).toEqual(["Outer", 'Inner"); doSomething(); //']);

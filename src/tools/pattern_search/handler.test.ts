@@ -6,18 +6,10 @@ import { executePatternSearch } from "./handler.js";
 import { __resetInFlightRegistryForTests, COLD_START_PATTERN, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger, evalPayload } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
-}
-
-function decodePayload(argv: string[]): unknown {
-  const codeArg = argv.find((a) => a.startsWith("code="));
-  if (!codeArg) throw new Error("argv missing code= parameter");
-  const match = /atob\('([A-Za-z0-9+/=]+)'\)/.exec(codeArg);
-  if (!match) throw new Error("argv code= does not contain base64 atob(...) payload");
-  return JSON.parse(Buffer.from(match[1]!, "base64").toString("utf-8"));
 }
 
 interface OkEnv {
@@ -182,7 +174,7 @@ test("US1 (11) explicit limit:50 — decoded payload carries limit:50; truncated
   );
   expect(r.count).toBe(50);
   expect(r.truncated).toBe(true);
-  const payload = decodePayload(recorded[0]!.argv) as { limit: number };
+  const payload = evalPayload(recorded[0]!) as { limit: number };
   expect(payload.limit).toBe(50);
 });
 
@@ -311,7 +303,7 @@ test("US2 (18) folder happy: payload carries folder verbatim", async () => {
     { pattern: "x", folder: "Projects", vault: "Demo" },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { folder: string };
+  const payload = evalPayload(recorded[0]!) as { folder: string };
   expect(payload.folder).toBe("Projects");
 });
 
@@ -324,7 +316,7 @@ test("US2 (19) folder '/Projects/' → payload carries 'Projects'", async () => 
     { pattern: "x", folder: "/Projects/", vault: "Demo" },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { folder: string };
+  const payload = evalPayload(recorded[0]!) as { folder: string };
   expect(payload.folder).toBe("Projects");
 });
 
@@ -337,7 +329,7 @@ test("US2 (20) folder '/' → payload carries folder:null (whole-vault scan)", a
     { pattern: "x", folder: "/", vault: "Demo" },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { folder: unknown };
+  const payload = evalPayload(recorded[0]!) as { folder: unknown };
   expect(payload.folder).toBeNull();
 });
 
@@ -368,7 +360,7 @@ test("US3 (22) default omitted → payload carries case_sensitive:true", async (
     { stdout: okEnv({ count: 0, matches: [] }), exitCode: 0 },
   ]);
   await executePatternSearch({ pattern: "x", vault: "Demo" }, deps(spawnFn));
-  const payload = decodePayload(recorded[0]!.argv) as { case_sensitive: boolean };
+  const payload = evalPayload(recorded[0]!) as { case_sensitive: boolean };
   expect(payload.case_sensitive).toBe(true);
 });
 
@@ -381,7 +373,7 @@ test("US3 (23) explicit case_sensitive:true → payload carries true", async () 
     { pattern: "x", case_sensitive: true, vault: "Demo" },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { case_sensitive: boolean };
+  const payload = evalPayload(recorded[0]!) as { case_sensitive: boolean };
   expect(payload.case_sensitive).toBe(true);
 });
 
@@ -394,7 +386,7 @@ test("US3 (24) explicit case_sensitive:false → payload carries false", async (
     { pattern: "x", case_sensitive: false, vault: "Demo" },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { case_sensitive: boolean };
+  const payload = evalPayload(recorded[0]!) as { case_sensitive: boolean };
   expect(payload.case_sensitive).toBe(false);
 });
 
@@ -430,7 +422,7 @@ test("R12 (25) anti-injection: caller-supplied values appear ONLY inside decoded
   expect(codeArg).toContain("(async()=>{");
   expect(codeArg).toContain("})()");
   // Decoded payload carries the values verbatim
-  const payload = decodePayload(argv) as Record<string, unknown>;
+  const payload = evalPayload(recorded[0]!) as Record<string, unknown>;
   expect(payload).toEqual({
     pattern: "});malicious()/*",
     folder: "Projects",
@@ -516,7 +508,7 @@ test("C4 (32) valid-folder-empty: payload carries folder, response is empty succ
   );
   expect(r).toEqual({ count: 0, matches: [] });
   expect(r).not.toHaveProperty("truncated");
-  const payload = decodePayload(recorded[0]!.argv) as { folder: string };
+  const payload = evalPayload(recorded[0]!) as { folder: string };
   expect(payload.folder).toBe("EmptyDir");
 });
 

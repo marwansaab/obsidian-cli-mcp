@@ -15,7 +15,7 @@ import { executeOpenFile } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, makeQueuedSpawn, silentLogger, type StubResponse, unwrapEvalCode } from "../_handler-test-fixtures.js";
+import { captureRejection, makeQueuedSpawn, silentLogger, type StubResponse, unwrapEvalCode, evalPayload } from "../_handler-test-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -46,14 +46,6 @@ function deps(
   return { logger: silentLogger(), queue: createQueue(), vaultRegistry, spawnFn, env };
 }
 
-function decodePayload(argv: string[]): Record<string, unknown> {
-  const codeArg = argv.find((a) => a.startsWith("code="));
-  if (!codeArg) throw new Error("argv missing code= parameter");
-  const match = /atob\('([A-Za-z0-9+/=]+)'\)/.exec(codeArg);
-  if (!match) throw new Error("argv code= does not contain base64 atob(...) payload");
-  return JSON.parse(Buffer.from(match[1]!, "base64").toString("utf-8")) as Record<string, unknown>;
-}
-
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
 
@@ -82,12 +74,12 @@ test("happy path by path: returns { opened, vault, new_tab, placement }; specifi
   expect(argv[0]).toBe("vault=Work");
   expect(argv[1]).toBe("eval");
   expect(argv.includes("vault=Work")).toBe(true);
-  expect(decodePayload(argv)).toEqual({
+  expect(evalPayload(recorded[0]!)).toEqual({
     path: "Projects/Roadmap.md",
     file: null,
     new_tab: false,
   });
-  expect(decodePayload(argv)).not.toHaveProperty("expectedBase");
+  expect(evalPayload(recorded[0]!)).not.toHaveProperty("expectedBase");
 });
 
 test("happy path by file: payload encodes file set / path null; opened is the canonical path; vault echoed (US1/FR-019)", async () => {
@@ -102,7 +94,7 @@ test("happy path by file: payload encodes file set / path null; opened is the ca
     new_tab: false,
     placement: "active_tab_used",
   });
-  expect(decodePayload(recorded[0]!.argv)).toEqual({ path: null, file: "Roadmap", new_tab: false });
+  expect(evalPayload(recorded[0]!)).toEqual({ path: null, file: "Roadmap", new_tab: false });
 });
 
 test("cross-vault: the REQUESTED (unfocused/closed) vault is echoed, never a focused vault (US1-AC2)", async () => {
@@ -169,7 +161,7 @@ test("placement new_tab_created: new_tab:true → payload new_tab:true; result.p
   );
   expect(result.placement).toBe("new_tab_created");
   expect(result.new_tab).toBe(true);
-  expect(decodePayload(recorded[0]!.argv).new_tab).toBe(true);
+  expect(evalPayload(recorded[0]!).new_tab).toBe(true);
 });
 
 test("placement existing_tab_reused: already-open + new_tab:false → result.placement is existing_tab_reused (US3/FR-010)", async () => {
@@ -179,7 +171,7 @@ test("placement existing_tab_reused: already-open + new_tab:false → result.pla
   ]);
   const result = await executeOpenFile({ vault: "Work", path: "a.md" }, deps(spawnFn));
   expect(result.placement).toBe("existing_tab_reused");
-  expect(decodePayload(recorded[0]!.argv).new_tab).toBe(false);
+  expect(evalPayload(recorded[0]!).new_tab).toBe(false);
 });
 
 test("placement active_tab_used: not-open + new_tab:false → result.placement is active_tab_used (US3/FR-011)", async () => {
@@ -218,7 +210,7 @@ test("new-tab control: new_tab:true forces new_tab_created even when the file is
   ]);
   const result = await executeOpenFile({ vault: "Work", path: "a.md", new_tab: true }, deps(spawnFn));
   expect(result.placement).toBe("new_tab_created");
-  expect(decodePayload(recorded[0]!.argv).new_tab).toBe(true);
+  expect(evalPayload(recorded[0]!).new_tab).toBe(true);
 });
 
 test("new-tab control: new_tab omitted defaults to false in the payload (reuse/active per open state) (US4/FR-008)", async () => {
@@ -228,7 +220,7 @@ test("new-tab control: new_tab omitted defaults to false in the payload (reuse/a
   ]);
   const result = await executeOpenFile({ vault: "Work", path: "a.md" }, deps(spawnFn));
   expect(result.new_tab).toBe(false);
-  expect(decodePayload(recorded[0]!.argv).new_tab).toBe(false);
+  expect(evalPayload(recorded[0]!).new_tab).toBe(false);
 });
 
 // =====================================================================
@@ -406,7 +398,7 @@ test("anti-injection (R12): a hostile locator round-trips ONLY inside the base64
   await executeOpenFile({ vault: "Work", path: hostile }, deps(spawnFn));
   expect(getCount()).toBe(1);
   const argv = recorded[0]!.argv;
-  expect(decodePayload(argv).path).toBe(hostile);
+  expect(evalPayload(recorded[0]!).path).toBe(hostile);
   for (const a of argv) {
     if (a.startsWith("code=")) continue;
     expect(a.includes(hostile)).toBe(false);

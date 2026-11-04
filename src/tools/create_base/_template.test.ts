@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import { ITEM_FOLDER_TEMPLATE } from "./_template.js";
 import { runEvalTemplate } from "../_eval-template-fixtures.js";
+import { codePayload } from "../_handler-test-fixtures.js";
 import { composeEvalCode } from "../_shared.js";
 
 describe("create_base ITEM_FOLDER_TEMPLATE — frozen-string byte stability", () => {
@@ -53,7 +54,7 @@ describe("create_base composeEvalCode round-trip (anti-injection)", () => {
   it("base64-encodes { path } into the payload and fills the frozen template exactly", () => {
     const code = composeEvalCode(ITEM_FOLDER_TEMPLATE, { path: "A/B.base" });
     const match = payloadMatch(code);
-    expect(JSON.parse(Buffer.from(match[1]!, "base64").toString("utf-8"))).toEqual({
+    expect(codePayload(code)).toEqual({
       path: "A/B.base",
     });
     expect(code).toBe(ITEM_FOLDER_TEMPLATE.replace("__PAYLOAD_B64__", match[1]!));

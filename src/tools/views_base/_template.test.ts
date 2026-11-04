@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 
 import { FOCUS_BASE_TEMPLATE } from "./_template.js";
+import { codePayload } from "../_handler-test-fixtures.js";
 import { composeEvalCode } from "../_shared.js";
 
 describe("views_base FOCUS_BASE_TEMPLATE — frozen-string byte stability", () => {
@@ -41,15 +42,9 @@ describe("views_base FOCUS_BASE_TEMPLATE — frozen-string byte stability", () =
 });
 
 describe("views_base composeEvalCode round-trip (anti-injection)", () => {
-  function decodePayload(code: string): unknown {
-    const match = /atob\('([A-Za-z0-9+/=]+)'\)/.exec(code);
-    if (!match) throw new Error("composed code does not contain a base64 atob(...) payload");
-    return JSON.parse(Buffer.from(match[1]!, "base64").toString("utf-8"));
-  }
-
   it("base64-encodes { path } into the payload and fills the frozen template exactly", () => {
     const code = composeEvalCode(FOCUS_BASE_TEMPLATE, { path: "Folder/Tasks.base" });
-    expect(decodePayload(code)).toEqual({ path: "Folder/Tasks.base" });
+    expect(codePayload(code)).toEqual({ path: "Folder/Tasks.base" });
     const match = /atob\('([A-Za-z0-9+/=]+)'\)/.exec(code)!;
     expect(code).toBe(FOCUS_BASE_TEMPLATE.replace("__PAYLOAD_B64__", match[1]!));
   });
@@ -57,7 +52,7 @@ describe("views_base composeEvalCode round-trip (anti-injection)", () => {
   it("never string-interpolates a hostile locator — it round-trips verbatim in the payload only", () => {
     const hostile = 'Tricky"); doSomething(); //.base';
     const code = composeEvalCode(FOCUS_BASE_TEMPLATE, { path: hostile });
-    const payload = decodePayload(code) as { path: string };
+    const payload = codePayload(code) as { path: string };
     expect(payload.path).toBe(hostile);
     const withoutPayload = code.replace(/atob\('[A-Za-z0-9+/=]+'\)/, "atob('')");
     expect(withoutPayload.includes(hostile)).toBe(false);

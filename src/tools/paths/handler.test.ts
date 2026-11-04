@@ -13,18 +13,10 @@ import {
 } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger, unwrapEvalCode } from "../_handler-test-fixtures.js";
+import { captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger, unwrapEvalCode, evalPayload } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
-}
-
-function decodePayload(argv: string[]): unknown {
-  const codeArg = argv.find((a) => a.startsWith("code="));
-  if (!codeArg) throw new Error("argv missing code= parameter");
-  const match = /atob\('([A-Za-z0-9+/=]+)'\)/.exec(codeArg);
-  if (!match) throw new Error("argv code= does not contain base64 atob(...) payload");
-  return JSON.parse(Buffer.from(match[1]!, "base64").toString("utf-8"));
 }
 
 function okEnv(count: number, paths: string[]): string {
@@ -96,7 +88,7 @@ test("US1 I-3 dispatch shape: argv contains 'eval', vault=Demo, code= with atob"
 test("US1 I-5 base64 payload: {folder:null, depth:null, ext:null, total:false}", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: okEnv(0, []), exitCode: 0 }]);
   await executePaths({ target_mode: "specific", vault: "Demo" }, deps(spawnFn));
-  expect(decodePayload(recorded[0]!.argv)).toEqual({
+  expect(evalPayload(recorded[0]!)).toEqual({
     folder: null,
     depth: null,
     ext: null,
@@ -137,7 +129,7 @@ test("BI-034: non-ASCII folder name 'cafés' round-trips through base64 (FR-009)
     deps(spawnFn),
   );
   expect(result).toEqual({ count: 1, paths });
-  const payload = decodePayload(recorded[0]!.argv) as { folder: unknown };
+  const payload = evalPayload(recorded[0]!) as { folder: unknown };
   expect(payload.folder).toBe("Sandbox/unicode/cafés");
 });
 
@@ -147,7 +139,7 @@ test("BI-034: non-ASCII folder name (CJK) round-trips through base64 (FR-009)", 
     { target_mode: "specific", vault: "Demo", folder: "笔记" },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { folder: unknown };
+  const payload = evalPayload(recorded[0]!) as { folder: unknown };
   expect(payload.folder).toBe("笔记");
 });
 
@@ -220,7 +212,7 @@ test("US2 I-5 payload round-trip with folder='Inbox'", async () => {
     { target_mode: "specific", vault: "Demo", folder: "Inbox" },
     deps(spawnFn),
   );
-  expect(decodePayload(recorded[0]!.argv)).toEqual({
+  expect(evalPayload(recorded[0]!)).toEqual({
     folder: "Inbox",
     depth: null,
     ext: null,
@@ -280,7 +272,7 @@ test("US3 I-5 payload round-trip with depth=2", async () => {
     { target_mode: "specific", vault: "Demo", depth: 2 },
     deps(spawnFn),
   );
-  expect(decodePayload(recorded[0]!.argv)).toEqual({
+  expect(evalPayload(recorded[0]!)).toEqual({
     folder: null,
     depth: 2,
     ext: null,
@@ -326,8 +318,8 @@ test("US4 I-5 payload round-trip with ext='.md' and ext='md'", async () => {
   ]);
   await executePaths({ target_mode: "specific", vault: "Demo", ext: ".md" }, deps(spawnA));
   await executePaths({ target_mode: "specific", vault: "Demo", ext: "md" }, deps(spawnB));
-  expect((decodePayload(recA[0]!.argv) as { ext: string }).ext).toBe(".md");
-  expect((decodePayload(recB[0]!.argv) as { ext: string }).ext).toBe("md");
+  expect((evalPayload(recA[0]!) as { ext: string }).ext).toBe(".md");
+  expect((evalPayload(recB[0]!) as { ext: string }).ext).toBe("md");
 });
 
 // (T029) Ext no-match: success, not error
@@ -351,7 +343,7 @@ test("US4 ext+depth composition: round-trips verbatim", async () => {
     deps(spawnFn),
   );
   expect(result.paths).toEqual(paths);
-  expect(decodePayload(recorded[0]!.argv)).toEqual({
+  expect(evalPayload(recorded[0]!)).toEqual({
     folder: null,
     depth: 2,
     ext: "md",
@@ -482,7 +474,7 @@ test("US6 I-5 payload round-trip with total:true", async () => {
     { target_mode: "specific", vault: "Demo", total: true },
     deps(spawnFn),
   );
-  expect(decodePayload(recorded[0]!.argv)).toEqual({
+  expect(evalPayload(recorded[0]!)).toEqual({
     folder: null,
     depth: null,
     ext: null,
@@ -582,7 +574,7 @@ test("anti-injection: hostile folder content round-trips via base64 verbatim", a
   );
   const codeArg = recorded[0]!.argv.find((a) => a.startsWith("code="))!;
   expect(codeArg).not.toContain(hostile);
-  const payload = decodePayload(recorded[0]!.argv) as { folder: string };
+  const payload = evalPayload(recorded[0]!) as { folder: string };
   expect(payload.folder).toBe(hostile);
 });
 
@@ -593,7 +585,7 @@ test("anti-injection: Unicode + emoji round-trips via base64 verbatim", async ()
     { target_mode: "specific", vault: "Demo", folder: unicode },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { folder: string };
+  const payload = evalPayload(recorded[0]!) as { folder: string };
   expect(payload.folder).toBe(unicode);
 });
 

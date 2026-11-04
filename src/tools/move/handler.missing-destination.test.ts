@@ -7,6 +7,7 @@ import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
 import {
   captureRejection,
+  evalPayload,
   fileTsvResponse,
   findKv,
   focusedFileResponse,
@@ -14,8 +15,6 @@ import {
   makeStubSpawn,
   silentLogger,
   stubVaultRegistry,
-  unwrapEvalCode,
-  type SpawnRecording,
   type StubResponse,
 } from "../_handler-test-fixtures.js";
 
@@ -36,13 +35,6 @@ function enoent(root: string, sep: string, src: string, dest: string): StubRespo
 /** BI-0177: the blocked-destination lookup's answer — the first folder prefix that is a file, or null. */
 function blockerAnswer(blocker: string | null): StubResponse {
   return { stdout: `=> ${JSON.stringify({ ok: true, blocker })}\n`, exitCode: 0 };
-}
-
-/** The `folder` the lookup eval in `spawn` was sent, decoded from its base64 payload. */
-function lookupFolder(spawn: SpawnRecording): unknown {
-  const code = unwrapEvalCode(findKv(spawn.argv, "code") ?? "");
-  const b64 = /atob\('([A-Za-z0-9+/=]+)'\)/.exec(code)?.[1] ?? "";
-  return (JSON.parse(Buffer.from(b64, "base64").toString("utf-8")) as { folder: unknown }).folder;
 }
 
 const EPERM: StubResponse = {
@@ -183,7 +175,7 @@ test.each(FOLDER_ROWS)("$id: $title; 2 spawns (the move, then a blocker lookup f
   expect(recorded).toHaveLength(2);
   if (row.forwarded !== undefined) expect(recorded[0]!.argv).toContain(`to=${row.forwarded}`);
   expect(findKv(recorded[1]!.argv, "vault")).toBe("Work");
-  expect(lookupFolder(recorded[1]!)).toBe(row.folder);
+  expect(evalPayload(recorded[1]!).folder).toBe(row.folder);
   expect(calls).toHaveLength(0);
 });
 
@@ -488,7 +480,7 @@ test("B1: folder-form `to` naming an existing note (TC-00701; the ENOENT line T0
   expect(recorded).toHaveLength(2);
   expect(recorded[0]!.argv).toContain("to=Fixtures/c07/Blocker.md/MoveMe.md");
   expect(findKv(recorded[1]!.argv, "vault")).toBe("Work");
-  expect(lookupFolder(recorded[1]!)).toBe("Fixtures/c07/Blocker.md");
+  expect(evalPayload(recorded[1]!).folder).toBe("Fixtures/c07/Blocker.md");
   expect(calls).toHaveLength(0);
 });
 
@@ -505,7 +497,7 @@ test("B2: the file in the way is an ancestor of the destination folder → NOT_A
     ),
   )) as UpstreamError;
   expect(shape(err)).toEqual(notAFolder("Inbox/Note.md"));
-  expect(lookupFolder(recorded[1]!)).toBe("Inbox/Note.md/Sub");
+  expect(evalPayload(recorded[1]!).folder).toBe("Inbox/Note.md/Sub");
 });
 
 test("B3: the POSIX ENOTDIR rename line (inferred from libuv, not probed) with a file in the way → NOT_A_FOLDER, no absolute path", async () => {
@@ -619,7 +611,7 @@ test("B7: active mode → NOT_A_FOLDER; the lookup runs in the focused vault (no
   expect(shape(err)).toEqual(notAFolder("Inbox/Note.md"));
   expect(recorded).toHaveLength(3);
   expect(findKv(recorded[2]!.argv, "vault")).toBeUndefined();
-  expect(lookupFolder(recorded[2]!)).toBe("Inbox/Note.md");
+  expect(evalPayload(recorded[2]!).folder).toBe("Inbox/Note.md");
   expect(calls).toHaveLength(0);
 });
 
