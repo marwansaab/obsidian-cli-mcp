@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "generatedFromBranch": "fix/bi-0132",
-  "generatedAt": "2026-11-03",
+  "generatedFromBranch": "fix/bi-0177",
+  "generatedAt": "2026-11-04",
   "tools": [
     {
       "name": "append_note",
@@ -101,7 +101,7 @@
     },
     {
       "name": "move",
-      "descriptionFingerprint": "9df0fa86fe6ddd825b9cc805b6124a63a95e550f6965a89ccc75bf076257bbbe",
+      "descriptionFingerprint": "2573123b45642d39d1a46777865dc8dab537570673d44c29637df7644990ae76",
       "schemaFingerprint": "66cf5cefdaa3f76c25c713e587682e4154bc90c89e901d220b5dcab73699f2aa",
       "titleFingerprint": "6ecc3df6bffdd06c58cd4f6e276929e119c8f653c53f5a6a5a5e66dfa1c3fc93",
       "annotationsFingerprint": "b15393126f12ebd7533afe7d31a1beb8938a1e37d0bb2a52c382aaba4373f265",

@@ -1,4 +1,4 @@
-// Original — no upstream. move missing-destination and vault-relative failure tests (spec 090): an ENOENT rename becomes CLI_REPORTED_ERROR + details.code FOLDER_NOT_FOUND with the vault-relative folder, and every other move failure has the vault's absolute folder rewritten out (rows M1–M20 of contracts/missing-destination-contract.md).
+// Original — no upstream. move missing-destination and vault-relative failure tests (spec 090): an ENOENT rename becomes CLI_REPORTED_ERROR + details.code FOLDER_NOT_FOUND with the vault-relative folder, and every other move failure has the vault's absolute folder rewritten out (rows M1–M20 of contracts/missing-destination-contract.md). BI-0177 (rows B1–B7): a rename failure first runs the blocked-destination lookup eval; a folder prefix that is a file gives details.code NOT_A_FOLDER, and a failed lookup withholds the CLI text.
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { executeMove } from "./handler.js";
@@ -8,11 +8,14 @@ import { createQueue } from "../../queue.js";
 import {
   captureRejection,
   fileTsvResponse,
+  findKv,
   focusedFileResponse,
   makeQueuedSpawn,
   makeStubSpawn,
   silentLogger,
   stubVaultRegistry,
+  unwrapEvalCode,
+  type SpawnRecording,
   type StubResponse,
 } from "../_handler-test-fixtures.js";
 
@@ -28,6 +31,18 @@ function enoent(root: string, sep: string, src: string, dest: string): StubRespo
     stdout: `Error: ENOENT: no such file or directory, rename '${root}${sep}${src}' -> '${root}${sep}${dest}'\n`,
     exitCode: 0,
   };
+}
+
+/** BI-0177: the blocked-destination lookup's answer — the first folder prefix that is a file, or null. */
+function blockerAnswer(blocker: string | null): StubResponse {
+  return { stdout: `=> ${JSON.stringify({ ok: true, blocker })}\n`, exitCode: 0 };
+}
+
+/** The `folder` the lookup eval in `spawn` was sent, decoded from its base64 payload. */
+function lookupFolder(spawn: SpawnRecording): unknown {
+  const code = unwrapEvalCode(findKv(spawn.argv, "code") ?? "");
+  const b64 = /atob\('([A-Za-z0-9+/=]+)'\)/.exec(code)?.[1] ?? "";
+  return (JSON.parse(Buffer.from(b64, "base64").toString("utf-8")) as { folder: unknown }).folder;
 }
 
 const EPERM: StubResponse = {
@@ -140,7 +155,7 @@ const FOLDER_ROWS: FolderRow[] = [
 ];
 
 async function runRow(row: FolderRow) {
-  const { spawnFn, recorded } = makeQueuedSpawn([row.stub]);
+  const { spawnFn, recorded } = makeQueuedSpawn([row.stub, blockerAnswer(null)]);
   const { registry, calls } = recordingRegistry(WIN_ROOT);
   const err = (await captureRejection(
     executeMove(
@@ -160,13 +175,15 @@ afterEach(() => __resetInFlightRegistryForTests());
 // US1 — FOLDER_NOT_FOUND (M1–M7, M19)
 // =========================================================================
 
-test.each(FOLDER_ROWS)("$id: $title; 1 spawn, no lookup", async (row) => {
+test.each(FOLDER_ROWS)("$id: $title; 2 spawns (the move, then a blocker lookup finding no file), no registry lookup", async (row) => {
   const { err, recorded, calls } = await runRow(row);
   expect(err).toBeInstanceOf(UpstreamError);
   expect(shape(err)).toEqual(folderNotFound(row.folder));
   expect(err.cause).toBeNull();
-  expect(recorded).toHaveLength(1);
+  expect(recorded).toHaveLength(2);
   if (row.forwarded !== undefined) expect(recorded[0]!.argv).toContain(`to=${row.forwarded}`);
+  expect(findKv(recorded[1]!.argv, "vault")).toBe("Work");
+  expect(lookupFolder(recorded[1]!)).toBe(row.folder);
   expect(calls).toHaveLength(0);
 });
 
@@ -174,6 +191,7 @@ test("M5: `file` locator → FOLDER_NOT_FOUND after the name resolution; the for
   const { spawnFn, recorded } = makeQueuedSpawn([
     fileTsvResponse("Inbox/Note.md"),
     enoent(WIN_ROOT, "\\", "Inbox\\Note.md", "Archive\\Note.md"),
+    blockerAnswer(null),
   ]);
   const { registry } = recordingRegistry(WIN_ROOT);
   const err = (await captureRejection(
@@ -183,20 +201,23 @@ test("M5: `file` locator → FOLDER_NOT_FOUND after the name resolution; the for
     ),
   )) as UpstreamError;
   expect(shape(err)).toEqual(folderNotFound("Archive"));
-  expect(recorded).toHaveLength(2);
+  expect(recorded).toHaveLength(3);
   expect(recorded[1]!.argv).toContain("to=Archive/");
 });
 
-test("M6: active mode → FOLDER_NOT_FOUND, no registry lookup", async () => {
-  const { spawnFn } = makeQueuedSpawn([
+test("M6: active mode → FOLDER_NOT_FOUND, no registry lookup; the blocker lookup runs in the focused vault (no vault=)", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([
     focusedFileResponse("Inbox/Note.md", WIN_ROOT),
     enoent(WIN_ROOT, "\\", "Inbox\\Note.md", "Archive\\Note.md"),
+    blockerAnswer(null),
   ]);
   const { registry, calls } = recordingRegistry(WIN_ROOT);
   const err = (await captureRejection(
     executeMove({ target_mode: "active", to: "Archive/" }, deps(spawnFn, registry)),
   )) as UpstreamError;
   expect(shape(err)).toEqual(folderNotFound("Archive"));
+  expect(recorded).toHaveLength(3);
+  expect(findKv(recorded[2]!.argv, "vault")).toBeUndefined();
   expect(calls).toHaveLength(0);
 });
 
@@ -389,7 +410,7 @@ test("M14: a missing source keeps today's error with no details.code, unlike M1'
   expect(missingFolder.details.code).toBe("FOLDER_NOT_FOUND");
 });
 
-test("M15: an existing destination file (also what a file used as a folder gives) keeps today's error", async () => {
+test("M15: an existing destination file keeps today's error", async () => {
   const stdout = "Error: Destination file already exists!\n";
   const { spawnFn, recorded } = makeQueuedSpawn([{ stdout, exitCode: 0 }]);
   const { registry } = recordingRegistry(WIN_ROOT);
@@ -426,6 +447,179 @@ test("M16: a missing binary → CLI_BINARY_NOT_FOUND unchanged; no registry look
   )) as UpstreamError;
   expect(err.code).toBe("CLI_BINARY_NOT_FOUND");
   expect(err.details.platform).toBe(process.platform);
+  expect(calls).toHaveLength(0);
+});
+
+// =========================================================================
+// BI-0177 — a file in the way of the destination folder (B1–B7)
+// =========================================================================
+
+function notAFolder(file: string) {
+  return {
+    code: "CLI_REPORTED_ERROR",
+    message: `move: "${file}" is an existing file, where the destination needs a folder of that name. Nothing was moved. Rename or remove that file, or pick another destination, then retry the move.`,
+    details: { code: "NOT_A_FOLDER", folder: file },
+  };
+}
+
+function expectNoCreateFolderAdvice(err: UpstreamError) {
+  expect(err.message).not.toContain("does not exist");
+  expect(err.message).not.toContain("Create the folder");
+}
+
+test("B1: folder-form `to` naming an existing note (TC-00701; the ENOENT line T0 captured on Windows) → NOT_A_FOLDER naming that file; 2 spawns, no registry lookup", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    enoent(WIN_ROOT, "\\", "Fixtures\\c07\\MoveMe.md", "Fixtures\\c07\\Blocker.md\\MoveMe.md"),
+    blockerAnswer("Fixtures/c07/Blocker.md"),
+  ]);
+  const { registry, calls } = recordingRegistry(WIN_ROOT);
+  const err = (await captureRejection(
+    executeMove(
+      { target_mode: "specific", vault: "Work", path: "Fixtures/c07/MoveMe.md", to: "Fixtures/c07/Blocker.md/" },
+      deps(spawnFn, registry),
+    ),
+  )) as UpstreamError;
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect(shape(err)).toEqual(notAFolder("Fixtures/c07/Blocker.md"));
+  expect("reason" in err.details).toBe(false);
+  expect(err.cause).toBeNull();
+  expectNoCreateFolderAdvice(err);
+  expect(JSON.stringify(shape(err))).not.toMatch(/vaults|c:/i);
+  expect(recorded).toHaveLength(2);
+  expect(recorded[0]!.argv).toContain("to=Fixtures/c07/Blocker.md/MoveMe.md");
+  expect(findKv(recorded[1]!.argv, "vault")).toBe("Work");
+  expect(lookupFolder(recorded[1]!)).toBe("Fixtures/c07/Blocker.md");
+  expect(calls).toHaveLength(0);
+});
+
+test("B2: the file in the way is an ancestor of the destination folder → NOT_A_FOLDER naming the ancestor", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    enoent(WIN_ROOT, "\\", "Inbox\\Other.md", "Inbox\\Note.md\\Sub\\Other.md"),
+    blockerAnswer("Inbox/Note.md"),
+  ]);
+  const { registry } = recordingRegistry(WIN_ROOT);
+  const err = (await captureRejection(
+    executeMove(
+      { target_mode: "specific", vault: "Work", path: "Inbox/Other.md", to: "Inbox/Note.md/Sub/" },
+      deps(spawnFn, registry),
+    ),
+  )) as UpstreamError;
+  expect(shape(err)).toEqual(notAFolder("Inbox/Note.md"));
+  expect(lookupFolder(recorded[1]!)).toBe("Inbox/Note.md/Sub");
+});
+
+test("B3: the POSIX ENOTDIR rename line (inferred from libuv, not probed) with a file in the way → NOT_A_FOLDER, no absolute path", async () => {
+  const { spawnFn } = makeQueuedSpawn([
+    {
+      stdout: `Error: ENOTDIR: not a directory, rename '${POSIX_ROOT}/Fixtures/c07/MoveMe.md' -> '${POSIX_ROOT}/Fixtures/c07/Blocker.md/MoveMe.md'\n`,
+      exitCode: 0,
+    },
+    blockerAnswer("Fixtures/c07/Blocker.md"),
+  ]);
+  const { registry, calls } = recordingRegistry(POSIX_ROOT);
+  const err = (await captureRejection(
+    executeMove(
+      { target_mode: "specific", vault: "Work", path: "Fixtures/c07/MoveMe.md", to: "Fixtures/c07/Blocker.md/" },
+      deps(spawnFn, registry),
+    ),
+  )) as UpstreamError;
+  expect(shape(err)).toEqual(notAFolder("Fixtures/c07/Blocker.md"));
+  expect(JSON.stringify(shape(err))).not.toContain("/home/u");
+  expect(calls).toHaveLength(0);
+});
+
+test("B4: ENOTDIR (inferred) with no file found is not FOLDER_NOT_FOUND → the CLI's error with the vault root rewritten out; 1 registry lookup", async () => {
+  const { spawnFn } = makeQueuedSpawn([
+    {
+      stdout: `Error: ENOTDIR: not a directory, rename '${POSIX_ROOT}/Inbox/Note.md' -> '${POSIX_ROOT}/Archive/Note.md'\n`,
+      exitCode: 0,
+    },
+    blockerAnswer(null),
+  ]);
+  const { registry, calls } = recordingRegistry(POSIX_ROOT);
+  const err = (await captureRejection(
+    executeMove(
+      { target_mode: "specific", vault: "Work", path: "Inbox/Note.md", to: "Archive/" },
+      deps(spawnFn, registry),
+    ),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details.code).toBeUndefined();
+  expect(err.details.message).toBe("Error: ENOTDIR: not a directory, rename 'Inbox/Note.md' -> 'Archive/Note.md'");
+  expect(calls).toEqual(["Work"]);
+});
+
+test.each([
+  {
+    id: "B5a",
+    title: "the lookup eval exits non-zero",
+    lookup: { stderr: "boom\n", exitCode: 1 } as StubResponse,
+    lookupCode: "CLI_NON_ZERO_EXIT",
+  },
+  {
+    id: "B5b",
+    title: "the lookup answer cannot be parsed",
+    lookup: { stdout: "=> not-json{\n", exitCode: 0 } as StubResponse,
+    lookupCode: "CLI_REPORTED_ERROR",
+  },
+  {
+    id: "B5c",
+    title: "the lookup answer has the wrong shape",
+    lookup: { stdout: '=> {"ok":true}\n', exitCode: 0 } as StubResponse,
+    lookupCode: "CLI_REPORTED_ERROR",
+  },
+])("$id: $title → not FOLDER_NOT_FOUND: the CLI text is withheld, the move's code kept, the lookup failure as cause", async ({ lookup, lookupCode }) => {
+  const { spawnFn } = makeQueuedSpawn([enoent(WIN_ROOT, "\\", "Inbox\\Note.md", "Archive\\Note.md"), lookup]);
+  const { registry, calls } = recordingRegistry(WIN_ROOT);
+  const err = (await captureRejection(
+    executeMove(
+      { target_mode: "specific", vault: "Work", path: "Inbox/Note.md", to: "Archive/" },
+      deps(spawnFn, registry),
+    ),
+  )) as UpstreamError;
+  expect(shape(err)).toEqual({
+    code: "CLI_REPORTED_ERROR",
+    message: `move: moving "Inbox/Note.md" to "Archive/Note.md" failed with CLI_REPORTED_ERROR, and the destination folder could not be checked (${lookupCode}), so the command-line output is withheld to keep absolute paths out of this error. Retry the move.`,
+    details: { source: "Inbox/Note.md", destination: "Archive/Note.md" },
+  });
+  expect(err.cause).toBeInstanceOf(UpstreamError);
+  expect((err.cause as UpstreamError).code).toBe(lookupCode);
+  const json = JSON.stringify(shape(err));
+  expect(json).not.toMatch(/Vaults/);
+  expect(json).not.toMatch(/ENOENT/);
+  expect(calls).toHaveLength(0);
+});
+
+test("B6: a full-path `to` through an existing file → NOT_A_FOLDER; to= forwarded as given", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    enoent(WIN_ROOT, "\\", "Inbox\\Other.md", "Inbox\\Note.md\\Renamed.md"),
+    blockerAnswer("Inbox/Note.md"),
+  ]);
+  const { registry } = recordingRegistry(WIN_ROOT);
+  const err = (await captureRejection(
+    executeMove(
+      { target_mode: "specific", vault: "Work", path: "Inbox/Other.md", to: "Inbox/Note.md/Renamed.md" },
+      deps(spawnFn, registry),
+    ),
+  )) as UpstreamError;
+  expect(shape(err)).toEqual(notAFolder("Inbox/Note.md"));
+  expect(recorded[0]!.argv).toContain("to=Inbox/Note.md/Renamed.md");
+});
+
+test("B7: active mode → NOT_A_FOLDER; the lookup runs in the focused vault (no vault=), no registry lookup", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    focusedFileResponse("Inbox/Other.md", WIN_ROOT),
+    enoent(WIN_ROOT, "\\", "Inbox\\Other.md", "Inbox\\Note.md\\Other.md"),
+    blockerAnswer("Inbox/Note.md"),
+  ]);
+  const { registry, calls } = recordingRegistry(WIN_ROOT);
+  const err = (await captureRejection(
+    executeMove({ target_mode: "active", to: "Inbox/Note.md/" }, deps(spawnFn, registry)),
+  )) as UpstreamError;
+  expect(shape(err)).toEqual(notAFolder("Inbox/Note.md"));
+  expect(recorded).toHaveLength(3);
+  expect(findKv(recorded[2]!.argv, "vault")).toBeUndefined();
+  expect(lookupFolder(recorded[2]!)).toBe("Inbox/Note.md");
   expect(calls).toHaveLength(0);
 });
 
