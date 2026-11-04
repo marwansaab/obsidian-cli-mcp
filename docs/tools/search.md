@@ -41,7 +41,7 @@ This tool is **vault-scoped** — there is no `target_mode` discriminator, no `f
 | `query` | string | YES | length 1..1000, non-empty post-trim |
 | `folder` | string | OPTIONAL | length ≥ 1; leading/trailing `/` stripped wrapper-side |
 | `limit` | integer | OPTIONAL | inclusive 1..10000; defaults to implicit 1000 cap |
-| `case_sensitive` | boolean | OPTIONAL | defaults to `false` (upstream case-insensitive ASCII-fold) |
+| `case_sensitive` | boolean | OPTIONAL | defaults to `false` (upstream case-insensitive, accented letters included) |
 | `context_lines` | boolean | OPTIONAL | **deprecated — prefer [`context_search`](./context_search.md).** Defaults to `false` |
 | `vault` | string | OPTIONAL | length ≥ 1; routes to focused vault when omitted |
 
@@ -50,9 +50,9 @@ This tool is **vault-scoped** — there is no `target_mode` discriminator, no `f
 - **`query`** — phrase-matched as a single literal substring. Internal whitespace preserved verbatim — `"foo bar"` matches `foo bar` but not `foobar` or `foo  bar`. Empty / whitespace-only rejected. The whole query is one literal phrase: its words must appear together, in order, with the same spacing. It matches anywhere its characters occur, including part-way through a word: `ead170` finds `lead170`, `TC-0078` finds `TC-00783`, and `pha bet` finds `alpha beta`. Characters that mean something in Obsidian's own search box (double quotes, a leading `-`, `OR`, parentheses, square brackets, `tag:` / `path:` / `file:`-style prefixes, `/…/`, `*`, `\`) are matched as ordinary text; nothing needs escaping.
 - **`folder`** — vault-relative folder prefix; leading/trailing `/` stripped. `folder: "/"` alone normalises to empty (unscoped). Case-sensitive segment-boundary match enforced by upstream — `folder=Projects` does NOT match `projects/`.
 - **`limit`** — caps the returned array. Implicit cap is 1000.
-- **`case_sensitive`** — when `true`, upstream's `case` flag is set; otherwise ASCII-fold case-insensitive. Folding is ASCII-only — `É` does NOT match `é`.
+- **`case_sensitive`** — when `true`, upstream's `case` flag is set; otherwise case-insensitive, accented letters included — `CAFÉ` matches `café`.
 - **`context_lines`** — **deprecated.** When `true`, routes to `obsidian search:context` and returns line-level matches; otherwise routes to `obsidian search` and returns paths only. For per-line context, prefer [`context_search`](./context_search.md).
-- **`vault`** — the vault display name. Unknown vault → `CLI_REPORTED_ERROR` with `details.code: "VAULT_NOT_FOUND"`.
+- **`vault`** — the vault display name. Unknown vault → `CLI_REPORTED_ERROR` with message and `details.message` `"Vault not found."` (no `details.code`).
 
 ## Output shape
 
@@ -107,7 +107,7 @@ The wrapper does **not** forward your `limit` to upstream — it requests the en
 
 `"No matches found."` on upstream stdout returns the empty envelope — `{ count: 0, paths: [] }` in default mode or `{ count: 0, matches: [] }` in line mode. **Never** an error.
 
-## Worked examples
+## Examples — Worked examples
 
 ### Example 1 — Minimal default-mode call
 
@@ -190,7 +190,7 @@ Only files whose text contains an exact-case "Welcome" appear.
 { "name": "search", "arguments": { "query": "alpha", "vault": "ResearchVault" } }
 ```
 
-Routes to the named vault; an unknown vault surfaces as `CLI_REPORTED_ERROR(VAULT_NOT_FOUND)`.
+Routes to the named vault; an unknown vault surfaces as `CLI_REPORTED_ERROR` with `details.message: "Vault not found."`.
 
 ### Example 7 — Validation rejection
 
@@ -210,12 +210,12 @@ Whitespace-only `query` fails the schema:
 }
 ```
 
-## Error roster
+## Errors — Error roster
 
 | Code | When | Recovery |
 |------|------|----------|
 | `VALIDATION_ERROR` | Input failed the schema (missing / empty / whitespace-only / oversize `query`; non-integer or out-of-range `limit`; empty `vault` / `folder`; unknown top-level key). | Retry with corrected input. `details.issues` carries per-issue zod context. |
-| `CLI_REPORTED_ERROR` | (a) Upstream stdout was not JSON AND not the zero-match sentinel (`details.stage: "json-parse"`); (b) CLI JSON failed wire-schema parse (`details.stage: "wire-parse"`); (c) unknown vault (`details.code: "VAULT_NOT_FOUND"`). | (a)+(b) investigate as an upstream-contract regression; (c) supply a valid vault name. |
+| `CLI_REPORTED_ERROR` | (a) Upstream stdout was not JSON AND not the zero-match sentinel (`details.stage: "json-parse"`); (b) CLI JSON failed wire-schema parse (`details.stage: "wire-parse"`); (c) unknown vault (`details.message: "Vault not found."`, no `details.code`). | (a)+(b) investigate as an upstream-contract regression; (c) supply a valid vault name. |
 | `CLI_NON_ZERO_EXIT` | Output-cap kill on extreme result sets. | Reduce scope with `folder` or a narrower `query` (lowering `limit` does not reduce upstream output bytes). |
 | `CLI_BINARY_NOT_FOUND` | The `obsidian` CLI binary is not on `PATH` and `OBSIDIAN_BIN` was unset/invalid. | Operator-side: install the Obsidian CLI, OR set `OBSIDIAN_BIN`. |
 | `CLI_TIMEOUT` | Exceeded the 10-second timeout. | Reduce scope. |
@@ -243,9 +243,9 @@ Upstream natively restricts to `.md`; the wrapper defensively re-filters via `en
 
 `folder=Projects` does NOT match `projects/`. This is not affected by the `case_sensitive` flag (which governs the query text, not the folder filter).
 
-### Case-insensitive mode is ASCII-fold only
+### Case-insensitive mode folds accented letters too
 
-When `case_sensitive: false` (the default), folding is ASCII-only — Latin-1 accented characters are NOT case-folded against each other. `É` in the query does NOT match `é` in the body. Use `case_sensitive: true` when exact-case matching across non-ASCII is required.
+When `case_sensitive: false` (the default), matching ignores case for accented letters as well as ASCII ones: `CAFÉ CRÈME` in the query matches `café crème` in the body (observed live, spec 087 research F7 and BI-0174). Use `case_sensitive: true` when the case must match exactly; then `CAFÉ` does not match `café`.
 
 ## Inherited limitations
 

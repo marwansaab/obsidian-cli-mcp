@@ -261,14 +261,39 @@ PR #91, see [typed results](#typed-results-outputschema-and-structuredcontent)).
    The generic input envelope is `message: "<tool> input failed schema
    validation"` with `details.issues`, each issue cut to its `path`,
    `message` and `code` by `validationIssues` (`src/tools/_register.ts`), so a
-   zod issue's `params` never reach the caller. Three tools pass a
-   `mapValidationError` to say more: `prepend`, `find_and_replace` and, since
-   PR #115, `create_base`. Since that PR a mapper may return `undefined` for
-   the failures it does not recognise, and `registerTool` sends the generic
-   envelope for them. The PR #115 review argued for that: the first version
-   of `create_base`'s mapper hand-copied the fallback, the fourth copy in the
-   tree. `create_base`'s mapper now uses both seams; `prepend` and
-   `find_and_replace` still copy the fallback
+   zod issue's `params` never reach the caller. A tool passes a
+   `mapValidationError` to say more. Until PR #142 three did: `prepend`,
+   `find_and_replace` and, since PR #115, `create_base`. Since that PR a
+   mapper may return `undefined` for the failures it does not recognise, and
+   `registerTool` sends the generic envelope for them. The PR #115 review
+   argued for that: the first version of `create_base`'s mapper hand-copied
+   the fallback, the fourth copy in the tree.
+
+   PR #142 (BI-0174, owner ruling Q1 = C) added five more, because their help
+   pages promised a `details.code` the generic envelope dropped. The lifts
+   live in one leaf, `src/tools/_validation-details.ts`, which imports only
+   `validationIssues` from `_register.ts` and a `_shared.ts` type and is
+   imported downward by tool registrations:
+
+   | Lift | What it returns | Tools |
+   | --- | --- | --- |
+   | `liftSubCodedIssue` | the first custom issue whose ADR-015 `params` carry a `code`: every param into `details`, that issue's message as `message` | `patch_heading` (`INVALID_HEADING_PATH`, `EMPTY_CONTENT`), `patch_block` (`INVALID_BLOCK_ID`), `query_base` (`INVALID_BASE_PATH`, `INVALID_VIEW_NAME`) |
+   | `liftSubCodedIssueKeys(keys)` | the same, keeping only the named params | `create_base` (`code`, `reason`, `field`) |
+   | `liftEmptyContent` | a `too_small` on `content` as `details.code: "CONTENT_EMPTY"` | `append_note`, `prepend` |
+
+   Every lift keeps `details.issues` beside the lifted keys, so a caller that
+   reads `details.issues[0]` is unaffected, and returns `undefined` for any
+   other failure. `views_base` was left on the generic envelope on purpose:
+   its page already described that shape
+   ([ADR-073](decisions/ADR-073-validation-sub-codes-are-lifted-only-where-the-help-page-promises-them.md)).
+   `create_base` keeps a key filter because `liftSubCodedIssue` copies every
+   param (the `patch_heading` page promises `segment_index` and
+   `value_length`), which would have added `value` / `value_length` to its
+   errors. It was first left with its own copy of the loop; the PR #142
+   code-quality review (finding F2) folded it into `liftSubCodedIssueKeys`
+   with the same keys in the same order. `prepend`'s mapper now returns
+   `liftEmptyContent`'s answer, `undefined` included, instead of hand-copying
+   the fallback; `find_and_replace` still copies it
    ([mutate](capabilities/mutate.md#known-limits)).
 
 Since PR #90 (068 FR-019 to FR-024) a `ToolSpec` cannot be written without a
@@ -620,6 +645,18 @@ is shown, with no change to the builder. The unfiltered text is
 held under 2,000 characters by test (FR-027), and `src/server.protocol.test.ts`
 asserts that both eras receive byte-identical `instructions`.
 
+Since PR #142 (BI-0174, item 2) the file-type rule ends "Descriptions name
+exceptions.": several tools reject a wrong type under an older code
+(`NOT_MARKDOWN`, `INVALID_NOTE`, `INVALID_BASE_PATH`,
+[file types](#file-types-check-the-file-that-will-be-acted-on)), and the rule
+had read as universal. The sentence names no tool, so the line still shows
+for every tool set, which a new test pins. The text was already within ten
+characters of the cap, so two sentences were shortened to fit: the opening's
+"Each tool's description and parameters state its inputs and valid
+combinations." and the `help` rule, which lost "worked". The headroom left
+is a handful of characters; the next rule line will need a cut elsewhere or
+a deliberate change to FR-027's cap.
+
 Building the instructions is a touch on `createServer`, one of the kernel
 nodes; its return shape did not change, and `createLogger`, `createQueue` and
 `UpstreamError` did not change.
@@ -900,6 +937,21 @@ CLI's `Vault not found.` answer is not in this table: dispatch returns it as
 a success and each facade classifies it afterwards
 ([runtime spine](#runtime-spine)).
 
+Priority (b)'s message is written for the typed tools: "Open a note in the
+editor, or call this tool with `target_mode: "specific"` and an explicit
+vault/file." Two tools that reach it take neither input, `views_base`
+(open-Base mode) and `obsidian_exec`, so until PR #142 (BI-0174, item 10e)
+they advised a call the caller could not make. Since then each catches the
+error and calls `throwIfNoActiveFile(err, advice)`
+(`src/tools/_active-file.ts`, beside the cohort's `noActiveFileMessage`),
+which throws it again with the same `ERR_NO_ACTIVE_FILE` code, `cause` and
+`details` and the tool's own advice as the message; any other error passes
+through untouched. Dispatch's message did not change: rewording it once
+would have lost the `target_mode` advice for every tool that has it
+(`.specify/bugs/bi-0174/assessment.md`, Alternatives). The two rethrows were
+first written inline in each handler; the PR #142 code-quality review
+(finding F1) moved them into the shared helper.
+
 Row CD came with PR #137 (BI-0132). With Obsidian's **Settings > General >
 Advanced > Command line interface** setting off, the CLI answers every
 command on exit 0 with `Command line interface is not enabled. Please turn it
@@ -1141,7 +1193,14 @@ functions every caller shares:
   `extension`, `supported` and, where the tool names one per category, an
   `alternative` (`read` names `open_file` for attachments). A file whose
   extension is in no category is "other": the check rejects it whatever the
-  tool's list.
+  tool's list. The message ends "Nothing was changed." unless the caller
+  passes `readOnly: true`; since PR #142 (BI-0174, item 13) `read` and
+  `outline` do, because the sentence is meaningless for a tool that never
+  writes, and the write tools keep it. The flag stays optional, as the
+  assessment specified: the PR #142 code-quality review (finding F4) asked
+  for it to be required, and the owner kept it opt-in, since making it
+  required would have edited existing `file-type.test.ts` calls the fix had
+  no approval to change.
 - `resolveDestinationName` is the `rename` / `move` rule: no extension on the
   destination gets the source's; a different recognised extension throws the
   `reason: "type-change"` rejection with `alternative: "obsidian_exec"`. For a
@@ -1616,6 +1675,33 @@ its quoted errors match what the server returns is not tested; spec 084
 checked that once, with a probe outside the repository, and PR #115 fixed
 the pages it caught (`write_note`, `context_search`, `search`, `properties`,
 `views_base`, `patch_block`, `create_base`).
+
+That one-off check did not hold. The 0.9.0-local test run found the pages,
+descriptions and instructions disagreeing with live behaviour in 13 places
+(BI-0174): behaviour had moved in spec 072, spec 091, BI-0132 and the
+registry-based write cohort without the hand-written prose, and nothing tied
+the two together (`.specify/bugs/bi-0174/assessment.md`, Root Cause).
+PR #142 corrected the prose and added two shape guards, still not a check of
+content:
+
+- **Four standard sections.** `docs-sync.test.ts` fails unless every page
+  has H2 headings beginning `Input`, `Output`, `Errors` and `Examples`;
+  headings inside code fences do not count, and a suffix is allowed. 24 pages
+  had used their own names (TC-00586). The owner chose renaming over
+  relaxing the test case, and the old words stayed as suffixes
+  (`## Errors — Error roster`, `## Examples — Worked examples`) because six
+  tools' `index.test.ts` files assert those strings on the page body. Links
+  to the old anchors moved with them (for example, `#error-roster` became
+  `#errors--error-roster`).
+- **A 4,096-character description cap.** `src/tools/_surface.test.ts` fails
+  for any published tool description longer than 4,096 characters, the
+  length at which Claude Code cuts a description. `find_and_replace`'s was
+  4,867, so its tail never reached an agent; PR #142 cut it to just under
+  the cap, the detail staying on its help page.
+
+Whether a quoted error is the one the server returns is still checked only
+by hand: PR #142 drove the built server over stdio against the test vault
+(`.specify/bugs/bi-0174/test.md`).
 
 ## Logging and shutdown
 

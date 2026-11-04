@@ -27,7 +27,7 @@ Cross-folder reach: when the target's basename is unique vault-wide, bare-basena
 
 Non-Markdown target locators (\`.canvas\`, \`.pdf\`, attachments) surface as \`CLI_REPORTED_ERROR\` with \`details.code: "NOT_MARKDOWN"\`. Unknown vault names surface as \`CLI_REPORTED_ERROR\` with \`details.message: "Vault not found."\` (no silent routing to focused vault).
 
-Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\`, \`CLI_REPORTED_ERROR\` (with sub-discriminators \`VAULT_NOT_FOUND\` / \`FILE_NOT_FOUND\` / \`NOT_MARKDOWN\`), \`ERR_NO_ACTIVE_FILE\`, \`CLI_NON_ZERO_EXIT\`, \`CLI_BINARY_NOT_FOUND\`.`;
+Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\`, \`CLI_REPORTED_ERROR\` (with sub-discriminators \`FILE_NOT_FOUND\` / \`NOT_MARKDOWN\`; an unknown vault carries \`details.message: "Vault not found."\`), \`ERR_NO_ACTIVE_FILE\`, \`CLI_NON_ZERO_EXIT\`, \`CLI_BINARY_NOT_FOUND\`.`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

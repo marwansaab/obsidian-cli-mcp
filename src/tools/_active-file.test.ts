@@ -18,6 +18,7 @@ import {
   resolveActiveLocatorWithVault,
   resolveFileByTsv,
   requireFocusedVaultName,
+  throwIfNoActiveFile,
   type EvalDeps,
 } from "./_active-file.js";
 import { missingFolderRealpath } from "./_handler-test-fixtures.js";
@@ -346,6 +347,36 @@ describe("findFileByTsv (BI-0176)", () => {
   test("FILE_NOT_FOUND_LINE matches Obsidian's line only", () => {
     expect(FILE_NOT_FOUND_LINE.test('Error: File "Sub/Foo.md" not found.')).toBe(true);
     expect(FILE_NOT_FOUND_LINE.test('Error: Folder "Sub" not found.')).toBe(false);
+  });
+});
+
+describe("throwIfNoActiveFile (BI-0174)", () => {
+  test("rethrows ERR_NO_ACTIVE_FILE with the same code, cause and details and the given advice", () => {
+    const cause = new Error("root");
+    const dispatchErr = new UpstreamError({
+      code: "ERR_NO_ACTIVE_FILE",
+      cause,
+      details: { command: "outline", exitCode: 0 },
+      message: "dispatch advice",
+    });
+    let thrown: unknown;
+    try {
+      throwIfNoActiveFile(dispatchErr, "tool advice");
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toBeInstanceOf(UpstreamError);
+    const u = thrown as UpstreamError;
+    expect(u).not.toBe(dispatchErr);
+    expect(u.code).toBe("ERR_NO_ACTIVE_FILE");
+    expect(u.message).toBe("tool advice");
+    expect(u.cause).toBe(cause);
+    expect(u.details).toEqual({ command: "outline", exitCode: 0 });
+  });
+
+  test("returns for any other error", () => {
+    expect(() => throwIfNoActiveFile(new UpstreamError({ code: "CLI_REPORTED_ERROR", cause: null, details: {} }), "x")).not.toThrow();
+    expect(() => throwIfNoActiveFile(new Error("plain"), "x")).not.toThrow();
   });
 });
 

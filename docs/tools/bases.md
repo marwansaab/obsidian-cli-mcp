@@ -42,7 +42,7 @@ Enumerate all Obsidian Bases (`.base`) files in the vault and return their vault
 - **Closed vault**: a registered vault that is not open is opened automatically and the call returns its normal result (the first call takes longer). If it cannot be brought up, the call fails with `CLI_REPORTED_ERROR` whose `details.stdout` starts `Error: Command "bases" not found.`: open the vault in Obsidian, then call again.
 - **Unregistered name**: the call fails with `VAULT_NOT_FOUND` before the CLI runs, so another vault's Bases are never returned in its place.
 
-## Error roster
+## Errors — Error roster
 
 | Top-level `code`     | When | Recovery |
 |----------------------|------|----------|
@@ -51,7 +51,7 @@ Enumerate all Obsidian Bases (`.base`) files in the vault and return their vault
 | `VALIDATION_ERROR`   | Malformed input (e.g. unknown keys in strict mode) | Fix input shape. |
 | `UPSTREAM_TIMEOUT`   | Subprocess exceeded 10 s | Retry; investigate vault size. |
 
-## Worked examples
+## Examples — Worked examples
 
 ### Example 1 — Happy path
 

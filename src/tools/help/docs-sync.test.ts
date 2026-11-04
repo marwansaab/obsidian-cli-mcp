@@ -1,4 +1,4 @@
-// Original — no upstream. Help-docs drift guard (spec 084 FR-012): the help pages and index entries in docs/tools match the offered tools exactly, the reverse of assertToolDocsExist.
+// Original — no upstream. Help-docs drift guard (spec 084 FR-012): the help pages and index entries in docs/tools match the offered tools exactly, the reverse of assertToolDocsExist. BI-0174: every page carries the Input, Output, Errors and Examples H2 sections (TC-00586).
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -77,5 +77,33 @@ describe("help docs match the offered tools (spec 084 H1, H2)", () => {
     const indexText = await readFile(join(DOCS_DIR, "index.md"), "utf8");
 
     expect(helpDocsDrift(toolNames, pageNames, indexText)).toEqual(NO_DRIFT);
+  });
+});
+
+/** The section words every help page carries as H2 headings (TC-00586; suffixes allowed, e.g. `## Errors — Error roster`). */
+const REQUIRED_SECTIONS = ["Input", "Output", "Errors", "Examples"] as const;
+
+/** The required words a page has no `## <word>…` heading for; headings inside fenced code blocks do not count. */
+function missingSections(markdown: string): string[] {
+  const prose = markdown.replace(/^(```|~~~)[^\n]*\n[\s\S]*?^\1[^\n]*$/gm, "");
+  const headings = [...prose.matchAll(/^## (.+)$/gm)].map((m) => m[1]!);
+  return REQUIRED_SECTIONS.filter((word) => !headings.some((h) => h.startsWith(word)));
+}
+
+describe("help page sections (BI-0174, TC-00586)", () => {
+  it("self-test: a heading inside a code fence does not count, and a suffixed heading does", () => {
+    const page = ["## Input", "```", "## Output", "```", "## Errors — Error roster", "## Examples"].join("\n");
+    expect(missingSections(page)).toEqual(["Output"]);
+  });
+
+  it("every tool page has H2 headings beginning Input, Output, Errors and Examples", async () => {
+    const pageNames = await listToolPages(DOCS_DIR);
+    const missing: Record<string, string[]> = {};
+    for (const name of pageNames) {
+      const gaps = missingSections(await readFile(join(DOCS_DIR, `${name}.md`), "utf8"));
+      if (gaps.length > 0) missing[name] = gaps;
+    }
+    expect(pageNames.length).toBeGreaterThan(0);
+    expect(missing).toEqual({});
   });
 });

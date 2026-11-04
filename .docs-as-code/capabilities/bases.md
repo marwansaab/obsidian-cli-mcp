@@ -23,9 +23,18 @@ traversing or wrong-extension path fails identically everywhere
 
 What reaches the caller differs. Each sub-issue carries its ADR-015 `params`
 (`code`, `reason`, `field`), but `registerTool`'s generic envelope keeps only
-each issue's `path`, `message` and `code`. `views_base` and `query_base` use
-that envelope, so the sub-reason survives only as the message prefix
-(`INVALID_BASE_PATH/wrong-extension: …`). Since PR #115 (spec 084, FR-008,
+each issue's `path`, `message` and `code`. `views_base` uses that envelope,
+so the sub-reason survives only as the message prefix
+(`INVALID_BASE_PATH/wrong-extension: …`); its help page describes exactly
+that. `query_base` used it too until PR #142 (BI-0174, owner ruling Q1 = C),
+although its page promised `details.code`. It now lifts the first sub-coded
+issue (`INVALID_BASE_PATH` or `INVALID_VIEW_NAME`) with the shared
+`liftSubCodedIssue`: every param of that issue into `details`, its message as
+the top-level `message`, `details.issues` kept. Lifting `views_base` as well
+(option B) would have given the family one shape, but changed an error that
+already matched its documentation, which BI-0174 ruled out
+([ADR-073](../decisions/ADR-073-validation-sub-codes-are-lifted-only-where-the-help-page-promises-them.md)).
+The two tools' validation failures therefore still differ. Since PR #115 (spec 084, FR-008,
 Q1 = B) `create_base` has a `mapValidationError` that lifts the first
 sub-coded issue — `INVALID_BASE_PATH`, `INVALID_NAME` or `CONTENT_TOO_LARGE`,
 in `base_path`, `name`, `content` order — to `details.code`,
@@ -34,7 +43,11 @@ that issue's message as the top-level `message`, and keeps the full
 `details.issues` beside them. Any other validation failure, including the
 deprecated-name conflict, whose issue carries no `params`, keeps the generic
 envelope. Its help page had promised those `details` fields before the code
-returned them.
+returned them. Since PR #142 that hook is `liftSubCodedIssueKeys(["code",
+"reason", "field"])` from `src/tools/_validation-details.ts`, the same loop
+`query_base` uses with a key filter, so `create_base` still returns only
+those three keys, in the same order (PR #142 code-quality review, finding
+F2).
 
 `query_base` runs a staged pipeline before trusting the CLI:
 
@@ -58,7 +71,15 @@ it focuses that Base through `eval`, then reads its views with the CLI's
 active-Base subcommand. That works cross-vault, and the named Base wins over
 whatever was open. Without `base_path`, it reads the Base already focused in
 Obsidian. Both modes end in one `listFocusedViews` call, and one builder,
-`focusedBaseError`, makes every typed failure it raises.
+`focusedBaseError`, makes every typed failure it raises. When nothing is
+open, dispatch fails with `ERR_NO_ACTIVE_FILE`, whose message advises
+`target_mode` and vault/file, inputs `views_base` does not take. Since
+PR #142 (BI-0174) `listFocusedViews` rethrows it through the shared
+`throwIfNoActiveFile` with the same code and `details` and the advice "Open
+a Base in Obsidian, or call views_base with base_path to name one."
+([architecture](../architecture.md#error-spine)). That path was checked by
+unit tests only: a live check needs Obsidian running with no file open, and
+the owner accepted it as a residual risk (`.specify/bugs/bi-0174/test.md`).
 
 **The named Base must be in front before anything is listed** (BI-0179,
 PR #140,
@@ -374,7 +395,7 @@ These are inherited from the CLI and documented in each tool's description:
   still returns the whole report, unbounded, with no `messageLength`. Review
   of PR #111 raised this, and the owner kept `query_base` unchanged, because
   BI-0137 rules out changing it. The difference is stated in
-  [docs/tools/query_base.md](../../docs/tools/query_base.md#error-roster);
+  [docs/tools/query_base.md](../../docs/tools/query_base.md#errors--error-roster);
   bounding it is a candidate backlog item for cohort parity.
 - From PR #90 until PR #114 the `vault` field descriptions of `bases` and
   `create_base` said it is accepted but ignored by the CLI; PR #114 replaced

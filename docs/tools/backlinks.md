@@ -149,7 +149,7 @@ Entries are sorted by `source` ascending (UTF-16 code-unit lexicographic). Deter
 
 A `.md` note with no incoming references returns `{ count: 0, backlinks: [] }` in all modes. No error, no sentinel — empty is the normal observable.
 
-## Worked examples
+## Examples — Worked examples
 
 ### Example 1 — Specific mode, popular target
 
@@ -292,7 +292,7 @@ Returns the first 50 sources (UTF-16-ascending) AND signals truncation:
 }
 ```
 
-Returns `CLI_REPORTED_ERROR(stage:'envelope-error', code:'NOT_MARKDOWN')`. Use [`read`](./read.md) for non-Markdown file contents.
+Returns `CLI_REPORTED_ERROR(stage:'envelope-error', code:'NOT_MARKDOWN')`. Use [`read`](./read.md) for a canvas or Base's raw text; show an attachment or PDF with [`open_file`](./open_file.md) (`read` rejects attachments).
 
 ## Source-corpus restriction
 
@@ -314,14 +314,14 @@ Aliased wikilinks (`[[Target|Display]]`) are attributed to the resolved target, 
 
 References inside fenced or indented code blocks are EXCLUDED from the cache. A documentation note that contains only ` ```[[example-target]]``` ` does NOT appear in `example-target`'s backlinks.
 
-## Error roster
+## Errors — Error roster
 
 | Code | When | Recovery |
 |------|------|----------|
 | `VALIDATION_ERROR` | Input failed the schema (missing `target_mode`, missing `vault` in specific mode, neither `file` nor `path` in specific mode, both `file` AND `path` in specific mode, `vault`/`file`/`path` in active mode, `with_counts`/`total` non-boolean, `limit` out of `1..10000` or non-integer, unknown top-level key, `vault` empty). | Retry with corrected input. `details.issues` carries per-issue `path` + `message` + zod code. |
-| `CLI_REPORTED_ERROR` (`details.code: "VAULT_NOT_FOUND"`) | Specific mode + `vault` not registered. | Supply a registered vault display name. The wrapper does NOT silently route to the focused vault. |
+| `CLI_REPORTED_ERROR` (`details.message: "Vault not found."`) | Specific mode + `vault` not registered. The CLI answers `Vault not found.`; the error's message and `details.message` are both `Vault not found.`, with `details: { command, stdout, stderr, exitCode: 0, message }` and no `details.code` or `details.reason`. | List the registered vault names with the [`vaults`](./vaults.md) tool and call again with one of them. The wrapper does NOT silently route to the focused vault. |
 | `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "FILE_NOT_FOUND"`) | `path` does not match any file in the vault, OR `file` (basename) does not resolve. `details.detail` distinguishes (`path: <path>` vs `wikilink: <file>`). | Verify the path / basename; check for typos; confirm the vault contains the file. |
-| `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "NOT_MARKDOWN"`) | The resolved target file's extension is not `.md`. | Use [`read`](./read.md) for non-Markdown file contents. |
+| `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "NOT_MARKDOWN"`) | The resolved target file's extension is not `.md`. | Use [`read`](./read.md) for a canvas or Base's raw text; show an attachment or PDF with [`open_file`](./open_file.md) (`read` rejects attachments). |
 | `ERR_NO_ACTIVE_FILE` | `target_mode: "active"` was used but no Obsidian note is focused. | Ask the user to open a note in Obsidian, OR call again with `target_mode: "specific"` and an explicit `vault` + `file`/`path`. |
 | `CLI_REPORTED_ERROR` (`details.stage: "json-parse"` or `"envelope-parse"`) | Upstream output was unparseable or the envelope schema mismatched. `details.stdout` holds the raw eval output, whole when it is 1,000 characters or fewer and otherwise its first and last 500 characters around a `[… cut …]` line, and `details.stdoutLength` gives the raw output's full length. Lines that other Obsidian plugins print around the eval's answer are ignored, so they never cause this error on their own. | Investigate as a regression. |
 | `CLI_NON_ZERO_EXIT` | The Obsidian CLI exited with a non-zero code (typical cause: output-cap kill on pathologically large source lists exceeding the 10 MiB stdout cap). | `details.{exitCode, signal, stdout, stderr}` carry the failure context. Use `total: true` to bypass the cap-risk entirely. |

@@ -29,7 +29,7 @@ export const searchInputSchema = z
       .max(10000, "limit must be <= 10000 (FR-008 / Q3)")
       .optional()
       .describe("Maximum number of results, integer 1–10000. Default 1000."),
-    case_sensitive: z.boolean().optional().describe("Match case exactly when true. Default false (ASCII case fold)."),
+    case_sensitive: z.boolean().optional().describe("Match case exactly when true. Default false (case-insensitive, accented letters included)."),
     context_lines: z
       .boolean()
       .optional()
@@ -56,7 +56,7 @@ export const searchInputSchema = z
       "- VALIDATION_ERROR — Cowork-reachable for: missing / empty / whitespace-only / oversize `query`; non-integer `limit`; empty `vault` / `folder`.",
       "- VALIDATION_ERROR(unrecognized_keys) — *(strict-rich pathway only, per BI-0086 — Cowork strips unknown top-level keys client-side per `additionalProperties: false`, so this code never fires on Cowork)*",
       "- Out-of-range `limit` — *(strict-rich pathway only, per BI-0086 — Cowork surfaces this as MCP transport error `-32602` (Invalid Params), not as the wrapper's wrapped `VALIDATION_ERROR`)*",
-      "- CLI_REPORTED_ERROR — Cowork-reachable: (a) CLI stdout was not JSON AND not the zero-match sentinel (`details.stage: \"json-parse\"`); (b) CLI JSON failed wire-schema parse (`details.stage: \"wire-parse\"`); (c) unknown vault (`details.code: \"VAULT_NOT_FOUND\"`).",
+      "- CLI_REPORTED_ERROR — Cowork-reachable: (a) CLI stdout was not JSON AND not the zero-match sentinel (`details.stage: \"json-parse\"`); (b) CLI JSON failed wire-schema parse (`details.stage: \"wire-parse\"`); (c) unknown vault (`details.message: \"Vault not found.\"`).",
       "- CLI_NON_ZERO_EXIT — Cowork-reachable: CLI exited non-zero (typical cause: output-cap kill on extreme result sets).",
       "- CLI_BINARY_NOT_FOUND — Cowork-reachable: the obsidian CLI binary is not on PATH and OBSIDIAN_BIN was unset/invalid.",
       "- CLI_OUTPUT_TOO_LARGE — Cowork-reachable: the CLI's stdout exceeded the cli-adapter's 10 MiB output cap.",

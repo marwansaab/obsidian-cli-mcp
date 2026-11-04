@@ -74,7 +74,7 @@ Sort order: primary `score` descending, secondary `path` byte-asc, tertiary `hea
 
 `limit` is applied after this sort, to a fixed list of up to 100 candidates the plugin returns, so a smaller `limit` always returns a leading slice of a larger one: the same entries, in the same order.
 
-## Worked examples
+## Examples — Worked examples
 
 ### Example A — minimal default-mode query against focused vault
 
@@ -130,13 +130,14 @@ When `Other` is registered but its window is closed, the server brings the vault
 { "count": 3, "matches": [] }
 ```
 
-## Failure modes
+## Errors — Failure modes
 
 | Top-level             | `details.code`                   | `details.reason`      | Trigger                                                | Recovery |
 |-----------------------|----------------------------------|-----------------------|--------------------------------------------------------|----------|
 | `VALIDATION_ERROR`    | —                                | —                     | Input shape violation (query empty / whitespace-only / over 2000 chars / wrong types) | Inspect `details.issues`; for over-cap queries, summarise the query client-side. |
-| `CLI_REPORTED_ERROR`  | `VAULT_NOT_FOUND`                | `unknown` (or absent) | Named vault not in host's registry | Verify the vault name; ensure the vault is registered in Obsidian. |
+| `CLI_REPORTED_ERROR`  | —                                | —                     | Named vault not in host's registry. The CLI answers `Vault not found.`; the error's message and `details.message` are both `Vault not found.`, with `details: { command, stdout, stderr, exitCode: 0, message }` and no `details.code` or `details.reason`. Unlike the tools that check the vault list first, there is no `VAULT_NOT_FOUND` code here. | List the registered vault names with the [`vaults`](./vaults.md) tool and call again with one of them. |
 | `CLI_REPORTED_ERROR` (`details.stdout` starts `Error: Command "eval" not found.`) | —                                | —                     | **Vault unavailable.** The named vault is registered but could not be brought up after the server's automatic retry. This is a failure, never an empty result. When other plugins print output, the `Error: Command "eval" not found.` line can appear after their lines rather than at the start of `details.stdout`. | Open the vault in Obsidian, then call again. Do not retry in a loop; the server has already retried once. |
+| `CLI_REPORTED_ERROR`  | —                                | `cli-disabled`        | **Command line turned off.** Obsidian's **Command line interface** setting (Settings > General > Advanced) is off. The message is `Obsidian's command line interface is turned off. Ask the user to turn on Settings > General > Advanced > Command line interface in Obsidian, then call again.`, and `details.stdout` holds Obsidian's notice `Command line interface is not enabled. Please turn it on in Settings > General > Advanced.` | Ask the user to turn the setting on, then call again. This is a failure, never an empty result. |
 | `CLI_REPORTED_ERROR`  | `SMART_CONNECTIONS_NOT_INSTALLED`| —                     | Smart Connections plugin absent from target vault | Ask the user to install Smart Connections (by Brian Petro, ≥ v4.5.0). |
 | `CLI_REPORTED_ERROR`  | `SMART_CONNECTIONS_NOT_READY`    | `api-missing`         | `env.smart_sources.lookup` is not a function | Ask the user to update Smart Connections; the plugin's API surface drifted. |
 | `CLI_REPORTED_ERROR`  | `SMART_CONNECTIONS_NOT_READY`    | `embed-failed`        | Lookup returned `{error: <string>}` (embed model not configured, invalid API key, network failure) | Ask the user to check Smart Connections settings — embed model configuration / API key / network connectivity. |
@@ -148,7 +149,7 @@ When `Other` is registered but its window is closed, the server brings the vault
 ## Error-precedence chain (outer to inner)
 
 ```
-VAULT_NOT_FOUND(unknown)
+unknown vault (CLI_REPORTED_ERROR "Vault not found.")
   ↓
 SMART_CONNECTIONS_NOT_INSTALLED
   ↓

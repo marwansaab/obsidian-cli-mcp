@@ -60,6 +60,18 @@ spawns once and never launches Obsidian
 ([architecture](../architecture.md#error-spine),
 [ADR-069](../decisions/ADR-069-a-disabled-command-line-fails-in-dispatch-on-the-exact-notice.md)).
 
+A passed-through command that acts on the focused file, with none open,
+fails in dispatch as `ERR_NO_ACTIVE_FILE`, whose message tells the caller to
+use `target_mode: "specific"` — an input `obsidian_exec` does not have. Since
+PR #142 (BI-0174) the handler rethrows it through the shared
+`throwIfNoActiveFile` with the same code, `cause` and `details` and its own
+advice: "Open a note in Obsidian, or name the file in the command's own
+parameters (file= or path=) with vault." The blocked-command gate runs
+before the call, so the rethrow never sees a blocked command. One existing
+assertion in `handler.test.ts` was edited to pin the new message, with the
+owner's approval (BI-0174 Q2). Like `views_base`'s, this advice was checked by
+unit tests only ([architecture](../architecture.md#error-spine)).
+
 Its `eval` (when the gate below is open) is the one `eval` the server does
 not tag. Since PR #110 dispatch reads `eval` output line by line
 ([architecture](../architecture.md#error-spine)), and for an untagged call any
@@ -146,7 +158,15 @@ worked examples, error rosters and recovery hints. The server instructions'
 last rule points there.
 
 With no argument it returns `docs/tools/index.md`; with `tool_name` it returns
-`docs/tools/<tool_name>.md`.
+`docs/tools/<tool_name>.md`. Since PR #142 (BI-0174, TC-00586) every page it
+serves has H2 sections beginning `Input`, `Output`, `Errors` and
+`Examples`, in that vocabulary, so an agent can find the error roster on any
+page by the same name; `docs-sync.test.ts` enforces it
+([architecture](../architecture.md#documentation-as-part-of-the-runtime)).
+The same PR corrected the pages' quoted errors against the built server —
+among them the three shapes an unknown vault really takes, which depend on
+how the tool resolves its vault, and every unknown-vault hint now names the
+`vaults` tool instead of the `obsidian vaults` CLI command.
 
 It reads from the package's own `docs/tools/` directory, resolved relative to
 the compiled handler, so it works the same from `src/` in development and

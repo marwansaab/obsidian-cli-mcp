@@ -13,6 +13,7 @@ import {
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
 import { silentLogger } from "../_handler-test-fixtures.js";
+import { textOf } from "../_mcp-client-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 import { closedVaultNote } from "../_shared.js";
 
@@ -124,5 +125,20 @@ describe("createViewsBaseTool — descriptor", () => {
     };
     expect(payload.code).toBe("VALIDATION_ERROR");
     expect(payload.details.issues[0]!.message.startsWith("INVALID_BASE_PATH/wrong-extension")).toBe(true);
+  });
+});
+
+// BI-0174 item 7 (owner ruling Q1 = C): views_base is not lifted; it keeps registerTool's generic envelope.
+describe("createViewsBaseTool — generic validation envelope (BI-0174)", () => {
+  it("a non-.base path keeps the generic envelope, with no details.code", async () => {
+    const result = await makeTool().handler({ base_path: "x.md" });
+    expect("isError" in result && result.isError).toBe(true);
+    const payload = JSON.parse(textOf(result)) as { message: string; details: Record<string, unknown> };
+    expect(payload.message).toBe("views_base input failed schema validation");
+    expect(payload.details).toEqual({
+      issues: [
+        { path: ["base_path"], message: "INVALID_BASE_PATH/wrong-extension: base_path must end with .base", code: "custom" },
+      ],
+    });
   });
 });

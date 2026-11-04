@@ -36,7 +36,7 @@ This tool is **vault-scoped** — there is no `target_mode` discriminator, no `f
 | `query` | string | YES | length 1..1000, non-empty post-trim |
 | `folder` | string | OPTIONAL | length ≥ 1; leading/trailing `/` stripped wrapper-side |
 | `limit` | integer | OPTIONAL | inclusive 1..10000; defaults to implicit 1000 cap |
-| `case_sensitive` | boolean | OPTIONAL | defaults to `false` (upstream case-insensitive ASCII-fold) |
+| `case_sensitive` | boolean | OPTIONAL | defaults to `false` (upstream case-insensitive, accented letters included) |
 | `vault` | string | OPTIONAL | length ≥ 1; routes to focused vault when omitted |
 
 ### Per-field policy
@@ -44,7 +44,7 @@ This tool is **vault-scoped** — there is no `target_mode` discriminator, no `f
 - **`query`** — phrase-matched as a single literal substring. Internal whitespace is preserved verbatim — `"foo bar"` matches `foo bar` but not `foobar` or `foo  bar`. Empty / whitespace-only is rejected with a custom validation issue on `path: ["query"]`. The whole query is one literal phrase: its words must appear together, in order, with the same spacing. It matches anywhere its characters occur, including part-way through a word: `ead170` finds `lead170`, `TC-0078` finds `TC-00783`, and `pha bet` finds `alpha beta`. Characters that mean something in Obsidian's own search box (double quotes, a leading `-`, `OR`, parentheses, square brackets, `tag:` / `path:` / `file:`-style prefixes, `/…/`, `*`, `\`) are matched as ordinary text; nothing needs escaping.
 - **`folder`** — vault-relative folder prefix; leading/trailing `/` are stripped before forwarding. `folder: "/"` alone normalises to empty and is omitted (effectively unscoped). Recursive subtree-prefix match — `folder=Projects` matches `Projects/foo.md`, `Projects/sub/bar.md`, and `Projects/a/b/c.md`. Case-sensitive segment-boundary equality enforced by upstream — `folder=Projects` does NOT match `projects/`.
 - **`limit`** — caps the returned `matches` array (post-flatten, post-strip). The implicit cap is 1000.
-- **`case_sensitive`** — when `true`, the wrapper sets the upstream `case` flag; otherwise upstream's default insensitivity (ASCII fold only) applies. Folding is ASCII-only — `É` does NOT match `é`.
+- **`case_sensitive`** — when `true`, the wrapper sets the upstream `case` flag; otherwise upstream's default case-insensitive matching applies, accented letters included — `CAFÉ` matches `café`.
 - **`vault`** — the vault display name. Unknown vault → `CLI_REPORTED_ERROR` with `details.message: "Vault not found."`.
 
 ## Output shape
@@ -85,13 +85,13 @@ The wrapper does **not** forward your `limit` to upstream — it requests the en
 ### Zero-match handling
 
 - `"No matches found."` on upstream stdout AND `folder` was **not** supplied: returns the empty envelope `{ count: 0, matches: [] }`. **Never** an error.
-- `"No matches found."` on upstream stdout AND `folder` **was** supplied: the wrapper fires a second `obsidian folder path=<folder>` probe to distinguish "folder exists with no matches" from "folder missing". If the probe succeeds, the empty envelope is returned. If the probe raises `CLI_REPORTED_ERROR` (the dispatch classifier catches the upstream `Error: Folder "X" not found.` stdout), the error propagates verbatim.
+- `"No matches found."` on upstream stdout AND `folder` **was** supplied: the wrapper fires a second `obsidian folder path=<folder>` probe to distinguish "folder exists with no matches" from "folder missing". If the probe succeeds, the empty envelope is returned. If the probe raises `CLI_REPORTED_ERROR` (the dispatch classifier catches the upstream `Error: Folder "X" not found.` stdout), that error is returned wrapped: the top-level `message` is the generic `CLI bridge upstream error: CLI_REPORTED_ERROR`, and Obsidian's line is in `details.message`. Branch on `details.command` and `details.message`.
 
 ### Locator non-echo
 
 The response carries `count`, `matches`, and optionally `truncated` only. `vault`, `query`, `folder`, `limit`, and `case_sensitive` are never echoed in the response.
 
-## Worked examples
+## Examples — Worked examples
 
 ### Example 1 — Minimal happy path
 
@@ -178,7 +178,7 @@ Sequence:
 2. Upstream returns the zero-match sentinel `"No matches found.\n"`.
 3. Handler detects sentinel AND `folder` was supplied → fires the second-call existence probe: `obsidian folder path=DoesNotExist`.
 4. Upstream `folder` returns stdout `Error: Folder "DoesNotExist" not found.` with exit 0.
-5. The error propagates verbatim — no wrapping, no re-classification.
+5. The dispatch layer returns it as `CLI_REPORTED_ERROR` with the generic top-level message; Obsidian's line is kept in `details.message`. No re-classification.
 
 Error envelope:
 
@@ -257,11 +257,11 @@ Whitespace-only `query` fails the schema:
 }
 ```
 
-## Error roster
+## Errors — Error roster
 
 | Code | When | Recovery |
 |------|------|----------|
-| `VALIDATION_ERROR` | Input failed the schema: missing / empty / whitespace-only / oversize `query`; `limit` out of `1..10000` or non-integer; unknown top-level key; empty `vault` / `folder`. | Retry with corrected input. `details.issues` carries per-issue zod context. |
+| `VALIDATION_ERROR` | Input failed the schema: missing / empty / whitespace-only / oversize `query`; `limit` out of `1..10000` or non-integer; unknown top-level key; empty `vault` / `folder`. Clients that check the published schema themselves (Cowork) reject an out-of-range `limit` before the call with MCP transport error `-32602` (Invalid Params) instead, and strip an unknown top-level key, so neither reaches this code there. | Retry with corrected input. `details.issues` carries per-issue zod context. |
 | `CLI_REPORTED_ERROR` | (a) CLI stdout was not JSON AND not the zero-match sentinel (`details.stage: "json-parse"`); (b) CLI JSON failed wire-schema parse (`details.stage: "wire-parse"`); (c) folder-not-found (`details.message` starts `Error: Folder`); (d) unknown vault (`details.message: "Vault not found."`); (e) a matched line could not be read back (`details.code: "MATCH_LINE_UNAVAILABLE"`, `details.reason` `note-not-found` / `read-failed` / `line-changed`, with `details.path` and `details.line`); (f) the read-back call's answer was not JSON (`details.stage: "json-parse"`) or had an unexpected shape (`details.stage: "envelope-parse"`). | (a)+(b)+(f) investigate as an upstream-contract regression; (c) supply a valid folder, or use the no-`folder` form to scan the whole vault; (d) supply a valid vault name; (e) run the search again; the note changed while the search ran. |
 | `CLI_NON_ZERO_EXIT` | The Obsidian CLI exited with a non-zero code (typical cause: output-cap kill on extreme result sets). | `details.{exitCode, signal, stdout, stderr}` carry the failure context. Reduce scope with `folder` or a narrower `query` (lowering `limit` does not reduce upstream output bytes). |
 | `CLI_BINARY_NOT_FOUND` | The `obsidian` CLI binary is not on `PATH` and `OBSIDIAN_BIN` was unset/invalid. | Operator-side: install the Obsidian CLI, OR set `OBSIDIAN_BIN`. |
@@ -298,9 +298,9 @@ Each match's `text` is the matching line exactly as it is in the note, without i
 
 `folder=Projects` does NOT match `projects/`. This is not affected by the `case_sensitive` flag (which governs the query text, not the folder filter).
 
-### Case-insensitive mode is ASCII-fold only
+### Case-insensitive mode folds accented letters too
 
-When `case_sensitive: false` (the default), folding is ASCII-only — Latin-1 accented characters are NOT case-folded against each other. `É` in the query does NOT match `é` in the body. Use `case_sensitive: true` when exact-case matching across non-ASCII is required.
+When `case_sensitive: false` (the default), matching ignores case for accented letters as well as ASCII ones: `CAFÉ CRÈME` in the query matches `café crème` in the body (observed live, spec 087 research F7 and BI-0174). Use `case_sensitive: true` when the case must match exactly; then `CAFÉ` does not match `café`.
 
 ## Migration from `search` with `context_lines=true`
 

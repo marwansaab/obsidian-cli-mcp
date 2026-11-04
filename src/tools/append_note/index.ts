@@ -1,5 +1,6 @@
-// Original — no upstream. append_note tool registration per BI-044 / ADR-009 — wraps the executeAppendNote direct-fs read-modify-write handler via registerTool (ADR-006); responseFormat: "json" emits the { path, vault, bytes_written, inline } envelope on the MCP wire.
+// Original — no upstream. append_note tool registration per BI-044 / ADR-009 — wraps the executeAppendNote direct-fs read-modify-write handler via registerTool (ADR-006); responseFormat: "json" emits the { path, vault, bytes_written, inline } envelope on the MCP wire. BI-0174: a mapValidationError hook (shared liftEmptyContent) maps empty content to details.code CONTENT_EMPTY.
 import { registerTool } from "../_register.js";
+import { liftEmptyContent } from "../_validation-details.js";
 import { APPEND_NOTE_SUPPORTED, executeAppendNote, type ExecuteDeps } from "./handler.js";
 import { appendNoteInputSchema, appendNoteOutputSchema } from "./schema.js";
 import { describeSupport } from "../../file-type/file-type.js";
@@ -18,7 +19,7 @@ Separator: a newline is auto-inserted between the existing file content and your
 
 Content: preserved byte-for-byte (no trim, no normalisation, no auto-appended trailing newline — caller controls whether the file ends with a newline after the call). Must be non-empty. No wrapper-imposed size cap.
 
-Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (with \`details.code: CONTENT_EMPTY\` or \`UNSUPPORTED_FILE_TYPE\`), \`NOTE_NOT_FOUND\`, \`EXTERNAL_EDITOR_CONFLICT\` (Windows file-lock detection only), \`FS_WRITE_FAILED\`, \`PATH_ESCAPES_VAULT\`, \`VAULT_NOT_FOUND\`, \`ERR_NO_ACTIVE_FILE\`.`;
+Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (with \`details.code: CONTENT_EMPTY\` or \`UNSUPPORTED_FILE_TYPE\`; an unregistered \`vault\` carries \`details.requestedVault\` / \`knownVaults\`), \`NOTE_NOT_FOUND\`, \`EXTERNAL_EDITOR_CONFLICT\` (Windows file-lock detection only), \`FS_WRITE_FAILED\`, \`PATH_ESCAPES_VAULT\`, \`VAULT_NOT_FOUND\` (registered vault whose folder is missing, or an unlisted focused vault), \`ERR_NO_ACTIVE_FILE\`.`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 
@@ -32,5 +33,6 @@ export function createAppendNoteTool(deps: RegisterDeps): RegisteredTool {
     outputSchema: appendNoteOutputSchema,
     deps,
     handler: async (input, d) => executeAppendNote(input, d),
+    mapValidationError: liftEmptyContent,
   });
 }

@@ -19,11 +19,11 @@ Sort order: primary score descending, secondary path byte-ascending, tertiary he
 
 Plugin dependency: requires the Smart Connections plugin (by Brian Petro; minimum probed v4.5.0) to be installed AND its indexing to have completed in the target vault; otherwise surfaces SMART_CONNECTIONS_NOT_INSTALLED / SMART_CONNECTIONS_NOT_READY / SOURCE_NOT_INDEXED via CLI_REPORTED_ERROR(stage:'envelope-error').
 
-Vault states: VAULT_NOT_FOUND carries a details.reason sub-discriminator — "unknown" (vault not registered).
+Unknown vault: CLI_REPORTED_ERROR with message and details.message "Vault not found." (no details.code or reason).
 
 ${closedVaultNote("eval")}
 
-Error-precedence chain (outer-to-inner, cheapest-first): VAULT_NOT_FOUND(unknown) → SMART_CONNECTIONS_NOT_INSTALLED → NO_ACTIVE_FILE / FILE_NOT_FOUND → NOT_MARKDOWN → SMART_CONNECTIONS_NOT_READY → SOURCE_NOT_INDEXED → success.`;
+Error-precedence chain (outer-to-inner, cheapest-first): unknown vault ("Vault not found.") → SMART_CONNECTIONS_NOT_INSTALLED → NO_ACTIVE_FILE / FILE_NOT_FOUND → NOT_MARKDOWN → SMART_CONNECTIONS_NOT_READY → SOURCE_NOT_INDEXED → success.`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

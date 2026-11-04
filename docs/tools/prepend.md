@@ -65,7 +65,7 @@ The wrapper resolves the focused note via a small `obsidian eval` call. **NO opt
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `target_mode` | `"specific" \| "active"` | YES | Discriminator. |
-| `vault` | string ≥ 1 char | iff specific | Resolved against the wrapper's vault registry. Unknown vault → `VAULT_NOT_FOUND`. |
+| `vault` | string ≥ 1 char | iff specific | Resolved against the wrapper's vault registry. Unknown vault → `VALIDATION_ERROR` with `details.requestedVault` / `details.knownVaults`. |
 | `file` | string ≥ 1 char (structurally safe; no `[[` / `]]`) | XOR with `path`, iff specific | Wikilink-form bare name. A pre-flight `obsidian file` TSV resolver call canonicalises the name to a vault-relative path before the prepend lands. |
 | `path` | string ≥ 1 char (structurally safe) | XOR with `file`, iff specific | Vault-relative path. Brackets are NOT a special case here (legal in note names). |
 | `content` | string, ≥ 1 char, ≤ 3072 UTF-16 code units and ≤ 3072 UTF-8 bytes | YES | Non-empty required. Preserved byte-for-byte (no trim, no whitespace normalisation, no encoding conversion). Non-Latin text counts more heavily towards the byte limit; see *Size ceiling* for why the caps are 3072 and not larger. |
@@ -163,11 +163,11 @@ interface PrependOutput {
 - `bytes_written` is the change in the note's size in bytes caused by this write: its size after the write minus its size before, counting a note that did not exist as 0. Zero when the size did not change; negative when the note shrank. For `prepend` it is always at least 1. It exactly equals `content.length` when the content's trailing newline IS the separator, or when `inline: true` suppresses the separator. Equals `content.length + separator_bytes` (1 byte for LF, 2 for CRLF) when a separator is inserted. On an empty note or a note with only a properties block it exactly equals the content's size in bytes. To verify a write, compare `bytes_written` with the size change you intended; 0 and negative values are normal for same-size and shrinking edits by the other writers (`patch_heading`, `patch_block`, `write_note`).
 - `inline` is `false` for default calls (input `inline: false` or omitted), `true` for input `inline: true`.
 
-## Error states
+## Errors — Error states
 
 | Top-level `code` | `details.code` / `details.reason` | What triggered it | What to do |
 |---|---|---|---|
-| `VALIDATION_ERROR` | `details.code: CONTENT_EMPTY` | Empty content. | Supply non-empty content. |
+| `VALIDATION_ERROR` | `details.code: CONTENT_EMPTY` | Empty content. The top-level `message` is the schema's own text, `Too small: expected string to have >=1 characters`, and the generic `details.issues` list is kept beside `details.code`. | Supply non-empty content. |
 | `VALIDATION_ERROR` | `details.code: CONTENT_TOO_LARGE` | (no `details.reason`) Content > 3072 UTF-16 code units. | Use [`write_note`](./write_note.md) for larger payloads. See *Size ceiling*. |
 | `VALIDATION_ERROR` | `details.code: CONTENT_TOO_LARGE`, `details.reason: "bytes"` | Content within 3072 characters but over 3072 UTF-8 bytes (typically non-Latin text: Chinese, Japanese, Korean, emoji). `details` carries `contentBytes` and `maxBytes`; the message is `content exceeds maximum size of 3072 UTF-8 bytes (got N)`. Raised before Obsidian is called; nothing is changed. | Use [`write_note`](./write_note.md) for larger payloads. See *Size ceiling*. |
 | `VALIDATION_ERROR` | (Zod issue path on the offending field) | Bracket-rejection on `file`, locator-mutex (`file` AND `path`), unknown extra field, structural path safety, type mismatch on `inline`. | Read `details.issues[].message` for the field-level fix. |
@@ -179,8 +179,8 @@ interface PrependOutput {
 | `FS_WRITE_FAILED` | `details.reason: "extra-trailing-newline"` | The content landed in a note with no body (empty or properties-only), but the extra trailing line break Obsidian added could not be removed, or the note was empty and could not be read back. `details` also carries `path`, `vault` and `errno` when known. | The note holds the content plus one extra line break. Do not re-send the content. Retry once the file is free, or remove the final line break yourself. |
 | `FS_WRITE_FAILED` | `details.syscall: "open"` (no `reason`) — after the call | The content landed in a non-empty note, but the note could not be read back to check for an extra trailing line break. `details` carries `errno`, `syscall` and `path`. | Do not re-send the content. Read the note and check its end. |
 | `FS_WRITE_FAILED` | `details.syscall: "open"` (no `reason`) — before the call | The note could not be read before a default-mode call (any error other than not-found). Inline calls do not read the note first, so they never fail this way. `details` carries `errno`, `syscall` and `path`. | Nothing was changed; Obsidian was not called. Retry once the file can be read. |
-| `PATH_ESCAPES_VAULT` | — | The resolved path escapes the vault root (symlink traversal, `..` segments). | Fix the path. The path must resolve inside the vault. |
-| `VAULT_NOT_FOUND` | — | The supplied `vault` display name is not registered with the Obsidian CLI. | Recheck the vault name (case-sensitive). The user can list registered vaults with `obsidian vaults`. |
+| `PATH_ESCAPES_VAULT` | — | The resolved path escapes the vault root (symlink traversal, `..` segments). The message is the generic `CLI bridge upstream error: PATH_ESCAPES_VAULT`; `details: { vault, attemptedPath, resolvedPath }`. | Fix the path. The path must resolve inside the vault. |
+| `VALIDATION_ERROR` | `details.requestedVault`, `details.knownVaults` | The supplied `vault` display name is not registered with Obsidian. Message `Vault "<name>" is not registered with Obsidian.`; `details: { requestedVault, knownVaults }`. Nothing is read or written. | Recheck the vault name (case-sensitive) against `details.knownVaults`, or list the registered vaults with the [`vaults`](./vaults.md) tool. |
 | `CLI_REPORTED_ERROR` | `details.code: VAULT_NOT_FOUND`, `details.reason: "folder-missing"` | The vault is registered, but its folder is missing on disk (`details.vault`; no disk path in the message). Obsidian is not called; nothing is written. | Ask the user to restore the folder, or re-open the vault in Obsidian, then call again. |
 | `CLI_REPORTED_ERROR` | `details.code: VAULT_NOT_FOUND`, `details.reason: "focused-unregistered"` | Active mode, and the focused vault's folder matches no vault Obsidian lists (no disk path in the message or `details`). Obsidian's `prepend` is not called; nothing is written. | Call again in specific mode with `vault`, or ask the user to re-open the vault in Obsidian. |
 | `CLI_REPORTED_ERROR` | `details.stage: "vault-root-check"` | The vault's folder could not be checked for another reason (`details.errno`, `details.vault`). Obsidian is not called; nothing is written. | Inspect `details.errno` (for example a permission problem); fix it, then call again. |
@@ -219,6 +219,42 @@ Callers automating against multi-platform deployments must plan around this dive
 A single `prepend` invocation does not leave the note on disk in a half-written or otherwise inconsistent state at any observable instant within the wrapper's control. Atomicity is inherited from the upstream `obsidian prepend` subcommand's internal write pipeline. The one write the wrapper makes itself, removing the extra trailing line break from a note with no body, goes through an atomic temp-file-and-rename. Interrupted invocations (power loss, `kill -9`) leave on-disk state to the operating system.
 
 Two concurrent `prepend` calls against the same note resolve **last-write-wins**. Callers needing stronger guarantees coordinate externally.
+
+## Examples
+
+### Example 1 — prepend a line below the frontmatter
+
+```json
+{ "target_mode": "specific", "vault": "Work", "path": "Daily/2026-05-26.md", "content": "Lead" }
+```
+
+The note starts with a properties block followed by `# 2026-05-26`, with LF line endings. `Lead` lands after the closing `---`, and one `
+` separator is inserted before the existing first body line, so `bytes_written` is 5:
+
+```json
+{ "path": "Daily/2026-05-26.md", "vault": "Work", "bytes_written": 5, "inline": false }
+```
+
+### Example 2 — empty content is rejected
+
+```json
+{ "target_mode": "specific", "vault": "Work", "path": "Daily/2026-05-26.md", "content": "" }
+```
+
+Nothing is written. The call fails before the note is read:
+
+```json
+{
+  "code": "VALIDATION_ERROR",
+  "message": "Too small: expected string to have >=1 characters",
+  "details": {
+    "code": "CONTENT_EMPTY",
+    "issues": [
+      { "path": ["content"], "message": "Too small: expected string to have >=1 characters", "code": "too_small" }
+    ]
+  }
+}
+```
 
 ## Out of scope
 

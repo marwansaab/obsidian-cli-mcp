@@ -142,7 +142,7 @@ The `open` parameter is preserved but is now implemented via a post-write `openL
 
 The schema is strict: `{ created, path, bytes_written }` exactly, no additional keys.
 
-### Errors
+## Errors
 
 Every failure surfaces as an `UpstreamError` instance.
 
@@ -154,7 +154,7 @@ Every failure surfaces as an `UpstreamError` instance.
 | `FILE_EXISTS` | Specific mode, `overwrite: false`, target path already occupied (for a `file` name, the note it resolves to, wherever it is). | Retry with `overwrite: true` if you want create-or-replace, or pick a different path. `details: { errno: "EEXIST", path, vault }`. |
 | `CLI_REPORTED_ERROR` (`details.code: "VAULT_NOT_FOUND"`, `details.reason: "folder-missing"`) | Specific mode: the vault is registered, but its folder is missing on disk. `details: { code, reason, vault }`; no disk path in the message. | Nothing was written. Ask the user to restore the folder, or re-open the vault in Obsidian, then call again. |
 | `CLI_REPORTED_ERROR` (`details.stage: "vault-root-check"`) | The vault's folder could not be checked for another reason. `details: { stage, errno, vault }`. | Nothing was written. Inspect `details.errno` (for example a permission problem); fix it, then call again. |
-| `PATH_ESCAPES_VAULT` | Runtime canonical check: input is structurally safe but resolves outside vault root via a symlink. | Do NOT retry (security gate). `details.vault` and `details.attemptedPath` for diagnostic. Fix the path or the symlink target. |
+| `PATH_ESCAPES_VAULT` | Runtime canonical check: input is structurally safe but resolves outside vault root via a symlink. The message is the generic `CLI bridge upstream error: PATH_ESCAPES_VAULT`; `details: { vault, attemptedPath, resolvedPath }`. | Do NOT retry (security gate). `details.vault` and `details.attemptedPath` for diagnostic. Fix the path or the symlink target. |
 | `CLI_REPORTED_ERROR` (`details.code: "EXTERNAL_EDITOR_CONFLICT"`, `details.reason: "file-locked"`) | The target is held open by another program (`EBUSY` / `EPERM`, typically a Windows sharing violation on the rename that replaces the note). The code and `details` match `append_note`, `prepend`, `patch_heading` and `patch_block`. | Nothing was written; the note is unchanged. `details: { code, reason, path, errno }`, `path` vault-relative. Close the file in the other program, then retry. Since BI-0176; it was `FS_WRITE_FAILED` with the absolute disk path. |
 | `FS_WRITE_FAILED` | Generic fs failure: ENOSPC (disk full), EACCES (permissions), EROFS (read-only filesystem), EIO, etc. | `details: { errno, syscall, path }`, `path` vault-relative (since BI-0176; no absolute disk path in `details` or `message`). Agent may retry on transient errors; user action needed for permission/disk. |
 | `FS_WRITE_FAILED` (`details.syscall: "stat"`) | `overwrite: true` and the existing note's size cannot be read before the write (any error except "file not found"), so `bytes_written` cannot be measured. Raised before anything is written. | Nothing was written. `details: { errno, syscall: "stat", path }`. Fix the cause (usually permissions) and retry. |

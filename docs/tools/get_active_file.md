@@ -8,7 +8,7 @@ Report the **active file** — the note Obsidian currently has focused — so an
 - To capture the focused file's `path` and reuse it as a stable locator for a follow-up operation.
 - To branch on whether anything is active at all (`active === null`) without catching an error.
 
-## Targeting — two modes
+## Input — targeting, two modes
 
 | Mode | `vault` | Reads |
 |------|---------|-------|
@@ -113,7 +113,7 @@ With vault `A` focused and vault `B` open-but-unfocused (its active file `B-note
 
 → take `active.path` and reuse it as the `path` locator for a follow-up `read` / edit in `target_mode: "specific"` against the same file. The returned `path` is the resolved vault-relative path, usable verbatim.
 
-## Error roster
+## Errors — Error roster
 
 Every failure routes through `UpstreamError`. The no-active-file state is **not** in this table — it is `{ active: null }` success.
 

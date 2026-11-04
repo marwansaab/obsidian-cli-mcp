@@ -14,6 +14,7 @@ import {
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { textOf } from "../_mcp-client-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -151,5 +152,29 @@ describe("createPatchBlockTool — descriptor (BI-043 / ADR-005)", () => {
     expect(new Set(Object.keys(properties))).toEqual(
       new Set(["target_mode", "vault", "file", "path", "block_id", "content"]),
     );
+  });
+});
+
+// BI-0174 item 7: the registered tool lifts INVALID_BLOCK_ID's ADR-015 params into details.
+describe("createPatchBlockTool — schema-layer sub-codes in details (BI-0174)", () => {
+  async function rejected(blockId: string): Promise<{ code: string; message: string; details: Record<string, unknown> }> {
+    const result = await build().handler({ target_mode: "specific", vault: "V", path: "n.md", block_id: blockId, content: "x" });
+    expect("isError" in result && result.isError).toBe(true);
+    return JSON.parse(textOf(result));
+  }
+
+  it("empty block_id → INVALID_BLOCK_ID / empty, issues kept", async () => {
+    const payload = await rejected("");
+    expect(payload.message).toBe("block_id must not be empty");
+    expect(payload.details).toEqual({
+      code: "INVALID_BLOCK_ID",
+      reason: "empty",
+      issues: [{ path: ["block_id"], message: "block_id must not be empty", code: "custom" }],
+    });
+  });
+
+  it("a character outside the alphabet carries details.offending_index", async () => {
+    const payload = await rejected("ab_c");
+    expect(payload.details).toMatchObject({ code: "INVALID_BLOCK_ID", reason: "contains-invalid-chars", offending_index: 2 });
   });
 });

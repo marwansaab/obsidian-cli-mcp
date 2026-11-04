@@ -59,7 +59,7 @@ top-level keys are rejected (`additionalProperties: false`).
   automatically and the call returns its normal result; the first
   call takes longer. If the vault cannot be brought up, the call fails
   with the vault-unavailable error in the
-  [Error roster](#error-roster). That is a failure, never an empty
+  [Error roster](#errors--error-roster). That is a failure, never an empty
   result.
 - **`total`** — when `true`, the response is a bare integer count
   with no `paths` array surfaced (token-economical pre-flight read).
@@ -114,7 +114,7 @@ template (`out.sort()`). Parity with
 [smart_connections_similar](./smart_connections_similar.md) /
 [smart_connections_query](./smart_connections_query.md).
 
-## Worked examples
+## Examples — Worked examples
 
 ### Example 1 — Simple happy path (default mode)
 
@@ -222,7 +222,7 @@ matches the default-mode `paths.length` for the same vault state.
 Returns `{ "count": 0, "paths": [] }`. **Never an error** — the
 natural empty-result path of the JS template.
 
-## Error roster
+## Errors — Error roster
 
 All failure surfaces flow through `UpstreamError` per Constitution
 Principle IV. `tag` introduces **zero new top-level error codes** and
@@ -232,8 +232,9 @@ zero-new-codes streak).
 | Code | When | Recovery |
 |------|------|----------|
 | `VALIDATION_ERROR` | Input failed the schema (empty / whitespace-only / empty-segment / length >200 / unknown top-level key / wrong type). | Agent retries with corrected input. `details.issues` carries per-issue `path` + `message` + zod code. |
-| `CLI_REPORTED_ERROR` (details.code:"VAULT_NOT_FOUND", details.reason:"unknown") | Unknown vault — the cli-adapter's 011-R5 inspection clause fires on `Vault not found.` stdout. | Verify the vault name; ensure the vault is registered in Obsidian. |
+| `CLI_REPORTED_ERROR` (`details.message: "Vault not found."`) | Unknown vault — the cli-adapter's 011-R5 inspection clause fires on `Vault not found.` stdout. The CLI answers `Vault not found.`; the error's message and `details.message` are both `Vault not found.`, with `details: { command, stdout, stderr, exitCode: 0, message }` and no `details.code` or `details.reason`. | List the registered vault names with the [`vaults`](./vaults.md) tool and call again with one of them. |
 | `CLI_REPORTED_ERROR` (`details.stdout` starts `Error: Command "eval" not found.`) | **Vault unavailable.** The named vault is registered but could not be brought up after the server's automatic retry. This is a failure, never an empty result. When other plugins print output, the `Error: Command "eval" not found.` line can appear after their lines rather than at the start of `details.stdout`. | Open the vault in Obsidian, then call again. Do not retry in a loop; the server has already retried once. |
+| `CLI_REPORTED_ERROR` (`details.reason: "cli-disabled"`) | **Command line turned off.** Obsidian's **Command line interface** setting (Settings > General > Advanced) is off. The message is `Obsidian's command line interface is turned off. Ask the user to turn on Settings > General > Advanced > Command line interface in Obsidian, then call again.`, and `details.stdout` holds Obsidian's notice `Command line interface is not enabled. Please turn it on in Settings > General > Advanced.` | Ask the user to turn the setting on, then call again. This is a failure, never an empty result. |
 | `CLI_REPORTED_ERROR` (details.stage:"json-parse") | The eval's answer for this call is missing or is not JSON — upstream contract divergence. `details.stdout` holds the raw eval output, whole when it is 1,000 characters or fewer and otherwise its first and last 500 characters around a `[… cut …]` line, and `details.stdoutLength` gives the raw output's full length. Lines that other Obsidian plugins print around the eval's answer are ignored, so they never cause this error on their own. | Investigate as a regression. |
 | `CLI_REPORTED_ERROR` (details.stage:"envelope-parse") | Eval JSON parses but doesn't match the envelope union — upstream contract divergence. | Investigate as a regression. |
 | `CLI_REPORTED_ERROR` (details.stage:"envelope-error", details.code:`<as-emitted>`) | Reserved for future eval-template envelope-level failures (e.g. cache-not-ready). | v1 template never emits `ok:false` — investigate as a regression. |
@@ -249,7 +250,7 @@ zero-new-codes streak).
 
 The CLI's `vault=` parameter routes correctly for `eval` (verified
 live; unregistered vault names surface as `CLI_REPORTED_ERROR` with
-`details.code: "VAULT_NOT_FOUND"`, `details.reason: "unknown"` per
+`details.message: "Vault not found."` and no `details.code`, per
 the error-roster row above), but multi-vault setups still suffer
 from basename ambiguity — two vaults sharing the same display name
 are indistinguishable by the `vault=` argument.

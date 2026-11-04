@@ -204,9 +204,9 @@ The returned `path` is the vault-relative path of the focused file (or `null` wh
 | `mode` | The placement mode that was applied. |
 | `bytes_written` | Change in the note's size in bytes caused by this write: its size after the write minus its size before, counting a note that did not exist as 0. Zero when the size did not change; negative when the note shrank. To verify a write, compare `bytes_written` with the size change you intended; 0 and negative values are normal for same-size and shrinking edits. |
 
-## Error states
+## Errors — Error states
 
-Every failure routes through `UpstreamError`.
+Every failure routes through `UpstreamError`. A schema-layer rejection that carries a `details.code` (`INVALID_HEADING_PATH`, `EMPTY_CONTENT`) has the broken rule's own text as its top-level `message`, and keeps the generic `details.issues` list beside `details.code`, `details.reason` and any extra key.
 
 | Top-level `code` | `details.code` | `details.reason` | Trigger |
 |---|---|---|---|
@@ -223,7 +223,7 @@ Every failure routes through `UpstreamError`.
 | `CLI_REPORTED_ERROR` | `EXTERNAL_EDITOR_CONFLICT` | `file-locked` | OS-level `fs.rename` / `fs.writeFile` failed with `EBUSY`/`EPERM`/`EACCES`. Ask the user to save and close the file in the external editor, then retry. Carries `details.errno` and `details.path`. |
 | | | `unsaved-changes` | Reserved for forward compatibility; the wrapper never emits it today. |
 | `CLI_REPORTED_ERROR` | — | — | A `file` name matches no note. The message is Obsidian's own, `Error: File "<name>" not found.`, the same failure [`read`](./read.md) returns for that name. Nothing is read or written. Check the name, or pass the note's `path`. |
-| `PATH_ESCAPES_VAULT` | — | — | Canonical-path check detected a symlink escape. Fix the path. |
+| `PATH_ESCAPES_VAULT` | — | — | Canonical-path check detected a symlink escape. The message is the generic `CLI bridge upstream error: PATH_ESCAPES_VAULT`; `details: { vault, attemptedPath, resolvedPath }`. Fix the path. |
 | `FS_WRITE_FAILED` | — | — | Generic `fs` failure not classified as `EXTERNAL_EDITOR_CONFLICT` (e.g. `ENOSPC`, `EROFS`, or `ENOENT` on a non-existent target — `patch_heading` does not create files). |
 | `VALIDATION_ERROR` | — | — | Unknown vault, registry lookup failure (existing top-level surface). |
 | `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND` | `folder-missing` | The vault is registered, but its folder is missing on disk (`details.vault`; no disk path in the message). Nothing is read or written. Ask the user to restore the folder, or re-open the vault in Obsidian, then call again. |
@@ -240,7 +240,7 @@ The `EXTERNAL_EDITOR_CONFLICT` signal is **platform-dependent**:
 
 Callers automating against multi-platform deployments must plan around this divergence. The wrapper has no cross-platform signal to fail on for in-memory dirty editor state.
 
-## Worked examples
+## Examples — Worked examples
 
 ### Append a new TODO bullet
 
@@ -334,7 +334,14 @@ The corrected path starts at the level-1 heading: `"Daily#Tasks#TODO"`.
   "details": {
     "code": "EMPTY_CONTENT",
     "reason": "append",
-    "mode": "append"
+    "mode": "append",
+    "issues": [
+      {
+        "path": ["content"],
+        "message": "content must be non-empty for mode='append'; use mode='replace' to clear a heading's direct body",
+        "code": "custom"
+      }
+    ]
   },
   "message": "content must be non-empty for mode='append'; use mode='replace' to clear a heading's direct body"
 }

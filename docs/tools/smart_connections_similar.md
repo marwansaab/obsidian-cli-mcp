@@ -4,7 +4,7 @@
 
 Return the typed list of semantically-similar block-level matches for a single source note via the Smart Connections plugin's similarity API as `{ count, matches: [{ path, headingPath, score }] }`.
 
-Plugin-backed primitive: routes into the plugin's runtime object at `app.plugins.plugins["smart-connections"].env.smart_sources.items[<key>].find_connections({limit})`. Wraps the Obsidian CLI's `eval` subcommand — there is no native similarity subcommand. The agent does not need to know this; the call surface is a typed MCP tool.
+Plugin-backed primitive: routes into the plugin's runtime object at `app.plugins.plugins["smart-connections"].env.smart_sources.items[<key>].find_connections({limit: 100})` — the wrapper always asks for 100 candidates and applies the caller's `limit` afterwards. Wraps the Obsidian CLI's `eval` subcommand — there is no native similarity subcommand. The agent does not need to know this; the call surface is a typed MCP tool.
 
 **Supported file types:** notes only (the source). A non-note source is rejected as before, with `CLI_REPORTED_ERROR` + `details.code: "NOT_MARKDOWN"`.
 
@@ -126,7 +126,7 @@ keeps the highest-scoring entry per source.
 - **Non-finite-score filter**: entries where `score` is `NaN`, `Infinity`, `-Infinity`, `null`, `undefined`, or any non-number are silently dropped. No envelope code is emitted for the filter event — bad entries simply don't appear.
 - **Source-path-keyed self-exclusion**: entries where `m.path === sourceKey` are removed. This excludes the source note AND any block inside the source from the result list (block-inside-source matches would otherwise dominate short notes per the plugin's natural output).
 
-## Worked examples
+## Examples — Worked examples
 
 ### Example 1 — Specific mode, indexed note by path
 
@@ -219,16 +219,17 @@ Use this for token-economical pre-flight reads (size estimation, fan-out check, 
 
 When the Smart Connections plugin is not enabled in `Demo`, the in-eval lifecycle check fires and returns an envelope `SMART_CONNECTIONS_NOT_INSTALLED`. The wrapper maps to `CLI_REPORTED_ERROR(stage:'envelope-error', code:'SMART_CONNECTIONS_NOT_INSTALLED')`.
 
-## Error roster
+## Errors — Error roster
 
 | Code | When | Recovery |
 |------|------|----------|
 | `VALIDATION_ERROR` | Input failed the schema (missing `target_mode`, missing `vault` in specific mode, neither `file` nor `path` in specific mode, both `file` AND `path` in specific mode, `vault`/`file`/`path` in active mode, `limit` out of range / non-integer, `total` non-boolean, unknown top-level key, `vault` empty). | Retry with corrected input. `details.issues` carries per-issue `path` + `message` + zod code. |
-| `CLI_REPORTED_ERROR` (`details.code: "VAULT_NOT_FOUND"`, `details.reason: "unknown"` or absent) | Specific mode + `vault` not registered with Obsidian. Upstream emits `Vault not found.` and the cli-adapter reclassifies. | Supply a registered vault display name. |
+| `CLI_REPORTED_ERROR` (`details.message: "Vault not found."`) | Specific mode + `vault` not registered with Obsidian. The CLI answers `Vault not found.`; the error's message and `details.message` are both `Vault not found.`, with `details: { command, stdout, stderr, exitCode: 0, message }` and no `details.code` or `details.reason`. Unlike the tools that check the vault list first, there is no `VAULT_NOT_FOUND` code here. | List the registered vault names with the [`vaults`](./vaults.md) tool and call again with one of them. |
 | `CLI_REPORTED_ERROR` (`details.stdout` starts `Error: Command "eval" not found.`) | **Vault unavailable.** The named vault is registered but could not be brought up after the server's automatic retry. This is a failure, not an empty result. When other plugins print output, the `Error: Command "eval" not found.` line can appear after their lines rather than at the start of `details.stdout`. | Open the vault in Obsidian, then call again. Do not retry in a loop; the server has already retried once. |
+| `CLI_REPORTED_ERROR` (`details.reason: "cli-disabled"`) | **Command line turned off.** Obsidian's **Command line interface** setting (Settings > General > Advanced) is off. The message is `Obsidian's command line interface is turned off. Ask the user to turn on Settings > General > Advanced > Command line interface in Obsidian, then call again.`, and `details.stdout` holds Obsidian's notice `Command line interface is not enabled. Please turn it on in Settings > General > Advanced.` | Ask the user to turn the setting on, then call again. This is a failure, never an empty result. |
 | `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "SMART_CONNECTIONS_NOT_INSTALLED"`) | The Smart Connections plugin is not enabled in the target vault. | Ask the user to enable the plugin in Obsidian's community-plugins settings. |
 | `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "FILE_NOT_FOUND"`) | `path` does not match any file in the vault, OR `file` (basename) does not resolve via `getFirstLinkpathDest`. `details.detail` distinguishes (`path: <path>` vs `wikilink: <file>`). | Verify the path / basename; check for typos; confirm the vault contains the file. |
-| `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "NOT_MARKDOWN"`) | The resolved file's extension is not `.md` (e.g. `.canvas`, `.pdf`, attachments). | Use a different tool, or read the source bytes via [`read`](./read.md). |
+| `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "NOT_MARKDOWN"`) | The resolved file's extension is not `.md` (e.g. `.canvas`, `.pdf`, attachments). | Use a different tool. Use [`read`](./read.md) for a canvas or Base's raw text; show an attachment or PDF with [`open_file`](./open_file.md) (`read` rejects attachments). |
 | `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "SMART_CONNECTIONS_NOT_READY"`) | The plugin is loaded but its similarity API path (`env.smart_sources.items`) is unavailable — either initial indexing is still in progress OR a plugin-version drift has changed the API shape. | Wait for indexing to complete (visible in the plugin's UI as "X embeddings to make: 0"); or check that the installed plugin version matches the minimum probed v4.x — earlier v2.x / v3.x releases may have a different API path. |
 | `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "SOURCE_NOT_INDEXED"`) | The source note exists in the vault but has not been indexed by the plugin yet (typical for just-created notes; the plugin's indexing-trigger debounce defaults to ~5 s). | Wait for the next indexing pass, or trigger a manual re-index from the plugin's UI. |
 | `ERR_NO_ACTIVE_FILE` | `target_mode: "active"` was used but no Obsidian note is focused. The eval surfaces envelope `NO_ACTIVE_FILE` and the wrapper maps to this code. | Ask the user to open a note in Obsidian, OR call again with `target_mode: "specific"` and an explicit `vault` + `file`/`path`. |
@@ -242,7 +243,7 @@ When the Smart Connections plugin is not enabled in `Demo`, the in-eval lifecycl
 Outer-to-inner, cheapest-first. Specific mode order:
 
 ```
-VAULT_NOT_FOUND(unknown)            ← cli-adapter response inspection
+unknown vault ("Vault not found.") ← cli-adapter response inspection
  → SMART_CONNECTIONS_NOT_INSTALLED  ← in-eval Stage 1
  → FILE_NOT_FOUND                   ← in-eval Stage 2
  → NOT_MARKDOWN                     ← in-eval Stage 3

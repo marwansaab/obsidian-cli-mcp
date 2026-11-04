@@ -1,4 +1,4 @@
-// Original — no upstream. Shared active/specific locator resolution for the write + vault-scan tool cohorts (F1 of the thermo-nuclear code-quality review). Centralises the focused-file / focused-vault `obsidian eval` round-trip, the eval answer parse (spec 080: the call's tagged answer line, other plugins' output ignored, parse errors carrying the stdout excerpt), the cohort-uniform ERR_NO_ACTIVE_FILE message, the registry VALIDATION_ERROR -> CLI_REPORTED_ERROR/VAULT_NOT_FOUND remap, the `obsidian file` TSV path resolver (plus `findFileByTsv`, its null-on-not-found variant whose caller decides what a miss means — write_note's create-by-name, BI-0176, and find_and_replace's INVALID_NOTE/not-found, BI-0178 — and Obsidian's `FILE_NOT_FOUND_LINE`), the canonical-path / PATH_ESCAPES_VAULT guard (with its missing-vault-folder classification, BI-0185), and the reverse vault display-name lookup that were previously copy-pasted across write_note, append_note, prepend, patch_block, patch_heading, find_and_replace, and query_base. Every helper preserves the prior inlined behaviour byte-for-byte (template strings, error codes, messages, and `details` shapes); divergences between consumers (tool name in messages, the no-active-file label, the per-note attempted-path label) surface as explicit parameters rather than forked copies. It also hosts `decodeEvalEnvelope` — the eval-composed cohort's shared `parseEvalAnswer` + `safeParse` envelope decoder (backlinks, links, open_file, get_active_file, views_base, paths, read_heading, tag, smart_connections_query, smart_connections_similar), with the per-tool malformed-eval code (CLI_REPORTED_ERROR vs INTERNAL_ERROR) as an explicit parameter.
+// Original — no upstream. Shared active/specific locator resolution for the write + vault-scan tool cohorts (F1 of the thermo-nuclear code-quality review). Centralises the focused-file / focused-vault `obsidian eval` round-trip, the eval answer parse (spec 080: the call's tagged answer line, other plugins' output ignored, parse errors carrying the stdout excerpt), the cohort-uniform ERR_NO_ACTIVE_FILE message (plus `throwIfNoActiveFile`, BI-0174: the dispatch-level one rethrown with a target_mode-less tool's own advice), the registry VALIDATION_ERROR -> CLI_REPORTED_ERROR/VAULT_NOT_FOUND remap, the `obsidian file` TSV path resolver (plus `findFileByTsv`, its null-on-not-found variant whose caller decides what a miss means — write_note's create-by-name, BI-0176, and find_and_replace's INVALID_NOTE/not-found, BI-0178 — and Obsidian's `FILE_NOT_FOUND_LINE`), the canonical-path / PATH_ESCAPES_VAULT guard (with its missing-vault-folder classification, BI-0185), and the reverse vault display-name lookup that were previously copy-pasted across write_note, append_note, prepend, patch_block, patch_heading, find_and_replace, and query_base. Every helper preserves the prior inlined behaviour byte-for-byte (template strings, error codes, messages, and `details` shapes); divergences between consumers (tool name in messages, the no-active-file label, the per-note attempted-path label) surface as explicit parameters rather than forked copies. It also hosts `decodeEvalEnvelope` — the eval-composed cohort's shared `parseEvalAnswer` + `safeParse` envelope decoder (backlinks, links, open_file, get_active_file, views_base, paths, read_heading, tag, smart_connections_query, smart_connections_similar), with the per-tool malformed-eval code (CLI_REPORTED_ERROR vs INTERNAL_ERROR) as an explicit parameter.
 
 import { parseEvalAnswer, stdoutDetails } from "./_eval-parse.js";
 import { getErrno } from "./_fs-errors.js";
@@ -143,6 +143,18 @@ export function parseFocusedVault(result: EvalAnswer): FocusedVaultParse {
 /** The cohort-uniform ERR_NO_ACTIVE_FILE message for the file cohort. */
 function noActiveFileMessage(toolName: string): string {
   return `No active file in Obsidian. Open a note in the editor, or call ${toolName} with target_mode=specific + vault + file/path.`;
+}
+
+/**
+ * BI-0174: the dispatch-level ERR_NO_ACTIVE_FILE advises `target_mode` and vault/file, which a tool
+ * without those inputs (views_base, obsidian_exec) does not take. When `err` is that error, throw
+ * it again with the same code, cause and details and the tool's own `advice` as the message; any
+ * other error returns, for the caller to handle.
+ */
+export function throwIfNoActiveFile(err: unknown, advice: string): void {
+  if (err instanceof UpstreamError && err.code === "ERR_NO_ACTIVE_FILE") {
+    throw new UpstreamError({ code: err.code, cause: err.cause, details: err.details, message: advice });
+  }
 }
 
 /** Resolved focused-file locator: the vault root (absolute basePath) + the active file's vault-relative path. */

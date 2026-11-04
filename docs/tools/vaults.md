@@ -47,7 +47,7 @@ Every call re-reads Obsidian's vault list; nothing is cached between calls. The 
 
 Other tools also re-read the list once on their own when they are given a vault name the server has not seen, before failing with the unknown-vault error. No server restart is needed in either case.
 
-## Error roster
+## Errors — Error roster
 
 | Top-level `code` | When | Recovery |
 |---|---|---|
@@ -58,7 +58,7 @@ Other tools also re-read the list once on their own when they are given a vault 
 | `CLI_REPORTED_ERROR` | The CLI reported an error of its own on stdout | Read `message`; retry once Obsidian is responsive. |
 | `CLI_TIMEOUT` | The CLI did not answer in time | Retry; check that Obsidian is responsive. |
 
-## Worked examples
+## Examples — Worked examples
 
 ### Example 1 — List the vaults
 

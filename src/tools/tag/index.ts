@@ -29,7 +29,7 @@ Optional \`total: true\` returns the bare integer count (token-economical pre-fl
 
 Paths sort byte-ascending. Zero-match returns \`{ count: 0, paths: [] }\` (or \`0\` in count-only mode) — NEVER an error.
 
-Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\`; \`CLI_REPORTED_ERROR\` (\`VAULT_NOT_FOUND\` with sub-reason \`unknown\`); \`CLI_TIMEOUT\`; \`CLI_OUTPUT_TOO_LARGE\`; \`CLI_BINARY_NOT_FOUND\`.`;
+Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\`; \`CLI_REPORTED_ERROR\` (unknown vault: message and \`details.message\` \`"Vault not found."\`, no \`details.code\`); \`CLI_TIMEOUT\`; \`CLI_OUTPUT_TOO_LARGE\`; \`CLI_BINARY_NOT_FOUND\`.`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

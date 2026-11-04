@@ -142,8 +142,27 @@ test("ERR_NO_ACTIVE_FILE integration (FR-021 — newly reachable through obsidia
   )) as UpstreamError;
   expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
   expect(err.message).toBe(
-    'No active file in Obsidian. Open a note in the editor, or call this tool with target_mode: "specific" and an explicit vault/file.',
+    "No active file in Obsidian. Open a note in Obsidian, or name the file in the command's own parameters (file= or path=) with vault.",
   );
+});
+
+test("BI-0174: no active file → the dispatch code and details, with advice naming only obsidian_exec's inputs", async () => {
+  const { spawnFn } = makeMockSpawn({
+    stdoutChunks: [Buffer.from("Error: No active file.\n", "utf8")],
+    exitCode: 0,
+  });
+  const err = (await captureRejection(
+    executeObsidianExec(
+      { command: "outline" },
+      { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} },
+    ),
+  )) as UpstreamError;
+  expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
+  expect(err.message).toBe(
+    "No active file in Obsidian. Open a note in Obsidian, or name the file in the command's own parameters (file= or path=) with vault.",
+  );
+  expect(err.message).not.toMatch(/target_mode|vault\/file/);
+  expect(err.details).toMatchObject({ command: "outline", exitCode: 0, message: "Error: No active file." });
 });
 
 test("argv: vault-omitted produces ['obsidian','search','query=fixture'] with no vault= token", async () => {

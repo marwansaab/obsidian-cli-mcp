@@ -118,7 +118,7 @@ Either branch gains `deprecated_parameters` when the call used a deprecated name
 
 The field is absent when the call used only current names.
 
-## Error roster
+## Errors — Error roster
 
 | top-level | details.code | details.reason | Trigger | Recovery |
 |---|---|---|---|---|
@@ -127,17 +127,17 @@ The field is absent when the call used only current names.
 | `VALIDATION_ERROR` | `INVALID_PATTERN` | `regex-syntax` | invalid ECMAScript regex (regex mode) | Fix the regex per `details.issues[0].message`. |
 | `VALIDATION_ERROR` | `INVALID_REPLACEMENT` | — | replacement over 1000 UTF-16 code units | Shorten replacement. |
 | `VALIDATION_ERROR` | `INVALID_SUBFOLDER` | `path-traversal` | `../`, leading `/` or `\`, drive letter, control char in `folder` (or the deprecated `subfolder`) | Supply a vault-relative folder path. |
-| `VALIDATION_ERROR` | `INVALID_SUBFOLDER` | `not-found` | folder does not exist (message: `folder "<x>" does not exist in vault`; `details.subfolder` carries the value) | Recheck the folder path; use [`paths`](./paths.md) or [`files`](./files.md) to enumerate the vault structure. |
+| `VALIDATION_ERROR` | `INVALID_SUBFOLDER` | `not-found` | folder does not exist (message: `find_and_replace: folder "<x>" does not exist in vault`; `details.subfolder` carries the value) | Recheck the folder path; use [`paths`](./paths.md) or [`files`](./files.md) to enumerate the vault structure. |
 | `VALIDATION_ERROR` | `SCOPE_CONFLICT` | `file+path` \| `note+folder` \| `active+note` \| `active+folder` \| `active+vault` | two mutually-exclusive scope fields supplied | Supply exactly one scope (or none). `details.reason` names the conflicting pair. |
-| `VALIDATION_ERROR` | `INVALID_NOTE` | `not-found` | named `file`/`path` does not resolve to an existing note | Recheck the note name/path; `details.note` echoes the offending locator. |
+| `VALIDATION_ERROR` | `INVALID_NOTE` | `not-found` | named `file`/`path` does not resolve to an existing note (message: `find_and_replace: note "<x>" does not exist in vault`) | Recheck the note name/path; `details.note` echoes the offending locator. |
 | `VALIDATION_ERROR` | `INVALID_NOTE` | `not-eligible` | target resolves to a non-`.md` file or a dotfolder note (`.obsidian/…`) | Name an eligible `.md` note. |
 | `VALIDATION_ERROR` | `INVALID_NOTE` | `path-traversal` | structurally-unsafe `file`/`path` (`../`, leading `/` or `\`, drive letter, control char) | Supply a vault-relative single-note locator. |
 | `VALIDATION_ERROR` | — | — | `file` supplied in `[[…]]` bracket form | Supply the bare note name (`Alpha`, not `[[Alpha]]`). |
 | `ERR_NO_ACTIVE_FILE` | — | — | `active_note: true` but no note is open in the editor | Open a note in the editor, or name one explicitly with `path`/`file`. |
 | `VALIDATION_ERROR` | `OCCURRENCE_COUNT_EXCEEDED` | — | total > `OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES` (default 500) | Narrow the scope with `folder` or a more specific pattern. The operator can raise the bound via the env var. |
 | `VALIDATION_ERROR` | `OCCURRENCE_COUNT_DRIFT` | — | second-scan count differs from the preview count (vault changed between preview and commit) | Re-run the call to pick up the new vault state — the wrapper refuses to commit a stale preview. |
-| `PATH_ESCAPES_VAULT` | — | — | canonical path resolves outside vault root (symlink traversal) | Caller's bug — fix the folder. |
-| `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND` | `unknown` | vault name not in registry | Verify the vault name (case-sensitive); list registered vaults with `obsidian vaults`. |
+| `PATH_ESCAPES_VAULT` | — | — | canonical path resolves outside vault root (symlink traversal). The message is the generic `CLI bridge upstream error: PATH_ESCAPES_VAULT`; `details: { vault, attemptedPath, resolvedPath }`. | Caller's bug — fix the folder. |
+| `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND` | `unknown` | vault name not in registry | Verify the vault name (case-sensitive); list the registered vaults with the [`vaults`](./vaults.md) tool. |
 | `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND` | `folder-missing` | vault is registered, but its folder is missing on disk (`details.vault`; no disk path in the message). Nothing read or written | Ask the user to restore the folder, or re-open the vault in Obsidian, then call again. |
 | `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND` | `focused-unregistered` | `file` with no `vault`, and the focused vault's folder matches no vault Obsidian lists (no disk path in the message or `details`). Nothing read or written | Call again with `vault`, or ask the user to re-open the vault in Obsidian. |
 | `CLI_REPORTED_ERROR` | — | — | the vault's folder could not be checked for another reason (`details.stage: "vault-root-check"`, `details.errno`, `details.vault`). Nothing read or written | Inspect `details.errno` (for example a permission problem); fix it, then call again. |
@@ -146,7 +146,7 @@ The field is absent when the call used only current names.
 | `VALIDATION_ERROR` | `CONFIRMATION_UNAVAILABLE` | — | multi-note commit (`commit: true` with no `file` / `path` / `active_note`; a `folder` commit counts) and the MCP client cannot show a confirmation prompt | Refused before vault resolution: nothing spawned, read or written. Commit one note at a time with `file` or `path`, or use a client that supports elicitation. |
 | `VALIDATION_ERROR` | `CONFIRMATION_DECLINED` | — | multi-note commit and the human did not confirm the prompt; `details.action` is `"decline"`, `"cancel"`, or `"accept"` with the box left unticked | Nothing written. Do not retry without the human's agreement. |
 
-## Worked examples
+## Examples — Worked examples
 
 ### Example 1 — Preview an ADR rename across Decisions/
 

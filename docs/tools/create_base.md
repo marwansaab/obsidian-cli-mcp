@@ -71,7 +71,7 @@ The `content` parameter is accepted by the CLI but is not listed in the CLI's he
 - **Closed vault**: a registered vault that is not open is opened automatically and the call returns its normal result (the first call takes longer). If it cannot be brought up, the call fails with `CLI_REPORTED_ERROR` whose `details.stdout` starts `Error: Command "base:create" not found.`: open the vault in Obsidian, then call again.
 - **Unregistered name**: the call fails with `VAULT_NOT_FOUND` before the CLI runs; nothing is created in any vault.
 
-## Error roster
+## Errors — Error roster
 
 | Top-level `code`     | `details.code`       | When | Recovery |
 |----------------------|----------------------|------|----------|
@@ -84,10 +84,10 @@ These three validation errors carry `details.code`, `details.reason` (when the r
 | `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND` (`details.reason: "unknown"`) | The `vault` display name is not registered with Obsidian | Check the name with `vaults`. A vault added after the server started is found without a restart. |
 | `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND` (`details.reason: "folder-missing"`) | `vault` named only: the vault is registered, but its folder is missing on disk (`details.vault`; no disk path in the message). Raised before the CLI runs; nothing is created | Ask the user to restore the folder, or re-open the vault in Obsidian, then call again. |
 | `CLI_REPORTED_ERROR` | —                    | `vault` named only: the vault's folder could not be checked for another reason (`details.stage: "vault-root-check"`, `details.errno`, `details.vault`); nothing is created | Inspect `details.errno` (for example a permission problem); fix it, then call again. |
-| `PATH_ESCAPES_VAULT` | —                    | `vault` named only: `base_path`, the item's folder, or the created path resolves outside the vault (`details.vault`, `details.attemptedPath`, `details.resolvedPath`; plus `details.createdPath` when caught after creation) | Before creation nothing was written; after creation, inspect the item at `details.createdPath`. |
+| `PATH_ESCAPES_VAULT` | —                    | `vault` named only: `base_path`, the item's folder, or the created path resolves outside the vault (`details.vault`, `details.attemptedPath`, `details.resolvedPath`; plus `details.createdPath` when caught after creation). Before creation the message is the generic `CLI bridge upstream error: PATH_ESCAPES_VAULT`; after creation it is `create_base: the item was created at "<path>", which resolves outside vault "<vault>"; it was not deleted`. | Before creation nothing was written; after creation, inspect the item at `details.createdPath`. |
 | `UPSTREAM_TIMEOUT`   | —                    | Subprocess exceeded 10 s | Retry. |
 
-## Worked examples
+## Examples — Worked examples
 
 ### Example 1 — Happy path
 

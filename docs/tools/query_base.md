@@ -11,7 +11,7 @@ Run a named view from an Obsidian Bases (`.base`) file and return its matched ro
 | Rows from a named view in a known `.base` file | `query_base` |
 | Enumerate `.base` files in the vault | `bases` |
 | Enumerate views inside a known `.base` file | `views_base` |
-| Create a new `.base` file | `create_base` |
+| Add an item note to an existing `.base` file | `create_base` |
 
 ## Input
 
@@ -21,7 +21,7 @@ Run a named view from an Obsidian Bases (`.base`) file and return its matched ro
 | `view_name`  | string | yes      | Name of the view inside the `.base` file. Exact case-sensitive match — no trim, no fold, no fuzzy. Length cap 1000 UTF-16 code units. |
 | `vault`      | string | no       | Optional vault display name. When absent, routes to the focused vault. |
 
-**Closed vault.** A registered vault that is not open is opened automatically, and the call returns its normal result (the first call takes longer). A vault that cannot be brought up is a failure, not an empty result: see **Vault unavailable** in the [error roster](#error-roster).
+**Closed vault.** A registered vault that is not open is opened automatically, and the call returns its normal result (the first call takes longer). A vault that cannot be brought up is a failure, not an empty result: see **Vault unavailable** in the [error roster](#errors--error-roster).
 
 ## Output
 
@@ -29,7 +29,7 @@ Run a named view from an Obsidian Bases (`.base`) file and return its matched ro
 {
   "columns": ["path", "id", "status", "priority"],
   "rows": [
-    { "path": "Issues/BI-0039.md", "id": "BI-0039", "status": "open", "priority": 1 }
+    { "path": "Issues/BI-0039.md", "id": "BI-0039", "status": "open", "priority": "1" }
   ],
   "truncated": false
 }
@@ -63,12 +63,12 @@ A view declaring `file.path` and `file.name` therefore produces three columns: `
 
 Example row: `{ "path": "Sandbox/intval.md", "file path": "Sandbox/intval.md", "file name": "intval" }`.
 
-## Error roster
+## Errors — Error roster
 
 | Top-level `code`        | `details.code`        | When | Recovery |
 |-------------------------|-----------------------|------|----------|
-| `VALIDATION_ERROR`      | `INVALID_BASE_PATH`   | Empty / over-cap / wrong-extension / path-traversal | Inspect `details.reason`; supply a valid vault-relative `.base` path. |
-| `VALIDATION_ERROR`      | `INVALID_VIEW_NAME`   | Empty / over-cap | Supply a non-empty view name within the length cap. |
+| `VALIDATION_ERROR`      | `INVALID_BASE_PATH`   | Empty / over-cap / wrong-extension / path-traversal. `details` carries `reason` (`empty`, `too-long`, `wrong-extension`, `path-traversal`), `field: "base_path"`, `value_length` (empty, too-long) or `value` (the other two), and the generic `issues` list. The top-level `message` is the issue's own text, for example `INVALID_BASE_PATH/wrong-extension: base_path must end with .base`. | Inspect `details.reason`; supply a valid vault-relative `.base` path. |
+| `VALIDATION_ERROR`      | `INVALID_VIEW_NAME`   | Empty / over-cap. `details` carries `reason` (`empty`, `too-long`), `field: "view_name"`, `value_length` and the generic `issues` list; the top-level `message` is the issue's own text, for example `INVALID_VIEW_NAME/empty: view_name is empty`. | Supply a non-empty view name within the length cap. |
 | `CLI_REPORTED_ERROR`    | `BASE_NOT_FOUND`      | `.base` file missing at the supplied path | Verify the path; use `bases` to enumerate `.base` files in the vault. |
 | `CLI_REPORTED_ERROR`    | `BASE_MALFORMED`      | File present but unusable (`details.reason` narrows: `empty`, `invalid-yaml`, `missing-required-key`, `unsupported-schema-version`, `unknown`) | Inspect `details.reason`; ask the user to fix the `.base` file in Obsidian. |
 | `CLI_REPORTED_ERROR`    | `VIEW_NOT_FOUND`      | File fine, view missing or case-mismatched | Use `views_base` to enumerate the actual view names; retry with the exact name. |
@@ -76,14 +76,15 @@ Example row: `{ "path": "Sandbox/intval.md", "file path": "Sandbox/intval.md", "
 | `CLI_REPORTED_ERROR`    | `VAULT_NOT_FOUND`     | The vault is registered, but its folder is missing on disk (`details.reason: "folder-missing"`, `details.vault`). Raised before the CLI runs; the message carries no disk path. | Ask the user to restore the folder, or re-open the vault in Obsidian, then call again. |
 | `CLI_REPORTED_ERROR`    | —                     | The vault's folder could not be checked for another reason (`details.stage: "vault-root-check"`, `details.errno`, `details.vault`) | Inspect `details.errno` (for example a permission problem); fix it, then call again. |
 | `CLI_REPORTED_ERROR`    | —                     | **Vault unavailable.** `details.stdout` starts `Error: Command "base:query" not found.`: the named vault is registered but could not be brought up after the server's automatic retry. This is a failure, not an empty result. | Open the vault in Obsidian, then call again. Do not retry in a loop; the server has already retried once. |
-| `PATH_ESCAPES_VAULT`    | —                     | `base_path` resolves outside the vault root | Caller's bug — fix the path. |
+| `CLI_REPORTED_ERROR`    | — (`details.reason: "cli-disabled"`) | **Command line turned off.** Obsidian's **Command line interface** setting (Settings > General > Advanced) is off. The message is `Obsidian's command line interface is turned off. Ask the user to turn on Settings > General > Advanced > Command line interface in Obsidian, then call again.`, and `details.stdout` holds Obsidian's notice `Command line interface is not enabled. Please turn it on in Settings > General > Advanced.` | Ask the user to turn the setting on, then call again. This is a failure, never an empty result. |
+| `PATH_ESCAPES_VAULT`    | —                     | `base_path` resolves outside the vault root. The message is the generic `CLI bridge upstream error: PATH_ESCAPES_VAULT`; `details: { vault, attemptedPath, resolvedPath }`. | Caller's bug — fix the path. |
 | `UPSTREAM_TIMEOUT`      | —                     | Subprocess exceeded 10 s wall-clock | Narrow the view's filter, or investigate the `.base` complexity. |
 | `OUTPUT_CAP_EXCEEDED`   | —                     | Upstream stdout exceeded 10 MiB | The view returns too much data; narrow the filter or paginate via a view declaration that limits row count. |
 | `INTERNAL_ERROR`        | —                     | Wrapper invariant violation | File a bug. |
 
 `BASE_MALFORMED` (except `empty`) carries the upstream report verbatim in `details.message`, with no length bound and no `details.messageLength`. `views_base` reports the same `invalid-yaml` complaint bounded to its first and last 500 characters when it is longer than 1,000, with `details.messageLength`; `query_base` was deliberately left unchanged by spec 081.
 
-## Worked examples
+## Examples — Worked examples
 
 ### Example 1 — Happy path
 

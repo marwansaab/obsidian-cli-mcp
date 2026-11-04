@@ -1,11 +1,11 @@
 {
   "schemaVersion": 2,
-  "generatedFromBranch": "fix/bi-0177",
+  "generatedFromBranch": "fix/bi-0174",
   "generatedAt": "2026-11-04",
   "tools": [
     {
       "name": "append_note",
-      "descriptionFingerprint": "35a08eaa914fac6e2ff52fe1d1ab67257a6daa67c12482ec26410e3c380bda1c",
+      "descriptionFingerprint": "8a15a4516a785074c1277f16354721e9209deabfea1837d68e86465fc4c5a5bb",
       "schemaFingerprint": "39475dbd51a0bc94efd3886ff9a2f9c0e86593df59a32507fbaaf79d183c71ab",
       "titleFingerprint": "b4e70fcca8337df813856fe107b446f87d98dc05c431d5c0a2e860af8e04c957",
       "annotationsFingerprint": "d72d3cb182e3d7fcf0b1c6782251eee772cdf2a99470e1a4bd6a006b5c8f4e25",
@@ -13,7 +13,7 @@
     },
     {
       "name": "backlinks",
-      "descriptionFingerprint": "b977e393b91364623d2289a01d2b706a0b2ecae730fcee4c2b4b7fd3f9d3bb43",
+      "descriptionFingerprint": "e371d843d8d58016a19450651c6c9893676d6be944b02a33e011c8807b802cea",
       "schemaFingerprint": "18143675588c9486e4f6ddb1da87def80b8211716b3f256dc3be04d547cccdf3",
       "titleFingerprint": "b4278c6aa5a4b3a57c5537d2bf2d6a435f029a1a9f868aac85fa2c82ba240dd4",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",
@@ -29,8 +29,8 @@
     },
     {
       "name": "context_search",
-      "descriptionFingerprint": "ac37a4cb10f9a6444cd661c1aad0044c517275c2f47797761002e455e8ad9086",
-      "schemaFingerprint": "5280544e4c7e574286cdae38b9ac3b8be1e1ca7e6bbde37888156c5e6f372650",
+      "descriptionFingerprint": "adcd5de2b55b3c5213c6e9ef44ef498ebc4af9c04b06470e5c485e4cef38172f",
+      "schemaFingerprint": "35e8bf7f062b7027e6fdb15f72d00e702409a7ec3d736070800bc19590c8a88b",
       "titleFingerprint": "9aac415db0172c60f1864d70914bd6bc751ebe5ecb95abbdcb93681ddd9712ff",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",
       "outputSchemaFingerprint": "3c9a94ddcfb011ebfdb1c6d324e520548064c37adbf11e13c60fb4e039089b98"
@@ -61,7 +61,7 @@
     },
     {
       "name": "find_and_replace",
-      "descriptionFingerprint": "0f65ac68d1388eaafc9c01a09bd02ef7a3c45a6ccf7c3a519de39152d82c59c2",
+      "descriptionFingerprint": "602d75ab5e65bb8df69a64c551d1360faf26b6f013a4aedf6a7ea825d7e1f223",
       "schemaFingerprint": "a71919f035828dc94320837f68f751261e07d0f075ee458f8903e569ed8996bb",
       "titleFingerprint": "770f80fa77ad69c756e602919e3c79b3d60a641d8949b7280c34dc0604be786f",
       "annotationsFingerprint": "b15393126f12ebd7533afe7d31a1beb8938a1e37d0bb2a52c382aaba4373f265",
@@ -93,7 +93,7 @@
     },
     {
       "name": "links",
-      "descriptionFingerprint": "29b7b017d778bffbd34fa00aa64625b1a2054d5f7d9b99c1b5682d2b9a7a4c9a",
+      "descriptionFingerprint": "0857913407579c6c77134d62308c27be97f939a6360e1fad2e9a84d79a8e36a0",
       "schemaFingerprint": "85fcb7ebcbebdc2f04c321c9f4d5307c72c2e4158ce888f75a91cb6c60f4ff3b",
       "titleFingerprint": "9024c197d84940e47ff6aa631b7711c4cbff4e7fb2fe1a574a3592b662983a0d",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",
@@ -133,7 +133,7 @@
     },
     {
       "name": "patch_block",
-      "descriptionFingerprint": "a2812e1bbb0a2f98b61e73b25704ac1ac29c0825719522346379c474348f4530",
+      "descriptionFingerprint": "ba365363456507e92f387431b08599380d0f68387545ba61a4ff983ecbc47c9e",
       "schemaFingerprint": "b4fde5f50df8f082289dfd18411c4c6455f4dae804f21a75912e0714cb5b8d39",
       "titleFingerprint": "9c4af05b67851af83c79920a6379bfad5f1a9cac683ad1f65dea85b47c1cb224",
       "annotationsFingerprint": "d72d3cb182e3d7fcf0b1c6782251eee772cdf2a99470e1a4bd6a006b5c8f4e25",
@@ -141,7 +141,7 @@
     },
     {
       "name": "patch_heading",
-      "descriptionFingerprint": "142fcf68392ffe3359da79eda1c2b63bda10d550964d4504ad460311d74e7b4b",
+      "descriptionFingerprint": "ccda9f16f6780f030efe7fb5e8c78088e709a6af43fcad75c6d31d314cafffe2",
       "schemaFingerprint": "fb021a74d39174aa1b83874a2825dd5d0fcff4ca78a017807594c5d7d867023f",
       "titleFingerprint": "28f7bb84489352f6f0c1d3245afaa834ea4b18b44e56eb054ce69a1a759b7253",
       "annotationsFingerprint": "d72d3cb182e3d7fcf0b1c6782251eee772cdf2a99470e1a4bd6a006b5c8f4e25",
@@ -181,7 +181,7 @@
     },
     {
       "name": "query_base",
-      "descriptionFingerprint": "d98786d672c34006032b7d12c6e445cf4f21b02397b01c15d6fe8d061ba12a19",
+      "descriptionFingerprint": "3f590efa124a291ede8d876a8de5a6d09609481a63a3d6574fd14063da723a6e",
       "schemaFingerprint": "92c7283053e873e5d860b558c205e30192dff768706dda7c3492c1af5d83c8ee",
       "titleFingerprint": "4c46e0348e2e3a707da0bc8975e96e69ecfb55fea144227fb59d0fca1b8dea43",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",
@@ -221,8 +221,8 @@
     },
     {
       "name": "search",
-      "descriptionFingerprint": "e74af07cb4de63c67eb5f355a4504bcf7bc7f79872cfac3c27e570ab0ee9a059",
-      "schemaFingerprint": "68db6c767650146c060092972f367b43fd92a1e37703ffdc8e738060a64bd10d",
+      "descriptionFingerprint": "50192180e223b31a4488f916d3f048b4785c3ede7c11e11a509212692931cd6a",
+      "schemaFingerprint": "ed88014105668441ed11ed42012e32af3becccb42c845534c0073fb8276c334a",
       "titleFingerprint": "49c266baaaa70981ea188fa714d5c40cf13830d786a861c9943ae0d26a7f3fe9",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",
       "outputSchemaFingerprint": "9801f41b9ce6067b412496af94586dde895b242493ace826ae7c59b04ac95016"
@@ -237,7 +237,7 @@
     },
     {
       "name": "smart_connections_query",
-      "descriptionFingerprint": "1ac4afbdb4f619351311f8ccc4c3590efbaf7055b30f70ea82a2d182e7b64b6a",
+      "descriptionFingerprint": "c2af61f3a182757e05524454f52ec56728ba6c8068a11820a9f3e3838c27647a",
       "schemaFingerprint": "23f6c5454e7464e08b1bc62e1a965bff03676d6e14e3c20ce3cf5397216c3d99",
       "titleFingerprint": "48a6c2197bed455245cb51697d0bed3868a882848f57c02a440b642a37a741db",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",
@@ -245,7 +245,7 @@
     },
     {
       "name": "smart_connections_similar",
-      "descriptionFingerprint": "571588cd140a9cf839191585ab8cd2de544eaeaea7e1ee30f5b8b773b2f84dfd",
+      "descriptionFingerprint": "0a25c950068dcb0031ab2fb8bda0cef329b5325208155b0e18820cd3f03d07ae",
       "schemaFingerprint": "4456cf3eb306a37317caeecc1c23e89784e1d47c9b94c3a6e85e646447f8a122",
       "titleFingerprint": "6c55797a3eace33aafe663b176bbeac2b082049945feeb3421476c0a44ff9acf",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",
@@ -253,7 +253,7 @@
     },
     {
       "name": "tag",
-      "descriptionFingerprint": "36bdb9a2149edbded5ce58090dcaca45ac5e8512efcedcd189c4f071602d1562",
+      "descriptionFingerprint": "916d8d241af8332bcb79ffda90877d5acd3428878c008d964d09ade93ca60cfb",
       "schemaFingerprint": "56ff9dd9a0695e99884fe0971055170f40a276a73704ead241889d4a023ff2c1",
       "titleFingerprint": "1503916a2ab2b0fd6768d3455fd8f2d9aa3b31333a8507dadcad983704a975d7",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",
@@ -277,7 +277,7 @@
     },
     {
       "name": "write_note",
-      "descriptionFingerprint": "6e01f1671115affaca6f18efe5fd106e2f6e9355368e36b4b37ab37c9a6a875c",
+      "descriptionFingerprint": "7fecada3abed8f6c32541f2d28325588a792453c1a08eac849e6939a06843055",
       "schemaFingerprint": "141cb494f1673b70f23daccb68c2e39a4a1e0a1336fc861484101ff996a46580",
       "titleFingerprint": "9879595288c11fef687d30326a66af6f79ffae68cd9560300853cc0e24ff757e",
       "annotationsFingerprint": "b15393126f12ebd7533afe7d31a1beb8938a1e37d0bb2a52c382aaba4373f265",

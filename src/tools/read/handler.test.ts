@@ -262,6 +262,18 @@ test.each([
   expect(recorded).toHaveLength(0);
 });
 
+// BI-0174 item 13: read changes nothing, so its rejection leaves out "Nothing was changed.".
+test.each([
+  ["Att/photo.png", "read: Att/photo.png is an attachment (.png); read supports notes, canvases and bases. Use open_file for this file instead."],
+  ["Misc/todo.txt", 'read: Misc/todo.txt is a ".txt" file; read supports notes, canvases and bases.'],
+])("BI-0174: path=%s → the read-only rejection message", async (path, message) => {
+  const { spawnFn } = makeQueuedSpawn([]);
+  const err = (await captureRejection(
+    executeReadNote({ target_mode: "specific", vault: "MyVault", path }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.message).toBe(message);
+});
+
 test("spec 070: file mode runs the `obsidian file` resolution call first, in the named vault", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([fileTsvResponse("Boards/Plan.canvas"), { stdout: "{}", exitCode: 0 }]);
   await executeReadNote({ target_mode: "specific", vault: "MyVault", file: "Plan.canvas" }, deps(spawnFn));
