@@ -2,7 +2,7 @@
 import { expect, test } from "vitest";
 import { z } from "zod";
 
-import { viewsBaseInputSchema, viewsBaseOutputSchema } from "./schema.js";
+import { focusBaseEvalResponseSchema, viewsBaseInputSchema, viewsBaseOutputSchema } from "./schema.js";
 
 function firstParams(r: ReturnType<typeof viewsBaseInputSchema.safeParse>): Record<string, unknown> | undefined {
   if (r.success) return undefined;
@@ -103,6 +103,27 @@ test("output: empty list accepted", () => {
 test("output: count mismatch rejected (refine fires)", () => {
   const r = viewsBaseOutputSchema.safeParse({ views: ["All"], count: 5 });
   expect(r.success).toBe(false);
+});
+
+// ── focus eval envelope (internal handoff; BI-0179 adds FOCUS_NOT_APPLIED) ──
+
+test.each([
+  ["ok:true", { ok: true, opened: "B.base" }],
+  ["FILE_NOT_FOUND", { ok: false, code: "FILE_NOT_FOUND" }],
+  ["FOCUS_NOT_APPLIED with the file in front", { ok: false, code: "FOCUS_NOT_APPLIED", active: "A.base" }],
+  ["FOCUS_NOT_APPLIED with nothing in front", { ok: false, code: "FOCUS_NOT_APPLIED", active: null }],
+])("focus envelope: %s accepted", (_label, envelope) => {
+  expect(focusBaseEvalResponseSchema.safeParse(envelope).success).toBe(true);
+});
+
+test.each([
+  ["FOCUS_NOT_APPLIED without active", { ok: false, code: "FOCUS_NOT_APPLIED" }],
+  ["FOCUS_NOT_APPLIED with a stray key", { ok: false, code: "FOCUS_NOT_APPLIED", active: null, message: "x" }],
+  ["FILE_NOT_FOUND with a stray active", { ok: false, code: "FILE_NOT_FOUND", active: "A.base" }],
+  ["an unknown code", { ok: false, code: "SOMETHING_ELSE" }],
+  ["ok:true carrying a code", { ok: true, opened: "B.base", code: "FOCUS_NOT_APPLIED" }],
+])("focus envelope: %s rejected (strict)", (_label, envelope) => {
+  expect(focusBaseEvalResponseSchema.safeParse(envelope).success).toBe(false);
 });
 
 test("z.toJSONSchema emits expected shape with vault + base_path", () => {

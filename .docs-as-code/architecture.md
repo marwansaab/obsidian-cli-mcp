@@ -1028,6 +1028,11 @@ than added as new codes:
   `CLI_REPORTED_ERROR` with `details.stage: "vault-root-check"` and
   `details.errno`, rather than a third reason, because its cause is not
   known ([ADR-068](decisions/ADR-068-a-vault-root-that-cannot-be-resolved-fails-as-the-vaults-folder.md)).
+  PR #140 (BI-0179) follows the same convention for named-mode
+  `views_base`: a named Base that did not become the active file is
+  `CLI_REPORTED_ERROR` with `details.stage: "focus"`, not a new reason on
+  `BASE_NOT_FOUND`, because the Base exists and the condition is transient
+  ([ADR-072](decisions/ADR-072-views-base-lists-only-once-the-named-base-is-the-active-file.md)).
   Since PR #138 (BI-0121) there is a third, `focused-unregistered`: in
   active mode the focused vault's folder matches no vault Obsidian lists, so
   it has no display name. It comes from `requireFocusedVaultName` in
@@ -1540,9 +1545,14 @@ them:
   PR #139 tests that need the JSON payload an eval carried read it with one
   shared decoder in `_handler-test-fixtures.ts`, `evalPayload(spawn)` or
   `codePayload(code)`, in place of the copies handler and template tests had
-  written for themselves. The other
+  written for themselves. Since PR #140 (BI-0179) `runEvalTemplate` also
+  passes `setTimeout` into the `node:vm` context, so a template that waits
+  for Obsidian can run in-process; `src/tools/views_base/_template.test.ts`
+  runs `FOCUS_BASE_TEMPLATE`'s focus check that way under `vi.useFakeTimers()`
+  (an open that lands at once, late, or never). Until PR #140 this page
+  listed `views_base` among the suites that only check the string. The other
   `_template.test.ts` files (`open_file`,
-  `get_active_file`, `views_base`) check the template string, meaning its
+  `get_active_file`) check the template string, meaning its
   bytes, its payload encoding and which calls it contains. They do not run
   it. Every other template's transforms are covered only by live probes
   ([read](capabilities/read.md#known-limits) records one such gap).

@@ -16,6 +16,12 @@
 // `getAbstractFileByPath` is an O(1) hash lookup; a folder (no `extension`) or a missing path both
 // yield {ok:false, code:'FILE_NOT_FOUND'}, which the handler remaps to BASE_NOT_FOUND/named-missing
 // (never leaked). Async because the open awaits `openLinkText`.
+//
+// BI-0179: `openLinkText` resolving proves nothing (Obsidian catches an open that throws, and a leaf
+// still busy with an earlier open skips the next one), and `base:views` parses whatever file is active.
+// So the template confirms the named file is the active file, polling every 50 ms for up to 1 s (well
+// inside the 10 s dispatch timeout) when the first check fails. `ok:true` means it is; otherwise
+// {ok:false, code:'FOCUS_NOT_APPLIED', active:<path or null>}, and the handler never lists the wrong file.
 import { B64_PAYLOAD_DECODE_EXPR } from "../_shared.js";
 
 export const FOCUS_BASE_TEMPLATE = `(async()=>{
@@ -23,5 +29,8 @@ const a=JSON.parse(${B64_PAYLOAD_DECODE_EXPR});
 const f=app.vault.getAbstractFileByPath(a.path);
 if(!f||f.extension===undefined)return JSON.stringify({ok:false,code:'FILE_NOT_FOUND'});
 await app.workspace.openLinkText(f.path,'',false);
+for(let i=0;i<20&&app.workspace.getActiveFile()!==f;i++)await new Promise(r=>setTimeout(r,50));
+const g=app.workspace.getActiveFile();
+if(g!==f)return JSON.stringify({ok:false,code:'FOCUS_NOT_APPLIED',active:g?g.path:null});
 return JSON.stringify({ok:true,opened:f.path});
 })()`;

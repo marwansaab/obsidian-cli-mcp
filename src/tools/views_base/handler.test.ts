@@ -294,6 +294,32 @@ test("US3 named-not-found: focus FILE_NOT_FOUND → BASE_NOT_FOUND/named-missing
   expect(commandsOf(recorded)).toEqual(["eval"]);
 });
 
+// ───────────── BI-0179 — the named Base must be in front before listing ─────────────
+
+function evalFocusNotApplied(active: string | null): StubResponse {
+  return { stdout: `=> ${JSON.stringify({ ok: false, code: "FOCUS_NOT_APPLIED", active })}` };
+}
+
+test.each([
+  ["another malformed Base is still in front", "A/broken.base"],
+  ["nothing is in front", null],
+])(
+  "BI-0179 focus not applied (%s) → CLI_REPORTED_ERROR stage focus, no base:views, no complaint",
+  async (_label, active) => {
+    const { deps, recorded } = makeDeps([evalFocusNotApplied(active)]);
+
+    const ue = await expectErr(executeViewsBase({ base_path: "B/broken.base" }, deps));
+
+    expect(ue.code).toBe("CLI_REPORTED_ERROR");
+    expect(ue.cause).toBeNull();
+    // Exactly these keys: no details.code / reason, and no message / messageLength from any Base.
+    expect(ue.details).toEqual({ stage: "focus", base_path: "B/broken.base", active });
+    expect(ue.message).toBe('views_base: could not bring base file at "B/broken.base" to the front');
+    // base:views never ran against whatever file was in front.
+    expect(commandsOf(recorded)).toEqual(["eval"]);
+  },
+);
+
 test("US3 no-base-open: open-mode 'not a base file' → BASE_NOT_FOUND/not-open (dispatch-catch)", async () => {
   const { deps } = makeDeps([
     { stdout: "Error: Active file is not a base file: some/path.md", exitCode: 0 },

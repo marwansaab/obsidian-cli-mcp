@@ -9,7 +9,8 @@ export async function runEvalTemplate(
   app: unknown,
 ): Promise<unknown> {
   const code = composeEvalCode(template, payload);
-  const result = runInNewContext(code, { TextDecoder, Uint8Array, atob, app }) as
+  // setTimeout: templates that wait for Obsidian to settle (views_base's focus check, BI-0179).
+  const result = runInNewContext(code, { TextDecoder, Uint8Array, atob, setTimeout, app }) as
     | string
     | Promise<string>;
   return JSON.parse(await result);

@@ -60,6 +60,21 @@ whatever was open. Without `base_path`, it reads the Base already focused in
 Obsidian. Both modes end in one `listFocusedViews` call, and one builder,
 `focusedBaseError`, makes every typed failure it raises.
 
+**The named Base must be in front before anything is listed** (BI-0179,
+PR #140,
+[ADR-072](../decisions/ADR-072-views-base-lists-only-once-the-named-base-is-the-active-file.md)).
+`base:views` parses whatever file is active, and until PR #140 the focus
+template trusted `openLinkText`, which resolves even when Obsidian drops the
+open. After a different malformed Base, a `BASE_MALFORMED` error could
+then carry that Base's parser complaint and length (TC-00736). The template
+now compares `app.workspace.getActiveFile()` with the named file object,
+polling every 50 ms for up to 1 s, and answers `FOCUS_NOT_APPLIED` with the
+file still in front if it never lands. `focusNamedBase` maps that to
+`CLI_REPORTED_ERROR` with `details: { stage: "focus", base_path, active }`
+and throws before `listFocusedViews`, so no listing runs against the wrong
+file. It maps each focus envelope code in an exhaustive `switch`, a
+structure the PR #140 review asked for.
+
 **A malformed Base is classified, not passed through** (spec 081, PR #111).
 Until PR #111 `views_base` recognised only Obsidian's "Active file is not a
 base file" report. A `.base` whose YAML Obsidian could not parse reached the
@@ -277,6 +292,13 @@ error are additions; its headline and `base_path` did not change. A failure
 that matches neither pattern is rethrown unchanged, and the `No views defined`
 reply never becomes `BASE_MALFORMED` (FR-009, FR-015).
 
+Named mode has one more failure, ahead of both reasons: the named Base did
+not become the active file (PR #140). It is `CLI_REPORTED_ERROR` with
+`details.stage: "focus"`, `base_path` and `active` (the file still in front,
+or `null`), and no `details.code`, `details.reason` or `message`, so
+ADR-015's closed sets do not grow and no Base's complaint is attached. The
+help page lists it under the generic "Retry" row.
+
 `query_base` on a closed registered vault returns its normal result. In the
 T0 check for PR #100, `base:query` answered a closed vault on its first
 attempt; where it answers `Error: Command "base:query" not found.` instead,
@@ -329,6 +351,15 @@ These are inherited from the CLI and documented in each tool's description:
   does not exist. On a name collision the CLI auto-increments the new note's
   name, and the response reports the actual name.
 - `views_base` with `base_path` changes Obsidian's focus as a side effect.
+- PR #140's focus check holds by construction, not by observation.
+  TC-00736 did not reproduce on Obsidian 1.15.0 before the fix, no live run
+  took the `FOCUS_NOT_APPLIED` path (unit tests cover it), and the live
+  checks drove the built handler, not the MCP stdio transport
+  (`.specify/bugs/bi-0179/test.md`, Residual Risks; accepted by the owner).
+  The reserve retry through `openFile` was not added, so a call whose open
+  Obsidian drops fails and the caller must retry. A person
+  switching focus between the focus `eval` and `base:views` can still swap
+  the file.
 - `query_base` and `views_base` validation errors carry no `details.code` or
   `details.reason` ([above](#how-it-is-built)). PR #115 corrected
   `views_base`'s help page, which had claimed `params.*` fields; `query_base`'s

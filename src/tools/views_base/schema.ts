@@ -40,12 +40,17 @@ export type ViewsBaseOutput = z.infer<typeof viewsBaseOutputSchema>;
 // parity with open_file's openEvalResponseSchema). The frozen FOCUS_BASE_TEMPLATE
 // returns `{ok:true, opened}` after focusing the named `.base`, or
 // `{ok:false, code:"FILE_NOT_FOUND"}` when no file exists at the locator (the
-// handler remaps that to BASE_NOT_FOUND/named-missing — never leaked). This is an
+// handler remaps that to BASE_NOT_FOUND/named-missing — never leaked), or
+// `{ok:false, code:"FOCUS_NOT_APPLIED", active}` when the named file did not become
+// the active file (BI-0179; `active` is what is in front, or null). This is an
 // internal handoff envelope, not the tool's published surface, so it does NOT
 // affect the input fingerprint.
 export const focusBaseEvalResponseSchema = z.discriminatedUnion("ok", [
   z.strictObject({ ok: z.literal(true), opened: z.string() }),
-  z.strictObject({ ok: z.literal(false), code: z.literal("FILE_NOT_FOUND") }),
+  z.discriminatedUnion("code", [
+    z.strictObject({ ok: z.literal(false), code: z.literal("FILE_NOT_FOUND") }),
+    z.strictObject({ ok: z.literal(false), code: z.literal("FOCUS_NOT_APPLIED"), active: z.string().nullable() }),
+  ]),
 ]);
 export type FocusBaseEvalResponse = z.infer<typeof focusBaseEvalResponseSchema>;
 

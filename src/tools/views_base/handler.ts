@@ -195,6 +195,57 @@ async function listFocusedViews(deps: ExecuteDeps, input: ViewsBaseInput): Promi
   return viewsBaseOutputSchema.parse({ views, count: views.length });
 }
 
+/**
+ * Named-Base mode (focus-then-active; open mode, no `base_path`, returns at once): bring the
+ * named `.base` to the front via the proven open mechanism. The eval runs in the requested vault
+ * (target_mode:"specific" + vault=) when a vault is named — recovery (closed vault cold-launch)
+ * inherited from dispatchCli — else in the focused vault (target_mode:"active"). composeEvalCode
+ * base64-wraps the locator. Returns only once the named `.base` is the active file (the template
+ * checks, BI-0179), so a recognised failure from `listFocusedViews` means it exists but Obsidian
+ * cannot use it → BASE_MALFORMED. Each focus failure is mapped by its envelope code; an unmapped
+ * new code is a compile error, never a silent remap.
+ */
+async function focusNamedBase(deps: ExecuteDeps, input: ViewsBaseInput): Promise<void> {
+  const { base_path: basePath, vault } = input;
+  if (basePath === undefined) return;
+
+  const code = composeEvalCode(FOCUS_BASE_TEMPLATE, { path: basePath });
+  const focusResult = await invokeEval({ code, vault }, deps);
+
+  const decoded = decodeEvalEnvelope(focusResult, focusBaseEvalResponseSchema, {
+    toolName: TOOL_NAME,
+    malformedCode: "INTERNAL_ERROR",
+  });
+  if (decoded.ok) return;
+
+  switch (decoded.code) {
+    case "FILE_NOT_FOUND":
+      // REMAPPED to BASE_NOT_FOUND/named-missing (cohort-consistent with query_base; never
+      // leaked) — FR-007, never a silent substitution of the open Base (FR-009).
+      throw new UpstreamError({
+        code: "CLI_REPORTED_ERROR",
+        cause: null,
+        details: { code: "BASE_NOT_FOUND", reason: "named-missing", base_path: basePath },
+        message: `views_base: no base file found at "${basePath}"`,
+      });
+    case "FOCUS_NOT_APPLIED":
+      // BI-0179: the named `.base` did not become the active file, so `base:views` would read
+      // another file and its parser complaint would describe that file. Thrown before any
+      // listing, with no details.code / reason / message (a retryable upstream condition, not
+      // a property of the Base), so no Base's complaint is ever attached (FR-009).
+      throw new UpstreamError({
+        code: "CLI_REPORTED_ERROR",
+        cause: null,
+        details: { stage: "focus", base_path: basePath, active: decoded.active },
+        message: `views_base: could not bring base file at "${basePath}" to the front`,
+      });
+    default: {
+      const unhandled: never = decoded;
+      return unhandled;
+    }
+  }
+}
+
 export async function executeViewsBase(
   input: ViewsBaseInput,
   deps: ExecuteDeps,
@@ -204,34 +255,7 @@ export async function executeViewsBase(
     await resolveVaultRootOrRemap(deps.vaultRegistry, input.vault, TOOL_NAME);
   }
 
-  // ── Named-Base mode (focus-then-active) ──────────────────────────────────────
-  if (input.base_path !== undefined) {
-    // Focus the named `.base` via the proven open mechanism. The eval runs in the
-    // requested vault (target_mode:"specific" + vault=) when a vault is named —
-    // recovery (closed vault cold-launch) inherited from dispatchCli — else in the
-    // focused vault (target_mode:"active"). composeEvalCode base64-wraps the locator.
-    const code = composeEvalCode(FOCUS_BASE_TEMPLATE, { path: input.base_path });
-    const focusResult = await invokeEval({ code, vault: input.vault }, deps);
-
-    const decoded = decodeEvalEnvelope(focusResult, focusBaseEvalResponseSchema, {
-      toolName: TOOL_NAME,
-      malformedCode: "INTERNAL_ERROR",
-    });
-
-    if (decoded.ok === false) {
-      // The focus step's FILE_NOT_FOUND is REMAPPED to BASE_NOT_FOUND/named-missing
-      // (cohort-consistent with query_base; never leaked) — FR-007, never a silent
-      // substitution of the open Base (FR-009).
-      throw new UpstreamError({
-        code: "CLI_REPORTED_ERROR",
-        cause: null,
-        details: { code: "BASE_NOT_FOUND", reason: "named-missing", base_path: input.base_path },
-        message: `views_base: no base file found at "${input.base_path}"`,
-      });
-    }
-    // The named `.base` is now focused; a recognised failure from here on means it exists
-    // but Obsidian cannot use it → BASE_MALFORMED (see focusedBaseError).
-  }
+  await focusNamedBase(deps, input);
 
   // Both modes list the focused Base's views, in the named vault when one is given (spec 083
   // D3); open mode (no base_path) reads whatever Base is focused there.

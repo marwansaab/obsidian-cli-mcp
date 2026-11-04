@@ -260,3 +260,10 @@ applies. Records written since:
   of the ENOENT line; Obsidian's index (review argued the fix out of it), a
   server-side stat and dropping the folder-form expansion were rejected
   (PR #139).
+- [decisions/ADR-072-views-base-lists-only-once-the-named-base-is-the-active-file.md](decisions/ADR-072-views-base-lists-only-once-the-named-base-is-the-active-file.md)
+  — named-mode `views_base` checks that the named Base is the active file
+  after `openLinkText`, waiting up to 1 s, and otherwise fails as
+  `CLI_REPORTED_ERROR` with `details.stage: "focus"` before listing; a
+  reserve `openFile` retry (by owner ruling), a `not-focused` reason on
+  `BASE_NOT_FOUND`, `INTERNAL_ERROR` and an after-the-fact check were
+  rejected (PR #140).
