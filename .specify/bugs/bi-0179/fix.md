@@ -15,11 +15,11 @@ In named mode, `views_base`'s focus eval now checks that the named `.base` reall
 |------|--------|-------|
 | `src/tools/views_base/_template.ts` | modified | After `await openLinkText(...)`, polls `getActiveFile() !== f` every 50 ms, at most 20 times (1 s, well inside the 10 s `TYPED_TOOL_TIMEOUT_MS`). Returns `{ok:true, opened}` only when the named file is active, otherwise `{ok:false, code:'FOCUS_NOT_APPLIED', active:<path or null>}`. The template is still one block-body async IIFE using `B64_PAYLOAD_DECODE_EXPR` (ADR-031 shape). Header comment explains why. |
 | `src/tools/views_base/schema.ts` | modified | `focusBaseEvalResponseSchema`: the `ok:false` branch is now a nested `discriminatedUnion("code")` with the strict `FOCUS_NOT_APPLIED` variant (`active: string \| null`) beside `FILE_NOT_FOUND`. This is an internal envelope, so the fingerprint is not affected. |
-| `src/tools/views_base/handler.ts` | modified | `executeViewsBase` maps `FOCUS_NOT_APPLIED` to `UpstreamError` `CLI_REPORTED_ERROR`, `cause: null`, `details: { stage: "focus", base_path, active }`, message `views_base: could not bring base file at "<path>" to the front`. It is thrown before `listFocusedViews`. The `FILE_NOT_FOUND` → `BASE_NOT_FOUND` / `named-missing` remap is unchanged. |
+| `src/tools/views_base/handler.ts` | modified | The named-mode focus step is its own function, `focusNamedBase` (the named-mode partner of `listFocusedViews`), which maps each failure code of the focus envelope in an exhaustive `switch`, so a new code cannot fall through to `BASE_NOT_FOUND` / `named-missing` unnoticed (PR #140 review). It maps `FOCUS_NOT_APPLIED` to `UpstreamError` `CLI_REPORTED_ERROR`, `cause: null`, `details: { stage: "focus", base_path, active }`, message `views_base: could not bring base file at "<path>" to the front`. It is thrown before `listFocusedViews`. The `FILE_NOT_FOUND` → `BASE_NOT_FOUND` / `named-missing` remap is unchanged. |
 | `src/tools/_eval-template-fixtures.ts` | modified | `runEvalTemplate` also passes `setTimeout` into the `node:vm` context, because the template's wait needs it. Scope expansion, see Deviations. |
-| `src/tools/views_base/_template.test.ts` | added tests | Byte checks for the active-file comparison and the new envelope, plus a `node:vm` suite against a stub `app`. |
+| `src/tools/views_base/_template.test.ts` | added tests | A `node:vm` suite against a stub `app`, on fake timers. |
 | `src/tools/views_base/schema.test.ts` | added tests | The focus envelope's accepted and rejected (strict) shapes. |
-| `src/tools/views_base/handler.test.ts` | added tests | `FOCUS_NOT_APPLIED` mapping (with `active` set and with `null`) and two malformed Bases in succession. |
+| `src/tools/views_base/handler.test.ts` | added tests | `FOCUS_NOT_APPLIED` mapping (with `active` set and with `null`). |
 | `docs/tools/views_base.md` | modified | Error roster gains the named-mode `details.stage: "focus"` row under the generic `CLI_REPORTED_ERROR` (Retry). The `BASE_MALFORMED` paragraph now says the report always describes the named Base. |
 | `CHANGELOG.md` | modified | `### Fixed` entry for BI-0179. |
 
@@ -48,8 +48,7 @@ if (decoded.ok === false && decoded.code === "FOCUS_NOT_APPLIED") {
 
 ## Tests Added or Updated
 
-- `_template.test.ts` › "checks the active file against the resolved file after the open (BI-0179)": the frozen string carries the `getActiveFile()!==f` check and the `FOCUS_NOT_APPLIED` envelope.
-- `_template.test.ts` › "views_base FOCUS_BASE_TEMPLATE — focus check (BI-0179)", run under `node:vm` through `runEvalTemplate`:
+- `_template.test.ts` › "views_base FOCUS_BASE_TEMPLATE — focus check (BI-0179)", run under `node:vm` through `runEvalTemplate` on fake timers (`vi.useFakeTimers()` reaches the template's poll, so the bounded wait costs no real time):
   - an open that lands at once gives `ok:true` and makes exactly 2 `getActiveFile()` calls (no polling);
   - an open that lands late gives `ok:true` after polling;
   - an open that never lands gives `FOCUS_NOT_APPLIED` with `active` set to the file still in front, after exactly 21 checks (the 1 s bound);
@@ -58,7 +57,7 @@ if (decoded.ok === false && decoded.code === "FOCUS_NOT_APPLIED") {
   - a missing path or a folder still gives `FILE_NOT_FOUND`, with no open and no active-file check.
 - `schema.test.ts` › "focus envelope: … accepted" (4 rows) and "… rejected (strict)" (5 rows): the new variant parses; a missing `active`, stray keys, an unknown code, and `ok:true` carrying a code are rejected.
 - `handler.test.ts` › "BI-0179 focus not applied (%s)" (2 rows: `active` = `A/broken.base`, `active` = `null`): `CLI_REPORTED_ERROR`, `cause` null, `details` exactly `{ stage: "focus", base_path, active }` (no `code`, `reason`, `message` or `messageLength`), the exact headline, and only one spawn (`["eval"]`, no `base:views`; `makeQueuedSpawn` gets one response, per refactor-decisions item 16).
-- `handler.test.ts` › "BI-0179 two malformed Bases in succession": with the live complaint texts, A's error carries A's complaint and length (148) and B's error carries B's (128).
+- Removed in the PR #140 review: a byte check of the template text for the active-file comparison (the vm suite proves the behaviour), and a handler test running two malformed Bases in succession (its stubbed spawns give each call its own complaint, so it passed before the fix too; the existing M-series cases cover the happy path, and the live runs in `test.md` cover the sequence).
 - Existing tests are unchanged and green, including US2, US3, M1–M15, the byte-stability checks and the anti-injection round-trip.
 
 ## Local Verification
@@ -84,7 +83,7 @@ Run with `codegraph_explore` on `FOCUS_BASE_TEMPLATE`, `executeViewsBase`, `focu
 1. **No new top-level error codes**: the focus failure uses the existing `CLI_REPORTED_ERROR`. `src/errors.ts` is untouched and no error class was added. `FOCUS_NOT_APPLIED` is an internal eval-envelope literal (like `FILE_NOT_FOUND`) and never reaches a caller as a code.
 2. **DI discipline**: `handler.ts` imports no boot-time factory. `createLogger()` / `createQueue()` stay confined to `server.ts`, and the handler still receives them through `ExecuteDeps`.
 3. **Module placement and import direction**: every production change is inside `src/tools/views_base/`, with no new imports. The one shared edit, `_eval-template-fixtures.ts`, is a test-support leaf (it adds a vm global) and its imports are unchanged.
-4. **Reachability**: the new template branch and the new handler branch are reached from `executeViewsBase`, which `createViewsBaseTool` (`views_base/index.ts`) calls. No orphaned symbol was added.
+4. **Reachability**: the new template branch and the new handler branch are reached from `executeViewsBase`, which `createViewsBaseTool` (`views_base/index.ts`) calls. The module-private `focusNamedBase` (added in the PR #140 review) has exactly one caller, `executeViewsBase`. No orphaned symbol was added.
 
 Kernel-node claim from `assessment.md` ("the fix touches none of them") **held**: `createLogger()`, `createQueue()`, `UpstreamError` (used, not changed) and `createServer()` are untouched. `decodeEvalEnvelope` (`_active-file.ts`) is unchanged; the new variant goes through it as one more schema branch, as the assessment required.
 

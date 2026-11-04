@@ -4,7 +4,7 @@
 // string-interpolated) + the BI-0179 focus check run under node:vm against a stub `app`. The
 // template reuses the open MECHANISM via the shared composeEvalCode primitive; it must NOT import
 // the sibling open_file module (Principle I).
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FOCUS_BASE_TEMPLATE } from "./_template.js";
 import { runEvalTemplate } from "../_eval-template-fixtures.js";
@@ -36,11 +36,6 @@ describe("views_base FOCUS_BASE_TEMPLATE — frozen-string byte stability", () =
     expect(FOCUS_BASE_TEMPLATE.includes("f.extension===undefined")).toBe(true);
   });
 
-  it("checks the active file against the resolved file after the open (BI-0179)", () => {
-    expect(FOCUS_BASE_TEMPLATE.includes("app.workspace.getActiveFile()!==f")).toBe(true);
-    expect(FOCUS_BASE_TEMPLATE.includes("code:'FOCUS_NOT_APPLIED',active:g?g.path:null")).toBe(true);
-  });
-
   it("does NOT reach into the open_file placement machinery (minimal focus eval)", () => {
     expect(FOCUS_BASE_TEMPLATE.includes("iterateAllLeaves")).toBe(false);
     expect(FOCUS_BASE_TEMPLATE.includes("placement")).toBe(false);
@@ -48,9 +43,10 @@ describe("views_base FOCUS_BASE_TEMPLATE — frozen-string byte stability", () =
   });
 });
 
-// BI-0179: the template runs under node:vm against a stub `app`. `activeAfter(n)` is the file
-// `getActiveFile()` reports from its n-th call on (0-based), so a test can make the open land at
-// once, land late, or never land.
+// BI-0179: the template runs under node:vm against a stub `app`. `active(n)` is the file
+// `getActiveFile()` reports on its n-th call (0-based), so a test can make the open land at once,
+// land late, or never land. The wait runs on fake timers: `runEvalTemplate` hands the vm context
+// the global `setTimeout`, so `vi.useFakeTimers()` reaches the template's poll.
 interface StubFile {
   path: string;
   extension?: string;
@@ -74,11 +70,24 @@ function stubApp(files: StubFile[], active: (call: number) => StubFile | null) {
 const A: StubFile = { path: "A/broken.base", extension: "base" };
 const B: StubFile = { path: "B/broken.base", extension: "base" };
 
+async function runFocus(app: unknown, path: string): Promise<unknown> {
+  const result = runEvalTemplate(FOCUS_BASE_TEMPLATE, { path }, app);
+  await vi.runAllTimersAsync();
+  return result;
+}
+
 describe("views_base FOCUS_BASE_TEMPLATE — focus check (BI-0179)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("returns ok:true with the named path when the open lands at once (one check, no wait)", async () => {
     const { app, opened, activeCalls } = stubApp([A, B], () => B);
 
-    const result = await runEvalTemplate(FOCUS_BASE_TEMPLATE, { path: B.path }, app);
+    const result = await runFocus(app, B.path);
 
     expect(result).toEqual({ ok: true, opened: B.path });
     expect(opened).toEqual([[B.path, "", false]]);
@@ -88,7 +97,7 @@ describe("views_base FOCUS_BASE_TEMPLATE — focus check (BI-0179)", () => {
   it("waits for an open that lands late and then returns ok:true", async () => {
     const { app, activeCalls } = stubApp([A, B], (n) => (n < 3 ? A : B));
 
-    const result = await runEvalTemplate(FOCUS_BASE_TEMPLATE, { path: B.path }, app);
+    const result = await runFocus(app, B.path);
 
     expect(result).toEqual({ ok: true, opened: B.path });
     expect(activeCalls()).toBe(5); // three misses, the hit, the final read
@@ -97,7 +106,7 @@ describe("views_base FOCUS_BASE_TEMPLATE — focus check (BI-0179)", () => {
   it("returns FOCUS_NOT_APPLIED with the file still in front when the open never lands", async () => {
     const { app, activeCalls } = stubApp([A, B], () => A);
 
-    const result = await runEvalTemplate(FOCUS_BASE_TEMPLATE, { path: B.path }, app);
+    const result = await runFocus(app, B.path);
 
     expect(result).toEqual({ ok: false, code: "FOCUS_NOT_APPLIED", active: A.path });
     expect(activeCalls()).toBe(21); // the bounded wait: 20 checks + the final read
@@ -106,7 +115,7 @@ describe("views_base FOCUS_BASE_TEMPLATE — focus check (BI-0179)", () => {
   it("returns FOCUS_NOT_APPLIED with active:null when nothing is in front after the open", async () => {
     const { app } = stubApp([A, B], () => null);
 
-    const result = await runEvalTemplate(FOCUS_BASE_TEMPLATE, { path: B.path }, app);
+    const result = await runFocus(app, B.path);
 
     expect(result).toEqual({ ok: false, code: "FOCUS_NOT_APPLIED", active: null });
   });
@@ -115,7 +124,7 @@ describe("views_base FOCUS_BASE_TEMPLATE — focus check (BI-0179)", () => {
     const lookalike: StubFile = { path: "C/broken.base", extension: "base" };
     const { app } = stubApp([A, B], () => lookalike);
 
-    const result = await runEvalTemplate(FOCUS_BASE_TEMPLATE, { path: B.path }, app);
+    const result = await runFocus(app, B.path);
 
     expect(result).toEqual({ ok: false, code: "FOCUS_NOT_APPLIED", active: lookalike.path });
   });
@@ -124,11 +133,11 @@ describe("views_base FOCUS_BASE_TEMPLATE — focus check (BI-0179)", () => {
     const folder: StubFile = { path: "Folder" };
     const { app, opened, activeCalls } = stubApp([folder], () => A);
 
-    expect(await runEvalTemplate(FOCUS_BASE_TEMPLATE, { path: "Missing.base" }, app)).toEqual({
+    expect(await runFocus(app, "Missing.base")).toEqual({
       ok: false,
       code: "FILE_NOT_FOUND",
     });
-    expect(await runEvalTemplate(FOCUS_BASE_TEMPLATE, { path: "Folder" }, app)).toEqual({
+    expect(await runFocus(app, "Folder")).toEqual({
       ok: false,
       code: "FILE_NOT_FOUND",
     });

@@ -320,31 +320,6 @@ test.each([
   },
 );
 
-test("BI-0179 two malformed Bases in succession: each error carries its own complaint and length", async () => {
-  const complaintA =
-    "Error: Flow sequence in block collection must be sufficiently indented and end with a ] at line 4, column 5:\n\n    name: [unclosed\n    filters:\n    ^";
-  const complaintB =
-    "Error: Flow sequence in block collection must be sufficiently indented and end with a ] at line 4, column 1:\n\n    name: [a, b\n\n^";
-
-  const ueA = await expectErr(
-    executeViewsBase(
-      { base_path: "A/broken.base" },
-      makeDeps([evalOk("A/broken.base"), { stdout: complaintA, exitCode: 0 }]).deps,
-    ),
-  );
-  const ueB = await expectErr(
-    executeViewsBase(
-      { base_path: "B/broken.base" },
-      makeDeps([evalOk("B/broken.base"), { stdout: complaintB, exitCode: 0 }]).deps,
-    ),
-  );
-
-  expectInvalidYaml(ueA, "A/broken.base");
-  expectInvalidYaml(ueB, "B/broken.base");
-  expect([ueA.details.message, ueA.details.messageLength]).toEqual([complaintA, complaintA.length]);
-  expect([ueB.details.message, ueB.details.messageLength]).toEqual([complaintB, complaintB.length]);
-});
-
 test("US3 no-base-open: open-mode 'not a base file' → BASE_NOT_FOUND/not-open (dispatch-catch)", async () => {
   const { deps } = makeDeps([
     { stdout: "Error: Active file is not a base file: some/path.md", exitCode: 0 },
