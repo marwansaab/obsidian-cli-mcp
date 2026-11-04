@@ -22,9 +22,8 @@ The minimal `app` object `JS_TEMPLATE` reads (research D3).
 | Field of `state` | Values | Becomes |
 |---|---|---|
 | `files` | list of E1 | `vault.getAbstractFileByPath(p)` finds by exact path, and `metadataCache.getFirstLinkpathDest(name, "")` finds by basename without `.md`. Both return null for anything else. |
-| `active` | an E1 or `null` | `workspace.getActiveFile()` |
-| `plugin` | `absent` · `no-env` · `no-sources` · `no-items` · `items-null` · `ready` | `absent`: no `"smart-connections"` key. `no-env`: plugin with no `env`. `no-sources`: `env: {}`. `no-items`: `env.smart_sources: {}`. `items-null`: `items: null`. `ready`: `items` is the index (E3). |
-| `index` | E3 | used only when `plugin` is `ready` |
+| `active` | an E1, or absent | `workspace.getActiveFile()`, null when absent |
+| `plugin` | `absent` · `no-env` · `no-sources` · `no-items` · `items-null` · `ready(index)` | `absent`: no `"smart-connections"` key. `no-env`: plugin with no `env`. `no-sources`: `env: {}`. `no-items`: `env.smart_sources: {}`. `items-null`: `items: null`. `ready(index)`: `items` is the index (E3), which the ready state carries, so a ready plugin cannot be written without one. |
 
 `vault.getName()` always returns `"Demo"`. The `vault` argument the checks pass is also `"Demo"`, so the not-installed detail is predictable.
 

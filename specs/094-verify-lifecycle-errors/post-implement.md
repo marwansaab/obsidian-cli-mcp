@@ -16,7 +16,7 @@
 
 ## CodeGraph structural verification (T020)
 
-The index was brought up to date with `codegraph sync`. `codegraph_explore` was then run on `runEvalCode`, `runEvalTemplate`, `makeEvalRunnerSpawn` and the new test file's helpers (`simulatedApp`, `buildTool`, `callTool`, `expectFailure`, `expectSuccess`).
+The index was brought up to date with `codegraph sync`. `codegraph_explore` was then run on `runEvalCode`, `runEvalTemplate`, `makeEvalRunnerSpawn` and the new test file's helpers (`simulatedApp`, `buildTool`, `callOnce`, `itFails`, `expectFailure`, `expectSuccess`; `callTool` was renamed `callOnce` in the PR #145 review fix, which also moved the one-spawn assertion into it).
 
 1. **No new error code or error class.** The new code constructs no `UpstreamError` and declares no error class. The test file only reads the codes the handler already emits. `src/errors.ts` is unchanged.
 2. **No production handler imports the boot-time DI factories.** All the new code is test support. The test calls `createQueue()` and `silentLogger()` (which wraps `createLogger()`) the way every handler suite does. No production file imports `_eval-template-fixtures.ts`, `_handler-test-fixtures.ts` or the new symbols.
