@@ -793,17 +793,23 @@ rename '<abs>' -> '<abs>'`, passed through as `CLI_REPORTED_ERROR` with no
 reports it on exit 0, moves nothing and creates no folder (research F1, F2).
 
 `executeMove` now wraps the CLI call and the response parse in one `try`, and
-its catch is `throw await moveFailure(e, target, resolvedTo, vaultRegistry)`.
-Classification happens only after the CLI has reported the failure; a
-successful move makes exactly the calls it made before
+its catch is `throw await moveFailure(e, target, resolvedTo, deps)` (PR #123
+passed `vaultRegistry` alone; since PR #139 it passes the whole
+`ExecuteDeps`, which the blocked-file check's `invokeEval` needs). Classification happens only after the
+CLI has reported the failure; a successful move makes exactly the calls it
+made before
 ([ADR-060](../decisions/ADR-060-move-classifies-its-failure-after-the-cli-and-keeps-the-vault-folder-out.md)).
 
 ```mermaid
 flowchart TD
   e[move-step failure] --> b{UpstreamError, and not CLI_BINARY_NOT_FOUND?}
   b -- no --> pass[rethrow unchanged]
-  b -- yes --> m{"ENOENT rename line, and destination folder is not the vault root?"}
-  m -- yes --> f["CLI_REPORTED_ERROR, details { code: FOLDER_NOT_FOUND, folder }, cause null"]
+  b -- yes --> m{"ENOENT or ENOTDIR rename line, and destination folder is not the vault root?"}
+  m -- yes --> k["BLOCKER_TEMPLATE eval: first folder prefix that is a file on disk"]
+  k -- file found --> n["CLI_REPORTED_ERROR, details { code: NOT_A_FOLDER, folder: file }, cause null"]
+  k -- "none, ENOENT" --> f["CLI_REPORTED_ERROR, details { code: FOLDER_NOT_FOUND, folder }, cause null"]
+  k -- "none, ENOTDIR" --> l
+  k -- eval fails --> w
   m -- no --> l[fileTargetVaultRoot]
   l -- root --> r[withVaultRelativePaths]
   l -- "VALIDATION_ERROR (unregistered vault)" --> pass
@@ -811,15 +817,40 @@ flowchart TD
 ```
 
 - **`FOLDER_NOT_FOUND`.** A `CLI_REPORTED_ERROR` whose `details.message`
-  starts with the ENOENT rename line is a missing destination: the CLI
-  reports a missing source with its own line before it attempts the rename
-  (research F3). `details.folder` is the folder part of the already-computed
-  `resolvedTo`, with forward slashes, so no lookup is made; nested missing
-  folders report the one the caller asked for. `cause` is `null` because the
-  CLI's error carries the absolute paths. A root-level destination that gets
-  ENOENT is not reported as a missing folder, since the vault root exists.
-  The message names the only recovery today: write a note into the folder
-  with `write_note`, which creates it, then retry.
+  starts with the ENOENT rename line, and whose destination has no file in
+  the way (next bullet), is a missing destination: the CLI reports a missing
+  source with its own line before it attempts the rename (research F3).
+  `details.folder` is the folder part of the already-computed `resolvedTo`,
+  with forward slashes; nested missing folders report the one the caller
+  asked for. `cause` is `null` because the CLI's error carries the absolute
+  paths. A root-level destination that gets ENOENT is not reported as a
+  missing folder, since the vault root exists. The message names the only
+  recovery today: write a note into the folder with `write_note`, which
+  creates it, then retry. Until PR #139 this bullet said "so no lookup is
+  made": PR #123 read every non-root ENOENT rename line as a missing folder.
+  That was wrong for a file in the way, which gives the same line on Windows.
+- **`NOT_A_FOLDER`** (PR #139, BI-0177). For a `path` locator `move`
+  expands the folder form into a full path through the file
+  (`to=Inbox/Note.md/MoveMe.md`), and the CLI's rename fails with ENOENT on
+  Windows (T0 probe) or, inferred from libuv, ENOTDIR on POSIX. So on either
+  line `moveFailure` first runs one `invokeEval` in the vault the move used
+  (no `vault=` in active mode) with the frozen `BLOCKER_TEMPLATE`
+  (`src/tools/move/_template.ts`). It walks the folder's prefixes from the
+  shortest through `app.vault.adapter.stat`, the check `paths` already uses,
+  and returns the first one that exists and is not a folder; a missing prefix
+  ends the walk with `null`. The folder goes in only through the base64
+  payload, and the answer is parsed by `moveBlockerEnvelopeSchema`. A file
+  found gives `details: { code: "NOT_A_FOLDER", folder: <file> }`, the pair
+  [`paths`](list-and-inventory.md#failure) publishes, with "rename or remove
+  that file, or pick another destination" and no create-folder advice. None
+  found gives `FOLDER_NOT_FOUND` for ENOENT and the rewrite below for
+  ENOTDIR. If the eval itself fails, the CLI text is withheld as for a failed
+  root lookup, never `FOLDER_NOT_FOUND`
+  ([ADR-071](../decisions/ADR-071-move-checks-a-blocked-destination-on-disk-after-the-rename-fails.md)).
+  The first implementation asked Obsidian's index
+  (`getAbstractFileByPath`); the PR #139 review showed it case-sensitive and
+  blind to unindexed files, and the owner ruled for the disk (commit
+  `3a23d9d`).
 - **Every other failure** from the move step keeps its code and wording, with
   the vault's folder rewritten out by the shared `withVaultRelativePaths`
   ([architecture](../architecture.md#error-spine)). The root comes from
@@ -835,7 +866,10 @@ flowchart TD
   withheld: the code is kept, `details` is `{ source, destination }`, and the
   lookup error is the `cause`. The plan first rethrew the original on any
   lookup failure; the pre-implement analysis (finding U1) showed that leaked
-  the root on a cold-cache probe, and the owner ruled for withholding.
+  the root on a cold-cache probe, and the owner ruled for withholding. Since
+  PR #139 a failed blocked-file check is withheld the same way, through the
+  same `withheldFailure`; a closed key picks the clause that says which
+  lookup failed, so PR #123's message is unchanged.
 - **Exceptions.** `CLI_BINARY_NOT_FOUND` passes through: its search paths
   describe the CLI install, not a vault (Clarification Q1). Cancellation is
   not an `UpstreamError` and is rethrown untouched.
@@ -1005,6 +1039,18 @@ from their schema would have reached the client as SDK free text rather than
   source is deleted between Obsidian's own check and the rename, that ENOENT
   is reported as `FOLDER_NOT_FOUND`; the retry then reports the missing
   source (spec 090 research D2, an accepted residual).
+- Since PR #139 a `move` into a missing folder costs one extra CLI call, the
+  blocked-file eval, before it reports `FOLDER_NOT_FOUND`; spec 090 research
+  F7's "needs no vault lookup" no longer holds for that branch. Success and
+  every other failure are unchanged.
+- The blocked-file check asks the disk, so a name that differs from the
+  file's only in case finds the file where the file system ignores case
+  (Windows, default macOS volumes), and `details.folder` carries the name as
+  written in `to`. A `stat` that rejects reads as a missing prefix, so the
+  result is `FOLDER_NOT_FOUND`, not a withheld failure.
+- The POSIX `ENOTDIR` rename line is inferred from libuv and covered only by
+  unit rows; PR #139's live runs were on Windows, and a POSIX capture is a
+  residual (`.specify/bugs/bi-0177/test.md`).
 - `patch_heading` and `patch_block` were outside spec 070 (FR-013): they do
   not run the type check and their descriptions carry no supported-types
   sentence. PR #122 gave them the shared resolver but still no type check

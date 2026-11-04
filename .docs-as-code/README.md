@@ -253,3 +253,10 @@ applies. Records written since:
   `focused-unregistered` instead of using the folder path as the name;
   start-up priming in `server.ts`, fail-loud without a probe and a separate
   refresh method were rejected (PR #138).
+- [decisions/ADR-071-move-checks-a-blocked-destination-on-disk-after-the-rename-fails.md](decisions/ADR-071-move-checks-a-blocked-destination-on-disk-after-the-rename-fails.md)
+  — after an ENOENT or ENOTDIR rename failure `move` runs one eval that
+  walks the destination folder's prefixes through `adapter.stat` and reports
+  a file in the way as `NOT_A_FOLDER`, amending ADR-060's no-lookup reading
+  of the ENOENT line; Obsidian's index (review argued the fix out of it), a
+  server-side stat and dropping the folder-form expansion were rejected
+  (PR #139).
