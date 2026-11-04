@@ -540,3 +540,76 @@ Edits:
 > If any other existing test fails, stop and raise it. Do not edit it.
 >
 > The ruling is recorded on BI-0121.
+
+## 8. repair / bug-fix (2026-11-04T00:51:38.059Z)
+
+**Question (verbatim):**
+
+> Two more existing tests fail after the fix, and neither is on the approved list of 11: `src/tools/patch_block/handler.test.ts:831` and `src/tools/patch_heading/handler.test.ts:780`, both titled "metadata refresh runs in the open vault: no vault= on its argv, never the folder path (068 FR-002 / R13)".
+>
+> **Context.** These two tests came from the spec 068 / PR #87 review (refactor-decisions item 24). They pin that the post-write metadata refresh in `invalidateMetadataCache` (`_note-io.ts`) takes its `vault` from `input.vault` (undefined in active mode), never from the resolved `vaultDisplayName`. To prove this they deliberately focus a vault whose base (`/unknown-vault-root`) is **not** in the stub registry (`fakeRegistry({ TestVault: VAULT_ROOT })`), so the old helper fell back to the folder path, and they assert `result.vault === FALLBACK_ROOT` plus no `vault=` on the refresh argv. After the fix, that unregistered base fails loud in `resolveActiveLocatorWithVault` (called from `resolveFsTarget` in `_file-target.ts`) before any read, write or refresh, so both tests now reject with `CLI_REPORTED_ERROR` / `VAULT_NOT_FOUND` / `focused-unregistered`. The "folder path as display name" state they were built on can no longer happen. append_note's sibling test (`append_note/handler.test.ts:828`) already uses a registered base and still passes.
+>
+> | Option | Edit | Effect |
+> |---|---|---|
+> | **A (recommended)** | In each test, focus the registered base (`VAULT_ROOT` instead of `FALLBACK_ROOT`), change `expect(result.vault)` to `"TestVault"`, and drop ", never the folder path" from the title. The refresh assertions stay as they are (`code=` contains `getFileByPath("today.md")`, no `vault=` on the argv). | Keeps the item-24 check in both tools: the display name is now `TestVault`, so a refresh argv with no `vault=` still shows that the refresh follows `input.vault`, not `vaultDisplayName`. This matches append_note's passing sibling test. |
+> | B | Change only the expected result to the fail-loud error, with nothing written. | No refresh happens, so the item-24 check disappears from patch_block and patch_heading. The tests would repeat the already-approved flips of `:799` / `:747`. |
+> | C | Delete both tests. | Loses the item-24 check in these two tools. Only append_note keeps it. |
+>
+> Recommended: **A**. It is the smallest edit that keeps what the tests were written to check. The unregistered-base case is already covered by the approved flips of `patch_block/handler.test.ts:799` and `patch_heading/handler.test.ts:747`. As before, if any other existing test fails, I stop and raise it.
+
+**Advisor** (escalate: decision: The developer wants to edit two more existing tests. Only the owner can approve that, and the earlier rulings approved exactly 11 and said to stop and raise any others.):
+
+> 6. A. Approve two more edits, 13 in total:
+> - `patch_block/handler.test.ts:831`
+> - `patch_heading/handler.test.ts:780`
+>
+> In each test:
+> - Focus the registered base (`VAULT_ROOT`).
+> - Expect `result.vault === "TestVault"`.
+> - Drop ", never the folder path" from the title.
+> - Keep the refresh assertions unchanged: `getFileByPath("today.md")` in `code=`, and no `vault=` on the argv.
+>
+> If any other existing test fails, stop and raise it. Do not edit it.
+>
+> Rationale:
+> - The fix removes the folder-path fallback these tests used (Q1 option A, Q2 classification). Option A keeps their check (068 item 24: the refresh follows `input.vault`) and matches append_note's passing sibling at `:828`.
+> - The approved flips at `:799` and `:747` already cover the unregistered-base case.
+>
+> This is a recommendation: the Q3 and Q5 rulings approved exactly 11 tests and said to stop and raise any others, so these two need the owner's approval.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0121 - Sweep Active Mode Cold Cache Cohort For Vault Not Found Regression.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Constitution.md`
+
+**Advisor, after the owner ruled** (escalate: none):
+
+> 6. A. The owner approved retargeting both tests. That makes 13 approved test edits in total.
+>
+> The two tests are `patch_block/handler.test.ts:831` and `patch_heading/handler.test.ts:780`. In each:
+> - Focus the registered base (`VAULT_ROOT`).
+> - Expect `result.vault === "TestVault"`.
+> - Remove ", never the folder path" from the title.
+> - Leave the refresh assertions as they are: `getFileByPath("today.md")` in `code=`, and no `vault=` on the argv.
+>
+> If any other existing test fails, stop and raise it. Do not edit it.
+>
+> The ruling is recorded on BI-0121.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0121 - Sweep Active Mode Cold Cache Cohort For Vault Not Found Regression.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0121 - Sweep Active Mode Cold Cache Cohort For Vault Not Found Regression.md`: Appended a dated HTML-comment audit line recording the owner's Q6 ruling: patch_block :831 and patch_heading :780 retargeted to the registered base (13 approved test edits total), refresh assertions unchanged; any other failing test is to be stopped and raised.
+
+**Owner:** choice 1 (Approve A: retarget both (13)), via cli, 2026-11-04T00:52:23.811Z.
+
+**Sent to the step:**
+
+> 6. A. The owner approved retargeting both tests. That makes 13 approved test edits in total.
+>
+> The two tests are `patch_block/handler.test.ts:831` and `patch_heading/handler.test.ts:780`. In each:
+> - Focus the registered base (`VAULT_ROOT`).
+> - Expect `result.vault === "TestVault"`.
+> - Remove ", never the folder path" from the title.
+> - Leave the refresh assertions as they are: `getFileByPath("today.md")` in `code=`, and no `vault=` on the argv.
+>
+> If any other existing test fails, stop and raise it. Do not edit it.
+>
+> The ruling is recorded on BI-0121.
