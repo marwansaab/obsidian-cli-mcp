@@ -22,7 +22,7 @@ Runtime dependency: the Smart Connections plugin (by Brian Petro; ≥ v4.5.0) mu
 
 ${closedVaultNote("eval")}
 
-Error-precedence (outer to inner): VAULT_NOT_FOUND(unknown) → SMART_CONNECTIONS_NOT_INSTALLED → SMART_CONNECTIONS_NOT_READY(api-missing) → SMART_CONNECTIONS_NOT_READY(embed-failed) → success.`;
+Error-precedence (outer to inner): unknown vault (CLI_REPORTED_ERROR "Vault not found.", no details.code) → SMART_CONNECTIONS_NOT_INSTALLED → SMART_CONNECTIONS_NOT_READY(api-missing) → SMART_CONNECTIONS_NOT_READY(embed-failed) → success.`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

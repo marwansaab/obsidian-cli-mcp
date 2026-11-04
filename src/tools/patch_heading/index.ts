@@ -1,5 +1,6 @@
-// Original — no upstream. patch_heading tool registration per BI-040 / ADR-009 — wraps the executePatchHeading direct-fs-write handler via registerTool (ADR-006); responseFormat: "json" emits the { path, vault, heading_path, mode, bytes_written } envelope on the MCP wire.
+// Original — no upstream. patch_heading tool registration per BI-040 / ADR-009 — wraps the executePatchHeading direct-fs-write handler via registerTool (ADR-006); responseFormat: "json" emits the { path, vault, heading_path, mode, bytes_written } envelope on the MCP wire. BI-0174: a mapValidationError hook (shared liftSubCodedIssue) lifts INVALID_HEADING_PATH / EMPTY_CONTENT's ADR-015 params into details.
 import { registerTool } from "../_register.js";
+import { liftSubCodedIssue } from "../_validation-details.js";
 import { executePatchHeading, type ExecuteDeps } from "./handler.js";
 import { patchHeadingInputSchema, patchHeadingOutputSchema } from "./schema.js";
 import { ADDITIVE_WRITE_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
@@ -24,7 +25,7 @@ Targeting: \`target_mode: "specific"\` + \`vault\` + EXACTLY ONE of \`file\` / \
 
 Concurrent calls against the same note publish a \`HEADING_RACE\` discriminator when both calls target the same heading and a race is detected — callers can branch on it and retry. (Sibling \`patch_block\` does NOT publish a race discriminator; it just resolves last-write-wins.)
 
-Typed errors via \`UpstreamError.details.code\`: \`HEADING_NOT_FOUND\` (the path most often leaves out the level-1 heading or skips a level; check that first, then use [\`outline\`](./outline.md) to list the note's headings and retry), \`HEADING_RACE\`, \`UNSAFE_PLACEMENT\` (note unchanged; re-read and retry once), \`EXTERNAL_EDITOR_CONFLICT\` (file locked — ask user to save and close, retry), \`INVALID_HEADING_PATH\`, \`EMPTY_CONTENT\`. Plus the standard \`VALIDATION_ERROR\`, \`NOTE_NOT_FOUND\`, \`PATH_ESCAPES_VAULT\`, \`FS_WRITE_FAILED\`, \`VAULT_NOT_FOUND\`, \`ERR_NO_ACTIVE_FILE\`.`;
+Typed errors via \`UpstreamError.details.code\`: \`HEADING_NOT_FOUND\` (the path most often leaves out the level-1 heading or skips a level; check that first, then use [\`outline\`](./outline.md) to list the note's headings and retry), \`HEADING_RACE\`, \`UNSAFE_PLACEMENT\` (note unchanged; re-read and retry once), \`EXTERNAL_EDITOR_CONFLICT\` (file locked — ask user to save and close, retry), \`INVALID_HEADING_PATH\`, \`EMPTY_CONTENT\`. Plus the standard \`VALIDATION_ERROR\` (an unregistered \`vault\` carries \`details.requestedVault\` / \`knownVaults\`), \`NOTE_NOT_FOUND\`, \`PATH_ESCAPES_VAULT\`, \`FS_WRITE_FAILED\`, \`VAULT_NOT_FOUND\` (registered vault whose folder is missing, or an unlisted focused vault), \`ERR_NO_ACTIVE_FILE\`.`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 
@@ -38,5 +39,6 @@ export function createPatchHeadingTool(deps: RegisterDeps): RegisteredTool {
     outputSchema: patchHeadingOutputSchema,
     deps,
     handler: async (input, d) => executePatchHeading(input, d),
+    mapValidationError: liftSubCodedIssue,
   });
 }

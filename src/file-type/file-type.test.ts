@@ -145,6 +145,22 @@ describe("assertSupportedFileType", () => {
     expect(err.message).toContain("Nothing was changed.");
   });
 
+  // BI-0174 item 13: a read-only caller opts out of "Nothing was changed."; the hint still follows.
+  test("readOnly: true leaves out the nothing-changed sentence and keeps the alternative hint", () => {
+    const err = rejection(() =>
+      assertSupportedFileType({
+        relPath: "Att/photo.png",
+        supported: ["note", "canvas", "base"],
+        toolName: "read",
+        alternatives: { attachment: "open_file" },
+        readOnly: true,
+      }),
+    );
+    expect(err.message).toBe(
+      "read: Att/photo.png is an attachment (.png); read supports notes, canvases and bases. Use open_file for this file instead.",
+    );
+  });
+
   test("an alternative is named only for its own category", () => {
     for (const relPath of ["F/todo.txt", "a/N.md"]) {
       const err = rejection(() =>

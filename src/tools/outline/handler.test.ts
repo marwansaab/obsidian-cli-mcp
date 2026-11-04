@@ -358,6 +358,15 @@ test.each([
   expect(recorded).toHaveLength(0);
 });
 
+// BI-0174 item 13: outline changes nothing, so its rejection leaves out "Nothing was changed.".
+test("BI-0174: a canvas path → the read-only rejection message", async () => {
+  const { spawnFn } = makeQueuedSpawn([]);
+  const err = (await captureRejection(
+    executeOutline({ target_mode: "specific", vault: "V", path: "Whiteboards/Architecture.canvas" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.message).toBe("outline: Whiteboards/Architecture.canvas is a canvas (.canvas); outline supports notes.");
+});
+
 test("spec 070: file mode resolution call runs first, in the named vault", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([fileTsvResponse("Wiki/WikiLinkName.md"), { stdout: "[]\n", exitCode: 0 }]);
   await executeOutline({ target_mode: "specific", vault: "Demo", file: "WikiLinkName" }, deps(spawnFn));

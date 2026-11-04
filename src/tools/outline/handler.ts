@@ -25,7 +25,7 @@ export async function executeOutline(
   deps: ExecuteDeps,
 ): Promise<OutlineOutput> {
   const target = await resolveFileTarget(input, deps, "outline");
-  assertSupportedFileType({ relPath: target.relPath, supported: OUTLINE_SUPPORTED, toolName: "outline" });
+  assertSupportedFileType({ relPath: target.relPath, supported: OUTLINE_SUPPORTED, toolName: "outline", readOnly: true });
 
   const countOnly = input.total === true;
   const parameters: Record<string, string> = {};

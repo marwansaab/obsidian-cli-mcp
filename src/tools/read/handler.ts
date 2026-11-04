@@ -46,6 +46,7 @@ export async function executeReadNote(input: ReadNoteInput, deps: ExecuteDeps): 
     supported: READ_SUPPORTED,
     toolName: "read",
     alternatives: { attachment: "open_file" },
+    readOnly: true,
   });
   // vault flows through invokeCli as a top-level field — symmetric with invokeBoundedCli — rather than being smuggled inside `parameters`.
   const { stdout } = await invokeCli(

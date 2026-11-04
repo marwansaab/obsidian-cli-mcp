@@ -24,13 +24,13 @@ Optional \`folder\` (string): vault-relative folder prefix; leading/trailing "/"
 
 Optional \`limit\` (integer 1..10000, default 1000): caps the response \`matches\` array.
 
-Optional \`case_sensitive\` (boolean, default false): when true, exact-case match; otherwise ASCII-fold only — \`É\` does NOT match \`é\`.
+Optional \`case_sensitive\` (boolean, default false): when true, exact-case match; otherwise case-insensitive, accented letters included — \`CAFÉ\` matches \`café\`.
 
-Response \`{ count, matches: [{ path, line, text }], truncated? }\`. Sorted by \`path\` asc then \`line\` asc. \`text\` capped at 500 chars + \`…\` ellipsis marker; trailing \`\\r\` stripped for cross-platform CRLF defence. \`truncated: true\` present only when the underlying match-set exceeded the applied cap. Non-\`.md\` paths filtered out.
+Response \`{ count, matches: [{ path, line, text }], truncated? }\`. Sorted by \`path\` asc then \`line\` asc. \`text\` is the matched line as written, leading whitespace kept, capped at 500 chars + \`…\` ellipsis marker; trailing \`\\r\` stripped for cross-platform CRLF defence. \`truncated: true\` present only when the underlying match-set exceeded the applied cap. Non-\`.md\` paths filtered out.
 
 **Zero-match handling**: WITHOUT \`folder\`, returns \`{ count: 0, matches: [] }\` (never an error). WITH \`folder\`, the wrapper fires a second \`obsidian folder\` probe to distinguish "folder exists with no matches" from "folder missing" — a missing folder surfaces as \`CLI_REPORTED_ERROR\` with \`details.message\` starting \`"Error: Folder ..."\`.
 
-Unknown vault → \`CLI_REPORTED_ERROR\` with \`details.message: "Vault not found."\`. CLI parse failures → \`CLI_REPORTED_ERROR\` with \`details.stage: "json-parse"\` or \`"wire-parse"\`.`;
+Unknown vault → \`CLI_REPORTED_ERROR\` with \`details.message: "Vault not found."\`. A matched line that cannot be read back (the note changed during the search) → \`CLI_REPORTED_ERROR\` with \`details.code: "MATCH_LINE_UNAVAILABLE"\`; run the search again. CLI parse failures → \`CLI_REPORTED_ERROR\` with \`details.stage: "json-parse"\` or \`"wire-parse"\`.`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

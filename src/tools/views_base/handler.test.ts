@@ -274,6 +274,15 @@ test("083 V9: no file active in the named vault → the same error as the defaul
   expect(named.details.stdout).toBe(front.details.stdout);
 });
 
+test("BI-0174: no active file → the same code and details, with advice naming only views_base's inputs", async () => {
+  const ue = await expectErr(executeViewsBase({}, makeDeps([{ stdout: "Error: No active file.", exitCode: 0 }]).deps));
+
+  expect(ue.code).toBe("ERR_NO_ACTIVE_FILE");
+  expect(ue.message).toBe("No active file in Obsidian. Open a Base in Obsidian, or call views_base with base_path to name one.");
+  expect(ue.message).not.toMatch(/target_mode|vault\/file/);
+  expect(ue.details).toMatchObject({ command: "base:views", exitCode: 0, message: "Error: No active file." });
+});
+
 // ───────────────────────── US3 — distinguishable failures ──────────────────────
 
 test("US3 named-not-found: focus FILE_NOT_FOUND → BASE_NOT_FOUND/named-missing, no base:views", async () => {

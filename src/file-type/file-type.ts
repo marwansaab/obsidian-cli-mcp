@@ -107,6 +107,8 @@ export interface SupportedFileTypeCheck {
   toolName: string;
   /** Per rejected category, the tool to use instead, carried in `details.alternative` and named in the message. */
   alternatives?: Partial<Readonly<Record<FileCategory, string>>>;
+  /** BI-0174: a read-only tool (`read`, `outline`) leaves "Nothing was changed." out of the message. */
+  readOnly?: boolean;
 }
 
 /**
@@ -132,7 +134,7 @@ export function assertSupportedFileType(check: SupportedFileTypeCheck): void {
       supported: [...supported],
       ...(alternative !== undefined ? { alternative } : {}),
     },
-    message: `${toolName}: ${relPath} is ${describeFile(extension, true)}; ${toolName} supports ${describeCategories(supported)}. Nothing was changed.${hint}`,
+    message: `${toolName}: ${relPath} is ${describeFile(extension, true)}; ${toolName} supports ${describeCategories(supported)}.${check.readOnly === true ? "" : " Nothing was changed."}${hint}`,
   });
 }
 

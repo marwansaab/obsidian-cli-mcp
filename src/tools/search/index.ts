@@ -29,7 +29,7 @@ Optional \`folder\` (string): vault-relative folder prefix; leading/trailing \`/
 
 Optional \`limit\` (integer 1..10000, default 1000): caps the response array.
 
-Optional \`case_sensitive\` (boolean, default false): ASCII fold only when false — \`É\` does NOT match \`é\`.
+Optional \`case_sensitive\` (boolean, default false): when false, case-insensitive, accented letters included — \`CAFÉ\` matches \`café\`.
 
 Optional \`context_lines\` (boolean, default false, **DEPRECATED — prefer \`context_search\`**): when true, returns line-level matches as \`{ count, matches: [{ path, line, text }], truncated? }\` instead of paths.
 
@@ -37,7 +37,7 @@ Optional \`vault\` (string): routes to a named vault; omitted routes to the focu
 
 Response carries \`count\` plus the array (\`paths\` or \`matches\`) plus optional \`truncated: true\` (present only when truncation fired). Sort: UTF-16 ascending. Non-\`.md\` paths filtered out. Files matched only by filename/metadata (not body text) do NOT appear in line mode — \`context_search\`'s count can be less than \`search\`'s default-mode count for the same query.
 
-Zero-match returns the empty envelope (never an error). Unknown vault → \`CLI_REPORTED_ERROR\` with \`details.code: "VAULT_NOT_FOUND"\`. CLI parse failures → \`CLI_REPORTED_ERROR\` with \`details.stage: "json-parse"\` or \`"wire-parse"\`.
+Zero-match returns the empty envelope (never an error). Unknown vault → \`CLI_REPORTED_ERROR\` with \`details.message: "Vault not found."\`. CLI parse failures → \`CLI_REPORTED_ERROR\` with \`details.stage: "json-parse"\` or \`"wire-parse"\`.
 
 Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\`, \`CLI_REPORTED_ERROR\`, \`CLI_NON_ZERO_EXIT\`, \`CLI_TIMEOUT\`, \`CLI_OUTPUT_TOO_LARGE\`, \`CLI_BINARY_NOT_FOUND\`.`;
 

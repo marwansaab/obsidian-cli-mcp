@@ -14,7 +14,7 @@
 // parser complaint (the shared INVALID_YAML_PATTERN, the one query_base uses) on the failure or the
 // clean-exit path is checked ahead of the not-a-base check and becomes BASE_MALFORMED/invalid-yaml in
 // both modes; the named-mode not-a-base report is BASE_MALFORMED/unknown. The upstream report is kept
-// bounded in details.message / messageLength (spec 080 rule).
+// bounded in details.message / messageLength (spec 080 rule). BI-0174: ERR_NO_ACTIVE_FILE is rethrown with advice that names only views_base's inputs.
 import { FOCUS_BASE_TEMPLATE } from "./_template.js";
 import {
   focusBaseEvalResponseSchema,
@@ -151,6 +151,10 @@ function focusedBaseError(
   });
 }
 
+/** BI-0174: views_base's own advice for a vault with no file open (open-Base mode). */
+const NO_ACTIVE_FILE_MESSAGE =
+  "No active file in Obsidian. Open a Base in Obsidian, or call views_base with base_path to name one.";
+
 /**
  * Run `base:views` (in the named `vault` when one is given, else in the vault in front) and
  * return the clean `{views, count}` envelope. A recognised
@@ -175,6 +179,11 @@ async function listFocusedViews(deps: ExecuteDeps, input: ViewsBaseInput): Promi
       deps,
     );
   } catch (err) {
+    // BI-0174: the dispatch-level advice names target_mode / vault / file, which views_base does
+    // not take; the same code and details carry advice naming only views_base's own inputs.
+    if (err instanceof UpstreamError && err.code === "ERR_NO_ACTIVE_FILE") {
+      throw new UpstreamError({ code: err.code, cause: err.cause, details: err.details, message: NO_ACTIVE_FILE_MESSAGE });
+    }
     if (err instanceof UpstreamError && (err.code === "CLI_REPORTED_ERROR" || err.code === "CLI_NON_ZERO_EXIT")) {
       const report = upstreamReport(stringDetail(err.details, "stderr"), stringDetail(err.details, "stdout"));
       const failure = recogniseFailure(report, err.code === "CLI_REPORTED_ERROR" ? report : null);

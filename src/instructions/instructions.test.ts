@@ -126,4 +126,13 @@ describe("buildInstructions (068 R7, FR-025..FR-027)", () => {
     expect(text).not.toContain("Which tool:");
     expect(text).toContain("Rules:");
   });
+
+  // BI-0174: the file-type rule says where its exceptions are named, and names no tool, so no filter drops it.
+  it("the file-type rule says tool descriptions name the exceptions, with every tool set", () => {
+    const rule =
+      "- Unsupported file types fail with UNSUPPORTED_FILE_TYPE; renames and moves keep the type. Descriptions name exceptions.";
+    for (const tools of [ALL_TOOLS, READ_ONLY_TOOLS, []]) {
+      expect(buildInstructions(tools).split("\n")).toContain(rule);
+    }
+  });
 });

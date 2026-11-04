@@ -25,7 +25,7 @@ export const contextSearchInputSchema = z
       .max(10000, "limit must be <= 10000 (FR-006)")
       .optional()
       .describe("Maximum number of matches, integer 1–10000. Default 1000."),
-    case_sensitive: z.boolean().optional().describe("Match case exactly when true. Default false (ASCII case fold)."),
+    case_sensitive: z.boolean().optional().describe("Match case exactly when true. Default false (case-insensitive, accented letters included)."),
     vault: focusedVaultField,
   })
   .superRefine((v, ctx) => {

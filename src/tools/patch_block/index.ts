@@ -1,5 +1,6 @@
-// Original — no upstream. patch_block tool registration per BI-043 / ADR-009 — wraps the executePatchBlock direct-fs-write handler via registerTool (ADR-006); responseFormat: "json" emits the { path, vault, block_id, block_shape, bytes_written } envelope on the MCP wire.
+// Original — no upstream. patch_block tool registration per BI-043 / ADR-009 — wraps the executePatchBlock direct-fs-write handler via registerTool (ADR-006); responseFormat: "json" emits the { path, vault, block_id, block_shape, bytes_written } envelope on the MCP wire. BI-0174: a mapValidationError hook (shared liftSubCodedIssue) lifts INVALID_BLOCK_ID's ADR-015 params into details.
 import { registerTool } from "../_register.js";
+import { liftSubCodedIssue } from "../_validation-details.js";
 import { executePatchBlock, type ExecuteDeps } from "./handler.js";
 import { patchBlockInputSchema, patchBlockOutputSchema } from "./schema.js";
 import { ADDITIVE_WRITE_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
@@ -26,7 +27,7 @@ Block-id that resolves to a heading-attached marker (ATX or setext) short-circui
 
 Concurrent calls against the same note resolve **last-write-wins**.
 
-Typed errors via \`UpstreamError.details.code\`: \`BLOCK_NOT_FOUND\`, \`BLOCK_ON_HEADING\` (use \`patch_heading\`), \`UNSAFE_PLACEMENT\` (note unchanged; re-read and retry once), \`NOTE_NOT_FOUND\`, \`INVALID_BLOCK_ID\`, \`EXTERNAL_EDITOR_CONFLICT\` (file locked — ask user to save and close, retry). Plus the standard \`VALIDATION_ERROR\`, \`PATH_ESCAPES_VAULT\`, \`FS_WRITE_FAILED\`, \`VAULT_NOT_FOUND\`, \`ERR_NO_ACTIVE_FILE\`.`;
+Typed errors via \`UpstreamError.details.code\`: \`BLOCK_NOT_FOUND\`, \`BLOCK_ON_HEADING\` (use \`patch_heading\`), \`UNSAFE_PLACEMENT\` (note unchanged; re-read and retry once), \`NOTE_NOT_FOUND\`, \`INVALID_BLOCK_ID\`, \`EXTERNAL_EDITOR_CONFLICT\` (file locked — ask user to save and close, retry). Plus the standard \`VALIDATION_ERROR\` (an unregistered \`vault\` carries \`details.requestedVault\` / \`knownVaults\`), \`PATH_ESCAPES_VAULT\`, \`FS_WRITE_FAILED\`, \`VAULT_NOT_FOUND\` (registered vault whose folder is missing, or an unlisted focused vault), \`ERR_NO_ACTIVE_FILE\`.`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 
@@ -40,5 +41,6 @@ export function createPatchBlockTool(deps: RegisterDeps): RegisteredTool {
     outputSchema: patchBlockOutputSchema,
     deps,
     handler: async (input, d) => executePatchBlock(input, d),
+    mapValidationError: liftSubCodedIssue,
   });
 }

@@ -161,6 +161,14 @@ describe("published tool surface (068 US6, US8)", () => {
         .map((t) => t.name);
       expect(offenders).toEqual(["views_base"]);
     });
+
+    // BI-0174: Claude Code cuts a tool description at 4,096 characters, so a longer one loses its tail.
+    it("every published tool description is at most 4,096 characters", () => {
+      const tooLong = tools
+        .filter((t) => (t.description ?? "").length > 4096)
+        .map((t) => `${t.name} (${t.description!.length})`);
+      expect(tooLong).toEqual([]);
+    });
   });
 
   describe("family parameter names (spec 073 SC-001, FR-008)", () => {

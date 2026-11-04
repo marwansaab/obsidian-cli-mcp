@@ -10,7 +10,7 @@ export const WRITE_NOTE_TOOL_NAME = "write_note";
 export const WRITE_NOTE_DESCRIPTION =
   `Create a new note in an Obsidian vault, or replace an existing one when overwrite=true. No content-size cap — writes go to the vault filesystem directly, bypassing the upstream Obsidian CLI argv-IPC defect that crashes the host process above ~4 KB on Windows. ${describeSupport(WRITE_NOTE_SUPPORTED)} A path to any other file type (canvas, base, attachment, or a path without .md) is rejected with UNSUPPORTED_FILE_TYPE before anything is written.
 
-Defaults overwrite=false (collision returns FILE_EXISTS) and open=false. With target_mode "active" it rewrites the focused note and requires overwrite:true; open is not allowed there.
+Defaults overwrite=false (collision returns FILE_EXISTS) and open=false. The result's bytes_written is the change in the note's size, so an overwrite can report 0 or a negative number. With target_mode "active" it rewrites the focused note and requires overwrite:true; open is not allowed there.
 
 For larger-than-cap appends, prepends, or heading/block patches that need fs-direct semantics, this tool's siblings (append_note, prepend, patch_heading, patch_block) handle the same pipeline; write_note is for fresh creation and full-file replacement.
 
