@@ -4,7 +4,11 @@ import { describe, expect, it } from "vitest";
 import { JS_TEMPLATE } from "./_template.js";
 import { runEvalTemplate } from "../_eval-template-fixtures.js";
 import {
+  documentedOrder,
+  HEADING_PATH_CASES,
   keyOf,
+  MIXED_HEADING_KEYS,
+  MIXED_HEADING_MATCHES,
   tiedFixture,
   type Match,
   type MatchEnvelope,
@@ -163,35 +167,31 @@ describe("smart_connections_query template — US2: equal-relevance results foll
 });
 
 describe("smart_connections_query template — BI-0184: a note's opening text has an empty headingPath", () => {
-  it.each<[string, string, string[]]>([
-    ["AC 1: a block before the note's first heading", "Note.md#", []],
-    ["AC 3: a note with no headings", "Note.md", []],
-    ["AC 4: a block in a nested section", "Note.md#H1#H2", ["H1", "H2"]],
-    ["AC 5: a frontmatter block", "Note.md#---frontmatter---", ["---frontmatter---"]],
-  ])("%s (key %j) has headingPath %j", async (_label, key, headingPath) => {
-    expect(await page([{ key, score: 0.5 }], 10)).toEqual([{ path: "Note.md", headingPath, score: 0.5 }]);
-  });
+  it.each(HEADING_PATH_CASES)(
+    "%s (key %j) has headingPath %j",
+    async (_label, key, headingPath) => {
+      expect(await page([{ key, score: 0.5 }], 10)).toEqual([
+        { path: "Note.md", headingPath, score: 0.5 },
+      ]);
+    },
+  );
 
   it("AC 6: no headingPath holds an empty string, and order and scores follow the documented rules", async () => {
-    const fixture = [
-      { key: "N.md#H1#H2", score: 0.8 },
-      { key: "N.md#", score: 0.8 },
-      { key: "N.md", score: 0.8 },
-      { key: "N.md#---frontmatter---", score: 0.8 },
-      { key: "N.md#H1#", score: 0.6 },
-      { key: "N.md##H2", score: 0.6 },
-      { key: "A.md#", score: 0.5 },
-    ];
-    const matches = await page(fixture, 100);
+    const matches = await page(MIXED_HEADING_KEYS, 100);
     for (const m of matches) expect(m.headingPath).not.toContain("");
-    expect(matches).toEqual([
-      { path: "N.md", headingPath: [], score: 0.8 },
-      { path: "N.md", headingPath: [], score: 0.8 },
-      { path: "N.md", headingPath: ["---frontmatter---"], score: 0.8 },
-      { path: "N.md", headingPath: ["H1", "H2"], score: 0.8 },
-      { path: "N.md", headingPath: ["H1"], score: 0.6 },
-      { path: "N.md", headingPath: ["H2"], score: 0.6 },
-      { path: "A.md", headingPath: [], score: 0.5 },
+    expect(matches).toEqual(MIXED_HEADING_MATCHES);
+  });
+
+  it("the shared oracle's documentedOrder lays the mixed set out in the order the template returns", () => {
+    const laidOut = [...MIXED_HEADING_KEYS].sort(documentedOrder).map((c) => c.key);
+    expect(laidOut).toEqual([
+      "N.md#",
+      "N.md",
+      "N.md#---frontmatter---",
+      "N.md#H1#H2",
+      "N.md#H1#",
+      "N.md##H2",
+      "A.md#",
     ]);
   });
 });
