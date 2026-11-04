@@ -267,10 +267,23 @@ notes listed out of path order and checks the first N for every N.
 
 ## Failure
 
-Shared across the group: an unknown vault (`CLI_REPORTED_ERROR`,
-`details.code: "VAULT_NOT_FOUND"`); an invalid regex in
-`pattern_search` (`VALIDATION_ERROR`); a missing `folder` is
-`CLI_REPORTED_ERROR` for the tools that probe for it.
+Shared across the group: an unknown vault fails as `CLI_REPORTED_ERROR`; an
+invalid regex in `pattern_search` is `VALIDATION_ERROR`; a missing `folder`
+is `CLI_REPORTED_ERROR` for the tools that probe for it.
+
+The unknown-vault failure has two shapes here, set by how the tool reaches
+its vault. Until PR #142 this page gave every tool in the group
+`details.code: "VAULT_NOT_FOUND"`, and so did several help pages and
+descriptions; the 0.9.0-local test run showed that most of them never
+return it (BI-0174, item 4). `open_file` and `get_active_file` look the name
+up in the vault registry before anything runs and remap a miss to
+`details.code: "VAULT_NOT_FOUND"`, `details.reason: "unknown"`. The others
+pass the name straight to the CLI, which answers `Vault not found.` on
+exit 0; the facade fails that as `CLI_REPORTED_ERROR` whose `message` and
+`details.message` are both `Vault not found.`, with no `details.code`
+([architecture](../architecture.md#runtime-spine)). A caller that wants one
+test for both checks the code and `details.message` together. Every page's
+hint for it now names the `vaults` tool.
 
 Since PR #121 `context_search` can also fail after a successful search, when
 a selected line cannot be read back: `CLI_REPORTED_ERROR` with

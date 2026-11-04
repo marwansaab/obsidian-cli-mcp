@@ -1160,16 +1160,29 @@ from their schema would have reached the client as SDK free text rather than
   `backlinks`). PR #90's T051 list did not include them and they use none of
   the banned phrases, so the surface test passes; the PR body leaves their
   removal to the owner.
-- `patch_block` has no `mapValidationError`, so a malformed `block_id` comes
-  back as the generic `VALIDATION_ERROR` envelope, with the reason only in
-  the issue's message. Its help page used to show `details.code:
-  "INVALID_BLOCK_ID"`, `details.reason` and `details.offending_index` on that
-  error; none of them is returned, and PR #115 corrected the page. The
-  published description still lists `INVALID_BLOCK_ID` among its errors; it
-  is fingerprinted, so changing it is a recorded follow-up of spec 084, not a
-  docs fix.
-- `prepend` and `find_and_replace` still hand-copy `registerTool`'s generic
-  `VALIDATION_ERROR` fallback inside their mappers. Since PR #115 a mapper can
-  return `undefined` to get that envelope
-  ([architecture](../architecture.md#registration--the-one-path-from-a-schema-to-a-published-tool));
-  the two copies are to move to it when those files are next touched.
+- Until PR #142 `patch_block` had no `mapValidationError`, so a malformed
+  `block_id` came back as the generic `VALIDATION_ERROR` envelope, with the
+  reason only in the issue's message, while its published description listed
+  `INVALID_BLOCK_ID`. PR #115 had corrected its help page to match, and this
+  bullet called the description a spec 084 follow-up. PR #142 (BI-0174, owner
+  ruling Q1 = C) went the other way and made the error match the
+  description: `patch_block` and `patch_heading` now lift the first
+  sub-coded issue into `details` (`INVALID_BLOCK_ID`; `INVALID_HEADING_PATH`,
+  `EMPTY_CONTENT`) with its `reason` and extra params, and `append_note` and
+  `prepend` return empty content as `details.code: "CONTENT_EMPTY"`, each
+  keeping `details.issues`
+  ([architecture](../architecture.md#registration--the-one-path-from-a-schema-to-a-published-tool),
+  [ADR-073](../decisions/ADR-073-validation-sub-codes-are-lifted-only-where-the-help-page-promises-them.md)).
+  The pages and descriptions say so.
+- `find_and_replace` still hand-copies `registerTool`'s generic
+  `VALIDATION_ERROR` fallback inside its mapper. Since PR #115 a mapper can
+  return `undefined` to get that envelope; `prepend`'s copy went in PR #142,
+  when its mapper started returning `liftEmptyContent`'s answer. The
+  remaining copy is to move when `find_and_replace`'s mapper is next touched.
+- `find_and_replace`'s published description is the longest in the server.
+  Until PR #142 it was 4,867 characters, past the 4,096 at which Claude Code
+  cuts a description, so its tail never reached an agent. PR #142 cut it to
+  just under the cap, with the detail kept on its help page, and a surface
+  test now fails any description over 4,096
+  ([architecture](../architecture.md#documentation-as-part-of-the-runtime)).
+  There is little headroom: a new clause needs a matching cut.

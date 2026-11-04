@@ -181,7 +181,12 @@ tool can name the condition) for a missing note, an unknown vault, or a
 section path that matches no heading. `read` adds `VALIDATION_ERROR` with
 `details.code: "UNSUPPORTED_FILE_TYPE"`, `reason: "unsupported-type"` for a
 file that is not a note, canvas or base (PR #97); resolution failures for a
-`file` name or the focused file surface first, unchanged.
+`file` name or the focused file surface first, unchanged. Until PR #142 that
+message, like the write tools', ended "Nothing was changed.", which said
+nothing true about a tool that never writes. Since PR #142 (BI-0174, item 13)
+`read` and `outline` pass `readOnly: true` to `assertSupportedFileType` and
+the sentence is left out; the write tools keep it
+([architecture](../architecture.md#file-types-check-the-file-that-will-be-acted-on)).
 
 Before PR #137 (BI-0132) `read` returned Obsidian's disabled-command-line
 notice as the note's content, because the CLI answers every command with it

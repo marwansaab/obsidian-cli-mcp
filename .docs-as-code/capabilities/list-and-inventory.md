@@ -96,6 +96,12 @@ undiscriminated `CLI_REPORTED_ERROR`. Since PR #97 it resolves the file first
 and rejects anything but a note as `VALIDATION_ERROR` with
 `details.code: "UNSUPPORTED_FILE_TYPE"` before the `outline` call
 ([file types](../architecture.md#file-types-check-the-file-that-will-be-acted-on)).
+Since PR #142 (BI-0174) that message no longer ends "Nothing was changed.",
+as `read`'s does not: both are read-only and pass `readOnly: true`. The same
+PR corrected `outline`'s help page, whose Example 4 had shown Obsidian's
+`Error: …` line as the top-level message; the call returns the generic
+`CLI bridge upstream error: CLI_REPORTED_ERROR` with that line in
+`details.message`, as the built server confirmed.
 
 `vaults` never returns an empty list for a failed probe: whatever dispatch
 raised (`CLI_BINARY_NOT_FOUND`, `CLI_TIMEOUT`, `CLI_NON_ZERO_EXIT` with

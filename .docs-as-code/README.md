@@ -268,3 +268,10 @@ applies. Records written since:
   reserve `openFile` retry (by owner ruling), a `not-focused` reason on
   `BASE_NOT_FOUND`, `INTERNAL_ERROR` and an after-the-fact check were
   rejected (PR #140).
+- [decisions/ADR-073-validation-sub-codes-are-lifted-only-where-the-help-page-promises-them.md](decisions/ADR-073-validation-sub-codes-are-lifted-only-where-the-help-page-promises-them.md)
+  — `patch_heading`, `patch_block`, `query_base`, `append_note` and
+  `prepend` lift a schema rejection's ADR-015 sub-code into `details` through
+  the shared `src/tools/_validation-details.ts`, keeping `details.issues`;
+  `views_base` keeps the generic envelope its page describes; docs only,
+  lifting `views_base` too, and lifting inside the generic envelope were
+  rejected (PR #142).
