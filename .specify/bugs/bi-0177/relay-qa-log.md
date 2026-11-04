@@ -244,3 +244,49 @@ Edits:
 > 3. A, with one addition. Run the T0 probe through the production `Obsidian.com` shim, the path the wrapper resolves, never `Obsidian.exe`. Send exactly what `executeMove` forwards for a `path` locator. Record the verbatim line in `fix.md`. Mark the POSIX `ENOTDIR` row as inferred and list it as a residual.
 >
 > Why: Best Practices (Tooling and Environment) records that `.exe` probes gave false-clean output and corrupted CLI state. TC-00701 shows the Windows line matches the ENOENT regex but did not record the line itself, so a fix-time capture closes that gap.
+
+## 6. repair / bug-fix (2026-11-04T01:46:27.274Z)
+
+**Question (verbatim):**
+
+> BI-0177 fix: one existing test outside the assessment's file list now fails. The repo's standing rule (`.memory/refactor-decisions.md` item 5) needs your sign-off before I edit it.
+>
+> **Test:** `src/tools/move/index.test.ts:96`, "tool.handler returns the FOLDER_NOT_FOUND payload as an isError result (spec 090 R1)".
+>
+> **Why it fails:** the assessment intends a missing destination folder to cost a second CLI call, the blocked-destination lookup eval. This test stubs spawns with the single-spec `makeStubSpawn`, which answers that eval with the same ENOENT line. The lookup therefore fails, and the test gets the withheld failure instead of FOLDER_NOT_FOUND. The assessment lists `index.test.ts` only "if an assertion pins the description's wording", so it did not foresee this edit.
+>
+> | Option | Edit | Effect |
+> |---|---|---|
+> | A (recommended) | Switch this one test's stub to `makeQueuedSpawn([<the same ENOENT response>, { stdout: '=> {"ok":true,"blocker":null}\n', exitCode: 0 }])` and add `makeQueuedSpawn` to its import. No assertion, expected value or title changes. | The test pins the same wire payload, now through the real two-call flow. |
+> | B | Leave `index.test.ts` untouched and stop here. Re-run `/speckit-bug-assess` to amend the file list first. | The fix stays uncommitted until the assessment is amended. |
+>
+> **Recommended: A.** The assessment already approved this kind of edit for the M1–M7 rows: their spawn queues gain the lookup's eval response. Here the change only adds one stub response to one test. Every expected value stays byte-identical, so the test still proves the FOLDER_NOT_FOUND wire payload. Everything else is done. The full suite has 4883 passed and 1 failed (this test). Typecheck and lint are clean.
+>
+> Reply A or B, or give other instructions.
+
+**Advisor** (escalate: decision: The repo's standing rule (refactor-decisions item 5) reserves edits to existing tests for the owner, and this test is outside the assessment's approved file list. Only the owner's sign-off can authorise the edit.):
+
+> A (recommended, pending the owner's sign-off). In `src/tools/move/index.test.ts:96`, switch only that test's stub to `makeQueuedSpawn([<the same ENOENT response>, { stdout: '=> {"ok":true,"blocker":null}\n', exitCode: 0 }])` and add `makeQueuedSpawn` to its import. Leave the title, the assertions and the expected values byte-identical. Record the edit and the reason for it in `fix.md`, as a test the assessment's file list did not cover.
+>
+> Why: the change keeps the FOLDER_NOT_FOUND wire payload pinned, now through the two-call flow the fix introduces. It mirrors the M1–M7 queue edits the assessment already approved. BI-0177's "missing folder unchanged" criterion requires that payload to stay as it is today. Do not edit until the owner rules.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0177 - Distinguish File Blocking Move Destination Folder.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Constitution.md`
+
+**Advisor, after the owner ruled** (escalate: none):
+
+> A. In `src/tools/move/index.test.ts:96`, switch that test's stub to `makeQueuedSpawn([<the same ENOENT response>, { stdout: '=> {"ok":true,"blocker":null}\n', exitCode: 0 }])` and add `makeQueuedSpawn` to its import. Leave the title, the assertions and the expected values byte-identical. Record the edit in `fix.md` as owner-approved, outside the assessment's file list.
+>
+> Why: owner ruling 2026-11-04 on this job. The test keeps pinning the FOLDER_NOT_FOUND wire payload through the new two-call flow, which BI-0177's "missing folder unchanged" criterion requires.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0177 - Distinguish File Blocking Move Destination Folder.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0177 - Distinguish File Blocking Move Destination Folder.md`: Appended a 2026-11-04 comment recording the owner ruling: approved the stub-only edit of move/index.test.ts:96 (queued spawn with the lookup eval response), assertions unchanged.
+
+**Owner:** choice 1 (A: queue the lookup stub), via cli, 2026-11-04T01:47:00.547Z.
+
+**Sent to the step:**
+
+> A. In `src/tools/move/index.test.ts:96`, switch that test's stub to `makeQueuedSpawn([<the same ENOENT response>, { stdout: '=> {"ok":true,"blocker":null}\n', exitCode: 0 }])` and add `makeQueuedSpawn` to its import. Leave the title, the assertions and the expected values byte-identical. Record the edit in `fix.md` as owner-approved, outside the assessment's file list.
+>
+> Why: owner ruling 2026-11-04 on this job. The test keeps pinning the FOLDER_NOT_FOUND wire payload through the new two-call flow, which BI-0177's "missing folder unchanged" criterion requires.
