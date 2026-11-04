@@ -4,7 +4,10 @@ import { describe, expect, it } from "vitest";
 import { JS_TEMPLATE } from "./_template.js";
 import { runEvalTemplate } from "../_eval-template-fixtures.js";
 import {
+  HEADING_PATH_CASES,
   keyOf,
+  MIXED_HEADING_KEYS,
+  MIXED_HEADING_MATCHES,
   tiedFixture as tiedCandidates,
   type Match,
   type MatchEnvelope,
@@ -140,5 +143,23 @@ describe("smart_connections_similar template — US2: equal-relevance results fo
     ];
     const matches = await page(fixture, 4);
     expect(matches.map((m) => m.path)).toEqual(["Lead1.md", "Lead2.md", "A.md", "B.md"]);
+  });
+});
+
+describe("smart_connections_similar template — BI-0184: a note's opening text has an empty headingPath", () => {
+  it.each(HEADING_PATH_CASES)(
+    "%s (key %j) has headingPath %j",
+    async (_label, key, headingPath) => {
+      expect(await page([conn(key, 0.5)], 10)).toEqual([
+        { path: "Note.md", headingPath, score: 0.5 },
+      ]);
+    },
+  );
+
+  it("AC 6: no headingPath holds an empty string, order and scores follow the documented rules, and the source's opening text is excluded", async () => {
+    const fixture = [...MIXED_HEADING_KEYS.map((c) => conn(c.key, c.score)), conn(`${SRC}#`, 0.8)];
+    const matches = await page(fixture, 100);
+    for (const m of matches) expect(m.headingPath).not.toContain("");
+    expect(matches).toEqual(MIXED_HEADING_MATCHES);
   });
 });

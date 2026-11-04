@@ -4,7 +4,11 @@ import { describe, expect, it } from "vitest";
 import { JS_TEMPLATE } from "./_template.js";
 import { runEvalTemplate } from "../_eval-template-fixtures.js";
 import {
+  documentedOrder,
+  HEADING_PATH_CASES,
   keyOf,
+  MIXED_HEADING_KEYS,
+  MIXED_HEADING_MATCHES,
   tiedFixture,
   type Match,
   type MatchEnvelope,
@@ -159,5 +163,35 @@ describe("smart_connections_query template — US2: equal-relevance results foll
     const two = await page(fixture, 2);
     expect(ten.map(keyOf)).toEqual(["A.md", "Z.md", "M.md#a", "M.md#b", "B.md"]);
     expect(two).toEqual(ten.slice(0, 2));
+  });
+});
+
+describe("smart_connections_query template — BI-0184: a note's opening text has an empty headingPath", () => {
+  it.each(HEADING_PATH_CASES)(
+    "%s (key %j) has headingPath %j",
+    async (_label, key, headingPath) => {
+      expect(await page([{ key, score: 0.5 }], 10)).toEqual([
+        { path: "Note.md", headingPath, score: 0.5 },
+      ]);
+    },
+  );
+
+  it("AC 6: no headingPath holds an empty string, and order and scores follow the documented rules", async () => {
+    const matches = await page(MIXED_HEADING_KEYS, 100);
+    for (const m of matches) expect(m.headingPath).not.toContain("");
+    expect(matches).toEqual(MIXED_HEADING_MATCHES);
+  });
+
+  it("the shared oracle's documentedOrder lays the mixed set out in the order the template returns", () => {
+    const laidOut = [...MIXED_HEADING_KEYS].sort(documentedOrder).map((c) => c.key);
+    expect(laidOut).toEqual([
+      "N.md#",
+      "N.md",
+      "N.md#---frontmatter---",
+      "N.md#H1#H2",
+      "N.md#H1#",
+      "N.md##H2",
+      "A.md#",
+    ]);
   });
 });

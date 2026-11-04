@@ -77,6 +77,45 @@ and checks every pair of limits N < M from 1 to 100. Both descriptions carry
 one sentence stating the guarantee, which moved their description
 fingerprints only.
 
+### From a plugin key to a match
+
+The plugin names each candidate block by a key: `<path>` for a whole note,
+`<path>#<heading>#<heading>…` for a section, `<path>#---frontmatter---` for
+the frontmatter block, and `<path>#` for the text before a note's first
+heading. Since PR #141 (BI-0184) both templates turn a key and its score into
+the published `{ path, headingPath, score }` through one in-eval fragment,
+`TO_MATCH_JS` in `src/tools/_smart-connections.ts`, bound once per template as
+`toMatch` and applied to each tool's own key extraction (`m.key` for `query`,
+`r.item.key` or `r.key` for `similar`). It splits the key on its first `#`,
+then on every `#` after it, and drops empty segments. The `---frontmatter---`
+sentinel and sub-block ids such as `{1}` stay ordinary segments.
+
+Before PR #141 each template carried its own inline copy of the split,
+`key.slice(hashIdx+1).split('#')`, which kept empty segments. A pre-heading
+block, keyed `<path>#`, therefore came back as `headingPath: [""]`, although
+both descriptions and help pages promised `[]` for a source-level match;
+TC-00503 caught it on two heading-less fixture notes on both tools
+(`.specify/bugs/bi-0184/assessment.md`). The fix moved the rule into the
+cohort leaf beside `MAX_LIMIT` and `SORT_SLICE_AND_EMIT`, so the two tools
+cannot drift apart again. It first shipped as a key-split fragment; the PR's
+code-quality review widened it to build the whole match, so neither template
+writes the match literal itself. The descriptions, schemas and fingerprint
+baseline did not move: the tools now do what they already said.
+
+What follows from the rule:
+
+- A pre-heading block and a whole-note match on the same note both report
+  `headingPath: []`, and a caller cannot tell them apart. The BI's acceptance
+  criteria ask for exactly that.
+- The tertiary sort key `headingPath.join('#')` is unchanged for every key the
+  plugin was seen to produce, since `[]` and `[""]` both join to `""`. A key
+  with an empty interior segment (`<path>##H2`, `<path>#H1#`), never seen from
+  the plugin, now sorts by its cleaned path (`fix.md` Deviations).
+- `_smart-connections.test.ts` runs the fragment under `node:vm` against a key
+  table. The acceptance-criteria rows and the mixed-key set with its expected
+  order live once in `_smart-connections-fixtures.ts`, and each tool's
+  `_template.test.ts` runs them through its own template.
+
 Published surface (PR #90; [architecture](../architecture.md#registration--the-one-path-from-a-schema-to-a-published-tool)):
 both carry the read-only hint row, including "beyond vault" (`openWorldHint`)
 false, as spec 068 FR-024 classifies them. `smart_connections_query`'s
@@ -155,3 +194,13 @@ there), which comes from a stage that runs only after the vault has answered.
   PR #116 (spec 085 SC-005, T025): no Smart Connections vault was available
   to the implementation session. `limit: 100` was already an allowed input,
   so it is a request size both tools already made.
+- A heading whose own text contains `#` is still split there, so its
+  `headingPath` has one segment more than the note has headings. PR #141 left
+  this long-standing behaviour alone. It also left out a `min(1)` guard on
+  `headingPath` segments in the output schema: the in-eval rule already drops
+  empty segments, and a guard would only turn a plugin answer the tools can
+  report into a failure, and move the fingerprint baseline.
+- PR #141's live check ran each template through `Obsidian.com eval` against
+  the test vault, not through the MCP stdio round trip, and its "before"
+  control was a reconstruction of the old split rather than the old template
+  bytes (`.specify/bugs/bi-0184/test.md`, Residual Risks).

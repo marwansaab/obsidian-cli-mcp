@@ -67,7 +67,7 @@ The `count` is identical across both modes for the same `(query, vault, limit)` 
 Per-match shape:
 
 - `path` — source file's vault-relative path with `.md` extension (everything before the first `#` in the plugin's match key).
-- `headingPath` — array of heading segments after the first `#`. Empty `[]` for source-level matches. Literal `["---frontmatter---"]` for frontmatter-block matches (the plugin's sentinel is preserved verbatim). Multi-segment for nested-heading blocks. Sub-block ids like `#{1}` appear as ordinary segments.
+- `headingPath` — array of heading segments after the first `#`. Empty `[]` for source-level matches, which include the text before a note's first heading (the plugin keys it `<path>#`). No segment is ever an empty string. Literal `["---frontmatter---"]` for frontmatter-block matches (the plugin's sentinel is preserved verbatim). Multi-segment for nested-heading blocks. Sub-block ids like `#{1}` appear as ordinary segments.
 - `score` — raw plugin-returned number; embedding-model-dependent semantics (pass-through; no clamp / normalise / round). Non-finite scores (`NaN`, `Infinity`, `null`, missing) are silently dropped.
 
 Sort order: primary `score` descending, secondary `path` byte-asc, tertiary `headingPath.join("#")` byte-asc.
