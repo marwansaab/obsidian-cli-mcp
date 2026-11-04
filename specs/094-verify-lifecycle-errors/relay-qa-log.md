@@ -285,3 +285,31 @@ Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0
 > - F1: narrow FR-012 to adjacent swaps plus single-step drops. Add no non-adjacent swap.
 >
 > F1 follows the earlier clarify answer on FR-012 (option A): swap each adjacent pair and drop each step, once, by hand. The BI asks for precedence proven between adjacent states only ("Story: precedence"). C1 and F2 are consistency fixes inside the spec artefacts and change nothing in scope.
+
+## 7. implementation / implement (2026-11-04T10:30:33.843Z)
+
+**Question (verbatim):**
+
+> T014 swap-and-drop exercise: edit M2 (swap S2 ↔ S3) failed 20 of the 24 checks, but contract §M says "all" must fail. L1, P3, P4 and A2 still pass. Each of them has the plugin `absent`, so S1 returns not-installed before the moved S3 guard runs. The M2 edit changes nothing in those states, so no check could catch it there. The other eight edits (M1, M3–M9) failed exactly the checks §M lists. Every edit failed at least one check, which meets SC-003. How should this be resolved?
+>
+> | Option | Description |
+> |---|---|
+> | A | Amend contract §M's M2 row from "all" to "all except the plugin-absent checks (L1, P3, P4, A2)". Record the amendment in exercise.md and in the contract. Mark T014 passed and continue with T015–T020. |
+> | B | Keep §M as written and treat this as a gap in the checks. Add a check that can catch M2 in a plugin-absent state. This is impossible by design, because S1's early return comes first, so it would mean redesigning the exercise. |
+> | C | Something else (please describe). |
+>
+> **Recommended: A.** The four checks that pass are states where a reordering of S2 and S3 has no effect: S1 returns before either step runs. So this is an error in the contract's expected list, not a gap in what the checks detect. The edit is still caught by 20 checks, and SC-003 ("every edit fails at least one check") is met.
+
+**Advisor** (escalate: none):
+
+> A
+>
+> ADR-014 places `NOT_INSTALLED` first in both chains, so when the plugin is absent the result does not depend on the order of the later steps. A swap of S2 and S3 cannot show up there. The contract's "all" was the error, not the checks. The BI's goal (a swapped or dropped check gets caught) is still met by the 20 failing checks and by SC-003.
+
+Sources: `200-Decisions/ADR-014 - Plugin-Backed Typed Tools Runtime-Dependency Pattern.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0077 - Add Regression Fixtures For Smart Connections Lifecycle States.md`
+
+**Sent to the step:**
+
+> A
+>
+> ADR-014 places `NOT_INSTALLED` first in both chains, so when the plugin is absent the result does not depend on the order of the later steps. A swap of S2 and S3 cannot show up there. The contract's "all" was the error, not the checks. The BI's goal (a swapped or dropped check gets caught) is still met by the 20 failing checks and by SC-003.

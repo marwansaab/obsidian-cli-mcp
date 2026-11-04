@@ -7,8 +7,8 @@
 | Status | running |
 | Started | 2026-11-04T10:06:28.404Z |
 | Finished | not yet |
-| Elapsed | 15 min 54 s |
-| Questions | 4 (0 needed the owner) |
+| Elapsed | 26 min 11 s |
+| Questions | 5 (0 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 0 |
 | Edits by the advisor | 0 |
@@ -56,6 +56,7 @@
 ### pre-implementation (`95f2d194-4a0c-46e8-926f-bfea96ac2bdf`)
 
 - Condition `shell-exit-0` (run_when): met. "node -e "process.exit('' === '' ? 0 : 1)"" exited 0.
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\specs\094-verify-lifecycle-errors\tasks.md exists.
 
 - **specify**: done, 19 turns.
 
@@ -100,16 +101,43 @@
 >
 > Next step: /speckit-implement.
 
-- **resolve-analysis**: in progress.
+- **resolve-analysis**: done, 13 turns.
+
+> I resolved every analyze finding except U1, which is low severity and not blocking. No finding needed an owner decision, so I asked no questions.
+>
+> What changed:
+> - C1 (tasks.md): the Standing rules now carry the FR-014 stop rule.
+> - F2 (tasks.md): T020 now creates post-implement.md and records the SC-004 figure noted in T018.
+> - F1 (spec.md): FR-012 now covers only swapping two adjacent checks and dropping a single check; User Story 5's wording matches.
+> - F3 (spec.md): the not-ready edge case names all four conditions.
+> - F4 (contracts/lifecycle-checks-contract.md): H3 now counts spawns per call (2 for L6). This file is outside the three named, but it is plan output and the fix was already settled.
+> - F5 (tasks.md): the shared expected-failure constants are now defined in the T005 harness.
+> - B1 (spec.md): SC-004 is now a plain "under 5 seconds".
+>
+> I committed the feature folder as e508ca4 on 094-verify-lifecycle-errors, following CONTRIBUTING.md, and did not push. The commit includes the relay-digest.md and relay-qa-log.md files present in the folder.
+>
+> Left open:
+> - U1: the backlog-item ID is not in the spec header, because the vault lookup was not permitted in this session.
+> - CLAUDE.md (plan pointer moved to 094) and .specify/feature.json are modified but not committed, because they are outside the feature folder.
+
 
 ### continue
 
-- **prepare**: not run.
+Skipped.
 
-### implementation
+- Condition `shell-exit-0` (run_when): not met. "node -e "process.exit('' === '' ? 1 : 0)"" exited 1.
 
-- **implement**: not run.
-- **open-pr**: not run.
+- **prepare**: skipped.
+
+### implementation (`9b31286a-5c9c-4cdf-928f-a4c7d9850c6f`)
+
+- Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\specs\094-verify-lifecycle-errors\tasks.md exists, and Obsidian has TestVault-Obsidian-CLI-MCP focused.
+
+- **implement**: done, 75 turns, 1 questions.
+
+> Implementation of 094 is complete, and all 20 tasks are marked [X]. runEvalCode was added to _eval-template-fixtures.ts, and runEvalTemplate is now built on it. makeEvalRunnerSpawn was added to _handler-test-fixtures.ts as the third spawn factory. handler.lifecycle.test.ts holds the 24 checks L1–L7, P1–P5 and A1–A3, all passing against unmodified production code. Per the owner's ruling (option A), contract §M's M2 row was amended to "all except the plugin-absent checks (L1, P3, P4, A2)". exercise.md records M1–M9: every edit failed at least the checks it lists, and the template diff is empty. Lint, typecheck, npm test (5061 tests, coverage threshold met) and build all pass. The published-surface diff against main is empty, and the FR-018 fingerprint is unchanged. The lifecycle file runs in about 0.4 s, which meets SC-004. The CodeGraph post-implement checks pass, and the plan's claim that no kernel node is touched held; post-implement.md records the results and the deviations. Nothing is committed yet; the optional after_implement commit hook was skipped.
+
+- **open-pr**: in progress.
 
 ### review
 
