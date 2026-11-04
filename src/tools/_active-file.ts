@@ -204,7 +204,7 @@ export async function resolveActiveFocusedFile(
  * (BI-0121). It never returns the base path: a folder path is not a vault name, and Obsidian
  * rejects it as `vault=`. Neither message nor `details` carries the path (as for `folder-missing`).
  */
-export async function resolveVaultDisplayName(vaultRegistry: VaultRegistry, base: string): Promise<string> {
+export async function requireFocusedVaultName(vaultRegistry: VaultRegistry, base: string): Promise<string> {
   const name = await vaultRegistry.resolveVaultDisplayName?.(base);
   if (name !== undefined && name !== null) return name;
   throw new UpstreamError({
@@ -225,7 +225,7 @@ export interface ActiveLocatorWithVault extends ActiveFileLocator {
 /**
  * File-cohort active-mode resolution WITH the vault display name resolved — the common shape for the
  * write/edit tools whose output envelope carries a `vault` field (append_note, prepend, patch_block,
- * patch_heading). Composes {@link resolveActiveFocusedFile} + {@link resolveVaultDisplayName}; the
+ * patch_heading). Composes {@link resolveActiveFocusedFile} + {@link requireFocusedVaultName}; the
  * no-active-file and parse-error throws are inherited verbatim. write_note opts out (its output has no
  * `vault` field, so it consumes resolveActiveFocusedFile directly).
  */
@@ -237,7 +237,7 @@ export async function resolveActiveLocatorWithVault(
   return {
     vaultRoot,
     relPath,
-    vaultDisplayName: await resolveVaultDisplayName(deps.vaultRegistry, vaultRoot),
+    vaultDisplayName: await requireFocusedVaultName(deps.vaultRegistry, vaultRoot),
   };
 }
 

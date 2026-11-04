@@ -746,9 +746,9 @@ describe("US3 active mode", () => {
   });
 
   test("focused vault unregistered: fails with VAULT_NOT_FOUND / focused-unregistered and writes nothing (BI-0121)", async () => {
-    const FALLBACK_ROOT = resolve("/unknown-vault-root");
+    const UNREGISTERED_ROOT = resolve("/unknown-vault-root");
     const focusedResp: StubResponse = {
-      stdout: `=> {"path":"today.md","base":${JSON.stringify(FALLBACK_ROOT)}}\n`,
+      stdout: `=> {"path":"today.md","base":${JSON.stringify(UNREGISTERED_ROOT)}}\n`,
       exitCode: 0,
     };
     const enoent = (): NodeJS.ErrnoException => {
@@ -760,7 +760,7 @@ describe("US3 active mode", () => {
       { content: "# Top\n## A\nbody\n" },
       {
         realpath: vi.fn(async (p: string) => {
-          if (p === FALLBACK_ROOT) return FALLBACK_ROOT;
+          if (p === UNREGISTERED_ROOT) return UNREGISTERED_ROOT;
           throw enoent();
         }),
       },

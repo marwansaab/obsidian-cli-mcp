@@ -17,7 +17,7 @@ import {
   resolveActiveFocusedFile,
   resolveActiveLocatorWithVault,
   resolveFileByTsv,
-  resolveVaultDisplayName,
+  requireFocusedVaultName,
   type EvalDeps,
 } from "./_active-file.js";
 import { missingFolderRealpath } from "./_handler-test-fixtures.js";
@@ -244,13 +244,13 @@ describe("resolveActiveLocatorWithVault", () => {
   });
 });
 
-describe("resolveVaultDisplayName", () => {
+describe("requireFocusedVaultName", () => {
   test("returns the registry display name when one resolves", async () => {
     const registry = {
       resolveVaultPath: async () => "/vault",
       resolveVaultDisplayName: (base: string) => (base === "/vault" ? "My Vault" : null),
     } as unknown as VaultRegistry;
-    expect(await resolveVaultDisplayName(registry, "/vault")).toBe("My Vault");
+    expect(await requireFocusedVaultName(registry, "/vault")).toBe("My Vault");
   });
 
   test("returns the display name from an async registry lookup (BI-0121)", async () => {
@@ -258,7 +258,7 @@ describe("resolveVaultDisplayName", () => {
       resolveVaultPath: async () => "/vault",
       resolveVaultDisplayName: async (base: string) => (base === "/vault" ? "My Vault" : null),
     } as unknown as VaultRegistry;
-    expect(await resolveVaultDisplayName(registry, "/vault")).toBe("My Vault");
+    expect(await requireFocusedVaultName(registry, "/vault")).toBe("My Vault");
   });
 
   const FOCUSED_UNREGISTERED = {
@@ -271,18 +271,18 @@ describe("resolveVaultDisplayName", () => {
       resolveVaultPath: async () => "/vault",
       resolveVaultDisplayName: () => null,
     } as unknown as VaultRegistry;
-    await expect(resolveVaultDisplayName(registry, "/vault")).rejects.toMatchObject(FOCUSED_UNREGISTERED);
+    await expect(requireFocusedVaultName(registry, "/vault")).rejects.toMatchObject(FOCUSED_UNREGISTERED);
   });
 
   test("fails with VAULT_NOT_FOUND / focused-unregistered when the registry omits the method (BI-0121)", async () => {
     const registry = { resolveVaultPath: async () => "/vault" } as unknown as VaultRegistry;
-    await expect(resolveVaultDisplayName(registry, "/vault")).rejects.toMatchObject(FOCUSED_UNREGISTERED);
+    await expect(requireFocusedVaultName(registry, "/vault")).rejects.toMatchObject(FOCUSED_UNREGISTERED);
   });
 
   test("the focused-unregistered failure names the state and the remedy, and never carries the folder path", async () => {
     const base = resolve("/secret/vault-folder");
     const registry = { resolveVaultPath: async () => base, resolveVaultDisplayName: async () => null } as unknown as VaultRegistry;
-    const err = (await resolveVaultDisplayName(registry, base).catch((e: unknown) => e)) as UpstreamError;
+    const err = (await requireFocusedVaultName(registry, base).catch((e: unknown) => e)) as UpstreamError;
     expect(err).toBeInstanceOf(UpstreamError);
     expect(err.details).toEqual({ code: "VAULT_NOT_FOUND", reason: "focused-unregistered" });
     expect(err.message).toBe(
@@ -300,7 +300,7 @@ describe("resolveVaultDisplayName", () => {
         throw probeError;
       },
     } as unknown as VaultRegistry;
-    await expect(resolveVaultDisplayName(registry, "/vault")).rejects.toBe(probeError);
+    await expect(requireFocusedVaultName(registry, "/vault")).rejects.toBe(probeError);
   });
 });
 
