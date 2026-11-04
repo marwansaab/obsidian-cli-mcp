@@ -1,7 +1,7 @@
-// Original — no upstream. Shared in-process MCP client fixtures (068 PR-3 review, PR-5 review): connect a v2 Client to an McpServer in either era — 2025 over a linked in-memory transport pair, 2026 through createMcpHandler and a fetch-backed transport — plus a quiet composition root and a single-tool server. Vitest-free so the FR-018 fingerprint helper can use it as well as the tests.
+// Original — no upstream. Shared in-process MCP client fixtures (068 PR-3 review, PR-5 review): connect a v2 Client to an McpServer in either era — 2025 over a linked in-memory transport pair, 2026 through createMcpHandler and a fetch-backed transport — plus a quiet composition root, a single-tool server and the published-surface lister shared by the FR-018 fingerprint helper and the description audit. Vitest-free so the FR-018 fingerprint helper can use it as well as the tests.
 import { Writable } from "node:stream";
 
-import { Client, InMemoryTransport, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
+import { Client, InMemoryTransport, StreamableHTTPClientTransport, type Tool } from "@modelcontextprotocol/client";
 import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 
 import { createServer, type CreatedServer } from "../server.js";
@@ -18,6 +18,23 @@ export async function connectInMemoryClient(
   const client = new Client({ name: clientName, version: "0.0.0" });
   await client.connect(clientTransport);
   return client;
+}
+
+/**
+ * The tools and instructions `server` publishes, as a fresh 2025-era `Client` named `clientName` lists
+ * them (cache bypassed). The client is closed before this returns.
+ */
+export async function listPublished(
+  server: McpServer,
+  clientName: string,
+): Promise<{ tools: Tool[]; instructions: string | undefined }> {
+  const client = await connectInMemoryClient(server, clientName);
+  try {
+    const { tools } = await client.listTools(undefined, { cacheMode: "bypass" });
+    return { tools, instructions: client.getInstructions() };
+  } finally {
+    await client.close();
+  }
 }
 
 /** Connect a 2026-era `Client` named `clientName` to `app`'s factory behind `createMcpHandler`; the caller closes it. */

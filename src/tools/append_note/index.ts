@@ -9,17 +9,7 @@ import { ADDITIVE_WRITE_HINTS, type BootDeps, type RegisteredTool } from "../_sh
 export const APPEND_NOTE_TOOL_NAME = "append_note";
 
 export const APPEND_NOTE_DESCRIPTION =
-  `Add content to the END of an existing markdown note. Eliminates the read-then-rewrite cycle of the full-replace surface. ${describeSupport(APPEND_NOTE_SUPPORTED)} Any other file type is rejected with \`UNSUPPORTED_FILE_TYPE\` before anything is written.
-
-Pick \`prepend\` to add at the TOP of a note instead. Pick \`write_note\` to replace the WHOLE file or create a new note (this tool does NOT auto-create).
-
-Targeting: \`target_mode: "specific"\` + \`vault\` + EXACTLY ONE of \`path\` (vault-relative) or \`file\` (bare wikilink name, no \`[[...]]\` brackets). Or \`target_mode: "active"\` + \`content\` to write to whatever note is open in Obsidian. No opt-in flag is required in active mode — append is additive and cannot destroy content.
-
-Separator: a newline is auto-inserted between the existing file content and your appended content, matching the file's LF/CRLF convention. If the file already ends with \`\\n\` or \`\\r\\n\`, no extra newline is added (so repeated appends grow the file cleanly without blank-line bloat). If the file is empty, no leading separator is inserted. Pass \`inline: true\` to skip the separator and fuse onto the existing trailing byte — useful for finishing a partial trailing line.
-
-Content: preserved byte-for-byte (no trim, no normalisation, no auto-appended trailing newline — caller controls whether the file ends with a newline after the call). Must be non-empty. No wrapper-imposed size cap.
-
-Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (with \`details.code: CONTENT_EMPTY\` or \`UNSUPPORTED_FILE_TYPE\`; an unregistered \`vault\` carries \`details.requestedVault\` / \`knownVaults\`), \`NOTE_NOT_FOUND\`, \`EXTERNAL_EDITOR_CONFLICT\` (Windows file-lock detection only), \`FS_WRITE_FAILED\`, \`PATH_ESCAPES_VAULT\`, \`VAULT_NOT_FOUND\` (registered vault whose folder is missing, or an unlisted focused vault), \`ERR_NO_ACTIVE_FILE\`.`;
+  `Add content to the end of an existing note. Choose it to add at the end; \`prepend\` adds at the top, \`write_note\` creates or replaces a whole note, \`patch_heading\` edits a heading's section, \`patch_block\` edits a block and \`find_and_replace\` replaces text across notes. ${describeSupport(APPEND_NOTE_SUPPORTED)}`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

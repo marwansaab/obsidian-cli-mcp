@@ -42,7 +42,7 @@ When nothing is active — an empty workspace, all panes closed, or a non-file v
 { "active": null }
 ```
 
-This is a **successful** result you branch on via `active === null`. `get_active_file` **never** raises `ERR_NO_ACTIVE_FILE` — a deliberate divergence from the rest of the eval cohort, whose tools treat "no active file" as a usage error because they need a target. Here, reporting presence *or absence* is the whole point.
+This is a **successful** result (`{ active: null }`) you branch on via `active === null`. `get_active_file` **never** raises `ERR_NO_ACTIVE_FILE` — a deliberate divergence from the rest of the eval cohort, whose tools treat "no active file" as a usage error because they need a target. Here, reporting presence *or absence* is the whole point.
 
 ## Timing limitations
 

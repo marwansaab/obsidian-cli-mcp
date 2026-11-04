@@ -1,6 +1,6 @@
 // Original — no upstream. Tests for the tag tool registration — descriptor name + description, docs file presence + content completeness, and the FR-018 baseline drift-detector lock rolled forward by `npm run baseline:write` post-implementation.
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -10,7 +10,7 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-import { closedVaultNote } from "../_shared.js";
+import { DOCS_DIR } from "../help/handler.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -37,9 +37,10 @@ describe("createTagTool — descriptor", () => {
     expect(tool.descriptor.description).toBe(TAG_DESCRIPTION);
   });
 
-  // spec 072 FR-008: the shared closed-vault note, naming this tool's subcommand (wording pinned in _shared.test.ts)
-  it("description carries the closed-vault note for `eval`", () => {
-    expect(TAG_DESCRIPTION).toContain(closedVaultNote("eval"));
+  // The closed-vault answer, naming this tool's subcommand, lives on the help page.
+  it("help page carries the closed-vault note for `eval`", () => {
+    const helpPage = readFileSync(join(DOCS_DIR, "tag.md"), "utf8");
+    expect(helpPage).toContain('Command "eval" not found.');
   });
 });
 

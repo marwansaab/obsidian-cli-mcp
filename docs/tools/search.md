@@ -229,7 +229,7 @@ The default-mode result set may include files whose **filename** or metadata con
 
 ### Line-mode count divergence
 
-Line mode (`context_lines: true`) returns ONLY entries whose `matches` array was non-empty after upstream evaluation. Files matched by filename / metadata but with no body-line hit are dropped. Consequence: `count` in line mode can be **less than** `count` in default mode for the same query.
+Line mode (`context_lines: true`) returns ONLY entries whose `matches` array was non-empty after upstream evaluation. Files matched by filename / metadata but with no body-line hit are dropped. Consequence: `count` in line mode can be **less than** `count` in default mode for the same query. The same holds for [`context_search`](./context_search.md): its `count` can be less than `search`'s default-mode count for the same query.
 
 ### Conservative truncation in line mode
 

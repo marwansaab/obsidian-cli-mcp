@@ -1,4 +1,7 @@
 // Original — no upstream. pattern_search registration tests.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -10,7 +13,7 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-import { closedVaultNote } from "../_shared.js";
+import { DOCS_DIR } from "../help/handler.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -50,16 +53,6 @@ describe("createPatternSearchTool — descriptor", () => {
     expect(schema.required).toEqual(["pattern"]);
   });
 
-  // (3) description length > 300 (worked-example + dialect + default-flip-note budget)
-  it("description length > 300 chars (budget for dialect + default-flip + cross-pointer + worked examples)", () => {
-    const tool = createPatternSearchTool({
-      logger: silentLogger(),
-      queue: createQueue(),
-      spawnFn: makeStubSpawn(),
-    });
-    expect(tool.descriptor.description.length).toBeGreaterThan(300);
-  });
-
   // (4) deps wired through to handler — smoke test against a stubbed CLI returning a happy envelope
   it("deps wired through: handler receives stubbed CLI envelope and produces typed response", async () => {
     const envelope = JSON.stringify({ ok: true, count: 0, matches: [] });
@@ -97,8 +90,9 @@ describe("createPatternSearchTool — descriptor", () => {
     expect(desc).toContain("default");
   });
 
-  // spec 072 FR-008: the shared closed-vault note, naming this tool's subcommand (wording pinned in _shared.test.ts)
-  it("description carries the closed-vault note for `eval`", () => {
-    expect(PATTERN_SEARCH_DESCRIPTION).toContain(closedVaultNote("eval"));
+  // The closed-vault answer, naming this tool's subcommand, lives on the help page.
+  it("help page carries the closed-vault note for `eval`", () => {
+    const helpPage = readFileSync(join(DOCS_DIR, "pattern_search.md"), "utf8");
+    expect(helpPage).toContain('Command "eval" not found.');
   });
 });

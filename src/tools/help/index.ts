@@ -7,7 +7,7 @@ import { READ_ONLY_HINTS, type RegisteredTool } from "../_shared.js";
 export const HELP_TOOL_NAME = "help";
 
 export const HELP_DESCRIPTION =
-  'Look up full Markdown documentation for any registered MCP tool. With no arguments it returns an index of available docs; with { tool_name: "<name>" } it returns that tool\'s full reference. Self-describing: { tool_name: "help" } documents this tool.';
+  'Return any registered tool\'s full contract (inputs, output, errors and examples) as Markdown when given its name in tool_name, or the index of every tool when called with no arguments. Self-describing: { tool_name: "help" } documents this tool.';
 
 export function createHelpTool(): RegisteredTool {
   return registerTool({

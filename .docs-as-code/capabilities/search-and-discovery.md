@@ -167,7 +167,21 @@ same PR corrected the description and help page, which had stated
 `name === basename + extension` without the dot; both now give
 `basename + "." + extension` (just `basename` when `extension` is `""`), and
 tests check every worked example in the help page against that formula. The
-frozen `ACTIVE_FILE_TEMPLATE` string did not change.
+frozen `ACTIVE_FILE_TEMPLATE` string did not change. Since PR #143 the
+formula is on the help page only: the description says what the tool
+reports and when to use `open_file` instead.
+
+Since PR #143 (spec 092,
+[ADR-074](../decisions/ADR-074-tool-descriptions-route-within-a-budget-and-the-help-page-holds-the-contract.md))
+every description here is a routing text of at most 400 characters that
+names its family siblings: the three text searches name each other and
+state the `case_sensitive` difference (true in `pattern_search`, false in
+`context_search`, per ADR-046); `find_by_property` and `tag` name each other;
+`links`, `backlinks` and `outline` name each other; `get_active_file` and
+`open_file` name each other. Result shapes, caps and error rosters are on
+the help pages. `search`'s input root description lost its internal
+identifiers and version history and is otherwise unchanged, still a long
+reference block in the schema.
 
 **Typed results** (PR #91;
 [architecture](../architecture.md#typed-results-outputschema-and-structuredcontent)).
@@ -369,16 +383,21 @@ produced; PR #100 deleted the check
   in `My-Setup-Vault`; the bare test vault already listed notes in path
   order, so there it shows only that the sort does no harm. It called the
   built handler directly, with no MCP-client round trip, and ran on Windows
-  only. `PATTERN_SEARCH_DESCRIPTION` still says only that `limit` "caps the
-  response `matches` array"; spelling out the leading-slice guarantee there
-  moves the tool's fingerprint and was left out of the bug fix
-  (`.specify/bugs/bi-0183/fix.md` Follow-ups).
-- `search` and `context_search` describe their default case handling as an
-  ASCII-only fold, in their published descriptions and help pages, but the
-  CLI also folds at least Latin-1 letters: `CAFÉ` matches `café` (spec 087
-  research F7). The wording predates PR #120, which left it alone because
-  correcting the descriptions moves two fingerprints; it is a follow-up
-  backlog item.
+  only. Until PR #143 `PATTERN_SEARCH_DESCRIPTION` said only that `limit`
+  "caps the response `matches` array", and spelling out the leading-slice
+  guarantee there was left out of the bug fix
+  (`.specify/bugs/bi-0183/fix.md` Follow-ups). PR #143 (spec 092) removed
+  `limit` from the description altogether; caps and ordering are help-page
+  material under
+  [ADR-074](../decisions/ADR-074-tool-descriptions-route-within-a-budget-and-the-help-page-holds-the-contract.md).
+- `search` and `context_search` used to describe their default case
+  handling as an ASCII-only fold, in their published descriptions and help
+  pages, but the CLI also folds at least Latin-1 letters: `CAFÉ` matches
+  `café` (spec 087 research F7). The wording predated PR #120, which left it
+  alone because correcting the descriptions moved two fingerprints. This
+  page carried it as open after it was fixed: at PR #143 neither description
+  mentions case folding, and both help pages say accented letters fold as
+  well as ASCII ones.
 - This page used to record that the CLI trims each returned line's `text`
   (spec 087 F9) and that the help pages did not say so. For
   `context_search` that was a bug against its own help page, and PR #121

@@ -54,14 +54,12 @@ export const searchInputSchema = z
       "",
       "Error roster (Cowork pathway reachability):",
       "- VALIDATION_ERROR — Cowork-reachable for: missing / empty / whitespace-only / oversize `query`; non-integer `limit`; empty `vault` / `folder`.",
-      "- VALIDATION_ERROR(unrecognized_keys) — *(strict-rich pathway only, per BI-0086 — Cowork strips unknown top-level keys client-side per `additionalProperties: false`, so this code never fires on Cowork)*",
-      "- Out-of-range `limit` — *(strict-rich pathway only, per BI-0086 — Cowork surfaces this as MCP transport error `-32602` (Invalid Params), not as the wrapper's wrapped `VALIDATION_ERROR`)*",
+      "- VALIDATION_ERROR(unrecognized_keys) — *(strict-rich pathway only — Cowork strips unknown top-level keys client-side per `additionalProperties: false`, so this code never fires on Cowork)*",
+      "- Out-of-range `limit` — *(strict-rich pathway only — Cowork surfaces this as MCP transport error `-32602` (Invalid Params), not as the wrapper's wrapped `VALIDATION_ERROR`)*",
       "- CLI_REPORTED_ERROR — Cowork-reachable: (a) CLI stdout was not JSON AND not the zero-match sentinel (`details.stage: \"json-parse\"`); (b) CLI JSON failed wire-schema parse (`details.stage: \"wire-parse\"`); (c) unknown vault (`details.message: \"Vault not found.\"`).",
       "- CLI_NON_ZERO_EXIT — Cowork-reachable: CLI exited non-zero (typical cause: output-cap kill on extreme result sets).",
       "- CLI_BINARY_NOT_FOUND — Cowork-reachable: the obsidian CLI binary is not on PATH and OBSIDIAN_BIN was unset/invalid.",
       "- CLI_OUTPUT_TOO_LARGE — Cowork-reachable: the CLI's stdout exceeded the cli-adapter's 10 MiB output cap.",
-      "",
-      "The two carve-out flags above are pinned at exactly two entries per spec FR-009 / SC-004 / Assumption A10; any future addition is a new BI.",
     ].join("\n"),
   );
 

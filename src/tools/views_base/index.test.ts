@@ -1,6 +1,6 @@
 // Original — no upstream.
 import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -15,7 +15,7 @@ import { createQueue } from "../../queue.js";
 import { silentLogger } from "../_handler-test-fixtures.js";
 import { textOf } from "../_mcp-client-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-import { closedVaultNote } from "../_shared.js";
+import { DOCS_DIR } from "../help/handler.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -47,11 +47,6 @@ describe("createViewsBaseTool — descriptor", () => {
     expect(tool.descriptor.name).toBe("views_base");
   });
 
-  it("description length >= 400 chars", () => {
-    const tool = makeTool();
-    expect(tool.descriptor.description.length).toBeGreaterThanOrEqual(400);
-  });
-
   it("description matches exported constant", () => {
     const tool = makeTool();
     expect(tool.descriptor.description).toBe(VIEWS_BASE_DESCRIPTION);
@@ -61,16 +56,16 @@ describe("createViewsBaseTool — descriptor", () => {
     const tool = makeTool();
     const desc = tool.descriptor.description;
     expect(desc).toContain("base_path");
-    expect(desc).toContain("Named Base");
+    expect(readFileSync(join(DOCS_DIR, "views_base.md"), "utf8")).toContain("Named Base");
     expect(desc).not.toContain("Active-mode-only");
   });
 
   it("description documents the new error roster (clean names + reasons)", () => {
-    const desc = makeTool().descriptor.description;
-    expect(desc).toContain("INVALID_BASE_PATH");
-    expect(desc).toContain("named-missing");
-    expect(desc).toContain("not-open");
-    expect(desc).toContain("VAULT_NOT_FOUND");
+    const helpPage = readFileSync(join(DOCS_DIR, "views_base.md"), "utf8");
+    expect(helpPage).toContain("INVALID_BASE_PATH");
+    expect(helpPage).toContain("named-missing");
+    expect(helpPage).toContain("not-open");
+    expect(helpPage).toContain("VAULT_NOT_FOUND");
   });
 
   it("emits inputSchema with additionalProperties:false", () => {
@@ -88,10 +83,11 @@ describe("createViewsBaseTool — descriptor", () => {
   });
 
   it("083: description routes vault in both modes and carries the closed-vault note", () => {
-    expect(VIEWS_BASE_DESCRIPTION).toContain(closedVaultNote("base:views"));
-    expect(VIEWS_BASE_DESCRIPTION).toContain("VAULT_NOT_FOUND");
-    expect(VIEWS_BASE_DESCRIPTION).toContain("without `base_path`, the views of the Base open in that vault");
-    expect(VIEWS_BASE_DESCRIPTION).toContain("omitted, the vault in front");
+    const helpPage = readFileSync(join(DOCS_DIR, "views_base.md"), "utf8");
+    expect(helpPage).toContain('Command "base:views" not found.');
+    expect(helpPage).toContain("VAULT_NOT_FOUND");
+    expect(helpPage).toContain("without `base_path`, the views of the Base open in that vault");
+    expect(helpPage).toContain("omitted, the vault in front");
     expect(VIEWS_BASE_DESCRIPTION).not.toMatch(STALE_VAULT_CLAIM);
   });
 

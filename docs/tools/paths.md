@@ -110,6 +110,8 @@ This is a deliberate **departure** from the [`files`](./files.md) tool, which co
 
 ### Trailing-slash discrimination rule
 
+Every entry is a vault-relative path string: folder entries end with "/", file entries do not.
+
 - Folder entries: **end with `/`**. Examples: `Inbox/`, `Inbox/Sub/`, `Archive/`.
 - File entries: **do NOT end with `/`**. Examples: `README.md`, `Inbox/a.md`, `Inbox/Sub/c.md`.
 - Agents partition the response via `paths.filter(p => p.endsWith("/"))` for folders, `paths.filter(p => !p.endsWith("/"))` for files.

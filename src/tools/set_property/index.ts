@@ -7,15 +7,7 @@ import { REPEATABLE_WRITE_HINTS, type BootDeps, type RegisteredTool } from "../_
 export const SET_PROPERTY_TOOL_NAME = "set_property";
 
 export const SET_PROPERTY_DESCRIPTION =
-  `Write a single named frontmatter property to a vault note. Surgical single-property write — flips one field without the full-file read + write_note round-trip. Returns \`{ written: true, path, name }\`.
-
-Pick \`set_property\` to write one frontmatter value. Pick \`read_property\` to read one. Pick \`properties\` for the vault-wide property catalogue. Pick \`find_by_property\` to find notes by a property value.
-
-Targeting: \`target_mode: "specific"\` + \`vault\` + EXACTLY ONE of \`file\` (wikilink) or \`path\` (vault-relative) + \`name\` + \`value\` + optional \`type\`. Or \`target_mode: "active"\` + \`name\` + \`value\` + optional \`type\` (writes the focused note).
-
-\`value\` accepts \`string | number | boolean | string[]\`. \`type\` is one of \`text\` / \`list\` / \`number\` / \`checkbox\` / \`date\` / \`datetime\` — inferred from value's shape when omitted. \`date\` / \`datetime\` REQUIRE explicit \`type\` (the inferrer can't distinguish them from a plain string). Empty array writes an empty YAML list. Cross-type overwrite is supported (the resolved type wins).
-
-**Cowork-pathway caveat**: on the Cowork MCP client, non-string \`value\` payloads (numbers, booleans, arrays) may be coerced to strings client-side before reaching the wrapper. To force the wrapper to write the intended YAML type, **pass an explicit \`type\`** for list / number / checkbox writes. Without it, the wrapper sees a string and may write the wrong YAML shape.`;
+  "Write one frontmatter property on a note, adding it or replacing its value. Choose `set_property` to change one field without rewriting the note: `read_property` reads one value, `find_by_property` finds notes by value and `properties` lists property names.";
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

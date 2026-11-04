@@ -1,0 +1,903 @@
+{
+  "schemaVersion": 1,
+  "tools": {
+    "append_note": {
+      "descriptionFingerprint": "b465ccfdfdbd7145144d1927b182c5a6d62decfc7bf92145d0a7485e8308a4d6",
+      "schemaFingerprint": "39475dbd51a0bc94efd3886ff9a2f9c0e86593df59a32507fbaaf79d183c71ab",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "backlinks": {
+      "descriptionFingerprint": "29f144135a3410086876db96e24b4f15f56c94e10c5c46fc81103e400cd89df5",
+      "schemaFingerprint": "18143675588c9486e4f6ddb1da87def80b8211716b3f256dc3be04d547cccdf3",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "bases": {
+      "descriptionFingerprint": "8a895ec958988c23d08d46829fef052e5f63941b2501f0174adb516bc2320281",
+      "schemaFingerprint": "2e238f7c347e96225b1da8d7029fa26940d6f57b0f0f4162ae3c63b4acd1003b",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "context_search": {
+      "descriptionFingerprint": "80437a2abb05a39225eee4f8017c4c676e22109326905a23ffc0278783845ffe",
+      "schemaFingerprint": "35e8bf7f062b7027e6fdb15f72d00e702409a7ec3d736070800bc19590c8a88b",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "create_base": {
+      "descriptionFingerprint": "aaa6620aa458b3368278820c82b436148eaf665bb16200e58c76a4bf153636ac",
+      "schemaFingerprint": "e2cb1c511e6458c67a17dcf8881e068872030e930169ea36185e8ccaa254f5b1",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "delete": {
+      "descriptionFingerprint": "003c05a74d671f42c0fc2b802545540c1d7b25f710a35e928912885310971e1f",
+      "schemaFingerprint": "17b498e44dfbeebf3dab34c815d2377ecb5463f52d84810812effe2e69128310",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "PASS"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "files": {
+      "descriptionFingerprint": "f32a47510aaf9383e8c2ec434ba1f188a6a23d1867115762e5625ed0e58a7d6d",
+      "schemaFingerprint": "ed8292d04736352c56498712eb4f3cc42305ad939337dfaa2934ce8391da4fc8",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "find_and_replace": {
+      "descriptionFingerprint": "01c0d2d74dee81ac62fe5e9b98db0fcb64b8efec900add5f5dad12f3100df9ea",
+      "schemaFingerprint": "a71919f035828dc94320837f68f751261e07d0f075ee458f8903e569ed8996bb",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "PASS"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "find_by_property": {
+      "descriptionFingerprint": "3f256cfc7d7f625292d021bf12aa94d74a9de3ebe7414856c941ca8746c8ef44",
+      "schemaFingerprint": "9a311364414f8fd962a95a021dfe1e6137b4413393a307c26df51e71004d335d",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS",
+          "gap": "The help page states that an array `value` is rejected unless `array_match` is false; the `array_match` parameter description covers the exact-match half only. Worth a look when that parameter is next touched."
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "get_active_file": {
+      "descriptionFingerprint": "ae54f198edb168c0a481a98d94f4bb568945689fe96591706382c7ef94f15335",
+      "schemaFingerprint": "8443d4e3c4440baf1c042410b90defdaeb46f1dfb572b89a43df39fa70dd4cba",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "help": {
+      "descriptionFingerprint": "78d49e1b7781fba4771c5dcf9f83e21fe691530c157535fdf35216c49fb3b4ea",
+      "schemaFingerprint": "0d0bfb8587f71a5b01d78743900ee9c00e751a697c7f44285cbdc77826ebb69d",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "N/A"
+        },
+        "sharedFields": {
+          "verdict": "N/A"
+        }
+      }
+    },
+    "links": {
+      "descriptionFingerprint": "bc25882010384bb7469164b2091ea69bf181b39c65da9daab36fcf8625a2ed7b",
+      "schemaFingerprint": "85fcb7ebcbebdc2f04c321c9f4d5307c72c2e4158ce888f75a91cb6c60f4ff3b",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "move": {
+      "descriptionFingerprint": "490609708be5e77b952da7824411ea1821790f6d08867d565cd5c71dd53b2272",
+      "schemaFingerprint": "66cf5cefdaa3f76c25c713e587682e4154bc90c89e901d220b5dcab73699f2aa",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "PASS"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "obsidian_exec": {
+      "descriptionFingerprint": "f3bd339cf41591dad576dd7e22f653b36ea7fa2553b3efc5792ad72ab354c8da",
+      "schemaFingerprint": "4e6340880be5e9a95a555c141b95e6d6b0aec8b9e18ab268ca7e9ea3c587ef9c",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "PASS"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "N/A"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "open_file": {
+      "descriptionFingerprint": "be8e28d8579660d366da9a507c4cd508e87dc33bb03e1ebb784d7a0857fe02df",
+      "schemaFingerprint": "a2332ada31ce3f293c51f66267831762104c8a731eef7f723e4f9c399deb0269",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "outline": {
+      "descriptionFingerprint": "da82eb82c632be964bc52ee301e1ccbb571ccda076c09f969668338452838fca",
+      "schemaFingerprint": "f3aca83312a82f59946b50defe1808ffc46b86d19c2444c0e27e6b587b130148",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "patch_block": {
+      "descriptionFingerprint": "39ac5f77394ac1bf6925907a2489363eae2636925cd60676bc09952d6cade2ec",
+      "schemaFingerprint": "b4fde5f50df8f082289dfd18411c4c6455f4dae804f21a75912e0714cb5b8d39",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "PASS",
+          "gap": "Replacing content is the tool's stated purpose in sentence 1; no default widens its reach, so no separate caveat is needed."
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "patch_heading": {
+      "descriptionFingerprint": "e4650977a1152ca88cc40c682699be5687d5510b918da70830544e1e422d39f6",
+      "schemaFingerprint": "fb021a74d39174aa1b83874a2825dd5d0fcff4ca78a017807594c5d7d867023f",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "PASS",
+          "gap": "Replacing content is the tool's stated purpose in sentence 1; no default widens its reach, so no separate caveat is needed."
+        },
+        "detail": {
+          "verdict": "PASS",
+          "gap": "Stale claim dropped: the old description listed `NOTE_NOT_FOUND`; a missing note raises `FS_WRITE_FAILED` with errno `ENOENT`, which the help page already states."
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "paths": {
+      "descriptionFingerprint": "74fe49bd179ee0686feaabcb3d319205d330ec832cf1b1cac8518b5e23f120f8",
+      "schemaFingerprint": "a31fc20fe1a1ee668c052164a30d8a1a471810ad3184aa584d0d6e9369c9a510",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "pattern_search": {
+      "descriptionFingerprint": "5375b0694cf07f657bf7de32a4f8482626ad451d4ffce071557c632c02c2ee05",
+      "schemaFingerprint": "c5c753ed57c8e52c2e810db911db2f4786617fb14b4b642342f6772558e377ef",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "prepend": {
+      "descriptionFingerprint": "84936fb77ee0eb95bf626572f700361cc697614f7a48315f51cea37a3adb46f2",
+      "schemaFingerprint": "501c53709974cf77b4cc83832613a47530de1e5ab3cdef621669dae4dc8107b1",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "properties": {
+      "descriptionFingerprint": "ea903e6777d3893a9839ac7c02662aa46fdad33233624d104f27bde29ab5b863",
+      "schemaFingerprint": "31fd22e3636ecf13175472485174cda91ff71335a74aef94509dbf49e2921771",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS",
+          "gap": "The input root description is still a long reference block that uses the server's own vocabulary (\"the wrapper\", the Cowork pathway). Spec 092 removed only its identifiers and history; shortening it is listed under Follow-ups in specs/092-audit-tool-descriptions/research.md."
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "query_base": {
+      "descriptionFingerprint": "fd7f5876215a7633636aba890f842afa3769763b3b71833a17c1e38f4a78b55b",
+      "schemaFingerprint": "3074b638fe7ccf77302ae09dc19d3a4798c17238f52a769eff696bdfd9a8ee90",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS",
+          "gap": "The input root description is still a long reference block that uses the server's own vocabulary (\"the wrapper\", the Cowork pathway). Spec 092 removed only its identifiers and history; shortening it is listed under Follow-ups in specs/092-audit-tool-descriptions/research.md."
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "read": {
+      "descriptionFingerprint": "3da6a3ad25299e0d6befa6f0310b4f2c35135fd008bf81eda3d2a49ba1c492c9",
+      "schemaFingerprint": "2c04a98caa9e2c3e3f7aabb62d4c128669afca749a45dab94d1d925a150da0b0",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "read_heading": {
+      "descriptionFingerprint": "69af07a9273ba7bc7389668446ecec6d9cffa829878ff2810c2e015f69960a51",
+      "schemaFingerprint": "00aada89fc6cba38b6db65cede523d6a05af6af3593dde7efd981217805b336c",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "read_property": {
+      "descriptionFingerprint": "936b00929710903ddcdf030522ea9de0149dae24686455913544bae18c8e7f8d",
+      "schemaFingerprint": "667246c99b9bff4d24f643f2ce9d01306cb836ff4681fb743a2c4090ce7c12a8",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS",
+          "gap": "The input root description is still a long reference block that uses the server's own vocabulary (\"the wrapper\", the Cowork pathway). Spec 092 removed only its identifiers and history; shortening it is listed under Follow-ups in specs/092-audit-tool-descriptions/research.md."
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "rename": {
+      "descriptionFingerprint": "99fac0cb36ab5aa9e7a669a55435c480df178e9147c1397f11f72d97fe0d91b3",
+      "schemaFingerprint": "cc44ba23697c584a78ba01f1933065fb8e9140b3a481cda25940a5346596a7dc",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "PASS"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "search": {
+      "descriptionFingerprint": "13221a0f3a9078aa6c8d9a0ef4d1c47f9a67aa9d956e5a6d3b6c056de5e48d03",
+      "schemaFingerprint": "e9bc6f18a991637288dcc3a815bfdf986175b268102af76c30afebdf0952a3b8",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS",
+          "gap": "The input root description is still a long reference block that uses the server's own vocabulary (\"the wrapper\", the Cowork pathway). Spec 092 removed only its identifiers and history; shortening it is listed under Follow-ups in specs/092-audit-tool-descriptions/research.md."
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "set_property": {
+      "descriptionFingerprint": "07b8cb3b20a59acc743964769ddccd51513b6fc5e830cd19b1fd023284d9461f",
+      "schemaFingerprint": "95457a4ab12facd0401a00b61ab4bf777eb187f1316bd8c40779b5f859502143",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "PASS",
+          "gap": "Replacing content is the tool's stated purpose in sentence 1; no default widens its reach, so no separate caveat is needed."
+        },
+        "detail": {
+          "verdict": "PASS",
+          "gap": "Possibly stale claim cut (contract S8, Clarification Q3): the old description told some clients to pass an explicit `type` for list, number and checkbox writes. It was not carried into any parameter, and the help page never stated it, so it is now published nowhere."
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "smart_connections_query": {
+      "descriptionFingerprint": "705e6d9af503cf01455fddf9baf3402ac9ac4295b0f2466a1a4a23ae31f8faa7",
+      "schemaFingerprint": "23f6c5454e7464e08b1bc62e1a965bff03676d6e14e3c20ce3cf5397216c3d99",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "smart_connections_similar": {
+      "descriptionFingerprint": "be98feae81442457fd5f1444b03e7ddca11c36f191459dbdd0d4433a4939803a",
+      "schemaFingerprint": "4456cf3eb306a37317caeecc1c23e89784e1d47c9b94c3a6e85e646447f8a122",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "tag": {
+      "descriptionFingerprint": "cb46ef8b2af67d8a25f9bcbbb1c2506741542a2b7696a7ba6afb1d0a0b80becd",
+      "schemaFingerprint": "56ff9dd9a0695e99884fe0971055170f40a276a73704ead241889d4a023ff2c1",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "vaults": {
+      "descriptionFingerprint": "a25e030543a1ac7547ac87fde032b23edd8d5dd48c5ed94b358ce13c9d3ebb35",
+      "schemaFingerprint": "71fc596a20f27da3dec80050e5d1f553eba34aea24c2853b853488a811e6b892",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS",
+          "gap": "Stale claim dropped: the old description said an unreachable Obsidian gives `CLI_REPORTED_ERROR` or `CLI_TIMEOUT`; the code returns `CLI_NON_ZERO_EXIT` with `details.reason: \"obsidian-not-running\"`, which the help page already states."
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "N/A"
+        },
+        "sharedFields": {
+          "verdict": "N/A"
+        }
+      }
+    },
+    "views_base": {
+      "descriptionFingerprint": "a135f3b1bd858e7a3a92db5a14500240977e23f981d133106f26d5a2b22dfbfd",
+      "schemaFingerprint": "e3694825977004b0619ee41c5e1335b7beeab747a42dd6fede41aa7e53960236",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "N/A"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    },
+    "write_note": {
+      "descriptionFingerprint": "17444edda563f85d56dcf820ecbcb7bea25cb00abe6f7f57e43c5c0f1beea0f8",
+      "schemaFingerprint": "141cb494f1673b70f23daccb68c2e39a4a1e0a1336fc861484101ff996a46580",
+      "checks": {
+        "purpose": {
+          "verdict": "PASS"
+        },
+        "safety": {
+          "verdict": "PASS"
+        },
+        "detail": {
+          "verdict": "PASS"
+        },
+        "selfContained": {
+          "verdict": "PASS"
+        },
+        "family": {
+          "verdict": "PASS"
+        },
+        "sharedFields": {
+          "verdict": "PASS"
+        }
+      }
+    }
+  },
+  "routing": {
+    "- Read a note, canvas or base: `read`; one heading's section: `read_heading`; one frontmatter property: `read_property`.": {
+      "verdict": "PASS"
+    },
+    "- A note's headings and links: `outline`, `links`, `backlinks`.": {
+      "verdict": "PASS"
+    },
+    "- Find text: `search` (matching paths), `context_search` (matching lines), `pattern_search` (regex).": {
+      "verdict": "PASS"
+    },
+    "- Find notes by metadata: `find_by_property`, `tag`; list property names: `properties`.": {
+      "verdict": "PASS"
+    },
+    "- List a folder: `files` (direct children), `paths` (recursive).": {
+      "verdict": "PASS"
+    },
+    "- Semantic search (Smart Connections): `smart_connections_query`, `smart_connections_similar`.": {
+      "verdict": "PASS"
+    },
+    "- Bases: `bases` (list), `views_base` (a base's views), `query_base` (run a view).": {
+      "verdict": "PASS"
+    },
+    "- Add an item to a base: `create_base`.": {
+      "verdict": "PASS"
+    },
+    "- Which note Obsidian has focused: `get_active_file`.": {
+      "verdict": "PASS"
+    },
+    "- Create or replace a note: `write_note`; add to its end or top: `append_note`, `prepend`.": {
+      "verdict": "PASS"
+    },
+    "- Edit in place: `patch_heading` (a heading's section), `patch_block` (a block), `set_property` (a property).": {
+      "verdict": "PASS"
+    },
+    "- Replace text across notes: `find_and_replace`.": {
+      "verdict": "PASS"
+    },
+    "- Move, rename or delete a file: `move`, `rename`, `delete`.": {
+      "verdict": "PASS"
+    },
+    "- Show a file in Obsidian: `open_file`.": {
+      "verdict": "PASS"
+    },
+    "- Any other Obsidian CLI command: `obsidian_exec`.": {
+      "verdict": "PASS"
+    }
+  }
+}

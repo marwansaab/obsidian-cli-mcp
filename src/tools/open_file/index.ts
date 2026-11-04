@@ -14,22 +14,7 @@ import { REPEATABLE_WRITE_HINTS, type BootDeps, type RegisteredTool } from "../_
 export const OPEN_FILE_TOOL_NAME = "open_file";
 
 export const OPEN_FILE_DESCRIPTION =
-  `Surface an existing vault file as the focused, visible, active file in the running Obsidian workspace. ${describeSupport(OPEN_FILE_SUPPORTED)} A type Obsidian has no view for fails with \`CLI_REPORTED_ERROR\` / \`UNSUPPORTED_FILE_TYPE\`. Decouples the open/hand-off affordance from \`write_note\` (which only opens what it just wrote): \`open_file\` opens a file you merely located.
-
-**Cross-vault — opens in the vault you name, and switches focus to it.** The open lands in the \`vault\` you request whether it is the currently focused vault, an open-but-unfocused (background) vault, or a closed-but-registered vault, and Obsidian's focus moves to that vault. You do NOT need to pre-focus the vault. The previously focused vault stays open (focus just moves). A closed vault is brought up and a fully-quit app is launched automatically (inherited recovery) — a single call, no caller retry. No Obsidian setting or config is changed.
-
-Targeting: \`vault\` (required — the vault to open in) + EXACTLY ONE of \`path\` (vault-relative path, any type) or \`file\` (bare name resolved by Obsidian's link resolver — resolves attachments too; MUST NOT contain \`[[\`/\`]]\` brackets — supply \`My Note\`, not \`[[My Note]]\`). The locator resolves IN the requested vault; a same-named file in another vault is never opened by mistake.
-
-Options:
-- \`new_tab\` (boolean, default \`false\`) — \`true\` opens a fresh tab and leaves the previously focused file open in its own tab (a new tab is created even if the file was already open). \`false\` focuses an existing tab for the file if one is open (no duplicate), else opens in the active tab.
-
-Success shape — IDENTICAL across all file types: \`{ opened, vault, new_tab, placement }\`. \`opened\` is the resolved vault-relative path (canonicalised from whichever locator you supplied); \`vault\` is the vault the file was opened in; \`placement\` is exactly one of \`new_tab_created\` (a fresh tab was opened), \`existing_tab_reused\` (an already-open tab for the file was focused, no duplicate), or \`active_tab_used\` (the file opened into the active tab). The response carries no file-type field and no pane/leaf ids; do not branch on type.
-
-After a successful open, the opened file becomes the active file: a subsequent \`target_mode: "active"\` tool call operates on it.
-
-Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\` (missing \`vault\`; both/neither \`path\`/\`file\`; bracketed \`file\`; structurally-unsafe \`path\`/\`file\`; unknown field; non-boolean \`new_tab\`); \`CLI_REPORTED_ERROR\` with sub-discriminators (\`VAULT_NOT_FOUND\`/\`unknown\` — the sole hard vault error — for an unregistered name, \`FILE_NOT_FOUND\` for no such file/a folder in the requested vault, \`UNSUPPORTED_FILE_TYPE\` when Obsidian has no view for the extension — distinct from \`FILE_NOT_FOUND\`); \`CLI_NON_ZERO_EXIT\`/\`details.reason: "obsidian-not-running"\` (app down and could not be launched, e.g. \`OBSIDIAN_AUTO_LAUNCH=0\`); \`CLI_BINARY_NOT_FOUND\` (the \`obsidian\` binary is missing); \`INTERNAL_ERROR\` (malformed eval result). A registered vault that is merely closed or unfocused is NOT an error — it is a success path.
-
-Out of scope: does NOT open files outside the vault (external paths), create or delete a vault, close/split/move/rearrange tabs (only the \`new_tab\` opt-in), edit file content, or scroll to a heading/block within the file.`;
+  `Show an existing vault file, by path or name, as the active file in Obsidian, switching to the vault you name. Use \`open_file\` to show the user a file you found; use \`get_active_file\` to read which file is active. ${describeSupport(OPEN_FILE_SUPPORTED)}`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

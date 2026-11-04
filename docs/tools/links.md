@@ -99,6 +99,8 @@ Uniform envelope across both modes (the only difference is whether `links` is po
 
 ### Display label rule
 
+`displayText` on a wikilink or embed is present only when the author wrote a non-empty alias after | distinct from the link target, and carries that alias, with or without a heading, block or other fragment and for frontmatter links alike. A Markdown link or image reports its bracketed link text or image alt text as written (empty included) when distinct from the target.
+
 Whether an entry carries `displayText` is decided from what the note's source contains, never from the shape of a label, so an editor-derived label such as `"Note > Heading"` is never reported. An alias written after the table-safe `\|` separator counts like one written after `|`. The alias is reported as Obsidian parses it, with surrounding whitespace trimmed: `[[Target|  Padded  ]]` reports `"Padded"`.
 
 | Source | `displayText` |

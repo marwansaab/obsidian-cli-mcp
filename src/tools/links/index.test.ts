@@ -1,6 +1,6 @@
 // Original — no upstream. Tests for the links tool registration — descriptor shape, kind enum + count-only mode in the description, docs presence + content completeness.
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -10,6 +10,7 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
+import { DOCS_DIR } from "../help/handler.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -40,7 +41,8 @@ describe("createLinksTool — descriptor", () => {
     expect(lower).toContain("wikilink");
     expect(lower).toContain("embed");
     expect(lower).toContain("markdown");
-    expect(lower).toContain("total");
+    const helpPage = readFileSync(join(DOCS_DIR, "links.md"), "utf8").toLowerCase();
+    expect(helpPage).toContain("total");
     expect(desc.length).toBeGreaterThan(0);
   });
 
@@ -105,7 +107,8 @@ describe("docs/tools/links.md exists and is non-stub (FR-018)", () => {
 describe("spec 071 — one display-label rule, no caveat (FR-006, FR-007)", () => {
   // The FR-018 baseline fingerprint pins the description's exact bytes; this pins the rule itself.
   it("LINKS_DESCRIPTION states the single rule with no caveat or derived-label shape", () => {
-    expect(LINKS_DESCRIPTION).toContain(
+    const helpPage = readFileSync(join(DOCS_DIR, "links.md"), "utf8");
+    expect(helpPage).toContain(
       "present only when the author wrote a non-empty alias after |",
     );
     expect(LINKS_DESCRIPTION).not.toContain("alias distinct from the link target. ");

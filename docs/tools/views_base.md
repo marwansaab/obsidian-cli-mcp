@@ -33,6 +33,8 @@ A named Base **always wins** over whatever is focused; the open Base is never si
 | `base_path` | string | no       | Vault-relative path to the `.base` file (the identifier `bases` emits and `query_base`/`create_base` accept). Omit to read the focused Base. Validated like `query_base.base_path` (must be a structurally safe path ending in `.base`, ≤ 1000 UTF-16 units). |
 | `vault`     | string | no       | Vault display name (min length 1). Routes to that vault in both modes: with `base_path`, the named Base in that vault; without it, the Base open in that vault. Omit for the vault in front. An unregistered name fails with `VAULT_NOT_FOUND` before the CLI runs. |
 
+Optional `vault` (string): with `base_path`, the named Base in that vault; without `base_path`, the views of the Base open in that vault; omitted, the vault in front.
+
 ## Output
 
 ```json
@@ -62,6 +64,7 @@ The native `base:views` subcommand emits each line as `<view name>\t<view type>`
 | `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND`  | `unknown`        | The `vault` display name is not registered with Obsidian | Check the name with `vaults`. A vault added after the server started is found without a restart. |
 | `CLI_REPORTED_ERROR` | —                  | `cli-disabled`   | **Command line turned off.** Obsidian's **Command line interface** setting (Settings > General > Advanced) is off. The message is `Obsidian's command line interface is turned off. Ask the user to turn on Settings > General > Advanced > Command line interface in Obsidian, then call again.`, and `details.stdout` holds Obsidian's notice `Command line interface is not enabled. Please turn it on in Settings > General > Advanced.` | Ask the user to turn the setting on, then call again. This is a failure, never an empty result. |
 | `CLI_REPORTED_ERROR` | —                  | —                | Named mode, `details.stage: "focus"`: the named `.base` did not become Obsidian's active file within about a second. `details` is `{ stage, base_path, active }`, where `active` is the file still in front (or `null`); no views are listed and no parser report is attached | Retry. |
+| `CLI_REPORTED_ERROR` | —                  | —                | **Vault unavailable.** `details.stdout` starts `Error: Command "base:views" not found.`: a registered vault that is not open is opened automatically, but this one could not be brought up. This is a failure, never an empty result. | Open the vault in Obsidian, then call again. |
 | `CLI_REPORTED_ERROR` | —                  | —                | Other upstream CLI failure / app down / binary missing | Retry; confirm Obsidian is running. |
 | `UPSTREAM_TIMEOUT`   | —                  | —                | Subprocess exceeded 10 s | Retry. |
 

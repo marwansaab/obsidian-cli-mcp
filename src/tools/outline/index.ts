@@ -8,9 +8,8 @@ import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.
 export const OUTLINE_TOOL_NAME = "outline";
 
 export const OUTLINE_DESCRIPTION =
-  "Return the flat ordered list of every heading in a Markdown note (returns { count, headings: [{ level, text, line }] }) — structural-discovery primitive that replaces \"full read plus client-side parse\" for the outline case at one to two orders of magnitude less token cost. Discriminated by target_mode; in active mode it operates on the focused note in the focused vault. Setting total:true populates count and returns headings:[] for a token-economical pre-flight read; the envelope shape is uniform across both modes. Zero-heading files return { count: 0, headings: [] } in both modes. Setext underline-style headings AND ATX headings both appear in the output (defers to upstream). " +
-  describeSupport(OUTLINE_SUPPORTED) +
-  " Canvases, bases, attachments and other files are rejected before the call with UNSUPPORTED_FILE_TYPE.";
+  "List every heading in a note, in source order, with its level, text and line number. Use `outline` for a note's headings; use `links` for the links it makes, and `backlinks` for the notes that link to it. " +
+  describeSupport(OUTLINE_SUPPORTED);
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

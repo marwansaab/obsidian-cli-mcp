@@ -1,6 +1,6 @@
 // Original — no upstream.
 import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -14,7 +14,7 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger, stubVaultRegistry } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-import { closedVaultNote } from "../_shared.js";
+import { DOCS_DIR } from "../help/handler.js";
 
 const registry = stubVaultRegistry("Work", resolve("/vaults/Work"));
 
@@ -34,16 +34,6 @@ describe("createCreateBaseTool — descriptor", () => {
     });
     expect(tool.descriptor.name).toBe(CREATE_BASE_TOOL_NAME);
     expect(tool.descriptor.name).toBe("create_base");
-  });
-
-  it("description length >= 400 chars", () => {
-    const tool = createCreateBaseTool({
-      logger: silentLogger(),
-      queue: createQueue(),
-      vaultRegistry: registry,
-      spawnFn: makeStubSpawn(),
-    });
-    expect(tool.descriptor.description.length).toBeGreaterThanOrEqual(400);
   });
 
   it("description matches exported constant", () => {
@@ -85,17 +75,11 @@ describe("createCreateBaseTool — descriptor", () => {
   });
 
   it("description names error states", () => {
-    const tool = createCreateBaseTool({
-      logger: silentLogger(),
-      queue: createQueue(),
-      vaultRegistry: registry,
-      spawnFn: makeStubSpawn(),
-    });
-    const desc = tool.descriptor.description;
-    expect(desc).toContain("INVALID_BASE_PATH");
-    expect(desc).toContain("INVALID_NAME");
-    expect(desc).toContain("CONTENT_TOO_LARGE");
-    expect(desc).toContain("BASE_NOT_FOUND");
+    const helpPage = readFileSync(join(DOCS_DIR, "create_base.md"), "utf8");
+    expect(helpPage).toContain("INVALID_BASE_PATH");
+    expect(helpPage).toContain("INVALID_NAME");
+    expect(helpPage).toContain("CONTENT_TOO_LARGE");
+    expect(helpPage).toContain("BASE_NOT_FOUND");
   });
 
   it("deps wired through: handler receives stubbed CLI and produces typed response", async () => {
@@ -294,10 +278,11 @@ describe("createCreateBaseTool — deprecated names (spec 073)", () => {
   });
 
   it("083: description states the routed vault, its containment errors and the closed-vault note", () => {
-    expect(CREATE_BASE_DESCRIPTION).toContain(closedVaultNote("base:create"));
-    expect(CREATE_BASE_DESCRIPTION).toContain("VAULT_NOT_FOUND");
-    expect(CREATE_BASE_DESCRIPTION).toContain("`PATH_ESCAPES_VAULT` (only when `vault` is named");
-    expect(CREATE_BASE_DESCRIPTION).toContain(
+    const helpPage = readFileSync(join(DOCS_DIR, "create_base.md"), "utf8");
+    expect(helpPage).toContain('Command "base:create" not found.');
+    expect(helpPage).toContain("VAULT_NOT_FOUND");
+    expect(helpPage).toContain("`PATH_ESCAPES_VAULT` (only when `vault` is named");
+    expect(helpPage).toContain(
       "Optional `vault` (string): creates the item in that vault's Base; omit for the vault in front.",
     );
     expect(CREATE_BASE_DESCRIPTION).not.toMatch(STALE_VAULT_CLAIM);
@@ -310,11 +295,12 @@ describe("createCreateBaseTool — deprecated names (spec 073)", () => {
   });
 
   it("description uses the new names and lists the deprecated ones", () => {
-    expect(CREATE_BASE_DESCRIPTION).toContain("Required `base_path` (string, 1..1000 chars)");
-    expect(CREATE_BASE_DESCRIPTION).toContain("Optional `view_name` (string)");
-    expect(CREATE_BASE_DESCRIPTION).toContain("`path` is the vault-relative path of the note Obsidian created");
+    const helpPage = readFileSync(join(DOCS_DIR, "create_base.md"), "utf8");
+    expect(helpPage).toContain("Required `base_path` (string, 1..1000 chars)");
+    expect(helpPage).toContain("Optional `view_name` (string)");
+    expect(helpPage).toContain("`path` is the vault-relative path of the note Obsidian created");
     expect(CREATE_BASE_DESCRIPTION).not.toContain("wrapper-constructed");
-    expect(CREATE_BASE_DESCRIPTION).toContain(
+    expect(helpPage).toContain(
       "Deprecated names (accepted until the next major release; a successful call that uses one gets `deprecated_parameters` in its result; error responses do not carry it): `path` → `base_path`, `view` → `view_name`.",
     );
   });

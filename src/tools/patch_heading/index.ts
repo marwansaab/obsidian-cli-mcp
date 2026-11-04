@@ -8,24 +8,7 @@ import { ADDITIVE_WRITE_HINTS, type BootDeps, type RegisteredTool } from "../_sh
 export const PATCH_HEADING_TOOL_NAME = "patch_heading";
 
 export const PATCH_HEADING_DESCRIPTION =
-  `Surgically rewrite the body under a named heading inside a markdown note, addressed by its full hierarchical path through the heading hierarchy.
-
-Pick \`patch_heading\` for body-under-named-heading edits. Pick \`patch_block\` for \`^block-id\` marker edits. Pick \`append_note\` / \`prepend\` for additive writes. Pick \`write_note\` to replace the whole file. Pick \`find_and_replace\` for vault-wide pattern replacement.
-
-**Three placement modes**:
-- **append** — insert at end of the heading's full reach (before the next equal-or-higher-rank heading).
-- **prepend** — insert immediately after the heading marker line.
-- **replace** — swap the direct body, preserving the marker and child subtrees.
-
-Targeting: \`target_mode: "specific"\` + \`vault\` + EXACTLY ONE of \`file\` / \`path\` + \`heading_path\` + \`mode\` + \`content\`. Or \`target_mode: "active"\` + \`heading_path\` + \`mode\` + \`content\` (wrapper resolves the focused note).
-
-\`heading_path\` uses \`#\` as the segment separator. The path starts at the note's level-1 heading and names one heading per level down to the target: each later segment is the heading exactly one level below the previous one, so a level-3 target needs three segments (e.g. \`Project#Tasks#Today\`). Leaving out the level-1 heading (\`Tasks#Today\`) fails with \`HEADING_NOT_FOUND\` even though both headings exist. Unreachable: a level-1 section by itself (one-segment paths are rejected), any section in a note with no level-1 heading, any section below a skipped level (e.g. a \`###\` directly under a \`#\`), and headings whose literal text contains \`#\`; use \`write_note\` to rewrite the whole note instead. First match wins on duplicate sibling headings.
-
-\`content\` empty is REJECTED for \`append\` / \`prepend\` (you must supply something to insert). Empty content is ACCEPTED for \`replace\` (legitimate "clear the body" operation). No wrapper-imposed size cap.
-
-Concurrent calls against the same note publish a \`HEADING_RACE\` discriminator when both calls target the same heading and a race is detected — callers can branch on it and retry. (Sibling \`patch_block\` does NOT publish a race discriminator; it just resolves last-write-wins.)
-
-Typed errors via \`UpstreamError.details.code\`: \`HEADING_NOT_FOUND\` (the path most often leaves out the level-1 heading or skips a level; check that first, then use [\`outline\`](./outline.md) to list the note's headings and retry), \`HEADING_RACE\`, \`UNSAFE_PLACEMENT\` (note unchanged; re-read and retry once), \`EXTERNAL_EDITOR_CONFLICT\` (file locked — ask user to save and close, retry), \`INVALID_HEADING_PATH\`, \`EMPTY_CONTENT\`. Plus the standard \`VALIDATION_ERROR\` (an unregistered \`vault\` carries \`details.requestedVault\` / \`knownVaults\`), \`NOTE_NOT_FOUND\`, \`PATH_ESCAPES_VAULT\`, \`FS_WRITE_FAILED\`, \`VAULT_NOT_FOUND\` (registered vault whose folder is missing, or an unlisted focused vault), \`ERR_NO_ACTIVE_FILE\`.`;
+  `Append, prepend or replace the content under one heading of a note, addressed by its heading path. Choose it to edit a heading's section; \`patch_block\` edits a \`^block-id\` block, \`append_note\` and \`prepend\` add at the end or top, \`write_note\` replaces the whole note, including sections no path reaches, and \`find_and_replace\` replaces text across notes.`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

@@ -222,11 +222,19 @@ idempotent). `query_base`'s `base_path` publishes
 own, so the stated limit cannot drift from the enforced one. `query_base`'s optional
 `vault` is the shared `focusedVaultField` (`src/tools/_vault-field.ts`).
 Since PR #114 the `vault` descriptions of `bases`, `views_base` and
-`create_base` say the call acts on that vault, the three descriptions list
-`VAULT_NOT_FOUND` (and `create_base`'s `PATH_ESCAPES_VAULT`), and each
-appends `closedVaultNote`. The `bases` description leaves out "Obsidian vault
-display name", because the `_surface.test.ts` rule bars tool descriptions
-from restating it; its parameter description keeps it.
+`create_base` say the call acts on that vault. Until PR #143 the three tool
+descriptions also listed `VAULT_NOT_FOUND` (and `create_base`'s
+`PATH_ESCAPES_VAULT`) and appended `closedVaultNote`. PR #143 (spec 092)
+cut all four Bases descriptions to what the tool does and a sentence that
+names the other three by role (`bases` lists, `views_base` gives view names,
+`query_base` returns rows, `create_base` adds an item), plus the
+supported-types sentence on the three that take a file; the error codes and
+the closed-vault and vault-unavailable rows are on the help pages
+([ADR-074](../decisions/ADR-074-tool-descriptions-route-within-a-budget-and-the-help-page-holds-the-contract.md),
+[ADR-045](../decisions/ADR-045-closed-vaults-recovered-only-by-the-dispatch-retry.md)
+amendment). `query_base`'s input root description lost its internal
+identifiers and version history in the same PR and is otherwise unchanged.
+The `vault` parameter descriptions keep "Obsidian vault display name".
 Since PR #91 all four publish an `outputSchema` and return their result as
 `structuredContent` beside the identical text
 ([typed results](../architecture.md#typed-results-outputschema-and-structuredcontent)).

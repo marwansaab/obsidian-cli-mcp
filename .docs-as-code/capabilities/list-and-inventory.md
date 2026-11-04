@@ -76,7 +76,16 @@ five publish their result shape as an `outputSchema` and return it as
 `structuredContent` alongside the identical text
 ([typed results](../architecture.md#typed-results-outputschema-and-structuredcontent)),
 and the server instructions' rule "`vaults` lists the vault names to use." is
-shown now that the tool exists.
+shown now that the tool exists. Since PR #143 (spec 092,
+[ADR-074](../decisions/ADR-074-tool-descriptions-route-within-a-budget-and-the-help-page-holds-the-contract.md))
+the five descriptions are routing texts: `files` and `paths` name each
+other (direct children against the recursive tree), `outline` names `links`
+and `backlinks`, and `properties` names the other frontmatter-property
+tools. `properties`' input root description lost its internal identifiers
+and version history. `vaults`' description had listed unreachable-Obsidian
+codes the code does not return; PR #143 dropped them, and its help page
+gives the `CLI_NON_ZERO_EXIT` / `obsidian-not-running` failure it does
+return.
 
 ## Failure
 

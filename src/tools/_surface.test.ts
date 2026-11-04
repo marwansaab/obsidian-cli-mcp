@@ -154,12 +154,12 @@ describe("published tool surface (068 US6, US8)", () => {
     });
 
     // Spec 072 SC-004: `not-open` is never emitted for a closed vault, so no description may
-    // advertise it. `views_base` keeps its own `BASE_NOT_FOUND` / `not-open` (FR-010).
-    it("only views_base mentions a not-open state", () => {
+    // advertise it. `views_base`'s own `BASE_NOT_FOUND` / `not-open` (FR-010) is on its help page.
+    it("no tool description mentions a not-open state", () => {
       const offenders = tools
         .filter((t) => /not-open|registered but not open/.test(t.description ?? ""))
         .map((t) => t.name);
-      expect(offenders).toEqual(["views_base"]);
+      expect(offenders).toEqual([]);
     });
 
     // BI-0174: Claude Code cuts a tool description at 4,096 characters, so a longer one loses its tail.

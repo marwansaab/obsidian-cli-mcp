@@ -1,28 +1,13 @@
-// Original — no upstream. smart_connections_query tool registration via registerTool — plugin-backed semantic-query primitive returning a typed { count, matches: [{ path, headingPath, score }] } envelope; responseFormat: "json" (default) wraps the envelope for the MCP wire. Second member of the eval-driven plugin-backed cohort (after BI-026 smart_connections_similar) and first member of the FILELESS sub-cohort within that cohort (no target_mode discriminator; optional vault?). Tool name follows ADR-013's <plugin_name>_<operation> plugin-namespace convention. The description carries the spec 085 leading-slice guarantee.
+// Original — no upstream. smart_connections_query tool registration via registerTool — plugin-backed semantic-query primitive returning a typed { count, matches: [{ path, headingPath, score }] } envelope; responseFormat: "json" (default) wraps the envelope for the MCP wire. Second member of the eval-driven plugin-backed cohort (after BI-026 smart_connections_similar) and first member of the FILELESS sub-cohort within that cohort (no target_mode discriminator; optional vault?). Tool name follows ADR-013's <plugin_name>_<operation> plugin-namespace convention. The spec 085 leading-slice guarantee is stated on the help page (spec 092 keeps the description short).
 import { registerTool } from "../_register.js";
 import { executeSmartConnectionsQuery, type ExecuteDeps } from "./handler.js";
-import { MAX_QUERY_LENGTH, smartConnectionsQueryInputSchema, smartConnectionsQueryOutputSchema } from "./schema.js";
-import { closedVaultNote, READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
-import { MAX_LIMIT } from "../_smart-connections.js";
+import { smartConnectionsQueryInputSchema, smartConnectionsQueryOutputSchema } from "./schema.js";
+import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const SMART_CONNECTIONS_QUERY_TOOL_NAME = "smart_connections_query";
 
 export const SMART_CONNECTIONS_QUERY_DESCRIPTION =
-  `Semantic search: return the block-level vault matches nearest to a free-text natural-language query via the Smart Connections plugin's lookup API. Returns \`{ count, matches: [{ path, headingPath, score }] }\`.
-
-Use this when the agent has a QUESTION and needs notes related to it. Use \`smart_connections_similar\` when the agent has a SOURCE NOTE and needs notes related to it. Use \`search\` / \`context_search\` for literal-string content search.
-
-Required \`query\` (string, trimmed, 1..${MAX_QUERY_LENGTH} chars — over-cap rejected fast with VALIDATION_ERROR). The cap is bounded by an upstream Obsidian CLI defect that hangs the host process around 4 KB of base64-encoded eval payload on Windows; queries above ~2000 chars trigger \`CLI_TIMEOUT\` at 10 s and a 30–60 s recovery window during which subsequent calls timeout. For longer text, summarise client-side before querying.
-
-Optional \`vault\` (string, min 1 char; routes to the focused vault when omitted). Optional integer \`limit\` (1..${MAX_LIMIT}, default 20) caps the matches list AND the count. Setting \`total: true\` returns just the count with \`matches: []\` for a token-economical pre-flight read.
-
-Per-match fields: \`path\` is the source file's vault-relative path with \`.md\` extension. \`headingPath\` is an array of heading segments — empty \`[]\` for source-level matches, literal \`["---frontmatter---"]\` for frontmatter-block matches (plugin sentinel preserved verbatim), multi-segment for nested-heading blocks. \`score\` is the raw plugin-returned number — embedding-model-dependent semantics, pass-through (no clamp / normalise / round); non-finite scores (NaN / Infinity / null / missing) are silently dropped. Sort: primary score descending, secondary path byte-ascending, tertiary headingPath.join('#') byte-ascending. \`limit\` is applied after this sort, to a fixed list of up to ${MAX_LIMIT} candidates, so a smaller limit always returns a leading slice of a larger one.
-
-Runtime dependency: the Smart Connections plugin (by Brian Petro; ≥ v4.5.0) must be installed in the target vault AND have completed initial indexing AND have an embed model configured. Missing / not-ready states surface as typed CLI_REPORTED_ERROR codes (\`SMART_CONNECTIONS_NOT_INSTALLED\` or \`SMART_CONNECTIONS_NOT_READY\` with \`details.reason: "api-missing"\` or \`"embed-failed"\`).
-
-${closedVaultNote("eval")}
-
-Error-precedence (outer to inner): unknown vault (CLI_REPORTED_ERROR "Vault not found.", no details.code) → SMART_CONNECTIONS_NOT_INSTALLED → SMART_CONNECTIONS_NOT_READY(api-missing) → SMART_CONNECTIONS_NOT_READY(embed-failed) → success.`;
+  `Semantic search: return the vault blocks nearest in meaning to a free-text question, ranked by the Smart Connections plugin. Choose it when you start from a question; choose \`smart_connections_similar\` when you start from a note and want notes like it.`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

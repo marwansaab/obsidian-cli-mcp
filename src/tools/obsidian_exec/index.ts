@@ -7,7 +7,7 @@ import { PASSTHROUGH_HINTS, type BootDeps, type RegisteredTool } from "../_share
 export const OBSIDIAN_EXEC_TOOL_NAME = "obsidian_exec";
 
 export const OBSIDIAN_EXEC_DESCRIPTION =
-  'Invoke any Obsidian Integrated CLI subcommand. Returns stdout, stderr, exitCode, and the exact argv invoked. Failures (non-zero exit, in-band Error: prefix, unknown vault, missing binary, timeout, output > 10 MiB) surface as structured errors with stable codes.';
+  "Run an Obsidian CLI subcommand and return its stdout, stderr, exit code and the exact argv it ran. Use it for any command the typed tools do not cover, since it skips their input checks and structured results. Commands that run code or drive developer tooling are blocked unless `OBSIDIAN_MCP_ALLOW_EVAL` is set.";
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

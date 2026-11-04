@@ -1,6 +1,6 @@
 // Original — no upstream. Tests for the find_by_property tool registration — descriptor shape, output-shape disclosure, docs presence + content completeness, drift-detector parameterised lock.
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -14,6 +14,7 @@ import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapt
 import { createQueue } from "../../queue.js";
 import { silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
+import { DOCS_DIR } from "../help/handler.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -31,7 +32,7 @@ describe("createFindByPropertyTool — descriptor", () => {
   it("description surfaces the {count, paths} output shape", () => {
     const tool = createFindByPropertyTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     const desc = tool.descriptor.description;
-    expect(desc).toMatch(/count.*paths|paths.*count/i);
+    expect(readFileSync(join(DOCS_DIR, "find_by_property.md"), "utf8")).toMatch(/count.*paths|paths.*count/i);
     expect(desc.length).toBeGreaterThan(0);
   });
 });
@@ -138,9 +139,10 @@ describe("createFindByPropertyTool — deprecated names (spec 073)", () => {
   });
 
   it("description uses the new names, drops the property: NOTE and lists the deprecated ones", () => {
-    expect(FIND_BY_PROPERTY_DESCRIPTION).toContain("Inputs: `{ vault?, name, value, folder?, array_match?, case_sensitive? }`.");
+    const helpPage = readFileSync(join(DOCS_DIR, "find_by_property.md"), "utf8");
+    expect(helpPage).toContain("Inputs: `{ vault?, name, value, folder?, array_match?, case_sensitive? }`.");
     expect(FIND_BY_PROPERTY_DESCRIPTION).not.toContain("NOTE — the property-name parameter");
-    expect(FIND_BY_PROPERTY_DESCRIPTION).toContain(
+    expect(helpPage).toContain(
       "Deprecated names (accepted until the next major release; a successful call that uses one gets `deprecated_parameters` in its result; error responses do not carry it): `property` → `name`, `arrayMatch` → `array_match`, `caseSensitive` → `case_sensitive`.",
     );
   });

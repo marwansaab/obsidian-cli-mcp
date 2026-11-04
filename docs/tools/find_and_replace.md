@@ -25,7 +25,7 @@ Preview-then-commit find-and-replace across a vault, a named folder, or a single
 |---|---|---|---|---|
 | `pattern` | string (1..1000 UTF-16 code units) | Y | — | Empty / over-cap / invalid-regex rejected at the input boundary. |
 | `replacement` | string (0..1000 UTF-16 code units) | Y | — | Empty is valid (deletion). |
-| `mode` | `"literal" \| "regex"` | N | `"literal"` | Regex: ECMAScript dialect (V8). `$1`/`$&`/`$$` interpolation supported in `replacement`. |
+| `mode` | `"literal" \| "regex"` | N | `"literal"` | Regex: ECMAScript dialect (V8). `$1`/`$&`/`$$` interpolation supported in `replacement`. Literal mode inserts `replacement` verbatim. |
 | `case_sensitive` | boolean | N | `true` | Match case exactly when true; `false` ignores case. |
 | `folder` | string | N | — | Vault-relative folder, searched recursively; structurally validated + canonicalised. Path-traversal rejected. Missing folder rejected. Scope. |
 | `path` | string | N | — | Vault-relative path to ONE note (e.g. `Projects/Alpha.md`). Structurally validated + canonicalised. Single-note scope. |
@@ -36,7 +36,11 @@ Preview-then-commit find-and-replace across a vault, a named folder, or a single
 | `commit` | boolean | N | `false` | Preview when false/absent; rewrite on disk when true. |
 | `vault` | string | N | — | Focused vault when absent. Permitted with a named `file`/`path`; forbidden with `active_note`. |
 
+Optional `case_sensitive` (boolean, default true). The default is applied at parse time; see *Deprecated names*.
+
 ### Deprecated names
+
+Deprecated names (accepted until the next major release; a successful call that uses one gets `deprecated_parameters` in its result; error responses do not carry it): `case_insensitive` → `case_sensitive` (opposite value), `subfolder` → `folder`.
 
 Spec 073 aligned this tool's parameter names with the search tools. The old names are accepted until the next major release:
 
@@ -136,7 +140,7 @@ The field is absent when the call used only current names.
 | `ERR_NO_ACTIVE_FILE` | — | — | `active_note: true` but no note is open in the editor | Open a note in the editor, or name one explicitly with `path`/`file`. |
 | `VALIDATION_ERROR` | `OCCURRENCE_COUNT_EXCEEDED` | — | total > `OBSIDIAN_FIND_REPLACE_MAX_OCCURRENCES` (default 500) | Narrow the scope with `folder` or a more specific pattern. The operator can raise the bound via the env var. |
 | `VALIDATION_ERROR` | `OCCURRENCE_COUNT_DRIFT` | — | second-scan count differs from the preview count (vault changed between preview and commit) | Re-run the call to pick up the new vault state — the wrapper refuses to commit a stale preview. |
-| `PATH_ESCAPES_VAULT` | — | — | canonical path resolves outside vault root (symlink traversal). The message is the generic `CLI bridge upstream error: PATH_ESCAPES_VAULT`; `details: { vault, attemptedPath, resolvedPath }`. | Caller's bug — fix the folder. |
+| `PATH_ESCAPES_VAULT` | — | — | canonical path resolves outside vault root (symlink traversal). The message is the generic `CLI bridge upstream error: PATH_ESCAPES_VAULT`; `details: { vault, attemptedPath, resolvedPath }`. The attempt is logged as a `pathEscapeAttempt` event. | Caller's bug — fix the folder. |
 | `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND` | `unknown` | vault name not in registry | Verify the vault name (case-sensitive); list the registered vaults with the [`vaults`](./vaults.md) tool. |
 | `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND` | `folder-missing` | vault is registered, but its folder is missing on disk (`details.vault`; no disk path in the message). Nothing read or written | Ask the user to restore the folder, or re-open the vault in Obsidian, then call again. |
 | `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND` | `focused-unregistered` | `file` with no `vault`, and the focused vault's folder matches no vault Obsidian lists (no disk path in the message or `details`). Nothing read or written | Call again with `vault`, or ask the user to re-open the vault in Obsidian. |
@@ -145,6 +149,8 @@ The field is absent when the call used only current names.
 | `FS_WRITE_FAILED` | — | `write` | `fs.writeFile` / `fs.rename` failed during commit | Carries `details.partial: true` + `details.failing_note_locator` + `details.changed_notes` + `details.total_occurrences_replaced`. Some files were modified before the failure — inspect `changed_notes` to see what landed. |
 | `VALIDATION_ERROR` | `CONFIRMATION_UNAVAILABLE` | — | multi-note commit (`commit: true` with no `file` / `path` / `active_note`; a `folder` commit counts) and the MCP client cannot show a confirmation prompt | Refused before vault resolution: nothing spawned, read or written. Commit one note at a time with `file` or `path`, or use a client that supports elicitation. |
 | `VALIDATION_ERROR` | `CONFIRMATION_DECLINED` | — | multi-note commit and the human did not confirm the prompt; `details.action` is `"decline"`, `"cancel"`, or `"accept"` with the box left unticked | Nothing written. Do not retry without the human's agreement. |
+
+In short, an unregistered `vault` name fails with `CLI_REPORTED_ERROR` and `VAULT_NOT_FOUND`/`unknown`.
 
 ## Examples — Worked examples
 

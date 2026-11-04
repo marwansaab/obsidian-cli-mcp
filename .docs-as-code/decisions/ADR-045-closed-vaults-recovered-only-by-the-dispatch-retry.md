@@ -75,6 +75,20 @@ disabled.
    reference pages carry a vault-unavailable row. Recognising it is by the
    stdout signature, which is `COLD_START_PATTERN` in
    `src/cli-adapter/_dispatch.ts`.
+
+   > **Amendment 2026-11-04 (owner, PR #143, spec 092).** The shared
+   > description sentence is withdrawn. Under the 400-character description
+   > budget of
+   > [ADR-074](ADR-074-tool-descriptions-route-within-a-budget-and-the-help-page-holds-the-contract.md),
+   > it was long-reference material on nine tools (`bases`, `create_base`,
+   > `paths`, `pattern_search`, `query_base`, `smart_connections_query`,
+   > `smart_connections_similar`, `tag`, `views_base`). PR #143 deleted
+   > `closedVaultNote` and its test. Each of those nine help pages now states
+   > the vault-unavailable answer (`Error: Command "<cmd>" not found.`, an
+   > uncoded `CLI_REPORTED_ERROR`) and that a closed registered vault is
+   > opened automatically. The rest of this decision is unchanged: the error,
+   > its lack of `details.code` and `details.reason`, and recognition by
+   > `COLD_START_PATTERN`.
 3. **An empty answer is still a failure.** With the stage gone, empty stdout
    reaches each handler's existing parse step and fails as
    `CLI_REPORTED_ERROR` with `details.stage: "json-parse"` (research F3). A
@@ -128,4 +142,6 @@ disabled.
 - `smart_connections_similar`'s description keeps a "Vault states" sentence
   naming a sub-discriminator that now has one value. The owner chose to leave
   it (PR #100 review, option A) and fold it into the unknown-vault wording
-  follow-up.
+  follow-up. Since PR #143 that sentence is gone: the description is cut to
+  what the tool does and when to choose it, and its help page carries the
+  closed-vault and vault-unavailable rows.

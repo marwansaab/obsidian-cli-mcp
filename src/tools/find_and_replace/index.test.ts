@@ -1,4 +1,7 @@
 // Original — no upstream. find_and_replace registration tests — descriptor shape, name, inputSchema property set + additionalProperties:false + required keys, error-mapping path (Zod issues → typed details.code + details.reason envelope).
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { baseDeps, inMemoryFs, relToAbs, VAULT_ROOT } from "./_handler-fixtures.js";
@@ -9,8 +12,11 @@ import {
 } from "./index.js";
 import { createQueue } from "../../queue.js";
 import { silentLogger } from "../_handler-test-fixtures.js";
+import { DOCS_DIR } from "../help/handler.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
+
+const helpPage = readFileSync(join(DOCS_DIR, "find_and_replace.md"), "utf8");
 
 function fakeRegistry(): VaultRegistry {
   return {
@@ -28,20 +34,19 @@ describe("createFindAndReplaceTool — descriptor", () => {
     expect(tool.descriptor.name).toBe(FIND_AND_REPLACE_TOOL_NAME);
     expect(tool.descriptor.name).toBe("find_and_replace");
     expect(tool.descriptor.description).toBe(FIND_AND_REPLACE_DESCRIPTION);
-    expect(tool.descriptor.description.length).toBeGreaterThan(300);
   });
 
   it("description advertises the single-note scope (path / file / active_note)", () => {
-    expect(FIND_AND_REPLACE_DESCRIPTION).toContain("active_note");
-    expect(FIND_AND_REPLACE_DESCRIPTION).toContain("SCOPE_CONFLICT");
-    expect(FIND_AND_REPLACE_DESCRIPTION).toContain("single-note");
+    expect(helpPage).toContain("active_note");
+    expect(helpPage).toContain("SCOPE_CONFLICT");
+    expect(helpPage).toContain("single-note");
     // The contradictory pre-feature warning is gone.
     expect(FIND_AND_REPLACE_DESCRIPTION).not.toContain("no single-file mode");
     expect(FIND_AND_REPLACE_DESCRIPTION).not.toContain("There is NO single-file scoping option");
   });
 
   it("description lists only the unknown-vault sub-reason, not the never-emitted not-open (spec 072 SC-004)", () => {
-    expect(FIND_AND_REPLACE_DESCRIPTION).toContain("`VAULT_NOT_FOUND`/`unknown`");
+    expect(helpPage).toContain("`VAULT_NOT_FOUND`/`unknown`");
     expect(FIND_AND_REPLACE_DESCRIPTION).not.toContain("not-open");
   });
 
@@ -353,9 +358,9 @@ describe("createFindAndReplaceTool — deprecated names (spec 073)", () => {
   });
 
   it("description uses the new names and lists the deprecated ones", () => {
-    expect(FIND_AND_REPLACE_DESCRIPTION).toContain("Optional `case_sensitive` (boolean, default true).");
+    expect(helpPage).toContain("Optional `case_sensitive` (boolean, default true).");
     expect(FIND_AND_REPLACE_DESCRIPTION).not.toContain("Optional `case_insensitive`");
-    expect(FIND_AND_REPLACE_DESCRIPTION).toContain(
+    expect(helpPage).toContain(
       "Deprecated names (accepted until the next major release; a successful call that uses one gets `deprecated_parameters` in its result; error responses do not carry it): `case_insensitive` → `case_sensitive` (opposite value), `subfolder` → `folder`.",
     );
     expect(FIND_AND_REPLACE_DESCRIPTION.replace(/Deprecated names[^\n]*$/, "")).not.toContain("subfolder`");

@@ -1,6 +1,6 @@
 // Original — no upstream. Tests for the smart_connections_query tool registration — descriptor shape, plugin-namespace name + plugin-lifecycle codes + sub-discriminator reasons in description, docs presence + content completeness, FR-018 baseline drift detector entry. 5 cases per data-model.md inventory.
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -14,7 +14,7 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-import { closedVaultNote } from "../_shared.js";
+import { DOCS_DIR } from "../help/handler.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -40,25 +40,28 @@ describe("createSmartConnectionsQueryTool — descriptor", () => {
       spawnFn: makeStubSpawn(),
     });
     const desc = tool.descriptor.description;
+    const helpPage = readFileSync(join(DOCS_DIR, "smart_connections_query.md"), "utf8");
     expect(desc).toContain("smart_connections_similar");
-    expect(desc).toContain("headingPath");
-    expect(desc).toContain("limit");
-    expect(desc).toContain("total");
-    expect(desc).toContain("SMART_CONNECTIONS_NOT_INSTALLED");
-    expect(desc).toContain("SMART_CONNECTIONS_NOT_READY");
-    expect(desc).toContain("api-missing");
-    expect(desc).toContain("embed-failed");
+    expect(helpPage).toContain("headingPath");
+    expect(helpPage).toContain("limit");
+    expect(helpPage).toContain("total");
+    expect(helpPage).toContain("SMART_CONNECTIONS_NOT_INSTALLED");
+    expect(helpPage).toContain("SMART_CONNECTIONS_NOT_READY");
+    expect(helpPage).toContain("api-missing");
+    expect(helpPage).toContain("embed-failed");
     expect(desc.length).toBeGreaterThan(0);
   });
 
-  // spec 072 FR-008: the shared closed-vault note, naming this tool's subcommand (wording pinned in _shared.test.ts)
-  it("description carries the closed-vault note for `eval`", () => {
-    expect(SMART_CONNECTIONS_QUERY_DESCRIPTION).toContain(closedVaultNote("eval"));
+  // spec 072 FR-008, moved to the help page by spec 092: the closed-vault answer for this tool's subcommand
+  it("help page carries the closed-vault answer for `eval`", () => {
+    const helpPage = readFileSync(join(DOCS_DIR, "smart_connections_query.md"), "utf8");
+    expect(helpPage).toContain('Command "eval" not found.');
   });
 
-  // spec 085 S1 (FR-009): the description states that limit applies after the sort
-  it("description carries the leading-slice guarantee", () => {
-    expect(SMART_CONNECTIONS_QUERY_DESCRIPTION).toContain("leading slice");
+  // spec 085 S1 (FR-009), moved to the help page by spec 092: limit applies after the sort
+  it("help page carries the leading-slice guarantee", () => {
+    const helpPage = readFileSync(join(DOCS_DIR, "smart_connections_query.md"), "utf8");
+    expect(helpPage).toContain("leading slice");
   });
 });
 

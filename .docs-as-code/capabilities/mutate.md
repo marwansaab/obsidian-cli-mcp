@@ -650,8 +650,10 @@ flowchart LR
   scan, and a second `Buffer.byteLength` over the raw arguments, with the
   `abort` flag and the measured issue. `abort` and the refine add nothing to
   the emitted JSON Schema, which still publishes only `maxLength: 3072`; the
-  byte limit is visible in the `content` description and `PREPEND_DESCRIPTION`,
-  both of which interpolate the constants.
+  byte limit is visible in the `content` description, which interpolates the
+  constants. `PREPEND_DESCRIPTION` interpolated them too until PR #143
+  (spec 092), which cut it to a routing text; it now says only that
+  `write_note` has no size limit, and the limits are on the help page.
 - **Behaviour change.** Non-Latin calls between 3,073 bytes and the fault
   (about 4 KB) that sometimes succeeded before are now refused; `write_note`
   is the route for them, as it already was for long Latin text.
@@ -995,6 +997,22 @@ preview, because the tool as a whole can rewrite notes in bulk. The rule
 server instructions' Rules
 ([server instructions](../architecture.md#server-instructions)).
 
+Since PR #143 (spec 092,
+[ADR-074](../decisions/ADR-074-tool-descriptions-route-within-a-budget-and-the-help-page-holds-the-contract.md))
+each description here is at most 400 characters. The six note writers
+(`write_note`, `append_note`, `prepend`, `patch_heading`, `patch_block`,
+`find_and_replace`) each name the other five by job, and `move`, `rename`
+and `delete` name each other. What a description must still say is the
+data-loss caveat: `write_note` replaces the whole note with
+`overwrite: true`; `delete` goes to the trash unless `permanent: true`,
+which is irreversible; `move` and `rename` rewrite links per the vault's
+setting and keep the file's type; `find_and_replace` is vault-wide by
+default and changes nothing until `commit: true`. `set_property`'s old
+client caveat (pass an explicit `type` for non-string values) was dropped as
+stale rather than moved (contract S8, clarification Q3). Its help page never
+stated it, so it is now published nowhere; the reviewer record's `detail`
+note says so.
+
 Since PR #91 every tool here publishes an `outputSchema` and returns its
 result as `structuredContent` beside the identical text
 ([typed results](../architecture.md#typed-results-outputschema-and-structuredcontent)).
@@ -1059,9 +1077,12 @@ from their schema would have reached the client as SDK free text rather than
   `file` name with the resolver's `CLI_REPORTED_ERROR` and no
   `details.code`, a missing `path` in `patch_block` with `NOTE_NOT_FOUND`,
   and a missing `path` in `patch_heading` with `FS_WRITE_FAILED` (`ENOENT`).
-  `PATCH_HEADING_DESCRIPTION` and its help page list `NOTE_NOT_FOUND`, which
-  the handler never throws (spec 089 research F9). Fixing it changes a
-  published error, so it is its own item.
+  `PATCH_HEADING_DESCRIPTION` listed `NOTE_NOT_FOUND`, which the handler
+  never throws (spec 089 research F9). This item also said the help page
+  listed it; by the time PR #143 was opened it did not, and its roster gives
+  `FS_WRITE_FAILED` for `ENOENT`. PR #143 (spec 092) dropped the stale code
+  from the description instead of carrying it to the page, since the
+  description no longer lists error codes. No behaviour changed.
 - `write_note`'s create-by-name (PR #127) depends on Obsidian's exact
   not-found wording. If it changes, a new name fails with the lookup's
   `CLI_REPORTED_ERROR` instead of being created: loud, and never a write to
@@ -1185,4 +1206,8 @@ from their schema would have reached the client as SDK free text rather than
   just under the cap, with the detail kept on its help page, and a surface
   test now fails any description over 4,096
   ([architecture](../architecture.md#documentation-as-part-of-the-runtime)).
-  There is little headroom: a new clause needs a matching cut.
+  This item used to say there was little headroom. PR #143 (spec 092) cut
+  every description to at most 400 characters; `find_and_replace`'s now
+  states its scope (whole vault by default) and that nothing changes until
+  `commit: true`, and the rest is on its help page
+  ([ADR-074](../decisions/ADR-074-tool-descriptions-route-within-a-budget-and-the-help-page-holds-the-contract.md)).

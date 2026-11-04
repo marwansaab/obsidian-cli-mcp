@@ -93,6 +93,10 @@ FR-005):
 | `count` | integer ≥ 0 | Number of distinct notes carrying the queried tag (or any descendant). |
 | `paths` | array of strings | Vault-relative paths sorted byte-ascending. `count === paths.length` always. |
 
+Body inline tags (`#tag`) and frontmatter tag arrays (`tags: [...]`)
+contribute equally. Each note is counted once: a body that says
+`#dup #dup` contributes one path.
+
 ### Count-only mode (`total: true`)
 
 ```json
@@ -240,8 +244,8 @@ zero-new-codes streak).
 | `CLI_REPORTED_ERROR` (details.stage:"envelope-error", details.code:`<as-emitted>`) | Reserved for future eval-template envelope-level failures (e.g. cache-not-ready). | v1 template never emits `ok:false` — investigate as a regression. |
 | `CLI_BINARY_NOT_FOUND` | The `obsidian` CLI binary is not on `PATH` and `OBSIDIAN_BIN` was unset/invalid. | Operator-side: install the Obsidian CLI, OR set `OBSIDIAN_BIN`. |
 | `CLI_NON_ZERO_EXIT` | The Obsidian CLI exited with a non-zero code (typical cause: output-cap kill on pathologically large result arrays). | Use `total: true` to bypass cap-risk, OR reduce vault scope. |
-| `CLI_DISPATCH_TIMEOUT` | The CLI did not complete within the typed-tool 10-second cap. | Investigate vault size / metadata cache health. |
-| `CLI_DISPATCH_CAP_KILL` | Output exceeded the 10 MiB cap (rare for tag-index walks). | Use `total: true`, OR reduce vault scope. |
+| `CLI_TIMEOUT` | The CLI did not complete within the typed-tool 10-second cap. | Investigate vault size / metadata cache health. |
+| `CLI_OUTPUT_TOO_LARGE` | Output exceeded the 10 MiB cap (rare for tag-index walks). | Use `total: true`, OR reduce vault scope. |
 | `CLI_DISPATCH_KILL` | Dispatch killed externally (signal / shutdown). | Retry. |
 
 ## Inherited limitations
@@ -312,6 +316,8 @@ Approximately 50–200 ms typical against a 1 000-note vault; ≤1 s against a 1
   for frontmatter properties.
 - [properties](./properties.md) — vault-wide frontmatter property
   inventory.
+- [search](./search.md) / [context_search](./context_search.md) —
+  content-text matching rather than the tag index.
 - [outline](./outline.md) — heading structure of a single note.
 - [obsidian_exec](./obsidian_exec.md) — freeform escape hatch for
   `tag verbose` plain-text renderings.

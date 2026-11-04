@@ -7,7 +7,7 @@ import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.
 export const READ_PROPERTY_TOOL_NAME = "read_property";
 
 export const READ_PROPERTY_DESCRIPTION =
-  'Read a single named frontmatter property from a vault note. Returns { value, type } with the property\'s native YAML type preserved (text / list / number / checkbox / date / datetime / unknown). In active mode it reads the focused note. tags values are returned without a leading "#", as written in the file. Absent properties and frontmatter-less files return { value: null, type: "unknown" } without error.';
+  "Read one frontmatter property of a note and return its value and type. Choose `read_property` when only that property is needed: `read` returns the whole note, `read_heading` one section, `set_property` writes a property, `find_by_property` finds notes by value and `properties` lists property names.";
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

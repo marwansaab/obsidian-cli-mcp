@@ -1,6 +1,6 @@
 // Original — no upstream. Tests for the files tool registration — descriptor name + description, folder-scoped locator wording, docs file presence + content completeness.
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -10,6 +10,7 @@ import { createQueue } from "../../queue.js";
 import { silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 import { createFilesTool, FILES_DESCRIPTION, FILES_TOOL_NAME } from "./index.js";
+import { DOCS_DIR } from "../help/handler.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -27,9 +28,10 @@ describe("createFilesTool — descriptor", () => {
     const tool = createFilesTool({ logger: silentLogger(), queue: createQueue(), spawnFn: makeStubSpawn() });
     expect(tool.descriptor.description).toBe(FILES_DESCRIPTION);
     const lower = FILES_DESCRIPTION.toLowerCase();
-    expect(lower).toContain("target_mode");
+    const helpPage = readFileSync(join(DOCS_DIR, "files.md"), "utf8").toLowerCase();
+    expect(helpPage).toContain("target_mode");
     expect(lower).toContain("folder");
-    expect(lower).toContain("total");
+    expect(helpPage).toContain("total");
     expect(lower).toContain("files");
   });
 

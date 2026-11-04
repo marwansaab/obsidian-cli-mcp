@@ -23,6 +23,7 @@
     "test": "vitest run --coverage",
     "test:watch": "vitest",
     "baseline:write": "node scripts/write-register-baseline.ts",
+    "audit:descriptions": "node scripts/audit-descriptions.ts",
     "probe:stdio": "node scripts/probe-stdio.ts",
     "lint": "eslint .",
     "format:check": "prettier --check .",

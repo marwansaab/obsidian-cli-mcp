@@ -12,6 +12,7 @@
     "src/**/_target-mode-test-cases.ts",
     "src/**/_deprecated-params-test-cases.ts",
     "src/**/_note-name-locator-cases.ts",
-    "src/tools/_register-baseline.ts"
+    "src/tools/_register-baseline.ts",
+    "src/tools/_description-audit.ts"
   ]
 }
