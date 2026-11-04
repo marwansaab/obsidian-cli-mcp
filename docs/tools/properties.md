@@ -93,7 +93,7 @@ Empirical anchor: a vault containing `AaTest.md` (`AaTest: value-1`) and `aatest
 
 A vault with zero frontmatter returns `{ count: 0, properties: [] }` in both modes.
 
-## Worked examples
+## Examples — Worked examples
 
 ### Example 1 — Default-scope happy path
 
@@ -207,7 +207,7 @@ Against a vault where some notes carry `AaTest:` and others `aatest:`, upstream'
 
 The reported casing (`aatest` vs `AaTest` vs `AATEST`) is upstream's choice, not a wrapper-imposed rule. The collapse rule erases the case-variance signal from this tool's output — agents needing per-note casing must read individual notes via [`read_property`](./read_property.md).
 
-## Error roster
+## Errors — Error roster
 
 | Code | When | Recovery |
 |------|------|----------|

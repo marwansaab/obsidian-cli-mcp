@@ -61,7 +61,7 @@ The wrapper resolves the focused note via a small `obsidian eval` call. **NO opt
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `target_mode` | `"specific" \| "active"` | YES | Discriminator. |
-| `vault` | string ≥ 1 char | iff specific | Resolved against the wrapper's vault registry. Unknown vault → `VAULT_NOT_FOUND`. |
+| `vault` | string ≥ 1 char | iff specific | Resolved against the wrapper's vault registry. Unknown vault → `VALIDATION_ERROR` with `details.requestedVault` / `details.knownVaults`. |
 | `file` | string ≥ 1 char (structurally safe; no `[[` / `]]`) | XOR with `path`, iff specific | Wikilink-form bare name. A pre-flight `obsidian file` TSV resolver call canonicalises the name to a vault-relative path before the write lands. |
 | `path` | string ≥ 1 char (structurally safe) | XOR with `file`, iff specific | Vault-relative path. Brackets are NOT a special case here (legal in note names). |
 | `content` | string, ≥ 1 char | YES | Non-empty required. Preserved byte-for-byte (no trim, no normalisation, no auto-appended trailing newline — the caller controls whether the file ends with a newline after the call). No wrapper-imposed size cap. |
@@ -121,18 +121,18 @@ interface AppendNoteOutput {
 - `bytes_written` is the change in the note's size in bytes caused by this write: its size after the write minus its size before, counting a note that did not exist as 0. Zero when the size did not change; negative when the note shrank. For `append_note` it is always at least 1. It exactly equals `content.length` when the file's existing trailing newline IS the separator, or when `inline: true` suppresses the separator. Equals `content.length + separator_bytes` (1 byte for LF, 2 for CRLF) when a separator is inserted. To verify a write, compare `bytes_written` with the size change you intended; 0 and negative values are normal for same-size and shrinking edits by the other writers (`patch_heading`, `patch_block`, `write_note`).
 - `inline` is `false` for default calls (input `inline: false` or omitted), `true` for input `inline: true`.
 
-## Error states
+## Errors — Error states
 
 | Top-level `code` | `details.code` / `details.reason` | Trigger | Recovery |
 |---|---|---|---|
-| `VALIDATION_ERROR` | `details.code: CONTENT_EMPTY` | Empty content. | Supply non-empty content. |
+| `VALIDATION_ERROR` | `details.code: CONTENT_EMPTY` | Empty content. The top-level `message` is the schema's own text, `Too small: expected string to have >=1 characters`, and the generic `details.issues` list is kept beside `details.code`. | Supply non-empty content. |
 | `VALIDATION_ERROR` | (Zod issue path on the offending field) | Bracket-rejection on `file`, locator-mutex (`file` AND `path`), unknown extra field, structural path safety, type mismatch on `inline`. | Read `details.issues[].message` for the field-level fix. |
 | `VALIDATION_ERROR` | `details.code: UNSUPPORTED_FILE_TYPE`, `details.reason: "unsupported-type"` | The resolved target is not a `.md` note (a canvas, base, attachment, extensionless path or other file). Raised before the note is read or written. `details` also carries `path` (the resolved vault-relative path), `extension` (original case, `""` if none) and `supported: ["note"]`. | Nothing was changed. Target a `.md` note. |
 | `CLI_REPORTED_ERROR` | `details.code: NOTE_NOT_FOUND` | The target file does not exist. | Recheck the path. Use [`write_note`](./write_note.md) if you meant to create a new note (`append_note` does NOT auto-create). |
 | `CLI_REPORTED_ERROR` | `details.code: EXTERNAL_EDITOR_CONFLICT`, `details.reason: "file-locked"` | Windows sharing-violation (`EBUSY` / `EPERM` / `EACCES`) — the file is held open by an external editor. | Ask the user to save and close the file in the editor, then retry. |
-| `PATH_ESCAPES_VAULT` | — | The resolved path escapes the vault root (symlink traversal, `..` segments). | Fix the path. The path must resolve inside the vault. |
+| `PATH_ESCAPES_VAULT` | — | The resolved path escapes the vault root (symlink traversal, `..` segments). The message is the generic `CLI bridge upstream error: PATH_ESCAPES_VAULT`; `details: { vault, attemptedPath, resolvedPath }`. | Fix the path. The path must resolve inside the vault. |
 | `FS_WRITE_FAILED` | — | Filesystem errno other than the editor-conflict / ENOENT cohort (`ENOSPC`, `EROFS`, `EISDIR`, etc.). | Inspect `details.errno`; surface a user-facing message naming the underlying cause. |
-| `VAULT_NOT_FOUND` | — | The supplied `vault` display name is not registered with the Obsidian CLI. | Recheck the vault name (case-sensitive). The user can list registered vaults with `obsidian vaults`. |
+| `VALIDATION_ERROR` | `details.requestedVault`, `details.knownVaults` | The supplied `vault` display name is not registered with Obsidian. Message `Vault "<name>" is not registered with Obsidian.`; `details: { requestedVault, knownVaults }`. Nothing is read or written. | Recheck the vault name (case-sensitive) against `details.knownVaults`, or list the registered vaults with the [`vaults`](./vaults.md) tool. |
 | `CLI_REPORTED_ERROR` | `details.code: VAULT_NOT_FOUND`, `details.reason: "folder-missing"` | The vault is registered, but its folder is missing on disk (`details.vault`; no disk path in the message). Nothing is read or written. | Ask the user to restore the folder, or re-open the vault in Obsidian, then call again. |
 | `CLI_REPORTED_ERROR` | `details.code: VAULT_NOT_FOUND`, `details.reason: "focused-unregistered"` | Active mode, and the focused vault's folder matches no vault Obsidian lists (no disk path in the message or `details`). Nothing is read or written. | Call again in specific mode with `vault`, or ask the user to re-open the vault in Obsidian. |
 | `CLI_REPORTED_ERROR` | `details.stage: "vault-root-check"` | The vault's folder could not be checked for another reason (`details.errno`, `details.vault`). Nothing is read or written. | Inspect `details.errno` (for example a permission problem); fix it, then call again. |
@@ -154,6 +154,41 @@ Callers automating against multi-platform deployments must plan around the diver
 ## Atomicity and concurrent calls
 
 A single `append_note` invocation does not leave the note on disk in a half-written state — the write is atomic (temp-then-rename). Two concurrent `append_note` calls against the same note resolve **last-write-wins**. Callers needing stronger guarantees coordinate externally.
+
+## Examples
+
+### Example 1 — append a line
+
+```json
+{ "target_mode": "specific", "vault": "Work", "path": "Inbox/log.md", "content": "- 14:05 call with Sam" }
+```
+
+`Inbox/log.md` already ends with a newline, so no separator is added and `bytes_written` equals the content's 21 bytes:
+
+```json
+{ "path": "Inbox/log.md", "vault": "Work", "bytes_written": 21, "inline": false }
+```
+
+### Example 2 — empty content is rejected
+
+```json
+{ "target_mode": "specific", "vault": "Work", "path": "Inbox/log.md", "content": "" }
+```
+
+Nothing is written. The call fails before the note is read:
+
+```json
+{
+  "code": "VALIDATION_ERROR",
+  "message": "Too small: expected string to have >=1 characters",
+  "details": {
+    "code": "CONTENT_EMPTY",
+    "issues": [
+      { "path": ["content"], "message": "Too small: expected string to have >=1 characters", "code": "too_small" }
+    ]
+  }
+}
+```
 
 ## Out of scope
 

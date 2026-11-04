@@ -92,7 +92,7 @@ Uniform envelope across both modes (the only difference is whether `links` is po
 |-------|------|-------------|
 | `count` | integer ≥ 0 | Total outgoing-link entry count. Identical across both `total` branches for the same source file. |
 | `links` | array | One entry per occurrence in source order. Populated in default mode; always `[]` in count-only mode. |
-| `links[].target` | string | Link target byte-faithful to source. Heading and block fragments are EMBEDDED in the string (e.g. `"Target#Heading"`, `"Target#^block-id"`); no separate `fragment` field. |
+| `links[].target` | string | Link target as Obsidian resolves it: a Markdown link's URL-encoding is decoded (`[x](Head%20One.md)` gives `"Head One.md"`), a wikilink's target is as written. Heading and block fragments are EMBEDDED in the string (e.g. `"Target#Heading"`, `"Target#^block-id"`); no separate `fragment` field. |
 | `links[].line` | integer ≥ 1 | 1-based source line. Body link/embed entries: source position from Obsidian's metadata cache. Frontmatter-declared link entries: synthetic `line: 1` (the cache has no per-entry position data for frontmatter links). |
 | `links[].kind` | enum | Closed three-value enum: `"wikilink"` (body `[[…]]` AND frontmatter wikilinks AND wiki embeds-without-`!`), `"embed"` (body `![[…]]` AND `![alt](…)`), `"markdown"` (body `[text](…)` to vault-internal targets). Bare URLs in body prose are NOT surfaced. |
 | `links[].displayText` | string OPTIONAL | **Wikilinks and embeds**: present only when the author wrote a non-empty alias after `\|` distinct from `target`, carrying that alias (`[[Glossary\|Terms]]` → `"Terms"`, `![[Note#Part\|Intro]]` → `"Intro"`, `![[img.png\|300]]` → `"300"`). Absent otherwise, including unaliased heading, block and other fragment links and embeds (`[[Target#Heading]]`, `![[Target#^block-id]]`, `![[paper.pdf#page=3]]`), frontmatter links, and empty or blank aliases (`[[Target\|]]`). A single presence check identifies author-written aliases. **Markdown links and images**: the bracketed link text or image alt text as written, empty included, when distinct from `target` (`[See Other](Other-Note.md)` → `"See Other"`, `[](Other-Note.md)` → `""`). See [Display label rule](#display-label-rule). |
@@ -128,7 +128,7 @@ Entries are sorted by `(line ascending, column ascending)`. Frontmatter-declared
 
 A `.md` note with no outgoing links returns `{ count: 0, links: [] }` in both modes.
 
-## Worked examples
+## Examples — Worked examples
 
 ### Example 1 — Specific mode, multi-link note by path
 
@@ -243,7 +243,7 @@ Response:
 }
 ```
 
-Returns `CLI_REPORTED_ERROR(stage:'envelope-error', code:'NOT_MARKDOWN')`. Use [`read`](./read.md) for non-Markdown file contents.
+Returns `CLI_REPORTED_ERROR(stage:'envelope-error', code:'NOT_MARKDOWN')`. Use [`read`](./read.md) for a canvas or Base's raw text; show an attachment or PDF with [`open_file`](./open_file.md) (`read` rejects attachments).
 
 ## Frontmatter-link inclusion
 
@@ -263,7 +263,7 @@ All three entries (`Project`, `Topic-A`, `Topic-B`) appear in the response with 
 ## Out-of-scope surfaces
 
 - **Bare URLs in body prose** (e.g. `https://example.org` in a paragraph) — NOT surfaced. Obsidian classifies them as body content, not links.
-- **Heading / block fragment as a separate field** — EMBEDDED in `target` byte-faithful (e.g. `"Target#Heading"`, `"Target#^block-id"`).
+- **Heading / block fragment as a separate field** — EMBEDDED in `target` (e.g. `"Target#Heading"`, `"Target#^block-id"`).
 - **Per-entry column position** — NOT surfaced.
 - **`source: "frontmatter" | "body"` discriminator** — NOT surfaced.
 - **`resolved: boolean` broken-link detection** — NOT surfaced.
@@ -271,17 +271,17 @@ All three entries (`Project`, `Topic-A`, `Topic-B`) appear in the response with 
 - **Inbound links / backlinks** — use [`backlinks`](./backlinks.md).
 - **Multi-hop traversal** — single-hop only; callers compose.
 - **Vault-wide link inventory** — one note at a time; compose with [`paths`](./paths.md) or [`files`](./files.md).
-- **Canonical-path resolution** — `target` is byte-faithful to source; callers resolve.
+- **Canonical-path resolution** — `target` is the link target as Obsidian parsed it (Markdown links URL-decoded), not a resolved vault path; callers resolve.
 - **Request-side filter / sort** — callers filter / re-sort client-side.
 
-## Error roster
+## Errors — Error roster
 
 | Code | When | Recovery |
 |------|------|----------|
 | `VALIDATION_ERROR` | Input failed the schema (missing `target_mode`, missing `vault` in specific mode, neither `file` nor `path` in specific mode, both `file` AND `path` in specific mode, `vault`/`file`/`path` in active mode, `total` non-boolean, unknown top-level key, `vault` empty). | Retry with corrected input. `details.issues` carries per-issue `path` + `message` + zod code. |
-| `CLI_REPORTED_ERROR` (`details.code: "VAULT_NOT_FOUND"`) | Specific mode + `vault` not registered. | Supply a registered vault display name. Unknown vault names emit `CLI_REPORTED_ERROR` — the wrapper does NOT silently route to the focused vault. |
+| `CLI_REPORTED_ERROR` (`details.message: "Vault not found."`) | Specific mode + `vault` not registered. The CLI answers `Vault not found.`; the error's message and `details.message` are both `Vault not found.`, with `details: { command, stdout, stderr, exitCode: 0, message }` and no `details.code` or `details.reason`. | List the registered vault names with the [`vaults`](./vaults.md) tool and call again with one of them. Unknown vault names emit `CLI_REPORTED_ERROR` — the wrapper does NOT silently route to the focused vault. |
 | `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "FILE_NOT_FOUND"`) | `path` does not match any file in the vault, OR `file` (basename) does not resolve. `details.detail` distinguishes (`path: <path>` vs `wikilink: <file>`). | Verify the path / basename; check for typos; confirm the vault contains the file. |
-| `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "NOT_MARKDOWN"`) | The resolved file's extension is not `.md`. | Use [`read`](./read.md) for non-Markdown file contents. |
+| `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "NOT_MARKDOWN"`) | The resolved file's extension is not `.md`. | Use [`read`](./read.md) for a canvas or Base's raw text; show an attachment or PDF with [`open_file`](./open_file.md) (`read` rejects attachments). |
 | `ERR_NO_ACTIVE_FILE` | `target_mode: "active"` was used but no Obsidian note is focused. | Ask the user to open a note in Obsidian, OR call again with `target_mode: "specific"` and an explicit `vault` + `file`/`path`. |
 | `CLI_REPORTED_ERROR` (`details.stage: "json-parse"` or `"envelope-parse"`) | Upstream output was unparseable or the envelope schema mismatched. `details.stdout` holds the raw eval output, whole when it is 1,000 characters or fewer and otherwise its first and last 500 characters around a `[… cut …]` line, and `details.stdoutLength` gives the raw output's full length. Lines that other Obsidian plugins print around the eval's answer are ignored, so they never cause this error on their own. | Investigate as a regression. |
 | `CLI_NON_ZERO_EXIT` | The Obsidian CLI exited with a non-zero code (typical cause: output-cap kill on pathologically large link lists, tens of thousands of links). | `details.{exitCode, signal, stdout, stderr}` carry the failure context. Use `total: true` to bypass the cap-risk entirely. |

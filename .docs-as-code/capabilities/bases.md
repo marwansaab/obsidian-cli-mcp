@@ -374,7 +374,7 @@ These are inherited from the CLI and documented in each tool's description:
   still returns the whole report, unbounded, with no `messageLength`. Review
   of PR #111 raised this, and the owner kept `query_base` unchanged, because
   BI-0137 rules out changing it. The difference is stated in
-  [docs/tools/query_base.md](../../docs/tools/query_base.md#error-roster);
+  [docs/tools/query_base.md](../../docs/tools/query_base.md#errors--error-roster);
   bounding it is a candidate backlog item for cohort parity.
 - From PR #90 until PR #114 the `vault` field descriptions of `bases` and
   `create_base` said it is accepted but ignored by the CLI; PR #114 replaced

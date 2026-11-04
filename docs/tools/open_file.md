@@ -29,6 +29,8 @@ A registered vault that is merely closed or unfocused is **not** an error — it
 | `file` | string | exactly one of `path`/`file` | Bare name resolved by Obsidian's link resolver in the requested vault (resolves attachments too). No `[[`/`]]` brackets. |
 | `new_tab` | boolean | no (default `false`) | `true` → fresh tab, prior file stays open. `false` → focus an existing tab (no duplicate), else open in the active tab. |
 
+## Output
+
 Success shape — identical across all file types:
 
 ```json
@@ -103,7 +105,7 @@ A subsequent `target_mode: "active"` tool call now operates on this file.
 
 → `Archive` is closed but registered: it is brought up and focused, the file opens, and a single successful response is returned — no manual open, no caller retry, even though the first internal attempt hit the cold-launch window.
 
-## Error roster
+## Errors — Error roster
 
 Every failure routes through `UpstreamError`. On every failure mode, nothing is opened.
 

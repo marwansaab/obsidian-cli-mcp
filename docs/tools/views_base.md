@@ -50,7 +50,7 @@ A named Base **always wins** over whatever is focused; the open Base is never si
 
 The native `base:views` subcommand emits each line as `<view name>\t<view type>` — the view name followed by a TAB and the view's type token (`table`, `cards`, or `list`). `views_base` strips that injected `\t<type>` label so each returned name is **exactly** the name defined in the `.base` file and **accepted verbatim** as `query_base`'s `view_name` for the same Base — no caller-side cleanup. Because the delimiter is a TAB (which a view name cannot contain), internal spaces, hyphens, colons, and parentheses in the name are preserved character-for-character. The strip is anchored to the known view-type token set, so a view literally named `table` keeps its name and loses only the label.
 
-## Error roster
+## Errors — Error roster
 
 | Top-level `code`     | `details.code`     | `details.reason` | When | Recovery |
 |----------------------|--------------------|------------------|------|----------|
@@ -60,17 +60,18 @@ The native `base:views` subcommand emits each line as `<view name>\t<view type>`
 | `CLI_REPORTED_ERROR` | `BASE_MALFORMED`   | `invalid-yaml`   | Named or open mode: Obsidian cannot parse the `.base` file's YAML | Repair the YAML in the `.base` file (the bounded parser report is in `details.message`). |
 | `CLI_REPORTED_ERROR` | `BASE_MALFORMED`   | `unknown`        | Named mode: the `.base` exists but Obsidian reports it is not usable as a Base, with no parser complaint | Open the file in Obsidian and investigate. |
 | `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND`  | `unknown`        | The `vault` display name is not registered with Obsidian | Check the name with `vaults`. A vault added after the server started is found without a restart. |
+| `CLI_REPORTED_ERROR` | —                  | `cli-disabled`   | **Command line turned off.** Obsidian's **Command line interface** setting (Settings > General > Advanced) is off. The message is `Obsidian's command line interface is turned off. Ask the user to turn on Settings > General > Advanced > Command line interface in Obsidian, then call again.`, and `details.stdout` holds Obsidian's notice `Command line interface is not enabled. Please turn it on in Settings > General > Advanced.` | Ask the user to turn the setting on, then call again. This is a failure, never an empty result. |
 | `CLI_REPORTED_ERROR` | —                  | —                | Named mode, `details.stage: "focus"`: the named `.base` did not become Obsidian's active file within about a second. `details` is `{ stage, base_path, active }`, where `active` is the file still in front (or `null`); no views are listed and no parser report is attached | Retry. |
 | `CLI_REPORTED_ERROR` | —                  | —                | Other upstream CLI failure / app down / binary missing | Retry; confirm Obsidian is running. |
 | `UPSTREAM_TIMEOUT`   | —                  | —                | Subprocess exceeded 10 s | Retry. |
 
-In open-Base mode, a vault with no file open at all (the vault in front, or the named vault) fails with top-level `ERR_NO_ACTIVE_FILE`, not `BASE_NOT_FOUND`; naming a vault does not change that answer.
+In open-Base mode, a vault with no file open at all (the vault in front, or the named vault) fails with top-level `ERR_NO_ACTIVE_FILE`, not `BASE_NOT_FOUND`; naming a vault does not change that answer. The message is `No active file in Obsidian. Open a Base in Obsidian, or call views_base with base_path to name one.`, and `details` keeps the CLI's answer (`details.stdout` starts `Error: No active file.`).
 
 `BASE_NOT_FOUND` carries a `details.reason` so "named Base not found" (`named-missing`) and "no Base open" (`not-open`) stay distinguishable under one code. No named-path failure is ever resolved by returning the views of whatever Base happened to be focused.
 
 `BASE_MALFORMED`'s `details.reason` set is closed (`invalid-yaml` | `unknown`, a subset of `query_base`'s), and `details.message` / `details.messageLength` carry the upstream report, bounded to its first and last 500 characters when it is longer than 1,000. In named mode the report always describes the named Base, whatever was open before the call: the views are listed only once the named Base is the active file.
 
-## Worked examples
+## Examples — Worked examples
 
 ### Example 1 — Open-Base mode (a `.base` is focused)
 

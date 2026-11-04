@@ -110,7 +110,7 @@ Uniform envelope across both modes; the only difference is whether `headings` is
 
 A note with no headings returns `{ count: 0, headings: [] }` in both modes. The wrapper detects the upstream literal `No headings found.` sentinel (case-sensitive byte equality after trim) before parse and maps both modes to the empty envelope.
 
-## Worked examples
+## Examples — Worked examples
 
 ### Example 1 — Specific mode, multi-heading note by path
 
@@ -185,12 +185,20 @@ Use this for a token-economical pre-flight read when only the count matters (siz
 }
 ```
 
-The CLI returns `Error: File "Missing.md" not found.` exit 0. The dispatch-layer `Error:`-prefix classifier maps this to:
+The CLI returns `Error: File "Missing.md" not found.` exit 0. The dispatch-layer `Error:`-prefix classifier wraps it: the top-level `message` is the generic `CLI bridge upstream error: CLI_REPORTED_ERROR`, and Obsidian's line is kept in `details.message`. Branch on `details.message`, never on the top-level `message`:
 
 ```json
 {
-  "isError": true,
-  "content": [{ "type": "text", "text": "{\"code\":\"CLI_REPORTED_ERROR\",\"message\":\"Error: File \\\"Missing.md\\\" not found.\",\"details\":{...}}" }]
+  "code": "CLI_REPORTED_ERROR",
+  "message": "CLI bridge upstream error: CLI_REPORTED_ERROR",
+  "details": {
+    "argv": ["<obsidian binary>", "vault=Demo", "outline", "format=json", "path=Missing.md"],
+    "command": "outline",
+    "stdout": "Error: File \"Missing.md\" not found.\n",
+    "stderr": "",
+    "exitCode": 0,
+    "message": "Error: File \"Missing.md\" not found."
+  }
 }
 ```
 
@@ -212,7 +220,7 @@ Rejected by the wrapper before any `outline` call (spec 070). The same rejection
 ```json
 {
   "code": "VALIDATION_ERROR",
-  "message": "outline: Whiteboards/Architecture.canvas is a canvas (.canvas); outline supports notes. Nothing was changed.",
+  "message": "outline: Whiteboards/Architecture.canvas is a canvas (.canvas); outline supports notes.",
   "details": {
     "code": "UNSUPPORTED_FILE_TYPE",
     "reason": "unsupported-type",
@@ -225,7 +233,7 @@ Rejected by the wrapper before any `outline` call (spec 070). The same rejection
 
 Before spec 070 this call reached the CLI, which replied `Error: File is not a markdown file.`, surfaced as an undiscriminated `CLI_REPORTED_ERROR`.
 
-## Error roster
+## Errors — Error roster
 
 | Code | When | Recovery |
 |------|------|----------|

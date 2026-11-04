@@ -165,25 +165,25 @@ interface PatchBlockOutput {
 | `block_shape` | Which surgery mechanic was applied — `paragraph`, `list-item`, or `separately-placed`. The on-heading shapes never appear in the success envelope (they short-circuit to `BLOCK_ON_HEADING`). |
 | `bytes_written` | Change in the note's size in bytes caused by this write: its size after the write minus its size before, counting a note that did not exist as 0. Zero when the size did not change; negative when the note shrank. To verify a write, compare `bytes_written` with the size change you intended; 0 and negative values are normal for same-size and shrinking edits. |
 
-## Error states
+## Errors — Error states
 
 Every failure routes through `UpstreamError`.
 
 | Top-level `code` | `details.code` | `details.reason` | What triggered it |
 |---|---|---|---|
-| `VALIDATION_ERROR` | — | — | Schema-layer rejection of the `block_id` shape (empty, invalid characters, leading `^`, over 1000 units). The rule broken is named by the `block_id` issue's `message` in `details.issues`. |
+| `VALIDATION_ERROR` | `INVALID_BLOCK_ID` | `empty` / `too-long` / `leading-caret` / `contains-invalid-chars` | Schema-layer rejection of the `block_id` shape (empty, over 1000 units, leading `^`, a character outside `[A-Za-z0-9-]`). The top-level `message` is the broken rule's own text (for example `block_id must not be empty`); `too-long` also carries `details.value_length` and `contains-invalid-chars` `details.offending_index`. The generic `details.issues` list is kept beside these keys. |
 | `CLI_REPORTED_ERROR` | `BLOCK_NOT_FOUND` | — | The id was not present in the resolved file's body. |
 | `CLI_REPORTED_ERROR` | `BLOCK_ON_HEADING` | — (carries `details.heading_shape: "atx" \| "setext"`) | The id resolved to a marker attached to a heading line. Route to [`patch_heading`](./patch_heading.md). |
 | `CLI_REPORTED_ERROR` | `UNSAFE_PLACEMENT` | — | The edit could not be placed safely on the found block, so the tool refused it. The note was not changed. Re-read the note and retry once; if it fails again, report it. This should not happen on any note. Carries `details.block_id` and `details.path`. |
 | `CLI_REPORTED_ERROR` | `NOTE_NOT_FOUND` | — | The target file does not exist. |
 | `CLI_REPORTED_ERROR` | `EXTERNAL_EDITOR_CONFLICT` | `file-locked` (reserved: `unsaved-changes`) | An external editor holds the file (Windows). Ask the user to save and close, retry. |
-| `VAULT_NOT_FOUND` | — | `unknown` | Vault is not registered. |
+| `VALIDATION_ERROR` | — | — | The supplied `vault` display name is not registered with Obsidian. Message `Vault "<name>" is not registered with Obsidian.`; `details: { requestedVault, knownVaults }`. Nothing is read or written. Recheck the vault name (case-sensitive) against `details.knownVaults`, or list the registered vaults with the [`vaults`](./vaults.md) tool. |
 | `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND` | `folder-missing` | The vault is registered, but its folder is missing on disk (`details.vault`; no disk path in the message). Nothing is read or written. Ask the user to restore the folder, or re-open the vault in Obsidian, then call again. |
 | `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND` | `focused-unregistered` | Active mode, and the focused vault's folder matches no vault Obsidian lists (no disk path in the message or `details`). Nothing is read or written. Call again in specific mode with `vault`, or ask the user to re-open the vault in Obsidian. |
 | `CLI_REPORTED_ERROR` | — | — (carries `details.stage: "vault-root-check"`, `details.errno`, `details.vault`) | The vault's folder could not be checked for another reason. Nothing is read or written. Inspect `details.errno` (for example a permission problem). |
 | `ERR_NO_ACTIVE_FILE` | — | — | Active mode but no note is focused. |
 | `CLI_REPORTED_ERROR` | — | — | A `file` name matches no note. The message is Obsidian's own, `Error: File "<name>" not found.`, the same failure [`read`](./read.md) returns for that name. Nothing is read or written. Check the name, or pass the note's `path`. |
-| `PATH_ESCAPES_VAULT` | — | — | Resolved path escapes the vault root (symlink traversal, `..` segments). Fix the path. |
+| `PATH_ESCAPES_VAULT` | — | — | Resolved path escapes the vault root (symlink traversal, `..` segments). The message is the generic `CLI bridge upstream error: PATH_ESCAPES_VAULT`; `details: { vault, attemptedPath, resolvedPath }`. Fix the path. |
 | `FS_WRITE_FAILED` | — | — (carries `details.errno`) | Generic fs failure (ENOSPC, EACCES, etc.). Inspect `details.errno`. |
 
 `BLOCK_NOT_FOUND` includes the case where the id appears only inside a fenced code block (markers inside ```` ``` ```` or `~~~` fences are content, not eligible targets). It also includes the case where the id appears only inside leading YAML frontmatter — frontmatter is never modified, and tokens inside it are not bound.
@@ -207,7 +207,7 @@ Two concurrent `patch_block` calls against the same note resolve **last-write-wi
 
 Callers needing stronger guarantees should coordinate externally.
 
-## Worked examples
+## Examples — Worked examples
 
 ### Replace a paragraph by block-id
 

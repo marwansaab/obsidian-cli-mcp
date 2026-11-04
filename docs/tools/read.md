@@ -68,7 +68,7 @@ The rejection for an attachment names [`open_file`](./open_file.md) as the alter
 ```json
 {
   "code": "VALIDATION_ERROR",
-  "message": "read: Att/photo.png is an attachment (.png); read supports notes, canvases and bases. Nothing was changed. Use open_file for this file instead.",
+  "message": "read: Att/photo.png is an attachment (.png); read supports notes, canvases and bases. Use open_file for this file instead.",
   "details": {
     "code": "UNSUPPORTED_FILE_TYPE",
     "reason": "unsupported-type",
@@ -80,7 +80,7 @@ The rejection for an attachment names [`open_file`](./open_file.md) as the alter
 }
 ```
 
-A file whose extension is not a core type (for example `Misc/todo.txt`) is rejected the same way, with the message `read: Misc/todo.txt is a ".txt" file; read supports notes, canvases and bases. Nothing was changed.` and no `alternative` field.
+A file whose extension is not a core type (for example `Misc/todo.txt`) is rejected the same way, with the message `read: Misc/todo.txt is a ".txt" file; read supports notes, canvases and bases.` and no `alternative` field.
 
 This `UNSUPPORTED_FILE_TYPE` sits under the top-level `VALIDATION_ERROR` and means "`read` does not handle this type". It is distinct from [`open_file`](./open_file.md)'s `CLI_REPORTED_ERROR` + `details.code: "UNSUPPORTED_FILE_TYPE"`, which means Obsidian has no view for the extension; tell them apart by the top-level `code`.
 

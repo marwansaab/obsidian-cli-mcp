@@ -12,8 +12,8 @@ Delete a file from an Obsidian vault. Wraps the Obsidian CLI's `delete` subcomma
 
 | You want to | Reach for |
 |---|---|
-| Delete a single note (recoverable via OS trash) | `delete` |
-| Delete a single note permanently | `delete` with `permanent: true` |
+| Delete a single file of any type (recoverable via OS trash) | `delete` |
+| Delete a single file permanently | `delete` with `permanent: true` |
 | Remove a file you intend to recreate immediately | [`write_note`](./write_note.md) with `overwrite: true` |
 | Rename a note in place | [`rename`](./rename.md) |
 | Move a note to a different folder | [`move`](./move.md) |
@@ -94,7 +94,7 @@ The schema enforces "exactly one of `file` or `path`": providing both is rejecte
 ## Behavioural notes
 
 - **Wikilink-form (`file=`) resolves to a canonical path**: `file: "QuickNote"` resolves to the canonical folder-prefixed path the CLI echoes (e.g. `1000- Testing/QuickNote.md`). The returned `path` reflects the resolved location.
-- **Active mode follows the focused note**: `target_mode: "active"` deletes the note currently focused in the Obsidian editor. If no note is focused, the CLI surfaces `ERR_NO_ACTIVE_FILE`. Combined with `permanent: true`, the TOCTOU caveat above applies — focus may shift between parse and execution.
+- **Active mode follows the focused file**: `target_mode: "active"` deletes the file currently focused in Obsidian, whatever its type. If no file is focused, the CLI surfaces `ERR_NO_ACTIVE_FILE`. Combined with `permanent: true`, the TOCTOU caveat above applies — focus may shift between parse and execution.
 - **Path-traversal is NOT normalised by the CLI**: vault-relative paths containing `../` segments are treated as literal multi-component path components, NOT resolved. `subdir/../foo.md` is looked up as the literal string, NOT as `foo.md`. There is no vault-escape vector via path-traversal on the CLI's side; the wrapper does not add a tool-layer reject.
 - **Unknown vault names** surface as `CLI_REPORTED_ERROR` with the verbatim `Vault not found.` message.
 - **File not found** surfaces as `CLI_REPORTED_ERROR` with the verbatim `Error: File "<path>" not found.` message. The path quoting in the message is the CLI's own — agents should not strip it.
@@ -176,7 +176,7 @@ First asks the human, through the MCP client: `Permanently delete "Inbox/Old.md"
 }
 ```
 
-Spawns `obsidian delete` (no vault, no locator). The CLI deletes the note currently focused in the Obsidian editor. Returns `{ "deleted": true, "path": "<focused note path>", "toTrash": true }`. If no note is focused, surfaces `ERR_NO_ACTIVE_FILE`.
+Spawns `obsidian delete` (no vault, no locator). The CLI deletes the file currently focused in Obsidian, whatever its type. Returns `{ "deleted": true, "path": "<focused file path>", "toTrash": true }`. If no file is focused, surfaces `ERR_NO_ACTIVE_FILE`.
 
 ### (v) Failure recovery — non-existent file
 

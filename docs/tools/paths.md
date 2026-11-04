@@ -132,7 +132,7 @@ When `ext` is set, the trailing-slash rule is moot — `ext` filtering excludes 
 
 Path segments starting with `.` are excluded from the walk. Both files (`Inbox/.hidden.md`) and folders (`.config/`, `.git/`) are dropped. Folder exclusion is recursive — dotfile folder children never enter the walk. The filter applies uniformly across files and folders.
 
-## Worked examples
+## Examples — Worked examples
 
 ### Example 1 — Whole-vault recursive listing (specific mode)
 
@@ -244,13 +244,14 @@ Returns `CLI_REPORTED_ERROR` with `details.code: "FOLDER_NOT_FOUND"`, `details.f
 
 Returns `CLI_REPORTED_ERROR` with `details.code: "NOT_A_FOLDER"`, `details.folder: "README.md"`. Recover by selecting a folder path instead of a file.
 
-## Error roster
+## Errors — Error roster
 
 | Code | When | Recovery |
 |------|------|----------|
 | `VALIDATION_ERROR` | Input failed the schema (missing vault in specific / vault in active / file or path present / depth ≤ 0 / depth non-integer / total non-boolean / unknown top-level key / wrong type). | Retry with corrected input. `details.issues` carries per-issue `path` + `message` + zod code. |
-| `CLI_REPORTED_ERROR` (`details.code: "VAULT_NOT_FOUND"`, `details.reason: "unknown"`) | Unknown vault display name. | Verify the vault name; ensure the vault is registered in Obsidian. |
+| `CLI_REPORTED_ERROR` (`details.message: "Vault not found."`) | Unknown vault display name. The CLI answers `Vault not found.`; the error's message and `details.message` are both `Vault not found.`, with `details: { command, stdout, stderr, exitCode: 0, message }` and no `details.code` or `details.reason`. | List the registered vault names with the [`vaults`](./vaults.md) tool and call again with one of them. |
 | `CLI_REPORTED_ERROR` (`details.stdout` starts `Error: Command "eval" not found.`) | **Vault unavailable.** The named vault is registered but could not be brought up after the server's automatic retry. When other plugins print output, the `Error: Command "eval" not found.` line can appear after their lines rather than at the start of `details.stdout`. | Open the vault in Obsidian, then call again. Do not retry in a loop; the server has already retried once. |
+| `CLI_REPORTED_ERROR` (`details.reason: "cli-disabled"`) | **Command line turned off.** Obsidian's **Command line interface** setting (Settings > General > Advanced) is off. The message is `Obsidian's command line interface is turned off. Ask the user to turn on Settings > General > Advanced > Command line interface in Obsidian, then call again.`, and `details.stdout` holds Obsidian's notice `Command line interface is not enabled. Please turn it on in Settings > General > Advanced.` | Ask the user to turn the setting on, then call again. This is a failure, never an empty result. |
 | `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "FOLDER_NOT_FOUND"`, `details.folder: "<as-requested>"`) | Starting folder does not exist. | Verify the folder path; check for typos or path-separator drift. |
 | `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "NOT_A_FOLDER"`, `details.folder: "<as-requested>"`) | Folder path resolves to a file. | Select a folder path instead of a file. |
 | `CLI_REPORTED_ERROR` (`details.stage: "json-parse"`) | The eval's answer for this call is missing or is not JSON — upstream contract divergence. `details.stdout` holds the raw eval output, whole when it is 1,000 characters or fewer and otherwise its first and last 500 characters around a `[… cut …]` line, and `details.stdoutLength` gives the raw output's full length. Lines that other Obsidian plugins print around the eval's answer are ignored, so they never cause this error on their own. | Investigate as a regression. |

@@ -97,7 +97,7 @@ Patterns that match zero characters at a position (`^`, `$`, `a*`, `\b`, lookaro
 
 The response carries `count`, `matches`, and optionally `truncated` only. `vault`, `pattern`, `folder`, `limit`, and `case_sensitive` are never echoed.
 
-## Worked examples
+## Examples — Worked examples
 
 ### Example 1 — BI-token cross-reference (happy path)
 
@@ -213,7 +213,7 @@ Response (against a folder with > 5 matches):
 }
 ```
 
-## Error roster
+## Errors — Error roster
 
 | Code | When | Recovery |
 |------|------|----------|
@@ -221,6 +221,7 @@ Response (against a folder with > 5 matches):
 | `CLI_REPORTED_ERROR` (`details.code: "FOLDER_NOT_FOUND"`) | Folder doesn't exist. `details.folder` echoes the unknown name. | Supply a valid folder, or use the no-`folder` form to scan the whole vault. |
 | `CLI_REPORTED_ERROR` (`details.message: "Vault not found."`) | Unknown vault. | Verify the vault name. |
 | `CLI_REPORTED_ERROR` (`details.stdout` starts `Error: Command "eval" not found.`) | **Vault unavailable.** The named vault is registered but could not be brought up after the server's automatic retry. This is a failure, not an empty result. When other plugins print output, the `Error: Command "eval" not found.` line can appear after their lines rather than at the start of `details.stdout`. | Open the vault in Obsidian, then call again. Do not retry in a loop; the server has already retried once. |
+| `CLI_REPORTED_ERROR` (`details.reason: "cli-disabled"`) | **Command line turned off.** Obsidian's **Command line interface** setting (Settings > General > Advanced) is off. The message is `Obsidian's command line interface is turned off. Ask the user to turn on Settings > General > Advanced > Command line interface in Obsidian, then call again.`, and `details.stdout` holds Obsidian's notice `Command line interface is not enabled. Please turn it on in Settings > General > Advanced.` | Ask the user to turn the setting on, then call again. This is a failure, never an empty result. |
 | `CLI_REPORTED_ERROR` (`details.stage: "json-parse"` or `"envelope-parse"`) | Upstream output unexpected. `details.stdout` holds the raw eval output, whole when it is 1,000 characters or fewer and otherwise its first and last 500 characters around a `[… cut …]` line, and `details.stdoutLength` gives the raw output's full length. Lines that other Obsidian plugins print around the eval's answer are ignored, so they never cause this error on their own. | Investigate as a regression. |
 | `CLI_NON_ZERO_EXIT` | Output-cap kill on extreme result sets. | Reduce scope with `folder`, `limit`, or a narrower pattern. |
 | `CLI_BINARY_NOT_FOUND` | The `obsidian` CLI binary is not on `PATH` and `OBSIDIAN_BIN` was unset/invalid. | Operator-side: install the Obsidian CLI, OR set `OBSIDIAN_BIN`. |
