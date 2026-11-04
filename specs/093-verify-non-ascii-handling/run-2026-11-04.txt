@@ -1,0 +1,22 @@
+non-ascii check — 2026-11-04 20:34 — obsidian-cli-mcp 0.9.0 (ac4c028), server 0.9.0
+test vault: TestVault-Obsidian-CLI-MCP · semantic vault: My-Setup-Vault · staged note: (none)
+
+PASS    H1 headings (outline)
+          input:    {"target_mode":"specific","vault":"TestVault-Obsidian-CLI-MCP","path":"Sandbox/non-ascii-check-20261104-203449-11a0/日本語フォルダ/Café 日記.md"}
+PASS    L1 links (links)
+          input:    {"target_mode":"specific","vault":"TestVault-Obsidian-CLI-MCP","path":"Sandbox/non-ascii-check-20261104-203449-11a0/日本語フォルダ/Café 日記.md"}
+PASS    F1 folder listing (paths)
+          input:    {"target_mode":"specific","vault":"TestVault-Obsidian-CLI-MCP","folder":"Sandbox/non-ascii-check-20261104-203449-11a0/日本語フォルダ"}
+PASS    F2 folder listing (paths)
+          input:    {"target_mode":"specific","vault":"TestVault-Obsidian-CLI-MCP","folder":"Sandbox/non-ascii-check-20261104-203449-11a0/存在しないフォルダ"}
+PASS    P1 pattern search (pattern_search)
+          input:    {"vault":"TestVault-Obsidian-CLI-MCP","pattern":"café\\d+","limit":10000}
+PASS    P2 pattern search (pattern_search)
+          input:    {"vault":"TestVault-Obsidian-CLI-MCP","pattern":"café\\d+","folder":"Sandbox/non-ascii-check-20261104-203449-11a0/日本語フォルダ","limit":10000}
+BLOCKED S1 similar notes (smart_connections_similar)
+          input:    {"target_mode":"specific","vault":"My-Setup-Vault","limit":20}
+          precondition: no staged note path given
+PASS    S2 similar notes (smart_connections_similar)
+          input:    {"target_mode":"specific","vault":"My-Setup-Vault","path":"_non-ascii-check/存在しない ノート café — 02ada48e.md","limit":1}
+cleanup: removed Sandbox/non-ascii-check-20261104-203449-11a0
+summary: 7 pass · 0 fail · 1 blocked

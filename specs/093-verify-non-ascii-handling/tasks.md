@@ -30,15 +30,15 @@ description: "Task list for 093-verify-non-ascii-handling"
 
 **Purpose**: wire the command and keep the module out of `dist/`.
 
-- [ ] T001 [P] Add `"check:non-ascii": "node scripts/check-non-ascii.ts"` to the `scripts` block of `package.json`, next to `probe:stdio` (contract §C).
-- [ ] T002 [P] Add `"src/tools/_non-ascii-checks.ts"` to the `exclude` list of `tsconfig.build.json`, after `"src/tools/_description-audit.ts"` (refactor-decisions item 30).
-- [ ] T003 Create `src/tools/_non-ascii-checks.ts` with the header `// Original — no upstream. Non-ASCII release checks (spec 093): fixture set, scenario table, tool-result parsing, PASS / FAIL / BLOCKED classifiers, retry helper, report renderer and exit-status rule for scripts/check-non-ascii.ts; pure, zod only, no relative imports.` The module uses erasable TypeScript syntax only (no `enum`, `namespace`, parameter properties, or `import = require`), because Node loads it by type stripping when the script imports it. Export the types from data-model:
+- [X] T001 [P] Add `"check:non-ascii": "node scripts/check-non-ascii.ts"` to the `scripts` block of `package.json`, next to `probe:stdio` (contract §C).
+- [X] T002 [P] Add `"src/tools/_non-ascii-checks.ts"` to the `exclude` list of `tsconfig.build.json`, after `"src/tools/_description-audit.ts"` (refactor-decisions item 30).
+- [X] T003 Create `src/tools/_non-ascii-checks.ts` with the header `// Original — no upstream. Non-ASCII release checks (spec 093): fixture set, scenario table, tool-result parsing, PASS / FAIL / BLOCKED classifiers, retry helper, report renderer and exit-status rule for scripts/check-non-ascii.ts; pure, zod only, no relative imports.` The module uses erasable TypeScript syntax only (no `enum`, `namespace`, parameter properties, or `import = require`), because Node loads it by type stripping when the script imports it. Export the types from data-model:
   - `RunArgs` (E1: `testVault`, `semanticVault`, `stagedNote?`);
   - `CheckContext` (E6: `fixturesVisible`, `outsideSeenByP1`, `semanticVaultListed`, `stagedNoteOnDisk`, `missingNoteAbsent`);
   - `Outcome` (E7: `{status: "PASS" | "FAIL" | "BLOCKED", id, capability, tool, input, expected?, actual?, precondition?}`);
   - `Scenario` (E4: `id`, `capability`, `tool`, `vaultRole: "test" | "semantic"`, `input(fixtures)`, `expected`, `classify(result, context)`, `retry`);
   - an empty exported `SCENARIOS: Scenario[]`, which the stories fill in contract §S order.
-- [ ] T004 Create `src/tools/_non-ascii-checks.test.ts` with the header `// Original — no upstream. Unit rows for the non-ASCII release checks (spec 093 contract §T).` and a `describe` per contract §T group. It imports from `./_non-ascii-checks.js`.
+- [X] T004 Create `src/tools/_non-ascii-checks.test.ts` with the header `// Original — no upstream. Unit rows for the non-ASCII release checks (spec 093 contract §T).` and a `describe` per contract §T group. It imports from `./_non-ascii-checks.js`.
 
 ---
 
@@ -50,31 +50,31 @@ description: "Task list for 093-verify-non-ascii-handling"
 
 ### Tests (write first, confirm they fail)
 
-- [ ] T005 [P] Write rows T-FX1 and T-FX2 in `src/tools/_non-ascii-checks.test.ts`.
+- [X] T005 [P] Write rows T-FX1 and T-FX2 in `src/tools/_non-ascii-checks.test.ts`.
   - **T-FX1**: every E2 fixture string satisfies `s === s.normalize("NFC")`. Every name segment of `folder`, `source`, `target`, `missingFolder` and the E3 `missingNote` contains a character above U+007F. The heading list includes U+2014 and a non-BMP character (🚀 U+1F680 or 🎉 U+1F389). The outside note's path (the readiness probe) contains no character above U+007F.
   - **T-FX2**: the source text, split on `\n`, puts `Order café42 arrived.` on line 3 and `See [[Résumé 東京]].` on line 7.
-- [ ] T006 [P] Write row T-SHAPE in `src/tools/_non-ascii-checks.test.ts` for `parseToolResult` (data-model E5):
+- [X] T006 [P] Write row T-SHAPE in `src/tools/_non-ascii-checks.test.ts` for `parseToolResult` (data-model E5):
   - a success with `structuredContent` → its payload;
   - a success with only text content → `JSON.parse(content[0].text)`;
   - `isError: true` with `{code, message, details}` text → an error payload;
   - anything else (no content, non-JSON text, a non-object payload) → `unexpected`.
-- [ ] T007 [P] Write rows T-R and T-EXIT in `src/tools/_non-ascii-checks.test.ts` for `renderReport` and `exitStatus` (contract §R, §C, data-model E8).
+- [X] T007 [P] Write rows T-R and T-EXIT in `src/tools/_non-ascii-checks.test.ts` for `renderReport` and `exitStatus` (contract §R, §C, data-model E8).
   - **T-R**: one block per outcome, in input order. Status words are padded to 7 characters. A FAIL block carries `input:`, `expected:` and `actual:`; a BLOCKED block carries `precondition:`. Non-ASCII characters print unescaped (`JSON.stringify` output). The `cleanup: removed …` and `cleanup: RESIDUE <path>` lines render correctly. The summary line is `summary: <n> pass · <n> fail · <n> blocked`, with counts summing to the number of outcomes.
   - **T-EXIT**: 0 for only PASS and BLOCKED with clean cleanup; 1 for any FAIL; 1 for residue.
-- [ ] T008 [P] Write row T-ARGS in `src/tools/_non-ascii-checks.test.ts` for `validateArgs`:
+- [X] T008 [P] Write row T-ARGS in `src/tools/_non-ascii-checks.test.ts` for `validateArgs`:
   - a missing `--test-vault` or `--semantic-vault` → a usage error;
   - equal vault names → the usage error `vault names must differ`;
   - an absent `--staged-note` → valid, with `stagedNote` undefined.
 
 ### Implementation
 
-- [ ] T009 Implement `parseToolResult(raw: unknown)` in `src/tools/_non-ascii-checks.ts` with zod schemas, per data-model E5:
+- [X] T009 Implement `parseToolResult(raw: unknown)` in `src/tools/_non-ascii-checks.ts` with zod schemas, per data-model E5:
   - success → `{kind: "ok", payload}`, where the payload is `structuredContent` when present, else `JSON.parse(content[0].text)`;
   - `isError: true` → `{kind: "error", payload: {code, message, details}}`;
   - otherwise → `{kind: "unexpected", raw}`.
 
   A JSON parse failure is `unexpected`, never thrown. Makes T006 pass.
-- [ ] T010 Implement `buildFixtures(runFolder: string)` and `missingNotePath(hex8: string)` in `src/tools/_non-ascii-checks.ts`. Use the exact data-model E2 and E3 strings as NFC literals, `\n`-joined with a trailing `\n`:
+- [X] T010 Implement `buildFixtures(runFolder: string)` and `missingNotePath(hex8: string)` in `src/tools/_non-ascii-checks.ts`. Use the exact data-model E2 and E3 strings as NFC literals, `\n`-joined with a trailing `\n`:
   - `folder` = `<run>/日本語フォルダ`;
   - `source` = `<run>/日本語フォルダ/Café 日記.md`;
   - `target` = `<run>/Résumé 東京.md` (`Target note.`);
@@ -83,14 +83,14 @@ description: "Task list for 093-verify-non-ascii-handling"
   - `missingNote` = `_non-ascii-check/存在しない ノート café — <8 hex>.md`.
 
   Also export the expectation constants `EXPECTED_HEADINGS`, `LINK_TARGET = "Résumé 東京"`, `PATTERN = "café\\d+"`, `SOURCE_MATCH` and `OUTSIDE_MATCH`. Makes T005 pass.
-- [ ] T011 Implement `renderReport(header, outcomes, cleanup)` and `exitStatus(outcomes, cleanup)` in `src/tools/_non-ascii-checks.ts`, per contract §R and §C. Makes T007 pass.
-- [ ] T012 Implement `validateArgs(values)` in `src/tools/_non-ascii-checks.ts`, per data-model E1. It returns `RunArgs` or `{usageError: string}`, plus the `USAGE` text. Makes T008 pass.
-- [ ] T013 Create `scripts/check-non-ascii.ts` with the header `// Original — no upstream. npm run check:non-ascii (spec 093): drives the built server over stdio against a test vault and a read-only semantic vault and prints one PASS / FAIL / BLOCKED block per non-ASCII scenario. Run npm run build first.`, plus usage examples, as in `scripts/probe-stdio.ts`. It imports from `../src/tools/_non-ascii-checks.ts`.
+- [X] T011 Implement `renderReport(header, outcomes, cleanup)` and `exitStatus(outcomes, cleanup)` in `src/tools/_non-ascii-checks.ts`, per contract §R and §C. Makes T007 pass.
+- [X] T012 Implement `validateArgs(values)` in `src/tools/_non-ascii-checks.ts`, per data-model E1. It returns `RunArgs` or `{usageError: string}`, plus the `USAGE` text. Makes T008 pass.
+- [X] T013 Create `scripts/check-non-ascii.ts` with the header `// Original — no upstream. npm run check:non-ascii (spec 093): drives the built server over stdio against a test vault and a read-only semantic vault and prints one PASS / FAIL / BLOCKED block per non-ASCII scenario. Run npm run build first.`, plus usage examples, as in `scripts/probe-stdio.ts`. It imports from `../src/tools/_non-ascii-checks.ts`.
   - `parseArgs` the three flags, then `validateArgs`. On a usage error, print `USAGE` to stderr and exit 2.
   - Connect a `Client` with the 2025-era handshake and `capabilities: {}`, over `StdioClientTransport` to `dist/index.js` with `stderr: "inherit"`. A connect failure exits 2.
   - Call `vaults` and resolve T's and V's folder from `path`.
   - Print the header with the date, the `package.json` version, `git rev-parse --short HEAD`, `client.getServerVersion()` and the three arguments.
-- [ ] T014 Implement fixture seeding and cleanup in `scripts/check-non-ascii.ts`, per contract §W 1–3 and 5:
+- [X] T014 Implement fixture seeding and cleanup in `scripts/check-non-ascii.ts`, per contract §W 1–3 and 5:
   1. `realpath(<T root>/Sandbox)` must exist; otherwise exit 2 and never create it.
   2. The run folder is `Sandbox/non-ascii-check-<YYYYMMDD-HHMMSS>-<4 hex>`.
   3. Before each `mkdir` and `writeFile`, the realpath of the target's nearest existing ancestor must be inside the Sandbox realpath; otherwise abort with exit 2 before writing.
@@ -98,13 +98,13 @@ description: "Task list for 093-verify-non-ascii-handling"
   5. In a `finally`, run `rm(runFolder, {recursive: true})`, then `stat` it. Absent → `cleanup: removed <rel>`; present → `RESIDUE <rel>`.
 
   Set `context.testVaultListed` from the `vaults` result. A failing `vaults` call sets both `testVaultListed` and `semanticVaultListed` to false. If `testVaultListed` is false, seed nothing and skip the readiness wait, and every test-vault scenario is `BLOCKED` with `test vault <T> not listed by vaults` or `vaults call failed: <message>`.
-- [ ] T015 Implement the readiness wait in `scripts/check-non-ascii.ts` (research D4). Poll `read {target_mode:"specific", vault:T, path:outside}` every `RETRY_INTERVAL_MS` until its `content` equals the seeded outside text (`"Price café77 noted.\n"`), or `DEADLINE_MS` passes. The probe path must stay all-ASCII (research D4, analyze C1). Set `context.fixturesVisible` accordingly. Export the constants `RETRY_INTERVAL_MS = 500` and `DEADLINE_MS = 30000` from the module.
-- [ ] T016 [P] Write row T-RETRY in `src/tools/_non-ascii-checks.test.ts` (contract §T). Inject `sleep` and `now` (a simulated clock):
+- [X] T015 Implement the readiness wait in `scripts/check-non-ascii.ts` (research D4). Poll `read {target_mode:"specific", vault:T, path:outside}` every `RETRY_INTERVAL_MS` until its `content` equals the seeded outside text (`"Price café77 noted.\n"`), or `DEADLINE_MS` passes. The probe path must stay all-ASCII (research D4, analyze C1). Set `context.fixturesVisible` accordingly. Export the constants `RETRY_INTERVAL_MS = 500` and `DEADLINE_MS = 30000` from the module.
+- [X] T016 [P] Write row T-RETRY in `src/tools/_non-ascii-checks.test.ts` (contract §T). Inject `sleep` and `now` (a simulated clock):
   - a classifier that passes on the 3rd attempt → PASS after 2 sleeps of `RETRY_INTERVAL_MS`;
   - one that never passes → the last attempt's FAIL once `DEADLINE_MS` has elapsed;
   - an attempt that throws → `outcomeFromError` gives FAIL whose `actual` is the error message, and a following scenario still produces its own outcome.
-- [ ] T017 Implement `retryUntilPass(attempt, {intervalMs, deadlineMs, sleep, now})` and `outcomeFromError(scenario, input, err)` in `src/tools/_non-ascii-checks.ts`. Makes T016 pass. T018 uses both. These carry US6's bounded-retry and independent-outcome guarantees (FR-010) and sit here because the scenario loop needs them (analyze O1).
-- [ ] T018 Implement the scenario loop in `scripts/check-non-ascii.ts`, using `retryUntilPass` and `outcomeFromError` from the module (T017). For each `SCENARIOS` entry in order:
+- [X] T017 Implement `retryUntilPass(attempt, {intervalMs, deadlineMs, sleep, now})` and `outcomeFromError(scenario, input, err)` in `src/tools/_non-ascii-checks.ts`. Makes T016 pass. T018 uses both. These carry US6's bounded-retry and independent-outcome guarantees (FR-010) and sit here because the scenario loop needs them (analyze O1).
+- [X] T018 Implement the scenario loop in `scripts/check-non-ascii.ts`, using `retryUntilPass` and `outcomeFromError` from the module (T017). For each `SCENARIOS` entry in order:
   - if its precondition in the context is unmet, record `BLOCKED` without a call;
   - otherwise call `client.callTool({name: tool, arguments: input(fixtures)})`, parse the result with `parseToolResult`, and classify it with retries for `retry: true`;
   - catch any thrown error into that scenario's `FAIL`.
@@ -121,13 +121,13 @@ description: "Task list for 093-verify-non-ascii-handling"
 
 **Independent Test**: T-H is green, and a live run shows `PASS H1` (or a `FAIL` block naming input, expected and actual).
 
-- [ ] T019 [P] [US1] Write row T-H in `src/tools/_non-ascii-checks.test.ts`:
+- [X] T019 [P] [US1] Write row T-H in `src/tools/_non-ascii-checks.test.ts`:
   - the exact `EXPECTED_HEADINGS` as `outline` output (`{count, headings:[{level, text, line}]}`) → PASS;
   - one heading's text in NFD (`text.normalize("NFD")`) → FAIL;
   - an extra heading → FAIL; a missing heading → FAIL; a level mismatch → FAIL;
   - any error payload → FAIL;
   - `fixturesVisible: false` → BLOCKED with `fixtures not visible to Obsidian`; `testVaultListed: false` → BLOCKED with `test vault <T> not listed by vaults`, checked before `fixturesVisible`. Rows T-L, T-F1/T-F2 and T-P get the same check through the same helper: one precondition function shared by the test-vault scenarios, written in T020.
-- [ ] T020 [US1] Add scenario H1 to `SCENARIOS` in `src/tools/_non-ascii-checks.ts`:
+- [X] T020 [US1] Add scenario H1 to `SCENARIOS` in `src/tools/_non-ascii-checks.ts`:
   - `tool: "outline"`, input `{target_mode:"specific", vault:T, path:fixtures.source}`;
   - PASS when `headings.map(h => [h.level, h.text])` equals `EXPECTED_HEADINGS` element-wise with `===`, with the same length and order (research D9);
   - FAIL otherwise; BLOCKED when `!fixturesVisible`; `retry: true`.
@@ -144,12 +144,12 @@ description: "Task list for 093-verify-non-ascii-handling"
 
 **Independent Test**: T-L is green, and a live run shows the L1 block.
 
-- [ ] T021 [P] [US2] Write row T-L in `src/tools/_non-ascii-checks.test.ts`:
+- [X] T021 [P] [US2] Write row T-L in `src/tools/_non-ascii-checks.test.ts`:
   - `links` output with an entry `target: "Résumé 東京"` → PASS;
   - the target missing → FAIL;
   - the error payload `{code:"CLI_REPORTED_ERROR", details:{code:"FILE_NOT_FOUND", …}}` → FAIL;
   - `fixturesVisible: false` → BLOCKED.
-- [ ] T022 [US2] Add scenario L1 to `SCENARIOS` in `src/tools/_non-ascii-checks.ts`:
+- [X] T022 [US2] Add scenario L1 to `SCENARIOS` in `src/tools/_non-ascii-checks.ts`:
   - `tool: "links"`, input `{target_mode:"specific", vault:T, path:fixtures.source}`;
   - PASS when some `links[i].target === LINK_TARGET`; FAIL otherwise; BLOCKED when `!fixturesVisible`; `retry: true`.
 
@@ -163,11 +163,11 @@ description: "Task list for 093-verify-non-ascii-handling"
 
 **Independent Test**: T-F1 and T-F2 are green, and a live run shows both blocks.
 
-- [ ] T023 [P] [US3] Write rows T-F1 and T-F2 in `src/tools/_non-ascii-checks.test.ts`.
+- [X] T023 [P] [US3] Write rows T-F1 and T-F2 in `src/tools/_non-ascii-checks.test.ts`.
   - **T-F1**: `paths` output exactly `[source]` → PASS; `[]` → FAIL; `[source, other]` → FAIL.
   - **T-F2**: the error `{code:"CLI_REPORTED_ERROR", details:{stage:"envelope-error", code:"FOLDER_NOT_FOUND", folder: missingFolder}}` → PASS. An empty success `{count:0, paths:[]}` → FAIL. `FOLDER_NOT_FOUND` with `folder` in a different form (an NFD or mojibake string) → FAIL. `NOT_A_FOLDER` → FAIL.
   - Both: `fixturesVisible: false` → BLOCKED.
-- [ ] T024 [US3] Add scenarios F1 and F2 to `SCENARIOS` in `src/tools/_non-ascii-checks.ts`, both `tool: "paths"` with `retry: true`.
+- [X] T024 [US3] Add scenarios F1 and F2 to `SCENARIOS` in `src/tools/_non-ascii-checks.ts`, both `tool: "paths"` with `retry: true`.
   - **F1**: input `{target_mode:"specific", vault:T, folder:fixtures.folder}`. PASS when `paths` equals `[fixtures.source]` exactly.
   - **F2**: input `{target_mode:"specific", vault:T, folder:fixtures.missingFolder}`. PASS when the result is an error with `code === "CLI_REPORTED_ERROR"`, `details.code === "FOLDER_NOT_FOUND"` and `details.folder === fixtures.missingFolder`.
 
@@ -181,11 +181,11 @@ description: "Task list for 093-verify-non-ascii-handling"
 
 **Independent Test**: T-P is green, and a live run shows both blocks, with P2 never passing when the outside note was not yet visible.
 
-- [ ] T025 [P] [US4] Write row T-P in `src/tools/_non-ascii-checks.test.ts`.
+- [X] T025 [P] [US4] Write row T-P in `src/tools/_non-ascii-checks.test.ts`.
   - **P1**: `matches` containing `SOURCE_MATCH` exactly (`path`, `line: 3`, `match: "café42"`, `text: "Order café42 arrived."`) → PASS. Zero matches → FAIL. A `text` mismatch → FAIL.
   - **P2**: only inside-folder matches including `SOURCE_MATCH` → PASS. `OUTSIDE_MATCH` present → FAIL. A path outside `folder + "/"` → FAIL. The source match missing → FAIL. `outsideSeenByP1: false` → BLOCKED with `outside note not seen by the vault-wide search (P1)`.
   - `outsideSeen(result)` returns true only when `OUTSIDE_MATCH` is among the matches.
-- [ ] T026 [US4] Add scenarios P1 and P2 and the helper `outsideSeen` to `src/tools/_non-ascii-checks.ts`. Both scenarios are `tool: "pattern_search"` with `retry: true`.
+- [X] T026 [US4] Add scenarios P1 and P2 and the helper `outsideSeen` to `src/tools/_non-ascii-checks.ts`. Both scenarios are `tool: "pattern_search"` with `retry: true`.
   - **P1**: input `{vault:T, pattern:PATTERN, limit:10000}`. PASS when a match deep-equals `SOURCE_MATCH` on `path`, `line`, `match` and `text`. BLOCKED when `!fixturesVisible`.
   - **P2**: input `{vault:T, pattern:PATTERN, folder:fixtures.folder, limit:10000}`. PASS when `SOURCE_MATCH` is present and every `path` starts with `fixtures.folder + "/"`. BLOCKED when `!fixturesVisible` or `!outsideSeenByP1`.
 
@@ -199,7 +199,7 @@ description: "Task list for 093-verify-non-ascii-handling"
 
 **Independent Test**: T-S1 and T-S2 are green. A live run without `--staged-note` shows `BLOCKED S1` with `no staged note path given`, and S2 is PASS or FAIL when Smart Connections is loaded (SC-007).
 
-- [ ] T027 [P] [US5] Write row T-S1 in `src/tools/_non-ascii-checks.test.ts`.
+- [X] T027 [P] [US5] Write row T-S1 in `src/tools/_non-ascii-checks.test.ts`.
   - Each BLOCKED precondition, in contract §S order, with its exact text:
     1. `no staged note path given`;
     2. `staged note path has no non-ASCII character`;
@@ -211,18 +211,18 @@ description: "Task list for 093-verify-non-ascii-handling"
   - `FILE_NOT_FOUND` with `stagedNoteOnDisk: true` → FAIL.
   - The staged path among `matches[].path` → FAIL. `count: 0` → FAIL.
   - A clean success with `count ≥ 1` → PASS.
-- [ ] T028 [P] [US5] Write row T-S2 in `src/tools/_non-ascii-checks.test.ts`:
+- [X] T028 [P] [US5] Write row T-S2 in `src/tools/_non-ascii-checks.test.ts`:
   - an error with `details.code === "FILE_NOT_FOUND"` and `details.detail === "path: " + missingNote` → PASS;
   - the same with a different `detail` → FAIL;
   - `SMART_CONNECTIONS_NOT_INSTALLED` → BLOCKED; `SMART_CONNECTIONS_NOT_READY` → BLOCKED;
   - `missingNoteAbsent: false` → BLOCKED;
   - a success → FAIL.
-- [ ] T029 [US5] Add scenarios S1 and S2 and the helper `hasNonAscii(s)` (some code point above U+007F) to `src/tools/_non-ascii-checks.ts`. Both are `tool: "smart_connections_similar"`, `vaultRole: "semantic"`, `retry: false`.
+- [X] T029 [US5] Add scenarios S1 and S2 and the helper `hasNonAscii(s)` (some code point above U+007F) to `src/tools/_non-ascii-checks.ts`. Both are `tool: "smart_connections_similar"`, `vaultRole: "semantic"`, `retry: false`.
   - **S1**: input `{target_mode:"specific", vault:V, path:stagedNote, limit:20}`, with preconditions and classification exactly per T027.
   - **S2**: input `{target_mode:"specific", vault:V, path:missingNote, limit:1}`, classified per T028.
 
   Makes T027 and T028 pass.
-- [ ] T030 [US5] Add the semantic-vault facts to `scripts/check-non-ascii.ts`. Set `context.semanticVaultListed` from the `vaults` result. When the staged note was given, set `context.stagedNoteOnDisk` from `fs.stat(<V root>/<stagedNote>)`. Set `context.missingNoteAbsent` from `fs.stat(<V root>/<missingNote>)`, with `missingNote` built from 8 random hex characters.
+- [X] T030 [US5] Add the semantic-vault facts to `scripts/check-non-ascii.ts`. Set `context.semanticVaultListed` from the `vaults` result. When the staged note was given, set `context.stagedNoteOnDisk` from `fs.stat(<V root>/<stagedNote>)`. Set `context.missingNoteAbsent` from `fs.stat(<V root>/<missingNote>)`, with `missingNote` built from 8 random hex characters.
   - These two `stat` calls and the S1/S2 `callTool`s are the **only** operations touching V. Nothing opens a V path for writing, and no write, rename, move or delete tool is ever called with `vault: V` (contract §W 4, FR-017).
   - Add a code comment stating this invariant above the V block.
 
@@ -234,19 +234,19 @@ description: "Task list for 093-verify-non-ascii-handling"
 
 **Independent Test**: T-RETRY (written in Phase 2, T016–T017) is green, quickstart §1 and §2 pass, and the quickstart §4 run is recorded.
 
-- [ ] T031 [US6] Run the quickstart §1 in-process gate (`npm run lint`, `typecheck`, `test`, `build`) through PowerShell. Confirm:
+- [X] T031 [US6] Run the quickstart §1 in-process gate (`npm run lint`, `typecheck`, `test`, `build`) through PowerShell. Confirm:
   - every §T row is green and the statements floor holds;
   - `git diff --exit-code src/tools/_register-baseline.json` is clean (SC-006);
   - `dist/tools/_non-ascii-checks.js` is absent (`ls dist/tools`).
-- [ ] T032 [US6] Run the quickstart §2 usage-error cases. Both exit 2 with a usage line on stderr, nothing on stdout, and no write. This is also the load check for U1: a syntax error from type stripping would surface here as a `SyntaxError`, not a usage line.
-- [ ] T033 [US6] Live run, following `.memory/test-execution-instructions.md` first (quickstart §3 and §4).
+- [X] T032 [US6] Run the quickstart §2 usage-error cases. Both exit 2 with a usage line on stderr, nothing on stdout, and no write. This is also the load check for U1: a syntax error from type stripping would surface here as a `SyntaxError`, not a usage line.
+- [X] T033 [US6] Live run, following `.memory/test-execution-instructions.md` first (quickstart §3 and §4).
   - Confirm Obsidian answers `Obsidian.com eval "code=app.vault.getName()"`.
   - Record the `Sandbox/` pre-state of `TestVault-Obsidian-CLI-MCP`. Record the semantic-vault pre-state: the name, size and last-write time of every `*.md` file in the staged note's folder of `My-Setup-Vault` (read-only listing; `.smart-env/` and `.obsidian/` excluded, quickstart §4).
   - Run `npm run check:non-ascii -- --test-vault TestVault-Obsidian-CLI-MCP --semantic-vault My-Setup-Vault [--staged-note "<owner's path>"]` and save stdout to `specs/093-verify-non-ascii-handling/run-<YYYY-MM-DD>.txt`.
   - If the owner has not given a staged path, run without it: S1 must be `BLOCKED` (quickstart §5).
   - Verify that `Sandbox/` equals its pre-state, the cleanup line says `removed`, the semantic-vault listing is identical and `_non-ascii-check/` does not exist there (SC-004), and S2 is not `BLOCKED` when Smart Connections is loaded (SC-007).
   - Quote any FAIL block verbatim in the report to the owner, as the basis for one follow-up item each (FR-015). Fix nothing here.
-- [ ] T034 [US6] Post-implement structural verification (CLAUDE.md, quickstart §7). Run `codegraph sync`, then `codegraph_explore "_non-ascii-checks parseToolResult renderReport retryUntilPass SCENARIOS check-non-ascii"`, and confirm:
+- [X] T034 [US6] Post-implement structural verification (CLAUDE.md, quickstart §7). Run `codegraph sync`, then `codegraph_explore "_non-ascii-checks parseToolResult renderReport retryUntilPass SCENARIOS check-non-ascii"`, and confirm:
   1. no new error code or class, and no `UpstreamError` construction;
   2. no file imports `createLogger` or `createQueue`;
   3. the module has no relative import and no importer under `src/` except its test;
@@ -258,7 +258,7 @@ description: "Task list for 093-verify-non-ascii-handling"
 
 ## Phase 9: Polish & Cross-Cutting Concerns
 
-- [ ] T035 Re-read `scripts/check-non-ascii.ts` and `src/tools/_non-ascii-checks.ts` against `.memory/refactor-decisions.md`'s standing rules:
+- [X] T035 Re-read `scripts/check-non-ascii.ts` and `src/tools/_non-ascii-checks.ts` against `.memory/refactor-decisions.md`'s standing rules:
   - item 30: the build exclude;
   - item 64: do not re-roll `runVitestDump`, `listPublished` or `fingerprintTool`. None of them is needed here.
 
