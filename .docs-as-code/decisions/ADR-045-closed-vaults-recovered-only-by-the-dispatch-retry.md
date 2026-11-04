@@ -145,3 +145,7 @@ disabled.
   follow-up. Since PR #143 that sentence is gone: the description is cut to
   what the tool does and when to choose it, and its help page carries the
   closed-vault and vault-unavailable rows.
+
+## Amendment 2026-11-04 — Closed-vault note moves to the reference pages
+
+Owner ruling of 2026-11-04 on [[BI-0027 - Audit Tool Descriptions]] (Relay `/speckit-plan`, Question 2). BI-0027 caps every tool description at 400 characters, and the shared closed-vault sentence (`closedVaultNote(command)`, about 380 characters) cannot fit beside a purpose sentence. Decision 2 is therefore amended: **the reference (help) pages, not the tool descriptions, carry the vault-unavailable note.** The nine descriptions that used the sentence (`bases`, `create_base`, `paths`, `pattern_search`, `query_base`, `smart_connections_query`, `smart_connections_similar`, `tag`, `views_base`) drop it; each of their help pages states the vault-unavailable answer (`Error: Command "<cmd>" not found.` as an uncoded `CLI_REPORTED_ERROR`) and that a closed registered vault is opened automatically (`tag.md` gains that sentence); the `closedVaultNote` helper and its unit test are deleted. The rest of decision 2 — the error is the existing `CLI_REPORTED_ERROR` unchanged, with no `details.code` or `details.reason`, recognised by `COLD_START_PATTERN` — and decisions 1, 3 and 4 are unchanged. The original Decision text above is preserved verbatim.

@@ -135,3 +135,11 @@ had none.
   `BASE_NOT_FOUND` details keep their `path` key, and `find_and_replace`'s
   INVALID_SUBFOLDER details keep their `subfolder` key.
 - The removal follow-up is a breaking change and belongs in a major release.
+
+## Amendment 2026-11-04 — Only a successful call carries `deprecated_parameters`
+
+Settled in [[BI-0182 - Complete Parameter Rename In Error Details]] (Relay `/speckit-clarify` Q2, 2026-11-03, the advisor's answer, shipped in PR #135) and recorded here at the owner's direction on 2026-11-04. Spec 073 ([[BI-0109 - Standardise Cohort Tool Parameter Names]]) defines the notice for a successful call, and decision 5's last bullet keeps error `details` unchanged. Decision 5's first bullet is therefore amended to read: **a successful call's result carries `deprecated_parameters`**, one entry per old name used, in both the text result and `structuredContent`. An error response to a call that used an old name carries no `deprecated_parameters` entry. The tool descriptions and help pages of `find_by_property`, `find_and_replace` and `create_base` say so. The rest of decision 5 and decisions 1 to 4 and 6 are unchanged. The original Decision text above is preserved verbatim.
+
+## Amendment 2026-11-05 — Refined by ADR-067
+
+**Refined by [[ADR-067 - Deprecated Aliases Carry The Type Only And The Current Name Keeps Its Checks|ADR-067]]** (PR #135, [[BI-0182 - Complete Parameter Rename In Error Details]]). Decision 5 ("validation of the resolved value reports the new name") now holds for an empty value under an old name, and is narrowed to calls with one mistake: with a second mistake the old-name call may report one extra issue, but no issue names an old key. A wrong-type value under an old key still reports the old key, by design. The original Decision text above is preserved verbatim.
