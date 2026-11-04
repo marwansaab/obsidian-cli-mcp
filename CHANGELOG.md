@@ -7,52 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Spec 072-align-closed-vault-reporting (BI-0076).
+## [0.9.0] - 2026-11-04
 
-Spec 073-align-parameter-names (BI-0109).
+**MINOR release (breaking before 1.0)**: the server moves to the current MCP standard. It runs on MCP SDK v2 and serves both protocol eras, publishes titles, behaviour hints, parameter descriptions, server instructions and typed results, and adds the `vaults` tool, owner access settings, confirmation, cancellation and progress. Code execution through `obsidian_exec` is now off by default. Spec 068-modernise-mcp-surface (BI-0165), delivered in PRs #87 to #92.
 
-Spec 074-return-exact-content (BI-0115).
-
-Spec 075-unify-size-reporting (BI-0116).
-
-Spec 076-fix-empty-prepend.
-
-Spec 077-fix-prepend-not-found.
-
-Spec 078-refuse-oversized-text.
-
-Spec 079-clarify-heading-paths.
-
-Spec 080-tolerate-plugin-noise (BI-0135).
-
-Spec 081-classify-malformed-base (BI-0137).
-
-Spec 082-fix-active-file-messaging.
-
-Spec 083-enable-cross-vault-bases (BI-0139).
-
-Spec 084-reconcile-help-docs.
-
-Spec 085-stabilise-query-ordering.
-
-Spec 086-fix-section-replacement (BI-0168).
-
-Spec 087-match-literal-phrases (BI-0169).
-
-Spec 088-preserve-match-whitespace (BI-0170).
-
-Spec 089-resolve-note-names (BI-0171).
-
-Spec 090-classify-missing-destination.
-
-Spec 091-report-unknown-vault (BI-0173).
+It also includes the work merged after those PRs, up to PR #147: specs 072-align-closed-vault-reporting (BI-0076), 073-align-parameter-names (BI-0109), 074-return-exact-content (BI-0115), 075-unify-size-reporting (BI-0116), 076-fix-empty-prepend, 077-fix-prepend-not-found, 078-refuse-oversized-text, 079-clarify-heading-paths, 080-tolerate-plugin-noise (BI-0135), 081-classify-malformed-base (BI-0137), 082-fix-active-file-messaging, 083-enable-cross-vault-bases (BI-0139), 084-reconcile-help-docs, 085-stabilise-query-ordering, 086-fix-section-replacement (BI-0168), 087-match-literal-phrases (BI-0169), 088-preserve-match-whitespace (BI-0170), 089-resolve-note-names (BI-0171), 090-classify-missing-destination, 091-report-unknown-vault (BI-0173), and the fixes listed under Fixed.
 
 ### Added
 
+- **Both protocol eras over stdio.** One server answers 2026-era clients (`2026-07-28`, `server/discover`) and 2025-era clients (`2025-11-25`, `initialize`) (#89, ADR-039).
+- **Titles and behaviour hints on every tool.** Each tool has a title and all four hints (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`). The 22 read-only tools can run in parallel without a prompt in clients that honour the hints (#90, ADR-040).
+- **Server instructions at session start**: what the server is for, which tool fits which task, and the rules that apply to every tool. They name only the tools the server offers (#90).
+- **A description on every input parameter**, published in each tool's schema, including the `target_mode` rules (#90).
+- **Typed results.** 31 tools publish an `outputSchema` and return `structuredContent` alongside the same JSON as text. `read`, `help`, `obsidian_exec` and `tag` are untyped. A result that fails its own schema returns `INTERNAL_ERROR` (#91, ADR-042).
+- **`vaults` tool**: every vault Obsidian knows, as `{ count, vaults: [{ name, path, open }] }` (#91).
+- **Owner access settings**, read once at start-up (#92):
+  - `OBSIDIAN_MCP_READ_ONLY` offers only the read-only tools;
+  - `OBSIDIAN_MCP_TOOLS` is an allow list;
+  - `OBSIDIAN_MCP_DISABLE` is a deny list.
+
+  An unknown tool name in either list stops the server from starting.
+- **Confirmation before irreversible changes.** `delete` with `permanent: true`, and a `find_and_replace` commit not limited to one note, ask the human through MCP elicitation first. They return `VALIDATION_ERROR` with `details.code` `CONFIRMATION_DECLINED` or `CONFIRMATION_UNAVAILABLE` when the change does not go ahead. Clients that decline forms without showing them, such as Claude Code's non-interactive mode, always get `CONFIRMATION_DECLINED` (#92, ADR-043).
+- **Cancellation** (#92):
+  - a cancelled call that is still queued never starts;
+  - a running Obsidian CLI process is stopped;
+  - a `find_and_replace` commit stops before its next note, and logs `commitCancelled`.
+- **Progress notifications**, sent when the request carries a progress token: while waiting for Obsidian to start, and after each note of a `find_and_replace` commit (#92).
+- **`OBSIDIAN_MCP_ALLOW_EVAL`** lifts the `obsidian_exec` code-execution block (#88).
+- **CI on Windows**: every change is tested on Ubuntu and Windows with Node 22 and 24 (#87).
 - **`write_note` reports `bytes_written`**, with the same meaning, counting a new note's old size as 0. If the existing note's size cannot be read before an overwrite, the call fails with `FS_WRITE_FAILED` before anything is written. Its `details` shape is unchanged; `details.syscall` now reads `"stat"` where the old existence probe reported `"realpath"`.
 
 ### Changed
 
+- **Breaking: `obsidian_exec` refuses code-running and developer commands by default.** That covers `eval`, `devtools`, `dev:*`, `restart`, `plugin:install`, `plugin:enable` and `plugin:disable`. A refused call returns `VALIDATION_ERROR` with `details.code: "COMMAND_BLOCKED"`. A `command` containing `=` is always refused (#88, ADR-041).
+- **Breaking: the MCP SDK changed.** `@modelcontextprotocol/sdk` 1.x was replaced by `@modelcontextprotocol/server` ^2.4.0, with `McpServer.registerTool` instead of the low-level `Server` (#89, ADR-039). Three things changed at the protocol edge as a result:
+  - an unknown tool name is now a JSON-RPC `-32602` error instead of `TOOL_NOT_FOUND`;
+  - a call with no `arguments` reaches the tool as `{}`;
+  - an unexpected thrown error is returned as `isError` text.
+- **Breaking: published tool descriptions and schemas changed.**
+  - Parameter descriptions are no longer stripped, and descriptions no longer say "Call help(...) for full parameter docs". ADR-040 supersedes ADR-005.
+  - Rules repeated across tools moved into the server instructions.
+  - `help` remains, as the full per-tool reference (#90).
+- **A vault added after start-up can be used straight away.** `vaults` always re-reads Obsidian's vault list, and a vault name the server has not seen is re-read once before failing. The unknown-vault error no longer says to restart the server (#91).
+- The README was rewritten for 0.9.0 (#92).
 - **Tool descriptions are now short.** Each says what the tool does, when to pick it over related tools, and any data-loss caveat, in at most 400 characters. All of them together are at most 12,000 characters, down from about 62,000. The detail they used to carry (result shapes, limits, error codes, examples) is on each tool's `help` page, and the server instructions say how to open it. Published descriptions, parameter descriptions and the help index no longer quote internal tracking numbers. `npm run audit:descriptions` prints a per-tool audit report.
 - **Closed vaults are documented as opened automatically.** `paths`, `tag`, `pattern_search`, `query_base`, `smart_connections_query` and `smart_connections_similar` now say that a registered vault that is not open is opened by the server's automatic retry and the call returns its normal result. Their reference pages document the existing post-retry `CLI_REPORTED_ERROR`, whose `details.stdout` starts `Error: Command "…" not found.`, as their vault-unavailable failure: the vault could not be brought up, for example because its command-line integration is disabled. The failure itself is unchanged.
 - **One name per concept within a tool family** (spec 073). Seven parameters take the name their siblings already use, with today's meaning and defaults:
@@ -75,12 +72,15 @@ Spec 091-report-unknown-vault (BI-0173).
 
 ### Removed
 
+- The draft-07 schema parity normaliser and description stripping (`src/help/strip-schema.ts`) (#89, #90).
+- The silent 120 s clamp on `obsidian_exec` `timeoutMs`. It never took effect, because the schema already refused larger values (#92).
 - **The `VAULT_NOT_FOUND` / `not-open` sub-state** from those six tools and from the `find_and_replace` and `patch_block` reference pages. It was documented but never produced: through the CLI the server drives, a closed vault answers with the cold-start signature that the automatic retry already handles.
 - **The internal closed-vault detection module** (`_eval-vault-closed-detection`) and the six handler stages that used it. An empty answer from the CLI still fails with `CLI_REPORTED_ERROR` and `details.stage: "json-parse"`, now without the extra `vaults verbose` call.
 - **The `list_notes` and `search_vault` placeholder help pages and index entries** (spec 084). Neither tool exists; `help` now answers `HELP_TOOL_NOT_FOUND` for them, and its `availableTools` lists only the offered tools. A test now fails when a help page or index entry names a tool the server does not offer.
 
 ### Fixed
 
+- **A property written by the server is visible to the next search.** The metadata refresh now uses the vault-relative path and the named vault, and calls Obsidian's `computeFileMetadataAsync` instead of `computeMetadataAsync`, which could stall the vault's metadata indexing until Obsidian reloaded. Refresh failures are logged as `bridge.metadata_refresh_failed` instead of being swallowed (#87).
 - **A note's opening text has an empty `headingPath` in Smart Connections results** (BI-0184). `smart_connections_query` and `smart_connections_similar` now return `headingPath: []` for a block that sits before a note's first heading (the plugin keys it `<path>#`), the same as a whole-note match, instead of `[""]`. No `headingPath` segment is ever an empty string. Nested-section and `["---frontmatter---"]` matches, scores and order are unchanged.
 
 - **`views_base`'s parser complaint always describes the named Base** (BI-0179). In named mode the tool now checks that the named `.base` became Obsidian's active file before it lists views, waiting up to one second for a late switch. If it did not, the call fails with `CLI_REPORTED_ERROR`, `details: { stage: "focus", base_path, active }` (the file still in front, or `null`) and the message `views_base: could not bring base file at "<path>" to the front`, with no `details.code`, no `details.reason` and no parser complaint; call again. Previously the listing ran against whatever file was active, so after another malformed Base a `BASE_MALFORMED` error could carry that Base's complaint and length in `details.message` / `details.messageLength`. Open mode, a successful focus, and every other error are unchanged.
@@ -111,60 +111,10 @@ Spec 091-report-unknown-vault (BI-0173).
 - **`search` and `context_search` match the whole query as one literal phrase** (spec 087). A query with spaces no longer matches notes that contain its words separately or in another order, and characters that mean something in Obsidian's search syntax (`"`, a leading `-`, `OR`, parentheses, square brackets, `tag:` / `path:` / `file:` prefixes, `/…/`, `*`, `\`) are matched as text, with nothing to escape. Line-level results (`context_search`, and `search` with `context_lines: true`) list each matching line once, so `count` and `truncated` count lines, not occurrences; a query containing a line break returns no lines there. File-name matching, case handling and folder scoping are unchanged.
 - **`context_search` returns each matching line as it is in the note** (spec 088). Leading indentation, trailing spaces (Markdown hard line breaks), tabs and other whitespace are kept; only the line ending is removed, as the help page always said. Obsidian's search trims each line, so the matched lines are now read back from the notes in one extra call (more for very large results); if a note changes between the search and the read-back, the call fails with `CLI_REPORTED_ERROR` / `details.code: "MATCH_LINE_UNAVAILABLE"` instead of returning stale text. `search`'s deprecated `context_lines` mode is unchanged.
 
-## [0.9.0] - 2026-10-30
-
-**MINOR release (breaking before 1.0)**: the server moves to the current MCP standard. It runs on MCP SDK v2 and serves both protocol eras, publishes titles, behaviour hints, parameter descriptions, server instructions and typed results, and adds the `vaults` tool, owner access settings, confirmation, cancellation and progress. Code execution through `obsidian_exec` is now off by default. Spec 068-modernise-mcp-surface (BI-0165), delivered in PRs #87 to #92.
-
-### Added
-
-- **Both protocol eras over stdio.** One server answers 2026-era clients (`2026-07-28`, `server/discover`) and 2025-era clients (`2025-11-25`, `initialize`) (#89, ADR-039).
-- **Titles and behaviour hints on every tool.** Each tool has a title and all four hints (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`). The 22 read-only tools can run in parallel without a prompt in clients that honour the hints (#90, ADR-040).
-- **Server instructions at session start**: what the server is for, which tool fits which task, and the rules that apply to every tool. They name only the tools the server offers (#90).
-- **A description on every input parameter**, published in each tool's schema, including the `target_mode` rules (#90).
-- **Typed results.** 31 tools publish an `outputSchema` and return `structuredContent` alongside the same JSON as text. `read`, `help`, `obsidian_exec` and `tag` are untyped. A result that fails its own schema returns `INTERNAL_ERROR` (#91, ADR-042).
-- **`vaults` tool**: every vault Obsidian knows, as `{ count, vaults: [{ name, path, open }] }` (#91).
-- **Owner access settings**, read once at start-up (#92):
-  - `OBSIDIAN_MCP_READ_ONLY` offers only the read-only tools;
-  - `OBSIDIAN_MCP_TOOLS` is an allow list;
-  - `OBSIDIAN_MCP_DISABLE` is a deny list.
-
-  An unknown tool name in either list stops the server from starting.
-- **Confirmation before irreversible changes.** `delete` with `permanent: true`, and a `find_and_replace` commit not limited to one note, ask the human through MCP elicitation first. They return `VALIDATION_ERROR` with `details.code` `CONFIRMATION_DECLINED` or `CONFIRMATION_UNAVAILABLE` when the change does not go ahead. Clients that decline forms without showing them, such as Claude Code's non-interactive mode, always get `CONFIRMATION_DECLINED` (#92, ADR-043).
-- **Cancellation** (#92):
-  - a cancelled call that is still queued never starts;
-  - a running Obsidian CLI process is stopped;
-  - a `find_and_replace` commit stops before its next note, and logs `commitCancelled`.
-- **Progress notifications**, sent when the request carries a progress token: while waiting for Obsidian to start, and after each note of a `find_and_replace` commit (#92).
-- **`OBSIDIAN_MCP_ALLOW_EVAL`** lifts the `obsidian_exec` code-execution block (#88).
-- **CI on Windows**: every change is tested on Ubuntu and Windows with Node 22 and 24 (#87).
-
-### Changed
-
-- **Breaking: `obsidian_exec` refuses code-running and developer commands by default.** That covers `eval`, `devtools`, `dev:*`, `restart`, `plugin:install`, `plugin:enable` and `plugin:disable`. A refused call returns `VALIDATION_ERROR` with `details.code: "COMMAND_BLOCKED"`. A `command` containing `=` is always refused (#88, ADR-041).
-- **Breaking: the MCP SDK changed.** `@modelcontextprotocol/sdk` 1.x was replaced by `@modelcontextprotocol/server` ^2.4.0, with `McpServer.registerTool` instead of the low-level `Server` (#89, ADR-039). Three things changed at the protocol edge as a result:
-  - an unknown tool name is now a JSON-RPC `-32602` error instead of `TOOL_NOT_FOUND`;
-  - a call with no `arguments` reaches the tool as `{}`;
-  - an unexpected thrown error is returned as `isError` text.
-- **Breaking: published tool descriptions and schemas changed.**
-  - Parameter descriptions are no longer stripped, and descriptions no longer say "Call help(...) for full parameter docs". ADR-040 supersedes ADR-005.
-  - Rules repeated across tools moved into the server instructions.
-  - `help` remains, as the full per-tool reference (#90).
-- **A vault added after start-up can be used straight away.** `vaults` always re-reads Obsidian's vault list, and a vault name the server has not seen is re-read once before failing. The unknown-vault error no longer says to restart the server (#91).
-- The README was rewritten for 0.9.0 (#92).
-
-### Fixed
-
-- **A property written by the server is visible to the next search.** The metadata refresh now uses the vault-relative path and the named vault, and calls Obsidian's `computeFileMetadataAsync` instead of `computeMetadataAsync`, which could stall the vault's metadata indexing until Obsidian reloaded. Refresh failures are logged as `bridge.metadata_refresh_failed` instead of being swallowed (#87).
-
 ### Security
 
 - **Writes cannot escape the vault through links.** The canonical path check now resolves the nearest existing ancestor of the target, so a link inside the vault that points outside it is refused with `PATH_ESCAPES_VAULT` even when the target folders do not exist yet. This includes Windows junctions and mixed-case vault roots (#87).
 - Code execution through `obsidian_exec`, read-only mode, tool allow and deny lists, and confirmation for irreversible changes are covered under Added and Changed.
-
-### Removed
-
-- The draft-07 schema parity normaliser and description stripping (`src/help/strip-schema.ts`) (#89, #90).
-- The silent 120 s clamp on `obsidian_exec` `timeoutMs`. It never took effect, because the schema already refused larger values (#92).
 
 ## [0.6.5] - 2026-05-17
 
@@ -1026,3 +976,6 @@ Two architectural deepenings shipped together (feature 008-refactor, ADR-006 + A
 - Per-tool `*InputJsonSchema` exports (`helpInputJsonSchema`, `obsidianExecInputJsonSchema`, `readNoteInputJsonSchema`) and the `targetModeJsonSchema` companion. The publication path is owned solely by `registerTool` (SC-002).
 - Per-tool `tool.ts` boilerplate (`registerHelpTool`, `registerObsidianExecTool`, `registerReadNoteTool`) and their co-located test files. Replaced by ~10-line `index.ts` files calling `registerTool`.
 - `Logger.callStart`, `Logger.callEndSuccess`, `Logger.callEndFailure` methods.
+
+[Unreleased]: https://github.com/marwansaab/obsidian-cli-mcp/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/marwansaab/obsidian-cli-mcp/releases/tag/v0.9.0
