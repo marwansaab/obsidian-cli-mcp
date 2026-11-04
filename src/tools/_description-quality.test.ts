@@ -1,42 +1,44 @@
-// Original — no upstream. Standing checks on the published tool surface (spec 092 FR-017): per-tool and total description budgets, no internal identifiers in any published text or the help index, the help pointer, index entries equal to first sentences, a parseable reviewer record, and one report row per registered tool. Judgement verdicts never gate here (Clarification Q4).
+// Original — no upstream. Standing checks on the published tool surface (spec 092 FR-017): per-tool and total description budgets, no internal identifiers in any published text or the help index, the help pointer, index entries equal to first sentences, a parseable reviewer record, and one report row per registered tool. The mechanical checks read `auditSurface`'s verdicts, so the rule each one applies is written once, in _description-audit.ts. Judgement verdicts never gate here (Clarification Q4).
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { beforeAll, describe, expect, it } from "vitest";
 
 import {
+  auditSurface,
   collectPublishedSurface,
   CHECK_COLUMNS,
   DESCRIPTION_BUDGET,
   describedTexts,
   descriptionAuditRecordSchema,
   findInternalIds,
-  firstSentence,
-  HELP_POINTER_LINE,
-  parseIndexEntries,
   renderAuditReport,
   TOTAL_DESCRIPTION_BUDGET,
+  type AuditResult,
   type PublishedSurface,
 } from "./_description-audit.js";
 
 const RECORD_PATH = join(import.meta.dirname, "_description-audit-record.json");
 
+// Q1, Q2, Q4 and Q5 read the mechanical verdicts, which do not depend on the record, so an empty
+// record keeps them independent of Q6.
 let surface: PublishedSurface;
+let audit: AuditResult;
 beforeAll(async () => {
   surface = await collectPublishedSurface();
+  audit = auditSurface(surface, { schemaVersion: 1, tools: {}, routing: {} });
 });
 
 describe("published tool descriptions (spec 092 standing checks)", () => {
   it(`Q1: every description is at most ${DESCRIPTION_BUDGET} characters`, () => {
-    const over = surface.tools
-      .filter((t) => t.description.length > DESCRIPTION_BUDGET)
-      .map((t) => `${t.name} (${t.description.length})`);
+    const over = audit.tools
+      .filter((t) => t.cells.Budget.verdict !== "PASS")
+      .map((t) => `${t.name} (${t.cells.Budget.detail})`);
     expect(over).toEqual([]);
   });
 
   it(`Q2: all descriptions together are at most ${TOTAL_DESCRIPTION_BUDGET} characters`, () => {
-    const total = surface.tools.reduce((sum, t) => sum + t.description.length, 0);
-    expect(total).toBeLessThanOrEqual(TOTAL_DESCRIPTION_BUDGET);
+    expect(audit.totalLength).toBeLessThanOrEqual(TOTAL_DESCRIPTION_BUDGET);
   });
 
   it("Q3: no internal identifier in any published text or the help index", () => {
@@ -53,17 +55,14 @@ describe("published tool descriptions (spec 092 standing checks)", () => {
   });
 
   it("Q4: the instructions and the help description say how to open a tool's full contract", () => {
-    expect(surface.instructions).toContain(HELP_POINTER_LINE);
-    const help = surface.tools.find((t) => t.name === "help");
-    expect(help?.description).toContain("full contract");
-    expect(help?.description).toContain("tool_name");
+    expect({ instructions: audit.helpPointerInInstructions, help: audit.helpPointerInHelp }).toEqual({
+      instructions: "PASS",
+      help: "PASS",
+    });
   });
 
   it("Q5: every help-index entry is its tool's first sentence", () => {
-    const entries = parseIndexEntries(surface.indexText);
-    const mismatched = surface.tools
-      .filter((t) => entries.get(t.name) !== firstSentence(t.description))
-      .map((t) => t.name);
+    const mismatched = audit.tools.filter((t) => t.cells.Index.verdict !== "PASS").map((t) => t.name);
     expect(mismatched).toEqual([]);
   });
 

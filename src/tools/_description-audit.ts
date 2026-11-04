@@ -1,14 +1,14 @@
-// Original — no upstream. Tool-description audit (spec 092): budgets, family and shared-field rosters, internal-identifier patterns, first-sentence and index parsing, the reviewer-record schema, the live-surface collector and the Markdown report. Test-support module: used by _description-quality.test.ts and scripts/audit-descriptions.ts, excluded from dist/.
+// Original — no upstream. Tool-description audit (spec 092): budgets, family and shared-field rosters, internal-identifier patterns, first-sentence and index parsing, the reviewer-record schema, the live-surface collector, the typed audit result (`auditSurface`) and its Markdown rendering. Test-support module: used by _description-quality.test.ts and scripts/audit-descriptions.ts, excluded from dist/.
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { z } from "zod";
 
-import { createServer } from "../server.js";
-import { connectInMemoryClient } from "./_mcp-client-fixtures.js";
-import { canonicalJSON, sha256 } from "./_register-baseline.js";
+import { listPublished, quietServer } from "./_mcp-client-fixtures.js";
+import { fingerprintTool } from "./_register-baseline.js";
 import { DOCS_DIR, listToolPages } from "./help/handler.js";
 
+import type { Tool } from "@modelcontextprotocol/client";
 import type { McpServer } from "@modelcontextprotocol/server";
 
 /** The most characters one tool's top-level description may have. */
@@ -52,9 +52,6 @@ export const INTERNAL_ID_PATTERNS: readonly InternalIdPattern[] = [
   { id: "P7", pattern: /\b[ABDQR]\d{1,2}\b/g, outsideQuotes: true },
 ];
 
-export const JUDGEMENT_CHECKS = ["purpose", "safety", "detail", "selfContained", "family", "sharedFields"] as const;
-export type JudgementCheck = (typeof JUDGEMENT_CHECKS)[number];
-
 /** The report's nine verdict columns, in matrix order (data-model E10). */
 export const CHECK_COLUMNS = [
   "Purpose",
@@ -67,7 +64,7 @@ export const CHECK_COLUMNS = [
   "Shared fields",
   "Index",
 ] as const;
-type CheckColumn = (typeof CHECK_COLUMNS)[number];
+export type CheckColumn = (typeof CHECK_COLUMNS)[number];
 
 /** The instructions line that says how to open any tool's full contract (contract §I1). */
 export const HELP_POINTER_LINE = "- `help` with a tool's name returns its full contract; with none, it lists every tool.";
@@ -126,12 +123,8 @@ export function missingSiblings(name: string, description: string): string[] {
   return siblingsOf(name).filter((sibling) => !description.includes(`\`${sibling}\``));
 }
 
-export interface PublishedTool {
-  name: string;
-  description: string;
-  inputSchema: unknown;
-  outputSchema?: unknown;
-}
+/** A tool as `tools/list` publishes it, with a missing description read as empty. */
+export type PublishedTool = Tool & { description: string };
 
 function collectDescriptions(node: unknown, path: string, out: Array<[string, string]>): void {
   if (node === null || typeof node !== "object") return;
@@ -150,13 +143,6 @@ export function describedTexts(tool: PublishedTool): Array<[string, string]> {
   collectDescriptions(tool.inputSchema, `${tool.name}#input`, out);
   collectDescriptions(tool.outputSchema, `${tool.name}#output`, out);
   return out;
-}
-
-export function toolFingerprints(tool: PublishedTool): { descriptionFingerprint: string; schemaFingerprint: string } {
-  return {
-    descriptionFingerprint: sha256(tool.description),
-    schemaFingerprint: sha256(canonicalJSON(tool.inputSchema)),
-  };
 }
 
 /** The routing lines of the instructions: those between `Which tool:` and the next blank line. */
@@ -204,7 +190,8 @@ export const descriptionAuditRecordSchema = z.strictObject({
 });
 
 export type DescriptionAuditRecord = z.infer<typeof descriptionAuditRecordSchema>;
-type CheckVerdict = z.infer<typeof checkVerdictSchema>;
+type ToolRecord = DescriptionAuditRecord["tools"][string];
+type JudgementCheck = keyof ToolRecord["checks"];
 
 // ---------- live surface (data-model E1) ----------
 
@@ -227,26 +214,197 @@ export interface CollectDeps {
  * owner's access settings never shrink the audited list (data-model E1).
  */
 export async function collectPublishedSurface(deps: CollectDeps = {}): Promise<PublishedSurface> {
-  const build =
-    deps.buildMcpServer ?? (() => createServer({ registerSignalHandlers: false, env: {} }).buildMcpServer());
+  const build = deps.buildMcpServer ?? (() => quietServer({}).buildMcpServer());
   const docsDir = deps.docsDir ?? DOCS_DIR;
-  const client = await connectInMemoryClient(build(), "description-audit");
-  try {
-    const { tools } = await client.listTools(undefined, { cacheMode: "bypass" });
-    return {
-      tools: tools.map((t) => ({
-        name: t.name,
-        description: t.description ?? "",
-        inputSchema: t.inputSchema,
-        ...(t.outputSchema !== undefined ? { outputSchema: t.outputSchema } : {}),
-      })),
-      instructions: client.getInstructions() ?? "",
-      indexText: await readFile(join(docsDir, "index.md"), "utf8"),
-      helpPageCount: (await listToolPages(docsDir)).length,
-    };
-  } finally {
-    await client.close();
+  const { tools, instructions } = await listPublished(build(), "description-audit");
+  return {
+    tools: tools.map((t) => ({ ...t, description: t.description ?? "" })),
+    instructions: instructions ?? "",
+    indexText: await readFile(join(docsDir, "index.md"), "utf8"),
+    helpPageCount: (await listToolPages(docsDir)).length,
+  };
+}
+
+// ---------- audit result ----------
+
+const NEEDS_REVIEW = "NEEDS REVIEW";
+
+/** One verdict cell of the matrix or the routing table. */
+export interface Cell {
+  verdict: Verdict | typeof NEEDS_REVIEW;
+  /** Shown in parentheses after the verdict: the length in `PASS (312)`, the old verdict in `NEEDS REVIEW (was PASS)`. */
+  detail?: string;
+  /** Text for the Gaps (FAIL / PARTIAL) or Notes (any other verdict) section. */
+  note?: string;
+}
+
+/** The cell as the report prints it (data-model E10). */
+export function cellText(cell: Cell): string {
+  return cell.detail === undefined ? cell.verdict : `${cell.verdict} (${cell.detail})`;
+}
+
+function isGap(cell: Cell): boolean {
+  return cell.verdict === "FAIL" || cell.verdict === "PARTIAL";
+}
+
+function withNote(cell: Cell, note: string | undefined): Cell {
+  return note === undefined ? cell : { ...cell, note };
+}
+
+export interface ToolAudit {
+  name: string;
+  cells: Record<CheckColumn, Cell>;
+}
+
+export interface AuditResult {
+  /** One entry per registered tool, sorted by name. */
+  tools: ToolAudit[];
+  /** One entry per published routing line, in instructions order. */
+  routing: Array<{ line: string; cell: Cell }>;
+  toolCount: number;
+  helpPageCount: number;
+  /** All top-level descriptions together, in characters. */
+  totalLength: number;
+  totalVerdict: Verdict;
+  helpPointerInInstructions: Verdict;
+  helpPointerInHelp: Verdict;
+  /** Internal identifiers in the instructions and the index header, as `where: match`. */
+  headerIdHits: string[];
+  /** Cells whose verdict is NEEDS REVIEW, routing lines included. */
+  needsReview: number;
+  /** Per shared field (E7), its distinct descriptions with the tools that carry each, in roster order. */
+  sharedFieldDescriptions: Array<{ field: string; descriptions: Array<{ text: string; tools: string[] }> }>;
+}
+
+const pass = (ok: boolean): Verdict => (ok ? "PASS" : "FAIL");
+
+function inputFieldNames(tool: PublishedTool): string[] {
+  return Object.keys(tool.inputSchema.properties ?? {});
+}
+
+function fieldDescription(tool: PublishedTool, field: string): string | undefined {
+  const property = tool.inputSchema.properties?.[field];
+  if (property === null || typeof property !== "object" || Array.isArray(property)) return undefined;
+  return typeof property.description === "string" ? property.description : undefined;
+}
+
+function judgedCell(recorded: ToolRecord | undefined, fresh: boolean, check: JudgementCheck): Cell {
+  if (recorded === undefined) return { verdict: NEEDS_REVIEW, detail: "not recorded" };
+  const { verdict, gap } = recorded.checks[check];
+  return withNote(fresh ? { verdict } : { verdict: NEEDS_REVIEW, detail: `was ${verdict}` }, gap);
+}
+
+function auditTool(tool: PublishedTool, recorded: ToolRecord | undefined, indexEntry: string | undefined): ToolAudit {
+  const live = fingerprintTool(tool);
+  const fresh =
+    recorded !== undefined &&
+    recorded.descriptionFingerprint === live.descriptionFingerprint &&
+    recorded.schemaFingerprint === live.schemaFingerprint;
+  const judged = (check: JudgementCheck): Cell => judgedCell(recorded, fresh, check);
+  // A judged check the tool's shape makes not applicable: N/A, keeping any recorded note.
+  const notApplicable = (check: JudgementCheck): Cell => withNote({ verdict: "N/A" }, recorded?.checks[check].gap);
+
+  const length = tool.description.length;
+  const budget: Cell =
+    length <= DESCRIPTION_BUDGET
+      ? { verdict: "PASS", detail: String(length) }
+      : {
+          verdict: "FAIL",
+          detail: String(length),
+          note: `The description is ${length} characters, ${length - DESCRIPTION_BUDGET} over the ${DESCRIPTION_BUDGET}-character budget.`,
+        };
+
+  const idHits: string[] = [];
+  for (const [where, text] of describedTexts(tool)) {
+    for (const hit of findInternalIds(text)) idHits.push(`${where}: ${hit.match}`);
   }
+  if (indexEntry !== undefined) {
+    for (const hit of findInternalIds(indexEntry)) idHits.push(`index.md#${tool.name}: ${hit.match}`);
+  }
+  const ids: Cell =
+    idHits.length === 0 ? { verdict: "PASS" } : { verdict: "FAIL", note: `Internal identifiers found: ${idHits.join("; ")}.` };
+
+  const first = firstSentence(tool.description);
+  const index: Cell =
+    indexEntry === undefined
+      ? { verdict: "FAIL", note: "docs/tools/index.md has no entry for this tool." }
+      : indexEntry === first
+        ? { verdict: "PASS" }
+        : { verdict: "FAIL", note: `The index entry is "${indexEntry}" but the first sentence is "${first}".` };
+
+  const missing = missingSiblings(tool.name, tool.description);
+  const family: Cell =
+    siblingsOf(tool.name).length === 0
+      ? notApplicable("family")
+      : missing.length > 0
+        ? { verdict: "FAIL", note: `The description does not name ${missing.map((m) => `\`${m}\``).join(", ")}.` }
+        : judged("family");
+
+  const fields = inputFieldNames(tool);
+  const sharedFields = SHARED_FIELDS.some((f) => fields.includes(f)) ? judged("sharedFields") : notApplicable("sharedFields");
+
+  return {
+    name: tool.name,
+    cells: {
+      Purpose: judged("purpose"),
+      Budget: budget,
+      Safety: judged("safety"),
+      Detail: judged("detail"),
+      IDs: ids,
+      "Self-contained": judged("selfContained"),
+      Family: family,
+      "Shared fields": sharedFields,
+      Index: index,
+    },
+  };
+}
+
+/** Every verdict of the audit (data-model E10), mechanical ones computed and judged ones read from `record`. */
+export function auditSurface(surface: PublishedSurface, record: DescriptionAuditRecord): AuditResult {
+  const sorted = [...surface.tools].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  const indexEntries = parseIndexEntries(surface.indexText);
+  const tools = sorted.map((t) => auditTool(t, record.tools[t.name], indexEntries.get(t.name)));
+
+  const routing = routingLines(surface.instructions).map((line) => {
+    const entry = record.routing[line];
+    const cell: Cell = entry === undefined ? { verdict: NEEDS_REVIEW } : withNote({ verdict: entry.verdict }, entry.gap);
+    return { line, cell };
+  });
+
+  const allCells = [...tools.flatMap((t) => Object.values(t.cells)), ...routing.map((r) => r.cell)];
+  const totalLength = surface.tools.reduce((sum, t) => sum + t.description.length, 0);
+  const help = surface.tools.find((t) => t.name === "help");
+  const indexHeader = surface.indexText
+    .split("\n")
+    .filter((line) => !/^- \*\*[^*]+\*\* — /.test(line))
+    .join("\n");
+
+  return {
+    tools,
+    routing,
+    toolCount: surface.tools.length,
+    helpPageCount: surface.helpPageCount,
+    totalLength,
+    totalVerdict: pass(totalLength <= TOTAL_DESCRIPTION_BUDGET),
+    helpPointerInInstructions: pass(surface.instructions.includes(HELP_POINTER_LINE)),
+    helpPointerInHelp: pass(
+      help !== undefined && help.description.includes("full contract") && help.description.includes("tool_name"),
+    ),
+    headerIdHits: [
+      ...findInternalIds(surface.instructions).map((h) => `instructions: ${h.match}`),
+      ...findInternalIds(indexHeader).map((h) => `index header: ${h.match}`),
+    ],
+    needsReview: allCells.filter((c) => c.verdict === NEEDS_REVIEW).length,
+    sharedFieldDescriptions: SHARED_FIELDS.map((field) => {
+      const byText = new Map<string, string[]>();
+      for (const tool of sorted) {
+        if (!inputFieldNames(tool).includes(field)) continue;
+        const text = fieldDescription(tool, field)?.replace(/\s+/g, " ") ?? "(no description)";
+        byText.set(text, [...(byText.get(text) ?? []), tool.name]);
+      }
+      return { field, descriptions: [...byText].map(([text, names]) => ({ text, tools: names })) };
+    }),
+  };
 }
 
 // ---------- report (data-model E10) ----------
@@ -258,190 +416,48 @@ export interface ReportMeta {
   date: string;
 }
 
-interface Cell {
-  display: string;
-  /** Text for the Gaps (FAIL / PARTIAL) or Notes (anything else) section. */
-  note?: string;
-}
-
-const NEEDS_REVIEW = "NEEDS REVIEW";
-
-function isGapVerdict(display: string): boolean {
-  return display.startsWith("FAIL") || display.startsWith("PARTIAL");
-}
-
-function inputFieldNames(tool: PublishedTool): string[] {
-  const properties = (tool.inputSchema as { properties?: Record<string, unknown> } | null)?.properties;
-  return properties ? Object.keys(properties) : [];
-}
-
-function fieldDescription(tool: PublishedTool, field: string): string | undefined {
-  const properties = (tool.inputSchema as { properties?: Record<string, { description?: unknown }> }).properties;
-  const description = properties?.[field]?.description;
-  return typeof description === "string" ? description : undefined;
-}
-
 function formatCount(n: number): string {
   return n.toLocaleString("en-US");
 }
 
-function judgedCell(
-  recorded: DescriptionAuditRecord["tools"][string] | undefined,
-  fresh: boolean,
-  check: JudgementCheck,
-): Cell {
-  if (recorded === undefined) return { display: `${NEEDS_REVIEW} (not recorded)` };
-  const entry: CheckVerdict = recorded.checks[check];
-  if (!fresh) return { display: `${NEEDS_REVIEW} (was ${entry.verdict})`, ...(entry.gap ? { note: entry.gap } : {}) };
-  return { display: entry.verdict, ...(entry.gap ? { note: entry.gap } : {}) };
-}
-
-function toolCells(
-  tool: PublishedTool,
-  recorded: DescriptionAuditRecord["tools"][string] | undefined,
-  indexEntries: Map<string, string>,
-): Record<CheckColumn, Cell> {
-  const live = toolFingerprints(tool);
-  const fresh =
-    recorded !== undefined &&
-    recorded.descriptionFingerprint === live.descriptionFingerprint &&
-    recorded.schemaFingerprint === live.schemaFingerprint;
-  const judged = (check: JudgementCheck): Cell => judgedCell(recorded, fresh, check);
-
-  const length = tool.description.length;
-  const budget: Cell =
-    length <= DESCRIPTION_BUDGET
-      ? { display: `PASS (${length})` }
-      : {
-          display: `FAIL (${length})`,
-          note: `The description is ${length} characters, ${length - DESCRIPTION_BUDGET} over the ${DESCRIPTION_BUDGET}-character budget.`,
-        };
-
-  const indexEntry = indexEntries.get(tool.name);
-  const idHits: string[] = [];
-  for (const [where, text] of describedTexts(tool)) {
-    for (const hit of findInternalIds(text)) idHits.push(`${where}: ${hit.match}`);
-  }
-  if (indexEntry !== undefined) {
-    for (const hit of findInternalIds(indexEntry)) idHits.push(`index.md#${tool.name}: ${hit.match}`);
-  }
-  const ids: Cell =
-    idHits.length === 0
-      ? { display: "PASS" }
-      : { display: "FAIL", note: `Internal identifiers found: ${idHits.join("; ")}.` };
-
-  const first = firstSentence(tool.description);
-  const index: Cell =
-    indexEntry === undefined
-      ? { display: "FAIL", note: "docs/tools/index.md has no entry for this tool." }
-      : indexEntry === first
-        ? { display: "PASS" }
-        : { display: "FAIL", note: `The index entry is "${indexEntry}" but the first sentence is "${first}".` };
-
-  let family: Cell;
-  if (siblingsOf(tool.name).length === 0) {
-    family = { display: "N/A" };
-    const recordedNote = judged("family").note;
-    if (recordedNote) family.note = recordedNote;
-  } else {
-    const missing = missingSiblings(tool.name, tool.description);
-    family =
-      missing.length > 0
-        ? { display: "FAIL", note: `The description does not name ${missing.map((m) => `\`${m}\``).join(", ")}.` }
-        : judged("family");
-  }
-
-  const fields = inputFieldNames(tool);
-  const hasShared = SHARED_FIELDS.some((f) => fields.includes(f));
-  let sharedFields: Cell;
-  if (hasShared) {
-    sharedFields = judged("sharedFields");
-  } else {
-    sharedFields = { display: "N/A" };
-    const recordedNote = judged("sharedFields").note;
-    if (recordedNote) sharedFields.note = recordedNote;
-  }
-
-  return {
-    Purpose: judged("purpose"),
-    Budget: budget,
-    Safety: judged("safety"),
-    Detail: judged("detail"),
-    IDs: ids,
-    "Self-contained": judged("selfContained"),
-    Family: family,
-    "Shared fields": sharedFields,
-    Index: index,
-  };
-}
-
-function helpPointerInDescription(surface: PublishedSurface): boolean {
-  const help = surface.tools.find((t) => t.name === "help");
-  return help !== undefined && help.description.includes("full contract") && help.description.includes("tool_name");
-}
-
-/** The audit report as Markdown (data-model E10). */
+/** The audit report as Markdown (data-model E10): `auditSurface`'s result, formatted. */
 export function renderAuditReport(
   surface: PublishedSurface,
   record: DescriptionAuditRecord,
   meta: ReportMeta,
 ): string {
-  const tools = [...surface.tools].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-  const indexEntries = parseIndexEntries(surface.indexText);
+  const audit = auditSurface(surface, record);
   const gaps: string[] = [];
   const notes: string[] = [];
-  let needsReview = 0;
+  const file = (heading: string, cell: Cell) => {
+    if (cell.note !== undefined) (isGap(cell) ? gaps : notes).push(`### ${heading} (${cellText(cell)})\n\n${cell.note}`);
+  };
 
-  const rows: string[] = [];
-  for (const tool of tools) {
-    const cells = toolCells(tool, record.tools[tool.name], indexEntries);
-    for (const column of CHECK_COLUMNS) {
-      const cell = cells[column];
-      if (cell.display.startsWith(NEEDS_REVIEW)) needsReview++;
-      if (cell.note === undefined) continue;
-      const entry = `### ${tool.name}: ${column} (${cell.display})\n\n${cell.note}`;
-      (isGapVerdict(cell.display) ? gaps : notes).push(entry);
-    }
-    rows.push(`| ${tool.name} | ${CHECK_COLUMNS.map((c) => cells[c].display).join(" | ")} |`);
-  }
+  const rows = audit.tools.map(({ name, cells }) => {
+    for (const column of CHECK_COLUMNS) file(`${name}: ${column}`, cells[column]);
+    return `| ${name} | ${CHECK_COLUMNS.map((c) => cellText(cells[c])).join(" | ")} |`;
+  });
+  const routingRows = audit.routing.map(({ line, cell }) => {
+    file(`Routing: ${line}`, cell);
+    return `| ${line} | ${cellText(cell)} |`;
+  });
 
-  const routingRows: string[] = [];
-  for (const line of routingLines(surface.instructions)) {
-    const entry = record.routing[line];
-    if (entry === undefined) needsReview++;
-    const display = entry === undefined ? NEEDS_REVIEW : entry.verdict;
-    routingRows.push(`| ${line} | ${display} |`);
-    if (entry?.gap !== undefined) {
-      const text = `### Routing: ${line} (${display})\n\n${entry.gap}`;
-      (isGapVerdict(display) ? gaps : notes).push(text);
-    }
-  }
-
-  const total = surface.tools.reduce((sum, t) => sum + t.description.length, 0);
   const countVerdict =
-    surface.tools.length === surface.helpPageCount
+    audit.toolCount === audit.helpPageCount
       ? "PASS"
-      : `FAIL (${surface.tools.length} tools registered, ${surface.helpPageCount} help pages)`;
-  const totalVerdict: Verdict = total <= TOTAL_DESCRIPTION_BUDGET ? "PASS" : "FAIL";
-  const indexHeader = surface.indexText
-    .split("\n")
-    .filter((line) => !/^- \*\*[^*]+\*\* — /.test(line))
-    .join("\n");
-  const headerHits = [
-    ...findInternalIds(surface.instructions).map((h) => `instructions: ${h.match}`),
-    ...findInternalIds(indexHeader).map((h) => `index header: ${h.match}`),
-  ];
+      : `FAIL (${audit.toolCount} tools registered, ${audit.helpPageCount} help pages)`;
+  const headerIds = audit.headerIdHits.length === 0 ? "PASS" : `FAIL (${audit.headerIdHits.join("; ")})`;
 
   const lines = [
     `# Tool description audit: ${meta.version} (${meta.sha}, ${meta.branch}), ${meta.date}`,
     "",
-    `- Registered tools: ${surface.tools.length}, measured with empty access settings; help pages: ${surface.helpPageCount}. ${countVerdict}`,
+    `- Registered tools: ${audit.toolCount}, measured with empty access settings; help pages: ${audit.helpPageCount}. ${countVerdict}`,
     `- Per-tool description budget: ${DESCRIPTION_BUDGET} characters.`,
-    `- Total description budget: ${formatCount(TOTAL_DESCRIPTION_BUDGET)} characters; measured ${formatCount(total)}. ${totalVerdict}`,
-    `- Help pointer in the instructions: ${surface.instructions.includes(HELP_POINTER_LINE) ? "PASS" : "FAIL"}`,
-    `- Help pointer in the \`help\` description: ${helpPointerInDescription(surface) ? "PASS" : "FAIL"}`,
-    `- Internal identifiers in the instructions and the index header: ${headerHits.length === 0 ? "PASS" : `FAIL (${headerHits.join("; ")})`}`,
-    `- Cells needing review: ${needsReview}`,
+    `- Total description budget: ${formatCount(TOTAL_DESCRIPTION_BUDGET)} characters; measured ${formatCount(audit.totalLength)}. ${audit.totalVerdict}`,
+    `- Help pointer in the instructions: ${audit.helpPointerInInstructions}`,
+    `- Help pointer in the \`help\` description: ${audit.helpPointerInHelp}`,
+    `- Internal identifiers in the instructions and the index header: ${headerIds}`,
+    `- Cells needing review: ${audit.needsReview}`,
     "",
     "## Matrix",
     "",
@@ -467,16 +483,10 @@ export function renderAuditReport(
     "",
   ];
 
-  for (const field of SHARED_FIELDS) {
-    const byText = new Map<string, string[]>();
-    for (const tool of tools) {
-      if (!inputFieldNames(tool).includes(field)) continue;
-      const text = fieldDescription(tool, field)?.replace(/\s+/g, " ") ?? "(no description)";
-      byText.set(text, [...(byText.get(text) ?? []), tool.name]);
-    }
+  for (const { field, descriptions } of audit.sharedFieldDescriptions) {
     lines.push(`### \`${field}\``, "");
-    if (byText.size === 0) lines.push("No tool takes this field.");
-    for (const [text, names] of byText) lines.push(`- ${names.map((n) => `\`${n}\``).join(", ")}: ${text}`);
+    if (descriptions.length === 0) lines.push("No tool takes this field.");
+    for (const { text, tools } of descriptions) lines.push(`- ${tools.map((n) => `\`${n}\``).join(", ")}: ${text}`);
     lines.push("");
   }
 

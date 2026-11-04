@@ -7,6 +7,8 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { describe, expect, it } from "vitest";
 
 import {
+  auditSurface,
+  cellText,
   CHECK_COLUMNS,
   collectPublishedSurface,
   descriptionAuditRecordSchema,
@@ -17,11 +19,13 @@ import {
   parseIndexEntries,
   renderAuditReport,
   siblingsOf,
-  toolFingerprints,
+  type AuditResult,
+  type CheckColumn,
   type DescriptionAuditRecord,
   type PublishedSurface,
   type PublishedTool,
 } from "./_description-audit.js";
+import { fingerprintTool } from "./_register-baseline.js";
 import { listToolPages } from "./help/handler.js";
 
 const META = { version: "0.0.0", sha: "abc1234", branch: "test", date: "2026-11-04" };
@@ -146,6 +150,7 @@ describe("descriptionAuditRecordSchema", () => {
   });
 });
 
+
 // ---------- report fixtures ----------
 
 const FILES_TOOL: PublishedTool = {
@@ -191,28 +196,30 @@ function surfaceOf(tools: PublishedTool[], overrides: Partial<PublishedSurface> 
 }
 
 function entryFor(tool: PublishedTool, verdict = "PASS", gap?: string) {
-  return { ...toolFingerprints(tool), checks: checks(verdict, gap) };
+  const { descriptionFingerprint, schemaFingerprint } = fingerprintTool(tool);
+  return { descriptionFingerprint, schemaFingerprint, checks: checks(verdict, gap) };
 }
 
 function recordOf(tools: Record<string, unknown>, routing: Record<string, unknown> = {}): DescriptionAuditRecord {
   return descriptionAuditRecordSchema.parse({ schemaVersion: 1, tools, routing });
 }
 
-/** The verdict cells of `name`'s matrix row, keyed by column. */
-function rowOf(report: string, name: string): Record<string, string> {
-  const line = report.split("\n").find((l) => l.startsWith(`| ${name} |`));
-  expect(line, `row for ${name}`).toBeDefined();
-  const cells = line!.slice(2, -2).split(" | ").slice(1);
-  expect(cells).toHaveLength(9);
-  return Object.fromEntries(CHECK_COLUMNS.map((c, i) => [c, cells[i]!]));
+/** `name`'s matrix cells as the report prints them, keyed by column. */
+function cellsOf(audit: AuditResult, name: string): Record<CheckColumn, string> {
+  const tool = audit.tools.find((t) => t.name === name);
+  expect(tool, `audit for ${name}`).toBeDefined();
+  return Object.fromEntries(CHECK_COLUMNS.map((c) => [c, cellText(tool!.cells[c])])) as Record<CheckColumn, string>;
 }
+
+const noteOf = (audit: AuditResult, name: string, column: CheckColumn): string | undefined =>
+  audit.tools.find((t) => t.name === name)?.cells[column].note;
 
 function matrixRows(report: string): string[] {
   const body = report.split("## Matrix")[1]!.split("## Gaps")[0]!;
   return body.split("\n").filter((l) => l.startsWith("| ") && !l.startsWith("| Tool |"));
 }
 
-describe("renderAuditReport", () => {
+describe("auditSurface and renderAuditReport", () => {
   const tools = [FILES_TOOL, VAULTS_TOOL, LEAKY_TOOL];
 
   it("T-REP1: one row per tool, nine cells each, a Gaps entry for every FAIL or PARTIAL", () => {
@@ -221,16 +228,18 @@ describe("renderAuditReport", () => {
       vaults: entryFor(VAULTS_TOOL),
       leaky: entryFor(LEAKY_TOOL),
     });
-    const report = renderAuditReport(surfaceOf(tools), record, META);
+    const surface = surfaceOf(tools);
+    const report = renderAuditReport(surface, record, META);
     const rows = matrixRows(report);
     expect(rows).toHaveLength(3);
     for (const row of rows) expect(row.slice(2, -2).split(" | ")).toHaveLength(10);
     let failing = 0;
-    for (const tool of tools) {
-      for (const [column, cell] of Object.entries(rowOf(report, tool.name))) {
-        if (cell.startsWith("FAIL") || cell.startsWith("PARTIAL")) {
+    for (const { name, cells } of auditSurface(surface, record).tools) {
+      for (const column of CHECK_COLUMNS) {
+        const cell = cells[column];
+        if (cell.verdict === "FAIL" || cell.verdict === "PARTIAL") {
           failing++;
-          expect(report).toContain(`### ${tool.name}: ${column} (${cell})`);
+          expect(report).toContain(`### ${name}: ${column} (${cellText(cell)})`);
         }
       }
     }
@@ -241,15 +250,15 @@ describe("renderAuditReport", () => {
 
   it("T-REP2: a stale or missing record entry needs review; mechanical cells are still computed", () => {
     const stale = { ...entryFor(FILES_TOOL), descriptionFingerprint: FP };
-    const report = renderAuditReport(surfaceOf(tools), recordOf({ files: stale, leaky: entryFor(LEAKY_TOOL) }), META);
-    const files = rowOf(report, "files");
-    for (const column of ["Purpose", "Safety", "Detail", "Self-contained", "Family", "Shared fields"]) {
+    const audit = auditSurface(surfaceOf(tools), recordOf({ files: stale, leaky: entryFor(LEAKY_TOOL) }));
+    const files = cellsOf(audit, "files");
+    for (const column of ["Purpose", "Safety", "Detail", "Self-contained", "Family", "Shared fields"] as const) {
       expect(files[column]).toBe("NEEDS REVIEW (was PASS)");
     }
     expect(files.Budget).toMatch(/^PASS \(\d+\)$/);
     expect(files.Index).toBe("PASS");
-    const vaults = rowOf(report, "vaults");
-    for (const column of ["Purpose", "Safety", "Detail", "Self-contained"]) {
+    const vaults = cellsOf(audit, "vaults");
+    for (const column of ["Purpose", "Safety", "Detail", "Self-contained"] as const) {
       expect(vaults[column]).toBe("NEEDS REVIEW (not recorded)");
     }
     expect(vaults.IDs).toBe("PASS");
@@ -259,57 +268,58 @@ describe("renderAuditReport", () => {
     const long: PublishedTool = { ...VAULTS_TOOL, description: `List the registered vaults. ${"x".repeat(400)}` };
     const surface = surfaceOf([FILES_TOOL, long, LEAKY_TOOL]);
     surface.indexText = surface.indexText.replace("List a folder's direct children.", "List a folder.");
-    const report = renderAuditReport(surface, recordOf({}), META);
-    const vaults = rowOf(report, "vaults");
-    expect(vaults.Budget).toBe(`FAIL (${long.description.length})`);
-    expect(report).toContain(`${long.description.length - 400} over the 400-character budget`);
-    expect(rowOf(report, "files").Index).toBe("FAIL");
-    expect(rowOf(report, "leaky").IDs).toBe("FAIL");
-    expect(report).toContain("leaky#input.properties.mode: BI-0001");
+    const audit = auditSurface(surface, recordOf({}));
+    expect(cellsOf(audit, "vaults").Budget).toBe(`FAIL (${long.description.length})`);
+    expect(noteOf(audit, "vaults", "Budget")).toContain(`${long.description.length - 400} over the 400-character budget`);
+    expect(cellsOf(audit, "files").Index).toBe("FAIL");
+    expect(cellsOf(audit, "leaky").IDs).toBe("FAIL");
+    expect(noteOf(audit, "leaky", "IDs")).toContain("leaky#input.properties.mode: BI-0001");
   });
 
   it("T-REP4: family and shared-field cells computed N/A or FAIL override the record", () => {
     const silent: PublishedTool = { ...FILES_TOOL, description: "List a folder's direct children." };
-    const surface = surfaceOf([silent, VAULTS_TOOL, LEAKY_TOOL]);
-    const record = recordOf({
-      files: entryFor(silent),
-      vaults: entryFor(VAULTS_TOOL),
-      leaky: entryFor(LEAKY_TOOL),
-    });
-    const report = renderAuditReport(surface, record, META);
-    expect(rowOf(report, "vaults").Family).toBe("N/A");
-    expect(rowOf(report, "files").Family).toBe("FAIL");
-    expect(report).toContain("does not name `paths`");
-    expect(rowOf(report, "vaults")["Shared fields"]).toBe("N/A");
-    expect(rowOf(report, "files")["Shared fields"]).toBe("PASS");
+    const audit = auditSurface(
+      surfaceOf([silent, VAULTS_TOOL, LEAKY_TOOL]),
+      recordOf({ files: entryFor(silent), vaults: entryFor(VAULTS_TOOL), leaky: entryFor(LEAKY_TOOL) }),
+    );
+    expect(cellsOf(audit, "vaults").Family).toBe("N/A");
+    expect(cellsOf(audit, "files").Family).toBe("FAIL");
+    expect(noteOf(audit, "files", "Family")).toContain("does not name `paths`");
+    expect(cellsOf(audit, "vaults")["Shared fields"]).toBe("N/A");
+    expect(cellsOf(audit, "files")["Shared fields"]).toBe("PASS");
   });
 
   it("T-REP5: header verdicts, the needs-review count and unrecorded routing lines", () => {
     const long: PublishedTool = { ...LEAKY_TOOL, description: `Do a thing. ${"x".repeat(12_000)}` };
     const surface = surfaceOf([FILES_TOOL, VAULTS_TOOL, long], { instructions: "Opening.\n\nWhich tool:\n" + ROUTE_FILES });
     const record = recordOf({ files: entryFor(FILES_TOOL), vaults: entryFor(VAULTS_TOOL) });
+    const audit = auditSurface(surface, record);
+    expect(audit.totalVerdict).toBe("FAIL");
+    expect(audit.helpPointerInInstructions).toBe("FAIL");
+    expect(audit.helpPointerInHelp).toBe("FAIL");
+    // 4 judged cells for the unrecorded tool (its Family and Shared fields are computed N/A),
+    // plus the one unrecorded routing line.
+    expect(audit.needsReview).toBe(5);
+    expect(audit.routing).toEqual([{ line: ROUTE_FILES, cell: { verdict: "NEEDS REVIEW" } }]);
     const report = renderAuditReport(surface, record, META);
     expect(report).toMatch(/Total description budget: .*FAIL/);
     expect(report).toContain("- Help pointer in the instructions: FAIL");
     expect(report).toContain("- Help pointer in the `help` description: FAIL");
-    // 4 judged cells for the unrecorded tool (its Family and Shared fields are computed N/A),
-    // plus the one unrecorded routing line.
     expect(report).toContain("- Cells needing review: 5");
     expect(report).toContain(`| ${ROUTE_FILES} | NEEDS REVIEW |`);
 
-    const ok = renderAuditReport(
+    const ok = auditSurface(
       surfaceOf([FILES_TOOL, VAULTS_TOOL, HELP_TOOL]),
       recordOf(
         { files: entryFor(FILES_TOOL), vaults: entryFor(VAULTS_TOOL), help: entryFor(HELP_TOOL) },
         { [ROUTE_FILES]: { verdict: "PASS" }, [ROUTE_VAULTS]: { verdict: "PASS" } },
       ),
-      META,
     );
-    expect(ok).toMatch(/Total description budget: .*PASS/);
-    expect(ok).toContain("- Help pointer in the instructions: PASS");
-    expect(ok).toContain("- Help pointer in the `help` description: PASS");
-    expect(ok).toContain("- Cells needing review: 0");
-    expect(ok).toContain(`| ${ROUTE_VAULTS} | PASS |`);
+    expect(ok.totalVerdict).toBe("PASS");
+    expect(ok.helpPointerInInstructions).toBe("PASS");
+    expect(ok.helpPointerInHelp).toBe("PASS");
+    expect(ok.needsReview).toBe(0);
+    expect(ok.routing.find((r) => r.line === ROUTE_VAULTS)?.cell).toEqual({ verdict: "PASS" });
   });
 
   it("T-REP6: a PASS cell with a gap note goes to Notes; one without gets none", () => {

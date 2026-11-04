@@ -121,6 +121,12 @@ Row ids refer to the contract:
     - The `## Notes` section has one entry per PASS or N/A cell whose record carries `gap` text (analyze I2).
     - The routing lines are the instruction lines between `Which tool:` and the blank line, matched against `record.routing`.
     - Invariants: rows = `tools.length`; 9 cells per row; one Gaps entry per FAIL or PARTIAL; one Notes entry per other cell with `gap` text.
+  - **Amended by the PR #143 code-quality review fix (2026-11-04).** The report text is unchanged, byte for byte, but the module is shaped differently from the bullets above:
+    - `auditSurface(surface, record)` returns the typed verdicts (`AuditResult`, cells as `{ verdict, detail?, note? }`); `renderAuditReport` only formats them through `cellText`. The standing checks Q1, Q2, Q4 and Q5 read `auditSurface`'s verdicts instead of applying the rules again.
+    - `JUDGEMENT_CHECKS` is gone; the judged-check type comes from the record schema.
+    - `toolFingerprints` is gone; the record's fingerprints are the two matching fields of `fingerprintTool(tool)`, exported from `_register-baseline.ts`.
+    - `collectPublishedSurface` and `fingerprintLiveRegistry` share `listPublished(server, clientName)` in `_mcp-client-fixtures.ts`. The audit's default server is `quietServer({})`: the same empty access settings, with the logger silenced.
+    - `PublishedTool` is the SDK `Tool` with a required `description`, so reading the input properties needs no casts.
 - [X] T004 [P] Create `src/tools/_description-audit.test.ts` with rows T-ID1, T-ID2, T-ID3, T-FS, T-IX, T-FAM, T-REC1, T-REP1–T-REP7 and T-COL, exactly as contract §T specifies.
   - **Header**: `// Original — no upstream. Unit rows for the tool-description audit helpers (spec 092 contract §T).`
   - T-REP rows build a fixture surface of 3 synthetic tools (one in a family, one in none, one with a parameter carrying `BI-0001`) plus fixture instructions, index text and `helpPageCount`. They never use the live server.

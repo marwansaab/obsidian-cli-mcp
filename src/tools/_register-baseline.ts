@@ -3,12 +3,14 @@
 // regenerator) so canonicalisation cannot drift between writer and reader. 068 R3: the registry is
 // read as a client sees it — a v2 `Client` lists the tools of a freshly built `McpServer` over an
 // in-memory transport — so the gate fingerprints the published surface, not project objects. 068 PR 5
-// adds the published outputSchema to each entry.
+// adds the published outputSchema to each entry. 092: `fingerprintTool` is exported for the description
+// audit, and the listing goes through the shared `listPublished`.
 import { createHash } from "node:crypto";
 
 import { createServer } from "../server.js";
-import { connectInMemoryClient } from "./_mcp-client-fixtures.js";
+import { listPublished } from "./_mcp-client-fixtures.js";
 
+import type { Tool } from "@modelcontextprotocol/client";
 import type { McpServer } from "@modelcontextprotocol/server";
 
 export interface BaselineEntry {
@@ -53,24 +55,24 @@ export interface FingerprintDeps {
   buildMcpServer?: () => McpServer;
 }
 
+/** One published tool's baseline entry; the description audit's record reuses its description and schema fingerprints. */
+export function fingerprintTool(t: Tool): BaselineEntry {
+  return {
+    name: t.name,
+    descriptionFingerprint: sha256(t.description ?? ""),
+    schemaFingerprint: sha256(canonicalJSON(t.inputSchema)),
+    titleFingerprint: sha256(t.title ?? ""),
+    annotationsFingerprint: sha256(canonicalJSON(t.annotations ?? null)),
+    outputSchemaFingerprint: sha256(canonicalJSON(t.outputSchema ?? null)),
+  };
+}
+
 export async function fingerprintLiveRegistry(
   deps: FingerprintDeps = {},
 ): Promise<BaselineEntry[]> {
   const build = deps.buildMcpServer ?? (() => createServer({ registerSignalHandlers: false }).buildMcpServer());
-  const client = await connectInMemoryClient(build(), "register-baseline");
-  try {
-    const { tools } = await client.listTools(undefined, { cacheMode: "bypass" });
-    const entries: BaselineEntry[] = tools.map((t) => ({
-      name: t.name,
-      descriptionFingerprint: sha256(t.description ?? ""),
-      schemaFingerprint: sha256(canonicalJSON(t.inputSchema)),
-      titleFingerprint: sha256(t.title ?? ""),
-      annotationsFingerprint: sha256(canonicalJSON(t.annotations ?? null)),
-      outputSchemaFingerprint: sha256(canonicalJSON(t.outputSchema ?? null)),
-    }));
-    entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-    return entries;
-  } finally {
-    await client.close();
-  }
+  const { tools } = await listPublished(build(), "register-baseline");
+  const entries = tools.map(fingerprintTool);
+  entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  return entries;
 }
