@@ -9,9 +9,11 @@
 // out of it avoids shipping a devDependency import. Fixtures that need `vi`
 // (e.g. a call-counted vault registry) stay local for now.
 //
-// Two spawn factories on purpose (they have different semantics):
+// Three spawn factories on purpose (they have different semantics):
 //   - makeQueuedSpawn: consumes responses[idx++] and THROWS on overflow.
 //   - makeStubSpawn:   single spec answers every spawn (no queue, no overflow).
+//   - makeEvalRunnerSpawn: runs the eval code the caller sent against a simulated `app` under
+//     node:vm and answers asynchronously (spec 094).
 // The cli-adapter trio keeps its own richer stub (emitErrno / child-in-recording).
 //
 // Spec 080: both factories are answer-tag aware. When the spawn's `code=` argument carries the
@@ -27,6 +29,7 @@ import { type SpawnLike } from "../cli-adapter/_dispatch.js";
 import { ANSWER_TAG_PREFIX, EVAL_ANSWER_PREFIX, wrapEvalCode } from "../cli-adapter/_eval-answer.js";
 import { createLogger, type Logger } from "../logger.js";
 import { confirmFromResponse } from "./_confirm.js";
+import { runEvalCode } from "./_eval-template-fixtures.js";
 
 import type { Confirmation } from "./_shared.js";
 import type { VaultRegistry } from "../vault-registry/registry.js";
@@ -228,6 +231,39 @@ export function makeStubSpawn(
     return child as unknown as ReturnType<SpawnLike>;
   };
   return { spawnFn, recorded };
+}
+
+/**
+ * Eval-runner spawn stub: runs the `code=` argument each spawn sent (the already wrapped eval code)
+ * against `app` under node:vm, and answers `=> <value>` (or `Error: <message>` if the run throws)
+ * on stdout with exit 0, after the run settles. The wrapped code carries its own answer tag.
+ */
+export function makeEvalRunnerSpawn(
+  app: unknown,
+  opts: { pid?: number } = {},
+): { spawnFn: SpawnLike; recorded: SpawnRecording[]; getCount: () => number } {
+  const recorded: SpawnRecording[] = [];
+  const spawnFn: SpawnLike = (binary, argv, options) => {
+    recorded.push({ binary, argv: [...argv], options });
+    const child = makeChild(opts.pid ?? DEFAULT_PID);
+    const code = findKv(argv, "code");
+    if (code === undefined) throw new Error("spawn sent no code= argument");
+    void runEvalCode(code, app).then(
+      (value) => `=> ${value}\n`,
+      // Duck-typed, not `instanceof Error`: an error thrown inside the vm context comes from another realm.
+      (err: unknown) => {
+        const message = (err as { message?: unknown } | null)?.message;
+        return `Error: ${typeof message === "string" ? message : String(err)}\n`;
+      },
+    ).then((stdout) => {
+      child.stdout.push(Buffer.from(stdout, "utf8"));
+      child.stdout.push(null);
+      child.stderr.push(null);
+      setImmediate(() => child.emit("exit", 0, null));
+    });
+    return child as unknown as ReturnType<SpawnLike>;
+  };
+  return { spawnFn, recorded, getCount: () => recorded.length };
 }
 
 /** A vault registry knowing one vault (`name` at `root`), with the reverse display-name lookup. */

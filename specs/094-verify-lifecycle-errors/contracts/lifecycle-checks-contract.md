@@ -75,7 +75,7 @@ A swap moves the later step ahead of the earlier one. Declarations only the move
 | Edit | Change | Checks that must fail (at least) |
 |---|---|---|
 | M1 | swap S1 ↔ S2 | P3, A2 |
-| M2 | swap S2 ↔ S3 (S3's guard ahead of resolution) | all, because `f` is still undefined when S3 reads it |
+| M2 | swap S2 ↔ S3 (S3's guard ahead of resolution) | all except the plugin-absent checks (L1, P3, P4, A2), because `f` is still undefined when S3 reads it; with the plugin absent, S1 returns first, so the swap has no effect (amended 2026-11-04, owner ruling option A) |
 | M3 | swap S3 ↔ S4 | P1 |
 | M4 | swap S4 ↔ S5 | L4a–d, P2 |
 | M5 | drop S1 | L1, P3, P4, A2 |
