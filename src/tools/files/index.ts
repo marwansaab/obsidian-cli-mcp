@@ -7,7 +7,7 @@ import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.
 export const FILES_TOOL_NAME = "files";
 
 export const FILES_DESCRIPTION =
-  "List files directly inside a vault folder (non-recursive). Folder-scoped typed enumeration — agents that want \"what files are in this folder?\" no longer pay the cost of obsidian_exec returning plain text plus client-side line parsing. Returns { count, paths } with vault-relative paths sorted lexically by UTF-8 byte order; sub-folder entries and dotfile entries are dropped wrapper-side. Discriminated by target_mode; in active mode it operates on the focused vault. When folder is omitted, lists the vault root. Missing folder, empty folder, and folder-names-a-file all return { count: 0, paths: [] } (conflated by upstream). Setting total:true discards the paths array and returns { count: N, paths: [] } for token-economical count-only queries.";
+  "List the files directly inside one vault folder, or the vault root, without descending into sub-folders. Use `files` for a single folder's own files; use `paths` for a recursive list of every file and sub-folder beneath a folder.";
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

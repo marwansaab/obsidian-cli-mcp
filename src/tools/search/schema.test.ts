@@ -20,9 +20,9 @@ import {
 // BI-041 US4 — schema .describe() error-roster Cowork carve-out claims (FR-009)
 // =====================================================================
 
-test("BI-041 FR-009: schema .describe() carries exactly two `strict-rich pathway only, per BI-0086` carve-out flags", () => {
+test("BI-041 FR-009: schema .describe() carries exactly two `strict-rich pathway only` carve-out flags", () => {
   const desc = searchInputSchema.description ?? "";
-  const matches = desc.match(/strict-rich pathway only, per BI-0086/g) ?? [];
+  const matches = desc.match(/strict-rich pathway only/g) ?? [];
   expect(matches.length).toBe(2);
 });
 

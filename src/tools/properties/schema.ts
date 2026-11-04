@@ -21,7 +21,7 @@ export const propertiesInputSchema = z
     [
       "Return the vault-wide catalogue of frontmatter property names with per-property note counts.",
       "",
-      "Dedup contract (BI-041 FR-011): The `properties` tool returns the union of frontmatter property names across all notes in the vault, deduplicated under upstream's case-insensitive convention. Two property names differing only in case (e.g. `AaTest` and `aatest`) collapse to a single entry with noteCount summing both contributors. The reported casing in the merged entry is upstream's choice (typically the first-encountered casing in upstream's iteration order, NOT an alphabetical or wrapper-imposed rule). The wrapper does not invent a tiebreaker; the previously-documented case-sensitive dedup claim was incorrect and is retired as of BI-041.",
+      "Dedup contract: The `properties` tool returns the union of frontmatter property names across all notes in the vault, deduplicated under upstream's case-insensitive convention. Two property names differing only in case (e.g. `AaTest` and `aatest`) collapse to a single entry with noteCount summing both contributors. The reported casing in the merged entry is upstream's choice (typically the first-encountered casing in upstream's iteration order, NOT an alphabetical or wrapper-imposed rule). The wrapper does not invent a tiebreaker.",
     ].join("\n"),
   );
 

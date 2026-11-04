@@ -10,22 +10,8 @@ import { liftEmptyContent } from "../_validation-details.js";
 
 export const PREPEND_TOOL_NAME = "prepend";
 
-// Single source of truth: pull both numeric caps (MAX_CONTENT_LENGTH and, spec
-// 078, MAX_CONTENT_BYTES) from the constants the schema enforces, so the
-// description's documented ceilings and the schema's enforced ceilings cannot
-// drift (SC-008 contract-and-implementation match).
 export const PREPEND_DESCRIPTION =
-  `Add content to the TOP of an existing markdown note. Frontmatter-aware: when the note starts with a YAML block (\`---\` ... \`---\`), new content lands after the closing \`---\` so the frontmatter is preserved. Otherwise lands at byte zero. ${describeSupport(PREPEND_SUPPORTED)} Any other file type is rejected with \`UNSUPPORTED_FILE_TYPE\` before anything is written.
-
-Pick \`append_note\` for end-of-file. Pick \`write_note\` to replace the whole file — write_note has no size cap, use it for content over ${MAX_CONTENT_LENGTH} characters or ${MAX_CONTENT_BYTES} UTF-8 bytes or to create new notes; this tool only updates existing notes.
-
-Targeting: \`target_mode: "specific"\` + \`vault\` + ONE of \`path\` (vault-relative) or \`file\` (bare wikilink name, no \`[[...]]\` brackets). Or \`target_mode: "active"\` + \`content\` to write to whatever note is open in Obsidian.
-
-Separator: a newline is auto-inserted between your content and the existing body, matching the file's LF/CRLF convention. Pass \`inline: true\` to skip the separator and fuse onto the existing first line.
-
-Content: preserved byte-for-byte, non-empty, at most ${MAX_CONTENT_LENGTH} characters and ${MAX_CONTENT_BYTES} bytes as UTF-8; most non-Latin characters take 2 to 4 bytes, so ${Math.floor(MAX_CONTENT_BYTES / 3)} CJK characters already reach the size limit. Over either limit fails fast with \`VALIDATION_ERROR\` / \`CONTENT_TOO_LARGE\` (\`details.reason: "bytes"\` for the size limit) before Obsidian is called. The limits are bounded by an upstream Obsidian CLI defect that hangs the host process around 4 KB on Windows; chunking does not help.
-
-Typed errors via \`UpstreamError.code\`: \`NOTE_NOT_FOUND\`, \`EXTERNAL_EDITOR_CONFLICT\`, \`FS_WRITE_FAILED\`, \`ERR_NO_ACTIVE_FILE\`, \`PATH_ESCAPES_VAULT\`, \`VALIDATION_ERROR\` (including \`details.code: UNSUPPORTED_FILE_TYPE\`).`;
+  `Add content to the top of an existing note, after any frontmatter. Choose it to add at the top; \`append_note\` adds at the end, \`write_note\` creates or replaces a whole note with no size limit, \`patch_heading\` edits a heading's section, \`patch_block\` edits a block and \`find_and_replace\` replaces text across notes. ${describeSupport(PREPEND_SUPPORTED)}`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

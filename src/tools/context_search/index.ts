@@ -12,25 +12,7 @@ import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.
 export const CONTEXT_SEARCH_TOOL_NAME = "context_search";
 
 export const CONTEXT_SEARCH_DESCRIPTION =
-  `Vault-wide literal substring search returning each match as \`{ path, line, text }\`. Collapses the "find file → read file → locate line" three-call grep pattern into a single MCP call.
-
-Pick \`context_search\` when you need per-match line context. Pick \`search\` when you only need the file paths (smaller payload). Pick \`pattern_search\` for regex queries. Pick \`smart_connections_query\` for semantic similarity (different concept entirely).
-
-Vault-scoped — NO \`target_mode\` discriminator. The optional \`vault\` field routes to a named vault; omitted routes to the focused vault.
-
-Required \`query\` (string, 1..1000 chars, non-empty post-trim; whitespace-only rejected). Internal whitespace preserved verbatim — \`"foo bar"\` matches \`foo bar\` but not \`foobar\` or \`foo  bar\`.
-
-Optional \`folder\` (string): vault-relative folder prefix; leading/trailing "/" stripped; recursive subtree-prefix match (\`folder=Projects\` matches \`Projects/foo.md\` and \`Projects/sub/bar.md\`); case-sensitive segment-boundary equality (\`folder=Projects\` does NOT match \`projects/\`).
-
-Optional \`limit\` (integer 1..10000, default 1000): caps the response \`matches\` array.
-
-Optional \`case_sensitive\` (boolean, default false): when true, exact-case match; otherwise case-insensitive, accented letters included — \`CAFÉ\` matches \`café\`.
-
-Response \`{ count, matches: [{ path, line, text }], truncated? }\`. Sorted by \`path\` asc then \`line\` asc. \`text\` is the matched line as written, leading whitespace kept, capped at 500 chars + \`…\` ellipsis marker; trailing \`\\r\` stripped for cross-platform CRLF defence. \`truncated: true\` present only when the underlying match-set exceeded the applied cap. Non-\`.md\` paths filtered out.
-
-**Zero-match handling**: WITHOUT \`folder\`, returns \`{ count: 0, matches: [] }\` (never an error). WITH \`folder\`, the wrapper fires a second \`obsidian folder\` probe to distinguish "folder exists with no matches" from "folder missing" — a missing folder surfaces as \`CLI_REPORTED_ERROR\` with \`details.message\` starting \`"Error: Folder ..."\`.
-
-Unknown vault → \`CLI_REPORTED_ERROR\` with \`details.message: "Vault not found."\`. A matched line that cannot be read back (the note changed during the search) → \`CLI_REPORTED_ERROR\` with \`details.code: "MATCH_LINE_UNAVAILABLE"\`; run the search again. CLI parse failures → \`CLI_REPORTED_ERROR\` with \`details.stage: "json-parse"\` or \`"wire-parse"\`.`;
+  "Find every line in a vault's Markdown notes that contains a literal phrase, returning each match's path, line number and line text. Choose `context_search` when you need the matching lines themselves; use `search` when only the paths of matching notes are needed, or `pattern_search` to match a regular expression.";
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

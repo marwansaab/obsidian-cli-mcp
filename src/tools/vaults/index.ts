@@ -7,15 +7,7 @@ import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.
 export const VAULTS_TOOL_NAME = "vaults";
 
 export const VAULTS_DESCRIPTION =
-  `List every vault Obsidian knows, with the name to pass as \`vault\` to other tools and the vault's folder. Takes no input.
-
-Response: \`{ count: number, vaults: [{ name: string, path: string, open: boolean | null }] }\`. Vaults appear in the order the Obsidian CLI lists them; two vaults that share a name are both listed. \`open\` is null because the CLI does not report which vaults are open.
-
-Every call reads Obsidian's current vault list, so a vault added after the server started is listed, and other tools can then target it by name without a restart.
-
-Read-only: the tool never changes a vault.
-
-Typed errors via \`UpstreamError.code\`: \`CLI_BINARY_NOT_FOUND\` (Obsidian CLI not installed); \`CLI_REPORTED_ERROR\` or \`CLI_TIMEOUT\` (Obsidian could not be reached, even after the usual auto-launch; an error is returned rather than an empty list); \`VALIDATION_ERROR\` (any input key given).`;
+  "List every vault Obsidian knows, with the name other tools take as `vault` and the vault's folder. Use it to find the exact vault name to pass to another tool, including a vault added after the server started.";
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

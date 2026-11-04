@@ -6,6 +6,8 @@ Semantic search: return the block-level vault matches nearest to a free-text nat
 
 `smart_connections_query` answers "what's near this question?". Its sibling [`smart_connections_similar`](./smart_connections_similar.md) answers "what's near this source note?".
 
+**Runtime dependency:** the Smart Connections plugin (by Brian Petro, ≥ v4.5.0) must be installed in the target vault, have completed its initial indexing, and have an embed model configured. Otherwise the call fails with `SMART_CONNECTIONS_NOT_INSTALLED` or `SMART_CONNECTIONS_NOT_READY` (see *Failure modes*).
+
 ## When to use this tool
 
 | You want to | Reach for |
@@ -32,8 +34,8 @@ The schema is **flat** (no `target_mode` discriminator). Every field is rejected
 |---------|----------|---------|---------------------------------------------------------------------------|
 | `query` | YES      | string  | trimmed, 1..2000 chars; whitespace-only rejected. **Hard cap** — see *Why the query cap is 2000* below. |
 | `vault` | NO       | string  | min 1 char when supplied; omitted → focused vault                         |
-| `limit` | NO       | integer | 1..100, default 20                                                        |
-| `total` | NO       | boolean | strict boolean; `true` switches to count-only mode (`matches: []`)        |
+| `limit` | NO       | integer | 1..100, default 20; caps both the `matches` list and `count`              |
+| `total` | NO       | boolean | strict boolean; `true` switches to count-only mode (`matches: []`), a token-economical pre-flight read |
 
 **Closed vault.** A named vault that is registered but not open is opened automatically, and the call returns its normal result; the first call takes longer while the vault comes up. If the vault cannot be brought up, the call fails with `CLI_REPORTED_ERROR` (vault unavailable, see *Failure modes*). That is a failure, never an empty result.
 

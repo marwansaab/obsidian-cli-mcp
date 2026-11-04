@@ -2,34 +2,12 @@
 import { registerTool } from "../_register.js";
 import { executeTag, type ExecuteDeps } from "./handler.js";
 import { tagInputSchema } from "./schema.js";
-import { closedVaultNote, READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
+import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const TAG_TOOL_NAME = "tag";
 
 export const TAG_DESCRIPTION =
-  `Find every Markdown note in a vault carrying a given tag. Returns \`{ count, paths: string[] }\` (default mode) or a bare integer (count-only mode).
-
-Pick \`tag\` for tag-index lookups. Pick \`find_by_property\` for frontmatter property value lookups. Pick \`search\` / \`context_search\` for content-text matching.
-
-Vault-only — NO \`target_mode\` discriminator.
-
-Required \`tag\` (string): wrapper trims whitespace, strips a single leading \`#\`, then enforces non-empty / ≤200 chars / no empty hierarchical segments (rejects \`"/foo"\`, \`"foo/"\`, \`"foo//bar"\`). Unicode and symbols flow through verbatim — no charset regex.
-
-**Hierarchical child-tag subsumption**: querying \`"project"\` returns notes tagged \`"project"\`, \`"project/alpha"\`, \`"project/alpha/v1"\` (segment-bounded; \`"projectile"\` is NOT a match).
-
-**Case-insensitive matching** via ASCII lower-fold — query \`"ALPHA"\` matches stored \`#alpha\`. (Note: Obsidian's native \`tag\` subcommand is case-sensitive — the wrapper restores the tag-pane UX expectation.)
-
-Both body inline tags (\`#tag\`) and frontmatter tag arrays (\`tags: [...]\`) contribute equally. Per-note de-duplication — a body that says \`#dup #dup\` contributes once.
-
-Optional \`vault\` (string): routes to a named vault even when it is open but unfocused (B1 falsified — BI-0134 / ADR-031); omitted routes to the focused vault. Residual limit: genuine same-vault-name collision (focus does not fix it — give colliding vaults distinct vault names).
-
-${closedVaultNote("eval")}
-
-Optional \`total: true\` returns the bare integer count (token-economical pre-flight); the count is invariant across both modes for the same vault state.
-
-Paths sort byte-ascending. Zero-match returns \`{ count: 0, paths: [] }\` (or \`0\` in count-only mode) — NEVER an error.
-
-Typed errors via \`UpstreamError.code\`: \`VALIDATION_ERROR\`; \`CLI_REPORTED_ERROR\` (unknown vault: message and \`details.message\` \`"Vault not found."\`, no \`details.code\`); \`CLI_TIMEOUT\`; \`CLI_OUTPUT_TOO_LARGE\`; \`CLI_BINARY_NOT_FOUND\`.`;
+  "Find every Markdown note in a vault that carries a given tag, including its child tags. Choose `tag` for tag lookups and `find_by_property` to match a frontmatter property value.";
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

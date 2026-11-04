@@ -40,6 +40,8 @@ Run a named view from an Obsidian Bases (`.base`) file and return its matched ro
 - `truncated` — always present; `true` when the row set was sliced down to 1000.
 - `total_rows` — present only when `truncated: true`; reports upstream's full match count.
 
+Read-only — the tool never mutates vault contents.
+
 ### Empty-view columns
 
 When a view matches **zero rows**, `columns` carries only `["path"]` — the wrapper has no signal for view-declared column names absent row data, and does NOT parse the `.base` YAML client-side to enumerate them. **View-declared columns appear in `columns` only when at least one row matches.** A `.base` view whose filter excludes all notes yields `{ columns: ["path"], rows: [], truncated: false }`.

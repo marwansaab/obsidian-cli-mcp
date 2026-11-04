@@ -131,7 +131,7 @@ describe("heading-path rule wording (079)", () => {
   const headingDescription = readHeadingInputSchema.shape.heading.description;
 
   it("description, parameter description and help page state the rule (US1)", () => {
-    for (const text of [READ_HEADING_DESCRIPTION, headingDescription, docs]) {
+    for (const text of [headingDescription, docs]) {
       expect(text).toContain("level-1 heading");
       expect(text).toContain("one level below the previous");
     }
@@ -139,7 +139,7 @@ describe("heading-path rule wording (079)", () => {
   });
 
   it("description and help page name the unreachable sections and the whole-note alternative (US2)", () => {
-    for (const text of [READ_HEADING_DESCRIPTION, docs]) {
+    for (const text of [docs]) {
       expect(text).toContain("no level-1 heading");
       expect(text).toContain("skipped level");
       expect(text).toContain("`read`");
@@ -149,10 +149,9 @@ describe("heading-path rule wording (079)", () => {
 
   it("heading-not-found guidance names the missing level-1 heading or skipped level before outline (US3)", () => {
     const cause = "leaves out the level-1 heading or skips a level";
-    const guidance = READ_HEADING_DESCRIPTION.slice(READ_HEADING_DESCRIPTION.indexOf("On HEADING_NOT_FOUND"));
     const errorRow = docs.split("\n").find((line) => line.startsWith("|") && line.includes('"HEADING_NOT_FOUND"'));
     expect(errorRow).toBeDefined();
-    for (const text of [guidance, errorRow!]) {
+    for (const text of [errorRow!]) {
       const causeAt = text.indexOf(cause);
       expect(causeAt).toBeGreaterThanOrEqual(0);
       expect(causeAt).toBeLessThan(text.indexOf("outline"));

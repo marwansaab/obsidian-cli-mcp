@@ -1,6 +1,6 @@
 // Original — no upstream. backlinks registration tests — descriptor name, sibling-pointer / cap-bypass references in the description, docs presence + content completeness, baseline fingerprint roll-forward gate.
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -14,6 +14,7 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
+import { DOCS_DIR } from "../help/handler.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -29,7 +30,6 @@ describe("createBacklinksTool — descriptor", () => {
     expect(tool.descriptor.name).toBe(BACKLINKS_TOOL_NAME);
     expect(tool.descriptor.name).toBe("backlinks");
     expect(tool.descriptor.description).toBe(BACKLINKS_DESCRIPTION);
-    expect(tool.descriptor.description.length).toBeGreaterThan(200);
   });
 
   // (c) Description keeps the sibling `links`, the .md-only and cap-bypass clarifications
@@ -43,10 +43,11 @@ describe("createBacklinksTool — descriptor", () => {
     const lower = desc.toLowerCase();
     expect(lower).toContain("backlinks");
     expect(lower).toContain("links");
-    expect(lower).toContain(".md");
-    expect(lower).toContain("bypass");
-    expect(lower).toContain("self-reference");
-    expect(lower).toContain("frontmatter");
+    const helpPage = readFileSync(join(DOCS_DIR, "backlinks.md"), "utf8").toLowerCase();
+    expect(helpPage).toContain(".md");
+    expect(helpPage).toContain("bypass");
+    expect(helpPage).toContain("self-reference");
+    expect(helpPage).toContain("frontmatter");
   });
 });
 

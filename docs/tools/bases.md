@@ -17,6 +17,8 @@ Enumerate all Obsidian Bases (`.base`) files in the vault and return their vault
 |---------|--------|----------|-------|
 | `vault` | string | no       | Vault display name (min length 1). Lists that vault's Bases. Omit to list the vault in front. |
 
+Optional `vault` (string): lists that vault's Bases. Omit to list the vault in front.
+
 ## Output
 
 ```json
@@ -35,11 +37,13 @@ Enumerate all Obsidian Bases (`.base`) files in the vault and return their vault
 - Empty vault returns `{ "bases": [], "count": 0 }`.
 - No truncation — all paths returned unconditionally.
 
+Read-only — the tool never mutates vault contents.
+
 ## Vault routing
 
 - **`vault` named**: the tool lists that vault's Bases, whether the vault is in front, open behind another vault, or closed. The vault in front stays in front.
 - **`vault` omitted**: the tool lists the Bases of the vault in front.
-- **Closed vault**: a registered vault that is not open is opened automatically and the call returns its normal result (the first call takes longer). If it cannot be brought up, the call fails with `CLI_REPORTED_ERROR` whose `details.stdout` starts `Error: Command "bases" not found.`: open the vault in Obsidian, then call again.
+- **Closed vault**: a registered vault that is not open is opened automatically and the call returns its normal result (the first call takes longer). If it cannot be brought up, the call fails with `CLI_REPORTED_ERROR` whose `details.stdout` starts `Error: Command "bases" not found.`: open the vault in Obsidian, then call again. This is a failure, never an empty result.
 - **Unregistered name**: the call fails with `VAULT_NOT_FOUND` before the CLI runs, so another vault's Bases are never returned in its place.
 
 ## Errors — Error roster

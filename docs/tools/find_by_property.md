@@ -42,6 +42,8 @@ Unlike most typed tools, `find_by_property` is **inherently vault-wide**: it has
 | `array_match` | boolean | optional | `true` | When the property's stored value is a YAML list, `true` performs **contains-semantics** (any element strict-equals the query, after the `tags` `#` rule); `false` performs **order-sensitive exact-equality** with an array `value`. |
 | `case_sensitive` | boolean | optional | `true` | When `false`, string-vs-string comparisons fold case via `toLowerCase()`. Numeric / boolean / null / mixed-type comparisons remain strict-equality. |
 
+Inputs: `{ vault?, name, value, folder?, array_match?, case_sensitive? }`.
+
 `additionalProperties: false`. Unknown top-level keys are rejected.
 
 ### Deprecated names
@@ -53,6 +55,8 @@ Spec 073 aligned this tool's parameter names with its families. The old names ar
 | `property` | `name` |
 | `arrayMatch` | `array_match` |
 | `caseSensitive` | `case_sensitive` |
+
+Deprecated names (accepted until the next major release; a successful call that uses one gets `deprecated_parameters` in its result; error responses do not carry it): `property` → `name`, `arrayMatch` → `array_match`, `caseSensitive` → `case_sensitive`.
 
 - A successful call that uses an old name gets the same result as the new name, plus a `deprecated_parameters` field listing each old name used and its replacement (see *Output*). Error responses do not carry `deprecated_parameters`.
 - Validation of the value reports the new name whichever key was used: `property: ""` gets the same issue as `name: ""`, at `path: ["name"]`. If the call has another mistake too (for example an array `value` with `array_match` true), the `property` call also reports it, while the `name` call stops at the `name` issue; every issue names the current key.

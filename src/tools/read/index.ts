@@ -7,7 +7,7 @@ import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.
 
 export const READ_TOOL_NAME = "read";
 
-export const READ_DESCRIPTION = `Read a note, canvas or base from an Obsidian vault. Returns the file's exact text as { content }: nothing added or removed; line breaks and any byte-order mark are kept. In active mode it reads the focused file. ${describeSupport(READ_SUPPORTED)} Attachments (images, audio, video, PDF) and other files are rejected with UNSUPPORTED_FILE_TYPE; show an attachment with open_file.`;
+export const READ_DESCRIPTION = `Read the exact text of a note, canvas or base in an Obsidian vault, with nothing added or removed. Choose it for a whole file; use \`read_heading\` for one heading's section, \`read_property\` for one frontmatter property, and \`open_file\` to show an attachment. ${describeSupport(READ_SUPPORTED)}`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

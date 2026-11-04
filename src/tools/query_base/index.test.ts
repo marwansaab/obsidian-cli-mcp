@@ -1,5 +1,6 @@
 // Original — no upstream. query_base registration tests.
-import { resolve as resolvePath } from "node:path";
+import { readFileSync } from "node:fs";
+import { join, resolve as resolvePath } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -16,7 +17,7 @@ import { createQueue } from "../../queue.js";
 import { folderMissingDetails, missingFolderRealpath, silentLogger } from "../_handler-test-fixtures.js";
 import { textOf } from "../_mcp-client-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-import { closedVaultNote } from "../_shared.js";
+import { DOCS_DIR } from "../help/handler.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -69,17 +70,6 @@ describe("createQueryBaseTool — descriptor", () => {
     expect(schema.required).toEqual(["base_path", "view_name"]);
   });
 
-  it("description length > 300 chars (worked-example + failure-mode + cohort-pointer budget)", () => {
-    const tool = createQueryBaseTool({
-      logger: silentLogger(),
-      queue: createQueue(),
-      spawnFn: makeStubSpawn(),
-      vaultRegistry: stubRegistry(),
-      fs: stubFs(),
-    });
-    expect(tool.descriptor.description.length).toBeGreaterThan(300);
-  });
-
   it("description carries the Bases-family cohort cross-pointer", () => {
     const tool = createQueryBaseTool({
       logger: silentLogger(),
@@ -94,23 +84,17 @@ describe("createQueryBaseTool — descriptor", () => {
   });
 
   it("description names the four typed failure states (BASE_NOT_FOUND, BASE_MALFORMED, VIEW_NOT_FOUND, VAULT_NOT_FOUND)", () => {
-    const tool = createQueryBaseTool({
-      logger: silentLogger(),
-      queue: createQueue(),
-      spawnFn: makeStubSpawn(),
-      vaultRegistry: stubRegistry(),
-      fs: stubFs(),
-    });
-    const desc = tool.descriptor.description;
-    expect(desc).toContain("BASE_NOT_FOUND");
-    expect(desc).toContain("BASE_MALFORMED");
-    expect(desc).toContain("VIEW_NOT_FOUND");
-    expect(desc).toContain("VAULT_NOT_FOUND");
+    const helpPage = readFileSync(join(DOCS_DIR, "query_base.md"), "utf8");
+    expect(helpPage).toContain("BASE_NOT_FOUND");
+    expect(helpPage).toContain("BASE_MALFORMED");
+    expect(helpPage).toContain("VIEW_NOT_FOUND");
+    expect(helpPage).toContain("VAULT_NOT_FOUND");
   });
 
   // spec 072 FR-008: the shared closed-vault note, naming this tool's subcommand (wording pinned in _shared.test.ts)
   it("description carries the closed-vault note for `base:query`", () => {
-    expect(QUERY_BASE_DESCRIPTION).toContain(closedVaultNote("base:query"));
+    const helpPage = readFileSync(join(DOCS_DIR, "query_base.md"), "utf8");
+    expect(helpPage).toContain('Command "base:query" not found.');
   });
 
   it("deps wired through: handler receives stubbed CLI envelope and produces typed response", async () => {

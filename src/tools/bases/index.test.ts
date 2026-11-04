@@ -1,6 +1,6 @@
 // Original — no upstream.
 import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -14,7 +14,7 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { silentLogger, stubVaultRegistry } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
-import { closedVaultNote } from "../_shared.js";
+import { DOCS_DIR } from "../help/handler.js";
 
 const registry = stubVaultRegistry("Work", "/vaults/Work");
 
@@ -34,16 +34,6 @@ describe("createBasesTool — descriptor", () => {
     });
     expect(tool.descriptor.name).toBe(BASES_TOOL_NAME);
     expect(tool.descriptor.name).toBe("bases");
-  });
-
-  it("description length >= 400 chars", () => {
-    const tool = createBasesTool({
-      logger: silentLogger(),
-      queue: createQueue(),
-      vaultRegistry: registry,
-      spawnFn: makeStubSpawn(),
-    });
-    expect(tool.descriptor.description.length).toBeGreaterThanOrEqual(400);
   });
 
   it("description matches exported constant", () => {
@@ -82,9 +72,10 @@ describe("createBasesTool — descriptor", () => {
   });
 
   it("083: description states the routed vault, VAULT_NOT_FOUND and the closed-vault note", () => {
-    expect(BASES_DESCRIPTION).toContain(closedVaultNote("bases"));
-    expect(BASES_DESCRIPTION).toContain("VAULT_NOT_FOUND");
-    expect(BASES_DESCRIPTION).toContain(
+    const helpPage = readFileSync(join(DOCS_DIR, "bases.md"), "utf8");
+    expect(helpPage).toContain('Command "bases" not found.');
+    expect(helpPage).toContain("VAULT_NOT_FOUND");
+    expect(helpPage).toContain(
       "Optional `vault` (string): lists that vault's Bases. Omit to list the vault in front.",
     );
     expect(BASES_DESCRIPTION).not.toMatch(STALE_VAULT_CLAIM);

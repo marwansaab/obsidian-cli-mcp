@@ -1,6 +1,6 @@
 // Original — no upstream. patch_block tool registration tests per BI-043 / FR-022 / ADR-005 — descriptor name + description + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate. 075: bytes_written is the size change.
-import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -15,6 +15,7 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { textOf } from "../_mcp-client-fixtures.js";
+import { DOCS_DIR } from "../help/handler.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -118,9 +119,8 @@ describe("createPatchBlockTool — descriptor (BI-043 / ADR-005)", () => {
   });
 
   it("S5 (spec 086): the typed-error list includes UNSAFE_PLACEMENT", () => {
-    const at = PATCH_BLOCK_DESCRIPTION.indexOf("Typed errors via");
-    expect(at).toBeGreaterThanOrEqual(0);
-    expect(PATCH_BLOCK_DESCRIPTION.slice(at)).toContain("`UNSAFE_PLACEMENT`");
+    const helpPage = readFileSync(join(DOCS_DIR, "patch_block.md"), "utf8");
+    expect(helpPage).toContain("`UNSAFE_PLACEMENT`");
   });
 
   it("docs/tools/patch_block.md exists at the expected path", () => {

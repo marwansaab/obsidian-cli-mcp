@@ -5,7 +5,7 @@
 // cross-vault contract + placement, both locator shapes, new_tab and the error roster, and the
 // stale B1 focused-vault precondition is GONE; docs presence + completeness; baseline fingerprint gate.
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -17,6 +17,7 @@ import {
 } from "./index.js";
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { DOCS_DIR } from "../help/handler.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -40,7 +41,6 @@ describe("createOpenFileTool — descriptor", () => {
     expect(tool.descriptor.name).toBe(OPEN_FILE_TOOL_NAME);
     expect(tool.descriptor.name).toBe("open_file");
     expect(tool.descriptor.description).toBe(OPEN_FILE_DESCRIPTION);
-    expect(tool.descriptor.description.length).toBeGreaterThan(300);
   });
 
   it("emits inputSchema with NO target_mode and the new_tab default", () => {
@@ -55,14 +55,15 @@ describe("createOpenFileTool — descriptor", () => {
   it("description references the tool name, the cross-vault contract + placement, both locators and new_tab", () => {
     const desc = makeTool().descriptor.description;
     const lower = desc.toLowerCase();
+    const helpPage = readFileSync(join(DOCS_DIR, "open_file.md"), "utf8").toLowerCase();
     expect(lower).toContain("open_file");
-    expect(lower).toContain("cross-vault");
-    expect(lower).toContain("placement");
-    expect(lower).toContain("switches focus");
-    expect(lower).toContain("new_tab");
+    expect(helpPage).toContain("cross-vault");
+    expect(helpPage).toContain("placement");
+    expect(helpPage).toContain("switches focus");
+    expect(helpPage).toContain("new_tab");
     expect(lower).toContain("path");
     expect(lower).toContain("file");
-    expect(lower).toContain("unsupported_file_type");
+    expect(helpPage).toContain("unsupported_file_type");
   });
 
   it("the stale BI-057 focused-vault precondition is gone (ADR-031 — closed/unfocused is a success path)", () => {

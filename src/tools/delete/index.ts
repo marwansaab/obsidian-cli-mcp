@@ -7,7 +7,7 @@ import { DESTRUCTIVE_HINTS, type BootDeps, type RegisteredTool } from "../_share
 
 export const DELETE_TOOL_NAME = "delete";
 
-export const DELETE_DESCRIPTION = `Delete a file from an Obsidian vault. Default sends the file to the OS trash (recoverable); permanent: true bypasses trash and is irreversible. ${describeSupport(DELETE_SUPPORTED)}`;
+export const DELETE_DESCRIPTION = `Delete a file from an Obsidian vault. Use \`move\` or \`rename\` to relocate or rename a file instead. It goes to the OS trash by default (recoverable); \`permanent: true\` skips the trash and is irreversible. ${describeSupport(DELETE_SUPPORTED)}`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

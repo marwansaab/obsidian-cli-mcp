@@ -1,6 +1,6 @@
 // Original — no upstream. patch_heading tool registration tests per BI-040 / FR-022 / ADR-005 — descriptor name + description + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate.
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -16,6 +16,7 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
 import { textOf } from "../_mcp-client-fixtures.js";
+import { DOCS_DIR } from "../help/handler.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -141,9 +142,8 @@ describe("createPatchHeadingTool — descriptor (BI-040 / ADR-005)", () => {
   });
 
   it("S5 (spec 086): the typed-error list includes UNSAFE_PLACEMENT", () => {
-    const at = PATCH_HEADING_DESCRIPTION.indexOf("Typed errors via");
-    expect(at).toBeGreaterThanOrEqual(0);
-    expect(PATCH_HEADING_DESCRIPTION.slice(at)).toContain("`UNSAFE_PLACEMENT`");
+    const helpPage = readFileSync(join(DOCS_DIR, "patch_heading.md"), "utf8");
+    expect(helpPage).toContain("`UNSAFE_PLACEMENT`");
   });
 
   it("docs/tools/patch_heading.md exists at the expected path", () => {
@@ -191,7 +191,7 @@ describe("heading-path rule wording (079)", () => {
   const headingPathDescription = patchHeadingInputSchema.shape.heading_path.description;
 
   it("description, parameter description and help page state the rule (US1)", () => {
-    for (const text of [PATCH_HEADING_DESCRIPTION, headingPathDescription, docs]) {
+    for (const text of [headingPathDescription, docs]) {
       expect(text).toContain("level-1 heading");
       expect(text).toContain("one level below the previous");
     }
@@ -217,7 +217,7 @@ describe("heading-path rule wording (079)", () => {
   });
 
   it("description and help page name the unreachable sections and the whole-note alternative (US2)", () => {
-    for (const text of [PATCH_HEADING_DESCRIPTION, docs]) {
+    for (const text of [docs]) {
       expect(text).toContain("no level-1 heading");
       expect(text).toContain("skipped level");
       expect(text).toContain("write_note");
@@ -227,12 +227,11 @@ describe("heading-path rule wording (079)", () => {
 
   it("heading-not-found guidance names the missing level-1 heading or skipped level before outline (US3)", () => {
     const cause = "leaves out the level-1 heading or skips a level";
-    const entry = PATCH_HEADING_DESCRIPTION.slice(PATCH_HEADING_DESCRIPTION.indexOf("`HEADING_NOT_FOUND` ("));
     const errorRow = docs
       .split("\n")
       .find((line) => line.startsWith("| `CLI_REPORTED_ERROR` | `HEADING_NOT_FOUND`"));
     expect(errorRow).toBeDefined();
-    for (const text of [entry, errorRow!]) {
+    for (const text of [errorRow!]) {
       const causeAt = text.indexOf(cause);
       expect(causeAt).toBeGreaterThanOrEqual(0);
       expect(causeAt).toBeLessThan(text.indexOf("outline"));

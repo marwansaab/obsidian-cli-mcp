@@ -1,6 +1,6 @@
 // Original — no upstream. prepend tool registration tests per BI-045 / FR-027 / ADR-005 / ADR-010 — descriptor name (mirror-name convention, NOT prepend_note) + description + docs-file presence + inputSchema.required under-promise pattern + additionalProperties strict-naive client gate + content maxLength tied to MAX_CONTENT_LENGTH (BI-047 lowered the cap from 24576 to 3072 per empirical upstream-defect bisect).
-import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -14,6 +14,7 @@ import { MAX_CONTENT_BYTES, MAX_CONTENT_LENGTH } from "./schema.js";
 import { createQueue } from "../../queue.js";
 import { silentLogger } from "../_handler-test-fixtures.js";
 import { textOf } from "../_mcp-client-fixtures.js";
+import { DOCS_DIR } from "../help/handler.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -45,7 +46,9 @@ describe("createPrependTool — descriptor (BI-045 / ADR-005 / ADR-010)", () => 
 
   it("description names the content cap (SC-008 contract-and-implementation match)", () => {
     const tool = build();
-    expect(tool.descriptor.description).toContain(String(MAX_CONTENT_LENGTH));
+    const schema = tool.descriptor.inputSchema as Record<string, unknown>;
+    const properties = schema.properties as Record<string, Record<string, unknown>>;
+    expect(properties.content!.description as string).toContain(String(MAX_CONTENT_LENGTH));
   });
 
   it("docs/tools/prepend.md exists at the expected path", () => {
@@ -87,9 +90,9 @@ describe("createPrependTool — descriptor (BI-045 / ADR-005 / ADR-010)", () => 
   });
 
   it("description names the size limit (spec 078 FR-009)", () => {
-    const tool = build();
-    expect(tool.descriptor.description).toContain(`${MAX_CONTENT_BYTES} UTF-8 bytes`);
-    expect(tool.descriptor.description).toContain(`details.reason: "bytes"`);
+    const helpPage = readFileSync(join(DOCS_DIR, "prepend.md"), "utf8");
+    expect(helpPage).toContain(`${MAX_CONTENT_BYTES} UTF-8 bytes`);
+    expect(helpPage).toContain(`details.reason: "bytes"`);
   });
 
   it("inputSchema.properties.content.description states both limits (spec 078 FR-009)", () => {

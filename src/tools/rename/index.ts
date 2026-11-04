@@ -7,7 +7,7 @@ import { DESTRUCTIVE_HINTS, type BootDeps, type RegisteredTool } from "../_share
 
 export const RENAME_TOOL_NAME = "rename";
 
-export const RENAME_DESCRIPTION = `Rename a file in an Obsidian vault in place. Honours the vault's "Automatically update internal links" setting; link-rewriting is vault-config-dependent. ${describeSupport(RENAME_SUPPORTED)} The file keeps its type: a name without an extension gets the file's own, and a name with another type's extension is rejected with UNSUPPORTED_FILE_TYPE (change a type deliberately with obsidian_exec).`;
+export const RENAME_DESCRIPTION = `Rename a file in place in an Obsidian vault, keeping its folder. Use \`move\` to change its folder and \`delete\` to remove a file. Links are rewritten per the vault's "Automatically update internal links" setting, and the file keeps its type (change it with \`obsidian_exec\`). ${describeSupport(RENAME_SUPPORTED)}`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

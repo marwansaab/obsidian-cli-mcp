@@ -1,29 +1,14 @@
-// Original — no upstream. smart_connections_similar tool registration via registerTool — plugin-backed semantic-similarity primitive returning a typed { count, matches: [{ path, headingPath, score }] } envelope; responseFormat: "json" (default) wraps the envelope for the MCP wire. The description carries the spec 085 leading-slice guarantee.
+// Original — no upstream. smart_connections_similar tool registration via registerTool — plugin-backed semantic-similarity primitive returning a typed { count, matches: [{ path, headingPath, score }] } envelope; responseFormat: "json" (default) wraps the envelope for the MCP wire. The spec 085 leading-slice guarantee is stated on the help page (spec 092 keeps the description short).
 import { registerTool } from "../_register.js";
 import { type ExecuteDeps, executeSmartConnectionsSimilar, SMART_CONNECTIONS_SIMILAR_SUPPORTED } from "./handler.js";
 import { smartConnectionsSimilarInputSchema, smartConnectionsSimilarOutputSchema } from "./schema.js";
 import { describeSupport } from "../../file-type/file-type.js";
-import { closedVaultNote, READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
-import { MAX_LIMIT } from "../_smart-connections.js";
+import { READ_ONLY_HINTS, type BootDeps, type RegisteredTool } from "../_shared.js";
 
 export const SMART_CONNECTIONS_SIMILAR_TOOL_NAME = "smart_connections_similar";
 
 export const SMART_CONNECTIONS_SIMILAR_DESCRIPTION =
-  `Return semantically-similar block-level matches for a single source note via the Smart Connections plugin's similarity API. Returns { count, matches: [{ path, headingPath, score }] }. ${describeSupport(SMART_CONNECTIONS_SIMILAR_SUPPORTED)}
-
-Caps: optional integer limit (1..${MAX_LIMIT}, default 20) caps the matches list AND the count. Setting total:true populates count and returns matches:[] for a token-economical pre-flight read; the envelope shape is uniform across both modes.
-
-Per-match shape: path is the source file's vault-relative path with .md extension (everything before the first # in the plugin's match key); headingPath is an array of heading segments after the first # (empty [] for source-level matches, literal [\"---frontmatter---\"] for frontmatter-block matches with the plugin's sentinel preserved verbatim, multi-segment for nested-heading blocks); score is the raw plugin-returned number with embedding-model-dependent semantics (pass-through; no clamp/normalise/round).
-
-Sort order: primary score descending, secondary path byte-ascending, tertiary headingPath.join('#') byte-ascending. Non-finite scores (NaN / Infinity / null / missing) are silently dropped; source-path-keyed self-exclusion removes the source note AND any block inside the source from the result list. limit is applied after this sort and these filters, to a fixed list of up to ${MAX_LIMIT} plugin candidates, so a smaller limit always returns a leading slice of a larger one.
-
-Plugin dependency: requires the Smart Connections plugin (by Brian Petro; minimum probed v4.5.0) to be installed AND its indexing to have completed in the target vault; otherwise surfaces SMART_CONNECTIONS_NOT_INSTALLED / SMART_CONNECTIONS_NOT_READY / SOURCE_NOT_INDEXED via CLI_REPORTED_ERROR(stage:'envelope-error').
-
-Unknown vault: CLI_REPORTED_ERROR with message and details.message "Vault not found." (no details.code or reason).
-
-${closedVaultNote("eval")}
-
-Error-precedence chain (outer-to-inner, cheapest-first): unknown vault ("Vault not found.") → SMART_CONNECTIONS_NOT_INSTALLED → NO_ACTIVE_FILE / FILE_NOT_FOUND → NOT_MARKDOWN → SMART_CONNECTIONS_NOT_READY → SOURCE_NOT_INDEXED → success.`;
+  `Return the vault blocks nearest in meaning to one source note, ranked by the Smart Connections plugin. Choose it when you start from a note and want notes like it; choose \`smart_connections_query\` when you start from a free-text question. ${describeSupport(SMART_CONNECTIONS_SIMILAR_SUPPORTED)}`;
 
 export type RegisterDeps = BootDeps<ExecuteDeps>;
 

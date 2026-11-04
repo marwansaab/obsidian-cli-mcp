@@ -5,7 +5,7 @@
 // the schema boundary rejecting bad input + running the closure on valid input, docs presence + completeness,
 // and the FR-018 baseline fingerprint gate.
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -17,6 +17,7 @@ import {
 } from "./index.js";
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { DOCS_DIR } from "../help/handler.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -38,7 +39,6 @@ describe("createGetActiveFileTool — descriptor", () => {
     expect(tool.descriptor.name).toBe(GET_ACTIVE_FILE_TOOL_NAME);
     expect(tool.descriptor.name).toBe("get_active_file");
     expect(tool.descriptor.description).toBe(GET_ACTIVE_FILE_DESCRIPTION);
-    expect(tool.descriptor.description.length).toBeGreaterThan(300);
   });
 
   it("emits inputSchema with target_mode/vault/file/path, required={target_mode}, additionalProperties:false, folder-scoped locator wording", () => {
@@ -56,26 +56,28 @@ describe("createGetActiveFileTool — descriptor", () => {
     const desc = makeTool().descriptor.description;
     expect(desc).not.toMatch(/specific mode/i);
     const lower = desc.toLowerCase();
+    const helpPage = readFileSync(join(DOCS_DIR, "get_active_file.md"), "utf8").toLowerCase();
     expect(lower).toContain("get_active_file");
-    expect(lower).toContain('target_mode: "active"');
-    expect(lower).toContain('target_mode: "specific"');
-    expect(lower).toContain("basename");
-    expect(lower).toContain("extension");
-    expect(lower).toContain("cross-vault");
-    expect(lower).toContain("active: null");
-    expect(lower).toContain("vault_not_found");
+    expect(helpPage).toContain('target_mode: "active"');
+    expect(helpPage).toContain('target_mode: "specific"');
+    expect(helpPage).toContain("basename");
+    expect(helpPage).toContain("extension");
+    expect(helpPage).toContain("cross-vault");
+    expect(helpPage).toContain("active: null");
+    expect(helpPage).toContain("vault_not_found");
   });
 
   // 082 F1: the dot is part of the stated name formula; no dot-less join in any spacing or backtick form.
   it('states name as basename + "." + extension, never a dot-less join', () => {
-    expect(GET_ACTIVE_FILE_DESCRIPTION).toContain('`basename + "." + extension`');
+    const helpPage = readFileSync(join(DOCS_DIR, "get_active_file.md"), "utf8");
+    expect(helpPage).toContain('`basename + "." + extension`');
     expect(GET_ACTIVE_FILE_DESCRIPTION).not.toMatch(/basename`?\s*\+\s*`?extension/);
   });
 
   it("documents that no-active-file is a success, NOT ERR_NO_ACTIVE_FILE", () => {
-    const desc = makeTool().descriptor.description;
-    expect(desc).toContain("ERR_NO_ACTIVE_FILE");
-    expect(desc.toLowerCase()).toContain("never");
+    const helpPage = readFileSync(join(DOCS_DIR, "get_active_file.md"), "utf8");
+    expect(helpPage).toContain("ERR_NO_ACTIVE_FILE");
+    expect(helpPage.toLowerCase()).toContain("never");
   });
 });
 

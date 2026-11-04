@@ -252,7 +252,7 @@ unknown vault ("Vault not found.") ← cli-adapter response inspection
  → success
 ```
 
-Active mode skips the vault step (active mode forbids the `vault` argument). Each compound failure surfaces the FIRST condition in the chain that fails — agents see exactly one discriminator per failed call.
+Active mode skips the vault step (active mode forbids the `vault` argument), and `NO_ACTIVE_FILE` (surfaced as `ERR_NO_ACTIVE_FILE`) takes the place of `FILE_NOT_FOUND`. Each compound failure surfaces the FIRST condition in the chain that fails — agents see exactly one discriminator per failed call.
 
 ## Plugin-as-runtime-dependency
 
