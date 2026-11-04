@@ -13,6 +13,7 @@
     "src/**/_deprecated-params-test-cases.ts",
     "src/**/_note-name-locator-cases.ts",
     "src/tools/_register-baseline.ts",
-    "src/tools/_description-audit.ts"
+    "src/tools/_description-audit.ts",
+    "src/tools/_non-ascii-checks.ts"
   ]
 }

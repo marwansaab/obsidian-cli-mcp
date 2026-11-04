@@ -1489,7 +1489,9 @@ them:
   [src/tools/_shared.ts](../src/tools/_shared.ts) do the encode and the
   in-Obsidian decode. The decode re-reads the bytes as UTF-8, because
   `atob()` alone returns Latin-1 and broke non-ASCII note names (BI-034,
-  PR #36).
+  PR #36). BI-034's tests check only the payload a handler builds; since
+  PR #144 a hand-run release check shows Obsidian decoding it
+  ([below](#non-ascii-text-proven-live-npm-run-checknon-ascii)).
 - The template returns a single JSON envelope, `{ ok: true, … }` or
   `{ ok: false, code, detail }`, on one line. The handler sends it through
   `invokeEval` and parses the answer in stages — `parseEvalAnswer`
@@ -1668,6 +1670,98 @@ Since ADR-031 (Cross-Vault Open via Vault-Targeted Focus; PR #66, verified
 across the read and query cohort in PR #67), an `eval` sent with `vault=<name>`
 runs against that vault even when another vault has focus. Tools therefore do
 not need to switch focus before reading a background vault.
+
+### Non-ASCII text, proven live: `npm run check:non-ascii`
+
+BI-034 (PR #36) fixed the shared decode, but its `BI-034:` handler rows assert
+the payload against a stubbed spawn, and its live probes left gaps: `links`
+ran from an ASCII source path, `paths` had no not-found case, and Smart
+Connections was skipped. PR #144 (spec 093, BI-0087) closes that with one
+release check, run by hand against real vaults (how to run it:
+[CONTRIBUTING.md](../CONTRIBUTING.md#non-ascii-handling-npm-run-checknon-ascii)).
+It changes no tool, schema, instruction or error code, and the fingerprint
+baseline is unchanged.
+
+It covers five tools over eight scenarios: `outline` (H1), `links` (L1),
+`paths` (F1, and F2 for a missing non-ASCII folder), `pattern_search` (P1
+vault-wide, P2 limited to a non-ASCII folder) and
+`smart_connections_similar` (S1 success, S2 not-found). Four of them carry
+the caller's text in the eval payload. `outline` does not: it passes `path=`
+on the CLI's own argv, the route BI-034 classed as unaffected, and stays in
+scope so its check is the same either way (spec 093 research F1).
+
+```mermaid
+flowchart LR
+  script["scripts/check-non-ascii.ts<br/>args, seeding, cleanup, exit status"]
+  module["src/tools/_non-ascii-checks.ts<br/>fixtures, scenarios, classifiers,<br/>retry, report"]
+  client["scripts/_stdio-client.ts<br/>builtServerClient"]
+  server["node dist/index.js<br/>(the shipped entry point)"]
+  script --> module
+  script --> client
+  client -- "stdio, 2025-era handshake,<br/>no elicitation" --> server
+```
+
+- **A pure module and a thin script.** Everything that decides an outcome or
+  shapes the report lives in `src/tools/_non-ascii-checks.ts`, so CI
+  unit-tests it (`_non-ascii-checks.test.ts`, contract §T) even though the
+  live run never happens in CI. Code under `scripts/` gets no typecheck,
+  lint or tests. The module imports only `zod` and has no relative import,
+  so the script loads it straight from source through Node's type stripping.
+  That limits it to erasable TypeScript syntax, which `tsc` does not check
+  here; the script's own run is the check. No production module imports it,
+  and `tsconfig.build.json` excludes it by name
+  ([tech-stack](tech-stack.md#packaging-and-publishing)). The script talks to
+  the built server over real stdio, so a run covers `dist/` and the CLI
+  spawn on Windows, where the original defect lived. Since review commit
+  `81aa81b` it builds its client with `builtServerClient`, which
+  `npm run probe:stdio` shares.
+- **Three outcomes, each scenario on its own.** Every result is zod-parsed
+  first, and an unexpected shape is `FAIL`. A comparison is exact `===` on
+  the strings (or element by element on lists), with no normalisation, so
+  an NFD heading or a garbled folder in a `FOLDER_NOT_FOUND` detail fails.
+  One scenario's exception does not hide the others. `Outcome` is a union on
+  `status`: a `FAIL` always carries `expected` and `actual`, and a `BLOCKED`
+  the precondition it names.
+- **`BLOCKED` is decided outside the route under test.** A garbled path and
+  a missing note both come back as `FILE_NOT_FOUND`, so S1 proves the staged
+  note exists with `fs.stat` before it calls the tool; `FILE_NOT_FOUND` for
+  a note that is on disk is `FAIL`. The Smart Connections lifecycle codes
+  (ADR-014, Plugin-Backed Typed Tools Runtime-Dependency Pattern) are
+  `BLOCKED`: not installed and not ready for S1 and S2, and source not
+  indexed for S1. S2 passes only on a `FILE_NOT_FOUND` whose detail is
+  exactly the path it sent. Readiness of the seeded fixtures is a `read` of the all-ASCII
+  outside note, so a non-ASCII fault in `read` (outside this check) cannot
+  turn a failure into `BLOCKED`.
+- **Retry until pass, bounded.** Obsidian sees files written on disk late,
+  and its metadata cache later still. Each test-vault scenario is retried
+  every 500 ms up to 30 s, then fails with the last result it saw. A garbled
+  input never passes by waiting, so retrying cannot hide the defect. P2 is
+  judged only once P1 has seen the match outside P2's folder, so an
+  unindexed note cannot make the folder filter look right; `runChecks` hands
+  each scenario's last parsed result to the later preconditions.
+- **Write safety.** Fixtures are written directly with `node:fs` (UTF-8, NFC
+  literals) under `Sandbox/non-ascii-check-<timestamp>-<hex>/` in the test
+  vault, never through a tool, so their bytes are exactly the authored ones
+  and no `.trash` entry or elicitation is involved. Before every write, the
+  realpath of the target's nearest existing ancestor must be inside
+  `Sandbox/`; otherwise the run stops with exit status 2 through
+  `ContainmentError`, a class local to the script that never reaches a tool
+  result and is not a project error code. The run folder is always removed,
+  and a folder left behind is reported and fails the run. The semantic vault
+  is only read: two `fs.stat` calls and the two Smart Connections calls.
+
+The first run, on 2026-11-04 against `TestVault-Obsidian-CLI-MCP` and
+`My-Setup-Vault`, was 7 pass, 0 fail and 1 blocked, and is kept as
+`specs/093-verify-non-ascii-handling/run-2026-11-04.txt`. Three things are
+known incomplete:
+
+- **S1's `PASS` branch is not yet proven live.** It needs an indexed note
+  with a non-ASCII path, staged by the owner in `My-Setup-Vault`; the first
+  run had none, so S1 was `BLOCKED`.
+- **Four tools on the same payload route are not covered**: `backlinks`,
+  `open_file`, `views_base` and `create_base` (spec 093 C-003).
+- **It is not in CI.** It needs a running Obsidian and two open vaults; only
+  the module's unit tests run in CI.
 
 ## Documentation as part of the runtime
 

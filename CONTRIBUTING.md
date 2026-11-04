@@ -10,6 +10,48 @@
   server (see README § Install). Raising the published floor is a
   constitution-amendment trigger and is deliberately not pulled here.
 
+## Release checks
+
+Some behaviour can only be shown against a running Obsidian, so it is checked
+by hand before a release rather than in CI.
+
+### Non-ASCII handling (`npm run check:non-ascii`)
+
+Proves against real vaults that `outline`, `links`, `paths`,
+`pattern_search` and `smart_connections_similar` handle non-ASCII note names,
+folder names and text exactly as written (spec
+[093](specs/093-verify-non-ascii-handling/spec.md)). It drives the built
+server over stdio, so build first:
+
+```sh
+npm run build
+npm run --silent check:non-ascii -- --test-vault TestVault-Obsidian-CLI-MCP --semantic-vault My-Setup-Vault [--staged-note "<path>"] > run-<date>.txt
+```
+
+- **Two vaults, both open in Obsidian.** `--test-vault` is the only vault the
+  check writes to: it seeds fixtures under a fresh
+  `Sandbox/non-ascii-check-<timestamp>-<hex>/` folder (the vault must already
+  have `Sandbox/`) and removes that folder before it reports.
+  `--semantic-vault` must have Smart Connections loaded and indexed, and is
+  only read. The script has no default for either name and refuses to run
+  when they are the same.
+- **`--staged-note`** is the path of an indexed note with a non-ASCII path in
+  the semantic vault. Without it, the similar-notes success scenario (S1)
+  reports `BLOCKED` and the others still run.
+- **The report** is UTF-8 text on stdout, one `PASS`, `FAIL` or `BLOCKED`
+  block per scenario, then a cleanup line and a summary line. The exit status
+  is `0` with no `FAIL`, `1` for any `FAIL` or for a run folder left behind,
+  and `2` for a usage error or a server that would not start (no report).
+- **Capture the report byte for byte.** It is evidence that the characters
+  arrived intact, so the redirect must not re-encode it. Run the command
+  from Git Bash, as above. Windows PowerShell 5.1's `>` re-encodes a native
+  command's output and garbles exactly the characters the report shows
+  (PR #144).
+
+The check verifies; it does not fix. Each `FAIL` becomes its own work item.
+`backlinks`, `open_file`, `views_base` and `create_base` use the same payload
+route and are not covered yet.
+
 ## Commit-message convention
 
 Every commit in this project follows the convention below. It is a superset
