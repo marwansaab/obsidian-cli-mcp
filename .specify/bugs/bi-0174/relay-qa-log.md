@@ -345,3 +345,146 @@ Edits:
 > - Item 10 asks the Bases docs to "state each [shape] as returned". Showing `query_base` and `views_base` in two shapes, each as returned, is what the BI asks for.
 >
 > Write only new tests. If an existing test checks the generic envelope for one of the lifted tools, editing it needs the owner's approval; don't change it without that.
+
+## 4. repair / bug-fix (2026-11-04T05:29:26.761Z)
+
+**Question (verbatim):**
+
+> **Q2 — `obsidian_exec` no-active-file advice (BI-0174 item 10e): may an existing test be edited?**
+>
+> Context: When no file is open, `obsidian_exec` passes the dispatch layer's `ERR_NO_ACTIVE_FILE` message through unchanged: `No active file in Obsidian. Open a note in the editor, or call this tool with target_mode: "specific" and an explicit vault/file.` `obsidian_exec` has no `target_mode` or `file` input, so the advice breaks the BI's acceptance criterion "a missing-active-file error … mentions only inputs that tool accepts". The assessment planned a tool-local rethrow, as was just done for `views_base`. But the existing test `src/tools/obsidian_exec/handler.test.ts:144-146` pins that exact message for `obsidian_exec`, so the change would fail it. Your rule for this fix is to write only new tests and ask before editing an existing one. `docs/tools/obsidian_exec.md:92` already gives the right recovery: an explicit `vault` and an in-band `file=` / `path=` parameter.
+>
+> | Option | Description |
+> |--------|-------------|
+> | A (recommended) | Approve editing exactly one assertion, `obsidian_exec/handler.test.ts:144-146`, to the new message. `executeObsidianExec` rethrows `ERR_NO_ACTIVE_FILE` with the same code and details and the message `No active file in Obsidian. Open a note in Obsidian, or name the file in the command's own parameters (file= or path=) with vault.` A new test pins it. The dispatch message and its other tests (`_dispatch.test.ts`, `cli-adapter.test.ts`, `move/handler.test.ts`) stay unchanged. |
+> | B | Leave `obsidian_exec`'s message as it is and record the gap as a follow-up BI. No test is edited, but the acceptance criterion stays unmet for `obsidian_exec`. |
+>
+> Recommended: **A**. It is a one-assertion edit in the tool the change targets. It meets the BI's criterion that advice names only the tool's own inputs, matches the `views_base` fix, and changes only the error message, which the BI allows ("except where an error must change so that it and its documentation agree").
+
+**Advisor** (escalate: decision: Editing an existing test needs your approval for this job (BI-0178 is the precedent). The developer asks to change one assertion in obsidian_exec/handler.test.ts:144-146 so the no-active-file advice names only that tool's own inputs.):
+
+> Q2. A, pending the owner's approval.
+>
+> Recommendation: edit exactly one assertion, `obsidian_exec/handler.test.ts:144-146`, to the new message. Rethrow `ERR_NO_ACTIVE_FILE` in `obsidian_exec` with the same code and details and the new message, and pin it with a new test. Leave the dispatch message and its other tests unchanged.
+>
+> Why:
+> - BI-0174's Cleanup constraint: the no-active-file message "MUST NOT mention inputs the tool does not accept", and the acceptance criterion requires advice to name only the tool's own inputs. `obsidian_exec` has no `target_mode` or `file` input.
+> - BI-0174's out-of-scope list allows an error to change when that is needed for it and its documentation to agree. Here only the message changes.
+>
+> Until the owner rules, do not edit the existing test.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0174 - Reconcile Help And Description Drift After 0.9.0 Validation.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0178 - Classify Missing Named Note In Find And Replace.md`
+
+**Advisor, after the owner ruled** (escalate: none):
+
+> Q2. A
+>
+> Owner ruling: you may edit exactly one existing assertion, `obsidian_exec/handler.test.ts:144-146`, to the new message.
+>
+> 1. In `obsidian_exec`, rethrow `ERR_NO_ACTIVE_FILE` with the same code and details. Use a message that names only the tool's own inputs: `file=` or `path=` in the command's parameters, with `vault`.
+> 2. Add a new test that pins the new message.
+> 3. Leave the dispatch message and its other tests unchanged: `_dispatch.test.ts`, `cli-adapter.test.ts`, `move/handler.test.ts`.
+>
+> Any other existing-test edit needs a new owner ruling.
+>
+> Why: BI-0174's Cleanup constraint says the no-active-file advice must not mention inputs the tool does not accept. Its out-of-scope list allows an error to change when that is needed for it and its documentation to agree.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0174 - Reconcile Help And Description Drift After 0.9.0 Validation.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0174 - Reconcile Help And Description Drift After 0.9.0 Validation.md`: Added a *Clarified 2026-11-04 (Relay Q2, owner ruling)* note to Impact item 10, on the views_base no-active-file bullet. It records that obsidian_exec gets a tool-local ERR_NO_ACTIVE_FILE message naming only its own inputs, and that the owner approved exactly one existing-test edit (obsidian_exec/handler.test.ts:144-146) plus a new test.
+
+**Owner:** choice 1 (Approve one-assertion edit (A)), via cli, 2026-11-04T06:11:27.524Z.
+
+**Sent to the step:**
+
+> Q2. A
+>
+> Owner ruling: you may edit exactly one existing assertion, `obsidian_exec/handler.test.ts:144-146`, to the new message.
+>
+> 1. In `obsidian_exec`, rethrow `ERR_NO_ACTIVE_FILE` with the same code and details. Use a message that names only the tool's own inputs: `file=` or `path=` in the command's parameters, with `vault`.
+> 2. Add a new test that pins the new message.
+> 3. Leave the dispatch message and its other tests unchanged: `_dispatch.test.ts`, `cli-adapter.test.ts`, `move/handler.test.ts`.
+>
+> Any other existing-test edit needs a new owner ruling.
+>
+> Why: BI-0174's Cleanup constraint says the no-active-file advice must not mention inputs the tool does not accept. Its out-of-scope list allows an error to change when that is needed for it and its documentation to agree.
+
+## 5. repair / settle-verdict (2026-11-04T06:15:17.193Z)
+
+**Question (verbatim):**
+
+> **BI-0174 verification came back `partial`. Do you accept it and open the pull request?**
+>
+> Every check that could be run safely passed:
+> - live calls against the built server (TC-00597, TC-00600, TC-00601, the three unknown-vault forms, the lifted validation sub-codes, accented-letter folding, `%20` decoding in links, Base values as strings, the read-only messages, the instructions text and the description lengths);
+> - the full suite (4,949 tests), typecheck, lint and the fingerprint gate.
+>
+> Three live checks were **not exercised**. Each needs your environment changed, not more code:
+>
+> 1. **`views_base` / `obsidian_exec` no-active-file advice (item 10e).** Needs Obsidian focused on `TestVault-Obsidian-CLI-MCP` with no file open, so I would close the vault's open tabs. Today it is covered only by unit tests that stub the CLI's `Error: No active file.` answer.
+> 2. **Vault-unavailable row (item 3, seven pages).** Needs a registered vault that Obsidian cannot bring up (for example a registration whose folder Obsidian can't open). The rows rest on spec 072's earlier probe.
+> 3. **Disabled-CLI row (item 3, seven pages).** Needs Obsidian's Settings > General > Advanced > Command line interface turned off for one call, then back on. The rows rest on BI-0132's TC-00495 probe and the dispatch code.
+>
+> The evidence shows no code gap, so widening the fix would not close any of these.
+>
+> | Option | Description |
+> |--------|-------------|
+> | A (recommended) | Accept the partial result and open the pull request. The three unexercised checks are already listed in test.md under "Residual Risks". |
+> | B | Before the PR, authorise check 1 only: I focus the test vault, close its open tabs, call `views_base` (no `base_path`) and `obsidian_exec` (`outline`), record the answers in test.md, then reopen nothing (the test vault has no working state). Checks 2 and 3 stay residual risks. |
+> | C | Hold the PR until you can set up checks 2 and 3 yourself (switch the CLI setting off, or stage an unreachable vault). I then re-run `/speckit-bug-test` to cover all three. |
+>
+> Recommended: **A**. All three gaps are environment checks on error paths whose code is small and unit-tested, and checks 2 and 3 already have earlier live probes behind them. The docs-only rows for 2 and 3 describe errors this BI did not change.
+
+**Advisor** (escalate: decision: The developer asks you to accept a partial verification and open the PR. Check 1 also changes your Obsidian state, which Best Practices reserves for your approval for each session. Both are your call.):
+
+> Verification sign-off: the owner decides. Recommendation: B.
+>
+> Do check 1 before the PR, if the owner allows it:
+> 1. In `TestVault-Obsidian-CLI-MCP`, focus the vault and close its open tabs.
+> 2. Call `views_base` with no `base_path`, and `obsidian_exec` with `outline`.
+> 3. Record both answers in test.md.
+>
+> Leave checks 2 and 3 as residual risks in test.md. Then open the PR.
+>
+> Why:
+> - Check 1 covers the only change in behaviour among the three. The new no-active-file messages, including the one-assertion `obsidian_exec` edit the owner approved, are proven today only by stubbed unit tests.
+> - Check 1 is cheap, and `TestVault-Obsidian-CLI-MCP` is the designated test vault for destructive and environment probes.
+> - Checks 2 and 3 are documentation rows for errors this BI did not change, and earlier live probes back them: spec 072 and TC-00495 / BI-0132. BI-0174 asks that every vault-unavailable example show what is actually returned, and those probes support the rows.
+>
+> Wait for the owner's ruling before closing tabs or opening the PR.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0174 - Reconcile Help And Description Drift After 0.9.0 Validation.md`, `210-Guidelines/Best Practices.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Test Execution Instructions.md`
+
+**Advisor, after the owner ruled** (escalate: none):
+
+> A
+>
+> The owner accepts the partial verification. Open the pull request.
+>
+> Keep the three checks that were not run listed under "Residual Risks" in test.md:
+> 1. The `views_base` / `obsidian_exec` no-active-file advice (item 10). Covered only by unit tests.
+> 2. The vault-unavailable row (item 3). Rests on spec 072's earlier probe.
+> 3. The disabled-CLI row (item 3). Rests on TC-00495 (BI-0132).
+>
+> Do not close any tabs and do not change any Obsidian settings.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0174 - Reconcile Help And Description Drift After 0.9.0 Validation.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0174 - Reconcile Help And Description Drift After 0.9.0 Validation.md`: Added an 'Owner ruling (2026-11-04, Relay verification)' paragraph to the Status section: the partial verification is accepted and the PR may open. It names the three checks that were not run, which stay as residual risks in test.md.
+
+**Owner:** choice 2 (A: accept partial, open PR), via cli, 2026-11-04T06:25:45.082Z.
+
+**Sent to the step:**
+
+> A
+>
+> The owner accepts the partial verification. Open the pull request.
+>
+> Keep the three checks that were not run listed under "Residual Risks" in test.md:
+> 1. The `views_base` / `obsidian_exec` no-active-file advice (item 10). Covered only by unit tests.
+> 2. The vault-unavailable row (item 3). Rests on spec 072's earlier probe.
+> 3. The disabled-CLI row (item 3). Rests on TC-00495 (BI-0132).
+>
+> Do not close any tabs and do not change any Obsidian settings.
