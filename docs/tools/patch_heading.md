@@ -199,7 +199,7 @@ The returned `path` is the vault-relative path of the focused file (or `null` wh
 | Field | Meaning |
 |---|---|
 | `path` | Vault-relative path of the note that was patched. For a `path` input, echoes it; for a `file` name, the path the name resolved to; for active mode, the focused-file path returned by the eval. |
-| `vault` | Vault display name. For specific mode, echoes the input's `vault`. For active mode, the display name resolved via the registry's reverse lookup (`basePath → name`), falling back to the basePath literal if the basePath is not a registered vault. |
+| `vault` | Vault display name. For specific mode, echoes the input's `vault`. For active mode, the display name resolved via the registry's reverse lookup (`basePath → name`, re-reading Obsidian's vault list once on a miss). It is never the basePath: a basePath that is not a registered vault fails with `VAULT_NOT_FOUND` / `focused-unregistered`. |
 | `heading_path` | The supplied path, echoed verbatim. |
 | `mode` | The placement mode that was applied. |
 | `bytes_written` | Change in the note's size in bytes caused by this write: its size after the write minus its size before, counting a note that did not exist as 0. Zero when the size did not change; negative when the note shrank. To verify a write, compare `bytes_written` with the size change you intended; 0 and negative values are normal for same-size and shrinking edits. |
@@ -227,6 +227,7 @@ Every failure routes through `UpstreamError`.
 | `FS_WRITE_FAILED` | — | — | Generic `fs` failure not classified as `EXTERNAL_EDITOR_CONFLICT` (e.g. `ENOSPC`, `EROFS`, or `ENOENT` on a non-existent target — `patch_heading` does not create files). |
 | `VALIDATION_ERROR` | — | — | Unknown vault, registry lookup failure (existing top-level surface). |
 | `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND` | `folder-missing` | The vault is registered, but its folder is missing on disk (`details.vault`; no disk path in the message). Nothing is read or written. Ask the user to restore the folder, or re-open the vault in Obsidian, then call again. |
+| `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND` | `focused-unregistered` | Active mode, and the focused vault's folder matches no vault Obsidian lists (no disk path in the message or `details`). Nothing is read or written. Call again in specific mode with `vault`, or ask the user to re-open the vault in Obsidian. |
 | `CLI_REPORTED_ERROR` | — | — (carries `details.stage: "vault-root-check"`, `details.errno`, `details.vault`) | The vault's folder could not be checked for another reason. Nothing is read or written. Inspect `details.errno` (for example a permission problem). |
 | `ERR_NO_ACTIVE_FILE` | — | — | Active mode with no focused note. Open a note in the editor, or call again with `target_mode: "specific"` + an explicit `vault` + `file`/`path`. |
 

@@ -198,14 +198,23 @@ export async function resolveActiveFocusedFile(
 }
 
 /**
- * Reverse-lookup the vault display name for an absolute base path, falling back to
- * the base path itself when the registry has no matching entry (or has not been
- * primed). `resolveVaultDisplayName` is optional on VaultRegistry so pre-F3 test
- * stubs without it degrade to the base-path literal — exactly the prior duck-typed
- * behaviour, minus the per-handler intersection cast.
+ * Reverse-lookup the vault display name for the focused vault's absolute base path. When the
+ * registry has no entry for it (after its own probe-on-miss), or the registry has no reverse
+ * lookup at all, this throws CLI_REPORTED_ERROR / VAULT_NOT_FOUND / `focused-unregistered`
+ * (BI-0121). It never returns the base path: a folder path is not a vault name, and Obsidian
+ * rejects it as `vault=`. Neither message nor `details` carries the path (as for `folder-missing`).
  */
-export function resolveVaultDisplayName(vaultRegistry: VaultRegistry, base: string): string {
-  return vaultRegistry.resolveVaultDisplayName?.(base) ?? base;
+export async function resolveVaultDisplayName(vaultRegistry: VaultRegistry, base: string): Promise<string> {
+  const name = await vaultRegistry.resolveVaultDisplayName?.(base);
+  if (name !== undefined && name !== null) return name;
+  throw new UpstreamError({
+    code: "CLI_REPORTED_ERROR",
+    cause: null,
+    details: { code: "VAULT_NOT_FOUND", reason: "focused-unregistered" },
+    message:
+      "The focused vault's folder matches no vault Obsidian lists. " +
+      "Call again in specific mode with `vault`, or re-open the vault in Obsidian.",
+  });
 }
 
 /** Resolved focused-file locator plus the resolved vault display name — the file-cohort write tools' full active-mode locator. */
@@ -228,7 +237,7 @@ export async function resolveActiveLocatorWithVault(
   return {
     vaultRoot,
     relPath,
-    vaultDisplayName: resolveVaultDisplayName(deps.vaultRegistry, vaultRoot),
+    vaultDisplayName: await resolveVaultDisplayName(deps.vaultRegistry, vaultRoot),
   };
 }
 

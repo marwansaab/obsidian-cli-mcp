@@ -1,4 +1,4 @@
-// Original — no upstream. Lazy vault-name → absolute-path map per ADR-009 / FR-012, built from `obsidian vaults verbose`; retried-on-failure with single-flight probes. 068 R9 (FR-036, FR-037): list() always re-probes and refreshes the cache, and a lookup that misses the cache re-probes once before failing, so a vault added after start-up is usable without a restart.
+// Original — no upstream. Lazy vault-name → absolute-path map per ADR-009 / FR-012, built from `obsidian vaults verbose`; retried-on-failure with single-flight probes. 068 R9 (FR-036, FR-037): list() always re-probes and refreshes the cache, and a lookup that misses the cache re-probes once before failing, so a vault added after start-up is usable without a restart. BI-0121: the reverse (path → name) lookup probes on a miss the same way, so a first call that names no vault still resolves its display name.
 import { UpstreamError } from "../errors.js";
 
 export interface VaultRegistryDeps {
@@ -31,13 +31,14 @@ export interface VaultRegistry {
    * registered for it, or `null` when no entry matches. Added for BI-040's
    * patch_heading active-mode envelope, which receives a basePath from the
    * focused-file eval and needs the matching display name for the response.
-   * Synchronous — operates on the in-memory cache; if the cache has not been
-   * primed, returns `null` (caller falls back to the basePath literal).
-   * Optional so pre-BI-040 test stubs that mock VaultRegistry without the
-   * reverse-lookup do not have to be retrofitted; the patch_heading handler
-   * duck-checks for the method before calling it.
+   * Like `resolveVaultPath`, a cold cache or a miss probes once before giving
+   * up (BI-0121), so the first active-mode call of a process resolves too; a
+   * probe failure propagates. Test stubs may answer synchronously.
+   * Optional so test stubs that mock VaultRegistry without the reverse lookup
+   * do not have to be retrofitted; the shared helper in `_active-file.ts`
+   * treats a missing method like a `null` answer.
    */
-  resolveVaultDisplayName?: (basePath: string) => string | null;
+  resolveVaultDisplayName?: (basePath: string) => string | null | Promise<string | null>;
 }
 
 interface CachedRegistry {
@@ -104,12 +105,18 @@ export function createVaultRegistry(deps: VaultRegistryDeps): VaultRegistry & Va
     async list(): Promise<readonly VaultEntry[]> {
       return (await probe()).entries;
     },
-    resolveVaultDisplayName(basePath: string): string | null {
-      if (cache === null) return null;
-      for (const [name, path] of cache.byName) {
-        if (path === basePath) return name;
-      }
-      return null;
+    async resolveVaultDisplayName(basePath: string): Promise<string | null> {
+      const cached = cache === null ? null : nameForPath(cache, basePath);
+      if (cached !== null) return cached;
+      // Cold cache or a miss: probe once (BI-0121, mirroring FR-037 above), then give up.
+      return nameForPath(await probe(), basePath);
     },
   };
+}
+
+function nameForPath(registry: CachedRegistry, basePath: string): string | null {
+  for (const [name, path] of registry.byName) {
+    if (path === basePath) return name;
+  }
+  return null;
 }
