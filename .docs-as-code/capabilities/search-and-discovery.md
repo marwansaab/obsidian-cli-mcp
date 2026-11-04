@@ -312,6 +312,12 @@ produced; PR #100 deleted the check
 
 ## Known limits and inconsistencies
 
+- `open_file`'s template trusts `openLinkText` and reports a placement
+  without checking that the file became active. PR #140 found that
+  `openLinkText` resolves even when Obsidian drops the open, and fixed
+  `views_base`'s focus template by checking the active file
+  ([ADR-072](../decisions/ADR-072-views-base-lists-only-once-the-named-base-is-the-active-file.md));
+  `open_file` is the same failure class and was left as a follow-up.
 - `search` with `context_lines: true` is deprecated in favour of
   `context_search`, and kept for compatibility.
 - Case sensitivity defaults **differ**: `pattern_search` is case-sensitive by
