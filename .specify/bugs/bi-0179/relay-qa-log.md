@@ -207,3 +207,51 @@ Sources: `200-Decisions/ADR-015 - Sub-Discriminators via details.reason for Mult
 > 2. A
 >
 > Under ADR-015 the `details.reason` sets are closed, and adding a reason is a contract change. Option A adds no code and no reason, and it fits the existing CLI_REPORTED_ERROR envelope (Constitution IV), so option B is out. The error must not carry another Base's parser complaint (BI-0179 criterion "does not include another Base's complaint").
+
+## 5. repair / settle-verdict (2026-11-04T03:00:31.100Z)
+
+**Question (verbatim):**
+
+> BI-0179 sign-off: /speckit-bug-test returned **partial**. Every live acceptance sequence passed on the post-fix code: A→B and B→A each carry their own complaint (148 / 128), a valid Base or a note open first gives the same 128 for B, and malformed A → valid B lists `GoodView`. The full suite (4906 passed), typecheck and lint pass. Three checks were not exercised:
+>
+> 1. **Pre-fix reproduction of TC-00736.** The symptom never appeared on this machine, even before the fix (Obsidian 1.15.0, installer 1.14.4), so there is no before/after proof that the fix removes what the TC saw. Needs: an environment where it fails, probably Obsidian 1.14.4 (the version the TC likely ran on), or the TC's exact conditions.
+> 2. **The new `FOCUS_NOT_APPLIED` error, live.** No live run made the focus switch fail, so `CLI_REPORTED_ERROR` with `details.stage: "focus"` is pinned only by unit tests (vm template tests + handler tests). Needs: a way to make Obsidian drop or delay an open, which today means test-only code or Obsidian state outside the contract. Likely available only together with gap 1.
+> 3. **The MCP transport.** The live checks drove the built `views_base` handler module directly, not over stdio. Needs: permission to call the `obsidian-cli-mcp-local` `views_base` tool, and that server restarted on this build.
+>
+> | Option | What happens |
+> |---|---|
+> | **A (recommended)** | Accept the partial result and open the PR. The three gaps stay recorded in test.md under "Residual Risks", and TC-00736 is re-run through the MCP server after merge or restart. |
+> | B | Widen the fix: add the retry the assessment held in reserve (step 2: if the open has not landed after the wait, retry once with `app.workspace.getLeaf(false).openFile(f, {active:true})`, then check again). This would make a dropped open recover instead of failing, but it closes none of the three gaps, and the evidence shows no dropped open. |
+> | C | Hold the PR until TC-00736 is re-run through a restarted MCP server (and ideally on Obsidian 1.14.4), then decide based on what it shows. |
+>
+> Recommended: **A**. The fix holds by construction: `base:views` parses the active file, and the handler now lists only once the named Base is active. Every acceptance criterion passes live, and nothing regressed. Gaps 1 and 2 depend on an environment we don't have, and B would add code for a failure mode nobody has observed. Gap 3 is cheap to close after the PR by re-running TC-00736 on the restarted server.
+
+**Advisor** (escalate: decision: The developer agent asks for sign-off to accept a partial bug-test result (TC-00736 never reproduced before the fix, the new focus error only unit-tested, no MCP transport run) and open the PR. Approving a partial result is the owner's call.):
+
+> Recommendation: A. Accept the partial result and open the PR. Record the three gaps in test.md under "Residual Risks". Re-run TC-00736 through a restarted `obsidian-cli-mcp-local` server after merge or restart. Do not widen the fix (B): no dropped open has been seen, and the BI-0179 scope covers attributing the complaint, not recovering from a failed focus.
+>
+> Rationale: every BI-0179 acceptance criterion passed live, including the prior-focus case the owner added. Vault precedent: BI-0137 shipped with a known gap tracked separately (owner decision 2026-11-03), and the handover rule says a BI may ship with one failing TC when the defect has its own BI. That precedent covers shipping, though, not accepting a partial test result, so this needs the owner's sign-off.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0179 - Report Current Base Parser Error In Views Base.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0137 - Classify Malformed Base As Base Malformed In Views Base.md`, `220-Planning/Session Handover.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0179 - Report Current Base Parser Error In Views Base.md`: Appended a dated HTML-comment audit line with the partial /speckit-bug-test result: live passes, the three unexercised checks (no pre-fix repro on Obsidian 1.15.0, focus-failure error only unit-tested, no stdio transport run), and that sign-off went to the owner.
+
+**Advisor, after the owner ruled** (escalate: none):
+
+> A
+>
+> Owner ruling 2026-11-04: accept the partial result and open the PR. List the three gaps in test.md under "Residual Risks": no pre-fix reproduction of TC-00736, the focus-failure error tested only by unit tests, and no run over the MCP stdio transport. Re-run TC-00736 through the restarted `obsidian-cli-mcp-local` server after merge or restart. Don't add the reserve retry.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0179 - Report Current Base Parser Error In Views Base.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0179 - Report Current Base Parser Error In Views Base.md`: Appended a dated HTML-comment line recording the owner ruling: accept the partial bug-test result and open the PR, keep the three gaps as residual risks, re-run TC-00736 through the restarted server after merge or restart, no reserve retry.
+
+**Owner:** choice 1 (Accept partial, open PR), via cli, 2026-11-04T03:01:23.453Z.
+
+**Sent to the step:**
+
+> A
+>
+> Owner ruling 2026-11-04: accept the partial result and open the PR. List the three gaps in test.md under "Residual Risks": no pre-fix reproduction of TC-00736, the focus-failure error tested only by unit tests, and no run over the MCP stdio transport. Re-run TC-00736 through the restarted `obsidian-cli-mcp-local` server after merge or restart. Don't add the reserve retry.
