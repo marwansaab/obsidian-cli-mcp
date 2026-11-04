@@ -38,8 +38,9 @@ extends it.
   (PR #97); renamed parameters and their deprecated aliases (PR #101); the
   direct-filesystem write path; the
   `eval` template pattern and the per-call answer tag that keeps other
-  plugins' output out of it (PR #110); the description budget and its audit
-  (PR #143); logging, shutdown and module layout.
+  plugins' output out of it (PR #110); the hand-run release check that
+  proves non-ASCII text survives that route (PR #144); the description
+  budget and its audit (PR #143); logging, shutdown and module layout.
 - [tech-stack.md](tech-stack.md) — what the server is built from, why each
   piece is here, and what it forces or rules out, including the current
   version holds.
