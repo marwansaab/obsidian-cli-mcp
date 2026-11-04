@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-11-04T07:07:55.795Z |
 | Finished | not yet |
-| Elapsed | 41 min 52 s |
+| Elapsed | 1 h 6 min |
 | Questions | 9 (3 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 3 |
@@ -56,6 +56,7 @@
 ### pre-implementation (`7011e335-91f3-4ee4-a38d-df57404c27ed`)
 
 - Condition `shell-exit-0` (run_when): met. "node -e "process.exit('' === '' ? 0 : 1)"" exited 0.
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\specs\092-audit-tool-descriptions\tasks.md exists.
 
 - **specify**: done, 37 turns, 1 questions.
 
@@ -87,16 +88,28 @@
 >
 > tasks.md still has 35 tasks and all pass the format check. Nothing is committed: the working tree still holds the uncommitted spec folder, CLAUDE.md and .specify/feature.json.
 
-- **resolve-analysis**: in progress.
+- **resolve-analysis**: done, 7 turns.
+
+> All analysis findings for 092 are resolved; none needed a new product, scope or design decision. The earlier turn fixed the four MEDIUM findings (C1, I1, U1, I2) and three of the four LOW ones (I3, I4, A1). This turn added the last LOW, T1: FR-015 now notes that the plan names the link-graph family `note-structure`, the rename the plan already records. One extension beyond the report, under the same one-owner-per-file rule as I1: T014 also leaves the `query_base` root description to T018. That avoids the same parallel-edit clash on `query_base/schema.ts`. I committed the whole feature folder on 092-audit-tool-descriptions as ec79fa3, "docs(092): specify, plan and analyze-remediate audit-tool-descriptions", following CONTRIBUTING.md. The folder includes the Relay-written relay-digest.md and relay-qa-log.md. Nothing was pushed. Left uncommitted on purpose: the CLAUDE.md plan pointer and .specify/feature.json. Earlier specs commit these separately as "docs(NNN): point the agent context at spec NNN …", and you asked for the feature folder only. Nothing else is open, and no CRITICAL or HIGH finding existed. Next step: /speckit-implement.
+
 
 ### continue
 
-- **prepare**: not run.
+Skipped.
 
-### implementation
+- Condition `shell-exit-0` (run_when): not met. "node -e "process.exit('' === '' ? 1 : 0)"" exited 1.
 
-- **implement**: not run.
-- **open-pr**: not run.
+- **prepare**: skipped.
+
+### implementation (`f3dda7c8-190e-4662-bb83-6600f9f6686f`)
+
+- Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\specs\092-audit-tool-descriptions\tasks.md exists, and Obsidian has TestVault-Obsidian-CLI-MCP focused.
+
+- **implement**: done, 129 turns.
+
+> All 35 tasks in tasks.md are done and marked [X]. Every one of the 35 tool descriptions has been rewritten and is at most 400 characters. Together they come to 9,847 characters, down from 62,067. Facts cut from a description were moved to that tool's help page. `closedVaultNote` is deleted. The four input root descriptions and the help index no longer contain internal identifiers, and the index entries are now each tool's first sentence. The `help` pointer line in the instructions and the `help` description are replaced. New: the audit module `src/tools/_description-audit.ts` (left out of dist/), its unit tests, the standing checks Q1–Q7, the reviewer record, `scripts/_vitest-dump.ts` and `npm run audit:descriptions`. The audit report shows 35 rows with every cell PASS or N/A, 0 cells needing review, and all 15 routing lines PASS. The baseline was regenerated: only description fingerprints (35) and schema fingerprints (4) changed. Typecheck, lint and `npm test` pass (201 test files, 4,978 tests). Only existing tests on the approved §X list were edited. `npm run format:check` fails on 1,487 files, including files this change never touched, and CI does not run it. Things the owner should know: (1) `set_property`'s possibly stale client caveat is now published nowhere, because the help page never had it. (2) Four closed-vault tests had their titles reworded from "description" to "help page"; no matcher or expected value changed. (3) `npm run` prints its two-line banner on stdout before the report; `npm run --silent audit:descriptions` leaves it out. (4) The 'opened automatically' sentence was already in `tag.md`, contrary to research F4. Details are in specs/092-audit-tool-descriptions/post-implement.md. Nothing has been committed. The optional after_implement commit hook was skipped.
+
+- **open-pr**: in progress.
 
 ### review
 
