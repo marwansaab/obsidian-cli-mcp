@@ -13,8 +13,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { parseArgs } from "node:util";
 
-import { Client } from "@modelcontextprotocol/client";
-import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
+import type { Client } from "@modelcontextprotocol/client";
 import { z } from "zod";
 
 import {
@@ -25,6 +24,7 @@ import {
   missingNotePath,
   parseToolResult,
   renderReport,
+  reportDate,
   RETRY_INTERVAL_MS,
   retryUntil,
   runChecks,
@@ -36,19 +36,19 @@ import {
 } from "../src/tools/_non-ascii-checks.ts";
 import type {
   CallTool,
-  CheckContext,
   CleanupResult,
   Fixtures,
   Outcome,
+  ReportHeader,
   RetryOptions,
   RunArgs,
-  ToolResult,
+  VaultFacts,
 } from "../src/tools/_non-ascii-checks.ts";
+import { builtServerClient } from "./_stdio-client.ts";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..");
 
 const message = (err: unknown): string => (err instanceof Error ? err.message : String(err));
-const two = (n: number): string => String(n).padStart(2, "0");
 const errnoOf = (err: unknown): unknown => (err as NodeJS.ErrnoException | undefined)?.code;
 
 /** A fixture write whose nearest existing ancestor resolves outside Sandbox/ (contract §W 2). */
@@ -90,7 +90,7 @@ async function isAbsent(path: string): Promise<boolean> {
   );
 }
 
-async function header(client: Client, args: RunArgs, at: Date) {
+async function header(client: Client, args: RunArgs, at: Date): Promise<ReportHeader> {
   const pkg = z
     .object({ version: z.string() })
     .loose()
@@ -105,7 +105,7 @@ async function header(client: Client, args: RunArgs, at: Date) {
     // Not a git checkout; the header says so.
   }
   return {
-    date: `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())} ${two(at.getHours())}:${two(at.getMinutes())}`,
+    date: reportDate(at),
     version: pkg.version,
     sha,
     serverVersion: client.getServerVersion()?.version ?? "unknown",
@@ -124,27 +124,16 @@ async function run(client: Client, args: RunArgs): Promise<number> {
   };
 
   // Step 1: resolve both vaults' folders from the published `vaults` tool.
-  const vaultsResult: ToolResult = await call("vaults", {}).then(
-    parseToolResult,
-    (err: unknown) => ({
-      kind: "error",
-      payload: { code: "CALL_FAILED", message: message(err), details: {} },
-    }),
+  const facts: VaultFacts = await call("vaults", {}).then(
+    (raw) => vaultFacts(parseToolResult(raw), args),
+    (err: unknown) => ({ vaultsError: message(err) }),
   );
-  const facts = vaultFacts(vaultsResult, args);
   const fixtures: Fixtures = buildFixtures(runFolderName(started, randomBytes(2).toString("hex")));
   const missingNote = missingNotePath(randomBytes(4).toString("hex"));
-  const ctx: CheckContext = {
-    testVaultListed: facts.testVaultListed,
-    semanticVaultListed: facts.semanticVaultListed,
-    ...(facts.vaultsError !== undefined && { vaultsError: facts.vaultsError }),
-    ...(facts.semanticRoot !== undefined && { semanticRoot: facts.semanticRoot }),
-    fixturesVisible: false,
-    outsideSeenByP1: false,
-    stagedNoteOnDisk: false,
-    missingNoteAbsent: false,
-  };
 
+  let fixturesVisible = false;
+  let stagedNoteOnDisk = false;
+  let missingNoteAbsent = false;
   let runDir: string | undefined;
   let outcomes: Outcome[];
   let cleanup: CleanupResult = { kind: "none" };
@@ -175,7 +164,7 @@ async function run(client: Client, args: RunArgs): Promise<number> {
         await assertInside(sandbox, target);
         await writeFile(target, file.content, { encoding: "utf8", flag: "wx" });
       }
-      ctx.fixturesVisible = await retryUntil(
+      fixturesVisible = await retryUntil(
         async () => {
           try {
             const read = await call("read", {
@@ -200,11 +189,12 @@ async function run(client: Client, args: RunArgs): Promise<number> {
     if (facts.semanticRoot !== undefined) {
       const root = facts.semanticRoot;
       if (args.stagedNote !== undefined)
-        ctx.stagedNoteOnDisk = await isFile(join(root, ...args.stagedNote.split("/")));
-      ctx.missingNoteAbsent = await isAbsent(join(root, ...missingNote.split("/")));
+        stagedNoteOnDisk = await isFile(join(root, ...args.stagedNote.split("/")));
+      missingNoteAbsent = await isAbsent(join(root, ...missingNote.split("/")));
     }
 
     // Steps 4–5.
+    const ctx = { ...facts, fixturesVisible, stagedNoteOnDisk, missingNoteAbsent };
     outcomes = await runChecks(SCENARIOS, { args, fixtures, missingNote }, ctx, call, opts);
   } catch (err) {
     if (!(err instanceof ContainmentError)) throw err;
@@ -251,22 +241,12 @@ async function main(): Promise<number> {
     return 2;
   }
 
-  const env = Object.fromEntries(
-    Object.entries(process.env).filter(
-      (entry): entry is [string, string] => entry[1] !== undefined,
-    ),
-  );
-  const transport = new StdioClientTransport({
-    command: process.execPath,
-    args: [join(REPO_ROOT, "dist", "index.js")],
-    env,
-    stderr: "inherit",
-  });
   // 2025-era handshake and no elicitation capability, as probe-stdio.ts --era legacy --no-elicitation.
-  const client = new Client(
-    { name: "obsidian-cli-mcp-check-non-ascii", version: "0.0.0" },
-    { versionNegotiation: { mode: "legacy" }, capabilities: {} },
-  );
+  const { client, transport } = builtServerClient({
+    clientName: "obsidian-cli-mcp-check-non-ascii",
+    era: "legacy",
+    elicitation: false,
+  });
   try {
     await client.connect(transport);
   } catch (err) {

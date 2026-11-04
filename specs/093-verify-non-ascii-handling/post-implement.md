@@ -32,7 +32,7 @@ Evidence: [run-2026-11-04.txt](run-2026-11-04.txt). The owner had not staged a n
 
 After `codegraph sync`, I ran `codegraph_explore "_non-ascii-checks parseToolResult renderReport retryUntilPass runChecks SCENARIOS check-non-ascii"`, plus greps:
 
-1. **No new error code or class in `src/`, and no `UpstreamError` construction.** Neither the module nor the script imports `UpstreamError` or `src/errors.ts`. The script declares one local `class ContainmentError extends Error {}`. It is the script's own abort signal for contract §W 2 (a refused fixture write → exit 2). It never reaches a tool result or a published surface, and it lives outside `src/`, so Principle IV's error-code streak is unaffected. The script also builds a local `CALL_FAILED` result when the `vaults` call throws, so that `vaultFacts` can read the message. That code is never printed as a code and is not a project error code.
+1. **No new error code or class in `src/`, and no `UpstreamError` construction.** Neither the module nor the script imports `UpstreamError` or `src/errors.ts`. The script declares one local `class ContainmentError extends Error {}`. It is the script's own abort signal for contract §W 2 (a refused fixture write → exit 2). It never reaches a tool result or a published surface, and it lives outside `src/`, so Principle IV's error-code streak is unaffected. When the `vaults` call throws, the script records the message as `vaultsError` directly; it builds no error result and no error code (changed in the PR #144 review fixes, see below).
 2. **No file imports `createLogger` or `createQueue`.**
 3. **Module placement and imports**: `src/tools/_non-ascii-checks.ts` imports `zod` only and has no relative import. Under `src/`, only its test imports it.
 4. **Reachability**: `scripts/check-non-ascii.ts` is the module's production caller. It calls `runChecks`, `renderReport`, `parseToolResult`, `SCENARIOS` and the other exports. CI exercises the module through its co-located test.
@@ -55,3 +55,14 @@ After `codegraph sync`, I ran `codegraph_explore "_non-ascii-checks parseToolRes
   - With no fixture seeded (the test vault is not listed), the cleanup line is `cleanup: nothing seeded`.
   - S2's precondition text for an existing file at the missing-note path is `a file exists at <V root>/<path>`.
 - **T-FX1 checks only the missing note's leaf segment.** That leaf must carry a non-ASCII character. The `_non-ascii-check/` folder segment is ASCII by data-model E3.
+
+## Code-quality review fixes (PR #144)
+
+The thermo-nuclear review (refactor-decisions item 65) changed the structure, not the behaviour. A snapshot of the module's output (the fixtures, 24 rendered reports over eight run states and three cleanup results, and every scenario's `unexpected` judgement) was byte-identical before and after. A second live run gave the same result as the first: `7 pass · 0 fail · 1 blocked`, `cleanup: removed …`, exit status 0, with `Sandbox/` back to its pre-state apart from its own modification time.
+
+- `Outcome` is a union on `status` (data-model E7), so the renderer no longer falls back to `""`.
+- `runChecks` passes each scenario's last parsed result to the later preconditions, and P2's precondition reads P1's. The `scenario.id === "P1"` branch and the `outsideSeenByP1` context field are gone (E6).
+- `VaultFacts` is `{testRoot?, semanticRoot?, vaultsError?}`: a vault is listed exactly when its folder is known. `CheckContext` extends it, and the script builds it once, after the probes.
+- `Scenario.vaultRole` is deleted (E4). Nothing read it.
+- `scripts/_stdio-client.ts` (`builtServerClient`) builds the stdio client for both `probe-stdio.ts` and `check-non-ascii.ts`. `reportDate` sits beside `runFolderName` in the module.
+- The source and outside notes' text is built from `EXPECTED_HEADINGS` and the two match records, and `Fixtures.outsideContent` is the readiness probe's expected text.

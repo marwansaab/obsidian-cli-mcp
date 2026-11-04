@@ -49,11 +49,11 @@ One entry per spec acceptance scenario that a call can prove (8 checks for 9 sce
 | `id` | `H1`, `L1`, `F1`, `F2`, `P1`, `P2`, `S1`, `S2` |
 | `capability` | `headings`, `links`, `folder listing`, `pattern search`, `similar notes` |
 | `tool` | The published tool called |
-| `vaultRole` | `test` or `semantic` |
-| `input(fixtures)` | The exact `callTool` arguments |
+| `input(inputs)` | The exact `callTool` arguments |
 | `expected` | The expectation in words and values, printed on `FAIL` |
-| `classify(result, context)` | Pure: a tool result (E5) and context (E6) → an outcome (E7) |
-| `retry` | `true` for the test-vault scenarios (D4), `false` for S1 and S2 |
+| `precondition(context, inputs, earlier)` | Pure: the first unmet precondition (E6), or none; `earlier` holds each scenario's last parsed result so far |
+| `classify(result, inputs)` | Pure: a success or error payload (E5) → `PASS`, `FAIL` or `BLOCKED` |
+| `retry` | `true` for the test-vault scenarios (D4), `false` for S1 and S2. It also marks which vault a scenario uses |
 
 The full table, with inputs and classification rules, is in [contracts/non-ascii-check-contract.md](contracts/non-ascii-check-contract.md) §S.
 
@@ -71,16 +71,16 @@ Facts the script proves before a call, independently of the route under test (D4
 
 | Field | Proved by |
 |---|---|
-| `testVaultListed` | The `vaults` tool succeeded and listed `testVault` (a failing `vaults` call counts as not listed) |
+| `testRoot` | The test vault's folder, present when the `vaults` tool succeeded and listed `testVault` (a failing `vaults` call, recorded as `vaultsError`, counts as not listed) |
 | `fixturesVisible` | The `read` tool returned the outside note's exact content (an all-ASCII path, written in the same seeding pass) before the deadline |
-| `outsideSeenByP1` | P1's last result contained the outside match |
+| outside seen by P1 | P1's last result contained the outside match. Not a context field: P2's precondition reads P1's last result from `earlier` (E4) |
 | `stagedNoteGiven`, `stagedNoteNonAscii` | E1 |
-| `semanticVaultListed` | The `vaults` tool succeeded and listed `semanticVault` (a failing `vaults` call counts as not listed) |
+| `semanticRoot` | The semantic vault's folder, present when the `vaults` tool succeeded and listed `semanticVault` (a failing `vaults` call counts as not listed) |
 | `stagedNoteOnDisk`, `missingNoteAbsent` | `fs.stat` against the semantic vault's folder |
 
 ## E7 — Outcome
 
-`{status: "PASS" | "FAIL" | "BLOCKED", id, capability, tool, input, expected?, actual?, precondition?}`
+`{id, capability, tool, input}` plus one of `{status: "PASS"}`, `{status: "FAIL", expected, actual}` or `{status: "BLOCKED", precondition}`. The type is a union on `status`, so each status carries exactly its own fields.
 
 - `FAIL` always carries `input`, `expected` and `actual` (FR-011).
 - `BLOCKED` always carries `precondition`, naming the one that is missing (FR-012, FR-018).

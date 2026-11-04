@@ -16,6 +16,7 @@ import {
   parseToolResult,
   PATTERN,
   renderReport,
+  reportDate,
   RETRY_INTERVAL_MS,
   retryUntilPass,
   runChecks,
@@ -26,6 +27,7 @@ import {
   vaultFacts,
   type CheckContext,
   type CleanupResult,
+  type EarlierResults,
   type Outcome,
   type RetryOptions,
   type RunArgs,
@@ -40,11 +42,9 @@ const STAGED = "Notes/Café note.md";
 const args: RunArgs = { testVault: "T", semanticVault: "V", stagedNote: STAGED };
 const inputs: RunInputs = { args, fixtures, missingNote: missingNotePath("0123abcd") };
 const ready: CheckContext = {
-  testVaultListed: true,
-  semanticVaultListed: true,
+  testRoot: "/vaults/T",
   semanticRoot: "/vaults/V",
   fixturesVisible: true,
-  outsideSeenByP1: true,
   stagedNoteOnDisk: true,
   missingNoteAbsent: true,
 };
@@ -61,8 +61,12 @@ const scenario = (id: string): Scenario => {
 };
 const status = (id: string, result: ToolResult, at: RunInputs = inputs): Outcome["status"] =>
   judge(scenario(id), at, result).status;
-const precondition = (id: string, ctx: CheckContext, at: RunInputs = inputs): string | null =>
-  scenario(id).precondition(ctx, at);
+const precondition = (
+  id: string,
+  ctx: CheckContext,
+  at: RunInputs = inputs,
+  earlier: EarlierResults = p1SawOutside,
+): string | null => scenario(id).precondition(ctx, at, earlier);
 
 const outlinePayload = (headings: ReadonlyArray<readonly [number, string]>) => ({
   count: headings.length,
@@ -78,6 +82,11 @@ const searchPayload = (
   count: matches.length,
   matches: matches.map(match),
 });
+
+/** Earlier results in which P1 saw the outside note, so P2's own gate is open. */
+const p1SawOutside: EarlierResults = new Map([
+  ["P1", ok(searchPayload([fixtures.outsideMatch, fixtures.sourceMatch]))],
+]);
 
 const TEST_VAULT_SCENARIOS = ["H1", "L1", "F1", "F2", "P1", "P2"];
 
@@ -116,6 +125,9 @@ describe("T-FX1 / T-FX2: fixture set", () => {
 
   it("the readiness probe's path is all-ASCII", () => {
     expect(hasNonAscii(fixtures.outside.slice(RUN.length + 1))).toBe(false);
+    expect(fixtures.files.find((f) => f.path === fixtures.outside)?.content).toBe(
+      fixtures.outsideContent,
+    );
     expect(fixturesVisibleIn(ok({ content: "Price café77 noted.\n" }), fixtures)).toBe(true);
     expect(fixturesVisibleIn(ok({ content: "Price café77 noted." }), fixtures)).toBe(false);
     expect(fixturesVisibleIn(error("CLI_REPORTED_ERROR", {}), fixtures)).toBe(false);
@@ -124,8 +136,11 @@ describe("T-FX1 / T-FX2: fixture set", () => {
   it("the source text puts café42 on line 3 and the link on line 7", () => {
     const source = fixtures.files.find((f) => f.path === fixtures.source);
     const lines = source?.content.split("\n") ?? [];
+    expect(lines[0]).toBe("# BI-001 — Überblick 🚀");
     expect(lines[2]).toBe("Order café42 arrived.");
+    expect(lines[4]).toBe("## Café — naïve 日本");
     expect(lines[6]).toBe("See [[Résumé 東京]].");
+    expect(lines[8]).toBe("### Ünïcödé 🎉 test");
     expect(source?.content.endsWith("\n")).toBe(true);
     expect(fixtures.sourceMatch).toEqual({
       path: fixtures.source,
@@ -137,6 +152,10 @@ describe("T-FX1 / T-FX2: fixture set", () => {
 
   it("the run folder name carries the timestamp and four hex characters", () => {
     expect(runFolderName(new Date(2026, 10, 4, 15, 30, 0), "a1b2")).toBe(RUN);
+  });
+
+  it("the report date is YYYY-MM-DD HH:MM in local time", () => {
+    expect(reportDate(new Date(2026, 0, 2, 3, 4, 5))).toBe("2026-01-02 03:04");
   });
 });
 
@@ -173,9 +192,11 @@ describe("T-SHAPE: parseToolResult", () => {
 
   it("an unexpected result is FAIL with `unexpected result shape` for every scenario", () => {
     for (const s of SCENARIOS) {
-      const outcome = judge(s, inputs, { kind: "unexpected", raw: "boom" });
-      expect(outcome.status).toBe("FAIL");
-      expect(String(outcome.actual)).toContain("unexpected result shape");
+      expect(judge(s, inputs, { kind: "unexpected", raw: "boom" })).toMatchObject({
+        status: "FAIL",
+        expected: s.expected(inputs),
+        actual: 'unexpected result shape: "boom"',
+      });
     }
   });
 
@@ -294,31 +315,21 @@ describe("vaultFacts: the vaults result", () => {
   });
 
   it("lists both vaults and their folders", () => {
-    expect(vaultFacts(vaults, args)).toEqual({
-      testVaultListed: true,
-      semanticVaultListed: true,
-      testRoot: "/vaults/T",
-      semanticRoot: "/vaults/V",
-    });
+    expect(vaultFacts(vaults, args)).toEqual({ testRoot: "/vaults/T", semanticRoot: "/vaults/V" });
   });
 
   it("an unlisted vault is not listed", () => {
-    expect(vaultFacts(vaults, { testVault: "X", semanticVault: "V" })).toMatchObject({
-      testVaultListed: false,
-      semanticVaultListed: true,
+    expect(vaultFacts(vaults, { testVault: "X", semanticVault: "V" })).toEqual({
+      testRoot: undefined,
+      semanticRoot: "/vaults/V",
     });
   });
 
   it("a failing or malformed vaults call lists neither, and keeps the message", () => {
     expect(vaultFacts(error("CLI_NON_ZERO_EXIT", {}), args)).toEqual({
-      testVaultListed: false,
-      semanticVaultListed: false,
       vaultsError: "CLI_NON_ZERO_EXIT message",
     });
-    expect(vaultFacts(ok({ count: 0 }), args)).toMatchObject({
-      testVaultListed: false,
-      vaultsError: "unexpected result shape",
-    });
+    expect(vaultFacts(ok({ count: 0 }), args)).toEqual({ vaultsError: "unexpected result shape" });
   });
 });
 
@@ -330,10 +341,10 @@ describe("test-vault preconditions (shared by H1, L1, F1, F2, P1, P2)", () => {
       expect(precondition(id, { ...ready, fixturesVisible: false })).toBe(
         "fixtures not visible to Obsidian",
       );
-      expect(precondition(id, { ...ready, testVaultListed: false, fixturesVisible: false })).toBe(
+      expect(precondition(id, { ...ready, testRoot: undefined, fixturesVisible: false })).toBe(
         "test vault T not listed by vaults",
       );
-      expect(precondition(id, { ...ready, testVaultListed: false, vaultsError: "boom" })).toBe(
+      expect(precondition(id, { ...ready, testRoot: undefined, vaultsError: "boom" })).toBe(
         "vaults call failed: boom",
       );
     },
@@ -451,11 +462,16 @@ describe("T-P: pattern search", () => {
     });
   });
 
-  it("P2 is BLOCKED until P1 has seen the outside note", () => {
-    expect(precondition("P2", { ...ready, outsideSeenByP1: false })).toBe(
-      "outside note not seen by the vault-wide search (P1)",
+  it("P2 is BLOCKED until P1's last result has seen the outside note", () => {
+    const notSeen = "outside note not seen by the vault-wide search (P1)";
+    const p1 = (result: ToolResult): EarlierResults => new Map([["P1", result]]);
+    expect(precondition("P2", ready, inputs, new Map())).toBe(notSeen);
+    expect(precondition("P2", ready, inputs, p1(ok(searchPayload([fixtures.sourceMatch]))))).toBe(
+      notSeen,
     );
-    expect(precondition("P1", { ...ready, outsideSeenByP1: false })).toBeNull();
+    expect(precondition("P2", ready, inputs, p1(error("CLI_REPORTED_ERROR", {})))).toBe(notSeen);
+    expect(precondition("P2", ready, inputs, p1SawOutside)).toBeNull();
+    expect(precondition("P1", ready, inputs, new Map())).toBeNull();
   });
 
   it("outsideSeen is true only when the outside match is present", () => {
@@ -473,27 +489,35 @@ describe("T-S1: S1 similar notes (staged note)", () => {
 
   it("each BLOCKED precondition, in contract order", () => {
     const noStaged = { ...inputs, args: { testVault: "T", semanticVault: "V" } };
-    expect(precondition("S1", { ...ready, semanticVaultListed: false }, noStaged)).toBe(
+    expect(precondition("S1", { ...ready, semanticRoot: undefined }, noStaged)).toBe(
       "no staged note path given",
     );
     const ascii = { ...inputs, args: { ...args, stagedNote: "Notes/plain.md" } };
-    expect(precondition("S1", { ...ready, semanticVaultListed: false }, ascii)).toBe(
+    expect(precondition("S1", { ...ready, semanticRoot: undefined }, ascii)).toBe(
       "staged note path has no non-ASCII character",
     );
-    expect(
-      precondition("S1", { ...ready, semanticVaultListed: false, stagedNoteOnDisk: false }),
-    ).toBe("semantic vault V not listed by vaults");
+    expect(precondition("S1", { ...ready, semanticRoot: undefined, stagedNoteOnDisk: false })).toBe(
+      "semantic vault V not listed by vaults",
+    );
     expect(precondition("S1", { ...ready, stagedNoteOnDisk: false })).toBe(
       `staged note not found on disk at /vaults/V/${STAGED}`,
     );
     expect(precondition("S1", ready)).toBeNull();
-    expect(
-      judge(scenario("S1"), inputs, scError("SMART_CONNECTIONS_NOT_INSTALLED")).precondition,
-    ).toBe("Smart Connections not installed (SMART_CONNECTIONS_NOT_INSTALLED)");
-    expect(judge(scenario("S1"), inputs, scError("SMART_CONNECTIONS_NOT_READY")).precondition).toBe(
+    const blockedBy = (code: string, text: string) =>
+      expect(judge(scenario("S1"), inputs, scError(code))).toMatchObject({
+        status: "BLOCKED",
+        precondition: text,
+      });
+    blockedBy(
+      "SMART_CONNECTIONS_NOT_INSTALLED",
+      "Smart Connections not installed (SMART_CONNECTIONS_NOT_INSTALLED)",
+    );
+    blockedBy(
+      "SMART_CONNECTIONS_NOT_READY",
       "Smart Connections not ready (SMART_CONNECTIONS_NOT_READY)",
     );
-    expect(judge(scenario("S1"), inputs, scError("SOURCE_NOT_INDEXED")).precondition).toBe(
+    blockedBy(
+      "SOURCE_NOT_INDEXED",
       "staged note not indexed by Smart Connections (SOURCE_NOT_INDEXED)",
     );
   });
@@ -541,7 +565,7 @@ describe("T-S2: S2 similar notes (missing note)", () => {
     expect(precondition("S2", { ...ready, missingNoteAbsent: false })).toBe(
       `a file exists at /vaults/V/${inputs.missingNote}`,
     );
-    expect(precondition("S2", { ...ready, semanticVaultListed: false })).toBe(
+    expect(precondition("S2", { ...ready, semanticRoot: undefined })).toBe(
       "semantic vault V not listed by vaults",
     );
     expect(precondition("S2", ready)).toBeNull();
@@ -579,21 +603,23 @@ describe("T-RETRY: retry, independent outcomes", () => {
     const opts = clock();
     let attempts = 0;
     const outcome = await retryUntilPass(async () => ({ ...failing, actual: ++attempts }), opts);
-    expect(outcome.status).toBe("FAIL");
     expect(opts.now()).toBe(DEADLINE_MS);
-    expect(outcome.actual).toBe(attempts);
+    expect(outcome).toMatchObject({ status: "FAIL", actual: attempts });
     expect(attempts).toBe(DEADLINE_MS / RETRY_INTERVAL_MS + 1);
   });
 
   it("outcomeFromError gives FAIL whose actual is the error message", () => {
-    const outcome = outcomeFromError(h1, { a: 1 }, new Error("transport closed"));
-    expect(outcome).toMatchObject({
+    const outcome = outcomeFromError(h1, inputs, new Error("transport closed"));
+    expect(outcome).toEqual({
       status: "FAIL",
       id: "H1",
-      input: { a: 1 },
+      capability: "headings",
+      tool: "outline",
+      input: h1.input(inputs),
+      expected: "a tool result",
       actual: "transport closed",
     });
-    expect(outcomeFromError(h1, {}, "plain").actual).toBe("plain");
+    expect(outcomeFromError(h1, inputs, "plain").actual).toBe("plain");
   });
 
   it("runChecks: a throwing call fails only its own scenario; the P1 result gates P2; outcomes keep table order", async () => {
@@ -635,14 +661,16 @@ describe("T-RETRY: retry, independent outcomes", () => {
       "S1:FAIL",
       "S2:FAIL",
     ]);
-    expect(outcomes[0]?.actual).toBe("transport closed");
-    expect(outcomes[5]?.precondition).toBe("outside note not seen by the vault-wide search (P1)");
+    expect(outcomes[0]).toMatchObject({ actual: "transport closed" });
+    expect(outcomes[5]).toMatchObject({
+      precondition: "outside note not seen by the vault-wide search (P1)",
+    });
     expect(calls.filter((t) => t === "pattern_search")).toHaveLength(1);
   });
 
   it("runChecks: an unmet precondition makes no call", async () => {
     const calls: string[] = [];
-    const blockedCtx = { ...ready, testVaultListed: false, semanticVaultListed: false };
+    const blockedCtx = { ...ready, testRoot: undefined, semanticRoot: undefined };
     const outcomes = await runChecks(
       SCENARIOS,
       inputs,

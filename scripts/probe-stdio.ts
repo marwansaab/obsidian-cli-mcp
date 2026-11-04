@@ -10,11 +10,11 @@
 //   npm run probe:stdio -- --era legacy
 //   npm run probe:stdio -- --era modern [--no-elicitation [--vault <name> --note Sandbox/x.md]]
 import { randomUUID } from "node:crypto";
-import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 
-import { Client } from "@modelcontextprotocol/client";
-import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
+import type { Client } from "@modelcontextprotocol/client";
+
+import { builtServerClient } from "./_stdio-client.ts";
 
 const { values } = parseArgs({
   options: {
@@ -32,22 +32,11 @@ if (values.era !== "legacy" && values.era !== "modern") {
 }
 
 async function main(): Promise<void> {
-  const env = Object.fromEntries(
-    Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
-  );
-  const transport = new StdioClientTransport({
-    command: process.execPath,
-    args: [resolve(import.meta.dirname, "..", "dist", "index.js")],
-    env,
-    stderr: "inherit",
+  const { client, transport } = builtServerClient({
+    clientName: "obsidian-cli-mcp-probe",
+    era: values.era === "modern" ? "modern" : "legacy",
+    elicitation: !values["no-elicitation"],
   });
-  const client = new Client(
-    { name: "obsidian-cli-mcp-probe", version: "0.0.0" },
-    {
-      versionNegotiation: { mode: values.era === "modern" ? "auto" : "legacy" },
-      capabilities: values["no-elicitation"] ? {} : { elicitation: {} },
-    },
-  );
   try {
     await client.connect(transport);
     const { tools } = await client.listTools();
