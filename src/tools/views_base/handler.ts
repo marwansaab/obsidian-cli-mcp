@@ -218,6 +218,18 @@ export async function executeViewsBase(
       malformedCode: "INTERNAL_ERROR",
     });
 
+    if (decoded.ok === false && decoded.code === "FOCUS_NOT_APPLIED") {
+      // BI-0179: the named `.base` did not become the active file, so `base:views` would read
+      // another file and its parser complaint would describe that file. Thrown before any
+      // listing, with no details.code / reason / message (a retryable upstream condition, not
+      // a property of the Base), so no Base's complaint is ever attached (FR-009).
+      throw new UpstreamError({
+        code: "CLI_REPORTED_ERROR",
+        cause: null,
+        details: { stage: "focus", base_path: input.base_path, active: decoded.active },
+        message: `views_base: could not bring base file at "${input.base_path}" to the front`,
+      });
+    }
     if (decoded.ok === false) {
       // The focus step's FILE_NOT_FOUND is REMAPPED to BASE_NOT_FOUND/named-missing
       // (cohort-consistent with query_base; never leaked) — FR-007, never a silent
@@ -229,8 +241,9 @@ export async function executeViewsBase(
         message: `views_base: no base file found at "${input.base_path}"`,
       });
     }
-    // The named `.base` is now focused; a recognised failure from here on means it exists
-    // but Obsidian cannot use it → BASE_MALFORMED (see focusedBaseError).
+    // The named `.base` is now the active file (the template checked, BI-0179); a recognised
+    // failure from here on means it exists but Obsidian cannot use it → BASE_MALFORMED (see
+    // focusedBaseError).
   }
 
   // Both modes list the focused Base's views, in the named vault when one is given (spec 083

@@ -60,6 +60,7 @@ The native `base:views` subcommand emits each line as `<view name>\t<view type>`
 | `CLI_REPORTED_ERROR` | `BASE_MALFORMED`   | `invalid-yaml`   | Named or open mode: Obsidian cannot parse the `.base` file's YAML | Repair the YAML in the `.base` file (the bounded parser report is in `details.message`). |
 | `CLI_REPORTED_ERROR` | `BASE_MALFORMED`   | `unknown`        | Named mode: the `.base` exists but Obsidian reports it is not usable as a Base, with no parser complaint | Open the file in Obsidian and investigate. |
 | `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND`  | `unknown`        | The `vault` display name is not registered with Obsidian | Check the name with `vaults`. A vault added after the server started is found without a restart. |
+| `CLI_REPORTED_ERROR` | —                  | —                | Named mode, `details.stage: "focus"`: the named `.base` did not become Obsidian's active file within about a second. `details` is `{ stage, base_path, active }`, where `active` is the file still in front (or `null`); no views are listed and no parser report is attached | Retry. |
 | `CLI_REPORTED_ERROR` | —                  | —                | Other upstream CLI failure / app down / binary missing | Retry; confirm Obsidian is running. |
 | `UPSTREAM_TIMEOUT`   | —                  | —                | Subprocess exceeded 10 s | Retry. |
 
@@ -67,7 +68,7 @@ In open-Base mode, a vault with no file open at all (the vault in front, or the 
 
 `BASE_NOT_FOUND` carries a `details.reason` so "named Base not found" (`named-missing`) and "no Base open" (`not-open`) stay distinguishable under one code. No named-path failure is ever resolved by returning the views of whatever Base happened to be focused.
 
-`BASE_MALFORMED`'s `details.reason` set is closed (`invalid-yaml` | `unknown`, a subset of `query_base`'s), and `details.message` / `details.messageLength` carry the upstream report, bounded to its first and last 500 characters when it is longer than 1,000.
+`BASE_MALFORMED`'s `details.reason` set is closed (`invalid-yaml` | `unknown`, a subset of `query_base`'s), and `details.message` / `details.messageLength` carry the upstream report, bounded to its first and last 500 characters when it is longer than 1,000. In named mode the report always describes the named Base, whatever was open before the call: the views are listed only once the named Base is the active file.
 
 ## Worked examples
 
