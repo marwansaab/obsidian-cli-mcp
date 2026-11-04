@@ -142,3 +142,38 @@ describe("smart_connections_similar template — US2: equal-relevance results fo
     expect(matches.map((m) => m.path)).toEqual(["Lead1.md", "Lead2.md", "A.md", "B.md"]);
   });
 });
+
+describe("smart_connections_similar template — BI-0184: a note's opening text has an empty headingPath", () => {
+  it.each<[string, string, string[]]>([
+    ["AC 2: a block before the note's first heading", "Other.md#", []],
+    ["AC 3: a note with no headings", "Other.md", []],
+    ["AC 4: a block in a nested section", "Other.md#H1#H2", ["H1", "H2"]],
+    ["AC 5: a frontmatter block", "Other.md#---frontmatter---", ["---frontmatter---"]],
+  ])("%s (key %j) has headingPath %j", async (_label, key, headingPath) => {
+    expect(await page([conn(key, 0.5)], 10)).toEqual([{ path: "Other.md", headingPath, score: 0.5 }]);
+  });
+
+  it("AC 6: no headingPath holds an empty string, order and scores follow the documented rules, and the source's opening text is excluded", async () => {
+    const fixture = [
+      conn("N.md#H1#H2", 0.8),
+      conn("N.md#", 0.8),
+      conn(`${SRC}#`, 0.8),
+      conn("N.md", 0.8),
+      conn("N.md#---frontmatter---", 0.8),
+      conn("N.md#H1#", 0.6),
+      conn("N.md##H2", 0.6),
+      conn("A.md#", 0.5),
+    ];
+    const matches = await page(fixture, 100);
+    for (const m of matches) expect(m.headingPath).not.toContain("");
+    expect(matches).toEqual([
+      { path: "N.md", headingPath: [], score: 0.8 },
+      { path: "N.md", headingPath: [], score: 0.8 },
+      { path: "N.md", headingPath: ["---frontmatter---"], score: 0.8 },
+      { path: "N.md", headingPath: ["H1", "H2"], score: 0.8 },
+      { path: "N.md", headingPath: ["H1"], score: 0.6 },
+      { path: "N.md", headingPath: ["H2"], score: 0.6 },
+      { path: "A.md", headingPath: [], score: 0.5 },
+    ]);
+  });
+});
