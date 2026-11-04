@@ -379,7 +379,7 @@ test("resolveVaultDisplayName: a probe failure propagates and leaves the cache c
   const probe = vi.fn().mockRejectedValueOnce(probeError).mockResolvedValueOnce(TWO_VAULT_STDOUT);
   const reg = createVaultRegistry({ invokeProbe: probe });
   const base = "C:\\Marwan-Saab-ADO\\Marwan at Metcash\\Obsidian\\The Setup";
-  expect(await captureRejection(Promise.resolve(reg.resolveVaultDisplayName!(base)))).toBe(probeError);
+  expect(await captureRejection(reg.resolveVaultDisplayName(base))).toBe(probeError);
   expect(await reg.resolveVaultDisplayName!(base)).toBe("The Setup");
   expect(probe).toHaveBeenCalledTimes(2);
 });

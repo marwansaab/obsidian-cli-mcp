@@ -855,18 +855,14 @@ describe("US3 active mode", () => {
       exitCode: 0,
     };
     const fs = fakeFs({ content: "Body. ^foo\n" });
-    let probes = 0;
-    const invokeProbe = async (): Promise<string> => {
-      probes += 1;
-      return `TestVault\t${VAULT_ROOT}\n`;
-    };
+    const invokeProbe = vi.fn(async () => `TestVault\t${VAULT_ROOT}\n`);
     const { spawnFn } = makeQueuedSpawn([focusedResp, EVAL_OK]);
     const result = await executePatchBlock(
       { target_mode: "active", block_id: "foo", content: "Replaced." },
       deps({ spawnFn, vaultRegistry: createVaultRegistry({ invokeProbe }), fs }),
     );
     expect(result.vault).toBe("TestVault");
-    expect(probes).toBe(1);
+    expect(invokeProbe).toHaveBeenCalledTimes(1);
     expect(fs.writes.length).toBe(1);
   });
 

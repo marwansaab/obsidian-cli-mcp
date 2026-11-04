@@ -804,18 +804,14 @@ describe("US3 active mode", () => {
       exitCode: 0,
     };
     const fs = fakeFs({ content: "# Top\n## A\nbody\n" });
-    let probes = 0;
-    const invokeProbe = async (): Promise<string> => {
-      probes += 1;
-      return `TestVault\t${VAULT_ROOT}\n`;
-    };
+    const invokeProbe = vi.fn(async () => `TestVault\t${VAULT_ROOT}\n`);
     const { spawnFn } = makeQueuedSpawn([focusedResp, EVAL_OK]);
     const result = await executePatchHeading(
       { target_mode: "active", heading_path: "Top#A", mode: "append", content: "x\n" },
       deps({ spawnFn, vaultRegistry: createVaultRegistry({ invokeProbe }), fs }),
     );
     expect(result.vault).toBe("TestVault");
-    expect(probes).toBe(1);
+    expect(invokeProbe).toHaveBeenCalledTimes(1);
     expect(fs.writes.length).toBe(1);
   });
 

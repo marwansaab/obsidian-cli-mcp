@@ -41,11 +41,25 @@ export interface VaultRegistry {
   resolveVaultDisplayName?: (basePath: string) => string | null | Promise<string | null>;
 }
 
+/**
+ * The registry `createVaultRegistry` builds, typed as it really is: the reverse lookup is always
+ * present and always async. Consumers keep taking the looser `VaultRegistry`, so test stubs may
+ * still omit it or answer synchronously.
+ */
+export interface ObsidianVaultRegistry extends VaultRegistry, VaultLister {
+  resolveVaultDisplayName(basePath: string): Promise<string | null>;
+}
+
 interface CachedRegistry {
   /** Every parsed row, in CLI order, duplicate display names kept (068 data-model §6). */
   entries: readonly VaultEntry[];
   /** Name → path lookup; a duplicated display name resolves to its last row, as before. */
   byName: ReadonlyMap<string, string>;
+  /**
+   * Path → name lookup, built from `byName` so a duplicated display name only matches its last
+   * row's path; when two names share a path, the first name in `byName` wins.
+   */
+  byPath: ReadonlyMap<string, string>;
 }
 
 const BOM = "﻿";
@@ -63,10 +77,15 @@ function parseVaultsVerboseOutput(stdout: string): CachedRegistry {
     if (name.length === 0 || path.length === 0) continue;
     entries.push({ name, path });
   }
-  return { entries, byName: new Map(entries.map((e) => [e.name, e.path])) };
+  const byName = new Map(entries.map((e) => [e.name, e.path]));
+  const byPath = new Map<string, string>();
+  for (const [name, path] of byName) {
+    if (!byPath.has(path)) byPath.set(path, name);
+  }
+  return { entries, byName, byPath };
 }
 
-export function createVaultRegistry(deps: VaultRegistryDeps): VaultRegistry & VaultLister {
+export function createVaultRegistry(deps: VaultRegistryDeps): ObsidianVaultRegistry {
   let cache: CachedRegistry | null = null;
   let inFlightProbe: Promise<CachedRegistry> | null = null;
 
@@ -106,17 +125,8 @@ export function createVaultRegistry(deps: VaultRegistryDeps): VaultRegistry & Va
       return (await probe()).entries;
     },
     async resolveVaultDisplayName(basePath: string): Promise<string | null> {
-      const cached = cache === null ? null : nameForPath(cache, basePath);
-      if (cached !== null) return cached;
       // Cold cache or a miss: probe once (BI-0121, mirroring FR-037 above), then give up.
-      return nameForPath(await probe(), basePath);
+      return cache?.byPath.get(basePath) ?? (await probe()).byPath.get(basePath) ?? null;
     },
   };
-}
-
-function nameForPath(registry: CachedRegistry, basePath: string): string | null {
-  for (const [name, path] of registry.byName) {
-    if (path === basePath) return name;
-  }
-  return null;
 }

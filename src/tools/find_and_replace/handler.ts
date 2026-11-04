@@ -482,7 +482,8 @@ async function resolveSingleNoteScope(
       // the registry keys on Obsidian's reported basePath, which assertCanonicalPath's
       // realpath can diverge from on an ancestor-symlinked / normalised root. Passing
       // the canonical root would miss the registry entry and fail with VAULT_NOT_FOUND /
-      // focused-unregistered, though `obsidian file vault=…` needs the registered name.
+      // focused-unregistered for a vault that IS registered (`obsidian file vault=…`
+      // needs that registered name).
       // Parity with resolveActiveLocatorWithVault + research D6.
       const vaultName = input.vault ?? (await resolveVaultDisplayName(deps.vaultRegistry, rawRoot));
       const name = input.file as string;
