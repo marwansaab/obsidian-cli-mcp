@@ -80,7 +80,7 @@ function renameFailureErrno(e: UpstreamError): "ENOENT" | "ENOTDIR" | undefined 
   return errno === "ENOENT" || errno === "ENOTDIR" ? errno : undefined;
 }
 
-// BI-0177: the first prefix of `folder` that the vault index holds as a file, or null. Runs in the
+// BI-0177: the first prefix of `folder` that exists on disk and is not a folder, or null. Runs in the
 // vault the move used (undefined: the focused vault, as the active-mode move).
 async function findBlockingFile(folder: string, vault: string | undefined, deps: ExecuteDeps): Promise<string | null> {
   const result = await invokeEval({ code: composeEvalCode(BLOCKER_TEMPLATE, { folder }), vault }, deps);
