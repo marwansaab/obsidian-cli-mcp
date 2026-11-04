@@ -14,6 +14,7 @@ import {
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger, type StubResponse } from "../_handler-test-fixtures.js";
+import { textOf } from "../_mcp-client-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -133,5 +134,29 @@ describe("createAppendNoteTool — handler closure executes on VALID input", () 
     });
     expect(writes[0]![1]).toBe("abc\ndef");
     __resetInFlightRegistryForTests();
+  });
+});
+
+// BI-0174 item 7: the registered tool maps empty content to details.code CONTENT_EMPTY.
+describe("createAppendNoteTool — CONTENT_EMPTY (BI-0174)", () => {
+  async function rejected(args: Record<string, unknown>): Promise<{ code: string; message: string; details: Record<string, unknown> }> {
+    const result = await build().handler({ target_mode: "specific", vault: "V", path: "n.md", ...args });
+    expect("isError" in result && result.isError).toBe(true);
+    return JSON.parse(textOf(result));
+  }
+
+  it("empty content → CONTENT_EMPTY with the schema's message, issues kept", async () => {
+    const message = "Too small: expected string to have >=1 characters";
+    const payload = await rejected({ content: "" });
+    expect(payload.code).toBe("VALIDATION_ERROR");
+    expect(payload.message).toBe(message);
+    expect(payload.details["code"]).toBe("CONTENT_EMPTY");
+    expect(payload.details["issues"]).toContainEqual({ path: ["content"], message, code: "too_small" });
+  });
+
+  it("any other failure keeps the generic envelope", async () => {
+    const payload = await rejected({ file: "n", content: "x" });
+    expect(payload.message).toBe("append_note input failed schema validation");
+    expect(payload.details["code"]).toBeUndefined();
   });
 });

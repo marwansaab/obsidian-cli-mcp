@@ -1,178 +1,75 @@
-// Original — no upstream. BI-0174 tests for the shared mapValidationError lifts (liftSubCodedIssue, liftEmptyContent), driven through each registered tool that uses them; views_base keeps registerTool's generic envelope.
+// Original — no upstream. BI-0174 unit tests for the shared mapValidationError lifts (liftSubCodedIssue, liftSubCodedIssueKeys, liftEmptyContent), on issues from a small zod schema. Each tool's wiring of a lift is pinned in that tool's own index.test.ts.
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
-import { createAppendNoteTool } from "./append_note/index.js";
-import { createPatchBlockTool } from "./patch_block/index.js";
-import { createPatchHeadingTool } from "./patch_heading/index.js";
-import { createPrependTool } from "./prepend/index.js";
-import { createQueryBaseTool } from "./query_base/index.js";
-import { createViewsBaseTool } from "./views_base/index.js";
+import { liftEmptyContent, liftSubCodedIssue, liftSubCodedIssueKeys } from "./_validation-details.js";
 
-import type { RegisteredTool } from "./_shared.js";
+/** `name` fails with an ADR-015 sub-coded issue when empty; `content` has a 1-character minimum; `n` is a plain number. */
+const schema = z
+  .strictObject({ name: z.string(), content: z.string().min(1).optional(), n: z.number().optional() })
+  .superRefine((v, ctx) => {
+    if (v.name === "") {
+      ctx.addIssue({ code: "custom", path: ["name"], message: "first", params: { code: "INVALID_NAME", reason: "empty", field: "name", value_length: 0 } });
+      ctx.addIssue({ code: "custom", path: ["name"], message: "second", params: { code: "OTHER", reason: "x" } });
+    }
+    if (v.name === "nocode") ctx.addIssue({ code: "custom", path: ["name"], message: "no params code" });
+  });
 
-/** Schema validation fails before any dependency is used, so these calls need none. */
-const NO_DEPS = {} as never;
-
-const EMPTY_CONTENT_MESSAGE = "Too small: expected string to have >=1 characters";
-
-async function errorPayload(tool: RegisteredTool, args: unknown): Promise<{ code: string; message: string; details: Record<string, unknown> }> {
-  const result = await tool.handler(args);
-  expect("isError" in result && result.isError).toBe(true);
-  return JSON.parse((result.content[0] as { text: string }).text);
+function issuesOf(args: unknown): z.core.$ZodIssue[] {
+  const parsed = schema.safeParse(args);
+  if (parsed.success) throw new Error("expected a validation failure");
+  return parsed.error.issues;
 }
 
-describe("liftSubCodedIssue through the registered tools (BI-0174 item 7)", () => {
-  it("patch_heading: empty append content → EMPTY_CONTENT with reason and mode, issues kept", async () => {
-    const payload = await errorPayload(createPatchHeadingTool(NO_DEPS), {
-      target_mode: "specific",
-      vault: "V",
-      path: "n.md",
-      heading_path: "Top#Sub",
-      mode: "append",
-      content: "",
-    });
-    const message = "content must be non-empty for mode='append'; use mode='replace' to clear a heading's direct body";
-    expect(payload).toEqual({
+const issueList = (issues: z.core.$ZodIssue[]) => issues.map((i) => ({ path: i.path, message: i.message, code: i.code }));
+
+describe("liftSubCodedIssue", () => {
+  it("lifts every param of the first sub-coded issue, with its message, next to the full issue list", () => {
+    const issues = issuesOf({ name: "" });
+    expect(liftSubCodedIssue(issues)).toEqual({
       code: "VALIDATION_ERROR",
-      message,
-      details: {
-        code: "EMPTY_CONTENT",
-        reason: "append",
-        mode: "append",
-        issues: [{ path: ["content"], message, code: "custom" }],
-      },
+      message: "first",
+      details: { code: "INVALID_NAME", reason: "empty", field: "name", value_length: 0, issues: issueList(issues) },
     });
   });
 
-  it("patch_heading: one-segment heading_path → INVALID_HEADING_PATH / single-segment", async () => {
-    const payload = await errorPayload(createPatchHeadingTool(NO_DEPS), {
-      target_mode: "specific",
-      vault: "V",
-      path: "n.md",
-      heading_path: "Top",
-      mode: "replace",
-      content: "x",
-    });
-    expect(payload.message).toBe(
-      "heading_path must contain at least two segments separated by '#'; top-level headings are out of scope",
-    );
-    expect(payload.details).toMatchObject({ code: "INVALID_HEADING_PATH", reason: "single-segment" });
-    expect(payload.details["issues"]).toEqual([{ path: ["heading_path"], message: payload.message, code: "custom" }]);
-  });
-
-  it("patch_heading: an empty segment carries details.segment_index", async () => {
-    const payload = await errorPayload(createPatchHeadingTool(NO_DEPS), {
-      target_mode: "specific",
-      vault: "V",
-      path: "n.md",
-      heading_path: "Top##Sub",
-      mode: "replace",
-      content: "x",
-    });
-    expect(payload.details).toMatchObject({ code: "INVALID_HEADING_PATH", reason: "empty-segment", segment_index: 1 });
-  });
-
-  it("patch_block: empty block_id → INVALID_BLOCK_ID / empty", async () => {
-    const payload = await errorPayload(createPatchBlockTool(NO_DEPS), {
-      target_mode: "specific",
-      vault: "V",
-      path: "n.md",
-      block_id: "",
-      content: "x",
-    });
-    expect(payload.message).toBe("block_id must not be empty");
-    expect(payload.details).toEqual({
-      code: "INVALID_BLOCK_ID",
-      reason: "empty",
-      issues: [{ path: ["block_id"], message: "block_id must not be empty", code: "custom" }],
-    });
-  });
-
-  it("patch_block: a character outside the alphabet carries details.offending_index", async () => {
-    const payload = await errorPayload(createPatchBlockTool(NO_DEPS), {
-      target_mode: "specific",
-      vault: "V",
-      path: "n.md",
-      block_id: "ab_c",
-      content: "x",
-    });
-    expect(payload.details).toMatchObject({ code: "INVALID_BLOCK_ID", reason: "contains-invalid-chars", offending_index: 2 });
-  });
-
-  it("query_base: a non-.base path → INVALID_BASE_PATH / wrong-extension with field and value", async () => {
-    const payload = await errorPayload(createQueryBaseTool(NO_DEPS), { base_path: "x.md", view_name: "All" });
-    const message = "INVALID_BASE_PATH/wrong-extension: base_path must end with .base";
-    expect(payload).toEqual({
-      code: "VALIDATION_ERROR",
-      message,
-      details: {
-        code: "INVALID_BASE_PATH",
-        reason: "wrong-extension",
-        field: "base_path",
-        value: "x.md",
-        issues: [{ path: ["base_path"], message, code: "custom" }],
-      },
-    });
-  });
-
-  it("query_base: an over-long view_name → INVALID_VIEW_NAME / too-long with value_length", async () => {
-    const payload = await errorPayload(createQueryBaseTool(NO_DEPS), { base_path: "x.base", view_name: "v".repeat(1001) });
-    expect(payload.message).toBe("INVALID_VIEW_NAME/too-long: view_name exceeds 1000 UTF-16 code units");
-    expect(payload.details).toMatchObject({
-      code: "INVALID_VIEW_NAME",
-      reason: "too-long",
-      field: "view_name",
-      value_length: 1001,
-    });
-  });
-
-  it("query_base: a failure without a sub-code keeps the generic envelope", async () => {
-    const payload = await errorPayload(createQueryBaseTool(NO_DEPS), { base_path: "x.base", view_name: "All", extra: 1 });
-    expect(payload.message).toBe("query_base input failed schema validation");
-    expect(payload.details["code"]).toBeUndefined();
-    expect(payload.details["issues"]).toBeDefined();
-  });
-
-  it("views_base: a non-.base path keeps the generic envelope, with no details.code (not lifted)", async () => {
-    const payload = await errorPayload(createViewsBaseTool(NO_DEPS), { base_path: "x.md" });
-    expect(payload.message).toBe("views_base input failed schema validation");
-    expect(payload.details).toEqual({
-      issues: [
-        { path: ["base_path"], message: "INVALID_BASE_PATH/wrong-extension: base_path must end with .base", code: "custom" },
-      ],
-    });
+  it("returns undefined when no custom issue carries params.code", () => {
+    expect(liftSubCodedIssue(issuesOf({ name: "nocode" }))).toBeUndefined();
+    expect(liftSubCodedIssue(issuesOf({ name: "a", n: "x" }))).toBeUndefined();
   });
 });
 
-describe("liftEmptyContent through the registered tools (BI-0174 item 7)", () => {
-  const cases: Array<[string, (deps: never) => RegisteredTool]> = [
-    ["append_note", createAppendNoteTool],
-    ["prepend", createPrependTool],
-  ];
-
-  it.each(cases)("%s: empty content → CONTENT_EMPTY with the schema's message, issues kept", async (_name, create) => {
-    const payload = await errorPayload(create(NO_DEPS), {
-      target_mode: "specific",
-      vault: "V",
-      path: "n.md",
-      content: "",
+describe("liftSubCodedIssueKeys", () => {
+  it("keeps only the named params, in the issue's own order", () => {
+    const issues = issuesOf({ name: "" });
+    const lifted = liftSubCodedIssueKeys(["field", "code", "reason"])(issues);
+    expect(lifted).toEqual({
+      code: "VALIDATION_ERROR",
+      message: "first",
+      details: { code: "INVALID_NAME", reason: "empty", field: "name", issues: issueList(issues) },
     });
-    expect(payload.code).toBe("VALIDATION_ERROR");
-    expect(payload.message).toBe(EMPTY_CONTENT_MESSAGE);
-    expect(payload.details["code"]).toBe("CONTENT_EMPTY");
-    const issues = payload.details["issues"] as Array<{ path: string[]; code: string; message: string }>;
-    expect(issues).toContainEqual({ path: ["content"], message: EMPTY_CONTENT_MESSAGE, code: "too_small" });
+    expect(Object.keys(lifted!.details)).toEqual(["code", "reason", "field", "issues"]);
   });
 
-  it.each(cases)("%s: any other failure keeps the generic envelope", async (name, create) => {
-    const payload = await errorPayload(create(NO_DEPS), {
-      target_mode: "specific",
-      vault: "V",
-      path: "n.md",
-      file: "n",
-      content: "x",
+  it("leaves out a named key the issue does not carry, and returns undefined without a sub-coded issue", () => {
+    const lift = liftSubCodedIssueKeys(["code", "missing"]);
+    expect(Object.keys(lift(issuesOf({ name: "" }))!.details)).toEqual(["code", "issues"]);
+    expect(lift(issuesOf({ name: "nocode" }))).toBeUndefined();
+  });
+});
+
+describe("liftEmptyContent", () => {
+  it("maps the empty-content too_small to CONTENT_EMPTY with the schema's message", () => {
+    const issues = issuesOf({ name: "a", content: "" });
+    expect(liftEmptyContent(issues)).toEqual({
+      code: "VALIDATION_ERROR",
+      message: "Too small: expected string to have >=1 characters",
+      details: { code: "CONTENT_EMPTY", issues: issueList(issues) },
     });
-    expect(payload.message).toBe(`${name} input failed schema validation`);
-    expect(payload.details["code"]).toBeUndefined();
+  });
+
+  it("returns undefined for any other failure", () => {
+    expect(liftEmptyContent(issuesOf({ name: "a", n: "x" }))).toBeUndefined();
+    expect(liftEmptyContent(issuesOf({ name: "" }))).toBeUndefined();
   });
 });

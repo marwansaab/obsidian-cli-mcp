@@ -15,6 +15,7 @@ import { patchHeadingInputSchema } from "./schema.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
 import { makeQueuedSpawn, silentLogger } from "../_handler-test-fixtures.js";
+import { textOf } from "../_mcp-client-fixtures.js";
 
 import type { VaultRegistry } from "../../vault-registry/registry.js";
 
@@ -242,5 +243,43 @@ describe("heading-path rule wording (079)", () => {
     expect(docs).toContain('"Daily#Tasks#TODO"');
     expect(docs).toContain('"Tasks#TODO"');
     expect(docs).toMatch(/^### .*level-1/im);
+  });
+});
+
+// BI-0174 item 7: the registered tool lifts INVALID_HEADING_PATH / EMPTY_CONTENT's ADR-015 params into details.
+describe("createPatchHeadingTool — schema-layer sub-codes in details (BI-0174)", () => {
+  async function rejected(args: Record<string, unknown>): Promise<{ code: string; message: string; details: Record<string, unknown> }> {
+    const result = await build().handler({ target_mode: "specific", vault: "V", path: "n.md", ...args });
+    expect("isError" in result && result.isError).toBe(true);
+    return JSON.parse(textOf(result));
+  }
+
+  it("empty append content → EMPTY_CONTENT with reason and mode, issues kept", async () => {
+    const payload = await rejected({ heading_path: "Top#Sub", mode: "append", content: "" });
+    const message = "content must be non-empty for mode='append'; use mode='replace' to clear a heading's direct body";
+    expect(payload).toEqual({
+      code: "VALIDATION_ERROR",
+      message,
+      details: {
+        code: "EMPTY_CONTENT",
+        reason: "append",
+        mode: "append",
+        issues: [{ path: ["content"], message, code: "custom" }],
+      },
+    });
+  });
+
+  it("one-segment heading_path → INVALID_HEADING_PATH / single-segment", async () => {
+    const payload = await rejected({ heading_path: "Top", mode: "replace", content: "x" });
+    expect(payload.message).toBe(
+      "heading_path must contain at least two segments separated by '#'; top-level headings are out of scope",
+    );
+    expect(payload.details).toMatchObject({ code: "INVALID_HEADING_PATH", reason: "single-segment" });
+    expect(payload.details["issues"]).toEqual([{ path: ["heading_path"], message: payload.message, code: "custom" }]);
+  });
+
+  it("an empty segment carries details.segment_index", async () => {
+    const payload = await rejected({ heading_path: "Top##Sub", mode: "replace", content: "x" });
+    expect(payload.details).toMatchObject({ code: "INVALID_HEADING_PATH", reason: "empty-segment", segment_index: 1 });
   });
 });

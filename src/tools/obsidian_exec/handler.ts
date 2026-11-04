@@ -1,6 +1,7 @@
-// Original — no upstream. obsidian_exec handler: thin transformer routing parsed input through invokeBoundedCli with the obsidian_exec response envelope, behind the 068 passthrough denylist gate (FR-010..FR-013, research R4) that refuses code-running and developer-tooling commands before any spawn unless the vault owner set OBSIDIAN_MCP_ALLOW_EVAL. BI-0174: ERR_NO_ACTIVE_FILE is rethrown with advice that names only obsidian_exec's inputs.
+// Original — no upstream. obsidian_exec handler: thin transformer routing parsed input through invokeBoundedCli with the obsidian_exec response envelope, behind the 068 passthrough denylist gate (FR-010..FR-013, research R4) that refuses code-running and developer-tooling commands before any spawn unless the vault owner set OBSIDIAN_MCP_ALLOW_EVAL. BI-0174: ERR_NO_ACTIVE_FILE is rethrown (shared throwIfNoActiveFile) with advice that names only obsidian_exec's inputs.
 import { invokeBoundedCli, type CallScope, type SpawnLike } from "../../cli-adapter/invoke-bounded-cli.js";
 import { UpstreamError } from "../../errors.js";
+import { throwIfNoActiveFile } from "../_active-file.js";
 
 import type { ObsidianExecInput } from "./schema.js";
 import type { Logger } from "../../logger.js";
@@ -78,11 +79,7 @@ export async function executeObsidianExec(input: ObsidianExecInput, deps: Execut
       deps,
     );
   } catch (err) {
-    // BI-0174: the dispatch-level advice names target_mode / file, which obsidian_exec does not
-    // take; the same code and details carry advice naming only obsidian_exec's own inputs.
-    if (err instanceof UpstreamError && err.code === "ERR_NO_ACTIVE_FILE") {
-      throw new UpstreamError({ code: err.code, cause: err.cause, details: err.details, message: NO_ACTIVE_FILE_MESSAGE });
-    }
+    throwIfNoActiveFile(err, NO_ACTIVE_FILE_MESSAGE);
     throw err;
   }
 }

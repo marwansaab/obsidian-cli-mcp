@@ -14,6 +14,7 @@ import {
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
 import { folderMissingDetails, missingFolderRealpath, silentLogger } from "../_handler-test-fixtures.js";
+import { textOf } from "../_mcp-client-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 import { closedVaultNote } from "../_shared.js";
 
@@ -183,5 +184,55 @@ describe("createQueryBaseTool — descriptor", () => {
     expect(payload.details).toEqual(folderMissingDetails("Gone"));
     expect(payload.message).toContain("Restore the folder, or re-open the vault in Obsidian");
     expect(text).not.toContain(JSON.stringify(TEST_VAULT_ROOT).slice(1, -1));
+  });
+});
+
+// BI-0174 item 7: the registered tool lifts INVALID_BASE_PATH / INVALID_VIEW_NAME's ADR-015 params into details.
+describe("createQueryBaseTool — schema-layer sub-codes in details (BI-0174)", () => {
+  async function rejected(args: Record<string, unknown>): Promise<{ code: string; message: string; details: Record<string, unknown> }> {
+    const tool = createQueryBaseTool({
+      logger: silentLogger(),
+      queue: createQueue(),
+      spawnFn: makeStubSpawn(),
+      vaultRegistry: stubRegistry(),
+      fs: stubFs(),
+    });
+    const result = await tool.handler(args);
+    expect("isError" in result && result.isError).toBe(true);
+    return JSON.parse(textOf(result));
+  }
+
+  it("a non-.base path → INVALID_BASE_PATH / wrong-extension with field and value", async () => {
+    const payload = await rejected({ base_path: "x.md", view_name: "All" });
+    const message = "INVALID_BASE_PATH/wrong-extension: base_path must end with .base";
+    expect(payload).toEqual({
+      code: "VALIDATION_ERROR",
+      message,
+      details: {
+        code: "INVALID_BASE_PATH",
+        reason: "wrong-extension",
+        field: "base_path",
+        value: "x.md",
+        issues: [{ path: ["base_path"], message, code: "custom" }],
+      },
+    });
+  });
+
+  it("an over-long view_name → INVALID_VIEW_NAME / too-long with value_length", async () => {
+    const payload = await rejected({ base_path: "x.base", view_name: "v".repeat(1001) });
+    expect(payload.message).toBe("INVALID_VIEW_NAME/too-long: view_name exceeds 1000 UTF-16 code units");
+    expect(payload.details).toMatchObject({
+      code: "INVALID_VIEW_NAME",
+      reason: "too-long",
+      field: "view_name",
+      value_length: 1001,
+    });
+  });
+
+  it("a failure without a sub-code keeps the generic envelope", async () => {
+    const payload = await rejected({ base_path: "x.base", view_name: "All", extra: 1 });
+    expect(payload.message).toBe("query_base input failed schema validation");
+    expect(payload.details["code"]).toBeUndefined();
+    expect(payload.details["issues"]).toBeDefined();
   });
 });

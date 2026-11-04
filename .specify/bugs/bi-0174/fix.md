@@ -29,7 +29,7 @@ The help pages, tool descriptions, input-schema field descriptions and server in
 | `src/tools/_register-baseline.json` | regenerated | `npm run baseline:write`, deliberate (descriptions and two `case_sensitive` field descriptions moved). |
 | `docs/tools/*.md` (28 pages) | modified | Headings: `## Error roster`/`Error states`/`Failure modes` → `## Errors — …`, `## Worked examples` → `## Examples — Worked examples`; `get_active_file` gets `## Input — targeting, two modes`; `open_file` gets `## Output`; `write_note`'s `### Errors` becomes `## Errors`; `append_note` and `prepend` get a new `## Examples` section (success + `CONTENT_EMPTY`). Content fixes per item: unknown-vault rows and hints (4a/4b/4c), disabled-CLI rows on the seven pages (3), `context_search` missing-folder wrapping and `-32602` caveat (5a/5d), fold sections (5e), `outline` Example 4 (6), lifted shapes on `patch_heading`/`patch_block`/`query_base`/`append_note`/`prepend` (7), `find_and_replace` message prefixes (8a), `query_base` routing row and `priority` sample (10a/10c), `index.md` `bases` entry (10b), `views_base` and `obsidian_exec` no-active-file messages (10e), `PATH_ESCAPES_VAULT` messages (10f), `links` decoding and `NOT_MARKDOWN` hints, `smart_connections_similar` `find_connections({limit: 100})` (11), `delete` file wording (12), `read`/`outline` messages (13). |
 | `.docs-as-code/capabilities/bases.md` | modified | One anchor updated (`#error-roster` → `#errors--error-roster`), because the heading rename broke it. |
-| `src/tools/_validation-details.test.ts` | added test | Lift behaviour through each registered tool, plus `views_base` keeping the generic envelope. |
+| `src/tools/_validation-details.test.ts` | added test | Lift behaviour through each registered tool, plus `views_base` keeping the generic envelope (after the PR #142 review: direct unit tests of the lifts; the per-tool cases moved to each tool's `index.test.ts`, see Review fixes). |
 | `src/tools/help/docs-sync.test.ts` | added test | TC-00586 heading rule (code-fenced headings ignored) with a self-test. |
 | `src/tools/_surface.test.ts` | added test | Every published description ≤ 4,096 characters. |
 | `src/instructions/instructions.test.ts` | added test | The extended file-type rule survives every tool filter. |
@@ -58,7 +58,7 @@ message: `${toolName}: ${relPath} is ${describeFile(extension, true)}; ${toolNam
 
 One existing assertion was edited, with the owner's approval (Q2 = A): `src/tools/obsidian_exec/handler.test.ts:144-146` now pins `obsidian_exec`'s new no-active-file message. No other existing test was edited.
 
-- `src/tools/_validation-details.test.ts` — `patch_heading` `EMPTY_CONTENT` (full envelope), `INVALID_HEADING_PATH` `single-segment` and `empty-segment` (`segment_index`); `patch_block` `INVALID_BLOCK_ID` `empty` (full envelope) and `contains-invalid-chars` (`offending_index`); `query_base` `INVALID_BASE_PATH` `wrong-extension` (full envelope), `INVALID_VIEW_NAME` `too-long`, and an unrelated failure staying generic; `views_base` `x.md` staying generic with no `details.code`; `append_note` / `prepend` `CONTENT_EMPTY` and their generic fallback.
+- `src/tools/_validation-details.test.ts` (per-tool cases now in each tool's `index.test.ts`, see Review fixes) — `patch_heading` `EMPTY_CONTENT` (full envelope), `INVALID_HEADING_PATH` `single-segment` and `empty-segment` (`segment_index`); `patch_block` `INVALID_BLOCK_ID` `empty` (full envelope) and `contains-invalid-chars` (`offending_index`); `query_base` `INVALID_BASE_PATH` `wrong-extension` (full envelope), `INVALID_VIEW_NAME` `too-long`, and an unrelated failure staying generic; `views_base` `x.md` staying generic with no `details.code`; `append_note` / `prepend` `CONTENT_EMPTY` and their generic fallback.
 - `src/tools/help/docs-sync.test.ts` — every page has H2 headings beginning `Input`, `Output`, `Errors`, `Examples`.
 - `src/tools/_surface.test.ts` — "every published tool description is at most 4,096 characters".
 - `src/instructions/instructions.test.ts` — the rule line with its exception is present for all tools, the read-only set and no tools.
@@ -84,7 +84,7 @@ One existing assertion was edited, with the owner's approval (Q2 = A): `src/tool
 - **`obsidian_exec` no-active-file advice (item 10e) — needed one existing-test edit.** The assessment expected no existing test to fail, but `src/tools/obsidian_exec/handler.test.ts:144-146` pinned the dispatch message for `obsidian_exec`. The fix stopped and asked. Owner ruling Q2 = A (2026-11-04): edit exactly that assertion to the new message, add a new test pinning it, and leave the dispatch message and its other tests (`_dispatch.test.ts`, `cli-adapter.test.ts`, `move/handler.test.ts`) unchanged. Applied as ruled; `docs/tools/obsidian_exec.md` now states the message.
 - **Instructions wording (item 2).** The appended exception is "Descriptions name exceptions." rather than the assessment's longer example, because the existing `instructions.test.ts:61` and `server.protocol.test.ts:90` cap the full text below 2,000 characters (it was already at 1,990). Two other sentences were shortened to make room (see Changes). The pinned sentence is verbatim.
 - **Two smart_connections pages keep the string `VAULT_NOT_FOUND`.** The existing `smart_connections_{query,similar}/index.test.ts` require each page to contain `VAULT_NOT_FOUND`. The pages now say there is no `VAULT_NOT_FOUND` code for these tools, which is true and keeps those tests unedited.
-- **`create_base` keeps its own hook.** It lifts only `code`, `reason` and `field`; `liftSubCodedIssue` copies every param (the `patch_heading` docs promise `segment_index` and `value_length`). Moving `create_base` onto the shared helper would add `value` / `value_length` to its errors, a behaviour change outside this BI. So `query_base` lifts `value` / `value_length` too, while `create_base` does not; both are documented as returned.
+- **`create_base` keeps its lifted keys.** It lifts only `code`, `reason` and `field`; `liftSubCodedIssue` copies every param (the `patch_heading` docs promise `segment_index` and `value_length`). Copying every param for `create_base` would add `value` / `value_length` to its errors, a behaviour change outside this BI. So `query_base` lifts `value` / `value_length` too, while `create_base` does not; both are documented as returned. After the PR #142 code-quality review, `create_base`'s hook is `liftSubCodedIssueKeys(["code", "reason", "field"])` from the shared module instead of its own copy of the loop; its `details` keep the same keys in the same order, and its existing `index.test.ts` cases pass unchanged.
 - **`views_base` disabled-CLI row.** `views_base.md` had no vault-unavailable row; the disabled-CLI row was added anyway, since the seven pages the report names include `views_base`.
 - **Item 10d** (`create_base` Output) needed no change: the page already matches BI-0180's `path` / `name` contract.
 - **Scope expansion.** `.docs-as-code/capabilities/bases.md` (one anchor the heading rename broke) and `docs/tools/index.md`'s `bases` entry (item 10b, named in the assessment) were edited.
@@ -92,7 +92,7 @@ One existing assertion was edited, with the owner's approval (Q2 = A): `src/tool
 ## CodeGraph structural verification
 
 1. **No new error codes.** No new class in or outside `src/errors.ts`. The lifts reuse `VALIDATION_ERROR` with existing documented `details.code` values; `views_base` and `obsidian_exec` rethrow the existing `ERR_NO_ACTIVE_FILE`.
-2. **No DI factory imports.** No handler imports `createLogger()` or `createQueue()`; the changed handlers (`views_base`, `obsidian_exec`, `read`, `outline`) gained no imports.
+2. **No DI factory imports.** No handler imports `createLogger()` or `createQueue()`; the changed handlers (`views_base`, `obsidian_exec`, `read`, `outline`) import only `throwIfNoActiveFile` from the shared `_active-file.ts` (views_base and obsidian_exec, after the PR #142 review).
 3. **One-directional imports.** `src/tools/_validation-details.ts` is a leaf imported by tool `index.ts` files. It imports `validationIssues` from `_register.ts` and the `ToolErrorPayload` type from `_shared.ts`, neither of which imports it back, so there is no cycle and no tool→tool edge.
 4. **Reachable.** `liftSubCodedIssue` is called from the `patch_heading`, `patch_block` and `query_base` registrations, and `liftEmptyContent` from `append_note` and `prepend`. The two `NO_ACTIVE_FILE_MESSAGE` constants are used by `listFocusedViews` and `executeObsidianExec`, and `readOnly` is set by the `read` and `outline` handlers.
 
@@ -102,5 +102,21 @@ Kernel-node claim held: no change to `createLogger()`, `createQueue()`, `createS
 
 - The instructions are at 1,996 of their 2,000-character test cap; the next rule added will need room made.
 - Docs-as-code pass: `.docs-as-code/` pages that quote the changed messages, the instructions text or the description lengths.
-- `create_base` could adopt `liftSubCodedIssue` in a later BI if adding `value` / `value_length` to its errors is wanted.
+- `create_base` could switch to the full `liftSubCodedIssue` in a later BI if adding `value` / `value_length` to its errors is wanted.
+- The root of item 10e is `_dispatch.ts`'s ERR_NO_ACTIVE_FILE message, which advises `target_mode` and vault/file. Letting the caller supply that advice would remove the per-tool rethrows, but it changes the dispatch spine, which the assessment kept out of scope; it is a candidate for its own item.
 - Live re-check of the vault-unavailable and disabled-CLI rows during `/speckit-bug-test` if a safe setup exists.
+
+## Review fixes (PR #142 code-quality review)
+
+Behaviour-preserving restructuring after the thermo-nuclear code-quality review; no error code, message, `details` or published byte changed (the FR-018 fingerprint passed without `baseline:write`).
+
+| File | Change |
+|------|--------|
+| `src/tools/_active-file.ts` | New `throwIfNoActiveFile(err, advice)`: rethrows an ERR_NO_ACTIVE_FILE with the same code, cause and details and the tool's advice, and returns for any other error. It replaces the two copied catch-and-rewrap blocks in `views_base/handler.ts` (`listFocusedViews`) and `obsidian_exec/handler.ts` (`executeObsidianExec`). |
+| `src/tools/_validation-details.ts` | The lift loop is written once (`liftFirstSubCoded`); `liftSubCodedIssue` keeps every param and the new `liftSubCodedIssueKeys(keys)` keeps only the named ones. |
+| `src/tools/create_base/index.ts` | Its own `mapZodIssuesToToolError` is replaced by `liftSubCodedIssueKeys(["code", "reason", "field"])`. |
+| `src/tools/_validation-details.test.ts` | Now unit-tests the three lifts directly on issues from a small zod schema. |
+| `src/tools/{patch_heading,patch_block,query_base,views_base,append_note,prepend}/index.test.ts` | The per-tool wiring cases that were in `_validation-details.test.ts` moved here unchanged (Principle II co-location; `create_base` already tests its hook in its own `index.test.ts`). They read the result text with the shared `textOf`. |
+| `src/tools/_active-file.test.ts` | Direct tests for `throwIfNoActiveFile`. |
+
+Left as is: `SupportedFileTypeCheck.readOnly` stays opt-in, as assessment item 13 specifies; making it required would edit existing `file-type.test.ts` calls and is raised with the owner.
