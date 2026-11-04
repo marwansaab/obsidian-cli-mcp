@@ -119,4 +119,4 @@ Behaviour-preserving restructuring after the thermo-nuclear code-quality review;
 | `src/tools/{patch_heading,patch_block,query_base,views_base,append_note,prepend}/index.test.ts` | The per-tool wiring cases that were in `_validation-details.test.ts` moved here unchanged (Principle II co-location; `create_base` already tests its hook in its own `index.test.ts`). They read the result text with the shared `textOf`. |
 | `src/tools/_active-file.test.ts` | Direct tests for `throwIfNoActiveFile`. |
 
-Left as is: `SupportedFileTypeCheck.readOnly` stays opt-in, as assessment item 13 specifies; making it required would edit existing `file-type.test.ts` calls and is raised with the owner.
+Left as is: `SupportedFileTypeCheck.readOnly` stays opt-in, as assessment item 13 specifies. Owner ruling (2026-11-04, option A): keep it optional. Item 13 asks only that read-only tools drop the sentence. Making the flag required would edit existing `file-type.test.ts` calls, and the Q2 approval covers only the one `obsidian_exec` assertion. A future read-only caller must set the flag.
