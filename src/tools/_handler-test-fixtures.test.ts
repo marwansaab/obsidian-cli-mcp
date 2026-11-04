@@ -1,7 +1,8 @@
 // Original — no upstream. Tests for the shared handler-test fixtures (BI-058
 // F-A/F-B). These fixtures live in a non-test .ts (counted by coverage), so this
 // suite exercises every branch: queue consumption + overflow, errorOnSpawn,
-// chunked stdout, hold, pid default + override, exit code/signal, getCount,
+// chunked stdout, hold, pid default + override, exit code/signal, getCount, the
+// eval runner's answer / thrown-run / missing-code branches,
 // silentLogger, and captureRejection.
 import { type ChildProcess } from "node:child_process";
 import { Readable } from "node:stream";
@@ -12,6 +13,7 @@ import {
   answerLine,
   answerTagFromArgv,
   captureRejection,
+  makeEvalRunnerSpawn,
   makeQueuedSpawn,
   makeStubSpawn,
   silentLogger,
@@ -229,6 +231,36 @@ describe("makeStubSpawn", () => {
     expect(dflt.pid).toBe(4242);
     const overridden = makeStubSpawn({ stdout: "" }, { pid: 7 }).spawnFn("obsidian", [], {}) as StubChild;
     expect(overridden.pid).toBe(7);
+  });
+});
+
+describe("makeEvalRunnerSpawn (spec 094)", () => {
+  const TAG = "ocm-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+  const app = { vault: { getName: () => "Demo" } };
+
+  it("runs the sent code against app and answers its tagged value, exit 0, recording each spawn", async () => {
+    const { spawnFn, recorded, getCount } = makeEvalRunnerSpawn(app);
+    const argv = ["eval", `code=${wrapEvalCode("(async()=>app.vault.getName())()", TAG)}`];
+    const child = spawnFn("obsidian", argv, {}) as StubChild;
+    const [out, exit] = await Promise.all([readToString(child.stdout), awaitExit(child)]);
+    expect(out).toBe(`=> <<${TAG}>>Demo\n`);
+    expect(exit).toEqual({ code: 0, signal: null });
+    expect(child.pid).toBe(4242);
+    expect(recorded).toEqual([{ binary: "obsidian", argv, options: {} }]);
+    expect(getCount()).toBe(1);
+  });
+
+  it("answers Error: <message> with exit 0 when the code throws inside the vm (another realm)", async () => {
+    const { spawnFn } = makeEvalRunnerSpawn(app);
+    const child = spawnFn("obsidian", ["eval", "code=app.vault.missing()"], {}) as StubChild;
+    const [out, exit] = await Promise.all([readToString(child.stdout), awaitExit(child)]);
+    expect(out).toMatch(/^Error: .*missing.*\n$/);
+    expect(exit).toEqual({ code: 0, signal: null });
+  });
+
+  it("throws when the spawn sends no code= argument", () => {
+    const { spawnFn } = makeEvalRunnerSpawn(app);
+    expect(() => spawnFn("obsidian", ["read"], {})).toThrow("spawn sent no code= argument");
   });
 });
 

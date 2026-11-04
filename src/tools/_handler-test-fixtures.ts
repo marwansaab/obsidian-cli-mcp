@@ -9,15 +9,18 @@
 // out of it avoids shipping a devDependency import. Fixtures that need `vi`
 // (e.g. a call-counted vault registry) stay local for now.
 //
-// Two spawn factories on purpose (they have different semantics):
+// Three spawn factories on purpose (they have different semantics):
 //   - makeQueuedSpawn: consumes responses[idx++] and THROWS on overflow.
 //   - makeStubSpawn:   single spec answers every spawn (no queue, no overflow).
+//   - makeEvalRunnerSpawn: runs the eval code the caller sent against a simulated `app` under
+//     node:vm and answers asynchronously (spec 094).
 // The cli-adapter trio keeps its own richer stub (emitErrno / child-in-recording).
 //
-// Spec 080: both factories are answer-tag aware. When the spawn's `code=` argument carries the
+// Spec 080: makeQueuedSpawn and makeStubSpawn are answer-tag aware. When the spawn's `code=` argument carries the
 // typed-eval wrapper, every string-stdout line starting `=> ` is tagged with that call's tag, so
 // fixtures written as `=> {…}` keep working; a function-form `stdout` receives the tag and is
-// emitted verbatim, for tests that need exact bytes (noise, look-alikes).
+// emitted verbatim, for tests that need exact bytes (noise, look-alikes). makeEvalRunnerSpawn needs
+// no tagging: the wrapped code it runs prefixes its own tag.
 import { type SpawnOptions } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { sep } from "node:path";
@@ -27,6 +30,7 @@ import { type SpawnLike } from "../cli-adapter/_dispatch.js";
 import { ANSWER_TAG_PREFIX, EVAL_ANSWER_PREFIX, wrapEvalCode } from "../cli-adapter/_eval-answer.js";
 import { createLogger, type Logger } from "../logger.js";
 import { confirmFromResponse } from "./_confirm.js";
+import { runEvalCode } from "./_eval-template-fixtures.js";
 
 import type { Confirmation } from "./_shared.js";
 import type { VaultRegistry } from "../vault-registry/registry.js";
@@ -134,18 +138,15 @@ export interface SpawnRecording {
 /** Default child pid — asserted as 4242 in cli-adapter/_dispatch.test.ts (I-1). */
 const DEFAULT_PID = 4242;
 
-function makeChild(pid: number): EventEmitter & {
+type StubChild = EventEmitter & {
   stdout: Readable;
   stderr: Readable;
   kill: (signal?: NodeJS.Signals) => boolean;
   pid?: number;
-} {
-  const child = new EventEmitter() as EventEmitter & {
-    stdout: Readable;
-    stderr: Readable;
-    kill: (signal?: NodeJS.Signals) => boolean;
-    pid?: number;
-  };
+};
+
+function makeChild(pid: number): StubChild {
+  const child = new EventEmitter() as StubChild;
   child.stdout = new Readable({ read() {} });
   child.stderr = new Readable({ read() {} });
   child.pid = pid;
@@ -154,6 +155,28 @@ function makeChild(pid: number): EventEmitter & {
     return true;
   };
   return child;
+}
+
+/** How a stub child ends: its stderr, its exit code and signal (exit 0 and no signal when unset), and `hold` (never exit). */
+interface ChildEnding {
+  stderr?: string;
+  exitCode?: number | null;
+  signal?: NodeJS.Signals | null;
+  hold?: boolean;
+}
+
+/** Pushes `stdout`, ends both streams (after any stderr) and, unless held, emits exit on the next turn. */
+function settleChild(child: StubChild, stdout: Buffer[], ending: ChildEnding): void {
+  for (const chunk of stdout) child.stdout.push(chunk);
+  child.stdout.push(null);
+  if (ending.stderr) child.stderr.push(Buffer.from(ending.stderr, "utf8"));
+  child.stderr.push(null);
+  if (ending.hold) return;
+  setImmediate(() => {
+    const closeCode = "exitCode" in ending ? (ending.exitCode ?? null) : 0;
+    const closeSignal = "signal" in ending ? (ending.signal ?? null) : null;
+    child.emit("exit", closeCode, closeSignal);
+  });
 }
 
 /**
@@ -178,17 +201,7 @@ export function makeQueuedSpawn(
     recorded.push({ binary, argv: [...argv], options });
     const child = makeChild(opts.pid ?? DEFAULT_PID);
     const stdout = renderStubStdout(spec.stdout, argv);
-    setImmediate(() => {
-      if (stdout) child.stdout.push(Buffer.from(stdout, "utf8"));
-      child.stdout.push(null);
-      if (spec.stderr) child.stderr.push(Buffer.from(spec.stderr, "utf8"));
-      child.stderr.push(null);
-      setImmediate(() => {
-        const closeCode = "exitCode" in spec ? (spec.exitCode ?? null) : 0;
-        const closeSignal = "signal" in spec ? (spec.signal ?? null) : null;
-        child.emit("exit", closeCode, closeSignal);
-      });
-    });
+    setImmediate(() => settleChild(child, stdout ? [Buffer.from(stdout, "utf8")] : [], spec));
     return child as unknown as ReturnType<SpawnLike>;
   };
   return { spawnFn, recorded, getCount: () => idx };
@@ -209,25 +222,40 @@ export function makeStubSpawn(
     recorded.push({ binary, argv: [...argv], options });
     const child = makeChild(opts.pid ?? DEFAULT_PID);
     const stdout = renderStubStdout(spec.stdout, argv);
-    setImmediate(() => {
-      if (spec.chunkedStdout) {
-        for (const chunk of spec.chunkedStdout) child.stdout.push(chunk);
-      } else if (stdout) {
-        child.stdout.push(Buffer.from(stdout, "utf8"));
-      }
-      child.stdout.push(null);
-      if (spec.stderr) child.stderr.push(Buffer.from(spec.stderr, "utf8"));
-      child.stderr.push(null);
-      if (spec.hold) return;
-      setImmediate(() => {
-        const closeCode = "exitCode" in spec ? (spec.exitCode ?? null) : 0;
-        const closeSignal = "signal" in spec ? (spec.signal ?? null) : null;
-        child.emit("exit", closeCode, closeSignal);
-      });
-    });
+    setImmediate(() =>
+      settleChild(child, spec.chunkedStdout ?? (stdout ? [Buffer.from(stdout, "utf8")] : []), spec),
+    );
     return child as unknown as ReturnType<SpawnLike>;
   };
   return { spawnFn, recorded };
+}
+
+/**
+ * Eval-runner spawn stub: runs the `code=` argument each spawn sent (the already wrapped eval code)
+ * against `app` under node:vm, and answers `=> <value>` (or `Error: <message>` if the run throws)
+ * on stdout with exit 0, after the run settles. The wrapped code carries its own answer tag.
+ */
+export function makeEvalRunnerSpawn(
+  app: unknown,
+  opts: { pid?: number } = {},
+): { spawnFn: SpawnLike; recorded: SpawnRecording[]; getCount: () => number } {
+  const recorded: SpawnRecording[] = [];
+  const spawnFn: SpawnLike = (binary, argv, options) => {
+    recorded.push({ binary, argv: [...argv], options });
+    const child = makeChild(opts.pid ?? DEFAULT_PID);
+    const code = findKv(argv, "code");
+    if (code === undefined) throw new Error("spawn sent no code= argument");
+    void runEvalCode(code, app).then(
+      (value) => `=> ${value}\n`,
+      // Duck-typed, not `instanceof Error`: an error thrown inside the vm context comes from another realm.
+      (err: unknown) => {
+        const message = (err as { message?: unknown } | null)?.message;
+        return `Error: ${typeof message === "string" ? message : String(err)}\n`;
+      },
+    ).then((stdout) => settleChild(child, [Buffer.from(stdout, "utf8")], {}));
+    return child as unknown as ReturnType<SpawnLike>;
+  };
+  return { spawnFn, recorded, getCount: () => recorded.length };
 }
 
 /** A vault registry knowing one vault (`name` at `root`), with the reverse display-name lookup. */
