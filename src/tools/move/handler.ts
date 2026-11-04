@@ -74,9 +74,10 @@ function destinationFolder(resolvedTo: string): string {
   return i === -1 ? "" : normalised.slice(0, i);
 }
 
-function renameFailureErrno(e: UpstreamError): string | undefined {
+function renameFailureErrno(e: UpstreamError): "ENOENT" | "ENOTDIR" | undefined {
   if (e.code !== "CLI_REPORTED_ERROR") return undefined;
-  return RENAME_FAILURE_RE.exec(stringDetail(e.details, "message"))?.[1];
+  const errno = RENAME_FAILURE_RE.exec(stringDetail(e.details, "message"))?.[1];
+  return errno === "ENOENT" || errno === "ENOTDIR" ? errno : undefined;
 }
 
 // BI-0177: the first prefix of `folder` that the vault index holds as a file, or null. Runs in the
@@ -106,15 +107,27 @@ function notAFolder(file: string): UpstreamError {
   });
 }
 
+// What a failed lookup left unchecked, as the withheld failure's message names it.
+const UNCHECKED = {
+  "vault-folder": "the vault's folder could not be looked up",
+  "destination-folder": "the destination folder could not be checked",
+} as const;
+
 // Spec 090 data-model E4c: the CLI text cannot be cleaned (or, for a rename failure, classified),
 // so it is dropped; the move failure keeps its code, and the lookup failure is its cause.
-function withheldFailure(e: UpstreamError, source: string, destination: string, lookupErr: unknown, unchecked: string): UpstreamError {
+function withheldFailure(
+  e: UpstreamError,
+  source: string,
+  destination: string,
+  lookup: keyof typeof UNCHECKED,
+  lookupErr: unknown,
+): UpstreamError {
   const lookupCode = lookupErr instanceof UpstreamError ? lookupErr.code : "unknown";
   return new UpstreamError({
     code: e.code,
     cause: lookupErr,
     details: { source, destination },
-    message: `move: moving "${source}" to "${destination}" failed with ${e.code}, and ${unchecked} (${lookupCode}), so the command-line output is withheld to keep absolute paths out of this error. Retry the move.`,
+    message: `move: moving "${source}" to "${destination}" failed with ${e.code}, and ${UNCHECKED[lookup]} (${lookupCode}), so the command-line output is withheld to keep absolute paths out of this error. Retry the move.`,
   });
 }
 
@@ -131,7 +144,7 @@ async function moveFailure(e: unknown, target: FileTarget, resolvedTo: string, d
     } catch (lookupErr) {
       // Cancellation reaches here as a non-UpstreamError abort reason; it passes through untouched.
       if (!(lookupErr instanceof UpstreamError)) return lookupErr;
-      return withheldFailure(e, target.relPath, resolvedTo, lookupErr, "the destination folder could not be checked");
+      return withheldFailure(e, target.relPath, resolvedTo, "destination-folder", lookupErr);
     }
     if (blocker !== null) return notAFolder(blocker);
     if (errno === "ENOENT") return folderNotFound(folder);
@@ -144,7 +157,7 @@ async function moveFailure(e: unknown, target: FileTarget, resolvedTo: string, d
     // Research D5: a vault the registry does not know is one the CLI did not act on, so its
     // failure names no folder of it.
     if (lookupErr instanceof UpstreamError && lookupErr.code === "VALIDATION_ERROR") return e;
-    return withheldFailure(e, target.relPath, resolvedTo, lookupErr, "the vault's folder could not be looked up");
+    return withheldFailure(e, target.relPath, resolvedTo, "vault-folder", lookupErr);
   }
   return withVaultRelativePaths(e, root);
 }
