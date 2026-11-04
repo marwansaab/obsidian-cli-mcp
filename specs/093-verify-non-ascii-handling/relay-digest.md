@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-11-04T08:48:24.714Z |
 | Finished | not yet |
-| Elapsed | 35 min 44 s |
+| Elapsed | 48 min 48 s |
 | Questions | 5 (2 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 2 |
@@ -56,6 +56,7 @@
 ### pre-implementation (`57e7574c-4f96-45c6-a4d5-e3f896a64c71`)
 
 - Condition `shell-exit-0` (run_when): met. "node -e "process.exit('' === '' ? 0 : 1)"" exited 0.
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\specs\093-verify-non-ascii-handling\tasks.md exists.
 
 - **specify**: done, 31 turns, 1 questions.
 
@@ -77,16 +78,28 @@
 
 > I applied all 14 edits as written and skipped none. I checked each one against your rulings first: none adds a capability, none writes to My-Setup-Vault, and none moves live Obsidian calls into the vitest tree. The four gap tools, the similar-notes rules, the `scripts/` probe and the TestVault-only fixtures are all unchanged. U1-a: T003 now limits the module to TypeScript syntax Node can strip (no enum, namespace, parameter properties or `import = require`). U1-b: T032's usage-error run is also the check that the script loads. U1-c: research D2 records why. U2-a and U2-b: data-model E1 and E6 now have a `testVaultListed` fact, and a failing `vaults` call counts as not listed for both vaults. U2-c: all six test-vault rows in the contract's BLOCKED column (H1, L1, F1, F2, P1, P2) now include `testVaultListed`. U2-d: step 1 of the contract's order of work skips seeding and the readiness wait when the test vault isn't listed, and the run still continues. U2-e and U2-f: T014 sets the fact, and T017 adds the blocked row through one precondition helper shared by the test-vault checks. C1-a to C1-e: the readiness wait now polls `read` on the all-ASCII outside note instead of the non-ASCII source note, changed in research D4, data-model E6, contract step 3 and T015, with a guard added to T-FX1. I grepped the four files afterwards and found no leftover text still describing the old readiness check on the source note. The three MEDIUM analyze findings are fixed. The 6 LOW ones were never proposed as edits and are unchanged. Next step is /speckit-implement.
 
-- **resolve-analysis**: in progress.
+- **resolve-analysis**: done, 31 turns.
+
+> All analysis findings are fixed, and the feature folder is committed as ac4c028 on 093-verify-non-ascii-handling (not pushed). None of the fixes needed a product, scope or design decision, so I asked no questions. The three MEDIUM fixes (U1, U2, C1) were already applied; this pass added U1's limit to erasable TypeScript syntax to plan.md's Constraints. The six LOW ones are now fixed too. I1: SC-008 now says both vaults must be open rather than focused. I2: the spec's Key Entities notes that the plan calls the semantic-search vault the 'semantic vault'. I3: FR-016, Key Entities and US5 now say 'the value this project passes is My-Setup-Vault', so it no longer reads as a script default. O1: the retry tasks moved into Phase 2 as T016–T017, before the scenario loop (now T018), and the later IDs shifted by two with every cross-reference checked. A1: the 'semantic vault unchanged' check is now a before-and-after listing of the *.md files in the staged note's folder, leaving out Smart Connections' and Obsidian's own data files (quickstart §4, T033). E1: SC-002 and contract §C now say a run that cannot start prints no report and exits 2. Some fixes also touched quickstart.md and the contract, which hold the affected text. The commit message lists each finding by ID and severity, as CONTRIBUTING.md asks. Relay's own relay-digest.md and relay-qa-log.md were in the folder, so they went into the commit as well; the commit body names only relay-qa-log.md. Left open: a run where every check is BLOCKED exits with status 0. That matches FR-021 as written, so I changed nothing. Also uncommitted: the CLAUDE.md plan pointer and .specify/feature.json, because both are outside the feature folder you asked me to commit.
+
 
 ### continue
 
-- **prepare**: not run.
+Skipped.
 
-### implementation
+- Condition `shell-exit-0` (run_when): not met. "node -e "process.exit('' === '' ? 1 : 0)"" exited 1.
 
-- **implement**: not run.
-- **open-pr**: not run.
+- **prepare**: skipped.
+
+### implementation (`6325bbff-1dca-4da9-9a56-7626eb694f96`)
+
+- Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\specs\093-verify-non-ascii-handling\tasks.md exists, and Obsidian has TestVault-Obsidian-CLI-MCP focused.
+
+- **implement**: done, 59 turns.
+
+> Implemented all 35 tasks for spec 093. Added the pure module src/tools/_non-ascii-checks.ts (fixtures, the 8-scenario table, zod result parsing, PASS/FAIL/BLOCKED classifiers, retry, runChecks loop, report and exit status) with 58 co-located unit rows at 99.5% statement coverage. Added scripts/check-non-ascii.ts (stdio client, fixture seeding contained in Sandbox/, readiness wait, read-only semantic vault, cleanup). Added the package.json check:non-ascii script and a tsconfig.build.json exclude. Lint, typecheck, the full test suite (5036 passed) and the build are green; the baseline is unchanged and the module is absent from dist. The usage-error cases exit 2. The live run gave 7 PASS, 0 FAIL and 1 BLOCKED (S1, no staged note given), and S2 PASSed. Sandbox/ matched its pre-state and nothing appeared in My-Setup-Vault. The evidence is in run-2026-11-04.txt, and post-implement.md records the structural verification (kernel-node claim held) and the deviations. Two open points: S1's PASS branch still needs an owner-staged note, and quickstart §4's PowerShell redirect would garble non-ASCII evidence. Nothing was committed: the optional commit hook was skipped.
+
+- **open-pr**: in progress.
 
 ### review
 
