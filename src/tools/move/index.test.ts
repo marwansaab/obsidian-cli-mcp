@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createMoveTool, MOVE_DESCRIPTION, MOVE_TOOL_NAME } from "./index.js";
 import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js";
 import { createQueue } from "../../queue.js";
-import { makeStubSpawn as makeSuccessSpawn, silentLogger, stubVaultRegistry } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, makeStubSpawn as makeSuccessSpawn, silentLogger, stubVaultRegistry } from "../_handler-test-fixtures.js";
 import { makeRegistrationStubSpawn as makeStubSpawn } from "../_registration-stub.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -94,10 +94,13 @@ describe("createMoveTool — descriptor", () => {
   // R1 (spec 090) — a missing destination folder reaches the wire as an isError text result
   // carrying the FOLDER_NOT_FOUND payload, with no structuredContent.
   it("tool.handler returns the FOLDER_NOT_FOUND payload as an isError result (spec 090 R1)", async () => {
-    const { spawnFn } = makeSuccessSpawn({
-      stdout: "Error: ENOENT: no such file or directory, rename 'C:\\Vaults\\Work\\Inbox\\Note.md' -> 'C:\\Vaults\\Work\\Archive\\2026\\Note.md'\n",
-      exitCode: 0,
-    });
+    const { spawnFn } = makeQueuedSpawn([
+      {
+        stdout: "Error: ENOENT: no such file or directory, rename 'C:\\Vaults\\Work\\Inbox\\Note.md' -> 'C:\\Vaults\\Work\\Archive\\2026\\Note.md'\n",
+        exitCode: 0,
+      },
+      { stdout: '=> {"ok":true,"blocker":null}\n', exitCode: 0 },
+    ]);
     const tool = createMoveTool({
       logger: silentLogger(),
       queue: createQueue(),

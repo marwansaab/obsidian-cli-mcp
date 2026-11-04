@@ -10,18 +10,10 @@ import {
 } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { answerLine, captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger, unwrapEvalCode } from "../_handler-test-fixtures.js";
+import { answerLine, captureRejection, coldStartResponse, makeQueuedSpawn, silentLogger, unwrapEvalCode, evalPayload } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
-}
-
-function decodePayload(argv: string[]): unknown {
-  const codeArg = argv.find((a) => a.startsWith("code="));
-  if (!codeArg) throw new Error("argv missing code= parameter");
-  const match = /atob\('([A-Za-z0-9+/=]+)'\)/.exec(codeArg);
-  if (!match) throw new Error("argv code= does not contain base64 atob(...) payload");
-  return JSON.parse(Buffer.from(match[1]!, "base64").toString("utf-8"));
 }
 
 const defaultLimit = 20;
@@ -61,7 +53,7 @@ test("default mode multi-block result: count + matches passed through", async ()
   const argv = recorded[0]!.argv;
   expect(argv[0]).toBe("vault=Demo");
   expect(argv[1]).toBe("eval");
-  expect(decodePayload(argv)).toEqual({ query: "deployment", limit: 20, total: false });
+  expect(evalPayload(recorded[0]!)).toEqual({ query: "deployment", limit: 20, total: false });
 });
 
 // (2) Source-level match (empty headingPath)
@@ -90,7 +82,7 @@ test("count-only mode (total:true): {count:N, matches:[]}", async () => {
     deps(spawnFn),
   );
   expect(result).toEqual({ count: 7, matches: [] });
-  expect(decodePayload(recorded[0]!.argv)).toEqual({ query: "x", limit: 20, total: true });
+  expect(evalPayload(recorded[0]!)).toEqual({ query: "x", limit: 20, total: true });
 });
 
 // (4) Frontmatter sentinel preserved
@@ -238,7 +230,7 @@ test("limit:100 (upper boundary): payload carries limit:100", async () => {
     { query: "x", vault: "Demo", limit: 100 },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { limit: number };
+  const payload = evalPayload(recorded[0]!) as { limit: number };
   expect(payload.limit).toBe(100);
 });
 
@@ -258,7 +250,7 @@ test("R6 anti-injection: shell-metacharacters round-trip verbatim", async () => 
   );
   const codeArg = recorded[0]!.argv.find((a) => a.startsWith("code="))!;
   expect(codeArg).not.toContain(hostile); // raw query NOT in source
-  const payload = decodePayload(recorded[0]!.argv) as { query: string };
+  const payload = evalPayload(recorded[0]!) as { query: string };
   expect(payload.query).toBe(hostile);
 });
 
@@ -272,7 +264,7 @@ test("R6 anti-injection: Unicode + emoji round-trip verbatim", async () => {
     { query: unicode, vault: "Demo", limit: defaultLimit },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { query: string };
+  const payload = evalPayload(recorded[0]!) as { query: string };
   expect(payload.query).toBe(unicode);
 });
 
@@ -603,7 +595,7 @@ test("BI-034: non-ASCII query 'café — naïve' round-trips through base64 (FR-
     { query: "café — naïve", vault: "Demo", limit: defaultLimit },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { query: unknown };
+  const payload = evalPayload(recorded[0]!) as { query: unknown };
   expect(payload.query).toBe("café — naïve");
 });
 
@@ -614,7 +606,7 @@ test("BI-034: non-ASCII query (CJK) round-trips through base64 (FR-009)", async 
     { query: "你好世界", vault: "Demo", limit: defaultLimit },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { query: unknown };
+  const payload = evalPayload(recorded[0]!) as { query: unknown };
   expect(payload.query).toBe("你好世界");
 });
 
@@ -625,7 +617,7 @@ test("BI-034: non-ASCII query (emoji) round-trips through base64 (FR-009)", asyn
     { query: "🎉 launch notes", vault: "Demo", limit: defaultLimit },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { query: unknown };
+  const payload = evalPayload(recorded[0]!) as { query: unknown };
   expect(payload.query).toBe("🎉 launch notes");
 });
 

@@ -997,6 +997,12 @@ than added as new codes:
   exist. It reuses the pair rather than adding one, and carries no
   `details.reason` because the condition has one state (spec 090
   Clarification Q2; [mutate](capabilities/mutate.md#missing-destination-folder-and-vault-relative-failures)).
+  Since PR #139 (BI-0177) `move` also raises `"NOT_A_FOLDER"`, the other
+  half of `paths`' pair, when an existing file holds the name a destination
+  folder needs. It too has the `details.folder` shape (the file's path) and
+  no `details.reason`, and it is found by one eval after the rename fails,
+  not before
+  ([ADR-071](decisions/ADR-071-move-checks-a-blocked-destination-on-disk-after-the-rename-fails.md)).
 - `details.reason` separates the states of one multi-state condition (ADR-015,
   Sub-Discriminators via details.reason for Multi-State Error Codes) — for
   example `obsidian-not-running` on `CLI_NON_ZERO_EXIT`, `cli-disabled` on
@@ -1527,7 +1533,14 @@ them:
   CRLF, a line past the end, a missing note and a folder, a rejected read and
   the 900-character size pin. `src/tools/find_by_property/_template.test.ts`
   (PR #131) runs that template through the shared `runEvalTemplate` fixture
-  over a stub cache that mixes `#` and raw `tags` forms. The other
+  over a stub cache that mixes `#` and raw `tags` forms.
+  `src/tools/move/_template.test.ts` (PR #139) runs `move`'s blocked-file walk
+  the same way over a stub `vault.adapter.stat`, with case-insensitive and
+  case-sensitive disks, a missing ancestor and a rejecting `stat`. Since
+  PR #139 tests that need the JSON payload an eval carried read it with one
+  shared decoder in `_handler-test-fixtures.ts`, `evalPayload(spawn)` or
+  `codePayload(code)`, in place of the copies handler and template tests had
+  written for themselves. The other
   `_template.test.ts` files (`open_file`,
   `get_active_file`, `views_base`) check the template string, meaning its
   bytes, its payload encoding and which calls it contains. They do not run

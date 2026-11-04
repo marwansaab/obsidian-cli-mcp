@@ -8,6 +8,7 @@
 import { describe, expect, it } from "vitest";
 
 import { JS_TEMPLATE } from "./_template.js";
+import { codePayload } from "../_handler-test-fixtures.js";
 import { composeEvalCode } from "../_shared.js";
 
 describe("open_file JS_TEMPLATE — frozen-string byte stability", () => {
@@ -57,19 +58,13 @@ describe("open_file JS_TEMPLATE — frozen-string byte stability", () => {
 });
 
 describe("open_file composeEvalCode round-trip (R12 anti-injection)", () => {
-  function decodePayload(code: string): unknown {
-    const match = /atob\('([A-Za-z0-9+/=]+)'\)/.exec(code);
-    if (!match) throw new Error("composed code does not contain a base64 atob(...) payload");
-    return JSON.parse(Buffer.from(match[1]!, "base64").toString("utf-8"));
-  }
-
   it("base64-encodes { path, file, new_tab } into the payload — NO expectedBase (path branch)", () => {
     const code = composeEvalCode(JS_TEMPLATE, {
       path: "Projects/Roadmap.md",
       file: null,
       new_tab: false,
     });
-    expect(decodePayload(code)).toEqual({
+    expect(codePayload(code)).toEqual({
       path: "Projects/Roadmap.md",
       file: null,
       new_tab: false,
@@ -85,7 +80,7 @@ describe("open_file composeEvalCode round-trip (R12 anti-injection)", () => {
       file: "Roadmap",
       new_tab: true,
     });
-    expect(decodePayload(code)).toEqual({
+    expect(codePayload(code)).toEqual({
       path: null,
       file: "Roadmap",
       new_tab: true,
@@ -99,7 +94,7 @@ describe("open_file composeEvalCode round-trip (R12 anti-injection)", () => {
       file: null,
       new_tab: false,
     });
-    const payload = decodePayload(code) as { path: string };
+    const payload = codePayload(code) as { path: string };
     expect(payload.path).toBe(hostile);
     // The hostile substring appears ONLY inside the base64 payload, never raw in the code.
     const withoutPayload = code.replace(/atob\('[A-Za-z0-9+/=]+'\)/, "atob('')");

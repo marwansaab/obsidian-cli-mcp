@@ -1,6 +1,9 @@
 # ADR-060 — `move` classifies its failure after the CLI reports it, and keeps the vault's folder out of every failure
 
-- **Status:** Accepted
+- **Status:** Accepted; decision 2 amended by
+  [ADR-071](ADR-071-move-checks-a-blocked-destination-on-disk-after-the-rename-fails.md)
+  (PR #139), because a rename through an existing file gives the same ENOENT
+  line, so the missing-folder branch now makes one disk check first
 - **Date:** 2026-11-02
 - **Source:** PR #123 (`specs/090-classify-missing-destination/`, BI-0172,
   FR-001 to FR-012, Clarifications Q1 to Q3, research F1 to F12 and D1 to

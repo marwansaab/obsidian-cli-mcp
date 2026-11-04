@@ -6,18 +6,10 @@ import { executeBacklinks } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { captureRejection, makeQueuedSpawn, silentLogger, unwrapEvalCode } from "../_handler-test-fixtures.js";
+import { captureRejection, makeQueuedSpawn, silentLogger, unwrapEvalCode, evalPayload } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
-}
-
-function decodePayload(argv: string[]): unknown {
-  const codeArg = argv.find((a) => a.startsWith("code="));
-  if (!codeArg) throw new Error("argv missing code= parameter");
-  const match = /atob\('([A-Za-z0-9+/=]+)'\)/.exec(codeArg);
-  if (!match) throw new Error("argv code= does not contain base64 atob(...) payload");
-  return JSON.parse(Buffer.from(match[1]!, "base64").toString("utf-8"));
 }
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -51,7 +43,7 @@ test("specific + path + 3 sources: returns {count:3, backlinks:[3 entries]} (US1
   expect(argv[0]).toBe("vault=Demo");
   expect(argv[1]).toBe("eval");
   expect(argv[2]!.startsWith("code=")).toBe(true);
-  expect(decodePayload(argv)).toEqual({
+  expect(evalPayload(recorded[0]!)).toEqual({
     active: false,
     path: "Projects/brief.md",
     file: null,
@@ -81,7 +73,7 @@ test("with_counts:true: each entry carries positive count (US4)", async () => {
   );
   expect(result.count).toBe(3);
   expect(result.backlinks.every((b) => typeof b.count === "number" && b.count > 0)).toBe(true);
-  expect(decodePayload(recorded[0]!.argv)).toEqual({
+  expect(evalPayload(recorded[0]!)).toEqual({
     active: false,
     path: "x.md",
     file: null,
@@ -102,7 +94,7 @@ test("total:true: returns {count:3, backlinks:[]} (US5)", async () => {
     deps(spawnFn),
   );
   expect(result).toEqual({ count: 3, backlinks: [] });
-  expect(decodePayload(recorded[0]!.argv)).toEqual({
+  expect(evalPayload(recorded[0]!)).toEqual({
     active: false,
     path: "x.md",
     file: null,
@@ -127,7 +119,7 @@ test("active mode happy: argv has no vault= AND payload active=true (US2)", asyn
   const argv = recorded[0]!.argv;
   expect(argv.some((a) => a.startsWith("vault="))).toBe(false);
   expect(argv[0]).toBe("eval");
-  expect(decodePayload(argv)).toEqual({
+  expect(evalPayload(recorded[0]!)).toEqual({
     active: true,
     path: null,
     file: null,
@@ -148,7 +140,7 @@ test("specific + file (basename): payload carries file=<basename>, path=null", a
     deps(spawnFn),
   );
   expect(result).toEqual({ count: 0, backlinks: [] });
-  expect(decodePayload(recorded[0]!.argv)).toEqual({
+  expect(evalPayload(recorded[0]!)).toEqual({
     active: false,
     path: null,
     file: "brief",
@@ -559,7 +551,7 @@ test("cap-and-truncate limit:50: 50 entries + truncated:true; payload limit deco
   expect(result.count).toBe(50);
   expect(result.backlinks.length).toBe(50);
   expect(result.truncated).toBe(true);
-  const payload = decodePayload(recorded[0]!.argv) as { limit: unknown };
+  const payload = evalPayload(recorded[0]!) as { limit: unknown };
   expect(payload.limit).toBe(50);
 });
 
@@ -689,7 +681,7 @@ test("R12 anti-injection: base64 round-trips verbatim; frozen template prefix/su
   expect(match).not.toBeNull();
   const rendered = JS_TEMPLATE.replace("__PAYLOAD_B64__", match![1]!);
   expect(codeArg).toBe(rendered);
-  const payload = JSON.parse(Buffer.from(match![1]!, "base64").toString("utf-8"));
+  const payload = evalPayload(recorded[0]!);
   expect(payload).toEqual({
     active: false,
     path: hostilePath,
@@ -715,6 +707,6 @@ test("BI-034: non-ASCII source path (CJK) preserved in payload", async () => {
     { target_mode: "specific", vault: "Demo", path: "笔记/链接目标.md" },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { path: unknown };
+  const payload = evalPayload(recorded[0]!) as { path: unknown };
   expect(payload.path).toBe("笔记/链接目标.md");
 });

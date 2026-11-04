@@ -1,4 +1,4 @@
-// Original — no upstream. move input/output schemas — flat target-mode primitive extension; to: z.string().min(1); moved z.literal(true) success-only output shape.
+// Original — no upstream. move input/output schemas — flat target-mode primitive extension; to: z.string().min(1); moved z.literal(true) success-only output shape; BI-0177: the `{ ok: true, blocker }` envelope of the blocked-destination lookup eval.
 import { z } from "zod";
 
 import { applyTargetModeRefinement, targetModeBaseSchema } from "../../target-mode/target-mode.js";
@@ -20,6 +20,12 @@ export const moveOutputSchema = z
     fromPath: z.string(),
     toPath: z.string(),
   });
+
+/** BI-0177: the blocked-destination lookup's answer — the first folder prefix that is a file, or null. */
+export const moveBlockerEnvelopeSchema = z.strictObject({
+  ok: z.literal(true),
+  blocker: z.string().nullable(),
+});
 
 export type MoveInput = z.infer<typeof moveInputSchema>;
 export type MoveOutput = z.infer<typeof moveOutputSchema>;

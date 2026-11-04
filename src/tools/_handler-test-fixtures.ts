@@ -306,6 +306,22 @@ export function findKv(argv: string[], key: string): string | undefined {
   return hit === undefined ? undefined : hit.slice(prefix.length);
 }
 
+/** The JSON payload a composed eval code carries in its base64 `atob('…')` literal (composeEvalCode's anti-injection form). */
+export function codePayload(code: string): Record<string, unknown> {
+  const match = /atob\('([A-Za-z0-9+/=]+)'\)/.exec(code);
+  if (!match) throw new Error("code does not contain a base64 atob(...) payload");
+  const payload: unknown = JSON.parse(Buffer.from(match[1]!, "base64").toString("utf-8"));
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) throw new Error("eval payload is not a JSON object");
+  return payload as Record<string, unknown>;
+}
+
+/** The JSON payload of the eval `spawn` sent, read from its `code=` argument (wrapped or not). */
+export function evalPayload(spawn: SpawnRecording): Record<string, unknown> {
+  const code = findKv(spawn.argv, "code");
+  if (code === undefined) throw new Error("spawn sent no code= argument");
+  return codePayload(code);
+}
+
 /** Await a promise expected to reject; return the rejection value (or throw if it resolves). */
 export async function captureRejection(promise: Promise<unknown>): Promise<unknown> {
   try {

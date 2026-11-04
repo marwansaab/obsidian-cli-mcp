@@ -6,18 +6,10 @@ import { findByPropertyInputSchema } from "./schema.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn, silentLogger, captureRejection, unwrapEvalCode } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger, captureRejection, unwrapEvalCode, evalPayload } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
-}
-
-function decodePayload(argv: string[]): unknown {
-  const codeArg = argv.find((a) => a.startsWith("code="));
-  if (!codeArg) throw new Error("argv missing code= parameter");
-  const match = /atob\('([A-Za-z0-9+/=]+)'\)/.exec(codeArg);
-  if (!match) throw new Error("argv code= does not contain base64 atob(...) payload");
-  return JSON.parse(Buffer.from(match[1]!, "base64").toString("utf-8"));
 }
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -38,7 +30,7 @@ test("scalar string happy-path: { count: 1, paths: ['backlog/BI-030.md'] } (US1 
   expect(argv[0]).toBe("vault=Demo");
   expect(argv[1]).toBe("eval");
   expect(argv[2]!.startsWith("code=")).toBe(true);
-  expect(decodePayload(argv)).toEqual({
+  expect(evalPayload(recorded[0]!)).toEqual({
     property: "id",
     value: "BI-030",
     folder: "",
@@ -56,7 +48,7 @@ test("type-faithful number value: payload encodes 7 as JSON number (US1 AC#4)", 
     { vault: "Demo", name: "count", value: 7, array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { value: unknown };
+  const payload = evalPayload(recorded[0]!) as { value: unknown };
   expect(payload.value).toBe(7);
   expect(typeof payload.value).toBe("number");
 });
@@ -70,7 +62,7 @@ test("type-faithful boolean value: payload encodes true as JSON boolean (US1 AC#
     { vault: "Demo", name: "archived", value: true, array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { value: unknown };
+  const payload = evalPayload(recorded[0]!) as { value: unknown };
   expect(payload.value).toBe(true);
 });
 
@@ -84,7 +76,7 @@ test("explicit-null query: payload encodes null as JSON null (FR-014)", async ()
     deps(spawnFn),
   );
   expect(result).toEqual({ count: 2, paths: ["a.md", "b.md"] });
-  const payload = decodePayload(recorded[0]!.argv) as { value: unknown };
+  const payload = evalPayload(recorded[0]!) as { value: unknown };
   expect(payload.value).toBeNull();
 });
 
@@ -122,7 +114,7 @@ test("folder-narrow: payload carries folder='backlog' (US2 AC#1)", async () => {
     { vault: "Demo", name: "id", value: "BI-030", folder: "backlog", array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { folder: unknown };
+  const payload = evalPayload(recorded[0]!) as { folder: unknown };
   expect(payload.folder).toBe("backlog");
 });
 
@@ -136,7 +128,7 @@ test("folder-exclude: payload carries folder='archive' AND no-match envelope (US
     deps(spawnFn),
   );
   expect(result).toEqual({ count: 0, paths: [] });
-  const payload = decodePayload(recorded[0]!.argv) as { folder: unknown };
+  const payload = evalPayload(recorded[0]!) as { folder: unknown };
   expect(payload.folder).toBe("archive");
 });
 
@@ -149,7 +141,7 @@ test("array_match: true defaulted in payload (US3 AC#1)", async () => {
     { vault: "Demo", name: "tags", value: "alpha", array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { arrayMatch: unknown; value: unknown };
+  const payload = evalPayload(recorded[0]!) as { arrayMatch: unknown; value: unknown };
   expect(payload.arrayMatch).toBe(true);
   expect(payload.value).toBe("alpha");
 });
@@ -163,7 +155,7 @@ test("array_match: false with array value: payload preserves array exactly (US3 
     { vault: "Demo", name: "tags", value: ["alpha", "beta"], array_match: false, case_sensitive: true },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { arrayMatch: unknown; value: unknown };
+  const payload = evalPayload(recorded[0]!) as { arrayMatch: unknown; value: unknown };
   expect(payload.arrayMatch).toBe(false);
   expect(payload.value).toEqual(["alpha", "beta"]);
 });
@@ -177,7 +169,7 @@ test("case_sensitive: false propagates into payload (US4 AC#2)", async () => {
     { vault: "Demo", name: "tag", value: "alpha", array_match: true, case_sensitive: false },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { caseSensitive: unknown };
+  const payload = evalPayload(recorded[0]!) as { caseSensitive: unknown };
   expect(payload.caseSensitive).toBe(false);
 });
 
@@ -193,7 +185,7 @@ test("vault omitted: argv has no vault= prefix (R4 active-mode mapping, FR-003)"
   const argv = recorded[0]!.argv;
   expect(argv.some((a) => a.startsWith("vault="))).toBe(false);
   expect(argv[0]).toBe("eval");
-  expect(decodePayload(argv)).toEqual({
+  expect(evalPayload(recorded[0]!)).toEqual({
     property: "id",
     value: "BI-030",
     folder: "",
@@ -352,7 +344,7 @@ test("anti-injection (R6): hostile value survives base64 round-trip exactly (SC-
   expect(match).not.toBeNull();
   // The base64 alphabet is structurally constrained — no quotes, no JS metachars
   expect(/^[A-Za-z0-9+/=]+$/.test(match![1]!)).toBe(true);
-  const payload = JSON.parse(Buffer.from(match![1]!, "base64").toString("utf-8")) as { value: unknown };
+  const payload = evalPayload(recorded[0]!) as { value: unknown };
   expect(payload.value).toBe(hostile);
 });
 
@@ -366,7 +358,7 @@ test("anti-injection (R6): hostile property survives base64 round-trip exactly",
     { vault: "Demo", name: hostile, value: "x", array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { property: unknown };
+  const payload = evalPayload(recorded[0]!) as { property: unknown };
   expect(payload.property).toBe(hostile);
 });
 
@@ -381,7 +373,7 @@ test("BI-034 US3 (a): em-dash + accented value round-trips through base64 (FR-00
     deps(spawnFn),
   );
   expect(result).toEqual({ count: 1, paths: ["Fixtures/BI-038/tc-mojibake-fbp.md"] });
-  const payload = decodePayload(recorded[0]!.argv) as { value: unknown };
+  const payload = evalPayload(recorded[0]!) as { value: unknown };
   expect(payload.value).toBe(value);
 });
 
@@ -395,7 +387,7 @@ test("BI-034 US3 (b): CJK value round-trips through base64 (FR-009)", async () =
     { vault: "Demo", name: "marker", value, array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { value: unknown };
+  const payload = evalPayload(recorded[0]!) as { value: unknown };
   expect(payload.value).toBe(value);
 });
 
@@ -409,7 +401,7 @@ test("BI-034 US3 (c): emoji value round-trips through base64 (FR-009)", async ()
     { vault: "Demo", name: "marker", value, array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { value: unknown };
+  const payload = evalPayload(recorded[0]!) as { value: unknown };
   expect(payload.value).toBe(value);
 });
 
@@ -423,7 +415,7 @@ test("BI-034 US3 (d): interleaved ASCII + non-ASCII value preserved verbatim (FR
     { vault: "Demo", name: "title", value, array_match: true, case_sensitive: true },
     deps(spawnFn),
   );
-  const payload = decodePayload(recorded[0]!.argv) as { value: unknown };
+  const payload = evalPayload(recorded[0]!) as { value: unknown };
   expect(payload.value).toBe(value);
 });
 
@@ -436,7 +428,7 @@ test("BI-034 US3 (e): selectivity — non-ASCII value payload distinct from ASCI
     { vault: "Demo", name: "marker", value: "café", array_match: true, case_sensitive: true },
     deps(spawnA),
   );
-  const payloadA = decodePayload(recordedA[0]!.argv) as { value: unknown };
+  const payloadA = evalPayload(recordedA[0]!) as { value: unknown };
   expect(payloadA.value).toBe("café");
 
   const { spawnFn: spawnB, recorded: recordedB } = makeQueuedSpawn([
@@ -446,7 +438,7 @@ test("BI-034 US3 (e): selectivity — non-ASCII value payload distinct from ASCI
     { vault: "Demo", name: "marker", value: "cafe", array_match: true, case_sensitive: true },
     deps(spawnB),
   );
-  const payloadB = decodePayload(recordedB[0]!.argv) as { value: unknown };
+  const payloadB = evalPayload(recordedB[0]!) as { value: unknown };
   expect(payloadB.value).toBe("cafe");
   expect(payloadA.value).not.toBe(payloadB.value);
 });
@@ -461,7 +453,7 @@ test("FR-023: wrapper does not transform value 'work' to a rollup query", async 
     deps(spawnFn),
   );
   expect(result).toEqual({ count: 0, paths: [] });
-  const payload = decodePayload(recorded[0]!.argv) as { property: unknown; value: unknown };
+  const payload = evalPayload(recorded[0]!) as { property: unknown; value: unknown };
   expect(payload.property).toBe("tags");
   expect(payload.value).toBe("work");
 });
@@ -476,7 +468,7 @@ test("FR-024: scalar query against list-of-mappings property surfaces as no-matc
     deps(spawnFn),
   );
   expect(result).toEqual({ count: 0, paths: [] });
-  const payload = decodePayload(recorded[0]!.argv) as { property: unknown; value: unknown };
+  const payload = evalPayload(recorded[0]!) as { property: unknown; value: unknown };
   expect(payload.property).toBe("entries");
   expect(payload.value).toBe("x");
 });
@@ -491,7 +483,7 @@ test("spec 073: name / array_match / case_sensitive (new or deprecated names) re
   ]) {
     const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: '=> {"count":0,"paths":[]}\n', exitCode: 0 }]);
     await executeFindByProperty(findByPropertyInputSchema.parse(raw), deps(spawnFn));
-    expect(decodePayload(recorded[0]!.argv)).toEqual(expected);
+    expect(evalPayload(recorded[0]!)).toEqual(expected);
     argvs.push(recorded[0]!.argv);
   }
   // Byte-identical apart from the per-call spec 080 answer tag.
