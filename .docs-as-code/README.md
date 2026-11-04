@@ -64,7 +64,8 @@ extends it.
     (PR #114).
   - [capabilities/plugin-backed.md](capabilities/plugin-backed.md) — the two
     Smart Connections tools, and how `limit` cuts one fixed, sorted
-    candidate list (PR #116).
+    candidate list (PR #116), and how one shared fragment turns a plugin
+    block key into a match (PR #141).
   - [capabilities/escape-hatch-and-meta.md](capabilities/escape-hatch-and-meta.md)
     — `obsidian_exec`, its default-off code-execution gate, and `help`.
 

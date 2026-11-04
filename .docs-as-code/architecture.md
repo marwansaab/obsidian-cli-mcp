@@ -1471,8 +1471,13 @@ them:
 - **Shared rules travel as in-eval fragments.** A template cannot import at
   run time, but it is a TypeScript template literal, so a rule shared with
   TypeScript code is exported as JavaScript source and interpolated when the
-  module loads: `B64_PAYLOAD_DECODE_EXPR`, `SORT_SLICE_AND_EMIT` in
-  `src/tools/_smart-connections.ts`, and since PR #131 `WITHOUT_TAG_HASH_JS`
+  module loads: `B64_PAYLOAD_DECODE_EXPR`, `SORT_SLICE_AND_EMIT` and, since
+  PR #141 (BI-0184), `TO_MATCH_JS` in `src/tools/_smart-connections.ts` (a
+  plugin block key and score as a published match, replacing an inline key
+  split in each Smart Connections template that had left an empty
+  `headingPath` segment;
+  [plugin-backed](capabilities/plugin-backed.md#from-a-plugin-key-to-a-match)),
+  and since PR #131 `WITHOUT_TAG_HASH_JS`
   in `src/tools/_tag-hash.ts`, the one-leading-`#` tag rule that
   `find_by_property`'s template applies and `read_property` applies through
   its TypeScript twin `withoutTagHash`. The twin and the fragment are pinned

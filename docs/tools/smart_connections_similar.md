@@ -108,7 +108,7 @@ Uniform envelope across both modes; the only difference is whether `matches` is 
 | `count` | integer ≥ 0 | Total post-filter, post-self-exclusion match count. Identical across both `total` branches for the same source file. |
 | `matches` | array | One entry per block-level match in `(score desc, path byte-asc, headingPath.join('#') byte-asc)` order. Populated in default mode; always `[]` in count-only mode. |
 | `matches[].path` | string ending `.md` | Source file's vault-relative path with `.md` extension preserved — everything before the FIRST `#` in the plugin's match key. Directly pasteable into other typed tools' `path=` field. |
-| `matches[].headingPath` | array of strings | Heading-path segments locating the matched block within `path` — split on `#` AFTER the first `#`. Empty `[]` for source-level matches; literal `["---frontmatter---"]` for frontmatter-block matches (plugin sentinel preserved verbatim, NOT normalised by the wrapper); multi-segment array for nested-heading-block matches. |
+| `matches[].headingPath` | array of strings | Heading-path segments locating the matched block within `path` — split on `#` AFTER the first `#`. Empty `[]` for source-level matches, which include the text before a note's first heading (the plugin keys it `<path>#`); no segment is ever an empty string; literal `["---frontmatter---"]` for frontmatter-block matches (plugin sentinel preserved verbatim, NOT normalised by the wrapper); multi-segment array for nested-heading-block matches. |
 | `matches[].score` | finite number | Raw plugin-returned score (pass-through; no clamp / normalise / round). Embedding-model-dependent semantics — transformers.js ≈ `[0, 1]`; OpenAI ada-002 ≈ `[0, 1]`. |
 
 ### Block-vs-source granularity
