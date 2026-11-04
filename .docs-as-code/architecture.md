@@ -1022,6 +1022,12 @@ than added as new codes:
   `CLI_REPORTED_ERROR` with `details.stage: "vault-root-check"` and
   `details.errno`, rather than a third reason, because its cause is not
   known ([ADR-068](decisions/ADR-068-a-vault-root-that-cannot-be-resolved-fails-as-the-vaults-folder.md)).
+  Since PR #138 (BI-0121) there is a third, `focused-unregistered`: in
+  active mode the focused vault's folder matches no vault Obsidian lists, so
+  it has no display name. It comes from `requireFocusedVaultName` in
+  `src/tools/_active-file.ts`, which used to return the folder path as the
+  name instead ([vault registry](#two-ways-to-touch-a-note-through-the-cli-or-directly),
+  [ADR-070](decisions/ADR-070-the-focused-vaults-name-is-looked-up-again-on-a-miss-and-never-falls-back-to-its-folder.md)).
   This page used to give `VAULT_NOT_FOUND` /
   `not-open`, "a vault that is registered but closed", as the example. That
   state was never produced through the CLI the server drives, and PR #100
@@ -1246,11 +1252,27 @@ The direct path needs three things the CLI used to provide:
    `vaults` tool — always re-probes. A cache hit does not re-probe. The
    unknown-vault error (`VALIDATION_ERROR` with `details.requestedVault` and
    `details.knownVaults`) no longer tells the caller to restart.
-   `createVaultRegistry` returns `VaultRegistry & VaultLister`, so the many
+   `createVaultRegistry` returned `VaultRegistry & VaultLister`, so the many
    test stubs that implement only `VaultRegistry` for name resolution did not
    change. The cache keeps every row, so `list()` reports two vaults that
    share a display name separately; resolving that name still gives its last
    row, as before.
+
+   The registry also answers the other way, folder to name
+   (`resolveVaultDisplayName`), for the active-mode tools that get only the
+   focused vault's `basePath` from the focused-file `eval`. Until PR #138
+   (BI-0121) that lookup read the cache only and returned `null` when it was
+   cold, and the helper in `_active-file.ts` then used the folder path as the
+   name: the first active-mode `prepend` of a process sent it as `vault=`
+   and failed. Since PR #138 a cold cache or a miss runs the same
+   single-flight probe once, as `resolveVaultPath` does; a probe failure
+   propagates and leaves the cache unset. The match is exact string equality
+   on the path, through a `byPath` map built from `byName`, so a duplicated
+   display name matches only its last row's path. The method stays optional
+   and may answer synchronously on the `VaultRegistry` interface, for the
+   stubs; `createVaultRegistry` now returns `ObsidianVaultRegistry`, where it
+   is required and async
+   ([ADR-070](decisions/ADR-070-the-focused-vaults-name-is-looked-up-again-on-a-miss-and-never-falls-back-to-its-folder.md)).
 2. **A guarantee the target is inside the vault.** Two layers. A schema-level
    check ([src/path-safety/schema.ts](../src/path-safety/schema.ts)) rejects
    `..` segments, absolute markers, drive letters and control characters at

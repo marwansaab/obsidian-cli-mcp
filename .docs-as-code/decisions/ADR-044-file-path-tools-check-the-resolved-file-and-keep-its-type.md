@@ -78,7 +78,11 @@ that Obsidian resolves; active mode carries no name at all.
   verified first by T0 P6. The fix (`5cf24a1`) took the registry back out of
   the four tools, so `createServer`, a kernel node, is not touched by the
   merged PR. The recorded fallback — keep the display name but fail loudly on
-  a null reverse lookup — was not needed.
+  a null reverse lookup — was not needed. It was needed later for the five
+  tools that still use the display name: PR #138 (BI-0121) made the reverse
+  lookup probe on a miss and fail loud with `focused-unregistered`
+  ([ADR-070](ADR-070-the-focused-vaults-name-is-looked-up-again-on-a-miss-and-never-falls-back-to-its-folder.md)).
+  This record's decision for the four tools here is unchanged.
 - **Classify the locator string only.** Cheaper, but there is no string in
   active mode, and assuming an extensionless `file` name means a note relies
   on Obsidian's resolution rules rather than reading them.

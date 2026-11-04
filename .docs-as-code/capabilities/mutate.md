@@ -902,6 +902,42 @@ missing target. For `prepend` that held only from PR #105; before it, the
 failure was a generic upstream error
 ([above](#prepend-on-a-missing-note)).
 
+### The focused vault's name in active mode
+
+The focused-file `eval` reports the focused vault's absolute folder, not its
+name. `append_note`, `prepend`, `patch_heading` and `patch_block` need the
+name for the result's `vault`, and `prepend` also sends it to Obsidian as
+`vault=`; they get it through `resolveFsTarget` →
+`resolveActiveLocatorWithVault` → `requireFocusedVaultName` in
+`src/tools/_active-file.ts`. `find_and_replace`'s single-note scope calls
+`requireFocusedVaultName` directly when it has a `file` and no `vault`, for
+its `obsidian file vault=…` lookup, passing the raw `basePath` rather than the
+realpathed root, because the registry keys on what Obsidian reports.
+
+```mermaid
+flowchart LR
+  base[focused basePath] --> hit{in cache?}
+  hit -- yes --> name[display name]
+  hit -- "no, or cache cold" --> probe["probe once: vaults verbose"]
+  probe -- match --> name
+  probe -- no match --> err["CLI_REPORTED_ERROR / VAULT_NOT_FOUND / focused-unregistered"]
+  probe -- probe fails --> prop[probe's error propagates]
+```
+
+Until PR #138 (BI-0121) this used the cache only, and a miss returned the
+folder path as the name. Nothing fills the cache at start-up, so the first
+call of a process went wrong whenever no earlier call had named a vault:
+active-mode `prepend` and `find_and_replace` with a `file` and no `vault` sent
+`vault=<absolute folder>` and failed with Obsidian's `Vault not found.`, and
+the other three succeeded but reported the folder as `vault`. Since PR #138
+the lookup probes once on a miss, and a folder that still matches no listed
+vault fails with `focused-unregistered` before anything is read or written,
+with no disk path in the message or `details`. The `vault` in a result is
+therefore always a name Obsidian lists
+([ADR-070](../decisions/ADR-070-the-focused-vaults-name-is-looked-up-again-on-a-miss-and-never-falls-back-to-its-folder.md)).
+`write_note` and the CLI pass-through tools never asked for the name and
+are unchanged.
+
 ## Published surface
 
 Since PR #90 every tool here publishes a title and all four behaviour hints,
@@ -1050,6 +1086,14 @@ from their schema would have reached the client as SDK free text rather than
   `does not exist`). None matches any output Obsidian is known to produce;
   PR #105 kept them so nothing they match is reported differently, and
   replacing them is its own item.
+- The focused vault's name is found by comparing Obsidian's `basePath` with
+  the folder `vaults verbose` lists as exact strings. They agree on the test
+  host; where they differ (letter case, separators), active-mode calls of
+  the five name-using tools fail with `focused-unregistered` rather than
+  guess. Normalising the comparison was out of PR #138's scope, and the
+  `focused-unregistered` path was tested in-process only, since no focused
+  vault outside Obsidian's list could be set up live
+  ([above](#the-focused-vaults-name-in-active-mode)).
 - `write_note` dropped its `template` parameter in the ADR-009 rewrite;
   template-based creation goes through `obsidian_exec`.
 - Writes made by the direct path are visible to Obsidian through the
