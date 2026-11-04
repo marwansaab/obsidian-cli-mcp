@@ -175,12 +175,12 @@ test("resolveVaultDisplayName returns the registered display name for a known ba
   // Prime the cache via a forward lookup first (the registry is lazy).
   await reg.resolveVaultPath("The Setup");
   expect(
-    reg.resolveVaultDisplayName!(
+    await reg.resolveVaultDisplayName!(
       "C:\\Marwan-Saab-ADO\\Marwan at Metcash\\Obsidian\\TestVault-Obsidian-CLI-MCP",
     ),
   ).toBe("TestVault-Obsidian-CLI-MCP");
   expect(
-    reg.resolveVaultDisplayName!(
+    await reg.resolveVaultDisplayName!(
       "C:\\Marwan-Saab-ADO\\Marwan at Metcash\\Obsidian\\The Setup",
     ),
   ).toBe("The Setup");
@@ -190,7 +190,7 @@ test("resolveVaultDisplayName returns null for an unknown basePath", async () =>
   const probe = vi.fn().mockResolvedValue(TWO_VAULT_STDOUT);
   const reg = createVaultRegistry({ invokeProbe: probe });
   await reg.resolveVaultPath("The Setup");
-  expect(reg.resolveVaultDisplayName!("/no/such/vault")).toBe(null);
+  expect(await reg.resolveVaultDisplayName!("/no/such/vault")).toBe(null);
 });
 
 // 068 T062 / FR-037 — a cache miss re-probes once before failing.
@@ -307,13 +307,79 @@ test("list propagates a probe failure rather than returning an empty list", asyn
   expect(await captureRejection(reg.list())).toBe(probeError);
 });
 
-test("resolveVaultDisplayName returns null when the cache has not been primed", async () => {
+test("resolveVaultDisplayName probes once and resolves when the cache has not been primed (BI-0121)", async () => {
   const probe = vi.fn().mockResolvedValue(TWO_VAULT_STDOUT);
   const reg = createVaultRegistry({ invokeProbe: probe });
   // No forward lookup performed yet — cache is null.
   expect(
-    reg.resolveVaultDisplayName!(
+    await reg.resolveVaultDisplayName!(
       "C:\\Marwan-Saab-ADO\\Marwan at Metcash\\Obsidian\\The Setup",
     ),
-  ).toBe(null);
+  ).toBe("The Setup");
+  expect(probe).toHaveBeenCalledTimes(1);
+});
+
+// BI-0121 — the reverse lookup probes on a miss, like resolveVaultPath (068 FR-037).
+test("resolveVaultDisplayName: a warm-cache hit does not re-probe", async () => {
+  const probe = vi.fn().mockResolvedValue(TWO_VAULT_STDOUT);
+  const reg = createVaultRegistry({ invokeProbe: probe });
+  await reg.resolveVaultDisplayName!("C:\\Marwan-Saab-ADO\\Marwan at Metcash\\Obsidian\\The Setup");
+  expect(
+    await reg.resolveVaultDisplayName!(
+      "C:\\Marwan-Saab-ADO\\Marwan at Metcash\\Obsidian\\TestVault-Obsidian-CLI-MCP",
+    ),
+  ).toBe("TestVault-Obsidian-CLI-MCP");
+  expect(probe).toHaveBeenCalledTimes(1);
+});
+
+test("resolveVaultDisplayName: a warm-cache miss re-probes once and resolves a vault added after start-up", async () => {
+  const probe = vi
+    .fn()
+    .mockResolvedValueOnce(TWO_VAULT_STDOUT)
+    .mockResolvedValueOnce(TWO_VAULT_STDOUT + "NewVault\t/abs/new\n");
+  const reg = createVaultRegistry({ invokeProbe: probe });
+  await reg.resolveVaultPath("The Setup");
+  expect(await reg.resolveVaultDisplayName!("/abs/new")).toBe("NewVault");
+  expect(probe).toHaveBeenCalledTimes(2);
+});
+
+test("resolveVaultDisplayName: a base that matches nothing after the probe returns null, probing once on a cold cache", async () => {
+  const probe = vi.fn().mockResolvedValue(TWO_VAULT_STDOUT);
+  const reg = createVaultRegistry({ invokeProbe: probe });
+  expect(await reg.resolveVaultDisplayName!("/no/such/vault")).toBe(null);
+  expect(probe).toHaveBeenCalledTimes(1);
+});
+
+test("resolveVaultDisplayName: concurrent cold calls share one probe", async () => {
+  let resolveProbe!: (value: string) => void;
+  const probe = vi.fn().mockImplementation(
+    () =>
+      new Promise<string>((resolve) => {
+        resolveProbe = resolve;
+      }),
+  );
+  const reg = createVaultRegistry({ invokeProbe: probe });
+  const p1 = reg.resolveVaultDisplayName!("C:\\Marwan-Saab-ADO\\Marwan at Metcash\\Obsidian\\The Setup");
+  const p2 = reg.resolveVaultPath("TestVault-Obsidian-CLI-MCP");
+  expect(probe).toHaveBeenCalledTimes(1);
+  resolveProbe(TWO_VAULT_STDOUT);
+  const [name, path] = await Promise.all([p1, p2]);
+  expect(name).toBe("The Setup");
+  expect(path).toBe("C:\\Marwan-Saab-ADO\\Marwan at Metcash\\Obsidian\\TestVault-Obsidian-CLI-MCP");
+  expect(probe).toHaveBeenCalledTimes(1);
+});
+
+test("resolveVaultDisplayName: a probe failure propagates and leaves the cache cold, so a later call recovers", async () => {
+  const probeError = new UpstreamError({
+    code: "CLI_REPORTED_ERROR",
+    cause: null,
+    details: {},
+    message: "Obsidian not running",
+  });
+  const probe = vi.fn().mockRejectedValueOnce(probeError).mockResolvedValueOnce(TWO_VAULT_STDOUT);
+  const reg = createVaultRegistry({ invokeProbe: probe });
+  const base = "C:\\Marwan-Saab-ADO\\Marwan at Metcash\\Obsidian\\The Setup";
+  expect(await captureRejection(reg.resolveVaultDisplayName(base))).toBe(probeError);
+  expect(await reg.resolveVaultDisplayName!(base)).toBe("The Setup");
+  expect(probe).toHaveBeenCalledTimes(2);
 });

@@ -23,6 +23,7 @@ import {
 } from "./handler.js";
 import { UpstreamError } from "../../errors.js";
 import { linkRealpath } from "../../path-safety/_realpath-fixtures.js";
+import { createVaultRegistry } from "../../vault-registry/registry.js";
 import {
   captureLogger,
   fileNotFoundResponse,
@@ -312,6 +313,38 @@ describe("066-file-scope US1 — named single-note scope by path", () => {
     // not the canonicalised filesystem path — proves resolveVaultDisplayName(rawRoot).
     const vaultArg = recorded[0]!.argv.find((a) => a.startsWith("vault="));
     expect(vaultArg).toBe("vault=FocusedDisplay");
+    expect(state.writes.length).toBe(0);
+  });
+
+  it("focused file fork (vault absent) on a cold registry cache sends the display name to the file lookup as a first call (BI-0121)", async () => {
+    const files: MemFile[] = [{ abs: relToAbs("Projects/Target.md"), content: "STATUS once" }];
+    const { fs } = inMemoryFs(files, VAULT_ROOT);
+    const invokeProbe = vi.fn(async () => `V\t${VAULT_ROOT}\n`);
+    const invokeEval = vi.fn(async (): Promise<FocusedVaultResponse> => ({ path: null, base: VAULT_ROOT }));
+    const { spawnFn, recorded } = makeQueuedSpawn([FILE_TSV_OK("Projects/Target.md")]);
+    const result = await executeFindAndReplace(
+      { pattern: "STATUS", replacement: "STATE", mode: "literal", file: "Target", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
+      baseDeps({ fs, vaultRegistry: createVaultRegistry({ invokeProbe }), invokeEval, spawnFn }),
+    );
+    expect(result.mode).toBe("preview");
+    expect(invokeProbe).toHaveBeenCalledTimes(1);
+    expect(recorded[0]!.argv).toContain("vault=V");
+    expect(recorded[0]!.argv.some((a) => a === `vault=${VAULT_ROOT}`)).toBe(false);
+  });
+
+  it("focused file fork (vault absent) whose focused vault matches no listed vault → VAULT_NOT_FOUND / focused-unregistered, no file lookup (BI-0121)", async () => {
+    const { fs, state } = inMemoryFs([{ abs: relToAbs("Projects/Target.md"), content: "STATUS once" }], VAULT_ROOT);
+    const invokeProbe = vi.fn(async () => `Other\t${resolve("/some/other/vault")}\n`);
+    const invokeEval = vi.fn(async (): Promise<FocusedVaultResponse> => ({ path: null, base: VAULT_ROOT }));
+    const { spawnFn, getCount } = makeQueuedSpawn([]);
+    const err = await executeFindAndReplace(
+      { pattern: "STATUS", replacement: "STATE", mode: "literal", file: "Target", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: false, active_note: false },
+      baseDeps({ fs, vaultRegistry: createVaultRegistry({ invokeProbe }), invokeEval, spawnFn }),
+    ).catch((e) => e);
+    expect((err as UpstreamError).code).toBe("CLI_REPORTED_ERROR");
+    expect((err as UpstreamError).details).toEqual({ code: "VAULT_NOT_FOUND", reason: "focused-unregistered" });
+    expect(getCount()).toBe(0);
+    expect(state.reads).toEqual([]);
     expect(state.writes.length).toBe(0);
   });
 

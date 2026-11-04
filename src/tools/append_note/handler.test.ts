@@ -9,6 +9,7 @@ import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapt
 import { UpstreamError } from "../../errors.js";
 import { createLogger, type Logger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
+import { createVaultRegistry, type VaultRegistry } from "../../vault-registry/registry.js";
 import {
   folderMissingDetails,
   makeQueuedSpawn,
@@ -16,8 +17,6 @@ import {
   silentLogger,
   type StubResponse,
 } from "../_handler-test-fixtures.js";
-
-import type { VaultRegistry } from "../../vault-registry/registry.js";
 
 const VAULT_ROOT = resolve("/test-vault");
 
@@ -949,7 +948,7 @@ describe("US4 active-mode focused-file resolution", () => {
     expect((err as UpstreamError).details.stage).toBe("envelope-parse");
   });
 
-  test("vault display name fallback: when reverse-lookup returns null, envelope echoes the resolved base path", async () => {
+  test("focused vault unregistered: when reverse-lookup returns null, fails with VAULT_NOT_FOUND / focused-unregistered and writes nothing (BI-0121)", async () => {
     const fs = fakeFs({ content: "x\n" });
     const reg: VaultRegistry = {
       resolveVaultPath: vi.fn(async () => VAULT_ROOT),
@@ -959,14 +958,31 @@ describe("US4 active-mode focused-file resolution", () => {
       FOCUSED_OK(VAULT_ROOT, "n.md"),
       EVAL_OK,
     ]);
-    const result = await executeAppendNote(
+    const err = await executeAppendNote(
       {
         target_mode: "active",
         content: "y",
         inline: false,
       },
       deps({ spawnFn, vaultRegistry: reg, fs }),
+    ).catch((e) => e);
+    expect((err as UpstreamError).code).toBe("CLI_REPORTED_ERROR");
+    expect((err as UpstreamError).details).toEqual({ code: "VAULT_NOT_FOUND", reason: "focused-unregistered" });
+    expect(fs.reads.length).toBe(0);
+    expect(fs.writes.length).toBe(0);
+    expect(fs.renames.length).toBe(0);
+  });
+
+  test("cold registry cache: the first call of a process reports the vault's display name (BI-0121)", async () => {
+    const fs = fakeFs({ content: "x\n" });
+    const invokeProbe = vi.fn(async () => `Knowledge\t${VAULT_ROOT}\n`);
+    const { spawnFn } = makeQueuedSpawn([FOCUSED_OK(VAULT_ROOT, "n.md"), EVAL_OK]);
+    const result = await executeAppendNote(
+      { target_mode: "active", content: "y", inline: false },
+      deps({ spawnFn, vaultRegistry: createVaultRegistry({ invokeProbe }), fs }),
     );
-    expect(result.vault).toBe(VAULT_ROOT);
+    expect(result.vault).toBe("Knowledge");
+    expect(invokeProbe).toHaveBeenCalledTimes(1);
+    expect(fs.writes.length).toBe(1);
   });
 });

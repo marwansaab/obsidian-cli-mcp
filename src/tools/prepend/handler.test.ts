@@ -20,6 +20,7 @@ import { __resetInFlightRegistryForTests } from "../../cli-adapter/_dispatch.js"
 import { UpstreamError } from "../../errors.js";
 import { createLogger } from "../../logger.js";
 import { createQueue } from "../../queue.js";
+import { createVaultRegistry, type VaultRegistry } from "../../vault-registry/registry.js";
 import {
   folderMissingDetails,
   makeQueuedSpawn,
@@ -27,8 +28,6 @@ import {
   silentLogger,
   type StubResponse,
 } from "../_handler-test-fixtures.js";
-
-import type { VaultRegistry } from "../../vault-registry/registry.js";
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -789,21 +788,41 @@ describe("US4 active-mode focused-file resolution", () => {
     expect((err as UpstreamError).details.stage).toBe("envelope-parse");
   });
 
-  test("vault display-name fallback: when reverse-lookup returns null, envelope echoes the resolved base path", async () => {
+  test("focused vault unregistered: when reverse-lookup returns null, fails with VAULT_NOT_FOUND / focused-unregistered and never calls prepend (BI-0121)", async () => {
     const fs = fakeFs({ sizes: [10, 11] });
     const reg: VaultRegistry = {
       resolveVaultPath: vi.fn(async () => VAULT_ROOT),
       resolveVaultDisplayName: vi.fn(() => null),
     };
-    const { spawnFn } = makeQueuedSpawn([FOCUSED_OK(VAULT_ROOT, "n.md"), PREPEND_OK]);
-    const result = await executePrepend(
+    const { spawnFn, recorded } = makeQueuedSpawn([FOCUSED_OK(VAULT_ROOT, "n.md"), PREPEND_OK]);
+    const err = await executePrepend(
       {
         target_mode: "active",
         content: "y",
         inline: false,
       },
       deps({ spawnFn, vaultRegistry: reg, fs }),
+    ).catch((e) => e);
+    expect((err as UpstreamError).code).toBe("CLI_REPORTED_ERROR");
+    expect((err as UpstreamError).details).toEqual({ code: "VAULT_NOT_FOUND", reason: "focused-unregistered" });
+    // Only the focused-file eval ran: no prepend spawn, no stat, no write.
+    expect(recorded.length).toBe(1);
+    expect(fs.statCalls.length).toBe(0);
+    expect(fs.writes.length).toBe(0);
+  });
+
+  test("cold registry cache: the first call of a process sends and reports the vault's display name, never its folder path (BI-0121)", async () => {
+    const fs = fakeFs({ sizes: [10, 11] });
+    const invokeProbe = vi.fn(async () => `Knowledge\t${VAULT_ROOT}\n`);
+    const { spawnFn, recorded } = makeQueuedSpawn([FOCUSED_OK(VAULT_ROOT, "n.md"), PREPEND_OK]);
+    const result = await executePrepend(
+      { target_mode: "active", content: "y", inline: false },
+      deps({ spawnFn, vaultRegistry: createVaultRegistry({ invokeProbe }), fs }),
     );
-    expect(result.vault).toBe(VAULT_ROOT);
+    expect(result.vault).toBe("Knowledge");
+    expect(invokeProbe).toHaveBeenCalledTimes(1);
+    expect(recorded[1]!.argv).toContain("prepend");
+    expect(recorded[1]!.argv).toContain("vault=Knowledge");
+    expect(recorded[1]!.argv.some((a) => a === `vault=${VAULT_ROOT}`)).toBe(false);
   });
 });

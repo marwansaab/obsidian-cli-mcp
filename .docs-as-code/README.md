@@ -247,3 +247,9 @@ applies. Records written since:
   `cli-disabled`, on an exact whole-output match and single-shot;
   facade-level rules, a prefix match and a new `details.code` were rejected
   (PR #137).
+- [decisions/ADR-070-the-focused-vaults-name-is-looked-up-again-on-a-miss-and-never-falls-back-to-its-folder.md](decisions/ADR-070-the-focused-vaults-name-is-looked-up-again-on-a-miss-and-never-falls-back-to-its-folder.md)
+  — the vault registry's reverse lookup probes once on a miss, and the
+  active-mode name helper fails as `VAULT_NOT_FOUND` /
+  `focused-unregistered` instead of using the folder path as the name;
+  start-up priming in `server.ts`, fail-loud without a probe and a separate
+  refresh method were rejected (PR #138).

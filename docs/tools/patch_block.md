@@ -160,7 +160,7 @@ interface PatchBlockOutput {
 | Field | Meaning |
 |---|---|
 | `path` | Vault-relative path of the note that was patched. Echo for write-verification. |
-| `vault` | Vault display name (resolved from input or focused-vault basePath reverse-lookup). |
+| `vault` | Vault display name: the input's `vault` in specific mode; in active mode, the name Obsidian lists for the focused vault's folder (never the folder path; an unlisted folder fails with `VAULT_NOT_FOUND` / `focused-unregistered`). |
 | `block_id` | The supplied `block_id`, echoed verbatim (bare, no leading caret). |
 | `block_shape` | Which surgery mechanic was applied — `paragraph`, `list-item`, or `separately-placed`. The on-heading shapes never appear in the success envelope (they short-circuit to `BLOCK_ON_HEADING`). |
 | `bytes_written` | Change in the note's size in bytes caused by this write: its size after the write minus its size before, counting a note that did not exist as 0. Zero when the size did not change; negative when the note shrank. To verify a write, compare `bytes_written` with the size change you intended; 0 and negative values are normal for same-size and shrinking edits. |
@@ -179,6 +179,7 @@ Every failure routes through `UpstreamError`.
 | `CLI_REPORTED_ERROR` | `EXTERNAL_EDITOR_CONFLICT` | `file-locked` (reserved: `unsaved-changes`) | An external editor holds the file (Windows). Ask the user to save and close, retry. |
 | `VAULT_NOT_FOUND` | — | `unknown` | Vault is not registered. |
 | `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND` | `folder-missing` | The vault is registered, but its folder is missing on disk (`details.vault`; no disk path in the message). Nothing is read or written. Ask the user to restore the folder, or re-open the vault in Obsidian, then call again. |
+| `CLI_REPORTED_ERROR` | `VAULT_NOT_FOUND` | `focused-unregistered` | Active mode, and the focused vault's folder matches no vault Obsidian lists (no disk path in the message or `details`). Nothing is read or written. Call again in specific mode with `vault`, or ask the user to re-open the vault in Obsidian. |
 | `CLI_REPORTED_ERROR` | — | — (carries `details.stage: "vault-root-check"`, `details.errno`, `details.vault`) | The vault's folder could not be checked for another reason. Nothing is read or written. Inspect `details.errno` (for example a permission problem). |
 | `ERR_NO_ACTIVE_FILE` | — | — | Active mode but no note is focused. |
 | `CLI_REPORTED_ERROR` | — | — | A `file` name matches no note. The message is Obsidian's own, `Error: File "<name>" not found.`, the same failure [`read`](./read.md) returns for that name. Nothing is read or written. Check the name, or pass the note's `path`. |

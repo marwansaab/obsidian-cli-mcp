@@ -22,7 +22,7 @@ import {
   FOCUSED_VAULT_TEMPLATE,
   parseFocusedVault,
   resolveActiveFocusedFile,
-  resolveVaultDisplayName,
+  requireFocusedVaultName,
   resolveVaultRootOrRemap,
 } from "../_active-file.js";
 import { NON_INTERACTIVE_CALL } from "../_confirm.js";
@@ -481,10 +481,11 @@ async function resolveSingleNoteScope(
       // Reverse-resolve the display name from the RAW base (pre-canonicalisation):
       // the registry keys on Obsidian's reported basePath, which assertCanonicalPath's
       // realpath can diverge from on an ancestor-symlinked / normalised root. Passing
-      // the canonical root would miss the registry entry and fall back to a filesystem
-      // path, which `obsidian file vault=…` rejects (it wants a registered name).
+      // the canonical root would miss the registry entry and fail with VAULT_NOT_FOUND /
+      // focused-unregistered for a vault that IS registered (`obsidian file vault=…`
+      // needs that registered name).
       // Parity with resolveActiveLocatorWithVault + research D6.
-      const vaultName = input.vault ?? resolveVaultDisplayName(deps.vaultRegistry, rawRoot);
+      const vaultName = input.vault ?? (await requireFocusedVaultName(deps.vaultRegistry, rawRoot));
       const name = input.file as string;
       // A name Obsidian reports as not found gets the same FR-008 envelope as a
       // missing `path` (BI-0178); every other lookup failure propagates.
