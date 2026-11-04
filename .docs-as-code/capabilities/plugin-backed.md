@@ -147,10 +147,44 @@ All conditions are `CLI_REPORTED_ERROR` with `details.code`, split further by
 | `details.code` | `details.reason` | Meaning |
 | --- | --- | --- |
 | `SMART_CONNECTIONS_NOT_INSTALLED` | — | plugin absent or disabled in that vault |
-| `SMART_CONNECTIONS_NOT_READY` | — | (`similar`) plugin loaded but its index is not ready |
+| `SMART_CONNECTIONS_NOT_READY` | `api-missing` | (`similar`) plugin loaded but `env.smart_sources.items` is not available yet |
 | `SMART_CONNECTIONS_NOT_READY` | `api-missing` | (`query`) plugin loaded, lookup API not yet available |
 | `SMART_CONNECTIONS_NOT_READY` | `embed-failed` | (`query`) the query text could not be embedded |
-| `SOURCE_NOT_INDEXED` | — | (`similar`) the source note has no embedding yet |
+| `SOURCE_NOT_INDEXED` | — | (`similar`) the source note has no embedding yet; `details.detail` is the resolved path |
+
+Until PR #145 this table gave `smart_connections_similar`'s not-ready row no
+`details.reason`. That was wrong: its handler has set
+`reason: "api-missing"` when it maps the envelope since spec 026's commit
+`00ca7c3` (ADR-015), and PR #145's lifecycle checks assert it. The help page did not show the reason either, and
+since PR #145's docs pass it does, along with the not-indexed detail form
+(spec 094 research D5).
+
+### The lifecycle order, proven in-process (PR #145)
+
+ADR-014's in-eval stages for `smart_connections_similar` run in this order:
+not installed, target missing (`FILE_NOT_FOUND`, or `ERR_NO_ACTIVE_FILE` in
+active mode), not a note, not ready, not indexed. Until PR #145 (spec 094)
+nothing ran that order: handler tests asserted ready-made envelopes, and the
+not-ready state had never been seen live. Since PR #145
+`src/tools/smart_connections_similar/handler.lifecycle.test.ts` builds the
+registered tool and replaces only the spawned `obsidian` process, with
+`makeEvalRunnerSpawn`
+([architecture](../architecture.md#reaching-obsidian-internals-the-eval-template-pattern)),
+so the real template runs against a simulated vault and plugin. Its checks
+cover each state alone, including all four branches of the readiness guard;
+the pairs of states that can occur together, where the earlier stage must win;
+and three active-mode cases. Each compares the whole `{code, message, details}`
+the agent receives against literals written in the test, never imported from
+the handler or template (spec 094 research D5). The PR changed no production
+file, schema, description or fingerprint.
+
+The checks were themselves tested once, by hand: nine edits to `_template.ts`
+that swap two adjacent stages or drop one, each reverted
+(`specs/094-verify-lifecycle-errors/exercise.md`). Every edit failed at least
+one check. Swapping the not-found and not-a-note stages cannot show while the
+plugin is absent, because not-installed returns first in both chains; the
+contract's "every check fails" for that edit was corrected by owner ruling,
+not the checks. `smart_connections_query` has no such suite.
 
 A closed registered vault is opened by the cold-start retry and the call
 returns its normal result

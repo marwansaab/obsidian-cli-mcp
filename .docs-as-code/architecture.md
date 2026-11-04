@@ -1665,6 +1665,24 @@ them:
   that its table covers every tool named in the spec, and checks that every
   template still parses as one expression inside the wrapper. Tests that pin
   the exact `code=` compare `unwrapEvalCode(...)` with the template.
+- **Running the template through the registered handler** (PR #145, spec 094).
+  The first bullet's rule, that handler tests never run the template, has one
+  exception. `makeEvalRunnerSpawn(app)` in `_handler-test-fixtures.ts`, the
+  third spawn factory beside `makeQueuedSpawn` and `makeStubSpawn`, reads the
+  spawn's `code=` argument and runs it under `node:vm` against a stub `app`
+  through `runEvalCode(code, app)` in `_eval-template-fixtures.ts`, which
+  `runEvalTemplate` is now built on. It answers `=> <value>`, or
+  `Error: <message>` when the run throws, once the async template settles. A
+  test built on it calls `tool.handler`, so the input parse, the handler,
+  `invokeEval`, dispatch and the `isError` serialisation all run for real and
+  only the `obsidian` process is replaced. The three factories share one
+  child-ending tail, `settleChild` (PR #145 review commit `28c42fa`). The new
+  import edge, `_handler-test-fixtures` → `_eval-template-fixtures` →
+  `_shared`, runs one way, and the build excludes both fixture modules. So far
+  only `smart_connections_similar`'s lifecycle suite uses it
+  ([plugin-backed](capabilities/plugin-backed.md#the-lifecycle-order-proven-in-process-pr-145)).
+  Because an error thrown inside the vm comes from another realm, the runner
+  reads its `.message` without `instanceof Error`.
 
 Since ADR-031 (Cross-Vault Open via Vault-Targeted Focus; PR #66, verified
 across the read and query cohort in PR #67), an `eval` sent with `vault=<name>`
