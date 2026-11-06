@@ -18,6 +18,13 @@
 // The already-open scan uses `iterateAllLeaves` (ALL view types, not markdown-only): a `.base`/PDF/
 // image leaf is missed by getLeavesOfType('markdown') but found by iterateAllLeaves (controlled-session
 // probe 4, 2026-06-01).
+//
+// BI-0189 (BI-0179's check, applied here): none of the three branches proves the open landed —
+// `openLinkText` swallows an open that throws, a leaf still busy with an earlier open skips the next
+// one, and `setActiveLeaf` is not awaited at all. So after every placement the template confirms the
+// resolved file is the active file (object identity), polling every 50 ms for up to 1 s (well inside
+// the 10 s dispatch timeout) when the first check fails. `ok:true` means it is; otherwise
+// {ok:false, code:'FOCUS_NOT_APPLIED', opened:<resolved path>, active:<path or null>}. No retry of the open.
 import { B64_PAYLOAD_DECODE_EXPR } from "../_shared.js";
 
 export const JS_TEMPLATE = `(async()=>{
@@ -37,5 +44,8 @@ let placement;
 if(a.new_tab){await app.workspace.openLinkText(f.path,'',true);placement='new_tab_created';}
 else if(existing){app.workspace.setActiveLeaf(existing,{focus:true});placement='existing_tab_reused';}
 else{await app.workspace.openLinkText(f.path,'',false);placement='active_tab_used';}
+for(let i=0;i<20&&app.workspace.getActiveFile()!==f;i++)await new Promise(r=>setTimeout(r,50));
+const g=app.workspace.getActiveFile();
+if(g!==f)return JSON.stringify({ok:false,code:'FOCUS_NOT_APPLIED',opened:f.path,active:g?g.path:null});
 return JSON.stringify({ok:true,opened:f.path,new_tab:a.new_tab,placement});
 })()`;

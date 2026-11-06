@@ -123,11 +123,14 @@ export const openFileOutputSchema = z
 // FILE_NOT_FOUND using its own locator, so the eval omits `detail` there).
 // `VAULT_NOT_FOCUSED` is REMOVED — the eval runs in the requested vault (B1 false,
 // ADR-031), so there is no focused-vault guard and no such envelope arm.
+// `FOCUS_NOT_APPLIED` (BI-0189, the shape of views_base's focusBaseEvalResponseSchema):
+// the open ran but the resolved file (`opened`) did not become the active file;
+// `active` is what is in front, or null. Internal handoff envelope, not the
+// published surface, so the fingerprint does not move.
 export const OPEN_FILE_EVAL_ERROR_CODES = [
   "FILE_NOT_FOUND",
   "UNSUPPORTED_FILE_TYPE",
 ] as const;
-export type OpenFileEvalErrorCode = (typeof OPEN_FILE_EVAL_ERROR_CODES)[number];
 
 export const openEvalResponseSchema = z.discriminatedUnion("ok", [
   z
@@ -137,12 +140,21 @@ export const openEvalResponseSchema = z.discriminatedUnion("ok", [
       new_tab: z.boolean(),
       placement: openPlacementSchema,
     }),
-  z
-    .strictObject({
-      ok: z.literal(false),
-      code: z.enum(OPEN_FILE_EVAL_ERROR_CODES),
-      detail: z.string().optional(),
-    }),
+  z.discriminatedUnion("code", [
+    z
+      .strictObject({
+        ok: z.literal(false),
+        code: z.enum(OPEN_FILE_EVAL_ERROR_CODES),
+        detail: z.string().optional(),
+      }),
+    z
+      .strictObject({
+        ok: z.literal(false),
+        code: z.literal("FOCUS_NOT_APPLIED"),
+        opened: z.string(),
+        active: z.string().nullable(),
+      }),
+  ]),
 ]);
 
 // Handler-boundary input type: `z.input` (pre-default), so `new_tab` is optional

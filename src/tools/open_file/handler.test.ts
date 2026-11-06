@@ -322,12 +322,59 @@ test("every failure case rejects, never issues a success envelope (FR-017)", asy
     { stdout: '=> {"ok":false,"code":"FILE_NOT_FOUND","detail":"x.md"}\n', exitCode: 0 },
     { stdout: '=> {"ok":false,"code":"UNSUPPORTED_FILE_TYPE","detail":"sqlite"}\n', exitCode: 0 },
     { stdout: "=> not-valid-json{\n", exitCode: 0 },
+    focusMiss("x", "A.md"),
   ];
   for (const f of failures) {
     const { spawnFn } = makeQueuedSpawn([f]);
     const err = await captureRejection(executeOpenFile({ vault: "Work", path: "x" }, deps(spawnFn)));
     expect(err).toBeInstanceOf(UpstreamError);
   }
+});
+
+// =====================================================================
+// BI-0189 — the open ran but the file did not become the active file: an
+// error, never a success, keyed by details.stage "focus" (views_base's BI-0179 shape).
+// =====================================================================
+
+const focusMiss = (opened: string, active: string | null): StubResponse => ({
+  stdout: `=> ${JSON.stringify({ ok: false, code: "FOCUS_NOT_APPLIED", opened, active })}\n`,
+  exitCode: 0,
+});
+
+test("FOCUS_NOT_APPLIED envelope → CLI_REPORTED_ERROR, details.stage 'focus', a message naming the file and the recovery, one spawn (BI-0189)", async () => {
+  const { spawnFn, getCount } = makeQueuedSpawn([focusMiss("B.md", "A.md")]);
+  const err = (await captureRejection(
+    executeOpenFile({ vault: "Work", path: "B.md" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.cause).toBeNull();
+  expect(err.details).toEqual({ stage: "focus", path: "B.md", vault: "Work", active: "A.md" });
+  expect(err.message).toBe(
+    'open_file: "B.md" did not become the active file in vault "Work"; retry open_file, ' +
+      'or act on it with target_mode "specific", vault "Work" and path "B.md" instead of an active-mode call',
+  );
+  expect(getCount()).toBe(1); // no per-tool retry of the open
+});
+
+test("FOCUS_NOT_APPLIED by bare file name: details.path and the message carry the RESOLVED path (BI-0189)", async () => {
+  const { spawnFn } = makeQueuedSpawn([focusMiss("Projects/Roadmap.md", "A.md")]);
+  const err = (await captureRejection(
+    executeOpenFile({ vault: "Work", file: "Roadmap" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.details).toEqual({ stage: "focus", path: "Projects/Roadmap.md", vault: "Work", active: "A.md" });
+  expect(err.message).toContain('path "Projects/Roadmap.md"');
+});
+
+test("FOCUS_NOT_APPLIED with nothing in front (active:null) takes the same path; no disk path anywhere in the error (BI-0189)", async () => {
+  const { spawnFn } = makeQueuedSpawn([focusMiss("B.md", null)]);
+  const err = (await captureRejection(
+    executeOpenFile({ vault: "Work", path: "B.md" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "focus", path: "B.md", vault: "Work", active: null });
+  // fakeRegistry() resolves "Work" to /vaults/Work; that base path must never reach the error.
+  expect(JSON.stringify({ message: err.message, details: err.details })).not.toContain("/vaults/Work");
 });
 
 // =====================================================================

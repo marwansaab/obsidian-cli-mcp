@@ -7,11 +7,11 @@
 | Status | running |
 | Started | 2026-11-06T23:19:14.239Z |
 | Finished | not yet |
-| Elapsed | 4 min 20 s |
-| Questions | 1 (0 needed the owner) |
+| Elapsed | 16 min 31 s |
+| Questions | 2 (1 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
-| Escalations | 0 |
-| Edits by the advisor | 0 |
+| Escalations | 1 |
+| Edits by the advisor | 3 |
 
 ## Inputs
 
@@ -53,6 +53,8 @@
 
 ### assess (`599a647f-dc11-4555-802c-74666ac29321`)
 
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\.specify\bugs\bi-0189\assessment.md exists.
+
 - **branch**: done, 4 turns.
 
 > Working tree was clean. Fetched origin; main was already up to date with origin/main (fast-forward no-op). No branch fix/bi-0189 existed locally or on origin, so it was created from main and checked out. No other changes made.
@@ -61,16 +63,27 @@
 
 > Assessed BI-0189; verdict valid, severity medium, no open questions; nothing committed. open_file's template (src/tools/open_file/_template.ts:37-40) returns ok:true right after openLinkText/setActiveLeaf and never checks that the file became active. Obsidian can fail an open silently, so the next active-mode call can act on the previous file. Not reproduced live: BI-0179's live tests on Obsidian 1.15.0 never saw an open fail; the verdict rests on the code, and the fix is testable against a stub app. Proposed fix mirrors BI-0179: check the active file up to 20 times, 50 ms apart, after every placement; add an internal FOCUS_NOT_APPLIED code to openEvalResponseSchema; map it in the handler to CLI_REPORTED_ERROR with details { stage: "focus", path, vault, active } and a message that names the file and advises a retry or a target_mode "specific" call, with no absolute disk path. The error shape reuses the owner's BI-0179 ruling (option A). No kernel nodes touched, no new error codes, fingerprint unchanged. No extension hooks are registered for bug assessment. Next step: /speckit-bug-fix slug=bi-0189.
 
-- **resolve-assessment**: in progress, 2 turns, 1 questions.
+- **resolve-assessment**: done, 10 turns, 1 questions.
 
-> Assessment checked: the verdict is valid (severity medium), so it isn't invalid. The fix is a repair: it adds the structured focus error the report itself asks for, reuses the owner's BI-0179 error shape (CLI_REPORTED_ERROR with details.stage "focus") and changes no published input, output or description. So it needs no escalation. The assessment has no open questions but one [NEEDS CLARIFICATION] item in its Reproduction section: no live trigger for the silent failure is known. That is asked below.
+> BI-0189 assessment settled and committed on fix/bi-0189 as 04d9c39, not pushed. Verdict: valid. Severity: medium. The fix is a repair, so no escalation: it adds only the structured error the report asks for, reuses the owner's BI-0179 error shape, and changes no published input, output or description. Remediation: after every placement, the open_file template checks up to 20 times, 50 ms apart (1 s), that the requested file is the active file. If it never becomes active, it returns an internal FOCUS_NOT_APPLIED code, which the handler turns into CLI_REPORTED_ERROR with details { stage: "focus", path, vault, active }. The message names the file and advises a retry or a target_mode "specific" call; it has no absolute disk path, no new error code or details.code/reason, and no kernel node is touched. Answer recorded under Reproduction as Resolved (Relay): option A plus a cross-vault live case. The fix does not wait for a live reproduction and the B probe is skipped. The failure path is proven by construction (stub-app template tests under fake timers, plus handler and schema tests), not by observation, citing ADR-072. The missing live trigger is now a residual risk in Risks & Considerations, along with the cross-vault false-failure risk (ADR-031). The Tests section's live check now also opens a note in a vault other than the focused one and confirms it with get_active_file (target_mode "specific", that vault named). No [NEEDS CLARIFICATION] items remain. The commit includes everything under .specify/bugs/bi-0189, so it also took relay-digest.md and relay-qa-log.md, which were already there and not written by this step.
 
 
-### repair
+### repair (`51a13ede-aecc-48b8-ba9d-422ad03a421f`)
 
-- **bug-fix**: not run.
-- **bug-test**: not run.
-- **settle-verdict**: not run.
+- Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\.specify\bugs\bi-0189\assessment.md exists; focused TestVault-Obsidian-CLI-MCP in Obsidian (it had Funwright-Studio-Vault focused).
+
+- **bug-fix**: done, 46 turns.
+
+> Fixed bi-0189 (bug taken from the slug given in the command); report at .specify/bugs/bi-0189/fix.md, status applied. After every placement, open_file's eval now waits up to 1 s for the resolved file to become the active file and returns FOCUS_NOT_APPLIED if it doesn't. The handler maps that to CLI_REPORTED_ERROR with details { stage: "focus", path, vault, active } and a message that names the file and the recovery. Tests added: template tests for each placement on fake timers, plus schema and handler tests. Full suite: 5106 passed, 6 skipped. tsc and eslint are clean; the fingerprint baseline didn't move. Docs page and CHANGELOG updated. Two departures, both recorded in fix.md: I removed the OpenFileEvalErrorCode type, which the change left unused, and adjusted the handler's header comment. No extension hooks are registered. Next: /speckit-bug-test slug=bi-0189.
+
+- **bug-test**: done, 25 turns.
+
+> Wrote .specify/bugs/bi-0189/test.md; the result is partial. I ran the built fix against the test vault. A note, a canvas, an image and a .base opened in each of the three tab placements, and get_active_file named the same file every time (16 of 16). The cross-vault case passed too: with My-Setup-Vault focused, opening a note in the test vault succeeded and get_active_file reported it. No open was wrongly reported as a focus failure. The open_file tests (108) and the full suite (5106 passed, 6 skipped) pass; tsc and eslint are clean. The result is partial, not verified, because the silent open failure has no known live trigger: the new focus error has only been tested with a stubbed Obsidian, as the assessment accepted (BI-0179 was recorded the same way). Not covered: a closed or freshly launched vault, a PDF, and plugin views. I deleted the probe files and Welcome.md is untouched; the tabs opened in the test vault now point at deleted files. No extension hooks are registered.
+
+- **settle-verdict**: in progress, 2 turns, 1 questions.
+
+> The bi-0189 test result is partial: every live check passed, but the silent open failure was never reproduced live, so the new focus error has only been tested with a stubbed Obsidian. Some edge cases were also not run live. I'm asking you to sign off on how to proceed.
+
 - **open-pr**: not run.
 
 ### review
@@ -89,12 +102,17 @@
 
 ## Escalations
 
-None.
-
+- **BI-0189 (dry run: no): settle-verdict question needs you (decision)** (advisor, 2026-11-06T23:33:54.079Z): Only you can accept a partial verification and approve opening the PR: you ruled on BI-0179's partial result yourself (ADR-072), and no ruling of yours covers BI-0189's gaps. Choose whether to spend a re-test round on the closed-vault, `active_tab_used` and PDF cases first, or to accept now.
+  - Choices: 1. C: one more live round, then PR; 2. A: accept partial, open PR now; 3. Stop the run
+  - Answer: choice 1 (C: one more live round, then PR) via cli
 
 ## Edits made by the advisor
 
-None.
+| File | Change | Triggered by |
+|---|---|---|
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0189 - Verify Open File Became Active.md` | Appended a dated 'Verification partial' paragraph to the Status section: what was observed and what was not, and that acceptance awaits the owner. | repair / settle-verdict: BI-0189 verification came back **partial**. The fix held everywhere it could be observed: 16 of 16 l |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0189 - Verify Open File Became Active.md` | Replaced 'Acceptance of the partial result awaits the owner.' in the Status section with the owner's ruling of 2026-11-07 (option C: one more live round with no code change, then rewrite test.md and open the PR; gaps 1 and 4 stay as Residual Risks). | repair / settle-verdict: BI-0189 verification came back **partial**. The fix held everywhere it could be observed: 16 of 16 l |
+| `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0189 - Verify Open File Became Active.md` | Set frontmatter `updated` to 2026-11-07. | repair / settle-verdict: BI-0189 verification came back **partial**. The fix held everywhere it could be observed: 16 of 16 l |
 
 ## Files
 
