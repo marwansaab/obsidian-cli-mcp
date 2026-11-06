@@ -271,7 +271,9 @@ applies. Records written since:
   `CLI_REPORTED_ERROR` with `details.stage: "focus"` before listing; a
   reserve `openFile` retry (by owner ruling), a `not-focused` reason on
   `BASE_NOT_FOUND`, `INTERNAL_ERROR` and an after-the-fact check were
-  rejected (PR #140).
+  rejected (PR #140). Amended 2026-11-07: `open_file` applies the same
+  check after every placement, and both templates share one wait,
+  `AWAIT_ACTIVE_FILE_JS` (PR #151, BI-0189).
 - [decisions/ADR-073-validation-sub-codes-are-lifted-only-where-the-help-page-promises-them.md](decisions/ADR-073-validation-sub-codes-are-lifted-only-where-the-help-page-promises-them.md)
   — `patch_heading`, `patch_block`, `query_base`, `append_note` and
   `prepend` lift a schema rejection's ADR-015 sub-code into `details` through

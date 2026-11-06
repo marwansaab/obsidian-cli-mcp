@@ -98,6 +98,46 @@ not observed.
   run in-process, under fake timers.
 - `open_file`'s template trusts `openLinkText` the same way and reports a
   placement without checking that it landed. PR #140 names it as the same
-  failure class and leaves it as a follow-up.
+  failure class and leaves it as a follow-up. PR #151 (BI-0189) closed that
+  follow-up; see the amendment below.
 - `src/errors.ts`, the published schemas, `VIEWS_BASE_DESCRIPTION` and the
   boot spine did not change. No kernel node is touched.
+
+## Amendment 2026-11-07 — `open_file` applies the same check, and the wait is shared
+
+Source: PR #151 (BI-0189, `.specify/bugs/bi-0189/`: assessment, fix and
+test reports; owner ruling of 2026-11-07 on the partial verification;
+owner ruling of 2026-11-07, option A, on the PR #151 code-quality review),
+commits `b6fc50b` (the fix) and `adcb82f` (the shared wait).
+
+1. **`open_file` confirms focus after every placement.** Its `JS_TEMPLATE`
+   (`src/tools/open_file/_template.ts`) runs decision 1's check after each
+   of the three branches (`new_tab_created`, `existing_tab_reused`,
+   `active_tab_used`). `setActiveLeaf`, used for an already-open tab, is not
+   awaited at all, so that branch proved no more than `openLinkText` did. On
+   a miss the template returns
+   `{ok:false, code:'FOCUS_NOT_APPLIED', opened:<resolved path>, active:<path or null>}`,
+   and `mapEvalError` (`src/tools/open_file/handler.ts`) throws
+   `CLI_REPORTED_ERROR` with `details: { stage: "focus", path, vault, active }`,
+   `cause: null` and a message that names the file and advises retrying or
+   calling the next tool with `target_mode: "specific"`. As in decisions 3
+   and 4, there is no `details.code` or `details.reason`, the `switch` ends in
+   a `never` check, and the open is never retried. `path` is the resolved
+   vault-relative path, so a `file` locator reports where it resolved.
+2. **The wait is one shared in-eval fragment.** PR #151 first copied
+   decision 1's loop into `open_file`'s template byte for byte. Its
+   code-quality review moved it into `AWAIT_ACTIVE_FILE_JS`
+   (`src/tools/_focus-wait.ts`), which both `FOCUS_BASE_TEMPLATE` and
+   `open_file`'s `JS_TEMPLATE` interpolate; each template still writes its
+   own miss envelope. Both rendered templates are byte-identical to what
+   they were before the move, and no `views_base` test changed. The
+   `views_base` edit is the one exception the owner allowed to BI-0189's
+   `open_file`-only scope, because a third consumer is queued
+   (`write_note`'s `open` option).
+
+The open path is proven the way this ADR's first consequence describes:
+by construction, through stub-app template tests under fake timers. No
+live run of PR #151 took the `FOCUS_NOT_APPLIED` path, and plugin-registered
+views were not exercised (`.specify/bugs/bi-0189/test.md`, Residual Risks).
+`write_note`'s `open` option still opens through `openLinkText` without
+checking the result. The original Decision text above is unchanged.

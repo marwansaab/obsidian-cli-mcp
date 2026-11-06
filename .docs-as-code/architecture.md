@@ -1111,6 +1111,10 @@ than added as new codes:
   `CLI_REPORTED_ERROR` with `details.stage: "focus"`, not a new reason on
   `BASE_NOT_FOUND`, because the Base exists and the condition is transient
   ([ADR-072](decisions/ADR-072-views-base-lists-only-once-the-named-base-is-the-active-file.md)).
+  PR #151 (BI-0189) gives `open_file` the same failure for a file that did
+  not become active: `CLI_REPORTED_ERROR` with
+  `details: { stage: "focus", path, vault, active }` and no `details.code`,
+  so the stage, not a code, is what both tools' focus failures share.
   Since PR #138 (BI-0121) there is a third, `focused-unregistered`: in
   active mode the focused vault's folder matches no vault Obsidian lists, so
   it has no display name. It comes from `requireFocusedVaultName` in
@@ -1578,6 +1582,17 @@ them:
   first kept an inline copy in the template on the premise that it could not
   import; its code-quality review replaced the copy with the fragment
   ([ADR-064](decisions/ADR-064-tags-are-compared-and-returned-without-one-leading-hash.md)).
+  Since PR #151 (BI-0189) `AWAIT_ACTIVE_FILE_JS` in
+  `src/tools/_focus-wait.ts` is the one "did the open land?" wait: up to 20
+  checks, 50 ms apart, that `getActiveFile()` is the opened file object,
+  leaving the result in `g`. `views_base`'s `FOCUS_BASE_TEMPLATE` and
+  `open_file`'s `JS_TEMPLATE` interpolate it and each writes its own miss
+  envelope. It is a set of statements, not an expression, so it relies on
+  the template naming the file `f`. The fix first copied the loop inline;
+  the PR #151 code-quality review extracted it, with both rendered
+  templates byte-identical before and after
+  ([ADR-072](decisions/ADR-072-views-base-lists-only-once-the-named-base-is-the-active-file.md),
+  amendment of 2026-11-07).
   The payload stays base64 JSON; a fragment is fixed source, never input.
 - **A template that caps owns the order it caps in.** When `limit` is
   applied inside a template, the sort has to run there first, because a
@@ -1648,11 +1663,15 @@ them:
   for Obsidian can run in-process; `src/tools/views_base/_template.test.ts`
   runs `FOCUS_BASE_TEMPLATE`'s focus check that way under `vi.useFakeTimers()`
   (an open that lands at once, late, or never). Until PR #140 this page
-  listed `views_base` among the suites that only check the string. The other
-  `_template.test.ts` files (`open_file`,
-  `get_active_file`) check the template string, meaning its
-  bytes, its payload encoding and which calls it contains. They do not run
-  it. Every other template's transforms are covered only by live probes
+  listed `views_base` among the suites that only check the string. Since
+  PR #151 (BI-0189) `src/tools/open_file/_template.test.ts` also runs its
+  template under fake timers, once per placement, for an open that lands at
+  once and one that never lands; the late-landing and lookalike cases are
+  left to the `views_base` suite, because they test the shared wait. Until
+  PR #151 this page listed `open_file` among the string-only suites too.
+  `get_active_file`'s `_template.test.ts` still checks the template string,
+  meaning its bytes, its payload encoding and which calls it contains. It
+  does not run it. Every other template's transforms are covered only by live probes
   ([read](capabilities/read.md#known-limits) records one such gap).
 - **Testing against plugin output** (PR #110). The shared spawn stubs in
   `src/tools/_handler-test-fixtures.ts` and `_registration-stub.ts` read the

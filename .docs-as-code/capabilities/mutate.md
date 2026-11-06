@@ -1210,7 +1210,10 @@ from their schema would have reached the client as SDK free text rather than
   this as a risk the owner accepted in PR #87's review.
 - `write_note open: true` opens the note by its vault-relative path in the
   written vault (`vault=` in specific mode, PR #87). Before that it passed an
-  absolute path in active mode. The open is still silent on failure.
+  absolute path in active mode. The open is still silent on failure. PR #151
+  (BI-0189) gave `open_file` a focus check through the shared
+  `AWAIT_ACTIVE_FILE_JS` wait and named this option as the same failure
+  class, out of that bug's scope.
 - `append_note`, `prepend`, `patch_heading`, `patch_block` and `set_property`
   still keep a "Targeting:" paragraph in their descriptions that restates the
   locator rule the `target_mode` field descriptions now carry (as does
