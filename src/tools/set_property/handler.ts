@@ -1,4 +1,4 @@
-// Original — no upstream. set_property handler: per-mode invokeCli wrapper around the CLI's native property:set subcommand (R2 / F1). Specific+path → 1 spawn; specific+file → 2 spawns (file TSV resolve → property:set); active → 2 spawns (FIXED eval template → property:set with resolved vault+path). Type inference from JS value shape per FR-008 / R10; empty-array branch emits literal "[]" per R10 / F2 / FR-018; cross-type retype delegated to native CLI (FR-033 / F3); type-vs-value contradictions CLI-rejected per F4 / R6. Spec 080: the active-mode focused-file eval reads its tagged answer (other plugins' output ignored) and its parse errors carry the stdout excerpt and length.
+// Original — no upstream. set_property handler: per-mode invokeCli wrapper around the CLI's native property:set subcommand (R2 / F1). Specific+path → 1 spawn; specific+file → 2 spawns (file TSV resolve → property:set); active → 2 spawns (FIXED eval template → property:set with resolved vault+path). Type inference from JS value shape per FR-008 / R10; an array whose resolved type is list goes out as a JSON array (BI-0203; the empty array is the literal "[]" per R10 / F2 / FR-018), and an array with an explicit non-list type keeps the comma join; cross-type retype delegated to native CLI (FR-033 / F3); type-vs-value contradictions CLI-rejected per F4 / R6. Spec 080: the active-mode focused-file eval reads its tagged answer (other plugins' output ignored) and its parse errors carry the stdout excerpt and length.
 import { invokeCli, invokeEval, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import { parseEvalAnswer, stdoutDetails } from "../_eval-parse.js";
@@ -35,11 +35,20 @@ export function inferType(
   return "text";
 }
 
-export function serialiseValue(value: WritePropertyInput["value"]): string {
+export function serialiseValue(
+  value: WritePropertyInput["value"],
+  resolvedType: PropertyWriteTypeLabel,
+): string {
   if (Array.isArray(value)) {
-    // FR-018 / R10 / F2 — empty array must emit the literal string "[]"; the CLI
-    // recognises this as "write an empty YAML list". The empty-string path
-    // (F14) would produce a one-element list with the empty string instead.
+    // BI-0203 — a list goes out as a JSON array, which the CLI parses into
+    // exactly the items sent. A comma join loses item boundaries: the CLI
+    // splits plain text on every comma and stores text starting with "[" (any
+    // wikilink list) as one quoted scalar. JSON.stringify([]) is the literal
+    // "[]", so the empty-list contract (FR-018 / R10 / F2) is kept.
+    if (resolvedType === "list") return JSON.stringify(value);
+    // An explicit non-list type is honoured, not coerced to a list: the items
+    // are joined with commas and written as that type (["a","b"] + text → the
+    // text "a,b"); an empty array still sends the literal "[]", as before.
     if (value.length === 0) return "[]";
     return value.join(",");
   }
@@ -72,7 +81,7 @@ export async function executeWriteProperty(
   deps: ExecuteDeps,
 ): Promise<WritePropertyOutput> {
   const resolvedType = inferType(input.value, input.type);
-  const serialisedValue = serialiseValue(input.value);
+  const serialisedValue = serialiseValue(input.value, resolvedType);
 
   let writeVault: string;
   let writePath: string;

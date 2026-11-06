@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the set_property handler — 35 cases per data-model.md handler-test inventory. Covers per-mode argv shape (specific+path 1-spawn, specific+file 2-spawn, active 2-spawn), six-type inference, empty-list literal, cross-type retype (three pairs + active-mode), response shape, name/value verbatim passthrough, type-vs-value CLI rejection, path-traversal CLI confinement, R5 unknown-vault inheritance, CLI_BINARY_NOT_FOUND / CLI_NON_ZERO_EXIT propagation, ERR_NO_ACTIVE_FILE on no-focused-file.
+// Original — no upstream. Tests for the set_property handler — the data-model.md handler-test inventory plus the BI-0203 list wire-form cases. Covers per-mode argv shape (specific+path 1-spawn, specific+file 2-spawn, active 2-spawn), six-type inference, JSON-array list wire form and the explicit non-list-type comma join (BI-0203), empty-list literal, cross-type retype (three pairs + active-mode), response shape, name/value verbatim passthrough, type-vs-value CLI rejection, path-traversal CLI confinement, R5 unknown-vault inheritance, CLI_BINARY_NOT_FOUND / CLI_NON_ZERO_EXIT propagation, ERR_NO_ACTIVE_FILE on no-focused-file.
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { executeWriteProperty } from "./handler.js";
@@ -69,26 +69,84 @@ test("specific+path boolean false — value=false, type=checkbox inferred", asyn
   expect(recorded[0]!.argv).toContain("type=checkbox");
 });
 
-// (5) specific+path list 3-element → comma-joined argv (US1#2, SC-002, R9)
-test("specific+path list 3-element — value=alpha,beta,gamma joined, type=list inferred", async () => {
+// (5) specific+path list 3-element → JSON-array argv (US1#2, SC-002, BI-0203)
+test("specific+path list 3-element — value=[\"alpha\",\"beta\",\"gamma\"], type=list inferred", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([SET_OK("tags", "alpha,beta,gamma")]);
   await executeWriteProperty(
     { target_mode: "specific", vault: "V", path: "x.md", name: "tags", value: ["alpha", "beta", "gamma"] },
     deps(spawnFn),
   );
-  expect(recorded[0]!.argv).toContain("value=alpha,beta,gamma");
+  expect(recorded[0]!.argv).toContain('value=["alpha","beta","gamma"]');
   expect(recorded[0]!.argv).toContain("type=list");
 });
 
 // (6) specific+path list 1-element (R9 single-element)
-test("specific+path list 1-element — value=alpha, type=list inferred", async () => {
+test("specific+path list 1-element — value=[\"alpha\"], type=list inferred", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([SET_OK("tags", "alpha")]);
   await executeWriteProperty(
     { target_mode: "specific", vault: "V", path: "x.md", name: "tags", value: ["alpha"] },
     deps(spawnFn),
   );
-  expect(recorded[0]!.argv).toContain("value=alpha");
+  expect(recorded[0]!.argv).toContain('value=["alpha"]');
   expect(recorded[0]!.argv).toContain("type=list");
+});
+
+// (6a)–(6f) BI-0203 — an array's wire form, specific+path. A resolved list type sends a JSON array, one
+// argv element (TC-00904, TC-00905); an explicit non-list type keeps the comma join (owner ruling, option B).
+test.each<{ title: string; value: string[]; type?: "list" | "text"; name: string; wire: string; wireType: string }>([
+  { title: "(6a) wikilink list, no type", value: ["[[A]]", "[[B]]"], name: "related", wire: 'value=["[[A]]","[[B]]"]', wireType: "list" },
+  { title: "(6b) wikilink list, explicit type=list", value: ["[[A]]", "[[B]]"], type: "list", name: "related", wire: 'value=["[[A]]","[[B]]"]', wireType: "list" },
+  { title: "(6c) one-link list", value: ["[[A]]"], name: "related", wire: 'value=["[[A]]"]', wireType: "list" },
+  { title: "(6d) item with a comma stays one item", value: ["one", "two, three"], name: "tags", wire: 'value=["one","two, three"]', wireType: "list" },
+  { title: '(6e) items with " and \\ are JSON-escaped', value: ['a "q" b', "back\\slash", "Smith, John"], name: "tags", wire: String.raw`value=["a \"q\" b","back\\slash","Smith, John"]`, wireType: "list" },
+  { title: "(6f) explicit type=text keeps the comma join", value: ["a", "b"], type: "text", name: "note", wire: "value=a,b", wireType: "text" },
+])("BI-0203 $title — argv carries $wire", async ({ value, type, name, wire, wireType }) => {
+  const { spawnFn, recorded } = makeQueuedSpawn([SET_OK(name, "x")]);
+  await executeWriteProperty(
+    { target_mode: "specific", vault: "V", path: "x.md", name, value, ...(type === undefined ? {} : { type }) },
+    deps(spawnFn),
+  );
+  expect(recorded[0]!.argv).toEqual(["vault=V", "property:set", `name=${name}`, wire, `type=${wireType}`, "path=x.md"]);
+});
+
+// (6g) BI-0203 — specific+file carries the JSON-array wire form on its property:set call
+test("BI-0203 specific+file — property:set carries value=[\"[[A]]\",\"[[B]]\"]", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    { stdout: "path\tInbox/Welcome.md\nname\tWelcome\nextension\tmd\n", exitCode: 0 },
+    SET_OK("related", "[[A]],[[B]]"),
+  ]);
+  await executeWriteProperty(
+    { target_mode: "specific", vault: "Demo", file: "Welcome", name: "related", value: ["[[A]]", "[[B]]"] },
+    deps(spawnFn),
+  );
+  expect(recorded[1]!.argv).toEqual([
+    "vault=Demo",
+    "property:set",
+    "name=related",
+    'value=["[[A]]","[[B]]"]',
+    "type=list",
+    "path=Inbox/Welcome.md",
+  ]);
+});
+
+// (6h) BI-0203 — active mode carries the JSON-array wire form on its property:set call
+test("BI-0203 active — property:set carries value=[\"[[A]]\",\"[[B]]\"]", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    { stdout: '=> {"path":"focused/note.md","vault":"FocusedVault"}\n', exitCode: 0 },
+    SET_OK("related", "[[A]],[[B]]"),
+  ]);
+  await executeWriteProperty(
+    { target_mode: "active", name: "related", value: ["[[A]]", "[[B]]"] },
+    deps(spawnFn),
+  );
+  expect(recorded[1]!.argv).toEqual([
+    "vault=FocusedVault",
+    "property:set",
+    "name=related",
+    'value=["[[A]]","[[B]]"]',
+    "type=list",
+    "path=focused/note.md",
+  ]);
 });
 
 // (7) specific+path empty list — literal "[]" argv (US5#1, SC-010, FR-018, R10)

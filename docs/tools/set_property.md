@@ -128,10 +128,19 @@ system is set per-property at the vault level, not per-write.
 | `7` (number) | `value=7` |
 | `true` (boolean) | `value=true` |
 | `false` (boolean) | `value=false` |
-| `["alpha", "beta"]` (string[]) | `value=alpha,beta` |
-| `["alpha"]` (1-element list) | `value=alpha` |
+| `["alpha", "beta"]` (string[]) | `value=["alpha","beta"]` (a JSON array) |
+| `["alpha"]` (1-element list) | `value=["alpha"]` |
+| `["[[A]]", "[[B]]"]` (list of wikilinks) | `value=["[[A]]","[[B]]"]` |
 | `[]` (empty list) | `value=[]` (literal `[]` — recognised by the CLI as "write an empty YAML list") |
+| `["a", "b"]` + an explicit non-list `type` (e.g. `"text"`) | `value=a,b` (items joined with commas) |
 | `"2026-12-31"` + `type: "date"` | `value=2026-12-31` |
+
+An array whose type is `list` (inferred, or given explicitly) is sent
+as a JSON array in one argv element, and the CLI stores exactly those
+items, in order: a list of wikilinks becomes a YAML list of links, and
+an item that contains a comma (`"Smith, John"`) stays one item. The CLI
+quotes items in the YAML where it needs to (for example `- "[[A]]"`);
+plain items stay unquoted.
 
 Empty arrays produce a valid empty YAML list (`tags: []` on disk). The
 literal `[]` argv is load-bearing — a bare `value=` (empty string) with
@@ -332,7 +341,7 @@ The `type=text` argv is inferred from the string shape of `value`.
 Spawns two calls:
 1. `obsidian vault=MyVault file file=QuickNote` — TSV output names the
    canonical path (e.g. `path\tInbox/QuickNote.md`).
-2. `obsidian vault=MyVault property:set name=tags value=alpha,beta type=list path=Inbox/QuickNote.md`.
+2. `obsidian vault=MyVault property:set name=tags value=["alpha","beta"] type=list path=Inbox/QuickNote.md`.
 
 Returns `{ "written": true, "path": "Inbox/QuickNote.md", "name": "tags" }`.
 Notice the `path` field reports the canonical path, not the wikilink.
@@ -443,17 +452,12 @@ underlying serialiser supports" wording, this is contract-compliant
 behaviour, but it IS an observable diff worth documenting. Values are
 preserved byte-stable; only the style normalises.
 
-### List elements containing literal `,` characters
+### An array with an explicit non-list `type`
 
-The wire format for `value: string[]` is comma-separated
-(`value=alpha,beta,gamma` → `["alpha", "beta", "gamma"]` on disk). List
-elements containing literal `,` characters will be split by the CLI's
-parser, producing more elements than the caller intended. For example,
-`value: ["hello, world"]` (one element with an embedded comma) produces
-a two-element list `["hello", "world"]` on disk. Callers needing
-comma-containing list elements fall back to
-[`obsidian_exec`](./obsidian_exec.md) with a hand-built `property:set`
-invocation, or to a `read` + body-edit + `write_note` workflow.
+An array sent with an explicit `type` other than `list` (for example
+`value: ["a", "b"], type: "text"`) is joined with commas
+(`value=a,b`) and written as that type, so the note gets the text
+`a,b`, not a list. To write a list, omit `type` or set it to `list`.
 
 ### Property removal — out of scope
 
@@ -503,7 +507,6 @@ field structurally inert in active mode specifically.
   schema-stripping contract was retired in 0.9.0, PR #90: parameter
   descriptions are now published in `tools/list`, per ADR-040.)
 - [obsidian_exec](./obsidian_exec.md) — the freeform escape hatch for
-  property removal, comma-in-list-element edge cases, and any
-  unwrapped subcommand needs.
+  property removal and any unwrapped subcommand needs.
 - [errors contract](../../specs/001-add-cli-bridge/contracts/errors.contract.md)
   — the canonical roster of `UpstreamError` codes.

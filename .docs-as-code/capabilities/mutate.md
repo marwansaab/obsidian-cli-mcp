@@ -797,7 +797,15 @@ flowchart LR
 
 `set_property` wraps `property:set`. It infers the property type from the JS
 value when `type` is omitted, except for `date` and `datetime`, which must be
-given explicitly. `delete` is a thin wrapper. It sends a file to the OS trash
+given explicitly. An array whose resolved type is `list` goes to the CLI as
+one JSON-array `value=` element, which `property:set` stores item for item
+and quotes where YAML needs it; an array with an explicit non-list `type`
+keeps the old comma join. Until PR #150 (BI-0203) every array was joined with
+commas, so a wikilink list landed as one quoted scalar and an item holding a
+comma was split, both reported as `written: true`
+([ADR-075](../decisions/ADR-075-set-property-sends-a-list-as-a-json-array.md)).
+A string `value` with `type: "list"` still passes through verbatim and is
+comma-split by the CLI. `delete` is a thin wrapper. It sends a file to the OS trash
 unless `permanent: true`, which since PR #92
 asks the human first ([above](#confirmation-before-irreversible-changes)). On
 the PR #92 test vault, which has no `.trash` folder, trash deletes landed in
