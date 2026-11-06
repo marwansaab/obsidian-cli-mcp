@@ -204,6 +204,42 @@ describe("US1 — empty result", () => {
   });
 });
 
+describe("BI-0202 — regex lookaround replacements are applied", () => {
+  const regexInput = (pattern: string, commit: boolean) =>
+    ({ pattern, replacement: "WORD", mode: "regex", vault: "V", case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit, active_note: false }) as const;
+
+  it("preview of a lookbehind match reports the expanded replacement", async () => {
+    const { fs } = inMemoryFs([{ abs: relToAbs("a.md"), content: "Paren word here" }], VAULT_ROOT);
+    const result = await executeFindAndReplace(regexInput("(?<=Paren )word", false), baseDeps({ fs }));
+    expect(result.mode).toBe("preview");
+    if (result.mode === "preview") {
+      expect(result.total_occurrences).toBe(1);
+      expect(result.affected_notes[0]!.occurrences[0]).toMatchObject({
+        matched_substring: "word",
+        replacement_substring: "WORD",
+      });
+    }
+  });
+
+  it.each([
+    ["lookbehind", "(?<=Paren )word"],
+    ["lookahead", "word(?= here)"],
+  ])("commit of a %s match writes the replacement and counts it", async (_label, pattern) => {
+    const { fs, state } = inMemoryFs([{ abs: relToAbs("a.md"), content: "Paren word here" }], VAULT_ROOT);
+    const result = await executeFindAndReplace(regexInput(pattern, true), baseDeps({ fs }));
+    expect(result).toEqual({ mode: "commit", changed_notes: ["a.md"], total_occurrences_replaced: 1, partial: false });
+    expect(state.files.get(relToAbs("a.md"))).toBe("Paren WORD here");
+  });
+
+  it("commit where the lookbehind prefix is absent leaves the note unchanged and reports zero", async () => {
+    const { fs, state } = inMemoryFs([{ abs: relToAbs("a.md"), content: "Other word here" }], VAULT_ROOT);
+    const result = await executeFindAndReplace(regexInput("(?<=Paren )word", true), baseDeps({ fs }));
+    expect(result).toEqual({ mode: "commit", changed_notes: [], total_occurrences_replaced: 0, partial: false });
+    expect(state.files.get(relToAbs("a.md"))).toBe("Other word here");
+    expect(state.writes.length).toBe(0);
+  });
+});
+
 describe("US1 — code-block skip default (FR-006)", () => {
   it("occurrence inside fenced code block is NOT counted by default", async () => {
     const files: MemFile[] = [{

@@ -237,6 +237,34 @@ predicates, `isSingleNoteScope` and `effectiveFolder`, are shared by the
 confirmation gate and `resolveScope` since the PR #92 review (commit
 `ca25c67`), which had found the checks written twice.
 
+**Each match carries its own replacement.** Since PR #149 (BI-0202)
+`compileFinder` in `src/tools/find_and_replace/replace.ts` builds the global
+find regex and a sticky (`y`) copy of it once per scan and returns a per-line
+iterator; `scanNotes` in `handler.ts` uses the `replacementSubstring` each
+match yields for both the preview occurrence and the rewrite, so the two
+cannot differ. In regex mode the expansion runs the sticky copy from the
+match's start against the whole line through native `String.prototype.replace`
+and slices the expanded text out, which keeps the ECMAScript `$`-substitution
+semantics and gives lookbehind and lookahead the context they look at. Until
+then `applyReplacement` re-ran the regex against the matched substring alone:
+any lookaround then matched nothing, the preview showed the original text as
+`replacement_substring`, and a commit counted the occurrence and listed the
+note as changed while leaving the file byte-identical — a false success on a
+destructive tool (TC-00903, reproduced on 0.9.0). Two consequences are
+observable. `` $` `` and `$'` now insert the line text before and after the
+match instead of always being empty; the published contract names only `$1`,
+`$&` and `$$`, so the PR treats this as a correction. Lookarounds still see
+only the match's own line, as the scan is per line. Literal mode inserts the
+replacement verbatim, as before. The PR #149 code-quality review moved the
+expansion into the iterator (commit `d104b82`): the first fix computed it in a
+second call that re-derived the match's line offsets and built a sticky regex
+per occurrence. Known open, by Relay ruling on the assessment (Q1, option A):
+a replacement that leaves the text unchanged, such as `(a)` → `$1`, still
+counts as an occurrence and lists the note as changed; a guard would touch
+literal mode and the preview/commit count contract `OCCURRENCE_COUNT_DRIFT`
+relies on, so it is left for its own BI. The fix's records are in
+`.specify/bugs/bi-0202/`.
+
 ### A missing note in `find_and_replace`'s single-note scope
 
 A single-note scope that names no existing note fails with

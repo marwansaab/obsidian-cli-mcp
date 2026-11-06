@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`find_and_replace` applies regex replacements whose pattern uses a lookbehind or lookahead** (BI-0202). A regex-mode pattern such as `(?<=Paren )word` or `word(?= here)` previewed the original text as `replacement_substring` and, on commit, reported the occurrence as replaced and the note as changed while leaving the file byte-identical. The replacement is now expanded at the match's position in its line, so the preview shows the real replacement and the commit writes it. `$1`, `$&` and `$$` behave as before; `` $` `` and `$'` now insert the line text before and after the match instead of always being empty. Lookarounds still see only the match's own line.
+
 ## [0.9.0] - 2026-11-04
 
 **MINOR release (breaking before 1.0)**: the server moves to the current MCP standard. It runs on MCP SDK v2 and serves both protocol eras, publishes titles, behaviour hints, parameter descriptions, server instructions and typed results, and adds the `vaults` tool, owner access settings, confirmation, cancellation and progress. Code execution through `obsidian_exec` is now off by default. Spec 068-modernise-mcp-surface (BI-0165), delivered in PRs #87 to #92.
