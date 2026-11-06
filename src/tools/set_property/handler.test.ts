@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the set_property handler — 35 cases per data-model.md handler-test inventory. Covers per-mode argv shape (specific+path 1-spawn, specific+file 2-spawn, active 2-spawn), six-type inference, empty-list literal, cross-type retype (three pairs + active-mode), response shape, name/value verbatim passthrough, type-vs-value CLI rejection, path-traversal CLI confinement, R5 unknown-vault inheritance, CLI_BINARY_NOT_FOUND / CLI_NON_ZERO_EXIT propagation, ERR_NO_ACTIVE_FILE on no-focused-file.
+// Original — no upstream. Tests for the set_property handler — the data-model.md handler-test inventory plus the BI-0203 list wire-form cases. Covers per-mode argv shape (specific+path 1-spawn, specific+file 2-spawn, active 2-spawn), six-type inference, JSON-array list wire form and the explicit non-list-type comma join (BI-0203), empty-list literal, cross-type retype (three pairs + active-mode), response shape, name/value verbatim passthrough, type-vs-value CLI rejection, path-traversal CLI confinement, R5 unknown-vault inheritance, CLI_BINARY_NOT_FOUND / CLI_NON_ZERO_EXIT propagation, ERR_NO_ACTIVE_FILE on no-focused-file.
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { executeWriteProperty } from "./handler.js";
@@ -91,77 +91,22 @@ test("specific+path list 1-element — value=[\"alpha\"], type=list inferred", a
   expect(recorded[0]!.argv).toContain("type=list");
 });
 
-// (6a) BI-0203 — a wikilink list without type goes out as a JSON array (TC-00904)
-test("BI-0203 wikilink list, no type — argv value=[\"[[A]]\",\"[[B]]\"] with type=list inferred", async () => {
-  const { spawnFn, recorded } = makeQueuedSpawn([SET_OK("related", "[[A]],[[B]]")]);
+// (6a)–(6f) BI-0203 — an array's wire form, specific+path. A resolved list type sends a JSON array, one
+// argv element (TC-00904, TC-00905); an explicit non-list type keeps the comma join (owner ruling, option B).
+test.each<{ title: string; value: string[]; type?: "list" | "text"; name: string; wire: string; wireType: string }>([
+  { title: "(6a) wikilink list, no type", value: ["[[A]]", "[[B]]"], name: "related", wire: 'value=["[[A]]","[[B]]"]', wireType: "list" },
+  { title: "(6b) wikilink list, explicit type=list", value: ["[[A]]", "[[B]]"], type: "list", name: "related", wire: 'value=["[[A]]","[[B]]"]', wireType: "list" },
+  { title: "(6c) one-link list", value: ["[[A]]"], name: "related", wire: 'value=["[[A]]"]', wireType: "list" },
+  { title: "(6d) item with a comma stays one item", value: ["one", "two, three"], name: "tags", wire: 'value=["one","two, three"]', wireType: "list" },
+  { title: '(6e) items with " and \\ are JSON-escaped', value: ['a "q" b', "back\\slash", "Smith, John"], name: "tags", wire: String.raw`value=["a \"q\" b","back\\slash","Smith, John"]`, wireType: "list" },
+  { title: "(6f) explicit type=text keeps the comma join", value: ["a", "b"], type: "text", name: "note", wire: "value=a,b", wireType: "text" },
+])("BI-0203 $title — argv carries $wire", async ({ value, type, name, wire, wireType }) => {
+  const { spawnFn, recorded } = makeQueuedSpawn([SET_OK(name, "x")]);
   await executeWriteProperty(
-    { target_mode: "specific", vault: "V", path: "x.md", name: "related", value: ["[[A]]", "[[B]]"] },
+    { target_mode: "specific", vault: "V", path: "x.md", name, value, ...(type === undefined ? {} : { type }) },
     deps(spawnFn),
   );
-  expect(recorded[0]!.argv).toEqual([
-    "vault=V",
-    "property:set",
-    "name=related",
-    'value=["[[A]]","[[B]]"]',
-    "type=list",
-    "path=x.md",
-  ]);
-});
-
-// (6b) BI-0203 — the same wikilink list with explicit type=list
-test("BI-0203 wikilink list, explicit type=list — same JSON-array argv", async () => {
-  const { spawnFn, recorded } = makeQueuedSpawn([SET_OK("related", "[[A]],[[B]]")]);
-  await executeWriteProperty(
-    { target_mode: "specific", vault: "V", path: "x.md", name: "related", value: ["[[A]]", "[[B]]"], type: "list" },
-    deps(spawnFn),
-  );
-  expect(recorded[0]!.argv).toContain('value=["[[A]]","[[B]]"]');
-  expect(recorded[0]!.argv).toContain("type=list");
-});
-
-// (6c) BI-0203 — a one-link list stays a JSON array
-test("BI-0203 one-link list — argv value=[\"[[A]]\"]", async () => {
-  const { spawnFn, recorded } = makeQueuedSpawn([SET_OK("related", "[[A]]")]);
-  await executeWriteProperty(
-    { target_mode: "specific", vault: "V", path: "x.md", name: "related", value: ["[[A]]"] },
-    deps(spawnFn),
-  );
-  expect(recorded[0]!.argv).toContain('value=["[[A]]"]');
-  expect(recorded[0]!.argv).toContain("type=list");
-});
-
-// (6d) BI-0203 — an item containing a comma stays one item, in one argv element (TC-00905)
-test("BI-0203 item with a comma — argv value=[\"one\",\"two, three\"] as one discrete element", async () => {
-  const { spawnFn, recorded } = makeQueuedSpawn([SET_OK("tags", "one,two, three")]);
-  await executeWriteProperty(
-    { target_mode: "specific", vault: "V", path: "x.md", name: "tags", value: ["one", "two, three"] },
-    deps(spawnFn),
-  );
-  const valueArgs = recorded[0]!.argv.filter((a) => a.startsWith("value="));
-  expect(valueArgs).toEqual(['value=["one","two, three"]']);
-});
-
-// (6e) BI-0203 — quotes and backslashes are JSON-escaped and round-trip to the input
-test("BI-0203 items with \" and \\ — JSON-escaped, JSON.parse round-trips to the input", async () => {
-  const items = ['a "q" b', "back\\slash", "Smith, John"];
-  const { spawnFn, recorded } = makeQueuedSpawn([SET_OK("tags", "x")]);
-  await executeWriteProperty(
-    { target_mode: "specific", vault: "V", path: "x.md", name: "tags", value: items },
-    deps(spawnFn),
-  );
-  const valueArg = recorded[0]!.argv.find((a) => a.startsWith("value="))!;
-  expect(JSON.parse(valueArg.slice("value=".length))).toEqual(items);
-});
-
-// (6f) BI-0203 owner ruling (option B) — an array with an explicit non-list type keeps the comma join
-test("BI-0203 array with explicit type=text — argv value=a,b type=text (unchanged comma join)", async () => {
-  const { spawnFn, recorded } = makeQueuedSpawn([SET_OK("note", "a,b")]);
-  await executeWriteProperty(
-    { target_mode: "specific", vault: "V", path: "x.md", name: "note", value: ["a", "b"], type: "text" },
-    deps(spawnFn),
-  );
-  expect(recorded[0]!.argv).toContain("value=a,b");
-  expect(recorded[0]!.argv).toContain("type=text");
+  expect(recorded[0]!.argv).toEqual(["vault=V", "property:set", `name=${name}`, wire, `type=${wireType}`, "path=x.md"]);
 });
 
 // (6g) BI-0203 — specific+file carries the JSON-array wire form on its property:set call

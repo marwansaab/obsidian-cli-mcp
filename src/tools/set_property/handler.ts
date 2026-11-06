@@ -46,8 +46,9 @@ export function serialiseValue(
     // wikilink list) as one quoted scalar. JSON.stringify([]) is the literal
     // "[]", so the empty-list contract (FR-018 / R10 / F2) is kept.
     if (resolvedType === "list") return JSON.stringify(value);
-    // An array with an explicit non-list type keeps the pre-BI-0203 wire form
-    // byte for byte (other property types are out of BI-0203's scope).
+    // An explicit non-list type is honoured, not coerced to a list: the items
+    // are joined with commas and written as that type (["a","b"] + text → the
+    // text "a,b"); an empty array still sends the literal "[]", as before.
     if (value.length === 0) return "[]";
     return value.join(",");
   }

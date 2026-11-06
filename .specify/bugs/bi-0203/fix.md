@@ -14,7 +14,7 @@
 | File | Change | Notes |
 |------|--------|-------|
 | `src/tools/set_property/handler.ts` | modified | `serialiseValue(value, resolvedType)`: an array with resolved type `list` returns `JSON.stringify(value)` (`[]` stays the literal `"[]"`); an array with an explicit non-list type keeps `"[]"` / `value.join(",")`. `executeWriteProperty` passes the `resolvedType` it already computes. Header and inline comments describe the JSON wire form (BI-0203). |
-| `src/tools/set_property/handler.test.ts` | updated 2 tests, added 8 | Cases (5) and (6) assert the JSON wire form; new cases (6a)–(6h) cover the reported symptoms, escaping, the explicit `type: "text"` path and the two other target modes. |
+| `src/tools/set_property/handler.test.ts` | updated 2 tests, added 8 | Cases (5) and (6) assert the JSON wire form; new cases (6a)–(6h) (the first six as one `test.each` table) cover the reported symptoms, escaping, the explicit `type: "text"` path and the two other target modes. |
 | `docs/tools/set_property.md` | modified | Value serialisation table (string[], 1-element list, wikilink list, explicit non-list type rows) plus a paragraph on the JSON wire form; Example 2's argv; the "List elements containing literal `,` characters" known limitation replaced by "An array with an explicit non-list `type`"; the `obsidian_exec` reference bullet no longer names comma-in-list-element cases. The page is runtime payload (`help` serves it), so it moves with the fix. |
 
 ## Diff Highlights
@@ -47,13 +47,13 @@ Existing assertions changed (exactly the two the assessment lists, per `.memory/
 
 Case (7) (`value=[]`) and every scalar case pass unchanged. `index.test.ts`, `_typed-result-fixtures.ts` and `_plugin-noise.test.ts` are untouched.
 
-New cases in `src/tools/set_property/handler.test.ts`:
+New cases in `src/tools/set_property/handler.test.ts`. (6a)–(6f) are rows of one `test.each` table (PR #150 review): each pins the whole specific+path argv, so the value lands as exactly one argv element.
 
-- (6a) wikilink list without `type` — full argv with `value=["[[A]]","[[B]]"]` and `type=list` (TC-00904, criterion 2).
+- (6a) wikilink list without `type` → `value=["[[A]]","[[B]]"]` and `type=list` (TC-00904, criterion 2).
 - (6b) the same list with explicit `type: "list"` (criterion 1).
 - (6c) one-link list → `value=["[[A]]"]` (criterion 3).
-- (6d) `["one","two, three"]` → exactly one argv element `value=["one","two, three"]` (TC-00905, criterion 4).
-- (6e) items with `"`, `\` and a comma are JSON-escaped and `JSON.parse` round-trips to the input.
+- (6d) `["one","two, three"]` → `value=["one","two, three"]` (TC-00905, criterion 4).
+- (6e) items with `"`, `\` and a comma → the exact JSON-escaped `value=["a \"q\" b","back\\slash","Smith, John"]`.
 - (6f) `value: ["a","b"], type: "text"` → `value=a,b` with `type=text` (owner ruling, option B).
 - (6g) specific+file mode: the `property:set` call carries the JSON wire form.
 - (6h) active mode: the `property:set` call carries the JSON wire form.
