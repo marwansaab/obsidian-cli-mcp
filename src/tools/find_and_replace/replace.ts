@@ -1,4 +1,4 @@
-// Original — no upstream. Pure replacement utility per research.md R3 + R6 — compileFindRegex builds a g-flagged RegExp (literal mode auto-escapes); iterateLineMatches yields per-line non-zero-width matches with zero-width skip + lastIndex++ idiom (BI-037 R8); applyReplacement returns the substitution string in regex mode (ECMAScript $-substitution semantics via native String.prototype.replace, run as a sticky regex at the match's position in its whole line so lookbehind / lookahead keep their context, BI-0202) or verbatim in literal mode.
+// Original — no upstream. Pure replacement utility per research.md R3 + R6 — compileFindRegex builds a g-flagged RegExp (literal mode auto-escapes); compileFinder returns a per-line match iterator that yields non-zero-width matches with zero-width skip + lastIndex++ idiom (BI-037 R8), each carrying its replacement: verbatim in literal mode, and in regex mode expanded with ECMAScript $-substitution semantics via native String.prototype.replace, run as a sticky regex at the match's position in its whole line so lookbehind / lookahead keep their context (BI-0202).
 
 export type FindMode = "literal" | "regex";
 
@@ -9,7 +9,12 @@ export interface LineMatch {
   endIndex: number;
   /** The exact substring the regex matched. Never empty (zero-width is skipped). */
   matchedSubstring: string;
+  /** The text that replaces the match. */
+  replacementSubstring: string;
 }
+
+/** Yields the matches in one line; `byteOffsetBase` is the line's offset in the note text. */
+export type LineFinder = (line: string, byteOffsetBase: number) => Generator<LineMatch>;
 
 const REGEX_META = /[.*+?^${}()|[\]\\]/g;
 
@@ -27,47 +32,43 @@ export function compileFindRegex(
   return new RegExp(body, flags);
 }
 
-export function* iterateLineMatches(
-  line: string,
-  regex: RegExp,
-  byteOffsetBase: number,
-): Generator<LineMatch> {
-  // Caller is responsible for passing a /g/-flagged regex. We reset lastIndex
-  // defensively so the iterator is callable repeatedly with the same regex.
-  regex.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = regex.exec(line)) !== null) {
-    if (m[0].length === 0) {
-      regex.lastIndex++;
-      continue;
-    }
-    yield {
-      index: byteOffsetBase + m.index,
-      endIndex: byteOffsetBase + m.index + m[0].length,
-      matchedSubstring: m[0],
-    };
-  }
-}
-
-export function applyReplacement(
-  line: string,
-  start: number,
-  end: number,
-  regex: RegExp | null,
+export function compileFinder(
+  pattern: string,
   replacement: string,
   mode: FindMode,
-): string {
-  if (mode === "literal") return replacement;
-  if (regex === null) {
-    throw new Error("applyReplacement: regex mode requires a non-null RegExp");
-  }
-  // Re-run the pattern as a sticky (non-global) regex anchored at the match's
-  // line-relative start, against the whole line, so lookbehind / lookahead see
-  // the same context they matched with (BI-0202). Native replace keeps the
-  // ECMAScript $-substitution semantics; the expanded text is the slice between
-  // the match start and the unchanged line suffix.
-  const sticky = new RegExp(regex.source, regex.flags.replace("g", "") + "y");
-  sticky.lastIndex = start;
-  const result = line.replace(sticky, replacement);
-  return result.slice(start, result.length - (line.length - end));
+  caseInsensitive: boolean,
+): LineFinder {
+  const regex = compileFindRegex(pattern, mode, caseInsensitive);
+  // The same pattern and flags, sticky instead of global: anchored at the
+  // match's line-relative start against the whole line, it matches exactly the
+  // text the global regex found, with the context lookbehind / lookahead need
+  // (BI-0202). Native replace keeps the ECMAScript $-substitution semantics; the
+  // expanded text is the slice between the match start and the unchanged suffix.
+  const sticky = new RegExp(regex.source, regex.flags.replace("g", "y"));
+  const expand =
+    mode === "literal"
+      ? () => replacement
+      : (line: string, start: number, end: number): string => {
+          sticky.lastIndex = start;
+          const result = line.replace(sticky, replacement);
+          return result.slice(start, result.length - (line.length - end));
+        };
+  return function* findInLine(line, byteOffsetBase) {
+    // Reset lastIndex so the finder is callable repeatedly.
+    regex.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = regex.exec(line)) !== null) {
+      if (m[0].length === 0) {
+        regex.lastIndex++;
+        continue;
+      }
+      const end = m.index + m[0].length;
+      yield {
+        index: byteOffsetBase + m.index,
+        endIndex: byteOffsetBase + end,
+        matchedSubstring: m[0],
+        replacementSubstring: expand(line, m.index, end),
+      };
+    }
+  };
 }

@@ -5,7 +5,7 @@ import { relative, resolve, sep } from "node:path";
 
 import { scanFencedCodeBlocks, type Region } from "./fence-scan.js";
 import { scanHtmlComments } from "./region-scan.js";
-import { applyReplacement, compileFindRegex, iterateLineMatches } from "./replace.js";
+import { compileFinder } from "./replace.js";
 import {
   FULL_LINE_CAP,
   FULL_LINE_ELLIPSIS,
@@ -281,7 +281,7 @@ async function scanNotes(
   fs: ExecuteFs,
   vaultLabel: string | null,
 ): Promise<ScanResult> {
-  const regex = compileFindRegex(input.pattern, input.mode, !input.case_sensitive);
+  const findInLine = compileFinder(input.pattern, input.replacement, input.mode, !input.case_sensitive);
   const perNote = new Map<string, FindAndReplaceOccurrence[]>();
   const rewrittenContent = new Map<string, string>();
   let total = 0;
@@ -305,26 +305,18 @@ async function scanNotes(
     // Build replacement parts: collect [absoluteIndex, endIndex, replacement] tuples in order.
     const replacements: Array<{ start: number; end: number; insert: string }> = [];
     for (const span of spans) {
-      for (const match of iterateLineMatches(span.content, regex, span.startOffset)) {
+      for (const match of findInLine(span.content, span.startOffset)) {
         if (isInsideAnyRegion(match.index, skipRegions)) continue;
-        const replacementText = applyReplacement(
-          span.content,
-          match.index - span.startOffset,
-          match.endIndex - span.startOffset,
-          regex,
-          input.replacement,
-          input.mode,
-        );
         occurrences.push({
           line_number: span.lineNumber,
           full_line: clipFullLine(span.content),
           matched_substring: match.matchedSubstring,
-          replacement_substring: replacementText,
+          replacement_substring: match.replacementSubstring,
         });
         replacements.push({
           start: match.index,
           end: match.endIndex,
-          insert: replacementText,
+          insert: match.replacementSubstring,
         });
       }
     }
