@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-11-06T23:19:14.239Z |
 | Finished | not yet |
-| Elapsed | 16 min 31 s |
+| Elapsed | 19 min 50 s |
 | Questions | 2 (1 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 1 |
@@ -80,11 +80,11 @@
 
 > Wrote .specify/bugs/bi-0189/test.md; the result is partial. I ran the built fix against the test vault. A note, a canvas, an image and a .base opened in each of the three tab placements, and get_active_file named the same file every time (16 of 16). The cross-vault case passed too: with My-Setup-Vault focused, opening a note in the test vault succeeded and get_active_file reported it. No open was wrongly reported as a focus failure. The open_file tests (108) and the full suite (5106 passed, 6 skipped) pass; tsc and eslint are clean. The result is partial, not verified, because the silent open failure has no known live trigger: the new focus error has only been tested with a stubbed Obsidian, as the assessment accepted (BI-0179 was recorded the same way). Not covered: a closed or freshly launched vault, a PDF, and plugin views. I deleted the probe files and Welcome.md is untouched; the tabs opened in the test vault now point at deleted files. No extension hooks are registered.
 
-- **settle-verdict**: in progress, 2 turns, 1 questions.
+- **settle-verdict**: done, 19 turns, 1 questions.
 
-> The bi-0189 test result is partial: every live check passed, but the silent open failure was never reproduced live, so the new focus error has only been tested with a stubbed Obsidian. Some edge cases were also not run live. I'm asking you to sign off on how to proceed.
+> The final result is partial, as the owner's 2026-11-07 ruling sets, and the extra round showed no false focus failure. As the owner chose (option C), I ran one more live round with no code change. Each open came from a focused My-Setup-Vault and was confirmed with get_active_file naming the test vault: a fresh note into the test vault running in the background (active_tab_used, 175 ms, pass); a new PDF fixture opened the same way (active_tab_used, 348 ms, pass); and a note into the test vault after its window was closed, with the other vaults still open. In that last case the first attempt landed while Obsidian was still loading the vault, the automatic retry (dispatch.retry) ran, and the call succeeded in 639 ms with the note confirmed active. I rewrote test.md with both rounds; gaps 1 (no known trigger for the silent failure) and 4 (plugin views) stay under Residual Risks. I removed the fixtures and scratch scripts, and the test vault ended open and focused. I committed the fix with its records (b6fc50b), pushed fix/bi-0189 and opened PR #151. relay-qa-log.md changed during the session and is left uncommitted. Next: /code-review, then /speckit-docs-as-code 151.
 
-- **open-pr**: not run.
+- **open-pr**: in progress.
 
 ### review
 

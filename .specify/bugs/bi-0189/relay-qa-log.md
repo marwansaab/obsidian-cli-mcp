@@ -183,3 +183,63 @@ Sources: `200-Decisions/ADR-072 - Views Base Lists Only Once The Named Base Is T
 > A, with one live case added: also open a note in a vault other than the focused one, then run `get_active_file` with that vault named.
 >
 > Don't hold the fix waiting for a live reproduction, and skip the probe in B. Write in the assessment that the failure path is proven by construction (stub-app template tests under fake timers, plus handler and schema tests), not by observation. Record the missing live trigger as a residual risk. ADR-072 settled `views_base` the same way: "no live run took the `FOCUS_NOT_APPLIED` path, which unit tests alone cover". BI-0189 itself says "Not yet reproduced live". The cross-vault case is needed because ADR-031 makes `open_file` a vault-targeted eval that moves focus to the requested vault, and that path is the most likely to give a false focus failure.
+
+## 4. repair / settle-verdict (2026-11-06T23:33:28.996Z)
+
+**Question (verbatim):**
+
+> BI-0189 verification came back **partial**. The fix held everywhere it could be observed: 16 of 16 live opens (a note, a canvas, an image and a `.base`, in each of the three tab placements) were each confirmed by `get_active_file`. A cross-vault open (`My-Setup-Vault` focused, note opened in the test vault) also passed, the full suite (5106 tests) passes, and no open was wrongly reported as a focus failure. These are the checks that were not run, and what each would need:
+>
+> 1. **The silent open failure itself.** No one knows how to make Obsidian's open fail silently on this machine (Obsidian 1.15.0), so the new `details.stage: "focus"` error has only been tested with a stubbed Obsidian, never a real one. You accepted this in the assessment, as with ADR-072 / BI-0179. Closing it would need a reproducible trigger, and none is known; no code change closes it.
+> 2. **A cross-vault open into a closed (cold-launched) vault, or into a file not already open in a background vault (`active_tab_used`).** The one cross-vault run reused an existing tab in a vault that was open but not focused. The assessment calls these the likeliest places for a late active file, where the 1 s wait could wrongly report a focus failure. It would need the test vault closed in Obsidian (its window shut, other vaults left open), then a fresh open run into it. No code change, just another live round.
+> 3. **A PDF.** The image stood in for the "PDF or image" item the assessment allowed. It would need a small PDF fixture in `Sandbox/` and one more live open.
+> 4. **Plugin-registered views.** The test vault has no plugins by design. It would need a vault with a plugin that adds a view for another file type. If such a view fails, the assessment says to raise it as its own item.
+>
+> Options:
+>
+> | Option | What happens |
+> |---|---|
+> | **A** | Accept the partial result and open the pull request. Gaps 1–4 stay recorded in `test.md` under "Residual Risks" (they already are). |
+> | **B** | Widen the fix. **Not recommended:** the evidence shows no code gap. Every live open passed in about 80–200 ms, well inside the 1 s wait, so there is nothing to change. `write_note`'s `open` option has the same weakness but stays a separate follow-up, as the report rules out other tools. |
+> | **C** | Run one more live round with no code change, then open the PR: close the test vault in Obsidian and open a note into it from another focused vault (closed vault plus a fresh `active_tab_used` open), open a note that isn't already open in a background vault, and open a small PDF. Then rewrite `test.md` with the results. Gaps 1 and 4 would stay as residual risks, so the result would still read `partial`. This uses one of the two re-test rounds. |
+>
+> **Recommended: C.** Gap 2 is where the assessment expected this fix to be most likely to report a false focus failure. It needs no code change, only closing the test vault's window, and it either clears that risk or catches a false failure before review. If you'd rather not close the test vault window, A is a sound choice: the owner-settled proof covers the failure path, and the residual risks are already recorded.
+
+**Advisor** (escalate: decision: Only you can accept a partial verification and approve opening the PR: you ruled on BI-0179's partial result yourself (ADR-072), and no ruling of yours covers BI-0189's gaps. Choose whether to spend a re-test round on the closed-vault, `active_tab_used` and PDF cases first, or to accept now.):
+
+> C. Run one more live round with no code change: close the test vault and open a note into it from another focused vault, open a note in a background vault where it isn't already open (`active_tab_used`), and open a small PDF from `Sandbox/`. Then rewrite `test.md`. Gaps 1 and 4 stay as Residual Risks, so the result stays `partial`.
+>
+> Gap 2 is where the assessment expected a false focus failure, and it needs no code change. B is ruled out: the BI's Out of scope covers other tools, so `write_note`'s `open` option stays a separate follow-up. Correction to the record: accepting gap 1 at assessment time was the advisor's answer, following the ADR-072 precedent. It was not an owner ruling. For BI-0179, the owner ruled on the partial verification themselves (ADR-072, Source).
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0189 - Verify Open File Became Active.md`, `200-Decisions/ADR-072 - Views Base Lists Only Once The Named Base Is The Active File.md`, `200-Decisions/ADR-031 - Cross-Vault Open via Vault-Targeted Focus.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0189 - Verify Open File Became Active.md`: Appended a dated 'Verification partial' paragraph to the Status section: what was observed and what was not, and that acceptance awaits the owner.
+
+**Advisor, after the owner ruled** (escalate: none):
+
+> C. Run one more live round with no code change, then open the PR:
+> - Close the test vault in Obsidian, leaving the other vaults open, and open a note into it from another focused vault (closed vault, cold launch).
+> - In a background vault, open a note that isn't already open there (`active_tab_used`).
+> - Add a small PDF fixture to `Sandbox/` and open it.
+> - Check each open with `get_active_file`, naming the vault.
+>
+> Then rewrite `test.md` with the results. Gap 1 (no known trigger for the silent failure) and gap 4 (plugin-registered views) stay under Residual Risks, and the result stays `partial`. If this round shows a false focus failure, report it before opening the PR, not after. This is the owner's ruling of 2026-11-07, recorded in BI-0189's Status section.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0189 - Verify Open File Became Active.md`, `200-Decisions/ADR-072 - Views Base Lists Only Once The Named Base Is The Active File.md`, `200-Decisions/ADR-031 - Cross-Vault Open via Vault-Targeted Focus.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0189 - Verify Open File Became Active.md`: Replaced 'Acceptance of the partial result awaits the owner.' in the Status section with the owner's ruling of 2026-11-07 (option C: one more live round with no code change, then rewrite test.md and open the PR; gaps 1 and 4 stay as Residual Risks).
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0189 - Verify Open File Became Active.md`: Set frontmatter `updated` to 2026-11-07.
+
+**Owner:** choice 1 (C: one more live round, then PR), via cli, 2026-11-06T23:35:20.041Z.
+
+**Sent to the step:**
+
+> C. Run one more live round with no code change, then open the PR:
+> - Close the test vault in Obsidian, leaving the other vaults open, and open a note into it from another focused vault (closed vault, cold launch).
+> - In a background vault, open a note that isn't already open there (`active_tab_used`).
+> - Add a small PDF fixture to `Sandbox/` and open it.
+> - Check each open with `get_active_file`, naming the vault.
+>
+> Then rewrite `test.md` with the results. Gap 1 (no known trigger for the silent failure) and gap 4 (plugin-registered views) stay under Residual Risks, and the result stays `partial`. If this round shows a false focus failure, report it before opening the PR, not after. This is the owner's ruling of 2026-11-07, recorded in BI-0189's Status section.
