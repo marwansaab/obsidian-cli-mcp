@@ -22,6 +22,8 @@
 // So the template confirms the named file is the active file, polling every 50 ms for up to 1 s (well
 // inside the 10 s dispatch timeout) when the first check fails. `ok:true` means it is; otherwise
 // {ok:false, code:'FOCUS_NOT_APPLIED', active:<path or null>}, and the handler never lists the wrong file.
+// The wait is the shared `AWAIT_ACTIVE_FILE_JS` (`../_focus-wait.ts`, also used by open_file, BI-0189).
+import { AWAIT_ACTIVE_FILE_JS } from "../_focus-wait.js";
 import { B64_PAYLOAD_DECODE_EXPR } from "../_shared.js";
 
 export const FOCUS_BASE_TEMPLATE = `(async()=>{
@@ -29,8 +31,7 @@ const a=JSON.parse(${B64_PAYLOAD_DECODE_EXPR});
 const f=app.vault.getAbstractFileByPath(a.path);
 if(!f||f.extension===undefined)return JSON.stringify({ok:false,code:'FILE_NOT_FOUND'});
 await app.workspace.openLinkText(f.path,'',false);
-for(let i=0;i<20&&app.workspace.getActiveFile()!==f;i++)await new Promise(r=>setTimeout(r,50));
-const g=app.workspace.getActiveFile();
+${AWAIT_ACTIVE_FILE_JS}
 if(g!==f)return JSON.stringify({ok:false,code:'FOCUS_NOT_APPLIED',active:g?g.path:null});
 return JSON.stringify({ok:true,opened:f.path});
 })()`;

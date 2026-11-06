@@ -60,9 +60,11 @@ describe("open_file JS_TEMPLATE — frozen-string byte stability", () => {
 });
 
 // BI-0189: the template runs under node:vm against a stub `app` (BI-0179's views_base harness).
-// `active(n)` is the file `getActiveFile()` reports on its n-th call (0-based), so a test can make
-// the open land at once, land late, or never land. The wait runs on fake timers: `runEvalTemplate`
-// hands the vm context the global `setTimeout`, so `vi.useFakeTimers()` reaches the template's poll.
+// `active(n)` is the file `getActiveFile()` reports on its n-th call (0-based). The wait runs on fake
+// timers: `runEvalTemplate` hands the vm context the global `setTimeout`, so `vi.useFakeTimers()`
+// reaches the template's poll. The wait itself (a late landing, `active:null`, object identity) is the
+// shared `AWAIT_ACTIVE_FILE_JS`, pinned by views_base's BI-0179 suite; these rows pin its wiring after
+// each placement: lands at once → ok:true, never lands → FOCUS_NOT_APPLIED with no retry of the open.
 interface StubFile {
   path: string;
   extension: string;
@@ -136,15 +138,6 @@ describe("open_file JS_TEMPLATE — focus check after every placement (BI-0189)"
       expect(activeCalls()).toBe(2); // the loop's check + the final read, no polling
     });
 
-    it("waits for an open that lands late and then returns ok:true", async () => {
-      const { app, activeCalls } = stubApp([A, B], (n) => (n < 3 ? A : B), { openLeafFiles });
-
-      const result = await runOpen(app, { path: B.path, new_tab });
-
-      expect(result).toEqual({ ok: true, opened: B.path, new_tab, placement });
-      expect(activeCalls()).toBe(5); // three misses, the hit, the final read
-    });
-
     it("returns FOCUS_NOT_APPLIED naming the file and what is in front when the open never lands", async () => {
       const { app, calls, activeCalls } = stubApp([A, B], () => A, { openLeafFiles });
 
@@ -153,29 +146,6 @@ describe("open_file JS_TEMPLATE — focus check after every placement (BI-0189)"
       expect(result).toEqual({ ok: false, code: "FOCUS_NOT_APPLIED", opened: B.path, active: A.path });
       expect(activeCalls()).toBe(21); // the bounded wait: 20 checks + the final read
       expect(calls[openCall]).toHaveLength(1); // no retry of the open
-    });
-
-    it("returns FOCUS_NOT_APPLIED with active:null when nothing is in front after the open", async () => {
-      const { app } = stubApp([A, B], () => null, { openLeafFiles });
-
-      expect(await runOpen(app, { path: B.path, new_tab })).toEqual({
-        ok: false,
-        code: "FOCUS_NOT_APPLIED",
-        opened: B.path,
-        active: null,
-      });
-    });
-
-    it("compares the file object, so a different file with the same path text is not taken for it", async () => {
-      const lookalike: StubFile = { ...B };
-      const { app } = stubApp([A, B], () => lookalike, { openLeafFiles });
-
-      expect(await runOpen(app, { path: B.path, new_tab })).toEqual({
-        ok: false,
-        code: "FOCUS_NOT_APPLIED",
-        opened: B.path,
-        active: B.path,
-      });
     });
   });
 

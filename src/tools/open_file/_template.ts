@@ -25,6 +25,8 @@
 // resolved file is the active file (object identity), polling every 50 ms for up to 1 s (well inside
 // the 10 s dispatch timeout) when the first check fails. `ok:true` means it is; otherwise
 // {ok:false, code:'FOCUS_NOT_APPLIED', opened:<resolved path>, active:<path or null>}. No retry of the open.
+// The wait is the shared `AWAIT_ACTIVE_FILE_JS` (`../_focus-wait.ts`, views_base's BI-0179 wait).
+import { AWAIT_ACTIVE_FILE_JS } from "../_focus-wait.js";
 import { B64_PAYLOAD_DECODE_EXPR } from "../_shared.js";
 
 export const JS_TEMPLATE = `(async()=>{
@@ -44,8 +46,7 @@ let placement;
 if(a.new_tab){await app.workspace.openLinkText(f.path,'',true);placement='new_tab_created';}
 else if(existing){app.workspace.setActiveLeaf(existing,{focus:true});placement='existing_tab_reused';}
 else{await app.workspace.openLinkText(f.path,'',false);placement='active_tab_used';}
-for(let i=0;i<20&&app.workspace.getActiveFile()!==f;i++)await new Promise(r=>setTimeout(r,50));
-const g=app.workspace.getActiveFile();
+${AWAIT_ACTIVE_FILE_JS}
 if(g!==f)return JSON.stringify({ok:false,code:'FOCUS_NOT_APPLIED',opened:f.path,active:g?g.path:null});
 return JSON.stringify({ok:true,opened:f.path,new_tab:a.new_tab,placement});
 })()`;

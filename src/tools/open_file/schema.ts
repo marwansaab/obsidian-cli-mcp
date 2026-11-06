@@ -127,11 +127,6 @@ export const openFileOutputSchema = z
 // the open ran but the resolved file (`opened`) did not become the active file;
 // `active` is what is in front, or null. Internal handoff envelope, not the
 // published surface, so the fingerprint does not move.
-export const OPEN_FILE_EVAL_ERROR_CODES = [
-  "FILE_NOT_FOUND",
-  "UNSUPPORTED_FILE_TYPE",
-] as const;
-
 export const openEvalResponseSchema = z.discriminatedUnion("ok", [
   z
     .strictObject({
@@ -144,7 +139,7 @@ export const openEvalResponseSchema = z.discriminatedUnion("ok", [
     z
       .strictObject({
         ok: z.literal(false),
-        code: z.enum(OPEN_FILE_EVAL_ERROR_CODES),
+        code: z.enum(["FILE_NOT_FOUND", "UNSUPPORTED_FILE_TYPE"]),
         detail: z.string().optional(),
       }),
     z

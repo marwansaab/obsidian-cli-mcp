@@ -317,6 +317,12 @@ test("the retired VAULT_NOT_FOCUSED/not-open is NEVER produced (ADR-031; Princip
   expect(err.details.code).not.toBe("VAULT_NOT_FOUND");
 });
 
+// BI-0189: the eval's answer when the open ran but the file did not become the active file.
+const focusMiss = (opened: string, active: string | null): StubResponse => ({
+  stdout: `=> ${JSON.stringify({ ok: false, code: "FOCUS_NOT_APPLIED", opened, active })}\n`,
+  exitCode: 0,
+});
+
 test("every failure case rejects, never issues a success envelope (FR-017)", async () => {
   const failures: StubResponse[] = [
     { stdout: '=> {"ok":false,"code":"FILE_NOT_FOUND","detail":"x.md"}\n', exitCode: 0 },
@@ -335,11 +341,6 @@ test("every failure case rejects, never issues a success envelope (FR-017)", asy
 // BI-0189 — the open ran but the file did not become the active file: an
 // error, never a success, keyed by details.stage "focus" (views_base's BI-0179 shape).
 // =====================================================================
-
-const focusMiss = (opened: string, active: string | null): StubResponse => ({
-  stdout: `=> ${JSON.stringify({ ok: false, code: "FOCUS_NOT_APPLIED", opened, active })}\n`,
-  exitCode: 0,
-});
 
 test("FOCUS_NOT_APPLIED envelope → CLI_REPORTED_ERROR, details.stage 'focus', a message naming the file and the recovery, one spawn (BI-0189)", async () => {
   const { spawnFn, getCount } = makeQueuedSpawn([focusMiss("B.md", "A.md")]);
