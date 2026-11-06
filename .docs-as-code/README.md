@@ -54,7 +54,8 @@ extends it.
   - [capabilities/mutate.md](capabilities/mutate.md) — the direct-filesystem
     write cohort, what `bytes_written` reports (PR #103),
     `find_and_replace` and its missing-note envelope for both locator forms
-    (PR #134), `prepend` and its empty-body correction (PR #104)
+    (PR #134), how its regex replacements keep lookaround context
+    (PR #149), `prepend` and its empty-body correction (PR #104)
     and missing-note check (PR #105), its UTF-8 byte limit (PR #106),
     line endings and the placement check in `patch_heading` and
     `patch_block` (PR #119), how they resolve a note name (PR #122),

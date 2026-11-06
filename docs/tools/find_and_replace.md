@@ -25,7 +25,7 @@ Preview-then-commit find-and-replace across a vault, a named folder, or a single
 |---|---|---|---|---|
 | `pattern` | string (1..1000 UTF-16 code units) | Y | — | Empty / over-cap / invalid-regex rejected at the input boundary. |
 | `replacement` | string (0..1000 UTF-16 code units) | Y | — | Empty is valid (deletion). |
-| `mode` | `"literal" \| "regex"` | N | `"literal"` | Regex: ECMAScript dialect (V8). `$1`/`$&`/`$$` interpolation supported in `replacement`. Literal mode inserts `replacement` verbatim. |
+| `mode` | `"literal" \| "regex"` | N | `"literal"` | Regex: ECMAScript dialect (V8). `$1`/`$&`/`$$` interpolation supported in `replacement`; `` $` `` / `$'` insert the line text before / after the match. Lookbehind and lookahead are honoured, with the match's own line as their context. Literal mode inserts `replacement` verbatim. |
 | `case_sensitive` | boolean | N | `true` | Match case exactly when true; `false` ignores case. |
 | `folder` | string | N | — | Vault-relative folder, searched recursively; structurally validated + canonicalised. Path-traversal rejected. Missing folder rejected. Scope. |
 | `path` | string | N | — | Vault-relative path to ONE note (e.g. `Projects/Alpha.md`). Structurally validated + canonicalised. Single-note scope. |
@@ -252,7 +252,8 @@ Returns `VALIDATION_ERROR` + `details.code: "SCOPE_CONFLICT"` + `details.reason:
 ## Behavioural notes
 
 - **Line-scoped only** — `\n` in `pattern` does NOT match cross-line; line endings are preserved byte-for-byte.
-- **Zero-width regex matches** (`a*`, `^`, `$`, `\b`, lookarounds) are skipped — they never produce occurrences.
+- **Zero-width regex matches** (`a*`, `^`, `$`, `\b`, a pattern that is only a lookaround) are skipped — they never produce occurrences.
+- **Lookarounds next to matched text work** (since BI-0202). `(?<=Paren )word` → `WORD` turns `Paren word here` into `Paren WORD here`; so does `word(?= here)`. The replacement is expanded at the match's position in its line, so the preview's `replacement_substring` is the text the commit writes. Before the fix, such a pattern previewed the original text as `replacement_substring` and the commit counted the occurrence and listed the note as changed while leaving the file byte-identical; `(Paren )word` → `$1WORD` was the workaround and still works. A lookaround sees only the match's own line.
 - **Frontmatter is treated as PROSE** — `---`-delimited YAML at the top of a note is NOT a separately-skipped region. Inline code spans (`` `...` ``) and indented code blocks are also treated as prose.
 - **Eligible files**: `.md` extension (case-insensitive) AND every path segment NOT starting with `.` (skips `.obsidian/`, `.trash/`, etc.).
 - **Per-note atomic writes** via temp + rename. If a write fails mid-batch, the in-flight file is rolled back but previously-written files are NOT — the response carries `partial: true` and lists the changed notes.
