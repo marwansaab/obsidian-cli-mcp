@@ -287,3 +287,9 @@ applies. Records written since:
   flag a changed description for review; a hand-written report, gating on
   judgement and a model evaluation were rejected; amends ADR-045's shared
   closed-vault sentence (PR #143).
+- [decisions/ADR-075-set-property-sends-a-list-as-a-json-array.md](decisions/ADR-075-set-property-sends-a-list-as-a-json-array.md)
+  — `set_property` sends an array whose resolved type is `list` as one
+  JSON-array argv element, which `property:set` stores item for item, and
+  keeps the comma join for an array with an explicit non-list `type`; JSON
+  for every array, an `eval` write and comma escaping were rejected
+  (PR #150).
