@@ -83,36 +83,56 @@ describe("iterateLineMatches", () => {
 });
 
 describe("applyReplacement", () => {
+  // Expands the replacement for every match iterateLineMatches finds on `line`
+  // (base offset 0, so index/endIndex are line-relative), as scanNotes does.
+  const expandAll = (line: string, pattern: string, replacement: string): string[] => {
+    const regex = compileFindRegex(pattern, "regex", false);
+    return Array.from(iterateLineMatches(line, regex, 0), (m) =>
+      applyReplacement(line, m.index, m.endIndex, regex, replacement, "regex"),
+    );
+  };
+
   it("literal mode returns the replacement verbatim regardless of $-sequences", () => {
-    expect(applyReplacement("foo", null, "$1bar$&", "literal")).toBe("$1bar$&");
+    expect(applyReplacement("foo", 0, 3, null, "$1bar$&", "literal")).toBe("$1bar$&");
   });
 
   it("regex mode honours $1 capture-group semantics", () => {
-    const regex = compileFindRegex("foo(\\d+)", "regex", false);
-    const matched = "foo42";
-    expect(applyReplacement(matched, regex, "X$1Y", "regex")).toBe("X42Y");
+    expect(expandAll("foo42", "foo(\\d+)", "X$1Y")).toEqual(["X42Y"]);
   });
 
   it("regex mode honours $& whole-match semantics", () => {
-    const regex = compileFindRegex("foo", "regex", false);
-    expect(applyReplacement("foo", regex, "<$&>", "regex")).toBe("<foo>");
+    expect(expandAll("foo", "foo", "<$&>")).toEqual(["<foo>"]);
   });
 
   it("regex mode honours $$ literal-dollar semantics", () => {
-    const regex = compileFindRegex("foo", "regex", false);
-    expect(applyReplacement("foo", regex, "$$bar", "regex")).toBe("$bar");
+    expect(expandAll("foo", "foo", "$$bar")).toEqual(["$bar"]);
   });
 
   it("regex mode with multiple capture groups + literal dollar", () => {
-    const regex = compileFindRegex("(\\w+)-(\\w+)", "regex", false);
-    expect(applyReplacement("aaa-bbb", regex, "$2_$1_$$", "regex")).toBe(
-      "bbb_aaa_$",
-    );
+    expect(expandAll("aaa-bbb", "(\\w+)-(\\w+)", "$2_$1_$$")).toEqual(["bbb_aaa_$"]);
   });
 
   it("regex mode with a null regex throws the defensive guard", () => {
-    expect(() => applyReplacement("foo", null, "bar", "regex")).toThrow(
+    expect(() => applyReplacement("foo", 0, 3, null, "bar", "regex")).toThrow(
       "applyReplacement: regex mode requires a non-null RegExp",
     );
+  });
+
+  // BI-0202: the expansion runs at the match's position in its line, so
+  // assertions that look outside the matched text keep their context.
+  it("regex mode expands a lookbehind match (BI-0202)", () => {
+    expect(expandAll("Paren word here", "(?<=Paren )word", "WORD")).toEqual(["WORD"]);
+  });
+
+  it("regex mode expands a lookahead match (BI-0202)", () => {
+    expect(expandAll("Paren word here", "word(?= here)", "WORD")).toEqual(["WORD"]);
+  });
+
+  it("the capture-and-reinsert workaround still expands (BI-0202)", () => {
+    expect(expandAll("Paren word here", "(Paren )word", "$1WORD")).toEqual(["Paren WORD"]);
+  });
+
+  it("multiple matches on one line each expand at their own position (BI-0202)", () => {
+    expect(expandAll("a1 b2 a3", "(?<=a)(\\d)", "<$1>")).toEqual(["<1>", "<3>"]);
   });
 });

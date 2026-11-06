@@ -1,4 +1,4 @@
-// Original — no upstream. Pure replacement utility per research.md R3 + R6 — compileFindRegex builds a g-flagged RegExp (literal mode auto-escapes); iterateLineMatches yields per-line non-zero-width matches with zero-width skip + lastIndex++ idiom (BI-037 R8); applyReplacement returns the substitution string in regex mode (ECMAScript $1/$&/$$ semantics via native String.prototype.replace) or verbatim in literal mode.
+// Original — no upstream. Pure replacement utility per research.md R3 + R6 — compileFindRegex builds a g-flagged RegExp (literal mode auto-escapes); iterateLineMatches yields per-line non-zero-width matches with zero-width skip + lastIndex++ idiom (BI-037 R8); applyReplacement returns the substitution string in regex mode (ECMAScript $-substitution semantics via native String.prototype.replace, run as a sticky regex at the match's position in its whole line so lookbehind / lookahead keep their context, BI-0202) or verbatim in literal mode.
 
 export type FindMode = "literal" | "regex";
 
@@ -50,7 +50,9 @@ export function* iterateLineMatches(
 }
 
 export function applyReplacement(
-  matched: string,
+  line: string,
+  start: number,
+  end: number,
   regex: RegExp | null,
   replacement: string,
   mode: FindMode,
@@ -59,9 +61,13 @@ export function applyReplacement(
   if (regex === null) {
     throw new Error("applyReplacement: regex mode requires a non-null RegExp");
   }
-  // Build a non-global single-use anchor regex to apply replacement to the
-  // matched substring while honouring ECMAScript $1/$&/$$ semantics.
-  const flags = regex.flags.replace("g", "");
-  const singleUse = new RegExp(regex.source, flags);
-  return matched.replace(singleUse, replacement);
+  // Re-run the pattern as a sticky (non-global) regex anchored at the match's
+  // line-relative start, against the whole line, so lookbehind / lookahead see
+  // the same context they matched with (BI-0202). Native replace keeps the
+  // ECMAScript $-substitution semantics; the expanded text is the slice between
+  // the match start and the unchanged line suffix.
+  const sticky = new RegExp(regex.source, regex.flags.replace("g", "") + "y");
+  sticky.lastIndex = start;
+  const result = line.replace(sticky, replacement);
+  return result.slice(start, result.length - (line.length - end));
 }

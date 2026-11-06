@@ -308,7 +308,9 @@ async function scanNotes(
       for (const match of iterateLineMatches(span.content, regex, span.startOffset)) {
         if (isInsideAnyRegion(match.index, skipRegions)) continue;
         const replacementText = applyReplacement(
-          match.matchedSubstring,
+          span.content,
+          match.index - span.startOffset,
+          match.endIndex - span.startOffset,
           regex,
           input.replacement,
           input.mode,
