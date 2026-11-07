@@ -4,47 +4,28 @@ import { contextSearchReadBackSchema, type ContextSearchReadBack } from "./schem
 import { invokeEval, type InvokeCliDeps } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import { decodeEvalEnvelope } from "../_active-file.js";
+import { EVAL_BATCH_CODE_MAX, planEvalBatches, type EvalBatch } from "../_eval-batches.js";
 import { stdoutDetails } from "../_eval-parse.js";
 import { lineText } from "../_note-lines.js";
 import { composeEvalCode } from "../_shared.js";
 
 import type { LineRow } from "../search/line-matches.js";
 
-type ReadBackBatch = Array<[string, number[]]>;
 type NoteFailure = Exclude<ContextSearchReadBack["notes"][number], { state: "read" }>;
 type RowFailure = NoteFailure | { state: "line-changed" };
 
-/** The longest composed eval code one read-back batch may send (research D3, F10). */
-export const READ_BACK_CODE_MAX = 2900;
+/** The longest composed eval code one read-back batch may send (research D3, F10): the shared eval batch limit. */
+export const READ_BACK_CODE_MAX = EVAL_BATCH_CODE_MAX;
 
 const BYTE_ORDER_MARK = "﻿";
-
-function withRow(batch: ReadBackBatch, row: LineRow): ReadBackBatch {
-  const last = batch.at(-1);
-  return last !== undefined && last[0] === row.path
-    ? [...batch.slice(0, -1), [last[0], [...last[1], row.line]]]
-    : [...batch, [row.path, [row.line]]];
-}
 
 /**
  * The read-back requests for `rows`, in row order: each row joins its path's tuple at the end of
  * the current batch, and a row that would take the batch's composed code past READ_BACK_CODE_MAX
  * starts the next batch instead. Every batch holds at least one row.
  */
-export function planReadBack(rows: readonly LineRow[]): ReadBackBatch[] {
-  const batches: ReadBackBatch[] = [];
-  let batch: ReadBackBatch = [];
-  for (const row of rows) {
-    const next = withRow(batch, row);
-    if (batch.length > 0 && composeEvalCode(JS_TEMPLATE, next).length > READ_BACK_CODE_MAX) {
-      batches.push(batch);
-      batch = withRow([], row);
-    } else {
-      batch = next;
-    }
-  }
-  if (batch.length > 0) batches.push(batch);
-  return batches;
+export function planReadBack(rows: readonly LineRow[]): Array<EvalBatch<number>> {
+  return planEvalBatches(rows, (row) => [row.path, row.line], (batch) => composeEvalCode(JS_TEMPLATE, batch));
 }
 
 function lineKey(path: string, line: number): string {

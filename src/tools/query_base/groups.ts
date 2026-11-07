@@ -1,8 +1,14 @@
-// Original — no upstream. query_base's grouped-view rows (BI-0207, owner ruling 2026-11-07): reads each row's group value from Obsidian in read-only eval batches (each batch's composed code at or under GROUP_VALUES_CODE_MAX, paths grouped by folder: the context_search read-back pattern, spec 088 F10) and groups and orders the rows the way Obsidian 1.15's BasesQueryResult.groupedData does, which this module mirrors from Obsidian's own code:
+// Original — no upstream. query_base's grouped-view rows (BI-0207, owner ruling 2026-11-07): reads each row's group value from Obsidian in read-only eval batches (planned by the shared `planEvalBatches` under EVAL_BATCH_CODE_MAX, paths grouped by folder, spec 088 F10) and groups and orders the rows the way Obsidian 1.15's BasesQueryResult.groupedData does, which this module mirrors from Obsidian's own code:
 // - groups are made in row order; a row joins the first group whose key loosely equals its value (Value.looseEquals, looking first among groups whose key prints the same), else starts a new group;
 // - the groups are then stably sorted: two keyed groups by Number difference when both keys are numbers, else by their printed keys under Intl.Collator {usage: "sort", sensitivity: "base", numeric: true} in Obsidian's locale, times -1 for DESC; the null group goes last in both directions.
 // Within a group the rows keep upstream's order. A value or property this mirror cannot match fails the call with CLI_REPORTED_ERROR / details.code GROUPING_UNSUPPORTED; a failed batch fails it with the eval's own typed error. Nothing falls back to ungrouped rows (Principle IV).
-import { FILE_GROUP_TEMPLATE, NOTE_GROUP_TEMPLATE } from "./_template.js";
+import {
+  DATE_ONLY_PATTERN,
+  DATE_TIME_PATTERN,
+  FILE_GROUP_TEMPLATE,
+  LINK_TEXT_PATTERN,
+  NOTE_GROUP_TEMPLATE,
+} from "./_template.js";
 import {
   queryBaseGroupValuesSchema,
   type QueryBaseGroupListElement,
@@ -11,10 +17,11 @@ import {
 import { invokeEval, type InvokeCliDeps } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
 import { decodeEvalEnvelope } from "../_active-file.js";
+import { EVAL_BATCH_CODE_MAX, planEvalBatches, type EvalBatch } from "../_eval-batches.js";
 import { composeEvalCode } from "../_shared.js";
 
-/** The longest composed eval code one group-value batch may send (spec 088 F10, as READ_BACK_CODE_MAX). */
-export const GROUP_VALUES_CODE_MAX = 2900;
+/** The longest composed eval code one group-value batch may send: the shared eval batch limit. */
+export const GROUP_VALUES_CODE_MAX = EVAL_BATCH_CODE_MAX;
 
 /** The file properties the mirror reads; any other `file.*` grouping is unsupported. */
 const FILE_PROPERTIES = new Set(["folder", "ext", "tags", "ctime", "mtime"]);
@@ -24,8 +31,6 @@ export interface GroupSource {
   kind: "note" | "file";
   name: string;
 }
-
-type Batch = Array<[string, string[]]>;
 
 export function groupingUnsupported(reason: string, details: Record<string, unknown>, message: string): UpstreamError {
   return new UpstreamError({
@@ -62,36 +67,16 @@ function splitPath(path: string): [string, string] {
   return slash < 0 ? ["", path] : [path.slice(0, slash), path.slice(slash + 1)];
 }
 
-function withPath(batch: Batch, path: string): Batch {
-  const [folder, name] = splitPath(path);
-  const last = batch.at(-1);
-  return last !== undefined && last[0] === folder
-    ? [...batch.slice(0, -1), [folder, [...last[1], name]]]
-    : [...batch, [folder, [name]]];
-}
-
-function batchCode(source: GroupSource, batch: Batch): string {
+function batchCode(source: GroupSource, batch: EvalBatch<string>): string {
   return composeEvalCode(source.kind === "note" ? NOTE_GROUP_TEMPLATE : FILE_GROUP_TEMPLATE, {
     p: source.name,
     f: batch,
   });
 }
 
-/** The batches for `paths`, in order; a path that would take a batch past GROUP_VALUES_CODE_MAX starts the next one. */
-export function planGroupBatches(source: GroupSource, paths: readonly string[]): Batch[] {
-  const batches: Batch[] = [];
-  let batch: Batch = [];
-  for (const path of paths) {
-    const next = withPath(batch, path);
-    if (batch.length > 0 && batchCode(source, next).length > GROUP_VALUES_CODE_MAX) {
-      batches.push(batch);
-      batch = withPath([], path);
-    } else {
-      batch = next;
-    }
-  }
-  if (batch.length > 0) batches.push(batch);
-  return batches;
+/** The batches for `paths`, in order, as [folder, names] tuples; a path that would take a batch past the limit starts the next one. */
+export function planGroupBatches(source: GroupSource, paths: readonly string[]): Array<EvalBatch<string>> {
+  return planEvalBatches(paths, splitPath, (batch) => batchCode(source, batch));
 }
 
 /** Each path's group value from Obsidian, in order, and the locale Obsidian orders groups in. */
@@ -110,7 +95,7 @@ export async function readGroupValues(
       malformedCode: "CLI_REPORTED_ERROR",
     });
     const asked = batch.reduce((n, [, names]) => n + names.length, 0);
-    if (answer.values.length !== asked || (locale !== null && answer.locale !== locale)) {
+    if (answer.values.length !== asked) {
       throw new UpstreamError({
         code: "CLI_REPORTED_ERROR",
         cause: null,
@@ -118,16 +103,42 @@ export async function readGroupValues(
         message: "query_base: group-value eval answered for a different set of rows",
       });
     }
+    if (locale !== null && answer.locale !== locale) {
+      throw new UpstreamError({
+        code: "CLI_REPORTED_ERROR",
+        cause: null,
+        details: { stage: "envelope-parse", locales: [locale, answer.locale] },
+        message: "query_base: group-value eval batches reported different collator locales",
+      });
+    }
     locale = answer.locale;
     values.push(...answer.values);
   }
-  values.forEach((value, i) => assertMirrorable(value, paths[i]!));
-  // assertMirrorable has rejected every {u} form, at any depth.
-  return { locale: locale ?? "und", values: values as Value[] };
+  if (locale === null) {
+    throw new UpstreamError({
+      code: "INTERNAL_ERROR",
+      cause: null,
+      details: { stage: "group-values" },
+      message: "query_base: readGroupValues needs at least one row path",
+    });
+  }
+  return { locale, values: values.map((value, i) => mirrored(value, paths[i]!)) };
 }
 
-function assertMirrorable(value: QueryBaseGroupValue, path: string): void {
-  if (value === null) return;
+// --- The mirror of Obsidian's Value semantics --------------------------------------------------
+
+/** A list element whose value the mirror can match. */
+export interface ListElement {
+  v: Value;
+  w?: QueryBaseGroupListElement["w"];
+}
+
+/** A mirrorable group value: the eval's forms without {u}, at any depth. */
+export type Value = Exclude<QueryBaseGroupValue, null | { u: string } | { a: unknown }> | { a: ListElement[] } | null;
+
+/** `value` as a mirrorable Value; throws for a {u} form at any depth (a gone note, or a value the mirror cannot match). */
+function mirrored(value: QueryBaseGroupValue, path: string): Value {
+  if (value === null) return null;
   if ("u" in value) {
     if (value.u === "note-not-found") {
       throw new UpstreamError({
@@ -139,19 +150,8 @@ function assertMirrorable(value: QueryBaseGroupValue, path: string): void {
     }
     throw groupingUnsupported("value-type", { path, value_type: value.u }, `the group value of "${path}" (${value.u}) is not supported`);
   }
-  if ("a" in value) value.a.forEach((e) => assertMirrorable(e.v, path));
-}
-
-// --- The mirror of Obsidian's Value semantics --------------------------------------------------
-
-/** A mirrorable group value: the eval forms without {u}. */
-export type Value = Exclude<QueryBaseGroupValue, null | { u: string }> | null;
-
-const DATE_TIME = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2}(?:\.\d{1,9})?)?(Z|[+-]\d{2}(:?\d{2})?)?$/;
-const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
-
-function isList(v: Value): v is { a: QueryBaseGroupListElement[] } {
-  return v !== null && "a" in v;
+  if ("a" in value) return { a: value.a.map((e) => ({ ...e, v: mirrored(e.v, path) })) };
+  return value;
 }
 
 /** Obsidian's `Value.toString()`. */
@@ -160,7 +160,7 @@ export function valueText(v: Value): string {
   if ("n" in v) return String(v.n);
   if ("b" in v) return String(v.b);
   if ("l" in v) return `[[${v.l}${v.y !== null ? `|${v.y}` : ""}]]`;
-  if ("a" in v) return v.a.map((e) => ("w" in e ? String(e.w) : valueText(e.v as Value))).join(", ");
+  if ("a" in v) return v.a.map((e) => ("w" in e ? String(e.w) : valueText(e.v))).join(", ");
   return v.s;
 }
 
@@ -175,11 +175,12 @@ function primitiveData(v: Value): string | number | boolean | undefined {
 
 /**
  * A plain string Obsidian would re-parse when comparing it with a date or a link. Value conversion turns such
- * strings into dates and links before they reach a comparison, so this only guards against a mirror gap.
+ * strings into dates and links before they reach a comparison (NOTE_GROUP_TEMPLATE uses the same patterns), so this
+ * only guards against a mirror gap.
  */
 function reparsedString(e: Value, as: "date" | "link"): string | null {
   if (e === null || !("s" in e) || "d" in e) return null;
-  const hit = as === "date" ? DATE_TIME.test(e.s) || DATE_ONLY.test(e.s) : e.s.startsWith("[[") && e.s.endsWith("]]");
+  const hit = as === "date" ? DATE_TIME_PATTERN.test(e.s) || DATE_ONLY_PATTERN.test(e.s) : LINK_TEXT_PATTERN.test(e.s);
   return hit ? e.s : null;
 }
 
@@ -187,8 +188,8 @@ function reparsedString(e: Value, as: "date" | "link"): string | null {
 function looseFrom(t: Value, e: Value): boolean {
   if (t === null) return false;
   if ("a" in t) {
-    if (isList(e)) return compareLists(t.a, e.a);
-    return t.a.length === 1 && looseEquals(t.a[0]!.v as Value, e);
+    if (e !== null && "a" in e) return compareLists(t.a, e.a);
+    return t.a.length === 1 && looseEquals(t.a[0]!.v, e);
   }
   if ("d" in t) {
     const s = reparsedString(e, "date");
@@ -215,12 +216,12 @@ export function looseEquals(t: Value, e: Value): boolean {
 }
 
 /** ListValue.compare with looseEquals: raw-identical primitive elements match without conversion. */
-function compareLists(x: QueryBaseGroupListElement[], y: QueryBaseGroupListElement[]): boolean {
+function compareLists(x: ListElement[], y: ListElement[]): boolean {
   if (x.length !== y.length) return false;
   return x.every((ex, i) => {
     const ey = y[i]!;
     if ("w" in ex && "w" in ey && ex.w === ey.w) return true;
-    return looseEquals(ex.v as Value, ey.v as Value);
+    return looseEquals(ex.v, ey.v);
   });
 }
 
@@ -231,7 +232,7 @@ export interface RowGroup {
 
 /** Obsidian's grouping of `values` (one per row, in row order) and its group order for `direction`. */
 export function groupRows(values: readonly Value[], direction: "ASC" | "DESC", locale: string): RowGroup[] {
-  if (Intl.Collator.supportedLocalesOf([locale]).length === 0 && locale !== "und") {
+  if (Intl.Collator.supportedLocalesOf([locale]).length === 0) {
     throw groupingUnsupported("collator-locale", { locale }, `Obsidian orders groups in locale "${locale}", which this server cannot match`);
   }
   const groups: RowGroup[] = [];

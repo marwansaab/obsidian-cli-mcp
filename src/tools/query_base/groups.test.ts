@@ -213,6 +213,23 @@ describe("readGroupValues", () => {
     const err = (await captureRejection(readGroupValues(source, paths, undefined, d))) as UpstreamError;
     expect(err.details).toMatchObject({ stage: "envelope-parse" });
   });
+
+  it("names both locales when batches disagree (PR #158 review)", async () => {
+    const paths = Array.from({ length: 200 }, (_, i) => `Folder ${i}/note ${i}.md`);
+    const responses = planGroupBatches(source, paths).map((b, i) => answer({ locale: i === 0 ? "en-US" : "fr", values: b.map(() => null) }));
+    const { deps: d } = deps(responses);
+    const err = (await captureRejection(readGroupValues(source, paths, undefined, d))) as UpstreamError;
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.details).toEqual({ stage: "envelope-parse", locales: ["en-US", "fr"] });
+  });
+
+  it("refuses no paths as INTERNAL_ERROR without an eval, instead of inventing a locale (PR #158 review)", async () => {
+    const { spawn, deps: d } = deps([]);
+    const err = (await captureRejection(readGroupValues(source, [], undefined, d))) as UpstreamError;
+    expect(err.code).toBe("INTERNAL_ERROR");
+    expect(err.details).toEqual({ stage: "group-values" });
+    expect(spawn.getCount()).toBe(0);
+  });
 });
 
 describe("groupRows locale", () => {
