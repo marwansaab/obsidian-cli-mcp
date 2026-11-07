@@ -163,3 +163,91 @@ Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0
 > - Grouping by formulas or multiple properties.
 > - Summaries or counts per group.
 > - Changing the view itself.
+
+## 3. repair / bug-fix (2026-11-07T08:42:09.745Z)
+
+**Question (verbatim):**
+
+> BI-0207 fix: how should query_base get each row's group value, and do you approve the existing-test edits it needs?
+>
+> Context. A live check plus a read of Obsidian 1.15's own code shows how grouped views work. Obsidian builds groups in row order with a loose match (9 and "9" share a group, ["a"] and "a" share one, and a date matches a date-time on the same day). Numbers sort as numbers; every other value sorts by its text with Intl.Collator {sensitivity: "base", numeric: true}, so case is ignored but two/Two stay separate groups in their original order. The sort is stable and the null group goes last. An empty string, an empty list or 'no tags' forms a "" group, separate from the null group. All of this can be matched exactly. A view with a custom group order will be rejected with a typed error.
+>
+> Two things the assessment missed:
+> (1) It plans one eval that carries every row path. The Obsidian.com shim stops answering above about 2,900 characters of eval code (spec 088 F10, the limit context_search's read-back batches around), so a single eval only works up to about 20 rows.
+> (2) It says an ungrouped view makes no eval call, but its own design has the eval read the view's groupBy. Both can only hold if the handler reads the .base itself through Node fs, at the canonical path it already checks with stat. That adds a required readFile to query_base's ExecuteFs.
+>
+> | Option | What happens | Trade-off |
+> |---|---|---|
+> | A (recommended) | The handler reads the .base with Node fs and finds the view's block-style groupBy in TypeScript. An ungrouped view makes no eval call and returns exactly what it returns today. A grouped view runs read-only evals in batches, each under 2,900 characters, with paths grouped by folder (the context_search read-back pattern). The evals return each row's value in a typed form plus Obsidian's collator locale, and the handler applies Obsidian's grouping and ordering in TypeScript. | Uses only APIs the project already relies on (metadataCache, vault, TFile) and follows an existing pattern. Cost: about one extra eval per 30 to 60 grouped rows, so a 1,000-row grouped view adds roughly 20 to 35 eval calls. |
+> | B | Same .base read and test edits as A, but one eval per call: the template calls Obsidian's own base:query CLI handler (app.cli.handlers, an internal API the project uses nowhere today) to get the row paths in Obsidian, so no paths go on the command line. The handler checks that those paths match upstream's rows and raises a typed error if they don't. | One extra eval at any size, but it depends on a new internal Obsidian API and runs the query twice. |
+> | C | Stop here and re-run /speckit-bug-assess with these findings. | Slowest; the design questions stay the same. |
+>
+> Existing-test edits that A and B both need (field-only, per .memory/refactor-decisions.md item 5). No assertion, expected value, test title or spawn queue changes:
+> 1. src/tools/query_base/handler.test.ts: DepsOpts gains an optional fsReadFile, and deps() adds readFile (by default an ungrouped .base text). The five inline fs literals each add readFile: the unregistered-vault test (~L386), the FR-015 read-only test (~L445), the no-vault happy path (~L619), the unparseable focused-vault eval (~L638) and PATH_ESCAPES_VAULT (~L707).
+> 2. src/tools/query_base/index.test.ts: stubFs() adds readFile.
+> 3. src/tools/_typed-result-fixtures.ts: the query_base entry's fs adds readFile.
+> 4. src/tools/_plugin-noise.test.ts: the 'query_base (active)' case's fs adds readFile.
+> If any other existing test fails, I stop and raise it.
+>
+> Recommended: A, with the four test edits above approved. It keeps query_base on APIs it already depends on and on a batching pattern the project already uses; B's single eval rests on an internal API nothing else in the project uses.
+
+**Advisor** (escalate: decision: The developer asks for approval of edits to existing tests in four files; every prior job has needed a ruling from you for exactly that. Choosing between batched evals (A) and Obsidian's internal app.cli.handlers API (B) also sets a design direction no ADR covers.):
+
+> Recommended: A. Read the .base with Node fs at the canonical path the handler already checks, and parse the view's block-style `groupBy` in TypeScript. An ungrouped view makes no eval call and returns exactly what it returns today. A grouped view runs read-only evals in batches, each under 2,900 characters, with paths grouped by folder (the context_search read-back pattern). The handler then applies Obsidian's grouping and ordering in TypeScript. A view with a custom group order gets a typed error, with no new top-level code (sub-discriminator under the existing envelope).
+>
+> Why A over B: batched read-back is an established pattern under the same shim limit (BI-0170 / spec 088 F10, TC-00723). No vault note uses `app.cli.handlers`, and depending on it would be a new internal-API dependency with no ADR behind it. A grouped view must never return silently ungrouped: a failed batch surfaces as a structured UpstreamError (Constitution Principle IV). The fs read is a read, not a write, so the path checks already in place (FEAT-025 steps 2–3) still apply.
+>
+> Existing-test edits (the four field-only `readFile` additions in handler.test.ts, index.test.ts, _typed-result-fixtures.ts and _plugin-noise.test.ts): these need the owner's ruling for this job, as every prior job's existing-test edits did. Do not make them until it arrives. If the owner approves, keep to the scope you stated: field-only, no change to assertions, expected values, titles or spawn queues, and stop and raise it if any other existing test fails.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0207 - Return Groups From Grouped Base Views.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Test Cases/TC-00723 - Context Search Keeps Whitespace On Every Row Across Batched Read Back Of Many Notes.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Constitution.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Architecture.md`, `query_base (FEAT-025)`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0193 - Align Shared No Active File Advice With Each Tool's Inputs.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0195 - Classify Smart Connections Similar Embedding And Stale Index Failures.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0207 - Return Groups From Grouped Base Views.md`: Appended an HTML-comment record of the developer's findings (Obsidian's grouping and ordering rules, the ~2,900-character eval limit, the readFile the ungrouped no-eval path needs) and noted that the design choice and the existing-test edits are escalated to the owner with no ruling yet.
+
+**Advisor, after the owner ruled** (escalate: none):
+
+> A. The four test edits are approved, field-only.
+>
+> Owner ruling 2026-11-07, recorded on BI-0207 Status. Scope:
+> - Read the .base with Node fs at the canonical path you already check with stat. Parse the view's block-style `groupBy` in TypeScript. Add a required `readFile` to `ExecuteFs`.
+> - An ungrouped view makes no eval call and returns exactly what it returns today.
+> - A grouped view runs read-only evals in batches, each under about 2,900 characters of eval code, with paths grouped by folder (the context_search read-back pattern, BI-0170). The evals return each row's typed value plus Obsidian's collator locale. The handler applies Obsidian's grouping and ordering in TypeScript.
+> - A view with a custom group order is rejected with a typed error. Use no new top-level code.
+> - A failed batch surfaces as a structured UpstreamError, never as silently ungrouped rows (Constitution Principle IV).
+> - Do not use `app.cli.handlers` (option B was not taken).
+>
+> Approved existing-test edits, these four files only. No change to any assertion, expected value, test title or spawn queue:
+> 1. `src/tools/query_base/handler.test.ts`: `DepsOpts` gains an optional `fsReadFile`, and `deps()` adds `readFile` (by default an ungrouped .base text). The five inline fs literals each add `readFile`: the unregistered-vault test (~L386), the FR-015 read-only test (~L445), the no-vault happy path (~L619), the unparseable focused-vault eval (~L638) and PATH_ESCAPES_VAULT (~L707).
+> 2. `src/tools/query_base/index.test.ts`: `stubFs()` adds `readFile`.
+> 3. `src/tools/_typed-result-fixtures.ts`: the query_base entry's fs adds `readFile`.
+> 4. `src/tools/_plugin-noise.test.ts`: the 'query_base (active)' case's fs adds `readFile`.
+>
+> If any other existing test fails, stop and raise it. Any other existing-test edit needs a new owner ruling.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0207 - Return Groups From Grouped Base Views.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0170 - Stop Trimming Context Search Match Text.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Constitution.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0207 - Return Groups From Grouped Base Views.md`: Appended the owner ruling (option A design plus the four approved field-only existing-test edits and the stop rule) to the Status section.
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0207 - Return Groups From Grouped Base Views.md`: Updated the 2026-11-07 developer-finding HTML comment: 'No ruling yet.' now says the owner ruled A and approved the four test edits (see Status).
+
+**Owner:** choice 1 (A + approve the 4 test edits), via cli, 2026-11-07T08:52:00.729Z.
+
+**Sent to the step:**
+
+> A. The four test edits are approved, field-only.
+>
+> Owner ruling 2026-11-07, recorded on BI-0207 Status. Scope:
+> - Read the .base with Node fs at the canonical path you already check with stat. Parse the view's block-style `groupBy` in TypeScript. Add a required `readFile` to `ExecuteFs`.
+> - An ungrouped view makes no eval call and returns exactly what it returns today.
+> - A grouped view runs read-only evals in batches, each under about 2,900 characters of eval code, with paths grouped by folder (the context_search read-back pattern, BI-0170). The evals return each row's typed value plus Obsidian's collator locale. The handler applies Obsidian's grouping and ordering in TypeScript.
+> - A view with a custom group order is rejected with a typed error. Use no new top-level code.
+> - A failed batch surfaces as a structured UpstreamError, never as silently ungrouped rows (Constitution Principle IV).
+> - Do not use `app.cli.handlers` (option B was not taken).
+>
+> Approved existing-test edits, these four files only. No change to any assertion, expected value, test title or spawn queue:
+> 1. `src/tools/query_base/handler.test.ts`: `DepsOpts` gains an optional `fsReadFile`, and `deps()` adds `readFile` (by default an ungrouped .base text). The five inline fs literals each add `readFile`: the unregistered-vault test (~L386), the FR-015 read-only test (~L445), the no-vault happy path (~L619), the unparseable focused-vault eval (~L638) and PATH_ESCAPES_VAULT (~L707).
+> 2. `src/tools/query_base/index.test.ts`: `stubFs()` adds `readFile`.
+> 3. `src/tools/_typed-result-fixtures.ts`: the query_base entry's fs adds `readFile`.
+> 4. `src/tools/_plugin-noise.test.ts`: the 'query_base (active)' case's fs adds `readFile`.
+>
+> If any other existing test fails, stop and raise it. Any other existing-test edit needs a new owner ruling.
