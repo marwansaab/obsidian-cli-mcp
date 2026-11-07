@@ -1141,6 +1141,15 @@ than added as new codes:
   gives no signal for it. The value is reused, not added
   ([ADR-076](decisions/ADR-076-files-checks-a-named-folder-only-when-the-cli-lists-nothing.md);
   [list and inventory](capabilities/list-and-inventory.md#failure)).
+  Since PR #158 (BI-0207) `query_base` adds `"GROUPING_UNSUPPORTED"` under
+  `CLI_REPORTED_ERROR`: a grouped view whose grouping the server cannot
+  mirror, with five `details.reason` values from its first release
+  (`custom-group-order`, `unreadable-group-by`, `property`, `value-type`,
+  `collator-locale`). A note gone before its group value is read is
+  `details.stage: "group-values"`, `reason: "note-not-found"`, not a sixth
+  reason, because the condition is transient
+  ([ADR-080](decisions/ADR-080-query-base-mirrors-obsidians-grouping-and-fails-what-it-cannot-mirror.md);
+  [Bases](capabilities/bases.md#failure)).
 - `details.reason` separates the states of one multi-state condition (ADR-015,
   Sub-Discriminators via details.reason for Multi-State Error Codes) — for
   example `obsidian-not-running` on `CLI_NON_ZERO_EXIT`, `cli-disabled` on
@@ -1624,7 +1633,19 @@ them:
   `READ_BACK_CODE_MAX = 2900` per batch, with the template pinned at 900
   characters ([search and discovery](capabilities/search-and-discovery.md),
   [ADR-058](decisions/ADR-058-context-search-reads-matched-lines-back-and-fails-when-one-cannot-be.md)).
-  Other templates whose payload grows with their input are not budgeted yet.
+  `query_base`'s group-value templates are the second (PR #158, BI-0207;
+  [Bases](capabilities/bases.md#grouped-views-mirrored-not-read-back)).
+  Since PR #158 both budget through one planner, `planEvalBatches(items,
+  entry, code)` in the leaf module `src/tools/_eval-batches.ts`, under
+  `EVAL_BATCH_CODE_MAX = 2900`: items join the current batch in order,
+  consecutive items with the same key share one `[key, values]` tuple, an
+  item that would push the composed code past the limit starts the next
+  batch, and a single oversized item still gets a batch of its own.
+  `READ_BACK_CODE_MAX` and `query_base`'s `GROUP_VALUES_CODE_MAX` are aliases
+  of the shared constant. The fix first copied `planReadBack`; the PR #158
+  code-quality review (F1) extracted the planner, and `context_search`'s
+  batches did not change. Other templates whose payload grows with their
+  input are not budgeted yet.
 - **Shared rules travel as in-eval fragments.** A template cannot import at
   run time, but it is a TypeScript template literal, so a rule shared with
   TypeScript code is exported as JavaScript source and interpolated when the
@@ -1770,9 +1791,14 @@ them:
   only the `obsidian` process is replaced. The three factories share one
   child-ending tail, `settleChild` (PR #145 review commit `28c42fa`). The new
   import edge, `_handler-test-fixtures` → `_eval-template-fixtures` →
-  `_shared`, runs one way, and the build excludes both fixture modules. So far
-  only `smart_connections_similar`'s lifecycle suite uses it
-  ([plugin-backed](capabilities/plugin-backed.md#the-lifecycle-order-proven-in-process-pr-145)).
+  `_shared`, runs one way, and the build excludes both fixture modules. Two
+  suites use it: `smart_connections_similar`'s lifecycle suite
+  ([plugin-backed](capabilities/plugin-backed.md#the-lifecycle-order-proven-in-process-pr-145))
+  and, since PR #158 (BI-0207), `src/tools/query_base/handler.grouped.test.ts`,
+  which runs `executeQueryBase` with the real group-value templates over a
+  stub metadata cache, from the bug's acceptance criteria to the cap after
+  a reorder across several batches. `query_base/_template.test.ts` also runs
+  both group-value templates through `runEvalTemplate`.
   Because an error thrown inside the vm comes from another realm, the runner
   reads its `.message` without `instanceof Error`.
 

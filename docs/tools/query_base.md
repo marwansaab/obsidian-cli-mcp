@@ -39,12 +39,43 @@ Run a named view from an Obsidian Bases (`.base`) file and return its matched ro
 - `rows` — up to 1000 row objects keyed by the column names; **values are passed through as strings** even when the YAML declared a number/boolean (see *Type-preservation caveat* below).
 - `truncated` — always present; `true` when the row set was sliced down to 1000.
 - `total_rows` — present only when `truncated: true`; reports upstream's full match count.
+- `group_by` — present only for a [grouped view](#grouped-views): `{ property, direction }`, where `property` is the view's `groupBy.property` as written and `direction` is `"ASC"` or `"DESC"`.
 
 Read-only — the tool never mutates vault contents.
 
+### Grouped views
+
+Obsidian's own `base:query` ignores a view's `groupBy` and returns flat rows in file-path order. For a view grouped by a property, `query_base` therefore does the grouping itself: it reads the view's `groupBy` from the `.base` file, asks Obsidian for each row's group value, and returns the rows in the order of the groups Obsidian shows.
+
+```json
+{
+  "columns": ["path", "group", "file name"],
+  "rows": [
+    { "path": "Sandbox/b-note.md", "group": "one", "file name": "b-note" },
+    { "path": "Sandbox/a-note.md", "group": "two", "file name": "a-note" },
+    { "path": "Sandbox/c-note.md", "group": "two", "file name": "c-note" }
+  ],
+  "truncated": false,
+  "group_by": { "property": "note.status", "direction": "ASC" }
+}
+```
+
+- **`group`** is a reserved key right after `path`, in every row and in `columns`. It holds the row's group value as Obsidian prints it (a string), or `null` for the group of rows with no value. The group property does not have to be a view column.
+- **`group_view`.** A view column also named `group` is renamed `group_view`, in the rows and in `columns`, the same way a view column named `path` becomes `path_view`.
+- **Order.** Groups come in Obsidian's group order for the view's `direction`. Rows keep the view's order inside their group. The `null` group is last in both directions.
+- **What shares a group.** Obsidian's loose equality decides, not the printed text: `9` and `"9"` share a group, so do `true` and `1`, a one-element list and its element, and a string and a link to that note. `"two"` and `"Two"` are separate groups.
+- **`""` is not `null`.** An empty string, an empty list, or `file.tags` on a note with no tags each form a group whose `group` is `""`. That group is separate from the `null` group and is ordered with the other values, as in Obsidian.
+- **Duplicate labels.** `file.ctime` and `file.mtime` groups are told apart to the millisecond but printed to the second (`YYYY-MM-DDTHH:mm:ss`, local time), so two neighbouring groups can carry the same `group` string, exactly as Obsidian shows them.
+- **Supported properties.** Note (frontmatter) properties, written `note.<name>` or bare, and `file.folder`, `file.ext`, `file.tags`, `file.ctime` and `file.mtime`. Formula grouping, any other `file.*` property and a custom group order fail with `GROUPING_UNSUPPORTED` (see the [error roster](#errors--error-roster)); they never come back as flat rows.
+- **When a view counts as grouped.** As in Obsidian, only when its `groupBy` has a non-empty `property` and a `direction` of exactly `ASC` or `DESC`. Any other `groupBy` leaves the view ungrouped, and Obsidian shows it ungrouped too. The `groupBy` must be in the block-style YAML Obsidian writes; a shape the server cannot read fails with `GROUPING_UNSUPPORTED` / `unreadable-group-by`.
+- **The cap applies after grouping.** The 1000 rows returned are the first 1000 in group order, and `truncated` / `total_rows` work as for any view.
+- **Cost.** Reading the group values takes extra `eval` calls, about one per 12 rows for long paths (~100 characters) and one per 70 rows for short ones. A zero-row grouped view makes none.
+
+An ungrouped view's response has no `group_by` and no `group` key, and is exactly what it was before grouped views were supported.
+
 ### Empty-view columns
 
-When a view matches **zero rows**, `columns` carries only `["path"]` — the wrapper has no signal for view-declared column names absent row data, and does NOT parse the `.base` YAML client-side to enumerate them. **View-declared columns appear in `columns` only when at least one row matches.** A `.base` view whose filter excludes all notes yields `{ columns: ["path"], rows: [], truncated: false }`.
+When a view matches **zero rows**, `columns` carries only `["path"]` (`["path", "group"]` for a grouped view) — the wrapper has no signal for view-declared column names absent row data, and does NOT parse the `.base` YAML client-side to enumerate them (it reads the `.base` only for the view's `groupBy`). **View-declared columns appear in `columns` only when at least one row matches.** A `.base` view whose filter excludes all notes yields `{ columns: ["path"], rows: [], truncated: false }`.
 
 ### Type-preservation caveat
 
@@ -71,7 +102,10 @@ Example row: `{ "path": "Sandbox/intval.md", "file path": "Sandbox/intval.md", "
 |-------------------------|-----------------------|------|----------|
 | `VALIDATION_ERROR`      | `INVALID_BASE_PATH`   | Empty / over-cap / wrong-extension / path-traversal. `details` carries `reason` (`empty`, `too-long`, `wrong-extension`, `path-traversal`), `field: "base_path"`, `value_length` (empty, too-long) or `value` (the other two), and the generic `issues` list. The top-level `message` is the issue's own text, for example `INVALID_BASE_PATH/wrong-extension: base_path must end with .base`. | Inspect `details.reason`; supply a valid vault-relative `.base` path. |
 | `VALIDATION_ERROR`      | `INVALID_VIEW_NAME`   | Empty / over-cap. `details` carries `reason` (`empty`, `too-long`), `field: "view_name"`, `value_length` and the generic `issues` list; the top-level `message` is the issue's own text, for example `INVALID_VIEW_NAME/empty: view_name is empty`. | Supply a non-empty view name within the length cap. |
-| `CLI_REPORTED_ERROR`    | `BASE_NOT_FOUND`      | `.base` file missing at the supplied path | Verify the path; use `bases` to enumerate `.base` files in the vault. |
+| `CLI_REPORTED_ERROR`    | `BASE_NOT_FOUND`      | `.base` file missing at the supplied path (checked before the query, and again when the file is read for the view's `groupBy` after it) | Verify the path; use `bases` to enumerate `.base` files in the vault. |
+| `CLI_REPORTED_ERROR`    | `GROUPING_UNSUPPORTED` | The view is grouped in a way the server cannot reproduce. `details.reason` narrows: `custom-group-order` (the view sets a `groupOrder` list); `unreadable-group-by` (the `groupBy` is not in the block-style YAML Obsidian writes; `details.detail` says what was found); `property` (formula grouping, or a `file.*` property other than `folder`, `ext`, `tags`, `ctime`, `mtime`; `details.property`); `value-type` (a row's value cannot be matched, such as an object or a non-finite number; `details.path` and `details.value_type`); `collator-locale` (Obsidian sorts groups in a locale this server's ICU lacks; `details.locale`). `details.base_path` and `details.view_name` accompany the first two. | Remove the custom group order or group by a supported property, or query an ungrouped view of the same Base. The server never falls back to flat rows. |
+| `CLI_REPORTED_ERROR`    | — (`details.stage: "group-values"`, `details.reason: "note-not-found"`) | A grouped view's row named a note that was gone by the time its group value was read (`details.path`). | Call again. |
+| `CLI_REPORTED_ERROR`    | — (`details.stage: "json-parse"` or `"envelope-parse"`) | Reading a grouped view's group values failed: Obsidian's answer was missing or malformed, answered for a different number of rows (`details.asked`, `details.answered`), or reported different sort locales across calls (`details.locales`). | Call again; if it persists, file a bug with the `details`. |
 | `CLI_REPORTED_ERROR`    | `BASE_MALFORMED`      | File present but unusable (`details.reason` narrows: `empty`, `invalid-yaml`, `missing-required-key`, `unsupported-schema-version`, `unknown`) | Inspect `details.reason`; ask the user to fix the `.base` file in Obsidian. |
 | `CLI_REPORTED_ERROR`    | `VIEW_NOT_FOUND`      | File fine, view missing or case-mismatched | Use `views_base` to enumerate the actual view names; retry with the exact name. |
 | `CLI_REPORTED_ERROR`    | `VAULT_NOT_FOUND`     | Unknown vault (`details.reason: "unknown"`) | Verify the vault name. |
@@ -168,3 +202,33 @@ Narrow the view's filter to reduce the match count, or paginate via a view decla
 ```
 
 (Wrong case.) Returns `CLI_REPORTED_ERROR` with `details.code: "VIEW_NOT_FOUND"`. Use `views_base` to enumerate the actual view names.
+
+### Example 5 — Grouped view, descending
+
+A view in `Bases/Issues.base` declares `groupBy: { property: note.status, direction: DESC }` and the column `file.name`; `status` is not a column, and one note has no `status`.
+
+```json
+{
+  "name": "query_base",
+  "arguments": {
+    "base_path": "Bases/Issues.base",
+    "view_name": "By Status"
+  }
+}
+```
+
+```json
+{
+  "columns": ["path", "group", "file name"],
+  "rows": [
+    { "path": "Issues/a.md", "group": "two", "file name": "a" },
+    { "path": "Issues/c.md", "group": "two", "file name": "c" },
+    { "path": "Issues/b.md", "group": "one", "file name": "b" },
+    { "path": "Issues/d.md", "group": null, "file name": "d" }
+  ],
+  "truncated": false,
+  "group_by": { "property": "note.status", "direction": "DESC" }
+}
+```
+
+The `null` group (no `status`) stays last even in descending order. A view that also set `groupOrder` would instead fail with `CLI_REPORTED_ERROR`, `details.code: "GROUPING_UNSUPPORTED"`, `details.reason: "custom-group-order"`.
