@@ -1,4 +1,7 @@
 // Original — no upstream. Spec 070 FR-010 / SC-002: every in-scope file-path tool's published description names exactly the file types it declares — the sentence built from its declaration plus the categories contracts/tool-support.md requires — so description and behaviour cannot drift. Out-of-scope and non-file-path tools are excluded by name.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, test } from "vitest";
 
 import { APPEND_NOTE_SUPPORTED } from "./append_note/handler.js";
@@ -11,6 +14,7 @@ import { DELETE_SUPPORTED } from "./delete/handler.js";
 import { DELETE_DESCRIPTION } from "./delete/index.js";
 import { FIND_AND_REPLACE_SUPPORTED } from "./find_and_replace/handler.js";
 import { FIND_AND_REPLACE_DESCRIPTION } from "./find_and_replace/index.js";
+import { DOCS_DIR } from "./help/handler.js";
 import { LINKS_SUPPORTED } from "./links/handler.js";
 import { LINKS_DESCRIPTION } from "./links/index.js";
 import { MOVE_SUPPORTED } from "./move/handler.js";
@@ -75,11 +79,13 @@ describe("spec 070 — each in-scope tool's description names its declared file 
     expect(description).toContain(sentence);
   });
 
-  test("rename and move state that the file keeps its type and name the obsidian_exec route", () => {
+  test("rename and move state that the file keeps its type; rename's description and move's help page name the obsidian_exec route", () => {
     for (const description of [RENAME_DESCRIPTION, MOVE_DESCRIPTION]) {
       expect(description).toContain("keeps its type");
-      expect(description).toContain("obsidian_exec");
     }
+    expect(RENAME_DESCRIPTION).toContain("obsidian_exec");
+    // BI-0177 round 2 (owner ruling 2026-11-07, X-P): move's route lives on its help page.
+    expect(readFileSync(join(DOCS_DIR, "move.md"), "utf8")).toContain("obsidian_exec");
     expect(RENAME_DESCRIPTION).not.toContain("Scoped to .md notes");
   });
 

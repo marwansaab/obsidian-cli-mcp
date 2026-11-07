@@ -1121,6 +1121,12 @@ than added as new codes:
   no `details.reason`, and it is found by one eval after the rename fails,
   not before
   ([ADR-071](decisions/ADR-071-move-checks-a-blocked-destination-on-disk-after-the-rename-fails.md)).
+  Until PR #155 that held only for a `path` locator: a `file` or active call
+  got the CLI's raw `Error: Destination file already exists!`. Since PR #155
+  that exact line also runs the lookup when the CLI expanded the folder form
+  itself, so all three locators raise the same value, again with no new code
+  or `details.reason`
+  ([ADR-077](decisions/ADR-077-move-reads-the-clis-already-exists-line-as-a-possible-blocker-only-for-a-folder-form-it-forwarded.md)).
   Since PR #153 (BI-0204) `pattern_search` raises `"NOT_A_FOLDER"` too, so
   it now carries the whole pair `paths` has: its template's folder check
   reads `stat().type`, as `paths`' does, and a `folder` that names a note

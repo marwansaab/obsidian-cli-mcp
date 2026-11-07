@@ -850,9 +850,12 @@ rename '<abs>' -> '<abs>'`, passed through as `CLI_REPORTED_ERROR` with no
 reports it on exit 0, moves nothing and creates no folder (research F1, F2).
 
 `executeMove` now wraps the CLI call and the response parse in one `try`, and
-its catch is `throw await moveFailure(e, target, resolvedTo, deps)` (PR #123
+its catch is `throw await moveFailure(e, target, resolvedTo, cliExpandsFolderForm, deps)` (PR #123
 passed `vaultRegistry` alone; since PR #139 it passes the whole
-`ExecuteDeps`, which the blocked-file check's `invokeEval` needs). Classification happens only after the
+`ExecuteDeps`, which the blocked-file check's `invokeEval` needs; since
+PR #155 it also passes `cliExpandsFolderForm`, the condition `executeMove`
+already used to pick the forwarded `to`: a `file` or active call whose `to`
+ends in `/`). Classification happens only after the
 CLI has reported the failure; a successful move makes exactly the calls it
 made before
 ([ADR-060](../decisions/ADR-060-move-classifies-its-failure-after-the-cli-and-keeps-the-vault-folder-out.md)).
@@ -861,11 +864,11 @@ made before
 flowchart TD
   e[move-step failure] --> b{UpstreamError, and not CLI_BINARY_NOT_FOUND?}
   b -- no --> pass[rethrow unchanged]
-  b -- yes --> m{"ENOENT or ENOTDIR rename line, and destination folder is not the vault root?"}
+  b -- yes --> m{"folderSignal: ENOENT or ENOTDIR rename line, or 'already exists' after the CLI expanded the folder form; and destination folder is not the vault root?"}
   m -- yes --> k["BLOCKER_TEMPLATE eval: first folder prefix that is a file on disk"]
   k -- file found --> n["CLI_REPORTED_ERROR, details { code: NOT_A_FOLDER, folder: file }, cause null"]
-  k -- "none, ENOENT" --> f["CLI_REPORTED_ERROR, details { code: FOLDER_NOT_FOUND, folder }, cause null"]
-  k -- "none, ENOTDIR" --> l
+  k -- "none, ENOENT (missing-or-blocked)" --> f["CLI_REPORTED_ERROR, details { code: FOLDER_NOT_FOUND, folder }, cause null"]
+  k -- "none, ENOTDIR or already exists (maybe-blocked)" --> l
   k -- eval fails --> w
   m -- no --> l[fileTargetVaultRoot]
   l -- root --> r[withVaultRelativePaths]
@@ -908,6 +911,26 @@ flowchart TD
   (`getAbstractFileByPath`); the PR #139 review showed it case-sensitive and
   blind to unindexed files, and the owner ruled for the disk (commit
   `3a23d9d`).
+- **`NOT_A_FOLDER` for `file` and active calls** (PR #155, BI-0177 second
+  round, `.specify/bugs/bi-0177-2/`). PR #139 covered only the `path`
+  locator. A `file` or active call forwards the folder form as given
+  (invariant 4 above), the CLI expands it to the file in the way itself, and
+  answers `Error: Destination file already exists!` (spec 090 probe P5,
+  re-captured in PR #155's T0 probe), not a rename errno. That line reached
+  the agent raw, with no `details.code` (TC-00865 step 4, TC-00900). Since
+  PR #155 `moveFailure` asks one private classifier, `folderSignal(e,
+  cliExpandsFolderForm)`, which answers `missing-or-blocked` for the ENOENT
+  rename line, `maybe-blocked` for the ENOTDIR line or for that exact
+  `already exists` message when `cliExpandsFolderForm` is true, and nothing
+  otherwise. Either signal runs the same `findBlockingFile` lookup; only
+  `missing-or-blocked` with no file found becomes `FOLDER_NOT_FOUND`, and
+  `maybe-blocked` with none falls through to the vault-root rewrite as the
+  CLI said it. No argument sent to the CLI changed. A blocker further up the
+  path (`to: "…/Blocker.md/Sub/"`) gives the ENOENT line for a `file` call
+  too (T0 probe), so it took PR #139's branch already. The PR #155
+  code-quality review (commit `c176f61`) folded the round's first version, a
+  second predicate beside `renameFailureErrno`, into this one classifier
+  ([ADR-077](../decisions/ADR-077-move-reads-the-clis-already-exists-line-as-a-possible-blocker-only-for-a-folder-form-it-forwarded.md)).
 - **Every other failure** from the move step keeps its code and wording, with
   the vault's folder rewritten out by the shared `withVaultRelativePaths`
   ([architecture](../architecture.md#error-spine)). The root comes from
@@ -1061,7 +1084,13 @@ and `delete` name each other. What a description must still say is the
 data-loss caveat: `write_note` replaces the whole note with
 `overwrite: true`; `delete` goes to the trash unless `permanent: true`,
 which is irreversible; `move` and `rename` rewrite links per the vault's
-setting and keep the file's type; `find_and_replace` is vault-wide by
+setting and keep the file's type. Since PR #155 `move`'s description also
+names one failure, "A destination through an existing file fails with
+`NOT_A_FOLDER`.", by owner ruling of 2026-11-05, and drops its
+"(change it with `obsidian_exec`)" route to stay at 397 characters; the
+route stays on `docs/tools/move.md`, which `_file-type-support.test.ts` now
+asserts instead (assessment Q1). `rename`'s description keeps the route.
+`find_and_replace` is vault-wide by
 default and changes nothing until `commit: true`. `set_property`'s old
 client caveat (pass an explicit `type` for non-string values) was dropped as
 stale rather than moved (contract S8, clarification Q3). Its help page never
@@ -1115,7 +1144,21 @@ from their schema would have reached the client as SDK free text rather than
 - Since PR #139 a `move` into a missing folder costs one extra CLI call, the
   blocked-file eval, before it reports `FOLDER_NOT_FOUND`; spec 090 research
   F7's "needs no vault lookup" no longer holds for that branch. Success and
-  every other failure are unchanged.
+  every other failure are unchanged. Since PR #155 a `file` or active move
+  with a folder-form `to` onto a file that really exists at the destination
+  also makes that one extra eval before the CLI's own `already exists` error
+  is returned (unit row B9 only: a live fixture would need two notes of the
+  same name). A full-path `to` and every `path` call still make one CLI call.
+- The `file` and active trigger is the CLI's exact message,
+  `Error: Destination file already exists!` (unit row B8 pins it). If a
+  later CLI rewords it, those calls go back to the raw error, which is
+  unclassified, not misclassified. The `already exists` line for an
+  ancestor blocker is inferred, not captured (unit row B11b): the T0 probe
+  saw the ENOENT line there.
+- PR #155 left `move`'s entry in `src/tools/_description-audit-record.json`
+  on the old description fingerprint, so the description audit shows `move`
+  as needing review until it is re-judged (`.specify/bugs/bi-0177-2/fix.md`
+  Follow-ups). No test gates on it.
 - The blocked-file check asks the disk, so a name that differs from the
   file's only in case finds the file where the file system ignores case
   (Windows, default macOS volumes), and `details.folder` carries the name as

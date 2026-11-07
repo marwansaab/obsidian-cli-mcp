@@ -1,4 +1,4 @@
-// Original — no upstream. move missing-destination and vault-relative failure tests (spec 090): an ENOENT rename becomes CLI_REPORTED_ERROR + details.code FOLDER_NOT_FOUND with the vault-relative folder, and every other move failure has the vault's absolute folder rewritten out (rows M1–M20 of contracts/missing-destination-contract.md). BI-0177 (rows B1–B7): a rename failure first runs the blocked-destination lookup eval; a folder prefix that is a file gives details.code NOT_A_FOLDER, and a failed lookup withholds the CLI text.
+// Original — no upstream. move missing-destination and vault-relative failure tests (spec 090): an ENOENT rename becomes CLI_REPORTED_ERROR + details.code FOLDER_NOT_FOUND with the vault-relative folder, and every other move failure has the vault's absolute folder rewritten out (rows M1–M20 of contracts/missing-destination-contract.md). BI-0177 (rows B1–B7): a rename failure first runs the blocked-destination lookup eval; a folder prefix that is a file gives details.code NOT_A_FOLDER, and a failed lookup withholds the CLI text. BI-0177 round 2 (B7 corrected, B8–B13): a `file` or active call's folder-form `to` answered with "Destination file already exists!" runs the same lookup.
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { executeMove } from "./handler.js";
@@ -36,6 +36,9 @@ function enoent(root: string, sep: string, src: string, dest: string): StubRespo
 function blockerAnswer(blocker: string | null): StubResponse {
   return { stdout: `=> ${JSON.stringify({ ok: true, blocker })}\n`, exitCode: 0 };
 }
+
+/** The CLI's answer to a collision, and (spec 090 P5, BI-0177 round 2 T0) to a raw folder form whose last segment is a file. */
+const DESTINATION_EXISTS: StubResponse = { stdout: "Error: Destination file already exists!\n", exitCode: 0 };
 
 const EPERM: StubResponse = {
   stdout: `Error: EPERM: operation not permitted, rename '${WIN_ROOT}\\Inbox\\Note.md' -> '${WIN_ROOT}\\Archive\\Note.md'\n`,
@@ -599,9 +602,10 @@ test("B6: a full-path `to` through an existing file → NOT_A_FOLDER; to= forwar
 });
 
 test("B7: active mode → NOT_A_FOLDER; the lookup runs in the focused vault (no vault=), no registry lookup", async () => {
+  // BI-0177 round 2: the stub is the line TC-00900 saw live for the raw folder form, not ENOENT.
   const { spawnFn, recorded } = makeQueuedSpawn([
     focusedFileResponse("Inbox/Other.md", WIN_ROOT),
-    enoent(WIN_ROOT, "\\", "Inbox\\Other.md", "Inbox\\Note.md\\Other.md"),
+    DESTINATION_EXISTS,
     blockerAnswer("Inbox/Note.md"),
   ]);
   const { registry, calls } = recordingRegistry(WIN_ROOT);
@@ -610,9 +614,141 @@ test("B7: active mode → NOT_A_FOLDER; the lookup runs in the focused vault (no
   )) as UpstreamError;
   expect(shape(err)).toEqual(notAFolder("Inbox/Note.md"));
   expect(recorded).toHaveLength(3);
+  expect(recorded[1]!.argv).toContain("to=Inbox/Note.md/");
+  expect(findKv(recorded[1]!.argv, "vault")).toBeUndefined();
   expect(findKv(recorded[2]!.argv, "vault")).toBeUndefined();
   expect(evalPayload(recorded[2]!).folder).toBe("Inbox/Note.md");
   expect(calls).toHaveLength(0);
+});
+
+// =========================================================================
+// BI-0177 round 2 — a `file` or active call forwards the folder form for the CLI to expand, and a
+// last segment that is an existing file gets the CLI's "already exists" line (B8–B13)
+// =========================================================================
+
+test("B8: `file` locator, folder-form `to` naming an existing note (TC-00865 step 4) → NOT_A_FOLDER; to= forwarded as given; 3 spawns, lookup in vault Work, no registry lookup", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    fileTsvResponse("Inbox/Other.md"),
+    DESTINATION_EXISTS,
+    blockerAnswer("Inbox/Note.md"),
+  ]);
+  const { registry, calls } = recordingRegistry(WIN_ROOT);
+  const err = (await captureRejection(
+    executeMove(
+      { target_mode: "specific", vault: "Work", file: "Other", to: "Inbox/Note.md/" },
+      deps(spawnFn, registry),
+    ),
+  )) as UpstreamError;
+  expect(shape(err)).toEqual(notAFolder("Inbox/Note.md"));
+  expect(err.cause).toBeNull();
+  expectNoCreateFolderAdvice(err);
+  expect(recorded).toHaveLength(3);
+  expect(recorded[1]!.argv).toContain("file=Other");
+  expect(recorded[1]!.argv).toContain("to=Inbox/Note.md/");
+  expect(findKv(recorded[2]!.argv, "vault")).toBe("Work");
+  expect(evalPayload(recorded[2]!).folder).toBe("Inbox/Note.md");
+  expect(calls).toHaveLength(0);
+});
+
+test("B9: `file` locator, folder-form `to` onto a genuinely existing destination file → today's CLI error (no details.code) after a lookup finding no file; 1 registry lookup", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    fileTsvResponse("Inbox/Note.md"),
+    DESTINATION_EXISTS,
+    blockerAnswer(null),
+  ]);
+  const { registry, calls } = recordingRegistry(WIN_ROOT);
+  const err = (await captureRejection(
+    executeMove(
+      { target_mode: "specific", vault: "Work", file: "Note", to: "Archive/" },
+      deps(spawnFn, registry),
+    ),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details.code).toBeUndefined();
+  expect(err.details.message).toBe("Error: Destination file already exists!");
+  expect(recorded).toHaveLength(3);
+  expect(evalPayload(recorded[2]!).folder).toBe("Archive");
+  expect(calls).toEqual(["Work"]);
+});
+
+test("B10: active mode, the lookup after the CLI's already-exists line fails → the CLI text is withheld, never FOLDER_NOT_FOUND; the lookup failure as cause", async () => {
+  const { spawnFn } = makeQueuedSpawn([
+    focusedFileResponse("Inbox/Other.md", WIN_ROOT),
+    DESTINATION_EXISTS,
+    { stderr: "boom\n", exitCode: 1 },
+  ]);
+  const { registry, calls } = recordingRegistry(WIN_ROOT);
+  const err = (await captureRejection(
+    executeMove({ target_mode: "active", to: "Inbox/Note.md/" }, deps(spawnFn, registry)),
+  )) as UpstreamError;
+  expect(shape(err)).toEqual({
+    code: "CLI_REPORTED_ERROR",
+    message:
+      'move: moving "Inbox/Other.md" to "Inbox/Note.md/Other.md" failed with CLI_REPORTED_ERROR, and the destination folder could not be checked (CLI_NON_ZERO_EXIT), so the command-line output is withheld to keep absolute paths out of this error. Retry the move.',
+    details: { source: "Inbox/Other.md", destination: "Inbox/Note.md/Other.md" },
+  });
+  expect((err.cause as UpstreamError).code).toBe("CLI_NON_ZERO_EXIT");
+  expect(JSON.stringify(shape(err))).not.toMatch(/already exists/);
+  expect(calls).toHaveLength(0);
+});
+
+test.each([
+  {
+    id: "B11a",
+    title: "the ENOENT rename line the T0 probe captured (destination without the basename)",
+    stub: enoent(WIN_ROOT, "\\", "Inbox\\Other.md", "Inbox\\Note.md\\Sub"),
+  },
+  {
+    id: "B11b",
+    title: "the already-exists line (inferred, not seen by the T0 probe)",
+    stub: DESTINATION_EXISTS,
+  },
+])("$id: `file` locator, folder-form `to` through an ancestor file, $title → NOT_A_FOLDER naming the ancestor", async ({ stub }) => {
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    fileTsvResponse("Inbox/Other.md"),
+    stub,
+    blockerAnswer("Inbox/Note.md"),
+  ]);
+  const { registry, calls } = recordingRegistry(WIN_ROOT);
+  const err = (await captureRejection(
+    executeMove(
+      { target_mode: "specific", vault: "Work", file: "Other", to: "Inbox/Note.md/Sub/" },
+      deps(spawnFn, registry),
+    ),
+  )) as UpstreamError;
+  expect(shape(err)).toEqual(notAFolder("Inbox/Note.md"));
+  expect(recorded[1]!.argv).toContain("to=Inbox/Note.md/Sub/");
+  expect(evalPayload(recorded[2]!).folder).toBe("Inbox/Note.md/Sub");
+  expect(calls).toHaveLength(0);
+});
+
+test("B12: a `path` call with a folder-form `to` (expanded by the handler) getting the already-exists line keeps today's error; 1 spawn, no lookup", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([DESTINATION_EXISTS]);
+  const { registry, calls } = recordingRegistry(WIN_ROOT);
+  const err = (await captureRejection(
+    executeMove(
+      { target_mode: "specific", vault: "Work", path: "Inbox/Note.md", to: "Archive/" },
+      deps(spawnFn, registry),
+    ),
+  )) as UpstreamError;
+  expect(err.details.code).toBeUndefined();
+  expect(err.details.message).toBe("Error: Destination file already exists!");
+  expect(recorded).toHaveLength(1);
+  expect(calls).toEqual(["Work"]);
+});
+
+test("B13: a `file` call with a full-path `to` getting the already-exists line keeps today's error; no lookup", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([fileTsvResponse("Inbox/Note.md"), DESTINATION_EXISTS]);
+  const { registry } = recordingRegistry(WIN_ROOT);
+  const err = (await captureRejection(
+    executeMove(
+      { target_mode: "specific", vault: "Work", file: "Note", to: "Archive/B.md" },
+      deps(spawnFn, registry),
+    ),
+  )) as UpstreamError;
+  expect(err.details.code).toBeUndefined();
+  expect(err.details.message).toBe("Error: Destination file already exists!");
+  expect(recorded).toHaveLength(2);
 });
 
 test("M17: a successful move → today's result; 1 spawn; no registry lookup", async () => {

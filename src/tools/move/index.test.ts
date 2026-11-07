@@ -1,4 +1,4 @@
-// Original — no upstream. Tests for the move tool registration — descriptor shape, link-rewriting caveat, docs presence + non-stub + active-mode CLI_REPORTED_ERROR note + to-shape rules, thin-handler logger drift lock (FR-009 / R1).
+// Original — no upstream. Tests for the move tool registration — descriptor shape, link-rewriting caveat, NOT_A_FOLDER named in the description (BI-0177), docs presence + non-stub + active-mode CLI_REPORTED_ERROR note + to-shape rules, thin-handler logger drift lock (FR-009 / R1).
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -53,6 +53,13 @@ describe("createMoveTool — descriptor", () => {
     expect(lower).toContain("move");
     expect(desc).toMatch(/Automatically update internal links|link/i);
     expect(desc.length).toBeGreaterThan(0);
+  });
+
+  // BI-0177 (TC-00867): the description names the file-in-the-way failure; the help page keeps
+  // its recovery and the obsidian_exec route for a type change.
+  it("description names NOT_A_FOLDER and keeps its type (BI-0177, TC-00867)", () => {
+    expect(MOVE_DESCRIPTION).toContain("NOT_A_FOLDER");
+    expect(MOVE_DESCRIPTION).toContain("keeps its type");
   });
 
   // Case 3b — Handler-closure execution: VALID input passes Zod, so registerTool runs the
