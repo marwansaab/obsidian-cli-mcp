@@ -75,31 +75,29 @@ function simulatedApp(state: SimState): unknown {
   };
 }
 
-/** An index entry the plugin can search (data-model E3, "indexed"). */
-function indexed(candidates: Candidate[]): {
-  vec: number[];
-  find_connections: (o: { limit: number }) => Promise<Candidate[]>;
-} {
-  return { vec: [0.6, 0.8], find_connections: async ({ limit }) => candidates.slice(0, limit) };
-}
-
-interface ListedEntry {
+interface IndexEntry {
   vec?: number[] | Float32Array;
   find_connections: (o: { limit: number }) => Promise<Candidate[]>;
 }
 
 /**
- * An entry the plugin lists but has not embedded yet (BI-0195): no `vec` until the check sets one, and,
- * like plugin 4.7.2's nearest(), find_connections throws without it, so a template that queries first fails loudly.
+ * An index entry (data-model E3). With no `vec` it is listed but not embedded yet (BI-0195): like plugin
+ * 4.7.2's nearest(), find_connections then throws, so a template that queries before checking fails loudly.
  */
-function listed(candidates: Candidate[]): ListedEntry {
-  const entry: ListedEntry = {
+function entry(candidates: Candidate[], vec?: number[] | Float32Array): IndexEntry {
+  const e: IndexEntry = {
+    vec,
     find_connections: async ({ limit }) => {
-      if (!entry.vec) throw new Error("Invalid vector input to nearest()");
+      if (!e.vec) throw new Error("Invalid vector input to nearest()");
       return candidates.slice(0, limit);
     },
   };
-  return entry;
+  return e;
+}
+
+/** An index entry the plugin can search (data-model E3, "indexed"). */
+function indexed(candidates: Candidate[]): IndexEntry {
+  return entry(candidates, [0.6, 0.8]);
 }
 
 function buildTool(state: SimState) {
@@ -269,12 +267,12 @@ const SINGLE_STATE_FAILURES: FailureRow[] = [
   },
   {
     title: "L5d: ready, source listed but not embedded yet → not-indexed failure",
-    state: { files: [note("Src.md"), note("Other.md")], plugin: ready({ "Src.md": listed([{ item: { key: "Other.md" }, score: 0.9 }]) }) },
+    state: { files: [note("Src.md"), note("Other.md")], plugin: ready({ "Src.md": entry([{ item: { key: "Other.md" }, score: 0.9 }]) }) },
     expected: NOT_INDEXED_SRC,
   },
   {
     title: "L5e: ready, note named by wikilink listed but not embedded → not-indexed failure names the resolved path",
-    state: { files: [note("Notes/Src.md")], plugin: ready({ "Notes/Src.md": listed([]) }) },
+    state: { files: [note("Notes/Src.md")], plugin: ready({ "Notes/Src.md": entry([]) }) },
     args: named("Src"),
     expected: notIndexed("Notes/Src.md"),
   },
@@ -335,20 +333,19 @@ describe("smart_connections_similar lifecycle — single states (contract §S)",
   });
 
   it("L6b: listed but not embedded, then embedded → same call returns results", async () => {
-    const entry = listed([{ item: { key: "Other.md#H1" }, score: 0.9 }]);
-    const { call, getCount } = buildTool({ files: [note("Src.md"), note("Other.md")], plugin: ready({ "Src.md": entry }) });
+    const src = entry([{ item: { key: "Other.md#H1" }, score: 0.9 }]);
+    const { call, getCount } = buildTool({ files: [note("Src.md"), note("Other.md")], plugin: ready({ "Src.md": src }) });
 
     expectFailure(await call(SRC_ARGS), NOT_INDEXED_SRC);
 
-    entry.vec = [0.6, 0.8];
+    src.vec = [0.6, 0.8];
     expectSuccess(await call(SRC_ARGS), { count: 1, matches: [{ path: "Other.md", headingPath: ["H1"], score: 0.9 }] });
     expect(getCount()).toBe(2);
   });
 
   it("L8: an embedding held as a typed array counts as embedded → success", async () => {
-    const entry = listed([{ item: { key: "Other.md" }, score: 0.9 }]);
-    entry.vec = new Float32Array([0.6, 0.8]);
-    const { result } = await callOnce({ files: [note("Src.md"), note("Other.md")], plugin: ready({ "Src.md": entry }) }, SRC_ARGS);
+    const src = entry([{ item: { key: "Other.md" }, score: 0.9 }], new Float32Array([0.6, 0.8]));
+    const { result } = await callOnce({ files: [note("Src.md"), note("Other.md")], plugin: ready({ "Src.md": src }) }, SRC_ARGS);
     expectSuccess(result, { count: 1, matches: [{ path: "Other.md", headingPath: [], score: 0.9 }] });
   });
 
