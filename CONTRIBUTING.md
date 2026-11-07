@@ -10,10 +10,79 @@
   server (see README § Install). Raising the published floor is a
   constitution-amendment trigger and is deliberately not pulled here.
 
+## Branches and releases
+
+The repository follows ADR-081: `main` is always exactly what npm serves as
+`latest`, and `develop` is the default branch.
+
+| Branch | Job | Cut from | Merges into |
+| --- | --- | --- | --- |
+| `main` | What npm serves as `latest` | — | — |
+| `develop` | Integration: every work branch lands here | — | — |
+| `release/x.y.z` | The release candidate, held still for UAT | `develop` | `main` |
+| `hotfix/x.y.z` | A fix to the live version | `main` | `main` |
+| Work branch | One change | `develop`, or `release/x.y.z` for a fix found in UAT | the branch it was cut from |
+
+- **Work branches** keep the names the tools give them: `NNN-<slug>` from
+  Spec Kit, `fix/bi-NNNN` from the bug flow, and `docs/<slug>`,
+  `chore/<slug>` or `ci/<slug>` by hand. `main`, `develop`, `release/*` and
+  `hotfix/*` are reserved.
+- **Every pull request** merges with a merge commit (squash and rebase merging
+  are off), names its `BI-NNNN` in the branch name or the body, and adds its
+  `CHANGELOG.md` entry under `[Unreleased]`, repeating the BI id. Nothing is
+  committed directly to `main` or `develop`. Merged head branches are deleted.
+- **Protection is code.** The rulesets live in `.github/rulesets/` and
+  `node scripts/rulesets.ts apply` applies them, with the repository settings
+  the model needs; it is idempotent. `main`, `develop` and `release/*` need a
+  pull request, the four CI jobs green, review threads resolved, no force
+  push and a merge commit; `main` and `develop` cannot be deleted; `v*` tags
+  cannot be moved or deleted; nothing can be bypassed. The *Rulesets drift*
+  workflow compares the live rulesets with the files every day
+  (`node scripts/rulesets.ts check` does the same by hand).
+
+### Cutting and shipping a release
+
+1. **Cut.** The owner runs the *Release cut* workflow (Actions → Release cut)
+   with the version `x.y.z` and kind `release`. It creates `release/x.y.z`
+   from `develop` holding one commit: `package.json` and `package-lock.json`
+   at the new version, and `CHANGELOG.md`'s `[Unreleased]` renamed to
+   `[x.y.z] - YYYY-MM-DD` (UTC date) under a fresh empty `[Unreleased]`. It
+   then runs CI on the new branch.
+2. **UAT.** Build `release/x.y.z` locally, register it as
+   `obsidian-cli-mcp-local` and validate against the test vault: the
+   test-case sweep, the [release checks](#release-checks) below, and an
+   owner-input regression when the release changes what clients see. A fix
+   found here is a work branch cut from `release/x.y.z` with its pull request
+   into it, and its changelog entry goes into the `[x.y.z]` section. Carry
+   the fix back to `develop` during UAT so it is not lost, through a branch
+   cut from `release/x.y.z` (for example `chore/back-merge-x.y.z`) with its
+   pull request into `develop`: a pull request straight from
+   `release/x.y.z` would delete the release branch when it merges.
+3. **Pull request into `main`.** When UAT passes, the owner opens the pull
+   request `release/x.y.z` into `main`. Besides CI it must pass *Source
+   branch* (the head is `release/*` or `hotfix/*` of this repository; it runs
+   from `main`'s copy of the check) and *Version and changelog* (the version
+   is greater than npm's `latest` and `CHANGELOG.md` has a non-empty section
+   for it). The owner's merge is the approval.
+4. **Publish.** The merge starts the *Release* workflow
+   (`.github/workflows/release.yml`) in the GitHub environment `npm`: it
+   tests, builds and runs `npm publish --provenance` through npm trusted
+   publishing, with no npm token anywhere. Only if that succeeds does it tag
+   the commit `vX.Y.Z` (annotated), create the GitHub Release from the
+   version's changelog section, and open the pull request `main` into
+   `develop`, which the owner merges. A failed publication leaves no tag and
+   no Release: fix it and re-run, or ship a hotfix. When the publication
+   succeeded and a later step failed, use *Re-run failed jobs*.
+
+A **hotfix** runs the same way with kind `hotfix`: the workflow cuts
+`hotfix/x.y.z` from `main`, the fix lands by pull request into it, and after
+publication the close-out pull request carries it back to `develop` (merge it
+into any open `release/*` too).
+
 ## Release checks
 
 Some behaviour can only be shown against a running Obsidian, so it is checked
-by hand before a release rather than in CI.
+by hand on the release branch's own build during UAT rather than in CI.
 
 ### Non-ASCII handling (`npm run check:non-ascii`)
 

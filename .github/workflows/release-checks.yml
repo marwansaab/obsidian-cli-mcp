@@ -1,0 +1,29 @@
+# ADR-081 clause 5: a pull request into main must carry a version greater than
+# npm's latest and a dated CHANGELOG.md section for it.
+name: Release checks
+
+on:
+  pull_request:
+    branches: [main]
+    # edited: a pull request retargeted to main is checked without a new push.
+    types: [opened, reopened, synchronize, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  version-and-changelog:
+    name: Version and changelog
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Version is greater than npm latest and has a changelog section
+        run: node scripts/release.ts check

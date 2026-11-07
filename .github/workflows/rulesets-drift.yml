@@ -1,0 +1,33 @@
+# ADR-081 clause 9: compare the live GitHub rulesets with .github/rulesets/ and
+# fail when they differ. Reading a ruleset's bypass actors needs administration
+# read access; when the workflow token cannot see them, the check reports that,
+# and a RULESETS_TOKEN secret (a fine-grained token with Administration: read on
+# this repository) is used instead once it exists.
+name: Rulesets drift
+
+on:
+  schedule:
+    - cron: "17 21 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    name: Live rulesets match .github/rulesets
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Compare
+        env:
+          GH_TOKEN: ${{ secrets.RULESETS_TOKEN || github.token }}
+        run: node scripts/rulesets.ts check

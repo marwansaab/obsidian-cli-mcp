@@ -1,0 +1,37 @@
+# ADR-081 clause 9: only release/x.y.z and hotfix/x.y.z branches of this
+# repository merge into main. pull_request_target runs this file as it is on
+# main, never the pull request's copy, so a pull request cannot change the
+# check it is judged by. It checks out nothing and reads only the event's
+# branch and repository names.
+name: Source branch
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, reopened, synchronize, edited]
+
+permissions: {}
+
+jobs:
+  source-branch:
+    name: Source branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Head branch is release/* or hotfix/* in this repository
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPO: ${{ github.repository }}
+        run: |
+          if [ "$HEAD_REPO" != "$BASE_REPO" ]; then
+            echo "::error::Pull requests into main must come from this repository, not $HEAD_REPO."
+            exit 1
+          fi
+          case "$HEAD_REF" in
+            release/* | hotfix/*) echo "$HEAD_REF may merge into main." ;;
+            *)
+              echo "::error::Only release/* and hotfix/* branches merge into main; $HEAD_REF should target develop (ADR-081)."
+              exit 1
+              ;;
+          esac

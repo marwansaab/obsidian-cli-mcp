@@ -2,9 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [develop, "release/**", "hotfix/**"]
   pull_request:
-    branches: [main]
+    branches: [develop, "release/**", "hotfix/**", main]
+  # Run by the release-cut and release workflows: a branch they create or a
+  # pull request they open does not trigger push or pull_request runs, so they
+  # start this workflow on that ref to put the required checks on its commit.
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}

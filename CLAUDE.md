@@ -15,16 +15,18 @@ This gate applies to every test category that produces real CLI invocations: T0 
 
 ## Pull Request Lifecycle and Docs-as-Code
 
+The repository follows ADR-081's branching model (see `CONTRIBUTING.md` § Branches and releases). `develop` is the default branch and every work branch is cut from it and opens its PR into it; a fix found in UAT is cut from, and opens its PR into, its `release/x.y.z` branch. Only `release/*` and `hotfix/*` branches open PRs into `main`, and only the owner merges into `main`. Every PR merges with a merge commit and names its `BI-NNNN` in the branch name or the PR body. An agent opens PRs and never merges them.
+
 Every PR ends with a documentation pass, after review and before merge:
 
 ```
-/speckit-implement → /speckit-git-commit → open PR → /code-review + fixes → /speckit-docs-as-code <n> → merge
+/speckit-implement → /speckit-git-commit → open PR into develop → /code-review + fixes → /speckit-docs-as-code <n> → merge
 ```
 
 A bug fix (a BI whose `variant` is `bug-fix`) takes spec-kit's shorter bug path instead of specify through implement:
 
 ```
-/speckit-bug-assess → /speckit-bug-fix → /speckit-bug-test → open PR → /code-review + fixes → /speckit-docs-as-code <n> → merge
+/speckit-bug-assess → /speckit-bug-fix → /speckit-bug-test → open PR into develop → /code-review + fixes → /speckit-docs-as-code <n> → merge
 ```
 
 Its records are `assessment.md`, `fix.md` and `test.md` in `.specify/bugs/<slug>/`, committed with the fix, and they stand in for the spec, plan and tasks. Where the constitution asks for a Complexity Tracking entry in the plan (an `N` on the PR's Constitution Compliance checklist), a bug fix records it in a `## Complexity Tracking` section of `assessment.md`, or of `fix.md` when the deviation arises during the fix (`/speckit-bug-fix` never edits the assessment).

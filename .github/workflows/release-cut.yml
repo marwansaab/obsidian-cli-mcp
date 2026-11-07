@@ -1,0 +1,90 @@
+# ADR-081 clauses 2 and 5: the owner cuts release/x.y.z from develop, or
+# hotfix/x.y.z from main. The new branch is created already holding its one
+# commit (package.json and package-lock.json at the new version, CHANGELOG.md's
+# [Unreleased] renamed to [x.y.z] - YYYY-MM-DD), so nothing is pushed to an
+# existing protected branch.
+name: Release cut
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, x.y.z
+        required: true
+        type: string
+      kind:
+        description: "release: cut release/x.y.z from develop. hotfix: cut hotfix/x.y.z from main."
+        required: true
+        type: choice
+        options: [release, hotfix]
+        default: release
+
+permissions: {}
+
+concurrency:
+  group: release-cut
+  cancel-in-progress: false
+
+jobs:
+  cut:
+    name: Cut ${{ inputs.kind }}/${{ inputs.version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: write
+    env:
+      VERSION: ${{ inputs.version }}
+      KIND: ${{ inputs.kind }}
+      BRANCH: ${{ inputs.kind }}/${{ inputs.version }}
+    steps:
+      - name: Check the caller, the version and choose the base branch
+        id: base
+        env:
+          ACTOR: ${{ github.actor }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          if [ "$ACTOR" != "$OWNER" ]; then
+            echo "::error::Only $OWNER cuts releases (ADR-081); $ACTOR started this run."
+            exit 1
+          fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::version must be x.y.z, got $VERSION"
+            exit 1
+          fi
+          if [ "$KIND" = release ]; then echo "ref=develop" >> "$GITHUB_OUTPUT"; else echo "ref=main" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Checkout ${{ steps.base.outputs.ref }}
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.base.outputs.ref }}
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Refuse a branch that already exists
+        run: |
+          if git ls-remote --exit-code --heads origin "refs/heads/$BRANCH" > /dev/null; then
+            echo "::error::$BRANCH already exists"
+            exit 1
+          fi
+
+      - name: Bump the version and date the changelog section
+        run: |
+          npm version "$VERSION" --no-git-tag-version
+          node scripts/release.ts cut "$VERSION" "$(date -u +%F)"
+
+      - name: Commit and create ${{ env.BRANCH }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore(release): bump to $VERSION"
+          git push origin "HEAD:refs/heads/$BRANCH"
+
+      # A branch created with the workflow token starts no push run of CI.
+      - name: Run CI on ${{ env.BRANCH }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run ci.yml --ref "$BRANCH"

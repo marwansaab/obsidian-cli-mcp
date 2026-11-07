@@ -4,7 +4,7 @@ description: Document the system as built — invocation IS consent. With a PR n
 compatibility: Requires an authenticated `gh` CLI for PR mode, .specify/memory/constitution.md for the principles the pages must not restate, and CONTRIBUTING.md for the commit-message convention
 metadata:
   author: marwansaab
-  source: ported 2026-10-24 from Slipwright-Dependencies' speckit-docs-as-code. Adapted for this repository — PR mode targets main under the protect-main ruleset; no-argument mode does the baseline and drift audit that the original deliberately left out; new ADRs continue the project-wide ADR-NNN series in a tracked tree because .decisions/ is gitignored; docs/tools/** is shipped package content asserted by tests; commit messages follow CONTRIBUTING.md.
+  source: ported 2026-10-24 from Slipwright-Dependencies' speckit-docs-as-code. Adapted for this repository — PR mode targets develop (or a release/hotfix branch) under the ADR-081 rulesets; no-argument mode does the baseline and drift audit that the original deliberately left out; new ADRs continue the project-wide ADR-NNN series in a tracked tree because .decisions/ is gitignored; docs/tools/** is shipped package content asserted by tests; commit messages follow CONTRIBUTING.md.
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -81,7 +81,7 @@ given machine, and nothing in them reaches a reader of the GitHub repository.
 
    | `state` / `reviewDecision` | What it means here |
    | -------------------------- | ------------------ |
-   | `OPEN` (any review decision) | The intended case. `required_approving_review_count` is `0` on `main`, so an empty decision is normal here. Proceed. |
+   | `OPEN` (any review decision) | The intended case. `required_approving_review_count` is `0` on every protected branch, so an empty decision is normal here. Proceed. |
    | `OPEN` + `CHANGES_REQUESTED` | Proceed, and say in the report that review fixes may still be outstanding — re-run once they land. |
    | `OPEN` + `isDraft` | Proceed. Note it. |
    | `MERGED` or `CLOSED` | The PR will not take another commit. See **Graceful degradation**. |
@@ -140,7 +140,7 @@ stop: the PR you read is not the PR on the remote, and writing documentation
 from a stale read is the one failure this skill must not commit.
 
 For a stacked PR (a BI split into several PRs, e.g. `067-us1-…` → `067-us2-…`),
-the base is another feature branch, not `main`. Document only what this PR's
+the base is another feature branch, not `develop`. Document only what this PR's
 diff adds; the earlier PRs carry their own pages.
 
 ## Step 4 — Write the documentation
@@ -270,9 +270,10 @@ it where the diff makes it wrong; do not restyle or restructure it. If a
 `docs/tools/` page is still a stub (`documentation pending — owned by a future
 BI`), leave it — writing it is that BI's job, not a docs pass.
 
-**CHANGELOG.md is flagged, never written.** Entries are cut at release time by
-the version-bump commit. If the PR is user-visible and the CHANGELOG has no
-entry for it, say so in the report's second line.
+**CHANGELOG.md is flagged, never written.** The PR writes its own entry under
+`[Unreleased]`, naming its BI, and the release cut dates that section
+(ADR-081). If the PR is user-visible and the CHANGELOG has no entry for it,
+say so in the report's second line.
 
 Correct the others in place. Where a document said something that turned out
 to be wrong, **say that it was wrong and why** rather than quietly deleting
@@ -341,14 +342,17 @@ shortcut around it — and a toolchain change is not on that list unless
 git push
 ```
 
-Pushes to `main`-bound PRs are governed by the `protect-main` ruleset
-(`gh api repos/{owner}/{repo}/rulesets`). As configured on 2026-10-24:
-`dismiss_stale_reviews_on_push` and `required_review_thread_resolution` are
-off and `required_approving_review_count` is `0`, so this push does not
-dismiss an approval or add a merge blocker. CI (`.github/workflows/ci.yml`,
-lint / typecheck / test / build on Node 22 and 24) re-runs on the new tip.
-Re-read the ruleset if the report needs to rely on any of that — the
-configuration can change and this paragraph will not.
+Work-branch PRs target `develop` (or a `release/*` or `hotfix/*` branch for
+a fix found in UAT), governed by the rulesets in `.github/rulesets/`
+(ADR-081; live copies: `gh api repos/{owner}/{repo}/rulesets`). As written
+on 2026-11-07: `dismiss_stale_reviews_on_push` is off and
+`required_approving_review_count` is `0`, so this push does not dismiss an
+approval, but `required_review_thread_resolution` is on, so an unresolved
+review thread still blocks the merge. CI (`.github/workflows/ci.yml`, lint /
+typecheck / test / build on Linux and Windows, Node 22 and 24) re-runs on the
+new tip and its four jobs are required checks. Re-read the ruleset if the
+report needs to rely on any of that — the configuration can change and this
+paragraph will not.
 
 Never force-push. If the push is rejected because the remote moved,
 `git pull --rebase`, confirm the diff you documented is still the diff on the
@@ -406,10 +410,11 @@ not a PR. It commits on the current branch and **does not push or open a
 PR** — the user decides how the commit travels (its own PR, or riding with the
 branch it was run on).
 
-If the current branch is `main`, stop with
-`On main — cut a branch first (e.g. docs/baseline-<date>), then re-run.`
-The `protect-main` ruleset requires a pull request for every change to
-`main`, and a docs baseline is reviewed like any other change.
+If the current branch is `main`, `develop`, `release/*` or `hotfix/*`,
+stop with
+`On <branch> — cut a branch from develop first (e.g. docs/baseline-<date>), then re-run.`
+The ADR-081 rulesets require a pull request for every change to those
+branches, and a docs baseline is reviewed like any other change.
 
 ### Baseline (no `.docs-as-code/` yet)
 
@@ -426,7 +431,7 @@ Survey the whole solution, then write the tree once:
    tool pipelines, and the error model. Confirm against the source before
    writing anything down.
 3. **Read the history that explains the shape.** `git log --merges` on
-   `main`, and the bodies of the PRs that introduced each pipeline and each
+   `develop`, and the bodies of the PRs that introduced each pipeline and each
    cohort (`gh pr view <n>`). Cite them inline.
 4. **Write**: `README.md`, `architecture.md`, `tech-stack.md`, one
    `capabilities/<cohort>.md` per README Tool-inventory group, and
@@ -440,7 +445,7 @@ Survey the whole solution, then write the tree once:
    not add it inside the `SPECKIT START`/`END` block, which `/speckit-plan`
    regenerates.)
 6. **Commit** as `docs(docs-as-code): baseline the living documentation from
-   the system as built`, body naming the commit SHA of `main` the survey
+   the system as built`, body naming the commit SHA of `develop` the survey
    described.
 
 ### Audit (`.docs-as-code/` exists)
