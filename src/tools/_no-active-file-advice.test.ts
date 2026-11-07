@@ -120,8 +120,14 @@ function inputKeys(tool: RegisteredTool): string[] {
 /** Every input key of every tool above: the words the advice could name as an input. */
 const ALL_KEYS = new Set(CASES.flatMap((c) => inputKeys(c.register())));
 
-function namedInputs(message: string): string[] {
-  return [...ALL_KEYS].filter((key) => new RegExp(`(?<![\\w])${key}(?![\\w])`).test(message));
+/**
+ * The inputs the advice clause names. Only the text after "call <tool> with" is scanned, so the fixed
+ * "No active file in Obsidian." prefix is never read as naming the `file` input.
+ */
+function namedInputs(tool: string, message: string): string[] {
+  const marker = `call ${tool} with `;
+  const clause = message.slice(message.indexOf(marker) + marker.length);
+  return [...ALL_KEYS].filter((key) => new RegExp(`(?<![\\w])${key}(?![\\w])`).test(clause));
 }
 
 describe("ERR_NO_ACTIVE_FILE advice names only the tool's own inputs (BI-0193)", () => {
@@ -135,7 +141,7 @@ describe("ERR_NO_ACTIVE_FILE advice names only the tool's own inputs (BI-0193)",
     expect(message).toMatch(new RegExp(`\\bcall ${tool} with\\b`));
 
     const own = new Set(inputKeys(register()));
-    for (const name of namedInputs(message)) {
+    for (const name of namedInputs(tool, message)) {
       expect(own, `${tool}'s advice names "${name}", which ${tool} does not accept`).toContain(name);
     }
 
