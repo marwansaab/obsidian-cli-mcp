@@ -125,6 +125,7 @@ keeps the highest-scoring entry per source.
 
 - **Non-finite-score filter**: entries where `score` is `NaN`, `Infinity`, `-Infinity`, `null`, `undefined`, or any non-number are silently dropped. No envelope code is emitted for the filter event — bad entries simply don't appear.
 - **Source-path-keyed self-exclusion**: entries where `m.path === sourceKey` are removed. This excludes the source note AND any block inside the source from the result list (block-inside-source matches would otherwise dominate short notes per the plugin's natural output).
+- **Outdated-entry filter**: an entry is kept only when its `path` is a Markdown note in the vault now. Outdated index entries — an empty key, or the old path of a note that was moved or deleted — and candidates that are not notes are silently dropped instead of failing the call. Like the other filters, this runs before the sort and the cut to `limit`, so `count` can be below `limit`.
 
 ## Examples — Worked examples
 
@@ -231,7 +232,7 @@ When the Smart Connections plugin is not enabled in `Demo`, the in-eval lifecycl
 | `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "FILE_NOT_FOUND"`) | `path` does not match any file in the vault, OR `file` (basename) does not resolve via `getFirstLinkpathDest`. `details.detail` distinguishes (`path: <path>` vs `wikilink: <file>`). | Verify the path / basename; check for typos; confirm the vault contains the file. |
 | `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "NOT_MARKDOWN"`) | The resolved file's extension is not `.md` (e.g. `.canvas`, `.pdf`, attachments). | Use a different tool. Use [`read`](./read.md) for a canvas or Base's raw text; show an attachment or PDF with [`open_file`](./open_file.md) (`read` rejects attachments). |
 | `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "SMART_CONNECTIONS_NOT_READY"`, `details.reason: "api-missing"`) | The plugin is loaded but its similarity API path (`env.smart_sources.items`) is unavailable — either initial indexing is still in progress OR a plugin-version drift has changed the API shape. `details.reason` is always `"api-missing"` for this tool. | Wait for indexing to complete (visible in the plugin's UI as "X embeddings to make: 0"); or check that the installed plugin version matches the minimum probed v4.x — earlier v2.x / v3.x releases may have a different API path. |
-| `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "SOURCE_NOT_INDEXED"`) | The source note exists in the vault but has not been indexed by the plugin yet (typical for just-created notes; the plugin's indexing-trigger debounce defaults to ~5 s). `details.detail` is the resolved vault-relative path, also when the note was named by `file`. | Wait for the next indexing pass, or trigger a manual re-index from the plugin's UI. |
+| `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "SOURCE_NOT_INDEXED"`) | The source note exists in the vault but the plugin has no embedding for it yet: it has not indexed the note, or it lists the note but has not embedded it (typical for just-created notes; the plugin's indexing-trigger debounce defaults to ~5 s). Very short notes (a single short line) may never be embedded and keep getting this code. The message is `smart_connections_similar: source note has no embedding yet (<path>)`. `details.detail` is the resolved vault-relative path, also when the note was named by `file`. | Wait for the next indexing pass, or trigger a manual re-index from the plugin's UI. For a very short note, add content or pick another source note. |
 | `ERR_NO_ACTIVE_FILE` | `target_mode: "active"` was used but no Obsidian note is focused. The eval surfaces envelope `NO_ACTIVE_FILE` and the wrapper maps to this code. | Ask the user to open a note in Obsidian, OR call again with `target_mode: "specific"` and an explicit `vault` + `file`/`path`. |
 | `CLI_REPORTED_ERROR` (`details.stage: "json-parse"`) | The eval's answer for this call is missing or is not JSON. Catch-all for upstream eval misbehaviour. `details.stdout` holds the raw eval output, whole when it is 1,000 characters or fewer and otherwise its first and last 500 characters around a `[… cut …]` line, and `details.stdoutLength` gives the raw output's full length. Lines that other Obsidian plugins print around the eval's answer are ignored, so they never cause this error on their own. | Investigate as a regression. |
 | `CLI_REPORTED_ERROR` (`details.stage: "envelope-parse"`) | Stage-3 envelope-schema validation failed. Catch-all for unexpected envelope keys (e.g. upstream version drift in the plugin's match shape). | Investigate as a regression. |
@@ -270,7 +271,7 @@ The `score` field is pass-through from the plugin. Different embedding models (t
 
 ### Indexing freshness
 
-Results reflect the plugin's last embedding pass, NOT the vault's current HEAD state. Recently edited or just-created notes may surface as `SOURCE_NOT_INDEXED` until the next indexing pass completes (plugin default debounce ≈ 5 s). For just-edited notes, the score may reflect the previous version of the body text.
+Results reflect the plugin's last embedding pass, NOT the vault's current HEAD state. Recently edited or just-created notes may surface as `SOURCE_NOT_INDEXED` until the next indexing pass completes (plugin default debounce ≈ 5 s). The plugin lists a new note before it embeds it; the tool reports that state as `SOURCE_NOT_INDEXED` too, and returns results once the note is embedded. Very short notes may never be embedded. For just-edited notes, the score may reflect the previous version of the body text.
 
 ### Folder exclusions in plugin config
 
@@ -278,11 +279,11 @@ The Smart Connections plugin honours user-configured folder exclusions silently 
 
 ### Plugin-version drift surfaces as `SMART_CONNECTIONS_NOT_READY`
 
-No runtime version check. API drift between minor plugin releases that changes the `env.smart_sources.items[<key>].find_connections` path surfaces deterministically as `SMART_CONNECTIONS_NOT_READY` via Stage 4 of the JS template. The wrapper will NOT silently return wrong results for an incompatible plugin version.
+No runtime version check. API drift between minor plugin releases that changes the `env.smart_sources.items[<key>].find_connections` path surfaces deterministically as `SMART_CONNECTIONS_NOT_READY` via Stage 4 of the JS template. The wrapper will NOT silently return wrong results for an incompatible plugin version. The not-embedded check reads the source entry's `vec` (verified against v4.7.2); a version that renamed it would surface every source as `SOURCE_NOT_INDEXED` rather than as wrong results.
 
 ### Ties at the 100-candidate edge
 
-The wrapper asks the plugin for 100 candidates on every call, whatever `limit` is. If several matches share the score of the plugin's 100th candidate, the plugin decides which of them are in that list; the documented tie-break orders only the ones it returned. This does not depend on `limit`, so smaller limits are still leading slices of larger ones. The source note's own blocks are removed after the 100-candidate fetch, so a call can return fewer than `limit` matches even when the plugin has more; this is the same at every `limit`.
+The wrapper asks the plugin for 100 candidates on every call, whatever `limit` is. If several matches share the score of the plugin's 100th candidate, the plugin decides which of them are in that list; the documented tie-break orders only the ones it returned. This does not depend on `limit`, so smaller limits are still leading slices of larger ones. The source note's own blocks and outdated entries are removed after the 100-candidate fetch, so a call can return fewer than `limit` matches even when the plugin has more; this is the same at every `limit`. The plugin may also return fewer than 100 candidates in the first place.
 
 ### Multi-vault basename ambiguity
 

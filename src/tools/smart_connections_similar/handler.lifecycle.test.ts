@@ -75,9 +75,29 @@ function simulatedApp(state: SimState): unknown {
   };
 }
 
+interface IndexEntry {
+  vec?: number[] | Float32Array;
+  find_connections: (o: { limit: number }) => Promise<Candidate[]>;
+}
+
+/**
+ * An index entry (data-model E3). With no `vec` it is listed but not embedded yet (BI-0195): like plugin
+ * 4.7.2's nearest(), find_connections then throws, so a template that queries before checking fails loudly.
+ */
+function entry(candidates: Candidate[], vec?: number[] | Float32Array): IndexEntry {
+  const e: IndexEntry = {
+    vec,
+    find_connections: async ({ limit }) => {
+      if (!e.vec) throw new Error("Invalid vector input to nearest()");
+      return candidates.slice(0, limit);
+    },
+  };
+  return e;
+}
+
 /** An index entry the plugin can search (data-model E3, "indexed"). */
-function indexed(candidates: Candidate[]): { find_connections: (o: { limit: number }) => Promise<Candidate[]> } {
-  return { find_connections: async ({ limit }) => candidates.slice(0, limit) };
+function indexed(candidates: Candidate[]): IndexEntry {
+  return entry(candidates, [0.6, 0.8]);
 }
 
 function buildTool(state: SimState) {
@@ -245,6 +265,17 @@ const SINGLE_STATE_FAILURES: FailureRow[] = [
     args: named("Src"),
     expected: notIndexed("Notes/Src.md"),
   },
+  {
+    title: "L5d: ready, source listed but not embedded yet → not-indexed failure",
+    state: { files: [note("Src.md"), note("Other.md")], plugin: ready({ "Src.md": entry([{ item: { key: "Other.md" }, score: 0.9 }]) }) },
+    expected: NOT_INDEXED_SRC,
+  },
+  {
+    title: "L5e: ready, note named by wikilink listed but not embedded → not-indexed failure names the resolved path",
+    state: { files: [note("Notes/Src.md")], plugin: ready({ "Notes/Src.md": entry([]) }) },
+    args: named("Src"),
+    expected: notIndexed("Notes/Src.md"),
+  },
 ];
 
 const PRECEDENCE_FAILURES: FailureRow[] = [
@@ -289,7 +320,7 @@ describe("smart_connections_similar lifecycle — single states (contract §S)",
 
   it("L6: not indexed, then indexed → same call returns results", async () => {
     const index: Record<string, unknown> = {};
-    const { call, getCount } = buildTool({ files: [note("Src.md")], plugin: ready(index) });
+    const { call, getCount } = buildTool({ files: [note("Src.md"), note("Other.md")], plugin: ready(index) });
 
     expectFailure(await call(SRC_ARGS), NOT_INDEXED_SRC);
 
@@ -299,6 +330,43 @@ describe("smart_connections_similar lifecycle — single states (contract §S)",
     ]);
     expectSuccess(await call(SRC_ARGS), { count: 1, matches: [{ path: "Other.md", headingPath: ["H1"], score: 0.9 }] });
     expect(getCount()).toBe(2);
+  });
+
+  it("L6b: listed but not embedded, then embedded → same call returns results", async () => {
+    const src = entry([{ item: { key: "Other.md#H1" }, score: 0.9 }]);
+    const { call, getCount } = buildTool({ files: [note("Src.md"), note("Other.md")], plugin: ready({ "Src.md": src }) });
+
+    expectFailure(await call(SRC_ARGS), NOT_INDEXED_SRC);
+
+    src.vec = [0.6, 0.8];
+    expectSuccess(await call(SRC_ARGS), { count: 1, matches: [{ path: "Other.md", headingPath: ["H1"], score: 0.9 }] });
+    expect(getCount()).toBe(2);
+  });
+
+  it("L8: an embedding held as a typed array counts as embedded → success", async () => {
+    const src = entry([{ item: { key: "Other.md" }, score: 0.9 }], new Float32Array([0.6, 0.8]));
+    const { result } = await callOnce({ files: [note("Src.md"), note("Other.md")], plugin: ready({ "Src.md": src }) }, SRC_ARGS);
+    expectSuccess(result, { count: 1, matches: [{ path: "Other.md", headingPath: [], score: 0.9 }] });
+  });
+
+  it("L9: outdated entries (empty key, a moved note's old path, a non-note file) are left out → success with the valid matches", async () => {
+    const candidates: Candidate[] = [
+      { item: { key: "" }, score: 0.99 },
+      { item: { key: "Old/Moved.md#H" }, score: 0.98 },
+      { item: { key: "Old/Moved.md" }, score: 0.97 },
+      { item: { key: "Board.canvas" }, score: 0.96 },
+      { item: { key: "Other.md#H1" }, score: 0.9 },
+      { item: { key: "New/Moved.md" }, score: 0.8 },
+    ];
+    const files = [note("Src.md"), note("Other.md"), note("New/Moved.md"), note("Board.canvas")];
+    const { result } = await callOnce({ files, plugin: ready({ "Src.md": indexed(candidates) }) }, SRC_ARGS);
+    expectSuccess(result, {
+      count: 2,
+      matches: [
+        { path: "Other.md", headingPath: ["H1"], score: 0.9 },
+        { path: "New/Moved.md", headingPath: [], score: 0.8 },
+      ],
+    });
   });
 });
 

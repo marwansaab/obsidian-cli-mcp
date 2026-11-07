@@ -310,3 +310,10 @@ applies. Records written since:
   failure; expanding the folder form for `file` calls, looking up every
   collision and a second trigger predicate (review argued the fix out of it)
   were rejected; amends ADR-071 decision 1 (PR #155).
+- [decisions/ADR-078-smart-connections-tools-drop-outdated-index-entries-and-check-the-sources-embedding.md](decisions/ADR-078-smart-connections-tools-drop-outdated-index-entries-and-check-the-sources-embedding.md)
+  — `smart_connections_similar` reports a listed but unembedded source as
+  `SOURCE_NOT_INDEXED` by checking the plugin's own `vec` condition first,
+  and both templates drop outdated entries before the sort and the cut:
+  `similar` keeps only Markdown notes in the vault, `query` drops only empty
+  paths by owner ruling; catching the plugin's message, a new code, one
+  filter for both and a shared helper were rejected (PR #156, BI-0195).
