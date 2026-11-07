@@ -93,7 +93,6 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      actions: write
     env:
       VERSION: ${{ needs.plan.outputs.version }}
       GH_TOKEN: ${{ github.token }}
@@ -129,9 +128,8 @@ jobs:
           gh release create "v$VERSION" --verify-tag --title "v$VERSION" --notes-file "$RUNNER_TEMP/notes.md"
 
       # An open pull request main into develop already carries this commit, so
-      # only a missing one is opened. A pull request opened with the workflow
-      # token starts no pull_request run of CI, so CI is started on main, whose
-      # commit is the pull request's head.
+      # only a missing one is opened. Its required checks come from CI's push
+      # run on main for this commit.
       - name: Open the pull request main into develop
         run: |
           if [ -z "$(gh pr list --base develop --head main --state open --json number --jq '.[].number')" ]; then
@@ -139,4 +137,3 @@ jobs:
               --title "chore(release): merge v$VERSION back into develop" \
               --body "Back-merge of v$VERSION from main into develop after its npm publication (ADR-081 clause 8). Merge with a merge commit."
           fi
-          gh workflow run ci.yml --ref main
