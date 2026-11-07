@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-11-07T00:48:50.117Z |
 | Finished | not yet |
-| Elapsed | 3 min 33 s |
+| Elapsed | 8 min 27 s |
 | Questions | 0 (0 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 0 |
@@ -53,6 +53,8 @@
 
 ### assess (`158cf12c-dda7-4d21-869c-7f344f60ad22`)
 
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\.specify\bugs\bi-0204\assessment.md exists.
+
 - **branch**: done, 4 turns.
 
 > The working tree was clean. I fetched origin, and main was already level with origin/main, so the fast-forward changed nothing. No branch named fix/bi-0204 existed locally or on origin, so I created it from main and checked it out. Nothing else was changed.
@@ -61,14 +63,28 @@
 
 > Slug: bi-0204 (taken from the job's slug=BI-0204 and lower-cased). I wrote the assessment to .specify/bugs/bi-0204/assessment.md. The report is valid and I rated it medium severity. The cause is in src/tools/pattern_search/_template.ts:8-9: the template only checks that the folder exists (stat() is not null) and never checks that it is a folder. A note path passes that check, the filter on paths starting with folder + "/" then keeps no notes, and the search returns an empty result. Two read-only CLI probes on the test vault confirm it: stat on a note returns {"type":"file"}, and the folder probe that context_search runs answers `Error: "Welcome.md" is a file, not a folder.` The proposed fix copies the type check that paths already makes and reuses its NOT_A_FOLDER error code, so no new error code is needed. The error message will contain the CLI's own "is a file, not a folder" phrase, and the existing FOLDER_NOT_FOUND error stays exactly as it is. The tool's published description and schemas do not change, and the fix touches none of the kernel nodes. There are no open questions and no bug-assess hooks are registered. I did not commit anything. The next step is /speckit-bug-fix slug=bi-0204.
 
-- **resolve-assessment**: in progress.
+- **resolve-assessment**: done, 7 turns.
 
-### repair
+> The assessment is settled and committed as fe204f0 on fix/bi-0204 (not pushed). The verdict is valid and the severity medium. The cause is in src/tools/pattern_search/_template.ts:8: the template only checks that the scope folder exists. A note's stat() is not null (its type is "file"), so a note path passes the check. The filter on paths starting with folder + "/" then finds no notes, and the search reports {count:0, matches:[]}. The fix is a plain repair, with nothing that would need to go back to the full spec-kit workflow. The template rejects any path that is not a folder with NOT_A_FOLDER, the error code paths and move already use (ADR-071). The eval envelope's failure branch is widened to allow it. The handler raises CLI_REPORTED_ERROR with details {code:"NOT_A_FOLDER", folder, stage}, and its message carries the CLI's "is a file, not a folder" phrase so pattern_search fails the same way context_search does. The existing FOLDER_NOT_FOUND error is left exactly as it is. No new error code is added, the published surface does not change and no kernel node is touched. The files that change are the template, schema and handler, their three test files and docs/tools/pattern_search.md. The assessment raised no open questions and no [NEEDS CLARIFICATION] items, so I asked the owner nothing. I recorded a "Resolved (Relay):" note saying so in the Open Questions section. The commit covers the whole .specify/bugs/bi-0204 folder, as the step asked: assessment.md plus the relay-digest.md and relay-qa-log.md files Relay had already placed there.
 
-- **bug-fix**: not run.
-- **bug-test**: not run.
-- **settle-verdict**: not run.
-- **open-pr**: not run.
+
+### repair (`ed4d8ff1-c3bc-42c4-ab91-a79b975f38a8`)
+
+- Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\.specify\bugs\bi-0204\assessment.md exists, and Obsidian has TestVault-Obsidian-CLI-MCP focused.
+
+- **bug-fix**: done, 37 turns.
+
+> Applied the bi-0204 fix (slug passed explicitly). The pattern_search template now checks the folder's stat().type and answers NOT_A_FOLDER for a note path. The envelope schema accepts that code, and the handler raises it as CLI_REPORTED_ERROR with details { code: NOT_A_FOLDER, folder, stage: handler-stage-3 } and a message containing '"<path>" is a file, not a folder'; the FOLDER_NOT_FOUND error is unchanged. Added template, handler and schema tests and updated docs/tools/pattern_search.md. pattern_search tests (74) and the full suite (5114 passed, 6 skipped) pass, and tsc and eslint are clean. The fingerprint baseline did not move, no new error code was added, and no kernel node was touched. One departure, recorded in fix.md: the assessment assumed a template test for the missing-folder case already existed; none did, so one was added. No existing test was edited. No bug-fix hooks are registered. Nothing is committed yet. fix.md is written with status 'applied'. Next step: /speckit-bug-test slug=bi-0204.
+
+- **bug-test**: done, 13 turns.
+
+> Verified bi-0204 (slug passed explicitly). I ran the rebuilt handlers against the live TestVault-Obsidian-CLI-MCP through the real CLI. pattern_search with a note path as folder (TC-00906 Repro1106/single.md and a fresh Sandbox note) now fails with CLI_REPORTED_ERROR / details.code NOT_A_FOLDER, naming the path. The containing folder still returns the match, a missing folder still gives FOLDER_NOT_FOUND unchanged, and context_search fails with the same 'is a file, not a folder' phrase, so criteria 1–4 all hold. Whole-vault scope is unchanged. The pattern_search suite (74), full suite (5114 passed, 6 skipped), tsc and eslint are all clean. The Sandbox fixture was cleaned up and Welcome.md was not touched. Residual risk: context_search's details shape differs from pattern_search's; aligning it is out of scope. test.md is written with result 'verified'.
+
+- **settle-verdict**: done, 2 turns.
+
+> test.md says 'verified', so no extra round was needed. All four acceptance criteria held against the live test vault, and the full test suite, type check and lint passed. Ready to open the pull request.
+
+- **open-pr**: in progress.
 
 ### review
 
