@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-11-07T01:31:07.076Z |
 | Finished | not yet |
-| Elapsed | 1 h 11 min |
+| Elapsed | 1 h 21 min |
 | Questions | 2 (2 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 2 |
@@ -55,6 +55,8 @@
 
 ### assess (`9c0b4318-47f3-471e-9465-84f6d4b4de78`)
 
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\.specify\bugs\bi-0205\assessment.md exists.
+
 - **branch**: done, 4 turns.
 
 > The working tree was clean. Fetched origin; main was already up to date with origin/main, so the fast-forward changed nothing. No fix/bi-0205 branch existed locally or on origin. Created and checked out fix/bi-0205 from main. Nothing else changed.
@@ -63,14 +65,28 @@
 
 > Finished the BI-0205 assessment (.specify/bugs/bi-0205/assessment.md); no code has changed yet. Verdict: valid, severity medium. Cause: executeListFiles makes one CLI `files` call with no existence check, and the CLI prints empty output for a missing folder. Fix: when the CLI lists nothing for a named folder, run one adapter.stat eval check (through a shared leaf fragment) and fail a missing folder with paths' error shape (CLI_REPORTED_ERROR / FOLDER_NOT_FOUND + details.folder). Both owner rulings are recorded. Q1 = A: a `..` segment fails with no stat check run; probes showed the absolute forms resolve inside the vault, so they take the normal check; test (27) changes to the error; paths points to BI-0208. Q2 = A: the exact approved edits to tests (2), (4), (9) and (26) plus one new empty-folder test; no other existing test changes. A folder name wrong only in case still answers empty, as today. No new error code, no change to the published tool surface, and no kernel node touched. No after_bug_assess hooks are registered. Next step: /speckit-bug-fix slug=bi-0205.
 
-- **resolve-assessment**: in progress.
+- **resolve-assessment**: done, 7 turns.
 
-### repair
+> Settled the BI-0205 assessment and committed .specify/bugs/bi-0205 on fix/bi-0205 as 619aedf (not pushed). The commit includes the Relay-written relay-digest.md and relay-qa-log.md. No escalation was needed: the verdict is valid, and the remediation is a repair that delivers the report's own acceptance criteria, with no new public surface or error code. Verdict: valid, severity medium. Root cause: executeListFiles makes one CLI `files` call with no existence check, and the CLI prints empty output (exit 0) for a missing folder; spec 019 FR-010 made that conflation a design choice. Remediation: when the CLI lists nothing for a named folder, run one adapter.stat eval check through a shared leaf fragment. A missing folder then fails with paths' error shape (CLI_REPORTED_ERROR / FOLDER_NOT_FOUND + details.folder). The vault root and non-empty listings stay one call, and a file path still answers empty (out of scope). Answers recorded under "Resolved (Relay):": Q1 = A: a folder with a `..` segment fails as FOLDER_NOT_FOUND with no stat check, since stat("..") escapes the vault; absolute forms resolve inside the vault and take the normal check; test (27) expects the error; paths' traversal is BI-0208. Q2 = A: tests (2), (4) and (26) change only their stub stdout, (9) becomes the missing-folder case, one new empty-folder test is added, and no other existing test may change. There were no [NEEDS CLARIFICATION] items.
 
-- **bug-fix**: not run.
-- **bug-test**: not run.
-- **settle-verdict**: not run.
-- **open-pr**: not run.
+
+### repair (`f082c811-5e71-421f-854c-663a9c1eeea0`)
+
+- Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\.specify\bugs\bi-0205\assessment.md exists, and Obsidian has TestVault-Obsidian-CLI-MCP focused.
+
+- **bug-fix**: done, 53 turns.
+
+> Applied BI-0205's remediation. When `files` gets a named folder and the command-line tool lists nothing, the handler now runs one stat check in the same vault (new FOLDER_CHECK_TEMPLATE, which uses the shared FOLDER_STAT_KIND_JS rule in the new leaf module src/tools/_folder-stat.ts). A missing folder fails as CLI_REPORTED_ERROR with details.code FOLDER_NOT_FOUND, the same shape `paths` uses. A folder with a `..` segment fails the same way without the check (owner ruling Q1 = A). Empty folders, file paths and the vault root still answer empty. Only the approved existing tests changed: (2), (4), (9), (26) and (27). New tests cover the handler, template, shared rule and schema. The 12 missing-folder cases fail on the old handler and pass with the fix. The full suite (npm test: 5144 tests), typecheck and lint pass, and the published tool surface did not change. docs/tools/files.md was updated, including a corrected case-sensitivity note (recorded as a deviation). fix.md records the changes, the structural verification (kernel-node claim held) and the follow-ups. No hooks were registered, nothing was committed and no live-CLI run was done; the live check is left for /speckit-bug-test.
+
+- **bug-test**: done, 14 turns.
+
+> Wrote .specify/bugs/bi-0205/test.md with result "verified". I rebuilt dist and ran 14 calls live over stdio against TestVault-Obsidian-CLI-MCP; all gave the expected answer. TC-00907 is fixed: `files` on a missing folder now fails with CLI_REPORTED_ERROR/FOLDER_NOT_FOUND, with the same details as `paths`. An existing empty folder returns empty, the vault root and non-empty folders are unchanged, a file path and .obsidian still return empty, and `..` and C:/Windows fail as FOLDER_NOT_FOUND per ruling Q1. The command-line tool on its own still returns empty output with exit 0, so the error comes from the wrapper. Targeted tests (80), the full npm test run (5144 passed), typecheck and lint pass. The one temporary Sandbox folder was removed and the Sandbox entry count matches the pre-run state. Remaining gaps: a wrong-case folder name still returns empty on Windows (documented), Linux was not tested live, and published 0.9.0 still has the bug until release. Nothing was committed.
+
+- **settle-verdict**: done, 2 turns.
+
+> test.md result is "verified", so no extra round was needed and nothing was changed in this step. The live run showed `files` on a missing folder now fails with FOLDER_NOT_FOUND, matching `paths`; an existing empty folder returns empty, the vault root is unchanged, and `..` paths fail per ruling Q1. The full suite, typecheck and lint pass. Gaps recorded under Residual Risks: a wrong-case folder name still returns empty on Windows (documented), and Linux was not tested live. Nothing is committed.
+
+- **open-pr**: in progress.
 
 ### review
 
