@@ -7,7 +7,7 @@
 | Status | running |
 | Started | 2026-11-07T03:30:17.262Z |
 | Finished | not yet |
-| Elapsed | 16 min 0 s |
+| Elapsed | 24 min 30 s |
 | Questions | 3 (1 needed the owner) |
 | Requests to the advisor | 2 (0 needed the owner) |
 | Escalations | 1 |
@@ -57,6 +57,8 @@
 
 ### assess (`6895a392-7a0a-4140-a858-571996a529f7`)
 
+- Condition `file-exists` (done_when): met. C:\Github\obsidian-cli-mcp\.specify\bugs\bi-0177-2\assessment.md exists.
+
 - **branch**: done, 4 turns.
 
 > Working tree was clean. Fetched origin; main already up to date with origin/main (fast-forward no-op). No fix/bi-0177 existed locally or on origin. Created and checked out fix/bi-0177 from main. No other changes made.
@@ -65,17 +67,28 @@
 
 > Wrote .specify/bugs/bi-0177-2/assessment.md (verdict valid, severity low; slug user-provided, new folder per owner choice A). Root cause: for `file` and active moves the trailing-`/` destination is sent to the CLI as given, the CLI replies "Destination file already exists!", and moveFailure only runs the file-in-the-way lookup on ENOENT/ENOTDIR rename errors. Preferred fix: also run that lookup on the "already exists" reply when the destination was sent as given, with no change to what reaches the CLI; MOVE_DESCRIPTION names NOT_A_FOLDER (397 chars, per the 2026-11-05 ruling). Q1 is resolved and recorded (owner ruling 2026-11-07, option A): only the `move` half of the obsidian_exec assertion in _file-type-support.test.ts moves to docs/tools/move.md. No core shared components touched and no new error codes. No hooks registered. Next: /speckit-bug-fix slug=bi-0177-2.
 
-- **resolve-assessment**: in progress, 3 turns, 1 questions.
+- **resolve-assessment**: done, 11 turns, 1 questions.
 
-> Settling the bi-0177-2 assessment. The verdict is valid (not invalid). The remediation is a repair the report expects: NOT_A_FOLDER for the file and active-note moves, plus the description sentence the owner already ruled on. There is no new public surface beyond that and no design decision, so no escalation. Q1 is already resolved (owner ruling 2026-11-07, option A). One [NEEDS CLARIFICATION] remains, in Reproduction: the CLI's reply when the blocking file sits further up the destination path. I am asking it before writing it into the assessment and committing.
+> Settled .specify/bugs/bi-0177-2/assessment.md and committed it on fix/bi-0177 as 79b8665 (not pushed). Verdict valid, severity low; the fix is a repair the report asks for, so no escalation. Root cause: for `file` and active-note moves the trailing-`/` destination is sent to the CLI as given, the CLI replies "Destination file already exists!", and moveFailure only runs the file-in-the-way lookup on ENOENT/ENOTDIR rename errors. Remediation: also run that lookup on the "already exists" reply when the destination was sent as given, with no change to what reaches the CLI; MOVE_DESCRIPTION drops "(change it with `obsidian_exec`)" and names NOT_A_FOLDER (397 chars). Answers recorded as Resolved (Relay): Q1 option A (only the `move` half of the obsidian_exec assertion in _file-type-support.test.ts moves to docs/tools/move.md; rename half unchanged); CLI reply when the blocking file is further up the path, option A (captured by the fix step's live probe through Obsidian.com, both replies tested, the unseen one marked inferred; tests section updated). No [NEEDS CLARIFICATION] left. The commit also includes relay-digest.md and relay-qa-log.md, which Relay created in the folder.
 
 
-### repair
+### repair (`c4053309-a8c1-4493-81da-30304e208d61`)
 
-- **bug-fix**: not run.
-- **bug-test**: not run.
-- **settle-verdict**: not run.
-- **open-pr**: not run.
+- Condition `ready-to-implement` (start_when): met. C:\Github\obsidian-cli-mcp\.specify\bugs\bi-0177-2\assessment.md exists, and Obsidian has TestVault-Obsidian-CLI-MCP focused.
+
+- **bug-fix**: done, 61 turns.
+
+> Applied fix for bi-0177-2 (slug from explicit input). A `file` or active `move` whose `to` ends in `/` and which gets the CLI's "Destination file already exists!" now runs the existing blocked-file lookup and reports NOT_A_FOLDER, so all three ways of naming the note fail the same way. Every argument sent to the CLI is unchanged, and `path` calls and full-path `to` values keep one call with no lookup. MOVE_DESCRIPTION drops "(change it with `obsidian_exec`)" and names NOT_A_FOLDER (397 characters); only move's description fingerprint moved in the baseline. B7's stub was corrected and B8–B13 added; five of them fail against the old handler. The move half of the obsidian_exec assertion in _file-type-support.test.ts now reads docs/tools/move.md (owner-approved Q1). docs/tools/move.md updated. Typecheck, lint and build clean; full suite 5151 passed, 6 skipped. Live probe through Obsidian.com recorded verbatim in fix.md: the last-segment case gives "already exists", the ancestor case gives the ENOENT line, so B11b is marked inferred. The built executeMove returned NOT_A_FOLDER for both with both files unchanged; fixtures cleaned up. Post-fix structural check holds: no new error codes, no kernel nodes touched. Active mode was not run live; TC-00900 covers it on the next local build. _description-audit-record.json was not edited, so move shows as needing review in the description audit until re-judged (no test fails). No extension hooks registered for bug-fix. Nothing committed.
+
+- **bug-test**: done, 12 turns.
+
+> Verification result: verified (slug from explicit input). The test vault was re-focused first (Game-Server-Vault had focus). Through the built stdio MCP server against TestVault-Obsidian-CLI-MCP: tools/list shows move's description at 397 characters, naming NOT_A_FOLDER (TC-00867). A move by `file` (TC-00865 step 4), by `path` and as the active note (TC-00900) all return NOT_A_FOLDER naming the blocking file, both when the file is the last segment and when it is a parent folder, with nothing changed on disk. A missing folder still gives FOLDER_NOT_FOUND, and a full-path collision still gives the raw "Destination file already exists!" error. Targeted tests (283), the full suite (5151 passed, 6 skipped), typecheck and lint pass. Fixtures cleaned up. Open risks recorded in test.md: the check matches the CLI's exact error text; the folder-form collision with a genuinely existing file was checked by unit test only; POSIX ENOTDIR is still inferred; the description audit record still holds move's old fingerprint and needs re-judging. No bug-test hooks registered.
+
+- **settle-verdict**: done, 2 turns.
+
+> Final result: verified. No extra fix or test round was needed. End-to-end runs through the built server in the test vault show NOT_A_FOLDER for a move by `file`, by `path` and of the active note, both when the file is the last segment and when it is a parent folder, with nothing changed on disk. The move description names NOT_A_FOLDER (397 characters). FOLDER_NOT_FOUND and the destination-exists failure are unchanged. Full suite, typecheck and lint pass. One follow-up remains: re-judge move's entry in the description audit record against the new description; no test fails because of it.
+
+- **open-pr**: in progress.
 
 ### review
 
