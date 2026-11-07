@@ -273,7 +273,11 @@ BI`), leave it — writing it is that BI's job, not a docs pass.
 **CHANGELOG.md is flagged, never written.** The PR writes its own entry under
 `[Unreleased]`, naming its BI, and the release cut dates that section
 (ADR-081). If the PR is user-visible and the CHANGELOG has no entry for it,
-say so in the report's second line.
+say so in the report's second line. The required *Changelog entry* check
+(`node scripts/release.ts entry <n>`) also fails such a PR when it changes
+`src/**` or comes from a `fix/bi-*` or `feat/*` branch; the flag still
+covers user-visible changes the check does not see, such as a `docs/tools/**`
+correction.
 
 Correct the others in place. Where a document said something that turned out
 to be wrong, **say that it was wrong and why** rather than quietly deleting

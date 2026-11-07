@@ -49,6 +49,10 @@
           {
             "context": "Lint / Typecheck / Test / Build (windows-latest, Node 24)",
             "integration_id": 15368
+          },
+          {
+            "context": "Changelog entry",
+            "integration_id": 15368
           }
         ]
       }

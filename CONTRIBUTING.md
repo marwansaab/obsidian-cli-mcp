@@ -31,6 +31,15 @@ The repository follows ADR-081: `main` is always exactly what npm serves as
   are off), names its `BI-NNNN` in the branch name or the body, and adds its
   `CHANGELOG.md` entry under `[Unreleased]`, repeating the BI id. Nothing is
   committed directly to `main` or `develop`. Merged head branches are deleted.
+- **The changelog entry is checked.** The required *Changelog entry* check
+  (`.github/workflows/changelog-entry.yml`, `node scripts/release.ts entry
+  <n>`) fails a pull request into `develop` that changes `src/**` or comes
+  from a `fix/bi-*` or `feat/*` branch, unless its `CHANGELOG.md` change adds
+  a line naming one of its BIs (`bi-NNNN` in the branch, `BI-NNNN` in the
+  body). A change with nothing for users to read, such as a test-only change,
+  takes the `no-changelog` label instead. The check runs from `develop`'s copy
+  of the workflow, so a pull request cannot change it. It exists because PRs
+  #156, #157 and #158 merged with no entry and 0.9.1's notes omitted them.
 - **Protection is code.** The rulesets live in `.github/rulesets/` and
   `node scripts/rulesets.ts apply` applies them, with the repository settings
   the model needs; it is idempotent. `main`, `develop` and `release/*` need a
@@ -62,8 +71,10 @@ The repository follows ADR-081: `main` is always exactly what npm serves as
    request `release/x.y.z` into `main`. Besides CI it must pass *Source
    branch* (the head is `release/*` or `hotfix/*` of this repository; it runs
    from `main`'s copy of the check) and *Version and changelog* (the version
-   is greater than npm's `latest` and `CHANGELOG.md` has a non-empty section
-   for it). The owner's merge is the approval.
+   is greater than npm's `latest`, and `CHANGELOG.md` has a non-empty section
+   for it that names a BI of every pull request merged since `main` that needs
+   an entry, by the rule of the *Changelog entry* check). The owner's merge is
+   the approval.
 4. **Publish.** The merge starts the *Release* workflow
    (`.github/workflows/release.yml`) in the GitHub environment `npm`: it
    tests, builds and runs `npm publish --provenance` through npm trusted
@@ -76,7 +87,8 @@ The repository follows ADR-081: `main` is always exactly what npm serves as
    shows the new version as *Validating* while its automated review runs,
    and `latest` moves only when the review ends, a few minutes for 0.9.1.
 5. **Back-merge.** The pull request `main` into `develop` gets its required
-   checks from CI's push run on the merge commit. Because the workflow token
+   checks from CI's push run on the merge commit, and *Changelog entry* from
+   that workflow's push run, which passes without checking anything. Because the workflow token
    opened it, its own `pull_request` CI run waits for approval; that run is
    not needed, but if the pull request shows no CI checks (for example a
    hotfix cut from a `main` that predates the push trigger, PR #162), click
