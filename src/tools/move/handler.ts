@@ -1,4 +1,4 @@
-// Original — no upstream. move handler: thin transformer routing parsed input through invokeCli — resolves the source (spec 070 research D3), then resolveTo (trailing-`/` folder form keeps the basename; otherwise the type-preservation rule on the final segment of `to`: keep the source's extension, reject a change to another recognised type), forwarding the original `file=` / `path=` or, in active mode, the resolved `path=` with no `vault=` (the CLI's current vault, as the focused-file eval); parseMoveResponse three-shape contract. Spec 090: a move-step failure is classified after the CLI reports it, in moveFailure — an ENOENT rename becomes CLI_REPORTED_ERROR + details.code FOLDER_NOT_FOUND with the vault-relative destination folder. BI-0177: an ENOENT or ENOTDIR rename into a non-root folder, or (round 2) the CLI's "Destination file already exists!" when a `file` or active call forwarded the folder form for the CLI to expand, first runs one blocked-destination eval in the move's vault (frozen BLOCKER_TEMPLATE); a folder prefix that is a file gives details.code NOT_A_FOLDER with that file's path, none gives FOLDER_NOT_FOUND (ENOENT) or the rewrite below (ENOTDIR, already exists), and a failed eval withholds the CLI text like the failed vault lookup; every other failure but CLI_BINARY_NOT_FOUND has the vault's absolute folder (active: focused-file eval; specific: vault registry, after the failure) rewritten to the vault-relative form by the shared withVaultRelativePaths (`_vault-relative-error.ts`); when the specific-mode lookup fails for any reason but an unregistered vault, the CLI text is withheld (code kept, vault-relative source and destination named, lookup failure as cause).
+// Original — no upstream. move handler: thin transformer routing parsed input through invokeCli — resolves the source (spec 070 research D3), then resolveTo (trailing-`/` folder form keeps the basename; otherwise the type-preservation rule on the final segment of `to`: keep the source's extension, reject a change to another recognised type), forwarding the original `file=` / `path=` or, in active mode, the resolved `path=` with no `vault=` (the CLI's current vault, as the focused-file eval); parseMoveResponse three-shape contract. Spec 090: a move-step failure is classified after the CLI reports it, in moveFailure — an ENOENT rename becomes CLI_REPORTED_ERROR + details.code FOLDER_NOT_FOUND with the vault-relative destination folder. BI-0177: an ENOENT or ENOTDIR rename into a non-root folder, or the CLI's "Destination file already exists!" when a `file` or active call forwarded the folder form for the CLI to expand, first runs one blocked-destination eval in the move's vault (frozen BLOCKER_TEMPLATE); a folder prefix that is a file gives details.code NOT_A_FOLDER with that file's path, none gives FOLDER_NOT_FOUND (ENOENT) or the rewrite below (ENOTDIR, already exists), and a failed eval withholds the CLI text like the failed vault lookup; every other failure but CLI_BINARY_NOT_FOUND has the vault's absolute folder (active: focused-file eval; specific: vault registry, after the failure) rewritten to the vault-relative form by the shared withVaultRelativePaths (`_vault-relative-error.ts`); when the specific-mode lookup fails for any reason but an unregistered vault, the CLI text is withheld (code kept, vault-relative source and destination named, lookup failure as cause).
 import { BLOCKER_TEMPLATE } from "./_template.js";
 import { moveBlockerEnvelopeSchema, type MoveInput, type MoveOutput } from "./schema.js";
 import { invokeCli, invokeEval, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
@@ -74,18 +74,22 @@ function destinationFolder(resolvedTo: string): string {
   return i === -1 ? "" : normalised.slice(0, i);
 }
 
-function renameFailureErrno(e: UpstreamError): "ENOENT" | "ENOTDIR" | undefined {
-  if (e.code !== "CLI_REPORTED_ERROR") return undefined;
-  const errno = RENAME_FAILURE_RE.exec(stringDetail(e.details, "message"))?.[1];
-  return errno === "ENOENT" || errno === "ENOTDIR" ? errno : undefined;
-}
-
-// Spec 090 P5, BI-0177 round 2 T0: given a raw folder form whose last segment is an existing file,
-// the CLI expands it to that file and answers this line, not a rename errno.
+// Spec 090 P5, BI-0177 T0: given a raw folder form whose last segment is an existing file, the CLI
+// expands it to that file and answers this line, not a rename errno.
 const DESTINATION_EXISTS_LINE = "Error: Destination file already exists!";
 
-function isDestinationExists(e: UpstreamError): boolean {
-  return e.code === "CLI_REPORTED_ERROR" && stringDetail(e.details, "message") === DESTINATION_EXISTS_LINE;
+// What a move failure says about the destination folder, or undefined when it says nothing: ENOENT
+// is a missing folder or a file in the way; ENOTDIR, or "already exists" after the CLI expanded the
+// folder form itself, can only be a file in the way.
+type FolderSignal = "missing-or-blocked" | "maybe-blocked";
+
+function folderSignal(e: UpstreamError, cliExpandsFolderForm: boolean): FolderSignal | undefined {
+  if (e.code !== "CLI_REPORTED_ERROR") return undefined;
+  const message = stringDetail(e.details, "message");
+  const errno = RENAME_FAILURE_RE.exec(message)?.[1];
+  if (errno === "ENOENT") return "missing-or-blocked";
+  if (errno === "ENOTDIR" || (cliExpandsFolderForm && message === DESTINATION_EXISTS_LINE)) return "maybe-blocked";
+  return undefined;
 }
 
 // BI-0177: the first prefix of `folder` that exists on disk and is not a folder, or null. Runs in the
@@ -151,11 +155,10 @@ async function moveFailure(
   // CLI_BINARY_NOT_FOUND's search paths describe the CLI install, not the vault (Clarification Q1).
   if (!(e instanceof UpstreamError) || e.code === "CLI_BINARY_NOT_FOUND") return e;
   const folder = destinationFolder(resolvedTo);
-  const errno = folder === "" ? undefined : renameFailureErrno(e);
-  // BI-0177 round 2: only the CLI-expanded folder form sends "already exists" to the lookup, so a
-  // collision on a full-path or `path`-expanded `to` stays one spawn.
-  const existsThroughFolderForm = folder !== "" && cliExpandsFolderForm && isDestinationExists(e);
-  if (errno !== undefined || existsThroughFolderForm) {
+  // Only the CLI-expanded folder form sends "already exists" to the lookup, so a collision on a
+  // full-path or `path`-expanded `to` stays one spawn.
+  const signal = folder === "" ? undefined : folderSignal(e, cliExpandsFolderForm);
+  if (signal !== undefined) {
     let blocker: string | null;
     try {
       blocker = await findBlockingFile(folder, target.vault, deps);
@@ -165,9 +168,7 @@ async function moveFailure(
       return withheldFailure(e, target.relPath, resolvedTo, "destination-folder", lookupErr);
     }
     if (blocker !== null) return notAFolder(blocker);
-    if (errno === "ENOENT") return folderNotFound(folder);
-    // ENOTDIR or "already exists" with no file in the way is not a missing folder; it is reported as
-    // the CLI said it.
+    if (signal === "missing-or-blocked") return folderNotFound(folder);
   }
   let root: string;
   try {

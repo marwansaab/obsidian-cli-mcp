@@ -13,7 +13,7 @@
 
 | File | Change | Notes |
 |------|--------|-------|
-| `src/tools/move/handler.ts` | modified | `DESTINATION_EXISTS_LINE` + `isDestinationExists`; `moveFailure` gains `cliExpandsFolderForm` and runs `findBlockingFile` on the folder-form "already exists" answer; `executeMove` names the existing `forwardedTo` condition `cliExpandsFolderForm` and passes it; attribution header updated. Every forwarded argument is byte-unchanged. |
+| `src/tools/move/handler.ts` | modified | `DESTINATION_EXISTS_LINE`; `folderSignal` (PR #155 review) replaces `renameFailureErrno` and classifies the failure once (ENOENT → `missing-or-blocked`; ENOTDIR or the folder-form "already exists" → `maybe-blocked`); `moveFailure` gains `cliExpandsFolderForm` and runs `findBlockingFile` on any signal; `executeMove` names the existing `forwardedTo` condition `cliExpandsFolderForm` and passes it; attribution header updated. Every forwarded argument is byte-unchanged. |
 | `src/tools/move/index.ts` | modified | `MOVE_DESCRIPTION`: `(change it with \`obsidian_exec\`)` removed, `A destination through an existing file fails with \`NOT_A_FOLDER\`.` added before the file-type sentence; header line corrected. |
 | `src/tools/_register-baseline.json` | regenerated | `npm run baseline:write`: only `move`'s `descriptionFingerprint` moved (plus `generatedFromBranch` / `generatedAt`); schema, title, annotations and output-schema fingerprints unchanged. |
 | `src/tools/move/handler.missing-destination.test.ts` | B7 stub corrected; B8–B13 added | See below. |
@@ -27,10 +27,20 @@
 // the CLI expands it to that file and answers this line, not a rename errno.
 const DESTINATION_EXISTS_LINE = "Error: Destination file already exists!";
 
+function folderSignal(e: UpstreamError, cliExpandsFolderForm: boolean): FolderSignal | undefined {
+  if (e.code !== "CLI_REPORTED_ERROR") return undefined;
+  const message = stringDetail(e.details, "message");
+  const errno = RENAME_FAILURE_RE.exec(message)?.[1];
+  if (errno === "ENOENT") return "missing-or-blocked";
+  if (errno === "ENOTDIR" || (cliExpandsFolderForm && message === DESTINATION_EXISTS_LINE)) return "maybe-blocked";
+  return undefined;
+}
+
 // in moveFailure
-const existsThroughFolderForm = folder !== "" && cliExpandsFolderForm && isDestinationExists(e);
-if (errno !== undefined || existsThroughFolderForm) {
-  // unchanged: findBlockingFile → notAFolder / withheldFailure; FOLDER_NOT_FOUND only for ENOENT
+const signal = folder === "" ? undefined : folderSignal(e, cliExpandsFolderForm);
+if (signal !== undefined) {
+  // unchanged: findBlockingFile → notAFolder / withheldFailure
+  if (signal === "missing-or-blocked") return folderNotFound(folder);
 }
 
 // in executeMove
@@ -98,6 +108,14 @@ Run with `codegraph_explore` on `isDestinationExists`, `DESTINATION_EXISTS_LINE`
 4. **Reachability** — holds. Call path `createMoveTool → executeMove → moveFailure → isDestinationExists`; `DESTINATION_EXISTS_LINE` is read by `isDestinationExists`.
 
 **Kernel-node claim** (assessment: touches none of them) — held. `createLogger()`, `createQueue()` and `createServer()` are untouched, and `UpstreamError` is only instantiated through the existing helpers.
+
+## Review fixes (PR #155)
+
+The code-quality review of PR #155 raised three points, all fixed in one follow-up commit with no change in behaviour (every existing test passes unchanged; the registry baseline did not move):
+
+- The two lookup triggers (`renameFailureErrno` and the PR's `isDestinationExists`, joined with `||`) are one `folderSignal` classification, so `moveFailure` checks the root folder and the error code once and decides the no-blocker answer from the signal.
+- `move/index.test.ts` gains a test that `MOVE_DESCRIPTION` contains `NOT_A_FOLDER` and `keeps its type` (TC-00867), which the assessment's test list asked for and the first commit left to the fingerprint alone.
+- The handler header drops its "(round 2)" label. The `_file-type-support.test.ts` test retargeted under Q1 gets a title that matches its assertions (move's `obsidian_exec` route is on its help page); no assertion changed.
 
 ## Follow-ups
 

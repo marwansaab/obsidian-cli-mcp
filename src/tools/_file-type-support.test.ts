@@ -79,7 +79,7 @@ describe("spec 070 — each in-scope tool's description names its declared file 
     expect(description).toContain(sentence);
   });
 
-  test("rename and move state that the file keeps its type and name the obsidian_exec route", () => {
+  test("rename and move state that the file keeps its type; rename's description and move's help page name the obsidian_exec route", () => {
     for (const description of [RENAME_DESCRIPTION, MOVE_DESCRIPTION]) {
       expect(description).toContain("keeps its type");
     }
