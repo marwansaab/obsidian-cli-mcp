@@ -1128,6 +1128,13 @@ than added as new codes:
   returning an empty success. The value is reused, not added; the handler
   passes the envelope's code through with a per-code message table
   ([search and discovery](capabilities/search-and-discovery.md#failure)).
+  Since PR #154 (BI-0205) `files` raises `"FOLDER_NOT_FOUND"` too, with
+  `paths`' `details` (`stage: "envelope-error"`, `folder`), for a named
+  folder the CLI lists nothing for and an `adapter.stat` check does not find.
+  It had answered such a folder as empty, as spec 019 FR-010 chose; the CLI
+  gives no signal for it. The value is reused, not added
+  ([ADR-076](decisions/ADR-076-files-checks-a-named-folder-only-when-the-cli-lists-nothing.md);
+  [list and inventory](capabilities/list-and-inventory.md#failure)).
 - `details.reason` separates the states of one multi-state condition (ADR-015,
   Sub-Discriminators via details.reason for Multi-State Error Codes) — for
   example `obsidian-not-running` on `CLI_NON_ZERO_EXIT`, `cli-disabled` on
@@ -1640,6 +1647,16 @@ them:
   templates byte-identical before and after
   ([ADR-072](decisions/ADR-072-views-base-lists-only-once-the-named-base-is-the-active-file.md),
   amendment of 2026-11-07).
+  Since PR #154 (BI-0205) `FOLDER_STAT_KIND_JS` in the leaf module
+  `src/tools/_folder-stat.ts` is the "missing, file or folder?" rule as an
+  async function expression over `app.vault.adapter.stat`, a `null` or
+  throwing `stat` counting as missing. `files`' `FOLDER_CHECK_TEMPLATE`
+  interpolates it and returns its answer as `{ kind }` with no `ok` arm, a
+  fact the handler interprets, as `move`'s `BLOCKER_TEMPLATE` does; the PR
+  #154 review moved the decision out of a first `{ ok, code, folder }`
+  envelope that the handler had re-made
+  ([ADR-076](decisions/ADR-076-files-checks-a-named-folder-only-when-the-cli-lists-nothing.md)).
+  `paths` and `pattern_search` still carry their own inline checks.
   The payload stays base64 JSON; a fragment is fixed source, never input.
 - **A template that caps owns the order it caps in.** When `limit` is
   applied inside a template, the sort has to run there first, because a
