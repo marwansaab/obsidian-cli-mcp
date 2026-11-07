@@ -1,5 +1,7 @@
 # ADR-081 clause 5: a pull request into main must carry a version greater than
-# npm's latest and a dated CHANGELOG.md section for it.
+# npm's latest and a dated CHANGELOG.md section for it. The section must also
+# name a BI of every pull request merged since main that needs an entry (see
+# changelog-entry.yml).
 name: Release checks
 
 on:
@@ -10,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   version-and-changelog:
@@ -26,4 +29,8 @@ jobs:
           node-version: 24
 
       - name: Version is greater than npm latest and has a changelog section
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_REF: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: node scripts/release.ts check

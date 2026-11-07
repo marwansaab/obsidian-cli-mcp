@@ -1,0 +1,56 @@
+# A pull request into develop that needs a changelog entry must add a
+# CHANGELOG.md line naming one of its BIs (`node scripts/release.ts entry`).
+# It needs one when it changes src/** or comes from a fix/bi-* or feat/*
+# branch, unless it carries the no-changelog label. The check exists because
+# PRs #156, #157 and #158 merged with no entry and 0.9.1's notes omitted them.
+#
+# pull_request_target runs this file and the script as they are on develop,
+# never the pull request's copy, so a pull request cannot change the check it
+# is judged by. The checkout is the base branch; the pull request's branch,
+# body, labels and diff are read through the API as data.
+#
+# The push trigger on main reports the check on main's tip, which is the head
+# of the release workflow's back-merge pull request. That pull request is
+# opened with the workflow token, which starts no pull_request_target run, and
+# it needs no entry.
+name: Changelog entry
+
+on:
+  pull_request_target:
+    branches: [develop]
+    types: [opened, reopened, synchronize, edited, labeled, unlabeled]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  changelog-entry:
+    name: Changelog entry
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Back-merge head needs no entry
+        if: github.event_name == 'push'
+        run: echo "main's tip is the head of the back-merge pull request into develop, which needs no entry."
+
+      - name: Checkout the base branch
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node 24
+        if: github.event_name == 'pull_request_target'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: CHANGELOG.md names one of the pull request's BIs
+        if: github.event_name == 'pull_request_target'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node scripts/release.ts entry "$PR_NUMBER"
