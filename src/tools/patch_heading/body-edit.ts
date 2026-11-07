@@ -1,4 +1,4 @@
-// Original — no upstream. patch_heading body-edit pure helpers per BI-040 / data-model §Body-edit-algorithm — three placement modes (append at end-of-reach FR-010, prepend after marker FR-011, replace direct body FR-012); and trailing-newline detection (FR-014) so the handler can preserve the file's existing conventions. Pure functions: no fs access, no `UpstreamError` throwing; the handler reassembles and writes.
+// Original — no upstream. patch_heading body-edit pure helpers per BI-040 / data-model §Body-edit-algorithm — three placement modes (append after the reach's last non-blank line FR-010 / BI-0206, prepend after marker FR-011, replace direct body FR-012); and trailing-newline detection (FR-014) so the handler can preserve the file's existing conventions. Pure functions: no fs access, no `UpstreamError` throwing; the handler reassembles and writes.
 import { REACH_END_EOF, type ResolvedHeading } from "./heading-walk.js";
 
 function clampReachEnd(value: number, linesLength: number): number {
@@ -27,21 +27,30 @@ function splitContentLines(content: string): string[] {
 }
 
 /**
- * Append: content lands at end of the heading's full reach (immediately before
- * `reachEndLineIndex` — the next equal-or-higher-rank heading's marker, or EOF). Preserves
- * the existing direct body, child subtrees, and the following sibling/ancestor headings.
+ * Append: content lands right after the last non-blank line of the heading's full reach
+ * (BI-0206). The reach ends at `reachEndLineIndex` — the next equal-or-higher-rank heading's
+ * marker, or EOF; the blank (empty or whitespace-only) lines that close it stay after the new
+ * content, so a list or table ending the section is extended rather than split, and the
+ * separation before the next heading is kept. Never steps back past the marker line, so an
+ * empty or blank-only body takes the content directly after the heading. Preserves the
+ * existing direct body, child subtrees, and the following sibling/ancestor headings.
  *
+ * `lines` is the handler's edit array (`splitNoteLines`: no phantom empty last element).
  * The `content` is inserted as-is, split on `\n` if multi-line. The helper does NOT add or
- * strip newlines from the supplied content; the handler chooses how to glue the segments.
+ * strip newlines from the supplied content; a leading blank line in `content` starts a
+ * separate block.
  */
 export function applyAppend(
   lines: string[],
   resolved: ResolvedHeading,
   content: string,
 ): string[] {
-  const reachEnd = clampReachEnd(resolved.reachEndLineIndex, lines.length);
+  let insertAt = clampReachEnd(resolved.reachEndLineIndex, lines.length);
+  while (insertAt > resolved.reachStartLineIndex && lines[insertAt - 1]!.trim() === "") {
+    insertAt--;
+  }
   const contentLines = splitContentLines(content);
-  return [...lines.slice(0, reachEnd), ...contentLines, ...lines.slice(reachEnd)];
+  return [...lines.slice(0, insertAt), ...contentLines, ...lines.slice(insertAt)];
 }
 
 /**

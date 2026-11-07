@@ -61,12 +61,12 @@ The wrapper resolves the focused note via a small `obsidian eval` call. When no 
 
 ### `append` — extend the heading's full reach
 
-`append` inserts content at the **end of the heading's reach**: immediately before the next equal-or-higher-rank heading, or at end-of-file if no such heading follows. Preserves the existing direct body, any child-heading subtrees, and every subsequent heading.
+`append` inserts content at the **end of the heading's reach**, right after its last non-blank line. The reach runs to the next equal-or-higher-rank heading, or to end-of-file if no such heading follows. Blank (empty or whitespace-only) lines that close the reach stay after the new content, so they still separate it from the next heading. Preserves the existing direct body, any child-heading subtrees, and every subsequent heading.
 
 ```markdown
 ### TODO          ← target
-- existing item
-                  ← blank line preserved
+- existing item   ← last non-blank line of the reach
+                  ← blank line
 ### Done          ← reach ends here
 - done item
 ```
@@ -76,13 +76,15 @@ After `mode: "append"` with `content: "- new item\n"`:
 ```markdown
 ### TODO
 - existing item
-
 - new item
+
 ### Done
 - done item
 ```
 
-The new bullet lands at the line immediately before `### Done`. The intervening blank stays where it was.
+The new bullet extends the list, and the blank line stays before `### Done`. A table row appended under a table becomes its last row the same way.
+
+The content is joined to the last line as it is, so a paragraph appended after a paragraph continues it. To start a separate block, begin `content` with a blank line (`"\nNew paragraph."`). A section with an empty or blank-only body takes the content directly after the heading line.
 
 ### `prepend` — land immediately after the marker line
 

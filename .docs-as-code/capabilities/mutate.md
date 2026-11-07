@@ -370,6 +370,60 @@ first exception). Aligning them, a
 runtime hint in the heading-not-found message, and reaching the unreachable
 sections are spec 079 plan Follow-ups.
 
+## Where append lands
+
+`patch_heading` `mode: "append"` inserts `content` right after the **last
+non-blank line** of the heading's reach. `applyAppend`
+(`src/tools/patch_heading/body-edit.ts`) starts at the reach end (the next
+equal-or-higher-rank heading's marker line, or end of file), steps back over
+lines whose `trim()` is empty, never past the heading's own line, and splices
+there. The blank lines that closed the section stay after the new content,
+so they still separate it from the next heading. A list or table that ends
+the section is extended, not split; an empty or blank-only body takes the
+content directly after the heading line; with child subtrees, the content
+lands after the last child's last non-blank line.
+
+Until PR #157 (BI-0206) the content went in at the reach end itself, after
+the closing blank lines. A list ending the section was split in two, and the
+new line sat directly on the next heading with no blank line before it
+(TC-00908, reproduced on the published 0.9.0). `docs/tools/patch_heading.md`
+documented the split list as intended: its worked example showed the blank
+line left between the old and the new bullet. That example was wrong, and
+the page now shows the list extended with the blank line kept before
+`### Done`.
+
+```markdown
+## Before            ## Before
+- one                - one
+- two         →      - two
+                     - three
+## After
+                     ## After
+```
+
+The rule is the same for every block type, by owner ruling (BI-0206
+assessment Q1 = A,
+[ADR-079](../decisions/ADR-079-patch-heading-append-lands-after-the-last-non-blank-line-for-every-block-type.md)).
+The helper still adds no line breaks of its own, so a paragraph appended
+after a paragraph now continues it. To start a separate block, an agent
+begins `content` with a blank line (`"\nNew paragraph."`); the help page says
+so. Nothing on the tool surface moved: the description and the `mode`
+description ("adds at the end of the heading's section") stayed true, so per
+ADR-074 and ADR-040 the placement rule lives on the help page only and the
+registration fingerprint baseline did not change (assessment Q2 = A).
+`handler.ts`, `prepend`, `replace` and the error codes are unchanged.
+
+The walk-back reads the edit array, so the array has to be the handler's
+own: `splitNoteLines` leaves no phantom empty element at end of file, while
+`content.split("\n")` leaves one that the walk-back would read as a blank
+line. The PR #157 review (commit `4e1f9ff`) moved every `body-edit.test.ts`
+fixture onto `splitNoteLines` for that reason: the earlier cases built on a
+local `split("\n")` had passed only because none of their reaches ended at
+end of file. Handler-level rows in `handler.line-endings.test.ts` pin the
+written bytes on LF, CRLF, and a CRLF note with an LF blank line; the moved
+blank line keeps its own terminator and the added lines take the heading's
+([line endings](#line-endings-and-the-placement-check)).
+
 ## Note names in the section editors
 
 `patch_heading` and `patch_block` publish the shared `file` description, "a
@@ -542,7 +596,7 @@ flowchart LR
   raw[note text] --> scan["splitLinesForScan: the finders' split"]
   raw --> split["splitNoteLines: each line keeps its terminator"]
   scan --> find[walkHeadings / findBlock]
-  find -- line indices --> splice[unchanged splice helpers]
+  find -- line indices --> splice[splice helpers]
   split --> splice
   splice --> place["placeEdit: join, then placement check"]
   place -- text --> write["race check (patch_heading only), then writeAtomic"]
@@ -574,7 +628,12 @@ flowchart LR
   `applyReplace`, `applyDetachReattach` and `applyVerbatimMarkerPreserve`
   only slice and insert at indices and never read an existing line's text
   (research F6), so they work unchanged on the new array, and their tests
-  were not edited.
+  were not edited. That held for PR #119 and is no longer true of
+  `applyAppend`: since PR #157 it reads the lines before the reach end to
+  step back over blank ones ([where append lands](#where-append-lands)). Its
+  blank test is `trim() === ""`, which drops a kept `\r\n` or `\n`, so it
+  gives the same answer on the terminator-keeping array as on the finders'
+  view.
 - **The placement check.** `placeEdit` joins the edited lines and then
   checks two things before anything else happens: the anchor line in the
   edit array reads the finder's text, and the original bytes before and
@@ -1203,6 +1262,21 @@ from their schema would have reached the client as SDK free text rather than
   no re-read race check, and `append_note` keeps its own `detectLineEnding`,
   which reads the first line break; it uses no line indices, so it never had
   this fault (spec 086 research F11).
+- `patch_heading`'s placement check was not tightened for the new append
+  placement (PR #157). Its kept suffix still starts at the reach end, so the
+  closing blank lines that now follow the content sit inside the edited span
+  and the check does not prove they survived; the handler rows in
+  `handler.line-endings.test.ts` pin them byte for byte instead. The
+  assessment offered moving append's `keepFromLine` to the insertion index;
+  the fix left `handler.ts` unchanged (`.specify/bugs/bi-0206/fix.md`
+  Deviations).
+- A section that ends in a horizontal rule (`---`) followed by a blank line
+  now also has that blank line moved below appended content. Rule-ended
+  sections were out of BI-0206's scope; their own decision is to start from
+  this behaviour (`.specify/bugs/bi-0206/fix.md` Follow-ups).
+- `specs/040-patch-heading/quickstart.md` still shows the pre-PR #157 append
+  placement. It is a historical spec record and was left as written; the
+  help page and [where append lands](#where-append-lands) are current.
 - `placeEdit` takes the note's `trailingNewline` as a parameter rather than
   deriving it from the original text. Deriving it would orphan both tools'
   `detectTrailingNewline` exports, and deleting those with their tests needs
