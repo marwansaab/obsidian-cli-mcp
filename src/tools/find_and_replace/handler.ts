@@ -25,7 +25,6 @@ import {
   requireFocusedVaultName,
   resolveVaultRootOrRemap,
   throwIfNoActiveFile,
-  type ActiveFileLocator,
 } from "../_active-file.js";
 import { NON_INTERACTIVE_CALL } from "../_confirm.js";
 import { stdoutDetails } from "../_eval-parse.js";
@@ -467,14 +466,11 @@ async function resolveSingleNoteScope(
 
   if (input.active_note === true) {
     // US2 — the currently-open note.
-    let active: ActiveFileLocator;
-    try {
-      active = await resolveActiveFocusedFile(deps, "find_and_replace");
-    } catch (err) {
-      // BI-0193: the resolver's advice names target_mode, which this tool does not take.
+    // BI-0193: the resolver's advice names target_mode, which this tool does not take.
+    const active = await resolveActiveFocusedFile(deps, "find_and_replace").catch((err: unknown) => {
       throwIfNoActiveFile(err, NO_ACTIVE_FILE_MESSAGE);
       throw err;
-    }
+    });
     vaultRoot = await assertCanonicalPath(active.vaultRoot, ".", guard);
     relPath = toVaultRelative(active.relPath);
   } else {

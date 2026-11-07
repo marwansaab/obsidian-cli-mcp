@@ -8,7 +8,7 @@ import {
 } from "./schema.js";
 import { invokeEval, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import { decodeEvalEnvelope, noActiveFileMessage } from "../_active-file.js";
+import { decodeEvalEnvelope, noActiveFileError } from "../_active-file.js";
 import { composeEvalCode } from "../_shared.js";
 
 import type { SupportDeclaration } from "../../file-type/file-type.js";
@@ -61,12 +61,7 @@ function mapEnvelopeError(
     case "NO_ACTIVE_FILE":
       // T0.1 lock: align with BI-015 read_heading / BI-025 links precedent — envelope
       // NO_ACTIVE_FILE → ERR_NO_ACTIVE_FILE (not CLI_REPORTED_ERROR).
-      return new UpstreamError({
-        code: "ERR_NO_ACTIVE_FILE",
-        cause: null,
-        details: { stage: "envelope-error", detail },
-        message: noActiveFileMessage("smart_connections_similar"),
-      });
+      return noActiveFileError("smart_connections_similar", { stage: "envelope-error", detail });
     case "FILE_NOT_FOUND":
       return new UpstreamError({
         code: "CLI_REPORTED_ERROR",
