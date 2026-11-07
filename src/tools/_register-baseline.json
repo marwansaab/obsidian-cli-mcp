@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "generatedFromBranch": "092-audit-tool-descriptions",
-  "generatedAt": "2026-11-04",
+  "generatedFromBranch": "fix/bi-0177",
+  "generatedAt": "2026-11-07",
   "tools": [
     {
       "name": "append_note",
@@ -101,7 +101,7 @@
     },
     {
       "name": "move",
-      "descriptionFingerprint": "490609708be5e77b952da7824411ea1821790f6d08867d565cd5c71dd53b2272",
+      "descriptionFingerprint": "7e832533ce99bc33b8991710290fa2fcf130f74d1cfd6880765c20c3b0460c3b",
       "schemaFingerprint": "66cf5cefdaa3f76c25c713e587682e4154bc90c89e901d220b5dcab73699f2aa",
       "titleFingerprint": "6ecc3df6bffdd06c58cd4f6e276929e119c8f653c53f5a6a5a5e66dfa1c3fc93",
       "annotationsFingerprint": "b15393126f12ebd7533afe7d31a1beb8938a1e37d0bb2a52c382aaba4373f265",
