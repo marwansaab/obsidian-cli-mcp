@@ -404,7 +404,13 @@ produced; PR #100 deleted the check
   throw reach its `json-parse` failure. The PR #153 review proposed one
   shared fragment; the owner deferred it (option A) because `paths` was out
   of BI-0204's scope and merging the copies is a behaviour change that needs
-  that decision first (`.specify/bugs/bi-0204/fix.md` Follow-ups).
+  that decision first (`.specify/bugs/bi-0204/fix.md` Follow-ups). Since
+  PR #154 (BI-0205) the shared fragment exists: `FOLDER_STAT_KIND_JS` in
+  `src/tools/_folder-stat.ts`, which treats a throwing `stat` as missing, as
+  `paths` does. Only `files`' folder check uses it; both inline copies are
+  unchanged, and moving `pattern_search` onto it still changes that tool's
+  answer to a throwing `stat`
+  ([list and inventory](list-and-inventory.md#how-it-is-built)).
 - PR #153's live check called the built handlers directly against the test
   vault on Windows, with no MCP-client round trip.
 - Until PR #151 this list said `open_file`'s template trusts `openLinkText`

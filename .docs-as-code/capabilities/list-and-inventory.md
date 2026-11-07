@@ -6,7 +6,7 @@ below.
 
 | Tool | Pipeline | Contract |
 | --- | --- | --- |
-| `files` | native CLI `files`, filtered by the server | [docs/tools/files.md](../../docs/tools/files.md) |
+| `files` | native CLI `files`, filtered by the server; an `eval` folder check when a named folder lists nothing | [docs/tools/files.md](../../docs/tools/files.md) |
 | `paths` | `eval` template | [docs/tools/paths.md](../../docs/tools/paths.md) |
 | `outline` | native CLI `outline` | [docs/tools/outline.md](../../docs/tools/outline.md) |
 | `properties` | native CLI `properties` | [docs/tools/properties.md](../../docs/tools/properties.md) |
@@ -27,6 +27,24 @@ sub-folder and dotfile entries, and sorts by UTF-8 byte order with
 `Buffer.compare` rather than JavaScript's default UTF-16 order. Its `total`
 count is computed after filtering instead of using the CLI's recursive total.
 `paths` walks the vault through `eval` and marks folders with a trailing `/`.
+
+Since PR #154 (BI-0205) `files` is no longer always a single CLI call. The
+CLI's `files` subcommand prints nothing and exits 0 for a missing folder, as
+for an empty one, so when `folder` is set and the CLI lists no entries the
+handler's `assertFolderExists` runs one `invokeEval` in the same vault. Its
+frozen `FOLDER_CHECK_TEMPLATE` (`src/tools/files/_template.ts`) answers the
+stat fact `{ kind: "missing" | "file" | "folder" }`, which `decodeEvalEnvelope`
+checks against `filesFolderEnvelopeSchema`, and the handler decides: only
+`"missing"` fails. The fact comes from `FOLDER_STAT_KIND_JS` in the new leaf
+module `src/tools/_folder-stat.ts`, the first shared in-eval form of the
+"missing, file or folder?" `adapter.stat` rule (a `null` or throwing `stat`
+is missing). Only `files` uses it so far. The check runs on the CLI's raw
+entries, before the wrapper's filters, so `folder: ".obsidian"`, whose
+entries the dotfile filter removes, needs no check. The vault root and every
+non-empty listing stay single-spawn. A `folder` with a `..` segment that
+lists nothing fails without the eval, because `stat` resolves `..` outside
+the vault
+([ADR-076](../decisions/ADR-076-files-checks-a-named-folder-only-when-the-cli-lists-nothing.md)).
 
 `outline` (PR #25) and `properties` (PR #26) wrap the CLI directly. `outline`
 takes `target_mode`, because it reads one note. `properties` is vault-scoped:
@@ -91,6 +109,15 @@ return.
 
 `paths` reports a missing folder or a folder path that names a file as
 `CLI_REPORTED_ERROR` with `details.code` `FOLDER_NOT_FOUND` or `NOT_A_FOLDER`.
+Since PR #154 (BI-0205) `files` reports a missing folder with the same
+error: `cause: null`,
+`details: { stage: "envelope-error", code: "FOLDER_NOT_FOUND", folder }`, and
+the message `files: FOLDER_NOT_FOUND for folder "<folder>"`, `paths`' shape
+with the tool name swapped, built once in `folderNotFound`.
+`details.folder` drops one trailing `/`, except on the `..` guard, which
+reports the value as given. A malformed check answer is `CLI_REPORTED_ERROR`
+through `decodeEvalEnvelope`. A path that names a file still answers
+`{ count: 0, paths: [] }`; `NOT_A_FOLDER` for it was out of BI-0205's scope.
 Since PR #153 (BI-0204) `pattern_search` makes the same check in its own
 template; the two copies differ when `adapter.stat` throws, and sharing them
 is deferred
@@ -135,9 +162,21 @@ pins that recovery with a stubbed probe
 
 ## Known limits
 
-- `files` cannot tell a missing folder, an empty folder, and a folder path
-  that names a file apart. All three return `{ count: 0, paths: [] }`, because
-  the CLI does not distinguish them. `paths` can, through `eval`.
+- `files` cannot tell an empty folder from a folder path that names a file:
+  both return `{ count: 0, paths: [] }`. `paths` can, through `eval`. Until
+  PR #154 this bullet also put a missing folder in that set, as spec 019
+  FR-010 had chosen; that is no longer true
+  ([ADR-076](../decisions/ADR-076-files-checks-a-named-folder-only-when-the-cli-lists-nothing.md)).
+- On a case-insensitive file system (Windows, default macOS) a `files`
+  folder written in the wrong case lists nothing, because the CLI matches
+  `folder` case-sensitively, but the check finds it, so the call answers
+  empty rather than `FOLDER_NOT_FOUND`. Only Windows was exercised live in
+  PR #154 (`.specify/bugs/bi-0205/test.md`, Residual Risks).
+- In active mode `files`' listing and its folder check are two calls in the
+  focused vault; a focus change between them could check another vault.
+- `paths` sends a `..` segment to `adapter.stat` and `adapter.list`
+  unguarded, so `folder: ".."` may reach the vault's parent directory
+  (BI-0208, found during BI-0205).
 - `outline` shows both ATX and Setext headings because it defers to the CLI,
   while `read_heading` addresses ATX headings only. A Setext heading can
   therefore appear in an outline and still not be readable by section.

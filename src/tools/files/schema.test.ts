@@ -1,7 +1,7 @@
-// Original — no upstream. Tests for the files input schema — 18 cases per data-model.md test inventory covering target-mode interactions (specific-requires-vault, active-forbids-vault, file/path forbidden in both modes), folder/ext min(1) per R15, total boolean type, and strict-mode unknown-key rejection.
+// Original — no upstream. Tests for the files input schema — 18 cases per data-model.md test inventory covering target-mode interactions (specific-requires-vault, active-forbids-vault, file/path forbidden in both modes), folder/ext min(1) per R15, total boolean type, and strict-mode unknown-key rejection; plus the folder check's eval envelope (BI-0205).
 import { expect, test } from "vitest";
 
-import { filesInputSchema } from "./schema.js";
+import { filesFolderEnvelopeSchema, filesInputSchema } from "./schema.js";
 
 // (1) specific + vault + folder + ext happy
 test("specific+vault+folder+ext happy (US1#1)", () => {
@@ -208,4 +208,21 @@ test("ext 5 (number) → invalid_type on ['ext']", () => {
   if (!r.success) {
     expect(r.error.issues.some((i) => i.path.includes("ext"))).toBe(true);
   }
+});
+
+// BI-0205: the folder check's eval envelope
+test.each([[{ kind: "missing" }], [{ kind: "file" }], [{ kind: "folder" }]])(
+  "folder-check envelope %j parses",
+  (envelope) => {
+    expect(filesFolderEnvelopeSchema.safeParse(envelope).success).toBe(true);
+  },
+);
+
+test.each([
+  [{ kind: "symlink" }],
+  [{ kind: "folder", folder: "Inbox" }],
+  [{ ok: true }],
+  [{}],
+])("folder-check envelope %j is rejected", (envelope) => {
+  expect(filesFolderEnvelopeSchema.safeParse(envelope).success).toBe(false);
 });

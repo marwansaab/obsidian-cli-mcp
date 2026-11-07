@@ -102,7 +102,7 @@ The `paths` array is the literal empty array. The `count` is the filtered subtre
 - Missing folder → structured `CLI_REPORTED_ERROR(details.code: "FOLDER_NOT_FOUND", folder: "<requested>")`. **Distinguishable from empty.**
 - Folder path resolves to a file → structured `CLI_REPORTED_ERROR(details.code: "NOT_A_FOLDER", folder: "<requested>")`.
 
-This is a deliberate **departure** from the [`files`](./files.md) tool, which conflates missing / not-a-folder / empty into a single `{count:0, paths:[]}` shape.
+[`files`](./files.md) reports a missing folder the same way since BI-0205, but still answers a folder path that names a file with the empty `{count:0, paths:[]}` shape. (This page used to say `files` conflates missing / not-a-folder / empty into that one shape; that stopped being true for the missing case when `files` gained its folder check.)
 
 ### Sort order
 

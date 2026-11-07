@@ -295,3 +295,10 @@ applies. Records written since:
   keeps the comma join for an array with an explicit non-list `type`; JSON
   for every array, an `eval` write and comma escaping were rejected
   (PR #150).
+- [decisions/ADR-076-files-checks-a-named-folder-only-when-the-cli-lists-nothing.md](decisions/ADR-076-files-checks-a-named-folder-only-when-the-cli-lists-nothing.md)
+  — `files` runs one `adapter.stat` eval only when a named folder lists
+  nothing, fails a missing folder with `paths`' `FOLDER_NOT_FOUND`, and fails
+  a `..` segment without the check; a template that decides, the CLI's
+  `folder` probe, a server-side `fs.stat`, one combined eval and a check on
+  every call were rejected; reverses spec 019 FR-010 for the missing case
+  (PR #154).
