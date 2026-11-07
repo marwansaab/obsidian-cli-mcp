@@ -72,7 +72,15 @@ The repository follows ADR-081: `main` is always exactly what npm serves as
    version's changelog section, and open the pull request `main` into
    `develop`, which the owner merges. A failed publication leaves no tag and
    no Release: fix it and re-run, or ship a hotfix. When the publication
-   succeeded and a later step failed, use *Re-run failed jobs*.
+   succeeded and a later step failed, use *Re-run failed jobs*. npm then
+   shows the new version as *Validating* while its automated review runs,
+   and `latest` moves only when the review ends, a few minutes for 0.9.1.
+5. **Back-merge.** The pull request `main` into `develop` gets its required
+   checks from CI's push run on the merge commit. Because the workflow token
+   opened it, its own `pull_request` CI run waits for approval; that run is
+   not needed, but if the pull request shows no CI checks (for example a
+   hotfix cut from a `main` that predates the push trigger, PR #162), click
+   *Approve and run workflows* on it.
 
 A **hotfix** runs the same way with kind `hotfix`: the workflow cuts
 `hotfix/x.y.z` from `main`, the fix lands by pull request into it, and after

@@ -12,6 +12,8 @@ on:
     branches: [develop, "release/**", "hotfix/**", main]
   # Run by the release-cut workflow: a branch it creates with the workflow
   # token starts no push run, so it starts this workflow on the new branch.
+  # That run is an early signal only; the branch's pull request into main
+  # gets its required checks from its own pull_request run.
   workflow_dispatch:
 
 concurrency:
