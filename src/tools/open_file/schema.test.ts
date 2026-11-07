@@ -261,4 +261,23 @@ describe("openEvalResponseSchema", () => {
     const r = openEvalResponseSchema.safeParse({ ok: false });
     expect(r.success).toBe(false);
   });
+
+  // BI-0189: the open ran but the file did not become the active file.
+  it.each([
+    ["another file in front", "A.md"],
+    ["nothing in front", null],
+  ])("accepts FOCUS_NOT_APPLIED with opened and active (%s)", (_label, active) => {
+    const r = openEvalResponseSchema.safeParse({ ok: false, code: "FOCUS_NOT_APPLIED", opened: "B.md", active });
+    expect(r.success).toBe(true);
+  });
+
+  it.each([
+    ["missing active", { ok: false, code: "FOCUS_NOT_APPLIED", opened: "B.md" }],
+    ["missing opened", { ok: false, code: "FOCUS_NOT_APPLIED", active: "A.md" }],
+    ["a stray key", { ok: false, code: "FOCUS_NOT_APPLIED", opened: "B.md", active: "A.md", detail: "x" }],
+    ["ok:true carrying the code", { ok: true, code: "FOCUS_NOT_APPLIED", opened: "B.md", active: "A.md" }],
+    ["opened/active on another code", { ok: false, code: "FILE_NOT_FOUND", opened: "B.md", active: "A.md" }],
+  ])("rejects FOCUS_NOT_APPLIED with %s (strict)", (_label, envelope) => {
+    expect(openEvalResponseSchema.safeParse(envelope).success).toBe(false);
+  });
 });

@@ -148,6 +148,22 @@ Focus; PRs #66 and #67). `open_file` does switch focus, because that is its
 job. `get_active_file` is a pure read: "nothing focused" is the success value
 `{ active: null }`, not `ERR_NO_ACTIVE_FILE`.
 
+Since PR #151 (BI-0189) `open_file`'s success means the file *is* the
+active file. Until then the template returned its placement as soon as it
+had called `openLinkText` or `setActiveLeaf`, and neither proves anything:
+`openLinkText` swallows an open that throws, a leaf still busy with an
+earlier open skips the next one, and `setActiveLeaf` was not awaited. A
+silently failed open read as a success, and the caller's next
+`target_mode: "active"` call, possibly a write, acted on the file that was
+active before. After every placement the template now runs the shared
+wait `AWAIT_ACTIVE_FILE_JS` (`src/tools/_focus-wait.ts`, the check
+`views_base` gained in PR #140), comparing the active file with the
+resolved file object for up to 1 s, and never retries the open
+([ADR-072](../decisions/ADR-072-views-base-lists-only-once-the-named-base-is-the-active-file.md),
+amendment of 2026-11-07). The wait runs inside the one `eval`, so the
+handler still adds no poll or spawn of its own, and a healthy open gains
+one synchronous comparison.
+
 **Published surface** (PR #90;
 [architecture](../architecture.md#registration--the-one-path-from-a-schema-to-a-published-tool)).
 Every tool here carries the read-only hint row except `open_file`, which is a
@@ -299,6 +315,18 @@ exit 0; the facade fails that as `CLI_REPORTED_ERROR` whose `message` and
 test for both checks the code and `details.message` together. Every page's
 hint for it now names the `vaults` tool.
 
+Since PR #151 `open_file` has one failure that comes after the open ran:
+`CLI_REPORTED_ERROR` with `details: { stage: "focus", path, vault, active }`
+and no `details.code`, when the file did not become the active file in
+time. `path` is the resolved vault-relative path (a `file` locator reports
+where it resolved) and `active` is the file in front instead, or `null`.
+The template answers `FOCUS_NOT_APPLIED`, a strict variant nested in the
+`ok:false` arm of `openEvalResponseSchema`, and `mapEvalError` maps it in an
+exhaustive `switch`. It is the one row of the
+[help page's](../../docs/tools/open_file.md) roster where something may
+have opened: the file can be showing in a tab without being active. The
+recovery is a retry, or naming the file with `target_mode: "specific"`.
+
 Since PR #121 `context_search` can also fail after a successful search, when
 a selected line cannot be read back: `CLI_REPORTED_ERROR` with
 `details.code: "MATCH_LINE_UNAVAILABLE"`, `details.path` and `details.line`,
@@ -339,12 +367,16 @@ produced; PR #100 deleted the check
 
 ## Known limits and inconsistencies
 
-- `open_file`'s template trusts `openLinkText` and reports a placement
-  without checking that the file became active. PR #140 found that
-  `openLinkText` resolves even when Obsidian drops the open, and fixed
-  `views_base`'s focus template by checking the active file
-  ([ADR-072](../decisions/ADR-072-views-base-lists-only-once-the-named-base-is-the-active-file.md));
-  `open_file` is the same failure class and was left as a follow-up.
+- Until PR #151 this list said `open_file`'s template trusts `openLinkText`
+  and reports a placement without checking that the file became active.
+  PR #140 had found that `openLinkText` resolves even when Obsidian drops
+  the open, fixed `views_base`, and left `open_file` as a follow-up; PR #151
+  (BI-0189) fixed it (see *Focus* above). What remains: the silent failure
+  has no known live trigger, so its error path is proven only by stub-app
+  template tests; plugin-registered views and slower machines against the
+  1 s bound were not exercised (`.specify/bugs/bi-0189/test.md`, Residual
+  Risks); and `write_note`'s `open` option, in the
+  [mutate](mutate.md) cohort, still opens without checking the result.
 - `search` with `context_lines: true` is deprecated in favour of
   `context_search`, and kept for compatibility.
 - Case sensitivity defaults **differ**: `pattern_search` is case-sensitive by

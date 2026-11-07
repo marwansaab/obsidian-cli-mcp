@@ -94,7 +94,10 @@ file still in front if it never lands. `focusNamedBase` maps that to
 `CLI_REPORTED_ERROR` with `details: { stage: "focus", base_path, active }`
 and throws before `listFocusedViews`, so no listing runs against the wrong
 file. It maps each focus envelope code in an exhaustive `switch`, a
-structure the PR #140 review asked for.
+structure the PR #140 review asked for. Since PR #151 (BI-0189) the wait
+itself is the shared in-eval fragment `AWAIT_ACTIVE_FILE_JS`
+(`src/tools/_focus-wait.ts`), which `open_file` uses too; the rendered
+`FOCUS_BASE_TEMPLATE` did not change.
 
 **A malformed Base is classified, not passed through** (spec 081, PR #111).
 Until PR #111 `views_base` recognised only Obsidian's "Active file is not a

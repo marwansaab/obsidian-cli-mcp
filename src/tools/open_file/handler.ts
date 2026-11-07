@@ -6,12 +6,14 @@
 // vault: it resolves the locator there and opens the file (switching focus to that vault) via the
 // explicit placement branch. decodeEvalEnvelope (tagged answer + JSON.parse + safeParse) → on ok:true
 // return typed { opened, vault, new_tab, placement }; on ok:false classify FILE_NOT_FOUND /
-// UNSUPPORTED_FILE_TYPE → UpstreamError. The open IS the contract (FR-017): the eval result is
-// classified, never best-effort-swallowed.
+// UNSUPPORTED_FILE_TYPE / FOCUS_NOT_APPLIED → UpstreamError. The open IS the contract (FR-017): the
+// eval result is classified, never best-effort-swallowed. BI-0189: the eval confirms the file became
+// the active file; a miss is CLI_REPORTED_ERROR with details.stage "focus" (views_base's BI-0179 shape).
 //
 // Recovery is fully INHERITED and vault-correct from dispatchCli (ADR-029/030) — the call carries
 // vault=requested, so a closed vault cold-launches and an app-down launch targets obsidian://open?vault=requested.
-// open_file adds NO per-tool retry/poll/launch and imports no spawn site / app-launcher. The BI-057
+// open_file adds NO per-tool retry/poll/launch and imports no spawn site / app-launcher (BI-0189's
+// focus wait runs inside the one eval and never re-issues the open or the call). The BI-057
 // focused-vault guard, the VAULT_NOT_FOCUSED → VAULT_NOT_FOUND/not-open mapping, the focus-switch, the
 // verify-poll, and any launchFn are all DELETED. No new top-level code, no new details.reason
 // (reason:"not-open" retires from emission, ADR-015 additive-only).
@@ -19,7 +21,7 @@ import { JS_TEMPLATE } from "./_template.js";
 import {
   openEvalResponseSchema,
   openFileOutputSchema,
-  type OpenFileEvalErrorCode,
+  type OpenFileEvalResponse,
   type OpenFileInput,
   type OpenFileOutput,
 } from "./schema.js";
@@ -95,16 +97,15 @@ export async function executeOpenFile(
     });
   }
 
-  throw mapEvalError(data.code, data.detail, input.vault, locatorLabel);
+  throw mapEvalError(data, input.vault, locatorLabel);
 }
 
 function mapEvalError(
-  code: OpenFileEvalErrorCode,
-  detail: string | undefined,
+  data: Extract<OpenFileEvalResponse, { ok: false }>,
   vault: string,
   locator: string,
 ): UpstreamError {
-  switch (code) {
+  switch (data.code) {
     case "FILE_NOT_FOUND":
       return new UpstreamError({
         code: "CLI_REPORTED_ERROR",
@@ -118,11 +119,28 @@ function mapEvalError(
         cause: null,
         details: {
           code: "UNSUPPORTED_FILE_TYPE",
-          extension: detail ?? "",
+          extension: data.detail ?? "",
           path: locator,
           vault,
         },
-        message: `open_file: Obsidian has no registered view for file type "${detail ?? "unknown"}"`,
+        message: `open_file: Obsidian has no registered view for file type "${data.detail ?? "unknown"}"`,
       });
+    case "FOCUS_NOT_APPLIED":
+      // BI-0189: the open ran but the file did not become the active file, so a following
+      // active-mode call would act on another file. A retryable upstream condition, keyed by
+      // details.stage like views_base's focus failure (BI-0179): no details.code / reason.
+      // `path` is the resolved vault-relative path (a `file` name resolves to it), never a disk path.
+      return new UpstreamError({
+        code: "CLI_REPORTED_ERROR",
+        cause: null,
+        details: { stage: "focus", path: data.opened, vault, active: data.active },
+        message:
+          `open_file: "${data.opened}" did not become the active file in vault "${vault}"; retry open_file, ` +
+          `or act on it with target_mode "specific", vault "${vault}" and path "${data.opened}" instead of an active-mode call`,
+      });
+    default: {
+      const unhandled: never = data;
+      return unhandled;
+    }
   }
 }

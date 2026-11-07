@@ -8,7 +8,7 @@ Surface an existing vault file — of **any** recognised type (markdown note, ca
 
 - You located a file (via `files`, `search`, `backlinks`, …) and want a human to see it in Obsidian.
 - You want a non-markdown file (canvas board, PDF, image) surfaced in its native viewer.
-- You want a subsequent `target_mode: "active"` call to operate on a specific file — `open_file` makes it the active file first.
+- You want a subsequent `target_mode: "active"` call to operate on a specific file — `open_file` makes it the active file first, and returns an error instead of success when it did not become active.
 
 ## Cross-vault — opens in the vault you name, and switches focus to it
 
@@ -107,7 +107,7 @@ A subsequent `target_mode: "active"` tool call now operates on this file.
 
 ## Errors — Error roster
 
-Every failure routes through `UpstreamError`. On every failure mode, nothing is opened.
+Every failure routes through `UpstreamError`. On every failure mode except the `stage: "focus"` row, nothing is opened.
 
 | `code` | `details` | Meaning | Recovery |
 |--------|-----------|---------|----------|
@@ -115,6 +115,7 @@ Every failure routes through `UpstreamError`. On every failure mode, nothing is 
 | `CLI_REPORTED_ERROR` | `code: "VAULT_NOT_FOUND"`, `reason: "unknown"`, `vault` | `vault` matches no registered Obsidian vault — the sole hard vault error. | Use `vaults` to list registered names; correct the typo. |
 | `CLI_REPORTED_ERROR` | `code: "FILE_NOT_FOUND"`, `path`, `vault` | No file at the resolved location in the requested vault (or the locator named a folder). | Verify the path with `files`; use `write_note` to create. |
 | `CLI_REPORTED_ERROR` | `code: "UNSUPPORTED_FILE_TYPE"`, `extension`, `path`, `vault` | The file exists, but Obsidian has no registered view for its extension. Distinct from `FILE_NOT_FOUND`. | The file type cannot be displayed in Obsidian; surface it through another channel or convert it. |
+| `CLI_REPORTED_ERROR` | `stage: "focus"`, `path`, `vault`, `active` | Obsidian ran the open, but the file did not become the active file within 1 second. `active` is the file in front instead, or `null`. The file may be showing in a tab without being active, so a `target_mode: "active"` call would act on another file. No `details.code`. | Retry `open_file`, or skip the active file: call the next tool with `target_mode: "specific"`, `vault: details.vault` and `path: details.path`. |
 | `CLI_NON_ZERO_EXIT` | `reason: "obsidian-not-running"` | Obsidian is down and could not be launched within the bound — e.g. auto-launch is disabled (`OBSIDIAN_AUTO_LAUNCH=0`). | Start Obsidian (or enable auto-launch), then retry. |
 | `CLI_BINARY_NOT_FOUND` | — | The `obsidian` CLI binary could not be found. | Install / expose the Obsidian CLI on `PATH` (or set `OBSIDIAN_BIN`); retry. |
 | `INTERNAL_ERROR` | `stage: "json-parse" \| "envelope-parse"`, `stdout`, `stdoutLength` | The eval returned a result the handler cannot interpret, or no answer for this call. Should not occur in normal operation. `details.stdout` holds the raw eval output, whole when it is 1,000 characters or fewer and otherwise its first and last 500 characters around a `[… cut …]` line, and `details.stdoutLength` gives the raw output's full length. Lines that other Obsidian plugins print around the eval's answer are ignored, so they never cause this error on their own. | Report with the full payload; retry once for a transient failure. |
