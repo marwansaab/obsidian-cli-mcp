@@ -1,4 +1,4 @@
-// Original — no upstream. Shared test oracle for the two Smart Connections `_template.test.ts` suites (spec 085 contracts/ordering-contract.md): the returned match and envelope shapes, the key a match came from, the documented order written independently of the template, the 150-candidate tied fixture both suites lay out against it, and the BI-0184 headingPath cases both suites run. Vitest-free on purpose: `_*fixtures.ts` is excluded from dist and coverage.
+// Original — no upstream. Shared test oracle for the two Smart Connections `_template.test.ts` suites (spec 085 contracts/ordering-contract.md): the returned match and envelope shapes, the key a match came from, the documented order written independently of the template, the 150-candidate tied fixture both suites lay out against it, and the BI-0184 headingPath cases and the BI-0195 empty-path rows both suites run. Vitest-free on purpose: `_*fixtures.ts` is excluded from dist and coverage.
 
 /** A plugin candidate: `key` is `<path>`, `<path>#` (a note's opening text) or `<path>#<h1>#<h2>…`; `score` may be non-finite or missing. */
 export interface ScoredKey {
@@ -84,3 +84,16 @@ export const MIXED_HEADING_MATCHES: Match[] = [
   { path: "N.md", headingPath: ["H2"], score: 0.6 },
   { path: "A.md", headingPath: [], score: 0.5 },
 ];
+
+// BI-0195 rows both template suites run: outdated index entries whose key names no path (`''`, `'#'`,
+// `'#H'` all map to `path: ''`) among valid candidates. Both tools leave them out, so only the kept keys
+// come back, in the documented order.
+export const EMPTY_PATH_KEYS: ScoredKey[] = [
+  { key: "A.md", score: 0.7 },
+  { key: "", score: 0.9 },
+  { key: "#", score: 0.85 },
+  { key: "#H", score: 0.8 },
+  { key: "B.md#h", score: 0.6 },
+];
+
+export const EMPTY_PATH_KEPT = ["A.md", "B.md#h"];

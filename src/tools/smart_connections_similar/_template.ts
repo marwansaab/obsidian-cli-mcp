@@ -25,7 +25,7 @@ return JSON.stringify({ok:false,code:'SMART_CONNECTIONS_NOT_READY',detail:'env.s
 const sourceKey=f.path;
 const src=env.smart_sources.items[sourceKey];
 const v=src&&src.vec;
-if(!src||typeof src.find_connections!=='function'||!v||(!Array.isArray(v)&&!ArrayBuffer.isView(v))){
+if(!src||typeof src.find_connections!=='function'||!(Array.isArray(v)||ArrayBuffer.isView(v))){
 return JSON.stringify({ok:false,code:'SOURCE_NOT_INDEXED',detail:sourceKey});
 }
 const raw=await src.find_connections({limit:${MAX_LIMIT}});

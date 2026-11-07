@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import { JS_TEMPLATE } from "./_template.js";
 import { runEvalTemplate } from "../_eval-template-fixtures.js";
 import {
+  EMPTY_PATH_KEPT,
+  EMPTY_PATH_KEYS,
   HEADING_PATH_CASES,
   keyOf,
   MIXED_HEADING_KEYS,
@@ -175,10 +177,9 @@ describe("smart_connections_similar template — BI-0195: outdated index entries
   const STALE = [conn("", 0.999), conn("Old.md", 0.998), conn("Old.md#H", 0.997), conn("Gone/Deleted.md#A#B", 0.996)];
   const GONE = ["Old.md", "Gone/Deleted.md"];
 
-  it("an empty-keyed entry among valid ones is left out, and every returned path names a Markdown note", async () => {
-    const fixture = [conn("A.md", 0.7), conn("", 0.9), conn("B.md#h", 0.6)];
-    const matches = await page(fixture, 100);
-    expect(matches.map(keyOf)).toEqual(["A.md", "B.md#h"]);
+  it("entries whose key names no path ('', '#', '#H') among valid ones are left out, and every returned path names a Markdown note", async () => {
+    const matches = await page(EMPTY_PATH_KEYS.map((c) => conn(c.key, c.score)), 100);
+    expect(matches.map(keyOf)).toEqual(EMPTY_PATH_KEPT);
     for (const m of matches) {
       expect(m.path).not.toBe("");
       expect(m.path.endsWith(".md")).toBe(true);

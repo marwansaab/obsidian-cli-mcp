@@ -28,7 +28,7 @@ No production file outside the two templates changed. `src/tools/_smart-connecti
 ```js
 const src=env.smart_sources.items[sourceKey];
 const v=src&&src.vec;
-if(!src||typeof src.find_connections!=='function'||!v||(!Array.isArray(v)&&!ArrayBuffer.isView(v))){
+if(!src||typeof src.find_connections!=='function'||!(Array.isArray(v)||ArrayBuffer.isView(v))){
 return JSON.stringify({ok:false,code:'SOURCE_NOT_INDEXED',detail:sourceKey});
 }
 ...
@@ -57,12 +57,12 @@ The plugin's source `vec` getter (Smart Connections 4.7.2, `main.js:5595-5597`, 
   - `L9: outdated entries (empty key, a moved note's old path, a non-note file) are left out → success with the valid matches` — empty key, `Old/Moved.md#H`, `Old/Moved.md` (not in the vault) and `Board.canvas` (in the vault, not Markdown) are absent; one spawn.
   - L1–L7 and P1–P5, A1–A3 unchanged and passing (not-installed, not-ready, not-Markdown outcomes unchanged).
 - `smart_connections_similar/_template.test.ts`, `BI-0195: outdated index entries are left out`
-  - an empty-keyed entry is left out, every returned path is non-empty and ends in `.md`;
+  - entries whose key names no path (`""`, `#`, `#H`, the shared `EMPTY_PATH_KEYS` rows in `_smart-connections-fixtures.ts`) are left out, every returned path is non-empty and ends in `.md`;
   - whole-note and block entries of a moved or deleted note are left out, `count` counts kept matches;
   - with four stale entries ahead of the 150-candidate tied fixture, page(100) equals the page for the other 96 candidates the plugin returned, and every page(N) for N in 1..99 is its leading slice;
   - `total: true` counts only the kept matches, at limit 3 and 100.
 - `smart_connections_query/_template.stale-entry.test.ts`
-  - an empty-keyed entry is left out, no returned path is empty;
+  - the same shared `EMPTY_PATH_KEYS` rows are left out, no returned path is empty;
   - a non-empty path naming no vault note (`Old/Moved.md#H`) comes back verbatim (pins the BI-0074 Q2 pass-through; the stub `app` has no `getAbstractFileByPath` at all);
   - leading-slice property with the empty-keyed entry in the fixture;
   - `total: true` counts only the kept matches, at limit 2 and 100.
@@ -95,6 +95,10 @@ Ran `codegraph sync`, then `codegraph_explore` on `JS_TEMPLATE` (both tools), `e
 - L6's simulated vault gained `note("Other.md")`, its only candidate's note: the lifecycle form of the approved "simulated vault knows every candidate note path" edit.
 - Leading-slice rows compare the stale-fixture page with the page for the clean candidates the plugin returned (`clean.slice(0, 96)` / `clean.slice(0, 99)`), not with the page for the whole clean fixture: the plugin cuts at `MAX_LIMIT` candidates inside a tied group, so stale entries take candidate slots. This is the documented "a call can return fewer than `limit` matches" behaviour, now also for dropped outdated entries.
 - `docs/tools/smart_connections_similar.md` and `docs/tools/smart_connections_query.md` were not edited in this step; the assessment allows the docs-as-code pass to make them (see Follow-ups).
+
+## Review fixes (PR #156)
+
+The code-quality review of PR #156 raised three points; two are fixed here. The empty-path rows both template suites run now live once in `_smart-connections-fixtures.ts` (`EMPTY_PATH_KEYS` / `EMPTY_PATH_KEPT`, refactor-decisions item 63), and they add the keys `#` and `#H`, which also map to `path: ""`. With query's filter swapped for a key-based one (`.filter(m=>m.key)` before the map), the query row fails, so the filter on the mapped path is now pinned. Stage 5's guard drops the redundant `!v||`: `!(Array.isArray(v)||ArrayBuffer.isView(v))` gives the same result for every value. The third point, folding the lifecycle test's `indexed()` and `listed()` into one entry builder, rewrites the body of `indexed()`, which predates this BI, beyond the Q2 approval; it waits for the owner.
 
 ## Follow-ups
 

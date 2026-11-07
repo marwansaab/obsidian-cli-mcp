@@ -3,7 +3,15 @@ import { describe, expect, it } from "vitest";
 
 import { JS_TEMPLATE } from "./_template.js";
 import { runEvalTemplate } from "../_eval-template-fixtures.js";
-import { keyOf, tiedFixture, type Match, type MatchEnvelope, type ScoredKey } from "../_smart-connections-fixtures.js";
+import {
+  EMPTY_PATH_KEPT,
+  EMPTY_PATH_KEYS,
+  keyOf,
+  tiedFixture,
+  type Match,
+  type MatchEnvelope,
+  type ScoredKey,
+} from "../_smart-connections-fixtures.js";
 
 // The stub `app` has no `getAbstractFileByPath`: the query template must not look paths up in the vault.
 async function runTemplate(
@@ -32,14 +40,9 @@ async function page(fixture: ScoredKey[], limit: number): Promise<Match[]> {
 }
 
 describe("smart_connections_query template — BI-0195: an empty-keyed index entry is left out", () => {
-  it("an empty-keyed entry among valid ones is left out, and no returned path is empty", async () => {
-    const fixture: ScoredKey[] = [
-      { key: "A.md", score: 0.7 },
-      { key: "", score: 0.9 },
-      { key: "B.md#h", score: 0.6 },
-    ];
-    const matches = await page(fixture, 100);
-    expect(matches.map(keyOf)).toEqual(["A.md", "B.md#h"]);
+  it("entries whose key names no path ('', '#', '#H') among valid ones are left out, and no returned path is empty", async () => {
+    const matches = await page(EMPTY_PATH_KEYS, 100);
+    expect(matches.map(keyOf)).toEqual(EMPTY_PATH_KEPT);
     for (const m of matches) expect(m.path).not.toBe("");
   });
 
