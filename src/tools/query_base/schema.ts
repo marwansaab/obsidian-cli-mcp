@@ -56,9 +56,17 @@ export const queryBaseInputSchema = z
     [
       "Query a named view from an Obsidian Bases (.base) file and return its matched rows.",
       "",
-      "Response shape: { columns: string[], rows: object[], truncated: boolean, total_rows?: number }.",
+      "Response shape: { columns: string[], rows: object[], truncated: boolean, total_rows?: number, group_by?: { property, direction } }.",
       "",
-      'Empty-view columns: When a view matches zero rows, `columns` carries only `["path"]` —',
+      "Grouped views: Obsidian's base:query ignores a view's groupBy, so for a view grouped by a property the",
+      "wrapper reads each row's group value from Obsidian and returns the rows in Obsidian's group order (rows keep",
+      "their view order within a group, and the group of rows whose value is missing or null comes last). Each row then carries a",
+      "reserved `group` key after `path` holding its group value as a string, or null for that last group, and",
+      "`group_by` names the grouping. A view column also named `group` moves to `group_view`. A grouping the wrapper",
+      "cannot match (a custom group order, a formula, a file property other than folder, ext, tags, ctime or mtime) fails",
+      "with GROUPING_UNSUPPORTED. An ungrouped view's response has no `group_by` and no `group`.",
+      "",
+      'Empty-view columns: When a view matches zero rows, `columns` carries only `["path"]` (and `"group"` for a grouped view) —',
       "the wrapper has no signal for view-declared column names absent row data, and does NOT parse the",
       "`.base` YAML client-side to enumerate them. Agents writing parsing code",
       "MUST handle the zero-row case without assuming the full column set.",
@@ -82,6 +90,15 @@ export const queryBaseInputSchema = z
 
 export const queryBaseRowSchema = z.record(z.string(), z.unknown());
 
+export const queryBaseGroupBySchema = z
+  .strictObject({
+    property: z.string().min(1).describe("The property the view groups by, as the view declares it."),
+    direction: z.enum(["ASC", "DESC"]).describe("The view's group order."),
+  })
+  .describe(
+    "Present only for a view grouped by a property: rows then come in Obsidian's group order, and each row's `group` holds its group value as a string (`null` for the group of rows without a value).",
+  );
+
 export const queryBaseOutputSchema = z
   .strictObject({
     columns: z.array(z.string().min(1)),
@@ -92,6 +109,7 @@ export const queryBaseOutputSchema = z
       .int()
       .min(RESPONSE_ROW_CAP + 1)
       .optional(),
+    group_by: queryBaseGroupBySchema.optional(),
   })
   .refine(
     (o) => (o.truncated === true) === (o.total_rows !== undefined),
@@ -100,10 +118,41 @@ export const queryBaseOutputSchema = z
 
 export const queryBaseWireSchema = z.array(queryBaseRowSchema);
 
+// BI-0207: one row's group value as the group-value eval templates report it (see _template.ts for the forms).
+const groupValueObjectSchema = z.union([
+  z.strictObject({ s: z.string() }),
+  z.strictObject({ n: z.number() }),
+  z.strictObject({ b: z.boolean() }),
+  z.strictObject({ d: z.number(), t: z.boolean(), s: z.string(), o: z.number() }),
+  z.strictObject({ l: z.string(), y: z.string().nullable(), r: z.string().nullable() }),
+  z.strictObject({
+    get a() {
+      return z.array(groupListElementSchema);
+    },
+  }),
+  z.strictObject({ u: z.string() }),
+]);
+export const queryBaseGroupValueSchema = groupValueObjectSchema.nullable();
+const groupListElementSchema = z.strictObject({
+  get v(): typeof queryBaseGroupValueSchema {
+    return queryBaseGroupValueSchema;
+  },
+  w: z.union([z.string(), z.number(), z.boolean(), z.null()]).optional(),
+});
+
+/** The group-value eval's answer: the Obsidian collator's locale and one value per requested path, in order. */
+export const queryBaseGroupValuesSchema = z.strictObject({
+  locale: z.string().min(1),
+  values: z.array(queryBaseGroupValueSchema),
+});
+
 export type QueryBaseInput = z.infer<typeof queryBaseInputSchema>;
 export type QueryBaseOutput = z.infer<typeof queryBaseOutputSchema>;
 export type QueryBaseRow = z.infer<typeof queryBaseRowSchema>;
 export type QueryBaseWire = z.infer<typeof queryBaseWireSchema>;
+export type QueryBaseGroupBy = z.infer<typeof queryBaseGroupBySchema>;
+export type QueryBaseGroupValue = z.infer<typeof queryBaseGroupValueSchema>;
+export type QueryBaseGroupListElement = z.infer<typeof groupListElementSchema>;
 
 export const QUERY_BASE_RESPONSE_ROW_CAP = RESPONSE_ROW_CAP;
 export const QUERY_BASE_BASE_PATH_MAX = BASE_PATH_MAX;

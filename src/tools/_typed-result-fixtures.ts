@@ -283,7 +283,7 @@ export const TYPED_RESULT_FIXTURES: readonly TypedResultFixture[] = [
       createQueryBaseTool({
         ...cli(out(JSON.stringify([{ path: "x.md", status: "open" }]))),
         vaultRegistry: registryAt(resolve("/vault")),
-        fs: { stat: async () => ({ size: 100 }), realpath: async (p: string) => p },
+        fs: { stat: async () => ({ size: 100 }), realpath: async (p: string) => p, readFile: async () => "views:\n  - type: table\n    name: Open\n" },
       }),
     args: { base_path: "Indexes/Active.base", view_name: "Open", vault: "Demo" },
   },

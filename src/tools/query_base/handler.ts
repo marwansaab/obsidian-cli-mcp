@@ -1,10 +1,20 @@
-// Original — no upstream. query_base handler — wraps the native `obsidian base:query` subcommand (R1) returning a structured `{columns, rows, truncated, total_rows?}` envelope; staged pipeline: vault root resolve → Layer-2 canonical-path check → fs.stat pre-flight (BASE_NOT_FOUND / BASE_MALFORMED/empty) → invokeCli → stderr/stdout error classification (R4) → JSON.parse → wire envelope safeParse → row post-process (reserved `path` injection + collision rename to `path_view` + columns vector synthesis) → 1000-row cap with `truncated` / `total_rows` signal (FR-013) → output schema parse. The invalid-yaml classifier pattern and the upstream-report composition are shared with views_base (spec 081, `_base-malformed.ts`). Zero new top-level error codes; new states surface via `details.code` sub-discrimination per ADR-015 (Principle IV streak: sixteenth tool).
+// Original — no upstream. query_base handler — wraps the native `obsidian base:query` subcommand (R1) returning a structured `{columns, rows, truncated, total_rows?}` envelope; staged pipeline: vault root resolve → Layer-2 canonical-path check → fs.stat pre-flight (BASE_NOT_FOUND / BASE_MALFORMED/empty) → invokeCli → stderr/stdout error classification (R4) → JSON.parse → wire envelope safeParse → view grouping (BI-0207: read the `.base` and find the view's `groupBy` in TypeScript; an ungrouped view continues unchanged with no eval, a grouped view gets each row's group value from read-only eval batches and is reordered into Obsidian's group order with a reserved `group` key and a top-level `group_by`) → row post-process (reserved `path` injection + collision rename to `path_view` + columns vector synthesis) → 1000-row cap with `truncated` / `total_rows` signal (FR-013) → output schema parse. The invalid-yaml classifier pattern and the upstream-report composition are shared with views_base (spec 081, `_base-malformed.ts`). Zero new top-level error codes; new states surface via `details.code` sub-discrimination per ADR-015 (Principle IV streak: sixteenth tool).
 import * as nodeFs from "node:fs/promises";
 
+import { findViewGrouping } from "./group-by.js";
+import {
+  groupingUnsupported,
+  groupRows,
+  groupSource,
+  readGroupValues,
+  valueText,
+  type GroupSource,
+} from "./groups.js";
 import {
   queryBaseOutputSchema,
   queryBaseWireSchema,
   QUERY_BASE_RESPONSE_ROW_CAP,
+  type QueryBaseGroupBy,
   type QueryBaseInput,
   type QueryBaseOutput,
   type QueryBaseRow,
@@ -32,6 +42,8 @@ export const QUERY_BASE_SUPPORTED = ["base"] as const satisfies SupportDeclarati
 export interface ExecuteFs {
   stat: (p: string) => Promise<{ size: number }>;
   realpath: (p: string) => Promise<string>;
+  /** Reads the `.base` text (UTF-8) to find the view's grouping (BI-0207). */
+  readFile: (p: string) => Promise<string>;
 }
 
 const DEFAULT_FS: ExecuteFs = {
@@ -40,6 +52,7 @@ const DEFAULT_FS: ExecuteFs = {
     return { size: s.size };
   },
   realpath: (p) => nodeFs.realpath(p),
+  readFile: (p) => nodeFs.readFile(p, "utf8"),
 };
 
 export interface FocusedVaultResponse {
@@ -192,6 +205,77 @@ function classifyAndThrow(
   });
 }
 
+/** A failed read of the `.base`: ENOENT is BASE_NOT_FOUND, anything else is rethrown as raised. */
+function baseReadError(err: unknown, input: QueryBaseInput): unknown {
+  if ((err as NodeJS.ErrnoException)?.code === "ENOENT") {
+    return new UpstreamError({
+      code: "CLI_REPORTED_ERROR",
+      cause: err,
+      details: { code: "BASE_NOT_FOUND", base_path: input.base_path },
+      message: "query_base: base file not found at the supplied vault-relative path",
+    });
+  }
+  return err;
+}
+
+/**
+ * BI-0207: the named view's grouping, from the `.base` text. A grouping this server cannot mirror (a custom group
+ * order, a `groupBy` the scan cannot read, an unsupported property) fails the call; it never reads as ungrouped.
+ */
+async function readViewGrouping(
+  fs: ExecuteFs,
+  resolvedBasePath: string,
+  input: QueryBaseInput,
+): Promise<{ groupBy: QueryBaseGroupBy; source: GroupSource } | null> {
+  let text: string;
+  try {
+    text = await fs.readFile(resolvedBasePath);
+  } catch (err) {
+    throw baseReadError(err, input);
+  }
+  const grouping = findViewGrouping(text, input.view_name);
+  if (grouping.kind === "none") return null;
+  if (grouping.kind === "unreadable") {
+    throw groupingUnsupported(
+      "unreadable-group-by",
+      { base_path: input.base_path, view_name: input.view_name, detail: grouping.detail },
+      `cannot read the grouping of view "${input.view_name}" (${grouping.detail}); query_base reads the block-style YAML Obsidian writes`,
+    );
+  }
+  if (grouping.customOrder) {
+    throw groupingUnsupported(
+      "custom-group-order",
+      { base_path: input.base_path, view_name: input.view_name },
+      `view "${input.view_name}" sets a custom group order (groupOrder), which query_base does not support`,
+    );
+  }
+  const groupBy: QueryBaseGroupBy = { property: grouping.property, direction: grouping.direction };
+  return { groupBy, source: groupSource(grouping.property) };
+}
+
+/** `row` with the reserved `group` key after `path`; a view column named `group` moves to `group_view`. */
+function withGroup(row: QueryBaseRow, group: string | null): QueryBaseRow {
+  const out: QueryBaseRow = {};
+  for (const [k, v] of Object.entries(row)) {
+    if (k === "group") {
+      out["group_view"] = v;
+    } else {
+      out[k] = v;
+    }
+    if (k === "path") out["group"] = group;
+  }
+  return out;
+}
+
+function withGroupColumn(columns: string[]): string[] {
+  const out: string[] = [];
+  for (const c of columns) {
+    out.push(c === "group" ? "group_view" : c);
+    if (c === "path") out.push("group");
+  }
+  return out;
+}
+
 interface RowPostProcessResult {
   rows: QueryBaseRow[];
   columns: string[];
@@ -326,15 +410,7 @@ export async function executeQueryBase(
   try {
     stats = await fs.stat(resolvedBasePath);
   } catch (err) {
-    if ((err as NodeJS.ErrnoException)?.code === "ENOENT") {
-      throw new UpstreamError({
-        code: "CLI_REPORTED_ERROR",
-        cause: err,
-        details: { code: "BASE_NOT_FOUND", base_path: input.base_path },
-        message: "query_base: base file not found at the supplied vault-relative path",
-      });
-    }
-    throw err;
+    throw baseReadError(err, input);
   }
   if (stats.size === 0) {
     throw new UpstreamError({
@@ -439,6 +515,12 @@ export async function executeQueryBase(
   }
   const upstreamRows: QueryBaseWire = wireValidated.data;
 
+  // === Stage 5b — the view's grouping (BI-0207). Upstream's base:query ignores `groupBy`, so for a grouped
+  // view the wrapper reads each row's group value from Obsidian and applies Obsidian's group order itself.
+  // An ungrouped view goes on to Stage 6 exactly as before, with no eval call.
+  const grouped = await readViewGrouping(fs, resolvedBasePath, input);
+  if (grouped !== null) return groupedResult(upstreamRows, grouped, input, deps);
+
   // === Stage 6 — row post-process: path reservation + columns vector ===
   // Determinism (FR-003 / SC-003): the wrapper preserves upstream's emission order
   // verbatim. Per data-model.md the view's declared sort is trusted from upstream;
@@ -464,5 +546,38 @@ export async function executeQueryBase(
     rows: rowsOut,
     truncated,
     ...(truncated ? { total_rows: totalRowsBeforeCap } : {}),
+  });
+}
+
+/**
+ * A grouped view's result (BI-0207): every upstream row (before the cap) gets its group value from Obsidian, the
+ * rows are reordered into Obsidian's group order (upstream's order within a group), then capped; each row
+ * carries the reserved `group` key and the result names the grouping in `group_by`.
+ */
+async function groupedResult(
+  upstreamRows: QueryBaseWire,
+  grouped: { groupBy: QueryBaseGroupBy; source: GroupSource },
+  input: QueryBaseInput,
+  deps: ExecuteDeps,
+): Promise<QueryBaseOutput> {
+  const { rows, columns } = postProcessRows(upstreamRows, null);
+  let ordered: Array<{ row: QueryBaseRow; group: string | null }> = [];
+  if (rows.length > 0) {
+    const paths = rows.map((r) => r["path"] as string);
+    const { locale, values } = await readGroupValues(grouped.source, paths, input.vault, deps);
+    for (const group of groupRows(values, grouped.groupBy.direction, locale)) {
+      const text = group.key === null ? null : valueText(group.key);
+      for (const i of group.rows) ordered.push({ row: rows[i]!, group: text });
+    }
+  }
+  const total = ordered.length;
+  const truncated = total > QUERY_BASE_RESPONSE_ROW_CAP;
+  ordered = ordered.slice(0, QUERY_BASE_RESPONSE_ROW_CAP);
+  return queryBaseOutputSchema.parse({
+    columns: withGroupColumn(columns),
+    rows: ordered.map(({ row, group }) => withGroup(row, group)),
+    truncated,
+    ...(truncated ? { total_rows: total } : {}),
+    group_by: grouped.groupBy,
   });
 }

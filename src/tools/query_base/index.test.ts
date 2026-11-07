@@ -33,6 +33,7 @@ function stubFs() {
   return {
     stat: async () => ({ size: 100 }),
     realpath: async (p: string) => p,
+    readFile: async () => "views:\n  - type: table\n    name: Open\n",
   };
 }
 

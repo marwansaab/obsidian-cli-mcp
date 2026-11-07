@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedFromBranch": "fix/bi-0177",
+  "generatedFromBranch": "fix/bi-0207",
   "generatedAt": "2026-11-07",
   "tools": [
     {
@@ -182,10 +182,10 @@
     {
       "name": "query_base",
       "descriptionFingerprint": "fd7f5876215a7633636aba890f842afa3769763b3b71833a17c1e38f4a78b55b",
-      "schemaFingerprint": "3074b638fe7ccf77302ae09dc19d3a4798c17238f52a769eff696bdfd9a8ee90",
+      "schemaFingerprint": "3eb72d76a49892b00459bbb960522d9728f6ee08206efedeb7e62397f1c08df5",
       "titleFingerprint": "4c46e0348e2e3a707da0bc8975e96e69ecfb55fea144227fb59d0fca1b8dea43",
       "annotationsFingerprint": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6",
-      "outputSchemaFingerprint": "ed71cbced991bfff791bf4c0d43c15631c8a92ab82d602f733f3a4d74c7e9f1d"
+      "outputSchemaFingerprint": "27e8bb1a5e9028b8823cefb611fd7059fe99c372c24dd80b5383ed26c8949dda"
     },
     {
       "name": "read",
