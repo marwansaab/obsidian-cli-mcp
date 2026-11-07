@@ -28,7 +28,7 @@ function escape(s: string): string {
 }
 
 function sectionHeading(version: string): RegExp {
-  return new RegExp(`^## \\[${escape(version)}\\] - \\d{4}-\\d{2}-\\d{2}$`, "m");
+  return new RegExp(`^## \\[${escape(version)}\\] - \\d{4}-\\d{2}-\\d{2}\\r?$`, "m");
 }
 
 function compare(a: string, b: string): number {
