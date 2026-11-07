@@ -59,6 +59,7 @@ extends it.
     and missing-note check (PR #105), its UTF-8 byte limit (PR #106),
     line endings and the placement check in `patch_heading` and
     `patch_block` (PR #119), how they resolve a note name (PR #122),
+    where a `patch_heading` append lands (PR #157),
     `set_property`, `delete`, `rename`, `move`.
   - [capabilities/list-and-inventory.md](capabilities/list-and-inventory.md) —
     `files`, `paths`, `outline`, `properties`, `vaults`.
@@ -317,3 +318,9 @@ applies. Records written since:
   `similar` keeps only Markdown notes in the vault, `query` drops only empty
   paths by owner ruling; catching the plugin's message, a new code, one
   filter for both and a shared helper were rejected (PR #156, BI-0195).
+- [decisions/ADR-079-patch-heading-append-lands-after-the-last-non-blank-line-for-every-block-type.md](decisions/ADR-079-patch-heading-append-lands-after-the-last-non-blank-line-for-every-block-type.md)
+  — `patch_heading` append inserts after the reach's last non-blank line and
+  keeps the closing blank lines before the next heading, with one rule for
+  every block type and no tool-surface change; list-or-table detection, an
+  added paragraph break and a description clause were rejected (PR #157,
+  BI-0206).
