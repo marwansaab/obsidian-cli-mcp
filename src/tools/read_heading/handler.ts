@@ -8,7 +8,7 @@ import {
 } from "./schema.js";
 import { invokeEval, type SpawnLike, type CallScope } from "../../cli-adapter/cli-adapter.js";
 import { UpstreamError } from "../../errors.js";
-import { decodeEvalEnvelope } from "../_active-file.js";
+import { decodeEvalEnvelope, noActiveFileMessage } from "../_active-file.js";
 import { composeEvalCode } from "../_shared.js";
 
 import type { Logger } from "../../logger.js";
@@ -47,7 +47,7 @@ export async function executeReadHeading(
       code: "ERR_NO_ACTIVE_FILE",
       cause: null,
       details: { stage: "envelope-error", detail },
-      message: "read_heading: no note focused; switch to specific mode or focus a note.",
+      message: noActiveFileMessage("read_heading"),
     });
   }
   throw new UpstreamError({

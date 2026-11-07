@@ -426,6 +426,23 @@ describe("066-file-scope US2 — active_note scope", () => {
     expect(state.writes.length).toBe(0);
   });
 
+  it("no note open → advice names path / file (and vault), never target_mode (BI-0193)", async () => {
+    const { fs } = inMemoryFs([], VAULT_ROOT);
+    const { spawnFn } = makeQueuedSpawn([ACTIVE_EVAL(null)]);
+    const err = (await executeFindAndReplace(
+      { pattern: "STATUS", replacement: "STATE", mode: "literal", active_note: true, case_sensitive: true, include_code_blocks: false, include_html_comments: false, commit: false },
+      baseDeps({ fs, spawnFn }),
+    ).catch((e) => e)) as UpstreamError;
+    expect(err).toBeInstanceOf(UpstreamError);
+    expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
+    expect(err.message).toBe(
+      "No active file in Obsidian. Open a note in the editor, or call find_and_replace with path or file (and vault) instead of active_note.",
+    );
+    expect(err.message).not.toContain("target_mode");
+    expect(err.cause).toBeNull();
+    expect(err.details).toEqual({});
+  });
+
   it("ineligible active file (non-.md) → INVALID_NOTE/not-eligible (T0 P2 sub-probe b)", async () => {
     // Per the T0 P2 decision tree: if Obsidian reports a non-null path for a
     // non-markdown active view, the handler eligibility check rejects it. (If

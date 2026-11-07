@@ -24,6 +24,8 @@ import {
   resolveActiveFocusedFile,
   requireFocusedVaultName,
   resolveVaultRootOrRemap,
+  throwIfNoActiveFile,
+  type ActiveFileLocator,
 } from "../_active-file.js";
 import { NON_INTERACTIVE_CALL } from "../_confirm.js";
 import { stdoutDetails } from "../_eval-parse.js";
@@ -440,6 +442,10 @@ async function assertExists(vaultRoot: string, relPath: string, fs: ExecuteFs): 
   await realpathOrThrow(abs, fs, (err) => invalidNoteNotFound(relPath, err));
 }
 
+/** BI-0193: find_and_replace's own advice for `active_note: true` with no note open; names only its own inputs. */
+const NO_ACTIVE_FILE_MESSAGE =
+  "No active file in Obsidian. Open a note in the editor, or call find_and_replace with path or file (and vault) instead of active_note.";
+
 /**
  * Single-note scope front end (066-file-scope). Three forks each resolve one
  * `{ vaultRoot, relPath }`, then share the canonical-escape guard + eligibility +
@@ -461,7 +467,14 @@ async function resolveSingleNoteScope(
 
   if (input.active_note === true) {
     // US2 — the currently-open note.
-    const active = await resolveActiveFocusedFile(deps, "find_and_replace");
+    let active: ActiveFileLocator;
+    try {
+      active = await resolveActiveFocusedFile(deps, "find_and_replace");
+    } catch (err) {
+      // BI-0193: the resolver's advice names target_mode, which this tool does not take.
+      throwIfNoActiveFile(err, NO_ACTIVE_FILE_MESSAGE);
+      throw err;
+    }
     vaultRoot = await assertCanonicalPath(active.vaultRoot, ".", guard);
     relPath = toVaultRelative(active.relPath);
   } else {

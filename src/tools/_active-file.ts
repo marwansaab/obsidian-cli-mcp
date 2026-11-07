@@ -140,8 +140,12 @@ export function parseFocusedVault(result: EvalAnswer): FocusedVaultParse {
   return { ok: false, stage: "envelope-parse", cause: null };
 }
 
-/** The cohort-uniform ERR_NO_ACTIVE_FILE message for the file cohort. */
-function noActiveFileMessage(toolName: string): string {
+/**
+ * The cohort-uniform ERR_NO_ACTIVE_FILE message: names specific mode, a vault and a note. Only a
+ * tool whose input has `target_mode`, `vault`, `file` and `path` may use it (BI-0193); a tool
+ * without them rethrows through {@link throwIfNoActiveFile} with advice naming its own inputs.
+ */
+export function noActiveFileMessage(toolName: string): string {
   return `No active file in Obsidian. Open a note in the editor, or call ${toolName} with target_mode=specific + vault + file/path.`;
 }
 
