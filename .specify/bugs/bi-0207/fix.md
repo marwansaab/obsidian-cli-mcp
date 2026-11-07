@@ -151,34 +151,41 @@ These rules come from Obsidian's own code: `BasesQueryResult.groupedData`, the g
 
 ## Code review fixes (PR #158)
 
-The thermo-nuclear code-quality review of PR #158 raised eight findings and one owner call. These fixes change no behaviour. The FR-018 fingerprint gate passed without `baseline:write`, and no existing assertion was edited.
+The thermo-nuclear code-quality review of PR #158 raised eight findings and one owner call. These fixes change no behaviour, and the FR-018 fingerprint gate passed without `baseline:write`. The first commit (168f4da) edited no test assertion. The second commit applies the owner rulings on Q1–Q4 (2026-11-07). Its only test edits are to this fix's own new test files (`group-by.test.ts`, and `groups.test.ts`, which was split); neither exists on `main`.
 
 - **F1 (HIGH), shared batch planner.** `planGroupBatches` and `GROUP_VALUES_CODE_MAX` were a copy of context_search's `planReadBack` and `READ_BACK_CODE_MAX`. The shared vitest-free leaf `src/tools/_eval-batches.ts` now holds `EVAL_BATCH_CODE_MAX = 2900` and `planEvalBatches(items, entry, code)`, tested in `_eval-batches.test.ts`. Both tools call it. `READ_BACK_CODE_MAX` and `GROUP_VALUES_CODE_MAX` are aliases of the shared constant, so their tests are unchanged.
 - **F2 (HIGH), one output tail.** `postProcessRows` and `groupedResult` are gone. `viewColumns(firstRow)` builds the columns vector and `reserveRow(row)` reserves `path`. `inGroupOrder` orders a grouped view's reserved rows and attaches `group`. `executeQueryBase` then has one cap, one `truncated` / `total_rows` and one output parse. The ungrouped path still reserves only the rows under the cap. The grouped path still reserves every row before ordering. Both take `columns` from the first upstream row.
 - **F3, no casts on group values.** `assertMirrorable` became `mirrored(value, path): Value`, which returns a typed tree whose list elements are `ListElement { v: Value; w? }`. The `as Value` casts and the `values as Value[]` cast are gone.
-- **F4 (in part), locale handling.**
+- **F4, locale handling.**
   - The `"und"` sentinel is gone. `readGroupValues` with no paths now throws `INTERNAL_ERROR` (`stage: "group-values"`). No tool path reaches this: `inGroupOrder` makes no eval for an empty view.
   - A locale mismatch between batches has its own error, with `details: {stage: "envelope-parse", locales}` and its own message. Before, it reused the count-mismatch error.
-  - Two new `groups.test.ts` cases pin both.
-  - Moving the ICU check out of `groupRows` is left for the owner: it moves an existing test.
-- **F5, one set of string patterns.** `_template.ts` exports `LINK_TEXT_PATTERN`, `DATE_TIME_PATTERN` and `DATE_ONLY_PATTERN`. `NOTE_GROUP_TEMPLATE` interpolates them by `.source`, and `groups.ts`' re-parse guard tests the same patterns.
+  - Two new cases pin both (now in `group-values.test.ts`).
+  - Owner ruling Q1 = A: the ICU-support check moved from `groupRows` to `readGroupValues`, the decode boundary (Principle III). `groupRows` trusts its locale.
+    - The check runs after every batch is decoded and every value mirrored, so the error precedence is unchanged: batch failures first, then unmirrorable values, then the locale.
+    - The "groupRows locale" case became a `readGroupValues` case that answers the same locale, with the same expected details.
+- **F5, one set of string patterns.** `_template.ts` exports `LINK_TEXT_PATTERN`, `DATE_TIME_PATTERN` and `DATE_ONLY_PATTERN`. `NOTE_GROUP_TEMPLATE` interpolates them by `.source`, and the re-parse guard in `group-order.ts` tests the same patterns.
   - The date patterns are byte-identical to the old template text.
   - The link check `startsWith('[[')&&endsWith(']]')` became `/^\[\[[\s\S]*\]\]$/`. It matches the same strings, including the overlap cases `[[]`, `[]]` and `[[]]`. The note template is 1,869 characters, down from 1,878.
-- **F7 (in part).** The handler's `{groupBy, source}` shape is the named `Grouping`. The `customOrder` union case is left for the owner: it edits `group-by.test.ts` expectations.
+- **F6, `groups.ts` split.** Owner ruling Q2 = B (Principles I and II).
+  - `group-order.ts` is the pure mirror: `Value`, `ListElement`, `valueText`, `looseEquals`, `groupRows`, and `groupingUnsupported`, which the mirror's own guards throw.
+  - `group-values.ts` is the source mapping and eval I/O: `groupSource`, `planGroupBatches`, `readGroupValues` and `mirrored`. It imports from `group-order.ts`, never the reverse.
+  - `groups.test.ts` became `group-order.test.ts` and `group-values.test.ts`, with every case moved verbatim except the Q1 case.
+- **F7.** The handler's `{groupBy, source}` shape is the named `Grouping`. Owner ruling Q3 = A: `findViewGrouping` reports a list `groupOrder` as `{ kind: "custom-order" }`, and the `grouped` case lost its `customOrder` flag. `readViewGrouping` still rejects it with `GROUPING_UNSUPPORTED` / `custom-group-order`, before the property is mapped, as before. `group-by.test.ts` got the five expectation edits.
 - **F8.** `baseReadError` uses `getErrno` (`_fs-errors.ts`).
-
-Left for the owner, because they need edits to existing tests (`.memory` rule on test edits):
-
-- F4: where the ICU check lives.
-- F6: splitting `groups.ts`.
-- F7: the `custom-order` union case.
-- The optional single `readFile` in place of the `stat` pre-flight.
+- **Single read, not taken.** Owner ruling Q4 = B: the `stat` pre-flight stays, and the post-CLI `readFile` stays alongside it (see Follow-ups).
 
 No live re-probe: the only template change is the link-pattern swap, and the matching-strings check above covers it.
 
 ## CodeGraph structural verification
 
-Checked with `codegraph sync` + `codegraph_explore` on `findViewGrouping`, `groupRows`, `readGroupValues`, `groupSource`, `groupedResult`, `readViewGrouping`. Re-checked after the PR #158 review fixes on `planEvalBatches`, `planReadBack`, `planGroupBatches`, `inGroupOrder`, `reserveRow`, `viewColumns` and `mirrored`. `planEvalBatches` is a downward leaf used by context_search and query_base, with no tool→tool edge. `inGroupOrder`, `reserveRow` and `viewColumns` are called only from `executeQueryBase`. `mirrored` is called from `readGroupValues`.
+Checked with `codegraph sync` + `codegraph_explore` on `findViewGrouping`, `groupRows`, `readGroupValues`, `groupSource`, `groupedResult`, `readViewGrouping`. Re-checked after the PR #158 review fixes on `planEvalBatches`, `planReadBack`, `planGroupBatches`, `inGroupOrder`, `reserveRow`, `viewColumns` and `mirrored`.
+
+- `planEvalBatches` is a downward leaf used by context_search and query_base, with no tool→tool edge.
+- `inGroupOrder`, `reserveRow` and `viewColumns` are called only from `executeQueryBase`.
+- `mirrored` is called from `readGroupValues`.
+- After the split, the import direction is handler → `group-values.ts` → `group-order.ts` → `_template.ts`, plus handler → `group-order.ts`.
+
+Items 3 and 4 below describe the code as first landed; `groups.ts`'s role is now split between the two modules.
 
 1. **No new top-level error code or error class.** Every new failure is an `UpstreamError` with `CLI_REPORTED_ERROR` (ADR-015 sub-discriminators); `src/errors.ts` is unchanged.
 2. **No boot-time DI factory imports.** No production file in `src/tools/query_base/` imports `createLogger()` or `createQueue()`. `readGroupValues` receives the injected deps (`InvokeCliDeps`) from `executeQueryBase`.
@@ -193,4 +200,8 @@ Checked with `codegraph sync` + `codegraph_explore` on `findViewGrouping`, `grou
   - Update `.docs-as-code/` for the `.base` read and the eval batches.
 - **Latency on large grouped views.** A 1,000-row grouped view with long paths costs roughly 80 evals. If that matters, shrinking the note template or sharing a long common folder prefix across a batch would raise the paths per eval. It could also be a dedicated performance BI.
 - **Upstream drift.** If Obsidian's `base:query` starts emitting groups, or Obsidian changes `groupedData`'s rules, the mirror goes stale. Re-run the live comparison (the 26-view matrix above) on each Obsidian release that touches Bases.
-- **`.memory/refactor-decisions.md` candidates.** `query_base/groups.ts` deliberately uses loose `==` (Obsidian's `PrimitiveValue.looseEquals`) and an O(groups) linear search mirroring `gV`. Neither should be "tidied" without re-running the live comparison.
+- **One `.base` read (PR #158 review, owner ruling Q4 = B: not in this fix).**
+  - The idea: read the `.base` once at Stage 2 in place of the `fs.stat` pre-flight. ENOENT stays `BASE_NOT_FOUND`, empty text is `BASE_MALFORMED` / `empty`, and the text is kept for the grouping scan.
+  - Gains: it drops `ExecuteFs.stat` and closes the gap where a `.base` deleted between `base:query` and the read reports `BASE_NOT_FOUND` after a successful query.
+  - Costs: it changes the order errors surface in (a non-ENOENT read error would come before the CLI call), and it edits existing tests outside the four approved files. It needs its own owner ruling.
+- **`.memory/refactor-decisions.md` candidates.** `query_base/group-order.ts` deliberately uses loose `==` (Obsidian's `PrimitiveValue.looseEquals`) and an O(groups) linear search mirroring `gV`. Neither should be "tidied" without re-running the live comparison.

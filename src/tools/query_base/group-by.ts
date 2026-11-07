@@ -2,7 +2,8 @@
 
 export type ViewGrouping =
   | { kind: "none" }
-  | { kind: "grouped"; property: string; direction: "ASC" | "DESC"; customOrder: boolean }
+  | { kind: "grouped"; property: string; direction: "ASC" | "DESC" }
+  | { kind: "custom-order" }
   | { kind: "unreadable"; detail: string };
 
 interface Line {
@@ -165,7 +166,8 @@ function viewGrouping(lines: Line[], entries: KeyLine[], keyIndent: number): Vie
   }
   // Obsidian keeps the grouping only for a non-empty string property and an exact ASC / DESC.
   if (p.value.length === 0 || (d.value !== "ASC" && d.value !== "DESC")) return { kind: "none" };
-  return { kind: "grouped", property: p.value, direction: d.value, customOrder: hasListGroupOrder(lines, entries, keyIndent) };
+  if (hasListGroupOrder(lines, entries, keyIndent)) return { kind: "custom-order" };
+  return { kind: "grouped", property: p.value, direction: d.value };
 }
 
 /** Whether the view's `groupOrder` is a list (flow `[...]` or block items), which Obsidian treats as a custom group order. */

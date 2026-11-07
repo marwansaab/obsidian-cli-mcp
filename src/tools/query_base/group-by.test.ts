@@ -29,8 +29,8 @@ const BASE = [
 
 describe("findViewGrouping", () => {
   it("reads the named view's block-style groupBy", () => {
-    expect(findViewGrouping(BASE, "Grouped")).toEqual({ kind: "grouped", property: "note.status", direction: "ASC", customOrder: false });
-    expect(findViewGrouping(BASE, "GroupedDesc")).toEqual({ kind: "grouped", property: "note.status", direction: "DESC", customOrder: false });
+    expect(findViewGrouping(BASE, "Grouped")).toEqual({ kind: "grouped", property: "note.status", direction: "ASC" });
+    expect(findViewGrouping(BASE, "GroupedDesc")).toEqual({ kind: "grouped", property: "note.status", direction: "DESC" });
   });
 
   it("does not take another view's groupBy", () => {
@@ -53,7 +53,7 @@ describe("findViewGrouping", () => {
       "- type: table",
       '  name: "Other"',
     ].join("\r\n");
-    expect(findViewGrouping(text, "It's grouped")).toEqual({ kind: "grouped", property: "file.folder", direction: "DESC", customOrder: false });
+    expect(findViewGrouping(text, "It's grouped")).toEqual({ kind: "grouped", property: "file.folder", direction: "DESC" });
     expect(findViewGrouping(text, "Other")).toEqual({ kind: "none" });
   });
 
@@ -80,12 +80,12 @@ describe("findViewGrouping", () => {
     ["a flow list", "    groupOrder: [one, two]\n"],
   ])("flags a custom group order written as %s", (_label, order) => {
     const text = BASE.replace("    order:\n      - file.name\n  - type: table\n    name: GroupedDesc", `${order}    order:\n      - file.name\n  - type: table\n    name: GroupedDesc`);
-    expect(findViewGrouping(text, "Grouped")).toMatchObject({ kind: "grouped", customOrder: true });
+    expect(findViewGrouping(text, "Grouped")).toEqual({ kind: "custom-order" });
   });
 
   it("ignores a groupOrder that is not a list, as Obsidian does", () => {
     const text = BASE.replace("      direction: ASC\n", "      direction: ASC\n    groupOrder: none\n");
-    expect(findViewGrouping(text, "Grouped")).toMatchObject({ kind: "grouped", customOrder: false });
+    expect(findViewGrouping(text, "Grouped")).toMatchObject({ kind: "grouped" });
   });
 
   it.each([

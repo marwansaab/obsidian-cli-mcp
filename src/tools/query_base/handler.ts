@@ -2,14 +2,8 @@
 import * as nodeFs from "node:fs/promises";
 
 import { findViewGrouping } from "./group-by.js";
-import {
-  groupingUnsupported,
-  groupRows,
-  groupSource,
-  readGroupValues,
-  valueText,
-  type GroupSource,
-} from "./groups.js";
+import { groupingUnsupported, groupRows, valueText } from "./group-order.js";
+import { groupSource, readGroupValues, type GroupSource } from "./group-values.js";
 import {
   queryBaseOutputSchema,
   queryBaseWireSchema,
@@ -245,7 +239,7 @@ async function readViewGrouping(fs: ExecuteFs, resolvedBasePath: string, input: 
       `cannot read the grouping of view "${input.view_name}" (${grouping.detail}); query_base reads the block-style YAML Obsidian writes`,
     );
   }
-  if (grouping.customOrder) {
+  if (grouping.kind === "custom-order") {
     throw groupingUnsupported(
       "custom-group-order",
       { base_path: input.base_path, view_name: input.view_name },

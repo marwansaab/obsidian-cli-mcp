@@ -1,6 +1,6 @@
 // Original — no upstream. Frozen read-only eval templates for query_base's grouped views (BI-0207, owner ruling 2026-11-07). The handler sends a batch of row paths, grouped by folder as [folder, [names]] (the context_search read-back pattern), and each template returns, per path in order, the row's group value as Obsidian 1.15's Bases code builds it, typed so the handler can apply Obsidian's grouping and ordering in TypeScript, plus the locale of the collator Obsidian orders groups with.
 //
-// Value forms (mirrors of Obsidian's Value classes; see groups.ts): null (NullValue); {s} string-like (String, URL, Tag);
+// Value forms (mirrors of Obsidian's Value classes; see group-order.ts): null (NullValue); {s} string-like (String, URL, Tag);
 // {n} Number; {b} Boolean; {d, t, s, o} Date (epoch ms, has-time flag, Obsidian's toString, the date-only ms);
 // {l, y, r} Link (target, display or null, resolved file path or null); {a: [{v, w?}]} List, `w` the raw element when
 // it was a primitive or null (Obsidian compares raw elements first and prints them raw); {u} a value the handler
@@ -16,7 +16,7 @@
 // shared decode expression; they must not import any sibling tool module (Principle I).
 //
 // The three string patterns below are the ones NOTE_GROUP_TEMPLATE converts strings with. They are exported so
-// groups.ts tests the same patterns (its guard against a string Obsidian would re-parse), interpolated by `.source`.
+// group-order.ts tests the same patterns (its guard against a string Obsidian would re-parse), interpolated by `.source`.
 import { B64_PAYLOAD_DECODE_EXPR } from "../_shared.js";
 
 /** A link string: "[[" … "]]" (the same strings as `startsWith("[[") && endsWith("]]")`). */
