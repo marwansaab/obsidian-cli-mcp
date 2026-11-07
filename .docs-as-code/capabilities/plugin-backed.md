@@ -176,7 +176,13 @@ the pairs of states that can occur together, where the earlier stage must win;
 and three active-mode cases. Each compares the whole `{code, message, details}`
 the agent receives against literals written in the test, never imported from
 the handler or template (spec 094 research D5). The PR changed no production
-file, schema, description or fingerprint.
+file, schema, description or fingerprint. PR #152 (BI-0193) edited one of
+those literals, by owner ruling: the active-mode no-note message, which had
+said "smart_connections_similar: no note focused; switch to specific mode or
+focus a note." without naming a vault or note, and is now the target-mode
+cohort's sentence from `noActiveFileError`
+([architecture](../architecture.md#error-spine)); its `details` line did not
+change.
 
 The checks were themselves tested once, by hand: nine edits to `_template.ts`
 that swap two adjacent stages or drop one, each reverted

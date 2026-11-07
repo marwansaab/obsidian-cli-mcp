@@ -315,6 +315,25 @@ flowchart LR
   Callers that matched Obsidian's text in `details.stdout` must branch on
   `details.code` instead; the CHANGELOG entry says so.
 
+The third fork, `active_note: true`, resolves the open note through the
+target-mode cohort's `resolveActiveFocusedFile`, whose no-note error advises
+`target_mode=specific`. `find_and_replace` has no `target_mode` and its schema
+is strict, so until PR #152 (BI-0193, TC-00776) following that advice failed
+with `VALIDATION_ERROR`. Since PR #152 the fork catches the resolver's error
+and rethrows it through `throwIfNoActiveFile` with the tool's own advice,
+"Open a note in the editor, or call find_and_replace with path or file (and
+vault) instead of active_note.", which matches the help page's error row; the
+code, `cause` and `details: {}` are unchanged. The fix record explains why
+the wording differs from the assessment's example: "name the note" would have
+read as `set_property`'s `name` input to the cross-tool guard
+([architecture](../architecture.md#error-spine)). `set_property`'s active-mode
+no-note error, which named the retired `write_property`, now comes from the
+cohort builder `noActiveFileError` like the other target-mode tools. Three of
+its `CLI_REPORTED_ERROR` messages (the `file` lookup's missing path line and
+the two focused-file eval parse failures) still start `write_property:`;
+they were left out of BI-0193 by ruling and are a follow-up in
+`.specify/bugs/bi-0193/fix.md`.
+
 ## Heading paths
 
 `patch_heading` finds its section with `walkHeadings`
