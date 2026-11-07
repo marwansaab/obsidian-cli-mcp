@@ -1,4 +1,4 @@
-// Original — no upstream. patch_heading handler tests for notes with mixed line endings (spec 086, contracts/placement-contract.md H1–H12): placement in all three modes, mixed-versus-uniform equivalence, kept terminators, final line break, agent-typed endings, lone CR, and unchanged bytes on uniform notes.
+// Original — no upstream. patch_heading handler tests for notes with mixed line endings (spec 086, contracts/placement-contract.md H1–H12): placement in all three modes, mixed-versus-uniform equivalence, kept terminators, final line break, agent-typed endings, lone CR, and unchanged bytes on uniform notes; and BI-0206's append after a trailing blank line on LF, CRLF and mixed notes.
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { deps, EVAL_OK, fakeFs, fakeRegistry, VAULT_ROOT } from "./_handler-fixtures.js";
@@ -203,6 +203,32 @@ describe("US3 — line endings outside the edit are preserved", () => {
     const out = await patch(mixFmCrlfBodyLf(HEADING_TEMPLATE), "Top#Last", "replace", "a\r\nb");
     expect(out.endsWith("## Last\na\nb\n")).toBe(true);
   });
+
+  // BI-0206: append extends the list that ends the section; the blank line that closed the
+  // section moves below the new line with its own terminator, and the added line takes the
+  // heading line's ending.
+  it.each([
+    [
+      "LF",
+      "# Top\n## Before\n- one\n- two\n\n## After\n",
+      "# Top\n## Before\n- one\n- two\n- three\n\n## After\n",
+    ],
+    [
+      "CRLF",
+      "# Top\r\n## Before\r\n- one\r\n- two\r\n\r\n## After\r\n",
+      "# Top\r\n## Before\r\n- one\r\n- two\r\n- three\r\n\r\n## After\r\n",
+    ],
+    [
+      "CRLF with an LF blank line",
+      "# Top\r\n## Before\r\n- one\r\n- two\r\n\n## After\r\n",
+      "# Top\r\n## Before\r\n- one\r\n- two\r\n- three\r\n\n## After\r\n",
+    ],
+  ])(
+    "BI-0206: append after a trailing blank line extends the list (%s)",
+    async (_name, raw, expected) => {
+      expect(await patch(raw, "Top#Before", "append", "- three")).toBe(expected);
+    },
+  );
 
   it("H12: a last line ending in a lone CR takes the nearest earlier line's ending", async () => {
     const raw = mixFmLfBodyCrlf(HEADING_TEMPLATE)

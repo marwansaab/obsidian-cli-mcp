@@ -45,12 +45,11 @@ describe("US1 happy paths — three placement modes", () => {
     expect(result.mode).toBe("append");
     expect(result.bytes_written).toBeGreaterThan(0);
 
-    // The written content places the new bullet at end-of-reach — immediately before
-    // the next equal-or-higher-rank heading marker. The trailing blank line that
-    // preceded `### Done` in the original note is preserved at its line position
-    // (data-model.md §Body-edit-algorithm — append inserts at `reachEndLineIndex`).
+    // The written content extends the list: the new bullet follows the section's last
+    // content line, and the blank line that preceded `### Done` in the original note
+    // stays between the new bullet and `### Done` (BI-0206).
     const written = fs.writes[0]![1];
-    expect(written).toContain("- Submit timesheet\n\n- File expense report\n### Done");
+    expect(written).toContain("- Submit timesheet\n- File expense report\n\n### Done");
     // Frontmatter unchanged.
     expect(written.startsWith("---\ndate: 2026-05-21\ntags: [daily]\n---\n\n# Daily\n")).toBe(true);
     // Trailing newline preserved.

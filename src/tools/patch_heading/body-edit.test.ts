@@ -8,6 +8,7 @@ import {
   detectTrailingNewline,
 } from "./body-edit.js";
 import { REACH_END_EOF, walkHeadings } from "./heading-walk.js";
+import { lineText, splitNoteLines } from "../_note-lines.js";
 
 function resolve(content: string, segments: string[]) {
   const r = walkHeadings(content, segments);
@@ -63,9 +64,89 @@ describe("applyAppend", () => {
       "a1\n";
     const resolved = resolve(content, ["Top", "A"]);
     expect(resolved.reachEndLineIndex).toBe(REACH_END_EOF);
-    const out = applyAppend(splitLines(content), resolved, "appended");
-    // splitLines produces ["# Top", "## A", "a1", ""]; reach clamps to 4; content lands at index 4.
-    expect(out).toEqual(["# Top", "## A", "a1", "", "appended"]);
+    // The handler's edit array (splitNoteLines) has no phantom empty last element; the reach
+    // clamps to 3 and the content lands after "a1".
+    const out = applyAppend(splitNoteLines(content), resolved, "appended");
+    expect(out).toEqual(["# Top\n", "## A\n", "a1\n", "appended"]);
+  });
+});
+
+// BI-0206: append joins the section's last content line; the blank lines that close the
+// section stay between the new content and the next heading. Fixtures use the handler's edit
+// array (splitNoteLines); results are compared as the finders' line text.
+describe("applyAppend keeps the section's trailing blank lines after the content (BI-0206)", () => {
+  function appendText(note: string, segments: string[], content: string): string[] {
+    return applyAppend(splitNoteLines(note), resolve(note, segments), content).map(lineText);
+  }
+
+  it("extends a list that ends the section, blank line kept before the next heading", () => {
+    const note = "# Top\n## Before\n- one\n- two\n\n## After\n";
+    expect(appendText(note, ["Top", "Before"], "- three")).toEqual([
+      "# Top", "## Before", "- one", "- two", "- three", "", "## After",
+    ]);
+  });
+
+  it("makes an appended table row the table's last row", () => {
+    const note = "# Top\n## T\n| a | b |\n| - | - |\n| 1 | 2 |\n\n## After\n";
+    expect(appendText(note, ["Top", "T"], "| 3 | 4 |")).toEqual([
+      "# Top", "## T", "| a | b |", "| - | - |", "| 1 | 2 |", "| 3 | 4 |", "", "## After",
+    ]);
+  });
+
+  it("keeps one blank line before the next heading after a paragraph", () => {
+    const note = "# Top\n## P\nA paragraph.\n\n## After\n";
+    expect(appendText(note, ["Top", "P"], "More text.")).toEqual([
+      "# Top", "## P", "A paragraph.", "More text.", "", "## After",
+    ]);
+  });
+
+  it("starts a separate block when the content begins with a blank line", () => {
+    const note = "# Top\n## P\nA paragraph.\n\n## After\n";
+    expect(appendText(note, ["Top", "P"], "\nNew paragraph.")).toEqual([
+      "# Top", "## P", "A paragraph.", "", "New paragraph.", "", "## After",
+    ]);
+  });
+
+  it("at end of note with a trailing blank line, keeps the blank line after the content", () => {
+    const note = "# Top\n## A\na1\n\n";
+    expect(appendText(note, ["Top", "A"], "appended")).toEqual([
+      "# Top", "## A", "a1", "appended", "",
+    ]);
+  });
+
+  it("keeps several blank lines, all after the content", () => {
+    const note = "# Top\n## A\n- one\n\n\n\n## B\n";
+    expect(appendText(note, ["Top", "A"], "- two")).toEqual([
+      "# Top", "## A", "- one", "- two", "", "", "", "## B",
+    ]);
+  });
+
+  it("treats a whitespace-only line as blank", () => {
+    const note = "# Top\n## A\n- one\n \t\n## B\n";
+    expect(appendText(note, ["Top", "A"], "- two")).toEqual([
+      "# Top", "## A", "- one", "- two", " \t", "## B",
+    ]);
+  });
+
+  it("on a body of only blank lines, lands right after the heading and keeps the blanks after it", () => {
+    const note = "# Top\n## A\n\n\n## B\n";
+    expect(appendText(note, ["Top", "A"], "new")).toEqual([
+      "# Top", "## A", "new", "", "", "## B",
+    ]);
+  });
+
+  it("with a child subtree, lands after the last child's content, its blank line kept after", () => {
+    const note = "# Top\n## A\na-direct\n\n### Child\n- c1\n\n## B\n";
+    expect(appendText(note, ["Top", "A"], "- c2")).toEqual([
+      "# Top", "## A", "a-direct", "", "### Child", "- c1", "- c2", "", "## B",
+    ]);
+  });
+
+  it("lands multi-line content as a whole before the blank line", () => {
+    const note = "# Top\n## A\n- one\n\n## B\n";
+    expect(appendText(note, ["Top", "A"], "- two\n- three")).toEqual([
+      "# Top", "## A", "- one", "- two", "- three", "", "## B",
+    ]);
   });
 });
 
