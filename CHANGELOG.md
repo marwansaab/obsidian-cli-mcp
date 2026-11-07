@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-07
+
 ### Fixed
 
 - **`find_and_replace` applies regex replacements whose pattern uses a lookbehind or lookahead** (BI-0202). A regex-mode pattern such as `(?<=Paren )word` or `word(?= here)` previewed the original text as `replacement_substring` and, on commit, reported the occurrence as replaced and the note as changed while leaving the file byte-identical. The replacement is now expanded at the match's position in its line, so the preview shows the real replacement and the commit writes it. `$1`, `$&` and `$$` behave as before; `` $` `` and `$'` now insert the line text before and after the match instead of always being empty. Lookarounds still see only the match's own line.
@@ -987,5 +989,6 @@ Two architectural deepenings shipped together (feature 008-refactor, ADR-006 + A
 - Per-tool `tool.ts` boilerplate (`registerHelpTool`, `registerObsidianExecTool`, `registerReadNoteTool`) and their co-located test files. Replaced by ~10-line `index.ts` files calling `registerTool`.
 - `Logger.callStart`, `Logger.callEndSuccess`, `Logger.callEndFailure` methods.
 
-[Unreleased]: https://github.com/marwansaab/obsidian-cli-mcp/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/marwansaab/obsidian-cli-mcp/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/marwansaab/obsidian-cli-mcp/releases/tag/v0.9.1
 [0.9.0]: https://github.com/marwansaab/obsidian-cli-mcp/releases/tag/v0.9.0
