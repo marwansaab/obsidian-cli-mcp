@@ -299,3 +299,66 @@ Edits:
 > Leave the three `write_property:` messages unchanged in this fix, and record them as a follow-up finding in the fix report. Don't create a backlog item yourself; whether to file one is the owner's call. I've recorded the finding on BI-0193.
 >
 > Why: BI-0193's Out of scope excludes "Other error messages". Only the no-active-file message is in scope. The `write_property` → `set_property` rename was BI-0061.
+
+## 7. repair / settle-verdict (2026-11-07T00:25:39.215Z)
+
+**Question (verbatim):**
+
+> BI-0193's verification came back **partial**: every check passed except the live re-run. Here is what was not exercised, and what each gap needs.
+>
+> **Gaps**
+> 1. **Live reproduction TC-00776 (not run).** This is `find_and_replace` with `active_note: true` and no note open, against the test vault. It needs you to focus the test vault in Obsidian and close its tabs (`owner_input: required`); the assistant does not close tabs itself. All other evidence is in-process: the unit tests stub the focused-file eval with `path: null`.
+> 2. **Guard coverage (evidence gap, not a defect).** The new cross-tool guard `src/tools/_no-active-file-advice.test.ts` checks only the six tools this fix changed. The file-cohort tools (`write_note`, `append_note`, `prepend`, `patch_block`, `patch_heading`, `read`, `rename`, `move`, `outline`) and the dispatch-default reachers (`delete`, `read_property`) are compliant by inspection, but no guard row checks them. Closing this needs per-tool fs or spawn fixtures in the guard. It changes tests only, no source.
+>
+> (The eval C2 route is not offered again here. You already accepted it as a residual risk with Relay Q1 = A.)
+>
+> **Options**
+>
+> | Option | What happens | Trade-off |
+> |---|---|---|
+> | **A (recommended)** | Accept the partial result and open the pull request. Both gaps stay recorded in `test.md` under *Residual Risks*, and TC-00776 stays an open live check. | No more work now. The live path stays unproven end to end. |
+> | B | Widen the guard: add rows for the nine file-cohort tools and `delete` / `read_property`, so every tool that can raise `ERR_NO_ACTIVE_FILE` (except the out-of-scope `views_base` / `obsidian_exec`) is checked. Then run `/speckit-bug-test` again. | Closes gap 2 with tests only and no change to existing tests. It does not close gap 1, so the result stays partial unless C is also done. |
+> | C | You focus the test vault and close its tabs, and say when it is ready. I run TC-00776 live (per `.memory/test-execution-instructions.md`), confirm the new `find_and_replace` advice, and run `/speckit-bug-test` again. | Closes gap 1 and could make the result verified. It needs you at the machine. |
+>
+> **Why A:** TC-00776 already showed, live and before the fix, the two facts the in-process tests rely on. The focused-file eval returns `path: null`, and the advice comes from the in-process message builder, not from Obsidian. The fix changes only that builder, and its exact output is pinned by unit tests and by the guard, which a mutation check showed catches both old defects. So a live run would add little evidence about the change itself. Gap 2 covers tools whose messages this fix did not touch.
+>
+> Which option: A, B, C, or a combination (for example B + C)?
+
+**Advisor** (escalate: decision: Accepting a partial verification and letting the pull request open is the owner's sign-off, as in BI-0174's 2026-11-04 ruling. Option C also needs the owner at the machine to focus the test vault and close its tabs.):
+
+> Recommended: A. Accept the partial result and open the pull request. Record both gaps under Residual Risks in `test.md`, and keep TC-00776 as an open live check. Wait for the owner's ruling before acting on this.
+>
+> Why: TC-00776 already ran live on 0.9.0-local (2026-11-03 and 2026-11-04). It showed that the focused-file eval gives no file and that the advice text comes from the in-process message, which is the one piece this fix changes; unit tests and the new guard pin that output. Gap 2 covers tools whose messages this fix doesn't touch. The BI-0174 precedent took the same path: the owner accepted a partial result with its live checks left as residual risks. TC-00776 can't be re-run without the owner (`owner_input: required`).
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Test Cases/TC-00776 - Find And Replace Active Note With No Open Note Throws ERR_NO_ACTIVE_FILE.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0174 - Reconcile Help And Description Drift After 0.9.0 Validation.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0193 - Align Shared No Active File Advice With Each Tool's Inputs.md`, `210-Guidelines/Best Practices.md`
+
+**Advisor, after the owner ruled** (escalate: none):
+
+> C. The owner has focused `TestVault-Obsidian-CLI-MCP` in Obsidian and closed all its tabs. Run TC-00776 live now, then run `/speckit-bug-test` again, as the owner asked.
+>
+> - **What counts as a pass:** `get_active_file` with `target_mode: "active"` returns `{"active": null}` first. The `find_and_replace` preview with `active_note: true` then returns `ERR_NO_ACTIVE_FILE` and no `affected_notes`.
+> - **New message:** the advice names only `find_and_replace`'s own inputs (`path` / `file`) and not `target_mode`.
+> - **Not chosen:** the guard-coverage gap (B) stays under Residual Risks.
+> - **Approval scope:** this ruling is the owner's active-mode approval for this run only, per Best Practices (Connectors and Integrations). Don't change the tabs or focus yourself.
+>
+> Owner ruling 2026-11-07, recorded on BI-0193.
+
+Sources: `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Test Cases/TC-00776 - Find And Replace Active Note With No Open Note Throws ERR_NO_ACTIVE_FILE.md`, `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0193 - Align Shared No Active File Advice With Each Tool's Inputs.md`, `210-Guidelines/Best Practices.md`
+
+Edits:
+- `421-Custom Connectors/Obsidian CLI MCP/Obsidian CLI MCP - Backlog/BI-0193 - Align Shared No Active File Advice With Each Tool's Inputs.md`: Added an 'Owner ruling 2026-11-07 (Relay verification)' paragraph to Status: option C chosen (test vault focused, tabs closed; run TC-00776 live, then re-run the bug test; counts as active-mode approval for this run); the guard-coverage gap stays a residual risk.
+
+**Owner:** a written answer, via cli, 2026-11-07T00:28:17.529Z.
+
+> C. The test vault TestVault-Obsidian-CLI-MCP is now focused in Obsidian with all its tabs closed. Run TC-00776 live now, then run /speckit-bug-test again.
+
+**Sent to the step:**
+
+> C. The owner has focused `TestVault-Obsidian-CLI-MCP` in Obsidian and closed all its tabs. Run TC-00776 live now, then run `/speckit-bug-test` again, as the owner asked.
+>
+> - **What counts as a pass:** `get_active_file` with `target_mode: "active"` returns `{"active": null}` first. The `find_and_replace` preview with `active_note: true` then returns `ERR_NO_ACTIVE_FILE` and no `affected_notes`.
+> - **New message:** the advice names only `find_and_replace`'s own inputs (`path` / `file`) and not `target_mode`.
+> - **Not chosen:** the guard-coverage gap (B) stays under Residual Risks.
+> - **Approval scope:** this ruling is the owner's active-mode approval for this run only, per Best Practices (Connectors and Integrations). Don't change the tabs or focus yourself.
+>
+> Owner ruling 2026-11-07, recorded on BI-0193.
