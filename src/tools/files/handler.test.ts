@@ -11,11 +11,9 @@ function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
 }
 
-/** The folder check's eval answers (BI-0205). */
-const FOLDER_CHECK_OK = `=> ${JSON.stringify({ ok: true })}\n`;
-function folderCheckMissing(folder: string): string {
-  return `=> ${JSON.stringify({ ok: false, code: "FOLDER_NOT_FOUND", folder })}\n`;
-}
+/** The folder check's eval answers (BI-0205): the stat fact `{ kind }`. */
+const FOLDER_CHECK_OK = `=> ${JSON.stringify({ kind: "folder" })}\n`;
+const FOLDER_CHECK_MISSING = `=> ${JSON.stringify({ kind: "missing" })}\n`;
 
 beforeEach(() => __resetInFlightRegistryForTests());
 afterEach(() => __resetInFlightRegistryForTests());
@@ -147,7 +145,7 @@ test("non-BMP character stdout — sort uses UTF-8 byte order, NOT JS default UT
 test("empty stdout + missing folder → CLI_REPORTED_ERROR / FOLDER_NOT_FOUND naming the folder (BI-0205)", async () => {
   const { spawnFn } = makeQueuedSpawn([
     { stdout: "", exitCode: 0 },
-    { stdout: folderCheckMissing("Missing"), exitCode: 0 },
+    { stdout: FOLDER_CHECK_MISSING, exitCode: 0 },
   ]);
   const err = (await captureRejection(
     executeListFiles({ target_mode: "specific", vault: "V", folder: "Missing" }, deps(spawnFn)),
@@ -379,13 +377,13 @@ test("path-traversal folder='../../etc' passes through verbatim; empty listing �
   expect(err.details).toEqual({ stage: "envelope-error", code: "FOLDER_NOT_FOUND", folder: "../../etc" });
 });
 
-// =================== Missing-folder check (BI-0205 — cases #29–#37) ===================
+// =================== Missing-folder check (BI-0205 — cases #29–#39) ===================
 
 // (29) criterion 1: the exact `paths`-shaped error, from a second (eval) spawn in the listing's vault
 test("empty listing + missing folder → paths-shaped FOLDER_NOT_FOUND error; the check is one eval in the same vault", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
     { stdout: "", exitCode: 0 },
-    { stdout: folderCheckMissing("NoSuchFolder"), exitCode: 0 },
+    { stdout: FOLDER_CHECK_MISSING, exitCode: 0 },
   ]);
   const err = (await captureRejection(
     executeListFiles({ target_mode: "specific", vault: "V", folder: "NoSuchFolder" }, deps(spawnFn)),
@@ -461,7 +459,7 @@ test.each(["Sandbox/../Sandbox", "Sandbox\\..\\Sandbox", ".."])(
 test("drive-absolute folder 'C:/x' + empty listing → takes the eval check", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([
     { stdout: "", exitCode: 0 },
-    { stdout: folderCheckMissing("C:/x"), exitCode: 0 },
+    { stdout: FOLDER_CHECK_MISSING, exitCode: 0 },
   ]);
   const err = (await captureRejection(
     executeListFiles({ target_mode: "specific", vault: "V", folder: "C:/x" }, deps(spawnFn)),
@@ -471,10 +469,35 @@ test("drive-absolute folder 'C:/x' + empty listing → takes the eval check", as
   expect(err.details).toEqual({ stage: "envelope-error", code: "FOLDER_NOT_FOUND", folder: "C:/x" });
 });
 
+// (38) one trailing '/' is stripped before the check, and the error names the stripped folder
+test("folder 'Inbox/' + empty listing → the check stats 'Inbox'; a miss names 'Inbox'", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    { stdout: "", exitCode: 0 },
+    { stdout: FOLDER_CHECK_MISSING, exitCode: 0 },
+  ]);
+  const err = (await captureRejection(
+    executeListFiles({ target_mode: "specific", vault: "V", folder: "Inbox/" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(evalPayload(recorded[1]!)).toEqual({ folder: "Inbox" });
+  expect(err.details).toEqual({ stage: "envelope-error", code: "FOLDER_NOT_FOUND", folder: "Inbox" });
+  expect(err.message).toBe('files: FOLDER_NOT_FOUND for folder "Inbox"');
+});
+
+// (39) a path that names a file keeps the empty answer (out of scope for BI-0205)
+test("empty listing + folder that names a file (kind: file) → { count: 0, paths: [] }", async () => {
+  const { spawnFn, getCount } = makeQueuedSpawn([
+    { stdout: "", exitCode: 0 },
+    { stdout: `=> ${JSON.stringify({ kind: "file" })}\n`, exitCode: 0 },
+  ]);
+  const result = await executeListFiles({ target_mode: "specific", vault: "V", folder: "Inbox/Note.md" }, deps(spawnFn));
+  expect(result).toEqual({ count: 0, paths: [] });
+  expect(getCount()).toBe(2);
+});
+
 // (36)/(37) a failed check surfaces decodeEvalEnvelope's CLI_REPORTED_ERROR
 test.each([
   ["=> not-json{\n", "json-parse"],
-  [`=> ${JSON.stringify({ ok: false, code: "NOT_A_FOLDER", folder: "x" })}\n`, "envelope-parse"],
+  [`=> ${JSON.stringify({ kind: "symlink" })}\n`, "envelope-parse"],
 ])("malformed check answer %j → CLI_REPORTED_ERROR(stage: %j)", async (stdout, stage) => {
   const { spawnFn } = makeQueuedSpawn([
     { stdout: "", exitCode: 0 },

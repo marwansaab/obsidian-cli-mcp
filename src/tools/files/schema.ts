@@ -1,4 +1,4 @@
-// Original — no upstream. files input/output schemas — folder-scoped target-mode refinement (forbids file AND path in BOTH modes); optional folder/ext/total fields with R15 empty-string rejection; strict output { count, paths }; the folder check's eval envelope (BI-0205), success `{ ok: true }` or failure `{ ok: false, code: "FOLDER_NOT_FOUND", folder }`.
+// Original — no upstream. files input/output schemas — folder-scoped target-mode refinement (forbids file AND path in BOTH modes); optional folder/ext/total fields with R15 empty-string rejection; strict output { count, paths }; the folder check's eval envelope (BI-0205), the stat fact `{ kind: "missing" | "file" | "folder" }`.
 import { z } from "zod";
 
 import {
@@ -31,10 +31,7 @@ export const listFilesOutputSchema = z
     paths: z.array(z.string()),
   });
 
-export const filesFolderEnvelopeSchema = z.discriminatedUnion("ok", [
-  z.strictObject({ ok: z.literal(true) }),
-  z.strictObject({ ok: z.literal(false), code: z.literal("FOLDER_NOT_FOUND"), folder: z.string() }),
-]);
+export const filesFolderEnvelopeSchema = z.strictObject({ kind: z.enum(["missing", "file", "folder"]) });
 
 export type ListFilesInput = z.infer<typeof filesInputSchema>;
 export type ListFilesOutput = z.infer<typeof listFilesOutputSchema>;

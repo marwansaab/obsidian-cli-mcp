@@ -211,17 +211,17 @@ test("ext 5 (number) → invalid_type on ['ext']", () => {
 });
 
 // BI-0205: the folder check's eval envelope
-test.each([
-  [{ ok: true }],
-  [{ ok: false, code: "FOLDER_NOT_FOUND", folder: "Missing" }],
-])("folder-check envelope %j parses", (envelope) => {
-  expect(filesFolderEnvelopeSchema.safeParse(envelope).success).toBe(true);
-});
+test.each([[{ kind: "missing" }], [{ kind: "file" }], [{ kind: "folder" }]])(
+  "folder-check envelope %j parses",
+  (envelope) => {
+    expect(filesFolderEnvelopeSchema.safeParse(envelope).success).toBe(true);
+  },
+);
 
 test.each([
-  [{ ok: false, code: "NOT_A_FOLDER", folder: "Note.md" }],
-  [{ ok: false, code: "FOLDER_NOT_FOUND" }],
-  [{ ok: true, count: 0 }],
+  [{ kind: "symlink" }],
+  [{ kind: "folder", folder: "Inbox" }],
+  [{ ok: true }],
   [{}],
 ])("folder-check envelope %j is rejected", (envelope) => {
   expect(filesFolderEnvelopeSchema.safeParse(envelope).success).toBe(false);

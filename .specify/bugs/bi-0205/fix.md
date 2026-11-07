@@ -14,13 +14,13 @@ When `files` is given a `folder` and the CLI lists nothing for it, the handler n
 | File | Change | Notes |
 |------|--------|-------|
 | `src/tools/_folder-stat.ts` | added | Leaf module (no imports). `FOLDER_STAT_KIND_JS`: an in-eval async function expression `(path) => "missing" \| "file" \| "folder"`; a `stat` that answers `null` or throws is `"missing"`. Refactor rule 53: the stat rule is a shared fragment, not a third inline copy. |
-| `src/tools/files/_template.ts` | added | `FOLDER_CHECK_TEMPLATE`: decodes the base64 payload, strips one trailing `/`, interpolates `FOLDER_STAT_KIND_JS`, answers `{ok:false, code:"FOLDER_NOT_FOUND", folder}` for a missing path and `{ok:true}` for any existing one. |
-| `src/tools/files/schema.ts` | modified | Adds `filesFolderEnvelopeSchema` (`{ok:true}` or `{ok:false, code: z.literal("FOLDER_NOT_FOUND"), folder}`); header updated. Input and output schemas unchanged. |
-| `src/tools/files/handler.ts` | modified | Adds `folderNotFound(folder)` (the one error builder) and `assertFolderExists` (the `..` guard, then `invokeEval` + `decodeEvalEnvelope`). `executeListFiles` runs it only when `input.folder` is set and `parseStdout` gives no entries, before the filters. Header no longer claims "single-spawn". |
+| `src/tools/files/_template.ts` | added | `FOLDER_CHECK_TEMPLATE`: decodes the base64 payload and answers the `FOLDER_STAT_KIND_JS` fact for the folder as given, `{kind: "missing" \| "file" \| "folder"}`. The handler decides what each kind means (PR #154 review, owner ruling option A). |
+| `src/tools/files/schema.ts` | modified | Adds `filesFolderEnvelopeSchema`, `z.strictObject({ kind: z.enum(["missing", "file", "folder"]) })`; header updated. Input and output schemas unchanged. |
+| `src/tools/files/handler.ts` | modified | Adds `folderNotFound(folder)` (the one error builder) and `assertFolderExists(folder, vault, deps)`: the `..` guard on the raw value, then one trailing `/` stripped, `invokeEval` + `decodeEvalEnvelope`, and FOLDER_NOT_FOUND naming the stripped folder when `kind` is `"missing"`. `executeListFiles` runs it only when `input.folder` is set and `parseStdout` gives no entries, before the filters. Header no longer claims "single-spawn". |
 | `src/tools/_folder-stat.test.ts` | added test | The fragment under `node:vm` against a stub `stat`. |
-| `src/tools/files/_template.test.ts` | added test | The composed template against a stub adapter. |
+| `src/tools/files/_template.test.ts` | added test | The composed template's wiring against a stub adapter (stats the folder as given, answers `{kind}`), plus the base64 payload. |
 | `src/tools/files/schema.test.ts` | added tests | Envelope schema accept / reject cases; header comment extended. |
-| `src/tools/files/handler.test.ts` | modified + added tests | Approved edits to (2), (4), (9), (26), (27) only; new cases (29)–(37); helpers `FOLDER_CHECK_OK` / `folderCheckMissing`; header comment extended. |
+| `src/tools/files/handler.test.ts` | modified + added tests | Approved edits to (2), (4), (9), (26), (27) only; new cases (29)–(39); helpers `FOLDER_CHECK_OK` / `FOLDER_CHECK_MISSING`; header comment extended. |
 | `docs/tools/files.md` | modified | Rewrote "Single-call", the conflation section (now "Missing folder vs. empty folder") and "Path-traversal CLI-confined" (now "Path traversal"); updated the `folder` per-field policy; added a `FOLDER_NOT_FOUND` row under `CLI_REPORTED_ERROR`; rewrote the case-sensitivity note (see Deviations). |
 | `CHANGELOG.md` | modified | Unreleased → Fixed entry for BI-0205, added when the PR was opened. |
 
@@ -28,18 +28,16 @@ When `files` is given a `folder` and the CLI lists nothing for it, the handler n
 
 ```ts
 // src/tools/files/handler.ts
-async function assertFolderExists(folder: string, input: ListFilesInput, deps: ExecuteDeps): Promise<void> {
+async function assertFolderExists(folder: string, vault: string | undefined, deps: ExecuteDeps): Promise<void> {
   if (folder.split(/[/\\]/).includes("..")) throw folderNotFound(folder);
-  const result = await invokeEval(
-    { code: composeEvalCode(FOLDER_CHECK_TEMPLATE, { folder }), vault: input.target_mode === "specific" ? input.vault : undefined },
-    deps,
-  );
-  const envelope = decodeEvalEnvelope(result, filesFolderEnvelopeSchema, { toolName: "files", malformedCode: "CLI_REPORTED_ERROR" });
-  if (envelope.ok === false) throw folderNotFound(envelope.folder);
+  const stripped = folder.replace(/\/$/, "");
+  const result = await invokeEval({ code: composeEvalCode(FOLDER_CHECK_TEMPLATE, { folder: stripped }), vault }, deps);
+  const { kind } = decodeEvalEnvelope(result, filesFolderEnvelopeSchema, { toolName: "files", malformedCode: "CLI_REPORTED_ERROR" });
+  if (kind === "missing") throw folderNotFound(stripped);
 }
 ...
 const entries = parseStdout(result.stdout);
-if (input.folder !== undefined && entries.length === 0) await assertFolderExists(input.folder, input, deps);
+if (input.folder !== undefined && entries.length === 0) await assertFolderExists(input.folder, input.vault, deps);
 ```
 
 ```ts
@@ -65,10 +63,12 @@ New:
 - `handler.test.ts` (33): in active mode the check's eval carries no `vault=`.
 - `handler.test.ts` (34) ×3: `Sandbox/../Sandbox`, `Sandbox\..\Sandbox` and `..` fail as `FOLDER_NOT_FOUND` with no eval spawn.
 - `handler.test.ts` (35): `C:/x` takes the normal eval check.
-- `handler.test.ts` (36)/(37): a non-JSON or wrong-shape check answer surfaces `decodeEvalEnvelope`'s `CLI_REPORTED_ERROR` (`stage` `json-parse` / `envelope-parse`).
+- `handler.test.ts` (36)/(37): a non-JSON or wrong-shape check answer (`{kind:"symlink"}`) surfaces `decodeEvalEnvelope`'s `CLI_REPORTED_ERROR` (`stage` `json-parse` / `envelope-parse`).
+- `handler.test.ts` (38): `folder: "Inbox/"` sends the payload `{ folder: "Inbox" }`, and a miss names `Inbox` (the strip moved from the template to the handler in the PR #154 review).
+- `handler.test.ts` (39): a check answering `kind: "file"` keeps `{ count: 0, paths: [] }`.
 - `_folder-stat.test.ts`: `null` → missing, folder → folder, file → file, throwing `stat` → missing; the path is stat-ed as given.
-- `_template.test.ts`: folder and file → `{ok:true}`; missing → `FOLDER_NOT_FOUND` naming the folder; one trailing `/` stripped before the stat and in the answer; the folder travels only in the base64 payload.
-- `schema.test.ts`: the envelope accepts both branches and rejects `NOT_A_FOLDER`, a missing `folder`, extra keys and `{}`.
+- `_template.test.ts`: wiring only. The template stats the payload's folder as given and answers `{kind}` from the fragment; the folder travels only in the base64 payload.
+- `schema.test.ts`: the envelope accepts each `kind` and rejects an unknown kind, extra keys, the old `{ok}` shape and `{}`.
 
 Test (16) (`.obsidian`) and `_plugin-noise.test.ts` are unchanged and pass, as the assessment predicted.
 
@@ -95,13 +95,14 @@ Index synced (`codegraph sync`), then `codegraph_explore` on `FOLDER_STAT_KIND_J
 ## Deviations from Assessment
 
 - **Case-sensitivity note in `docs/tools/files.md` rewritten, not only extended.** The assessment asked for the case-only-misspelling caveat "next to the existing case-sensitivity note". That note said that on Windows and macOS `folder: "inbox"` and `folder: "Inbox"` "resolve equivalently". The assessment's own probe shows the CLI listing is case-sensitive on Windows (`folder=sandbox/BI-0008` lists nothing, `Sandbox/BI-0008` lists its notes). Adding the caveat beside it would have contradicted it, so the paragraph (renamed "Case-sensitivity on `folder`") now says the listing is case-sensitive on every platform, and that only the existence check follows the file system. Same file, no code impact.
-- **`details.folder` on the `..` guard is the value as given.** The eval path strips one trailing `/` (as `paths` does), but the guard runs before any eval and reports `input.folder` unchanged. So `../x/` reports `../x/`, while a missing `Gone/` reports `Gone`. The docs page says so.
+- **`details.folder` on the `..` guard is the value as given.** The check strips one trailing `/` (as `paths` does), but the guard runs first, on the raw value, and reports `input.folder` unchanged. So `../x/` reports `../x/`, while a missing `Gone/` reports `Gone`. The docs page says so.
+- **The check's envelope is the stat fact `{kind}`, not the assessment's `{ok:true}` / `{ok:false, code:"FOLDER_NOT_FOUND", folder}` (PR #154 thermo-nuclear review, owner ruling option A, 2026-11-07, recorded in BI-0205 Status).** The handler never read the failure arm's `code`, and its `folder` was the handler's own input with one `/` removed, so the decision was made twice. Now the template returns `FOLDER_STAT_KIND_JS`'s answer, `filesFolderEnvelopeSchema` is `z.strictObject({ kind: z.enum(["missing","file","folder"]) })`, and `assertFolderExists(folder, vault, deps)` owns the strip and the decision (the `..` guard on the raw value, strip, `kind === "missing"` → `folderNotFound(stripped)`), the shape of `move`'s `BLOCKER_TEMPLATE`. Every caller-visible error code, message and `details` is byte-identical (the exact-error tests (9), (27), (29), (34), (35) pass unchanged), and the published surface and baseline did not move. Test edits, as the ruling allows: the PR's own new tests (`_template.test.ts`, the `schema.test.ts` envelope rows, the helpers (now `FOLDER_CHECK_OK` / `FOLDER_CHECK_MISSING`, both `{kind}` answers), (37)'s malformed row) and the new (38) / (39); existing test (9) changed only its queued eval answer; no other existing test was edited.
 - **Test-file header comments.** The one-line header comments of `handler.test.ts` and `schema.test.ts` were extended to mention BI-0205. No test body outside the approved set changed.
 
 ## Follow-ups
 
 - Move `paths/_template.ts` and `pattern_search/_template.ts` onto `FOLDER_STAT_KIND_JS` (the BI-0204 / refactor-decision item 71 follow-up). `paths` already matches the fragment's semantics (a throwing `stat` is missing); `pattern_search` lets `stat` throw today, so moving it changes that tool's behaviour.
 - BI-0208: `paths` makes the same unguarded `stat` and `adapter.list`, so `folder: ".."` may list the vault's parent directory.
-- `NOT_A_FOLDER` for a `folder` that names a file is out of scope here. The fragment already returns `"file"`, so adding it to the template is a one-line change.
+- `NOT_A_FOLDER` for a `folder` that names a file is out of scope here. The check already answers `kind: "file"`, so adding it is a one-line change in `assertFolderExists`.
 - Rewrite TC-00154's Expected (traversal now fails as `FOLDER_NOT_FOUND`) when the fix ships, and confirm TC-00907 live in `/speckit-bug-test`.
 - Spec 019 FR-010's "missing = empty = file" conflation is now reversed for the missing case. `/speckit-docs-as-code` should carry that into `.docs-as-code/`.

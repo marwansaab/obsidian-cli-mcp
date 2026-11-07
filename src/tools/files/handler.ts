@@ -54,23 +54,20 @@ function folderNotFound(folder: string): UpstreamError {
 }
 
 /**
- * Throws FOLDER_NOT_FOUND unless `folder` exists in the vault the listing used. A `..` segment fails
- * without the check: `adapter.stat` resolves it outside the vault (BI-0205 Q1).
+ * Throws FOLDER_NOT_FOUND unless `folder` exists in `vault` (the vault the listing used; undefined: the
+ * focused vault). A `..` segment fails without the check, named as given: `adapter.stat` resolves it
+ * outside the vault (BI-0205 Q1). Otherwise one trailing `/` is stripped (as `paths` does) before the stat.
  */
-async function assertFolderExists(folder: string, input: ListFilesInput, deps: ExecuteDeps): Promise<void> {
+async function assertFolderExists(folder: string, vault: string | undefined, deps: ExecuteDeps): Promise<void> {
   if (folder.split(/[/\\]/).includes("..")) throw folderNotFound(folder);
-  const result = await invokeEval(
-    {
-      code: composeEvalCode(FOLDER_CHECK_TEMPLATE, { folder }),
-      vault: input.target_mode === "specific" ? input.vault : undefined,
-    },
-    deps,
-  );
-  const envelope = decodeEvalEnvelope(result, filesFolderEnvelopeSchema, {
+  const stripped = folder.replace(/\/$/, "");
+  const result = await invokeEval({ code: composeEvalCode(FOLDER_CHECK_TEMPLATE, { folder: stripped }), vault }, deps);
+  const { kind } = decodeEvalEnvelope(result, filesFolderEnvelopeSchema, {
     toolName: "files",
     malformedCode: "CLI_REPORTED_ERROR",
   });
-  if (envelope.ok === false) throw folderNotFound(envelope.folder);
+  // A path that names a file keeps the empty answer (out of scope for BI-0205).
+  if (kind === "missing") throw folderNotFound(stripped);
 }
 
 export async function executeListFiles(
@@ -94,7 +91,7 @@ export async function executeListFiles(
 
   const entries = parseStdout(result.stdout);
   // Any entry lies under the named folder (the CLI does not prefix-match), so only an empty listing needs the check.
-  if (input.folder !== undefined && entries.length === 0) await assertFolderExists(input.folder, input, deps);
+  if (input.folder !== undefined && entries.length === 0) await assertFolderExists(input.folder, input.vault, deps);
 
   const expected = expectedComponentCount(input.folder);
   const filtered = entries
