@@ -91,6 +91,10 @@ return.
 
 `paths` reports a missing folder or a folder path that names a file as
 `CLI_REPORTED_ERROR` with `details.code` `FOLDER_NOT_FOUND` or `NOT_A_FOLDER`.
+Since PR #153 (BI-0204) `pattern_search` makes the same check in its own
+template; the two copies differ when `adapter.stat` throws, and sharing them
+is deferred
+([search and discovery](search-and-discovery.md#known-limits-and-inconsistencies)).
 A closed registered vault is opened by the dispatch layer's cold-start retry
 and `paths` returns its normal result; a vault that cannot be brought up is
 the retry's `CLI_REPORTED_ERROR` ("vault unavailable", `details.stdout`

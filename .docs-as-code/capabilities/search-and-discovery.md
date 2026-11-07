@@ -351,6 +351,29 @@ PR #115 (spec 084, FR-009) corrected the page and added tests that pin
 `details.command`, `details.message` and the top-level message. The handler
 did not change.
 
+Until PR #153 (BI-0204) `pattern_search`'s template checked only that the
+`folder` existed (`adapter.stat` not `null`). A note's `stat` is not `null`,
+so a note path such as `Repro1106/single.md` passed the check, the
+`startsWith(folder + "/")` filter kept no notes, and the call returned
+`{ count: 0, matches: [] }` even when the note matched (TC-00906, on 0.9.0).
+A caller read that as the pattern being absent. The template now also checks
+`stat().type`, as `paths` does, and answers
+`{ ok: false, code: "NOT_A_FOLDER", folder }` for a path that is not a
+folder. The eval envelope's failure branch is widened to
+`FOLDER_NOT_FOUND | NOT_A_FOLDER`, the input and output schemas are
+unchanged, and the handler raises `CLI_REPORTED_ERROR`, `cause: null`,
+`details: { code, folder, stage: "handler-stage-3" }`. As first written,
+Stage 7 threw `NOT_A_FOLDER` and reached `FOLDER_NOT_FOUND` only by
+elimination; the PR #153 review made it one throw that passes the envelope's
+code through, with the message taken from `FOLDER_FAILURE_MESSAGE`, a table
+typed `satisfies Record<…>` over the envelope's codes, so a third code is a
+compile error (`src/tools/pattern_search/handler.ts`). The
+`FOLDER_NOT_FOUND` error is byte-identical to before. The `NOT_A_FOLDER`
+message, `pattern_search: "<path>" is a file, not a folder. …`, carries the
+phrase Obsidian's `folder` probe gives `context_search` for the same input,
+so the two tools fail with the same code and a recognisable phrase, though
+not the same `details`.
+
 A closed registered vault is not a failure. The dispatch layer's cold-start
 retry opens it and the call returns its normal result
 ([architecture](../architecture.md#runtime-spine)). `tag` and
@@ -367,6 +390,23 @@ produced; PR #100 deleted the check
 
 ## Known limits and inconsistencies
 
+- A `folder` that names a note fails differently in `pattern_search` and
+  `context_search` (PR #153, BI-0204). `pattern_search` gives
+  `details.code: "NOT_A_FOLDER"`; `context_search` still surfaces the
+  `folder` probe's line as `details.message`
+  (`Error: "<path>" is a file, not a folder.`) with no `details.code`.
+  Aligning `context_search` was out of the report's scope
+  (`.specify/bugs/bi-0204/test.md` Residual Risks). Neither tool searches a
+  single note; pass the folder that contains it.
+- The stat-type folder check is written twice, in `paths/_template.ts` and
+  `pattern_search/_template.ts`, and the copies differ when `adapter.stat`
+  throws: `paths` answers `FOLDER_NOT_FOUND`, `pattern_search` lets the
+  throw reach its `json-parse` failure. The PR #153 review proposed one
+  shared fragment; the owner deferred it (option A) because `paths` was out
+  of BI-0204's scope and merging the copies is a behaviour change that needs
+  that decision first (`.specify/bugs/bi-0204/fix.md` Follow-ups).
+- PR #153's live check called the built handlers directly against the test
+  vault on Windows, with no MCP-client round trip.
 - Until PR #151 this list said `open_file`'s template trusts `openLinkText`
   and reports a placement without checking that the file became active.
   PR #140 had found that `openLinkText` resolves even when Obsidian drops
