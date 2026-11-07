@@ -74,9 +74,11 @@ Kernel-node claim from `assessment.md` (touches none of `createLogger()`, `creat
 
 - `handler.ts` Stage 7 no longer reads `if (code === "NOT_A_FOLDER") throw …; throw <FOLDER_NOT_FOUND>`, where the second error was reached only by elimination. It raises one `CLI_REPORTED_ERROR` that passes the envelope's `code` through, as `paths` does, and takes the message from `FOLDER_FAILURE_MESSAGE`, a per-code table typed `satisfies Record<…>`, so a new envelope code is a compile error. Both errors are byte-identical to before: the new exact-message tests passed against the previous handler too.
 - `handler.test.ts`: (21b) now pins the whole `NOT_A_FOLDER` message with `toBe`, and the new (21c) pins the `FOLDER_NOT_FOUND` error exactly (cause, details, message). Test (21) is unchanged.
-- Not done here: the template's stat-type folder check is now written in both `paths/_template.ts` and `pattern_search/_template.ts`. The copies differ (`paths` catches a throwing `stat`), so sharing them changes one tool's behaviour and touches `paths`, which the report puts out of scope. Raised with the owner.
+- Not done here: the template's stat-type folder check is now written in both `paths/_template.ts` and `pattern_search/_template.ts`. The copies differ (`paths` catches a throwing `stat`), so sharing them changes one tool's behaviour and touches `paths`, which the report puts out of scope. Owner ruling option A (2026-11-07): left out of BI-0204, because the specify prompt's Out of scope excludes changes to the listing requests, and `paths` is one. The deferral is recorded under Out of scope on the BI-0204 note; see Follow-ups.
 
 ## Follow-ups
+
+- Share one folder-check eval fragment between `paths/_template.ts` and `pattern_search/_template.ts` (memory item 53) the next time either template is touched. First decide one behaviour for a `stat` that throws: `paths` answers FOLDER_NOT_FOUND, while `pattern_search` lets the throw reach the json-parse failure. Deferred by owner ruling option A on PR #153.
 
 - `/speckit-bug-test slug=bi-0204`: live TC-00906 confirmation, including `context_search` with the same note path for criterion 4.
 - `/speckit-docs-as-code <n>` after review: `.docs-as-code/` pages that describe `pattern_search`'s error roster.
