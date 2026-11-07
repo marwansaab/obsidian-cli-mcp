@@ -21,15 +21,20 @@ interface Connection {
 
 const SRC = "Src.md";
 
+// The vault holds the source and every Markdown note a candidate key names, except the `gone` paths
+// (notes moved or deleted since the plugin indexed them).
 async function runTemplate(
   fixture: Connection[],
-  { limit, total = false }: { limit: number; total?: boolean },
+  { limit, total = false, gone = [] }: { limit: number; total?: boolean; gone?: string[] },
 ): Promise<{ envelope: MatchEnvelope; requests: Array<{ limit: number }> }> {
   const requests: Array<{ limit: number }> = [];
+  const notes = new Set(
+    [SRC, ...fixture.map((c) => c.item.key.split("#")[0]!)].filter((p) => p.endsWith(".md") && !gone.includes(p)),
+  );
   const app = {
     vault: {
       getName: () => "Demo",
-      getAbstractFileByPath: (p: string) => (p === SRC ? { path: p, extension: "md" } : null),
+      getAbstractFileByPath: (p: string) => (notes.has(p) ? { path: p, extension: "md" } : null),
     },
     plugins: {
       plugins: {
@@ -38,6 +43,7 @@ async function runTemplate(
             smart_sources: {
               items: {
                 [SRC]: {
+                  vec: [0.6, 0.8],
                   find_connections: async (opts: { limit: number }) => {
                     requests.push(opts);
                     return fixture.slice(0, opts.limit);
@@ -161,5 +167,52 @@ describe("smart_connections_similar template — BI-0184: a note's opening text 
     const matches = await page(fixture, 100);
     for (const m of matches) expect(m.headingPath).not.toContain("");
     expect(matches).toEqual(MIXED_HEADING_MATCHES);
+  });
+});
+
+describe("smart_connections_similar template — BI-0195: outdated index entries are left out", () => {
+  // Stale entries for notes no longer in the vault, scored above everything in the tied fixture.
+  const STALE = [conn("", 0.999), conn("Old.md", 0.998), conn("Old.md#H", 0.997), conn("Gone/Deleted.md#A#B", 0.996)];
+  const GONE = ["Old.md", "Gone/Deleted.md"];
+
+  it("an empty-keyed entry among valid ones is left out, and every returned path names a Markdown note", async () => {
+    const fixture = [conn("A.md", 0.7), conn("", 0.9), conn("B.md#h", 0.6)];
+    const matches = await page(fixture, 100);
+    expect(matches.map(keyOf)).toEqual(["A.md", "B.md#h"]);
+    for (const m of matches) {
+      expect(m.path).not.toBe("");
+      expect(m.path.endsWith(".md")).toBe(true);
+    }
+  });
+
+  it("entries for a moved or deleted note (whole-note and block keys) are left out", async () => {
+    const fixture = [conn("Old.md", 0.9), conn("A.md", 0.7), conn("Old.md#H", 0.8), conn("B.md", 0.5)];
+    const { envelope } = await runTemplate(fixture, { limit: 100, gone: ["Old.md"] });
+    expect(envelope.matches.map(keyOf)).toEqual(["A.md", "B.md"]);
+    expect(envelope.count).toBe(2);
+  });
+
+  it("with stale entries in the fixture, every page(N) is still a leading slice and equals the stale-free page", async () => {
+    const clean = tiedFixture();
+    const fixture = [...STALE, ...clean];
+    const full = (await runTemplate(fixture, { limit: 100, gone: GONE })).envelope.matches;
+    // The plugin returns MAX_LIMIT candidates: 4 stale entries and 3 of the source's own blocks
+    // among them are left out, so 93 come back, exactly the page for the other 96 candidates the
+    // plugin returned; a limit that would have reached a stale entry gets the next valid match instead.
+    expect(full).toHaveLength(93);
+    expect(full).toEqual(await page(clean.slice(0, 96), 100));
+    for (let n = 1; n < 100; n++) {
+      const { envelope } = await runTemplate(fixture, { limit: n, gone: GONE });
+      expect(envelope.matches, `page(${n}) vs page(100)`).toEqual(full.slice(0, n));
+    }
+  });
+
+  it.each([3, 100])("at limit %i, total: true counts only the kept matches", async (limit) => {
+    const fixture = [...STALE, conn("A.md", 0.7), conn("B.md", 0.6), conn("C.md", 0.5)];
+    const full = await runTemplate(fixture, { limit, gone: GONE });
+    const counted = await runTemplate(fixture, { limit, total: true, gone: GONE });
+    expect(full.envelope.count).toBe(3);
+    expect(counted.envelope.count).toBe(3);
+    expect(counted.envelope.matches).toEqual([]);
   });
 });
