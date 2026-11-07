@@ -121,7 +121,10 @@ The read-back is batched because the `Obsidian.com` shim answers nothing once
 an `eval`'s code passes about 4,000 characters (F10,
 [architecture](../architecture.md#reaching-obsidian-internals-the-eval-template-pattern)):
 `planReadBack` keeps each batch's composed code at or under
-`READ_BACK_CODE_MAX = 2900`. A typical result takes one extra call; in the
+`READ_BACK_CODE_MAX = 2900`. Since PR #158 it is a one-line call to the
+shared `planEvalBatches` (`src/tools/_eval-batches.ts`), which `query_base`'s
+group-value reads use too, and `READ_BACK_CODE_MAX` aliases the shared
+`EVAL_BATCH_CODE_MAX`; the batches it plans did not change. A typical result takes one extra call; in the
 PR #121 live check 300 lines over 300 notes took 10. A search with no lines
 makes no read-back. The read-back passes the call's deps whole, so a
 cancelled call drops the batches still queued. In review (PR #121, F3) it

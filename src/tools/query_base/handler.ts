@@ -1,10 +1,14 @@
-// Original — no upstream. query_base handler — wraps the native `obsidian base:query` subcommand (R1) returning a structured `{columns, rows, truncated, total_rows?}` envelope; staged pipeline: vault root resolve → Layer-2 canonical-path check → fs.stat pre-flight (BASE_NOT_FOUND / BASE_MALFORMED/empty) → invokeCli → stderr/stdout error classification (R4) → JSON.parse → wire envelope safeParse → row post-process (reserved `path` injection + collision rename to `path_view` + columns vector synthesis) → 1000-row cap with `truncated` / `total_rows` signal (FR-013) → output schema parse. The invalid-yaml classifier pattern and the upstream-report composition are shared with views_base (spec 081, `_base-malformed.ts`). Zero new top-level error codes; new states surface via `details.code` sub-discrimination per ADR-015 (Principle IV streak: sixteenth tool).
+// Original — no upstream. query_base handler — wraps the native `obsidian base:query` subcommand (R1) returning a structured `{columns, rows, truncated, total_rows?}` envelope; staged pipeline: vault root resolve → Layer-2 canonical-path check → fs.stat pre-flight (BASE_NOT_FOUND / BASE_MALFORMED/empty) → invokeCli → stderr/stdout error classification (R4) → JSON.parse → wire envelope safeParse → view grouping (BI-0207: read the `.base` and find the view's `groupBy` in TypeScript; an ungrouped view continues unchanged with no eval, a grouped view gets each row's group value from read-only eval batches and is reordered into Obsidian's group order with a reserved `group` key and a top-level `group_by`) → row post-process (reserved `path` injection + collision rename to `path_view` + columns vector synthesis) → 1000-row cap with `truncated` / `total_rows` signal (FR-013) → output schema parse. The invalid-yaml classifier pattern and the upstream-report composition are shared with views_base (spec 081, `_base-malformed.ts`). Zero new top-level error codes; new states surface via `details.code` sub-discrimination per ADR-015 (Principle IV streak: sixteenth tool).
 import * as nodeFs from "node:fs/promises";
 
+import { findViewGrouping } from "./group-by.js";
+import { groupingUnsupported, groupRows, valueText } from "./group-order.js";
+import { groupSource, readGroupValues, type GroupSource } from "./group-values.js";
 import {
   queryBaseOutputSchema,
   queryBaseWireSchema,
   QUERY_BASE_RESPONSE_ROW_CAP,
+  type QueryBaseGroupBy,
   type QueryBaseInput,
   type QueryBaseOutput,
   type QueryBaseRow,
@@ -20,6 +24,7 @@ import {
 } from "../_active-file.js";
 import { INVALID_YAML_PATTERN, upstreamReport } from "../_base-malformed.js";
 import { stdoutDetails } from "../_eval-parse.js";
+import { getErrno } from "../_fs-errors.js";
 
 import type { SupportDeclaration } from "../../file-type/file-type.js";
 import type { Logger } from "../../logger.js";
@@ -32,6 +37,8 @@ export const QUERY_BASE_SUPPORTED = ["base"] as const satisfies SupportDeclarati
 export interface ExecuteFs {
   stat: (p: string) => Promise<{ size: number }>;
   realpath: (p: string) => Promise<string>;
+  /** Reads the `.base` text (UTF-8) to find the view's grouping (BI-0207). */
+  readFile: (p: string) => Promise<string>;
 }
 
 const DEFAULT_FS: ExecuteFs = {
@@ -40,6 +47,7 @@ const DEFAULT_FS: ExecuteFs = {
     return { size: s.size };
   },
   realpath: (p) => nodeFs.realpath(p),
+  readFile: (p) => nodeFs.readFile(p, "utf8"),
 };
 
 export interface FocusedVaultResponse {
@@ -192,10 +200,58 @@ function classifyAndThrow(
   });
 }
 
-interface RowPostProcessResult {
-  rows: QueryBaseRow[];
-  columns: string[];
+/** A failed read of the `.base`: ENOENT is BASE_NOT_FOUND, anything else is rethrown as raised. */
+function baseReadError(err: unknown, input: QueryBaseInput): unknown {
+  if (getErrno(err) === "ENOENT") {
+    return new UpstreamError({
+      code: "CLI_REPORTED_ERROR",
+      cause: err,
+      details: { code: "BASE_NOT_FOUND", base_path: input.base_path },
+      message: "query_base: base file not found at the supplied vault-relative path",
+    });
+  }
+  return err;
 }
+
+/** A grouped view the mirror can match (BI-0207): the published `group_by` and where each row's group value comes from. */
+interface Grouping {
+  groupBy: QueryBaseGroupBy;
+  source: GroupSource;
+}
+
+/**
+ * BI-0207: the named view's grouping, from the `.base` text. A grouping this server cannot mirror (a custom group
+ * order, a `groupBy` the scan cannot read, an unsupported property) fails the call; it never reads as ungrouped.
+ */
+async function readViewGrouping(fs: ExecuteFs, resolvedBasePath: string, input: QueryBaseInput): Promise<Grouping | null> {
+  let text: string;
+  try {
+    text = await fs.readFile(resolvedBasePath);
+  } catch (err) {
+    throw baseReadError(err, input);
+  }
+  const grouping = findViewGrouping(text, input.view_name);
+  if (grouping.kind === "none") return null;
+  if (grouping.kind === "unreadable") {
+    throw groupingUnsupported(
+      "unreadable-group-by",
+      { base_path: input.base_path, view_name: input.view_name, detail: grouping.detail },
+      `cannot read the grouping of view "${input.view_name}" (${grouping.detail}); query_base reads the block-style YAML Obsidian writes`,
+    );
+  }
+  if (grouping.kind === "custom-order") {
+    throw groupingUnsupported(
+      "custom-group-order",
+      { base_path: input.base_path, view_name: input.view_name },
+      `view "${input.view_name}" sets a custom group order (groupOrder), which query_base does not support`,
+    );
+  }
+  const groupBy: QueryBaseGroupBy = { property: grouping.property, direction: grouping.direction };
+  return { groupBy, source: groupSource(grouping.property) };
+}
+
+/** A row with its reserved `path` row locator, always the first key (FR-002b). */
+type ReservedRow = QueryBaseRow & { path: string };
 
 /**
  * The hypothetical upstream metadata channel for the source-note path when a
@@ -207,103 +263,116 @@ interface RowPostProcessResult {
  */
 const SOURCE_PATH_METADATA_KEY = "_source_path";
 
-function postProcessRows(
-  upstreamRows: QueryBaseWire,
-  fallbackColumns: string[] | null,
-): RowPostProcessResult {
-  if (upstreamRows.length === 0) {
-    const columns = fallbackColumns ?? ["path"];
-    if (!columns.includes("path")) columns.unshift("path");
-    return { rows: [], columns };
-  }
+/**
+ * The columns vector, derived from the first upstream row's key order (ECMAScript insertion order), excluding the
+ * metadata key. Reserved `path` at index 0; on a collision, `path_view` sits where the view declared its own `path`.
+ * With no rows the wrapper degrades to the minimum-viable contract ["path"] (FR-002c): it has no signal for
+ * view-declared column names absent row data.
+ */
+function viewColumns(firstRow: QueryBaseRow | undefined): string[] {
+  if (firstRow === undefined) return ["path"];
 
   // Detect collision: upstream emits a row carrying SOURCE_PATH_METADATA_KEY alongside
   // a view-defined `path` column. In that case, the wrapper-injected `path` wins
   // (from the metadata key) and the view-defined column moves to `path_view`.
-  const firstRow = upstreamRows[0]!;
-  const hasCollision =
-    SOURCE_PATH_METADATA_KEY in firstRow && "path" in firstRow;
-
-  // Derive column order from the first row's key iteration (ECMAScript insertion order),
-  // excluding the metadata key.
+  const hasCollision = SOURCE_PATH_METADATA_KEY in firstRow && "path" in firstRow;
   const firstRowKeys = Object.keys(firstRow).filter((k) => k !== SOURCE_PATH_METADATA_KEY);
+  if (!hasCollision) return ["path", ...firstRowKeys.filter((k) => k !== "path")];
 
-  // Build columns vector. Reserved `path` at index 0; if collision, append `path_view`
-  // at the position the view declared for the original `path`.
-  let columns: string[];
-  if (hasCollision) {
-    columns = [];
-    let pathSlotted = false;
-    for (const key of firstRowKeys) {
-      if (key === "path") {
-        if (!pathSlotted) {
-          columns.push("path");
-          pathSlotted = true;
-        }
-        columns.push("path_view");
-      } else {
-        columns.push(key);
+  const columns: string[] = [];
+  let pathSlotted = false;
+  for (const key of firstRowKeys) {
+    if (key === "path") {
+      if (!pathSlotted) {
+        columns.push("path");
+        pathSlotted = true;
       }
-    }
-    if (!pathSlotted) columns.unshift("path");
-  } else {
-    columns = ["path"];
-    for (const key of firstRowKeys) {
-      if (key === "path") continue;
+      columns.push("path_view");
+    } else {
       columns.push(key);
     }
   }
+  if (!pathSlotted) columns.unshift("path");
+  return columns;
+}
 
-  const rows: QueryBaseRow[] = upstreamRows.map((upstreamRow) => {
-    const collisionInRow =
-      SOURCE_PATH_METADATA_KEY in upstreamRow && "path" in upstreamRow;
-    let reservedPath: string;
-    let pathViewValue: unknown;
+/** One upstream row with the reserved `path` first (from the collision metadata when present) and the rest in order. */
+function reserveRow(upstreamRow: QueryBaseRow): ReservedRow {
+  const collisionInRow = SOURCE_PATH_METADATA_KEY in upstreamRow && "path" in upstreamRow;
+  let reservedPath: string;
+  let pathViewValue: unknown;
 
-    if (collisionInRow) {
-      const meta = upstreamRow[SOURCE_PATH_METADATA_KEY];
-      if (typeof meta !== "string" || meta.length === 0) {
-        throw new UpstreamError({
-          code: "INTERNAL_ERROR",
-          cause: null,
-          details: {
-            stage: "row-locator-synthesis",
-            message: `upstream collision-metadata key ${SOURCE_PATH_METADATA_KEY} is not a non-empty string`,
-          },
-          message:
-            "query_base: cannot synthesise reserved `path` row locator from upstream collision metadata",
-        });
-      }
-      reservedPath = meta;
-      pathViewValue = upstreamRow["path"];
-    } else {
-      const raw = upstreamRow["path"];
-      if (typeof raw !== "string" || raw.length === 0) {
-        throw new UpstreamError({
-          code: "INTERNAL_ERROR",
-          cause: null,
-          details: {
-            stage: "row-locator-synthesis",
-            message: "upstream emitted no non-empty string `path` row locator and no collision metadata is available",
-          },
-          message:
-            "query_base: cannot synthesise reserved `path` row locator from upstream emission",
-        });
-      }
-      reservedPath = raw;
+  if (collisionInRow) {
+    const meta = upstreamRow[SOURCE_PATH_METADATA_KEY];
+    if (typeof meta !== "string" || meta.length === 0) {
+      throw new UpstreamError({
+        code: "INTERNAL_ERROR",
+        cause: null,
+        details: {
+          stage: "row-locator-synthesis",
+          message: `upstream collision-metadata key ${SOURCE_PATH_METADATA_KEY} is not a non-empty string`,
+        },
+        message:
+          "query_base: cannot synthesise reserved `path` row locator from upstream collision metadata",
+      });
     }
-
-    const out: QueryBaseRow = { path: reservedPath };
-    if (collisionInRow) out["path_view"] = pathViewValue;
-    for (const [k, val] of Object.entries(upstreamRow)) {
-      if (k === "path") continue;
-      if (k === SOURCE_PATH_METADATA_KEY) continue;
-      out[k] = val;
+    reservedPath = meta;
+    pathViewValue = upstreamRow["path"];
+  } else {
+    const raw = upstreamRow["path"];
+    if (typeof raw !== "string" || raw.length === 0) {
+      throw new UpstreamError({
+        code: "INTERNAL_ERROR",
+        cause: null,
+        details: {
+          stage: "row-locator-synthesis",
+          message: "upstream emitted no non-empty string `path` row locator and no collision metadata is available",
+        },
+        message:
+          "query_base: cannot synthesise reserved `path` row locator from upstream emission",
+      });
     }
-    return out;
+    reservedPath = raw;
+  }
+
+  const out: ReservedRow = { path: reservedPath };
+  if (collisionInRow) out["path_view"] = pathViewValue;
+  for (const [k, val] of Object.entries(upstreamRow)) {
+    if (k === "path") continue;
+    if (k === SOURCE_PATH_METADATA_KEY) continue;
+    out[k] = val;
+  }
+  return out;
+}
+
+/** `row` with the reserved `group` key right after `path`; a view column named `group` moves to `group_view`. */
+function withGroup({ path, ...rest }: ReservedRow, group: string | null): QueryBaseRow {
+  const out: QueryBaseRow = { path, group };
+  for (const [k, v] of Object.entries(rest)) out[k === "group" ? "group_view" : k] = v;
+  return out;
+}
+
+/** The columns vector of a grouped view: `group` right after `path`, a view column named `group` as `group_view`. */
+function withGroupColumn(columns: string[]): string[] {
+  return columns.flatMap((c) => (c === "path" ? ["path", "group"] : [c === "group" ? "group_view" : c]));
+}
+
+/**
+ * A grouped view's rows (BI-0207) in Obsidian's group order, upstream's order within a group, each with its `group`.
+ * Every row (before the cap) gets its group value from Obsidian; an empty view makes no eval.
+ */
+async function inGroupOrder(
+  rows: ReservedRow[],
+  grouping: Grouping,
+  input: QueryBaseInput,
+  deps: ExecuteDeps,
+): Promise<QueryBaseRow[]> {
+  if (rows.length === 0) return [];
+  const { locale, values } = await readGroupValues(grouping.source, rows.map((r) => r.path), input.vault, deps);
+  return groupRows(values, grouping.groupBy.direction, locale).flatMap((group) => {
+    const text = group.key === null ? null : valueText(group.key);
+    return group.rows.map((i) => withGroup(rows[i]!, text));
   });
-
-  return { rows, columns };
 }
 
 export async function executeQueryBase(
@@ -326,15 +395,7 @@ export async function executeQueryBase(
   try {
     stats = await fs.stat(resolvedBasePath);
   } catch (err) {
-    if ((err as NodeJS.ErrnoException)?.code === "ENOENT") {
-      throw new UpstreamError({
-        code: "CLI_REPORTED_ERROR",
-        cause: err,
-        details: { code: "BASE_NOT_FOUND", base_path: input.base_path },
-        message: "query_base: base file not found at the supplied vault-relative path",
-      });
-    }
-    throw err;
+    throw baseReadError(err, input);
   }
   if (stats.size === 0) {
     throw new UpstreamError({
@@ -439,30 +500,34 @@ export async function executeQueryBase(
   }
   const upstreamRows: QueryBaseWire = wireValidated.data;
 
-  // === Stage 6 — row post-process: path reservation + columns vector ===
-  // Determinism (FR-003 / SC-003): the wrapper preserves upstream's emission order
+  // === Stage 6 — the view's grouping (BI-0207). Upstream's base:query ignores `groupBy`, so for a grouped
+  // view the wrapper reads each row's group value from Obsidian and applies Obsidian's group order itself.
+  // An ungrouped view makes no eval call.
+  const grouping = await readViewGrouping(fs, resolvedBasePath, input);
+
+  // === Stage 7 — row post-process: path reservation (+ group order) + columns vector, then the cap ===
+  // Determinism (FR-003 / SC-003): an ungrouped view keeps upstream's emission order
   // verbatim. Per data-model.md the view's declared sort is trusted from upstream;
   // path-asc tiebreak is satisfied de facto when upstream emits in path order for
   // ties (R10 probe #3 validates the no-sort baseline). Same input → byte-identical
   // output. The wrapper does NOT re-sort because it has no signal for which column
-  // the view declared as the primary sort key.
-  const orderedRows = upstreamRows;
-  const totalRowsBeforeCap = orderedRows.length;
-  const capped = orderedRows.slice(0, QUERY_BASE_RESPONSE_ROW_CAP);
+  // the view declared as the primary sort key. An ungrouped view reserves only the
+  // rows under the cap; a grouped view reserves every row, because the cap applies
+  // after the group order.
+  const rows =
+    grouping === null
+      ? upstreamRows.slice(0, QUERY_BASE_RESPONSE_ROW_CAP).map(reserveRow)
+      : (await inGroupOrder(upstreamRows.map(reserveRow), grouping, input, deps)).slice(0, QUERY_BASE_RESPONSE_ROW_CAP);
+  const columns = viewColumns(upstreamRows[0]);
+  const totalRowsBeforeCap = upstreamRows.length;
   const truncated = totalRowsBeforeCap > QUERY_BASE_RESPONSE_ROW_CAP;
 
-  // For empty-rows upstream emission, we have no row-keys to derive columns from.
-  // The wrapper degrades to the minimum-viable contract ["path"] per FR-002c — the
-  // agent learns at least that `path` is always present. T0 probe #1 confirms
-  // whether upstream emits a separate columns header for empty-view responses; if
-  // so, we lift the column names from there.
-  const { rows: rowsOut, columns } = postProcessRows(capped, null);
-
-  // === Stage 7 — output schema parse (defence-in-depth) ===
+  // === Stage 8 — output schema parse (defence-in-depth) ===
   return queryBaseOutputSchema.parse({
-    columns,
-    rows: rowsOut,
+    columns: grouping === null ? columns : withGroupColumn(columns),
+    rows,
     truncated,
     ...(truncated ? { total_rows: totalRowsBeforeCap } : {}),
+    ...(grouping === null ? {} : { group_by: grouping.groupBy }),
   });
 }

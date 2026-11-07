@@ -192,7 +192,7 @@ const DEDICATED_CASES: NoiseCase[] = [
       createQueryBaseTool({
         ...cli(evalOut({ path: null, base: resolve("/vault") }), out(JSON.stringify([{ path: "x.md", status: "open" }]))),
         vaultRegistry: registryAt(resolve("/vault")),
-        fs: { stat: async () => ({ size: 100 }), realpath: async (p: string) => p },
+        fs: { stat: async () => ({ size: 100 }), realpath: async (p: string) => p, readFile: async () => "views:\n  - type: table\n    name: Open\n" },
       }),
     args: { base_path: "Indexes/Active.base", view_name: "Open" },
     parseErrorStage: "focused-vault-resolve",

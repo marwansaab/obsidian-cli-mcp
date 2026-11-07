@@ -8,7 +8,7 @@ run a view, and create an item in one. Per-tool contracts are the
 | --- | --- | --- |
 | `bases` | native CLI `bases` | [docs/tools/bases.md](../../docs/tools/bases.md) |
 | `views_base` | native CLI `base:views`, with an `eval` to focus a named Base | [docs/tools/views_base.md](../../docs/tools/views_base.md) |
-| `query_base` | native CLI `base:query`, with `fs.stat` pre-flight | [docs/tools/query_base.md](../../docs/tools/query_base.md) |
+| `query_base` | native CLI `base:query`, with `fs.stat` pre-flight; for a grouped view, an `fs.readFile` of the `.base` and batched `eval`s for the group values | [docs/tools/query_base.md](../../docs/tools/query_base.md) |
 | `create_base` | native CLI `base:create`; with `vault`, an `eval` for the item folder and realpath checks before and after | [docs/tools/create_base.md](../../docs/tools/create_base.md) |
 
 ## How it is built
@@ -60,11 +60,88 @@ F2).
    wording. Since PR #111 that pattern is `INVALID_YAML_PATTERN` in
    `src/tools/_base-malformed.ts`, shared with `views_base`; it moved
    unchanged, so `query_base`'s classification did not change.
-4. Parse and validate the JSON, then post-process the rows. A reserved `path`
-   column (the source note's vault-relative path) always sits at
-   `columns[0]`. A view column also called `path` is renamed `path_view`.
-5. Cap at 1000 rows. When the cap applies, the result carries
+4. Parse and validate the JSON.
+5. Read the view's grouping (since PR #158, BI-0207;
+   [below](#grouped-views-mirrored-not-read-back)). An ungrouped view goes
+   on with no further call.
+6. Post-process the rows. A reserved `path` column (the source note's
+   vault-relative path) always sits at `columns[0]`. A view column also
+   called `path` is renamed `path_view`. A grouped view's rows are put in
+   group order and gain a reserved `group` after `path`.
+7. Cap at 1000 rows. When the cap applies, the result carries
    `truncated: true` and `total_rows`.
+
+Until PR #158 post-processing ran in `postProcessRows`, on rows already
+cut to the cap. The PR #158 code-quality review (F2) split it into
+`viewColumns` and `reserveRow` so the grouped and ungrouped paths share one
+cap, one `truncated` / `total_rows` and one output parse. An ungrouped view
+still reserves only the rows under the cap; a grouped view reserves every
+row, because the cap has to apply after the group order.
+
+### Grouped views: mirrored, not read back
+
+**Obsidian's `base:query` ignores a view's `groupBy`**, so until PR #158
+`query_base` returned a grouped view as flat rows in file-path order, with
+nothing saying which group a row was in (BI-0207, TC-00909). The grouping
+exists only in an open Bases view. PR #158 computes it in the wrapper
+([ADR-080](../decisions/ADR-080-query-base-mirrors-obsidians-grouping-and-fails-what-it-cannot-mirror.md)):
+
+```mermaid
+flowchart TD
+  Q[base:query rows] --> R["readViewGrouping: fs.readFile the .base<br/>findViewGrouping (group-by.ts)"]
+  R -- none --> U[ungrouped: rows as before, no eval]
+  R -- "custom-order / unreadable" --> X[GROUPING_UNSUPPORTED]
+  R -- grouped --> S["groupSource: note.* or file.folder/ext/tags/ctime/mtime<br/>else GROUPING_UNSUPPORTED / property"]
+  S --> V["readGroupValues (group-values.ts)<br/>eval batches under EVAL_BATCH_CODE_MAX"]
+  V --> G["groupRows (group-order.ts)<br/>Obsidian's groupedData rules"]
+  G --> O["rows in group order, group key,<br/>group_by, then the 1000-row cap"]
+```
+
+- **The grouping is found in Node.** The handler reads the `.base` through
+  a new required `ExecuteFs.readFile`, at the canonical path it already
+  checked, and `findViewGrouping` scans the named view's block-style
+  `groupBy` and `groupOrder`. The scan copies `create_base`'s
+  `ITEM_FOLDER_TEMPLATE` technique without importing it. It returns `none`,
+  `grouped`, `custom-order` (a list `groupOrder`; a separate kind since the
+  PR #158 owner ruling Q3 = A) or `unreadable`. The assessment had the eval
+  find `groupBy`, which contradicted its own promise that an ungrouped view
+  makes no eval call; the owner ruled for the Node read (option A).
+- **Values come from two frozen templates** in
+  `src/tools/query_base/_template.ts`, `NOTE_GROUP_TEMPLATE` (mirrors
+  Obsidian's `fromFrontMatter`: exact then case-insensitive key, `tags` as
+  `#` tags, `[[…]]` as a link resolved through `getFirstLinkpathDest`,
+  Obsidian's date patterns as dates) and `FILE_GROUP_TEMPLATE`. Each returns
+  every row's value in a typed form (`{s}`, `{n}`, `{b}`, `{d,t,s,o}`,
+  `{l,y,r}`, `{a}`, or `{u}` for one it cannot mirror) plus the locale of
+  Obsidian's group collator. The link and date patterns are exported and
+  interpolated by `.source`, so the template and the mirror's re-parse guard
+  test the same strings (review F5). These are the cohort's third and
+  fourth templates, and the first that run only after the CLI has answered.
+- **Batches share one planner.** Paths go folder-grouped as
+  `[folder, [names]]` through `planEvalBatches`
+  ([architecture](../architecture.md#reaching-obsidian-internals-the-eval-template-pattern)).
+  The assessment planned one eval for all rows; the shim's limit made that
+  impossible. Measured: about 70 short paths or 12 long (~100-character)
+  paths per eval, below the 30–60 estimate given at the ruling.
+- **The order is Obsidian's code, copied.** `group-order.ts` is pure:
+  groups form in row order, a row joining the first group whose key
+  `looseEquals` its value; then a stable sort, numbers by difference and
+  everything else by printed key under `Intl.Collator {usage: "sort",
+  sensitivity: "base", numeric: true}` in Obsidian's locale, times −1 for
+  `DESC`; the null group last in both directions. Loose equality means `9`
+  and `"9"`, `true` and `1`, and a string and a link to it share a group.
+  It deliberately uses `==` and a linear search, as Obsidian does.
+- **Module split.** The fix landed one `groups.ts`; the PR #158 owner
+  ruling Q2 = B split it into `group-order.ts` (the pure mirror and
+  `groupingUnsupported`) and `group-values.ts` (`groupSource`, the batch
+  plan, `readGroupValues`, `mirrored`). Imports run handler →
+  `group-values.ts` → `group-order.ts` → `_template.ts`. Ruling Q1 = A moved
+  the ICU locale check from `groupRows` to `readGroupValues`, where the
+  answer is decoded (Principle III).
+- **Live check.** At fix time the built handler matched Obsidian's own
+  `groupedData` on 26 of 26 grouped views (13 properties × ASC/DESC); the
+  reproduction was re-run through the built server over stdio
+  (`.specify/bugs/bi-0207/test.md`).
 
 `views_base` has two modes (reworked in BI-064, PR #71). Given a `base_path`,
 it focuses that Base through `eval`, then reads its views with the CLI's
@@ -236,7 +313,11 @@ the closed-vault and vault-unavailable rows are on the help pages
 ([ADR-074](../decisions/ADR-074-tool-descriptions-route-within-a-budget-and-the-help-page-holds-the-contract.md),
 [ADR-045](../decisions/ADR-045-closed-vaults-recovered-only-by-the-dispatch-retry.md)
 amendment). `query_base`'s input root description lost its internal
-identifiers and version history in the same PR and is otherwise unchanged.
+identifiers and version history in the same PR. PR #158 added a "Grouped
+views" paragraph and `group_by?` to its response shape, and its
+`outputSchema` gained the optional `group_by` (`queryBaseGroupBySchema`), so
+both of `query_base`'s schema fingerprints moved in
+`src/tools/_register-baseline.json`.
 The `vault` parameter descriptions keep "Obsidian vault display name".
 Since PR #91 all four publish an `outputSchema` and return their result as
 `structuredContent` beside the identical text
@@ -331,6 +412,21 @@ or `null`), and no `details.code`, `details.reason` or `message`, so
 ADR-015's closed sets do not grow and no Base's complaint is attached. The
 help page lists it under the generic "Retry" row.
 
+Since PR #158 (BI-0207) a grouped `query_base` view adds
+`details.code: "GROUPING_UNSUPPORTED"` under `CLI_REPORTED_ERROR`, with five
+`details.reason` values: `custom-group-order`, `unreadable-group-by`,
+`property` (formula grouping, or a `file.*` property other than the five),
+`value-type` (an object, a non-finite number, an invalid date, a `tags`
+list holding `null`) and `collator-locale`. A row whose note is gone before
+its value is read is `details.stage: "group-values"` with
+`reason: "note-not-found"`, a transient condition and so a stage rather than
+a code, as `focus` is for `views_base`. A batch that answers for the wrong
+number of rows, or batches that report different locales, fail at
+`envelope-parse`. None falls back to flat rows
+([ADR-080](../decisions/ADR-080-query-base-mirrors-obsidians-grouping-and-fails-what-it-cannot-mirror.md)).
+`BASE_NOT_FOUND` can now also come from the post-CLI `readFile`, through the
+shared `baseReadError` that the `stat` pre-flight uses too.
+
 `query_base` on a closed registered vault returns its normal result. In the
 T0 check for PR #100, `base:query` answered a closed vault on its first
 attempt; where it answers `Error: Command "base:query" not found.` instead,
@@ -408,6 +504,28 @@ These are inherited from the CLI and documented in each tool's description:
   BI-0137 rules out changing it. The difference is stated in
   [docs/tools/query_base.md](../../docs/tools/query_base.md#errors--error-roster);
   bounding it is a candidate backlog item for cohort parity.
+- `query_base`'s grouping is a mirror of Obsidian 1.15's code, not a
+  read-back (PR #158,
+  [ADR-080](../decisions/ADR-080-query-base-mirrors-obsidians-grouping-and-fails-what-it-cannot-mirror.md)).
+  If Obsidian changes how it groups, or `base:query` starts emitting groups,
+  the mirror drifts; the 26-view comparison in
+  `.specify/bugs/bi-0207/fix.md` has to be re-run on each Obsidian release
+  that touches Bases. Text keys sort with this server's ICU collator in
+  Obsidian's locale, which could differ from Electron's on rare characters.
+- Grouped views refuse formula grouping, a custom group order, a flow-style
+  `groupBy` and `file.*` properties other than `folder`, `ext`, `tags`,
+  `ctime` and `mtime` (`GROUPING_UNSUPPORTED`). `file.ctime` / `file.mtime`
+  groups can carry the same `group` label, because Obsidian separates them
+  by millisecond but prints them to the second.
+- A grouped view costs about one extra `eval` per 12 to 70 rows, depending
+  on path length; a 1,000-row view with long paths is roughly 80 calls. No
+  wall-clock measurement was taken for a large view. Shrinking the note
+  template or sharing a folder prefix across a batch would raise the paths
+  per call (`fix.md`, Follow-ups).
+- `query_base` checks the `.base` twice: `fs.stat` before `base:query` and
+  `fs.readFile` after it, so a `.base` deleted between the two reports
+  `BASE_NOT_FOUND` after a successful query. Replacing both with one read
+  was left for its own owner ruling (PR #158 review, Q4 = B).
 - From PR #90 until PR #114 the `vault` field descriptions of `bases` and
   `create_base` said it is accepted but ignored by the CLI; PR #114 replaced
   that wording with the routed behaviour. `create_base`'s `content` ("Default:

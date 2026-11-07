@@ -64,8 +64,9 @@ extends it.
   - [capabilities/list-and-inventory.md](capabilities/list-and-inventory.md) —
     `files`, `paths`, `outline`, `properties`, `vaults`.
   - [capabilities/bases.md](capabilities/bases.md) — `bases`, `views_base`,
-    `query_base`, `create_base`, and their routing by the named vault
-    (PR #114).
+    `query_base`, `create_base`, their routing by the named vault
+    (PR #114), and how `query_base` returns a grouped view in Obsidian's
+    group order (PR #158).
   - [capabilities/plugin-backed.md](capabilities/plugin-backed.md) — the two
     Smart Connections tools, and how `limit` cuts one fixed, sorted
     candidate list (PR #116), and how one shared fragment turns a plugin
@@ -324,3 +325,10 @@ applies. Records written since:
   every block type and no tool-surface change; list-or-table detection, an
   added paragraph break and a description clause were rejected (PR #157,
   BI-0206).
+- [decisions/ADR-080-query-base-mirrors-obsidians-grouping-and-fails-what-it-cannot-mirror.md](decisions/ADR-080-query-base-mirrors-obsidians-grouping-and-fails-what-it-cannot-mirror.md)
+  — for a grouped view `query_base` reads `groupBy` from the `.base` in
+  Node, reads each row's group value in batched read-only evals, applies
+  Obsidian 1.15's own grouping in TypeScript, and fails anything it cannot
+  mirror with `GROUPING_UNSUPPORTED`; opening the view, a YAML library, one
+  eval for every row, a separate `groups` shape and a flat-row fallback were
+  rejected (PR #158, BI-0207).

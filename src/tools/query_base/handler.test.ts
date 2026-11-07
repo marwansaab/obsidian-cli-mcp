@@ -35,6 +35,7 @@ interface DepsOpts {
   vaultRoot?: string;
   fsStat?: (p: string) => Promise<{ size: number }>;
   fsRealpath?: (p: string) => Promise<string>;
+  fsReadFile?: (p: string) => Promise<string>;
 }
 
 function makeStubRegistry(vaultRoot: string): VaultRegistry {
@@ -56,9 +57,13 @@ function deps(opts: DepsOpts): ExecuteDeps {
     fs: {
       stat: opts.fsStat ?? (async () => ({ size: 100 })),
       realpath: opts.fsRealpath ?? (async (p: string) => p),
+      readFile: opts.fsReadFile ?? (async () => UNGROUPED_BASE),
     },
   };
 }
+
+/** A `.base` whose `Open` view is not grouped (BI-0207: the handler reads the view's grouping). */
+const UNGROUPED_BASE = "views:\n  - type: table\n    name: Open\n";
 
 const HAPPY_INPUT = {
   base_path: "Indexes/Active.base",
@@ -383,7 +388,7 @@ test("US1: vault unknown via vaultRegistry resolveVaultPath → CLI_REPORTED_ERR
     spawnFn,
     env: {},
     vaultRegistry: registryThatRejects,
-    fs: { stat: async () => ({ size: 100 }), realpath: async (p) => p },
+    fs: { stat: async () => ({ size: 100 }), realpath: async (p) => p, readFile: async () => UNGROUPED_BASE },
   };
   const err = (await captureRejection(
     executeQueryBase({ ...HAPPY_INPUT, vault: "X" }, d),
@@ -445,6 +450,7 @@ test("FR-015 read-only: handler never invokes fs.writeFile (cohort lock)", async
   const fs = {
     stat,
     realpath,
+    readFile: async () => UNGROUPED_BASE,
     // Synthetic guard — handler should not depend on fs.writeFile or similar.
     writeFile: async () => {
       writeFileCalls++;
@@ -616,7 +622,7 @@ test("US1: no-vault path exercises default FOCUSED_VAULT_TEMPLATE eval round-tri
     spawnFn,
     env: {},
     vaultRegistry: makeStubRegistry("C:\\Vault"),
-    fs: { stat: async () => ({ size: 100 }), realpath: async (p) => p },
+    fs: { stat: async () => ({ size: 100 }), realpath: async (p) => p, readFile: async () => UNGROUPED_BASE },
   };
   const r = await executeQueryBase(
     { base_path: "Indexes/Active.base", view_name: "Open" },
@@ -635,7 +641,7 @@ test("US1: no-vault path with unparseable focused-vault eval → CLI_REPORTED_ER
     spawnFn,
     env: {},
     vaultRegistry: makeStubRegistry("C:\\Vault"),
-    fs: { stat: async () => ({ size: 100 }), realpath: async (p) => p },
+    fs: { stat: async () => ({ size: 100 }), realpath: async (p) => p, readFile: async () => UNGROUPED_BASE },
   };
   const err = (await captureRejection(
     executeQueryBase(
@@ -711,6 +717,7 @@ test("US2: PATH_ESCAPES_VAULT — realpath returns path outside vault root → P
         if (p === "C:\\Vault") return "C:\\Vault";
         return "C:\\Elsewhere";
       },
+      readFile: async () => UNGROUPED_BASE,
     },
   };
   const err = (await captureRejection(
