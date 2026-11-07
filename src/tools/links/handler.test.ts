@@ -530,6 +530,22 @@ test("active + no focused file: envelope NO_ACTIVE_FILE → ERR_NO_ACTIVE_FILE (
   expect(err.details).toMatchObject({ stage: "envelope-error" });
 });
 
+// BI-0193: the advice names specific mode, a vault and a note; details stay the envelope's.
+test("active + no focused file: ERR_NO_ACTIVE_FILE advice names target_mode=specific + vault + file/path (BI-0193)", async () => {
+  const detail = "No note focused; switch to specific mode or focus a note.";
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: `=> ${JSON.stringify({ ok: false, code: "NO_ACTIVE_FILE", detail })}\n`, exitCode: 0 },
+  ]);
+  const err = (await captureRejection(
+    executeLinks({ target_mode: "active" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
+  expect(err.message).toBe(
+    "No active file in Obsidian. Open a note in the editor, or call links with target_mode=specific + vault + file/path.",
+  );
+  expect(err.details).toEqual({ stage: "envelope-error", detail });
+});
+
 // (25) malformed eval stdout (non-JSON) → CLI_REPORTED_ERROR(stage:json-parse)
 test("malformed JSON eval response → CLI_REPORTED_ERROR(stage:'json-parse')", async () => {
   const { spawnFn } = makeQueuedSpawn([{ stdout: "=> not-valid-json{\n", exitCode: 0 }]);

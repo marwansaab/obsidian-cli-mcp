@@ -135,7 +135,8 @@ const NOT_READY: ExpectedFailure = {
 };
 const NO_ACTIVE_FILE: ExpectedFailure = {
   code: "ERR_NO_ACTIVE_FILE",
-  message: "smart_connections_similar: no note focused; switch to specific mode or focus a note.",
+  message:
+    "No active file in Obsidian. Open a note in the editor, or call smart_connections_similar with target_mode=specific + vault + file/path.",
   details: { stage: "envelope-error", detail: "No note focused; switch to specific mode or focus a note." },
 };
 

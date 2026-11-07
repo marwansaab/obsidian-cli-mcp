@@ -279,6 +279,20 @@ test("active no-focused-file — ONE spawn (eval returns path:null); ERR_NO_ACTI
   expect(recorded).toHaveLength(1);
 });
 
+// BI-0193: the advice names this tool (not the retired write_property), specific mode, a vault and a note.
+test("active no-focused-file — ERR_NO_ACTIVE_FILE advice names set_property + target_mode=specific + vault + file/path (BI-0193)", async () => {
+  const { spawnFn } = makeQueuedSpawn([{ stdout: '=> {"path":null,"vault":"V"}\n', exitCode: 0 }]);
+  const err = (await captureRejection(
+    executeWriteProperty({ target_mode: "active", name: "status", value: "v" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
+  expect(err.message).toBe(
+    "No active file in Obsidian. Open a note in the editor, or call set_property with target_mode=specific + vault + file/path.",
+  );
+  expect(err.message).not.toContain("write_property");
+  expect(err.details).toEqual({});
+});
+
 // (15) active TOCTOU — eval resolves the focused path at step 1; response reports that path (CONCURRENCY edge case)
 test("active TOCTOU — response.path is the path resolved at Call A (no second resolve before write)", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([

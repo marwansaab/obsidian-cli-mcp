@@ -969,14 +969,54 @@ vault/file." Two tools that reach it take neither input, `views_base`
 (open-Base mode) and `obsidian_exec`, so until PR #142 (BI-0174, item 10e)
 they advised a call the caller could not make. Since then each catches the
 error and calls `throwIfNoActiveFile(err, advice)`
-(`src/tools/_active-file.ts`, beside the cohort's `noActiveFileMessage`),
-which throws it again with the same `ERR_NO_ACTIVE_FILE` code, `cause` and
-`details` and the tool's own advice as the message; any other error passes
-through untouched. Dispatch's message did not change: rewording it once
-would have lost the `target_mode` advice for every tool that has it
-(`.specify/bugs/bi-0174/assessment.md`, Alternatives). The two rethrows were
-first written inline in each handler; the PR #142 code-quality review
-(finding F1) moved them into the shared helper.
+(`src/tools/_active-file.ts`), which throws it again with the same
+`ERR_NO_ACTIVE_FILE` code, `cause` and `details` and the tool's own advice as
+the message; any other error passes through untouched. Dispatch's message did
+not change: rewording it once would have lost the `target_mode` advice for
+every tool that has it (`.specify/bugs/bi-0174/assessment.md`, Alternatives).
+The two rethrows were first written inline in each handler; the PR #142
+code-quality review (finding F1) moved them into the shared helper.
+
+Dispatch is not the only source of `ERR_NO_ACTIVE_FILE`. Tools that find "no
+note open" themselves (the focused-file `eval` answering `path: null`, or an
+eval template's `NO_ACTIVE_FILE` envelope) build the error in the handler,
+and until PR #152 (BI-0193) each wrote its own sentence. Three were wrong:
+`find_and_replace` with `active_note: true` reused the target-mode resolver
+and was told to pass `target_mode=specific`, which its strict schema rejects
+(TC-00776, seen live); `set_property` named the retired `write_property` tool
+and no vault or note; and `backlinks`, `links`, `read_heading` and
+`smart_connections_similar` said "switch to specific mode" without naming the
+vault and note that mode needs. Since PR #152 one builder,
+`noActiveFileError(toolName, details)` in `_active-file.ts`, makes the
+target-mode cohort's error: "No active file in Obsidian. Open a note in the
+editor, or call `<tool>` with target_mode=specific + vault + file/path.", with
+`cause: null` and the caller's `details`. The focused-file resolver,
+`set_property` (`details: {}`) and the four eval tools
+(`{ stage: "envelope-error", detail }`) all call it, so their `details` stayed
+byte-identical and only the message moved; the eval tools' messages lost their
+`<tool>: ` prefix. Its JSDoc limits it to tools whose input has `target_mode`,
+`vault`, `file` and `path`. A tool without them catches the error and rethrows
+it through `throwIfNoActiveFile` with its own advice, as `find_and_replace`
+now does: "… or call find_and_replace with path or file (and vault) instead of
+active_note." The fix first exported only the message text
+(`noActiveFileMessage`, previously private); the PR #152 review (finding F1)
+replaced it with the error builder so the six sites no longer assemble the
+`UpstreamError` by hand, which is the per-site drift the bug came from.
+
+`src/tools/_no-active-file-advice.test.ts` guards the six: it runs each real
+handler with no note open and checks that the advice names this tool, that
+every input it names after "call `<tool>` with" is in the tool's published
+`inputSchema`, and that only a target-mode tool is told `target_mode`. It
+scans only that clause, because the fixed opening "No active file …" would
+otherwise read as naming the `file` input (PR #152 review, finding F2). It
+covers these six tools, not every source of the code; widening it was an
+option the owner did not take (`.specify/bugs/bi-0193/test.md`). Dispatch's
+own message is still unchanged (BI-0193 Relay Q1 = A), so one route remains:
+an `eval` that prints no answer line but has a line starting `Error: no
+active file` gives a tool without a target mode, or the folder-scoped `files`
+and `paths`, dispatch's `target_mode` advice. Letting the caller supply the
+advice at dispatch is the root fix BI-0174 recorded, and it is still open
+(`.specify/bugs/bi-0193/fix.md`, Follow-ups).
 
 Row CD came with PR #137 (BI-0132). With Obsidian's **Settings > General >
 Advanced > Command line interface** setting off, the CLI answers every

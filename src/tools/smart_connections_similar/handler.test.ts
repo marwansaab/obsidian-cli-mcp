@@ -683,6 +683,22 @@ test("active + no focused file: envelope NO_ACTIVE_FILE → ERR_NO_ACTIVE_FILE (
   expect(err.details).toMatchObject({ stage: "envelope-error" });
 });
 
+// BI-0193: the advice names specific mode, a vault and a note; details stay the envelope's.
+test("active + no focused file: ERR_NO_ACTIVE_FILE advice names target_mode=specific + vault + file/path (BI-0193)", async () => {
+  const detail = "No note focused; switch to specific mode or focus a note.";
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: `=> ${JSON.stringify({ ok: false, code: "NO_ACTIVE_FILE", detail })}\n`, exitCode: 0 },
+  ]);
+  const err = (await captureRejection(
+    executeSmartConnectionsSimilar({ target_mode: "active", limit: defaultLimit }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.code).toBe("ERR_NO_ACTIVE_FILE");
+  expect(err.message).toBe(
+    "No active file in Obsidian. Open a note in the editor, or call smart_connections_similar with target_mode=specific + vault + file/path.",
+  );
+  expect(err.details).toEqual({ stage: "envelope-error", detail });
+});
+
 // =====================================================================
 // Parse failures (cases 29–30)
 // =====================================================================

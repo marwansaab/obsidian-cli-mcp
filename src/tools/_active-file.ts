@@ -140,9 +140,18 @@ export function parseFocusedVault(result: EvalAnswer): FocusedVaultParse {
   return { ok: false, stage: "envelope-parse", cause: null };
 }
 
-/** The cohort-uniform ERR_NO_ACTIVE_FILE message for the file cohort. */
-function noActiveFileMessage(toolName: string): string {
-  return `No active file in Obsidian. Open a note in the editor, or call ${toolName} with target_mode=specific + vault + file/path.`;
+/**
+ * The cohort-uniform ERR_NO_ACTIVE_FILE error: its message names specific mode, a vault and a note.
+ * Only a tool whose input has `target_mode`, `vault`, `file` and `path` may raise it (BI-0193); a
+ * tool without them rethrows through {@link throwIfNoActiveFile} with advice naming its own inputs.
+ */
+export function noActiveFileError(toolName: string, details: Record<string, unknown>): UpstreamError {
+  return new UpstreamError({
+    code: "ERR_NO_ACTIVE_FILE",
+    cause: null,
+    details,
+    message: `No active file in Obsidian. Open a note in the editor, or call ${toolName} with target_mode=specific + vault + file/path.`,
+  });
 }
 
 /**
@@ -198,14 +207,7 @@ export async function resolveActiveFocusedFile(
       message: "active-mode focused-file eval returned unexpected shape",
     });
   }
-  if (parsed.path === null) {
-    throw new UpstreamError({
-      code: "ERR_NO_ACTIVE_FILE",
-      cause: null,
-      details: {},
-      message: noActiveFileMessage(toolName),
-    });
-  }
+  if (parsed.path === null) throw noActiveFileError(toolName, {});
   return { vaultRoot: parsed.base, relPath: parsed.path };
 }
 
