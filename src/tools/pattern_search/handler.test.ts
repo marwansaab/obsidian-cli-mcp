@@ -350,6 +350,22 @@ test("US2 (21) FOLDER_NOT_FOUND envelope → CLI_REPORTED_ERROR(details.code:FOL
   });
 });
 
+// (21b) a folder that names a note → CLI_REPORTED_ERROR(NOT_A_FOLDER), never an empty success (BI-0204)
+test("US2 (21b) NOT_A_FOLDER envelope → CLI_REPORTED_ERROR(details.code:NOT_A_FOLDER) naming the path", async () => {
+  const folder = "Repro1106/single.md";
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: `=> ${JSON.stringify({ ok: false, code: "NOT_A_FOLDER", folder })}\n`, exitCode: 0 },
+  ]);
+  const err = (await captureRejection(
+    executePatternSearch({ pattern: "zebrafish", folder, vault: "Demo" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.cause).toBeNull();
+  expect(err.details).toEqual({ code: "NOT_A_FOLDER", folder, stage: "handler-stage-3" });
+  expect(err.message).toContain(`"${folder}" is a file, not a folder`);
+});
+
 // =====================================================================
 // US3 case-sensitivity
 // =====================================================================

@@ -218,6 +218,11 @@ test("patternSearchOutputSchema: truncated:false rejected (only literal true per
   expect(r.success).toBe(false);
 });
 
+test("patternSearchEvalEnvelopeSchema: ok:false branch accepts code='NOT_A_FOLDER' (BI-0204)", () => {
+  const r = patternSearchEvalEnvelopeSchema.safeParse({ ok: false, code: "NOT_A_FOLDER", folder: "Repro1106/single.md" });
+  expect(r.success).toBe(true);
+});
+
 test("patternSearchEvalEnvelopeSchema: ok:false branch requires code='FOLDER_NOT_FOUND'", () => {
   const r = patternSearchEvalEnvelopeSchema.safeParse({ ok: false, code: "OTHER", folder: "x" });
   expect(r.success).toBe(false);

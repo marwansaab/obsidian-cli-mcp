@@ -1,4 +1,4 @@
-// Original — no upstream. Template-execution tests for the pattern_search eval template (BI-0183): renders JS_TEMPLATE through composeEvalCode and runs it in node:vm against a stub `app` whose getMarkdownFiles() lists notes out of path order, checking that the in-template `limit` cap keeps the leading matches of the full (path, line, offset) order (so every smaller cap is a prefix of every larger one), and that `truncated` appears exactly when matches were left out.
+// Original — no upstream. Template-execution tests for the pattern_search eval template (BI-0183): renders JS_TEMPLATE through composeEvalCode and runs it in node:vm against a stub `app` whose getMarkdownFiles() lists notes out of path order, checking that the in-template `limit` cap keeps the leading matches of the full (path, line, offset) order (so every smaller cap is a prefix of every larger one), and that `truncated` appears exactly when matches were left out; and that the folder check tells a missing path (FOLDER_NOT_FOUND) and a file path (NOT_A_FOLDER) from a folder by `stat().type` (BI-0204).
 import { describe, expect, it } from "vitest";
 
 import { JS_TEMPLATE } from "./_template.js";
@@ -88,5 +88,40 @@ describe("pattern_search template: limit keeps the leading matches of the sorted
   it("omits truncated when the limit equals or exceeds the total", async () => {
     expect(await runTemplate(TOTAL)).not.toHaveProperty("truncated");
     expect(await runTemplate(TOTAL + 1)).not.toHaveProperty("truncated");
+  });
+});
+
+describe("pattern_search template: folder check reads the stat type (BI-0204)", () => {
+  async function runWithStat(stat: unknown, folder: string): Promise<{ envelope: unknown; reads: string[] }> {
+    const reads: string[] = [];
+    const app = {
+      vault: {
+        getMarkdownFiles: () => [{ path: "Repro1106/single.md" }],
+        cachedRead: async (f: { path: string }) => {
+          reads.push(f.path);
+          return "zebrafish";
+        },
+        adapter: { stat: async () => stat },
+      },
+    };
+    const payload = { pattern: "zebrafish", folder, case_sensitive: true, limit: 1000 };
+    return { envelope: await runEvalTemplate(JS_TEMPLATE, payload, app), reads };
+  }
+
+  it("rejects a folder that names a file with NOT_A_FOLDER and reads no note", async () => {
+    const { envelope, reads } = await runWithStat({ type: "file" }, "Repro1106/single.md");
+    expect(envelope).toEqual({ ok: false, code: "NOT_A_FOLDER", folder: "Repro1106/single.md" });
+    expect(reads).toEqual([]);
+  });
+
+  it("still answers FOLDER_NOT_FOUND when stat returns null", async () => {
+    const { envelope, reads } = await runWithStat(null, "NoSuchFolder");
+    expect(envelope).toEqual({ ok: false, code: "FOLDER_NOT_FOUND", folder: "NoSuchFolder" });
+    expect(reads).toEqual([]);
+  });
+
+  it("still scans a folder's notes when stat reports a folder", async () => {
+    const { envelope } = await runWithStat({ type: "folder" }, "Repro1106");
+    expect(envelope).toMatchObject({ ok: true, count: 1, matches: [{ path: "Repro1106/single.md", match: "zebrafish" }] });
   });
 });
