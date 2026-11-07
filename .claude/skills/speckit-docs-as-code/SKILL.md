@@ -270,9 +270,10 @@ it where the diff makes it wrong; do not restyle or restructure it. If a
 `docs/tools/` page is still a stub (`documentation pending — owned by a future
 BI`), leave it — writing it is that BI's job, not a docs pass.
 
-**CHANGELOG.md is flagged, never written.** Entries are cut at release time by
-the version-bump commit. If the PR is user-visible and the CHANGELOG has no
-entry for it, say so in the report's second line.
+**CHANGELOG.md is flagged, never written.** The PR writes its own entry under
+`[Unreleased]`, naming its BI, and the release cut dates that section
+(ADR-081). If the PR is user-visible and the CHANGELOG has no entry for it,
+say so in the report's second line.
 
 Correct the others in place. Where a document said something that turned out
 to be wrong, **say that it was wrong and why** rather than quietly deleting
