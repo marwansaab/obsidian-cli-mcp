@@ -1121,6 +1121,13 @@ than added as new codes:
   no `details.reason`, and it is found by one eval after the rename fails,
   not before
   ([ADR-071](decisions/ADR-071-move-checks-a-blocked-destination-on-disk-after-the-rename-fails.md)).
+  Since PR #153 (BI-0204) `pattern_search` raises `"NOT_A_FOLDER"` too, so
+  it now carries the whole pair `paths` has: its template's folder check
+  reads `stat().type`, as `paths`' does, and a `folder` that names a note
+  fails with the `details.folder` shape instead of scanning nothing and
+  returning an empty success. The value is reused, not added; the handler
+  passes the envelope's code through with a per-code message table
+  ([search and discovery](capabilities/search-and-discovery.md#failure)).
 - `details.reason` separates the states of one multi-state condition (ADR-015,
   Sub-Discriminators via details.reason for Multi-State Error Codes) — for
   example `obsidian-not-running` on `CLI_NON_ZERO_EXIT`, `cli-disabled` on

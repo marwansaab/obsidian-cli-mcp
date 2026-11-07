@@ -350,6 +350,36 @@ test("US2 (21) FOLDER_NOT_FOUND envelope → CLI_REPORTED_ERROR(details.code:FOL
   });
 });
 
+// (21b) a folder that names a note → CLI_REPORTED_ERROR(NOT_A_FOLDER), never an empty success (BI-0204)
+test("US2 (21b) NOT_A_FOLDER envelope → CLI_REPORTED_ERROR(details.code:NOT_A_FOLDER) naming the path", async () => {
+  const folder = "Repro1106/single.md";
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: `=> ${JSON.stringify({ ok: false, code: "NOT_A_FOLDER", folder })}\n`, exitCode: 0 },
+  ]);
+  const err = (await captureRejection(
+    executePatternSearch({ pattern: "zebrafish", folder, vault: "Demo" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.cause).toBeNull();
+  expect(err.details).toEqual({ code: "NOT_A_FOLDER", folder, stage: "handler-stage-3" });
+  expect(err.message).toBe(
+    `pattern_search: "${folder}" is a file, not a folder. Pass the folder that contains it, or omit folder to search the whole vault.`,
+  );
+});
+
+// (21c) FOLDER_NOT_FOUND keeps its exact error next to NOT_A_FOLDER (BI-0204 acceptance criterion 3)
+test("US2 (21c) FOLDER_NOT_FOUND envelope → exact error, unchanged by BI-0204", async () => {
+  const { spawnFn } = makeQueuedSpawn([{ stdout: folderNotFoundEnv("NoSuchFolder"), exitCode: 0 }]);
+  const err = (await captureRejection(
+    executePatternSearch({ pattern: "x", folder: "NoSuchFolder", vault: "Demo" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect(err.cause).toBeNull();
+  expect(err.details).toEqual({ code: "FOLDER_NOT_FOUND", folder: "NoSuchFolder", stage: "handler-stage-3" });
+  expect(err.message).toBe("pattern_search: folder not found in vault");
+});
+
 // =====================================================================
 // US3 case-sensitivity
 // =====================================================================

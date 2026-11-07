@@ -1,4 +1,4 @@
-// Original — no upstream. pattern_search input/output/eval-envelope schemas — ECMAScript-regex search predicate with optional folder scope, optional case_sensitive toggle (default true per FR-007), optional limit (1..10000, implicit 1000); strict per-entry match shape carries path/line/offset/match/text; discriminated-union eval-envelope wire format mirrors the in-eval IIFE return shape including FOLDER_NOT_FOUND failure branch.
+// Original — no upstream. pattern_search input/output/eval-envelope schemas — ECMAScript-regex search predicate with optional folder scope, optional case_sensitive toggle (default true per FR-007), optional limit (1..10000, implicit 1000); strict per-entry match shape carries path/line/offset/match/text; discriminated-union eval-envelope wire format mirrors the in-eval IIFE return shape including the FOLDER_NOT_FOUND / NOT_A_FOLDER failure branch (BI-0204).
 import { z } from "zod";
 
 import { focusedVaultField } from "../_vault-field.js";
@@ -77,7 +77,7 @@ export const patternSearchEvalEnvelopeSchema = z.discriminatedUnion("ok", [
   z
     .strictObject({
       ok: z.literal(false),
-      code: z.literal("FOLDER_NOT_FOUND"),
+      code: z.enum(["FOLDER_NOT_FOUND", "NOT_A_FOLDER"]),
       folder: z.string().min(1),
     }),
 ]);

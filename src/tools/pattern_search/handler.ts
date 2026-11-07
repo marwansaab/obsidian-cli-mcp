@@ -1,8 +1,9 @@
-// Original — no upstream. pattern_search handler — single invokeEval call with the frozen JS template + base64 JSON payload (R12 anti-injection); single-call architecture (R2); folder normalisation via stripBoundarySlashes (R5 sibling-consumption from ../search/handler.ts); a closed vault is brought up by the dispatch layer's cold-start retry (ADR-029), and an empty answer falls through to the json-parse failure; multi-stage parse (JSON.parse → envelope safeParse → discriminate on ok) with structured CLI_REPORTED_ERROR on json-parse / envelope-parse / FOLDER_NOT_FOUND; envelope match order kept as is, because the template owns the (path, line, offset) order: it sorts notes by path before its capped scan, so no handler-side sort could repair a capped subset (BI-0183); zero new top-level error codes; zero new details.code values — Principle IV streak preserved.
+// Original — no upstream. pattern_search handler — single invokeEval call with the frozen JS template + base64 JSON payload (R12 anti-injection); single-call architecture (R2); folder normalisation via stripBoundarySlashes (R5 sibling-consumption from ../search/handler.ts); a closed vault is brought up by the dispatch layer's cold-start retry (ADR-029), and an empty answer falls through to the json-parse failure; multi-stage parse (JSON.parse → envelope safeParse → discriminate on ok) with structured CLI_REPORTED_ERROR on json-parse / envelope-parse / FOLDER_NOT_FOUND / NOT_A_FOLDER (a `folder` that names a note, BI-0204; its message carries the CLI's own `"<path>" is a file, not a folder` phrase that context_search surfaces); envelope match order kept as is, because the template owns the (path, line, offset) order: it sorts notes by path before its capped scan, so no handler-side sort could repair a capped subset (BI-0183); zero new top-level error codes; NOT_A_FOLDER is the existing project-wide details.code value of paths and move, new to this tool only — Principle IV streak preserved.
 import { JS_TEMPLATE } from "./_template.js";
 import {
   patternSearchEvalEnvelopeSchema,
   patternSearchOutputSchema,
+  type PatternSearchEvalEnvelope,
   type PatternSearchInput,
   type PatternSearchOutput,
 } from "./schema.js";
@@ -16,6 +17,15 @@ import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
 
 const DEFAULT_CAP = 1000;
+
+type FolderFailureCode = Extract<PatternSearchEvalEnvelope, { ok: false }>["code"];
+
+// One message per envelope failure code; a new code in the envelope schema is a compile error here.
+const FOLDER_FAILURE_MESSAGE = {
+  FOLDER_NOT_FOUND: () => "pattern_search: folder not found in vault",
+  NOT_A_FOLDER: (folder) =>
+    `pattern_search: "${folder}" is a file, not a folder. Pass the folder that contains it, or omit folder to search the whole vault.`,
+} satisfies Record<FolderFailureCode, (folder: string) => string>;
 
 export interface ExecuteDeps extends CallScope {
   logger: Logger;
@@ -74,17 +84,14 @@ export async function executePatternSearch(
     });
   }
 
-  // === Stage 7 — discriminate on ok ===
+  // === Stage 7 — discriminate on ok; the failure code picks the message (BI-0204) ===
   if (validated.data.ok === false) {
+    const { code, folder } = validated.data;
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
       cause: null,
-      details: {
-        code: "FOLDER_NOT_FOUND",
-        folder: validated.data.folder,
-        stage: "handler-stage-3",
-      },
-      message: "pattern_search: folder not found in vault",
+      details: { code, folder, stage: "handler-stage-3" },
+      message: FOLDER_FAILURE_MESSAGE[code](folder),
     });
   }
 
