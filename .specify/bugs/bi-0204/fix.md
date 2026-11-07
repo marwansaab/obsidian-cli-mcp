@@ -70,6 +70,12 @@ Kernel-node claim from `assessment.md` (touches none of `createLogger()`, `creat
 
 - The assessment's test list says the existing `_template.test.ts` "`stat === null` case still gives `FOLDER_NOT_FOUND`". No such case existed: every existing template test stubs `stat` as `{ type: "folder" }`. The fix adds that case, plus a folder-scan case, alongside the new `NOT_A_FOLDER` case, so all three branches of the folder check are pinned at template level. No existing test changed.
 
+## Review fixes (PR #153)
+
+- `handler.ts` Stage 7 no longer reads `if (code === "NOT_A_FOLDER") throw …; throw <FOLDER_NOT_FOUND>`, where the second error was reached only by elimination. It raises one `CLI_REPORTED_ERROR` that passes the envelope's `code` through, as `paths` does, and takes the message from `FOLDER_FAILURE_MESSAGE`, a per-code table typed `satisfies Record<…>`, so a new envelope code is a compile error. Both errors are byte-identical to before: the new exact-message tests passed against the previous handler too.
+- `handler.test.ts`: (21b) now pins the whole `NOT_A_FOLDER` message with `toBe`, and the new (21c) pins the `FOLDER_NOT_FOUND` error exactly (cause, details, message). Test (21) is unchanged.
+- Not done here: the template's stat-type folder check is now written in both `paths/_template.ts` and `pattern_search/_template.ts`. The copies differ (`paths` catches a throwing `stat`), so sharing them changes one tool's behaviour and touches `paths`, which the report puts out of scope. Raised with the owner.
+
 ## Follow-ups
 
 - `/speckit-bug-test slug=bi-0204`: live TC-00906 confirmation, including `context_search` with the same note path for criterion 4.

@@ -3,6 +3,7 @@ import { JS_TEMPLATE } from "./_template.js";
 import {
   patternSearchEvalEnvelopeSchema,
   patternSearchOutputSchema,
+  type PatternSearchEvalEnvelope,
   type PatternSearchInput,
   type PatternSearchOutput,
 } from "./schema.js";
@@ -16,6 +17,15 @@ import type { Logger } from "../../logger.js";
 import type { Queue } from "../../queue.js";
 
 const DEFAULT_CAP = 1000;
+
+type FolderFailureCode = Extract<PatternSearchEvalEnvelope, { ok: false }>["code"];
+
+// One message per envelope failure code; a new code in the envelope schema is a compile error here.
+const FOLDER_FAILURE_MESSAGE = {
+  FOLDER_NOT_FOUND: () => "pattern_search: folder not found in vault",
+  NOT_A_FOLDER: (folder) =>
+    `pattern_search: "${folder}" is a file, not a folder. Pass the folder that contains it, or omit folder to search the whole vault.`,
+} satisfies Record<FolderFailureCode, (folder: string) => string>;
 
 export interface ExecuteDeps extends CallScope {
   logger: Logger;
@@ -74,29 +84,14 @@ export async function executePatternSearch(
     });
   }
 
-  // === Stage 7 — discriminate on ok, then on the failure code (BI-0204) ===
+  // === Stage 7 — discriminate on ok; the failure code picks the message (BI-0204) ===
   if (validated.data.ok === false) {
-    if (validated.data.code === "NOT_A_FOLDER") {
-      throw new UpstreamError({
-        code: "CLI_REPORTED_ERROR",
-        cause: null,
-        details: {
-          code: "NOT_A_FOLDER",
-          folder: validated.data.folder,
-          stage: "handler-stage-3",
-        },
-        message: `pattern_search: "${validated.data.folder}" is a file, not a folder. Pass the folder that contains it, or omit folder to search the whole vault.`,
-      });
-    }
+    const { code, folder } = validated.data;
     throw new UpstreamError({
       code: "CLI_REPORTED_ERROR",
       cause: null,
-      details: {
-        code: "FOLDER_NOT_FOUND",
-        folder: validated.data.folder,
-        stage: "handler-stage-3",
-      },
-      message: "pattern_search: folder not found in vault",
+      details: { code, folder, stage: "handler-stage-3" },
+      message: FOLDER_FAILURE_MESSAGE[code](folder),
     });
   }
 
