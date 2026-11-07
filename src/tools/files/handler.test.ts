@@ -1,14 +1,20 @@
-// Original — no upstream. Tests for the files handler — 28 cases per data-model.md handler-test inventory. Covers per-mode argv shape (single-spawn invariant R13), stdout parsing (R16), filter pipeline (FR-026 sub-folder defence-in-depth, FR-028 dotfile defence-in-depth, R6 non-recursive load-bearing), UTF-8 byte-compare lexical sort (R8/FR-027 — non-BMP differs from JS default), total flag wrapper-side discard (R7 — count parity across modes), trailing-slash + path-traversal CLI passthrough (F4/F15), and error propagation (R5 unknown-vault inheritance, CLI_BINARY_NOT_FOUND, CLI_NON_ZERO_EXIT, ERR_NO_ACTIVE_FILE).
+// Original — no upstream. Tests for the files handler — 28 cases per data-model.md handler-test inventory. Covers per-mode argv shape (single-spawn invariant R13), stdout parsing (R16), filter pipeline (FR-026 sub-folder defence-in-depth, FR-028 dotfile defence-in-depth, R6 non-recursive load-bearing), UTF-8 byte-compare lexical sort (R8/FR-027 — non-BMP differs from JS default), total flag wrapper-side discard (R7 — count parity across modes), trailing-slash + path-traversal CLI passthrough (F4/F15), error propagation (R5 unknown-vault inheritance, CLI_BINARY_NOT_FOUND, CLI_NON_ZERO_EXIT, ERR_NO_ACTIVE_FILE), and the BI-0205 missing-folder check (an empty listing of a named folder runs one stat eval; a missing folder or a `..` segment fails as FOLDER_NOT_FOUND).
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { executeListFiles } from "./handler.js";
 import { __resetInFlightRegistryForTests, type SpawnLike } from "../../cli-adapter/_dispatch.js";
 import { UpstreamError } from "../../errors.js";
 import { createQueue } from "../../queue.js";
-import { makeQueuedSpawn, silentLogger, captureRejection } from "../_handler-test-fixtures.js";
+import { makeQueuedSpawn, silentLogger, captureRejection, evalPayload, findKv } from "../_handler-test-fixtures.js";
 
 function deps(spawnFn: SpawnLike) {
   return { logger: silentLogger(), queue: createQueue(), spawnFn, env: {} };
+}
+
+/** The folder check's eval answers (BI-0205). */
+const FOLDER_CHECK_OK = `=> ${JSON.stringify({ ok: true })}\n`;
+function folderCheckMissing(folder: string): string {
+  return `=> ${JSON.stringify({ ok: false, code: "FOLDER_NOT_FOUND", folder })}\n`;
 }
 
 beforeEach(() => __resetInFlightRegistryForTests());
@@ -34,7 +40,7 @@ test("specific+folder+ext — argv [vault, files, folder, ext]; no total token; 
 
 // (2) specific + folder, no ext
 test("specific+folder no-ext — argv [vault, files, folder]; ONE spawn", async () => {
-  const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: "", exitCode: 0 }]);
+  const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: "Inbox/a.md\n", exitCode: 0 }]);
   await executeListFiles(
     { target_mode: "specific", vault: "Demo", folder: "Inbox" },
     deps(spawnFn),
@@ -60,7 +66,7 @@ test("specific no-folder — argv [vault, files]; ONE spawn (vault-root listing)
 
 // (4) active + folder — no vault prefix
 test("active+folder — argv [files, folder] (no vault=); ONE spawn", async () => {
-  const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: "", exitCode: 0 }]);
+  const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: "Daily/a.md\n", exitCode: 0 }]);
   await executeListFiles({ target_mode: "active", folder: "Daily" }, deps(spawnFn));
   expect(recorded).toHaveLength(1);
   const argv = recorded[0]!.argv;
@@ -137,14 +143,19 @@ test("non-BMP character stdout — sort uses UTF-8 byte order, NOT JS default UT
   expect(jsDefault[0]).toBe(nonBmp);
 });
 
-// (9) empty stdout → { count: 0, paths: [] } (missing/empty/folder-names-a-file conflated)
-test("empty stdout → { count: 0, paths: [] } — FR-010 conflated empty shape", async () => {
-  const { spawnFn } = makeQueuedSpawn([{ stdout: "", exitCode: 0 }]);
-  const result = await executeListFiles(
-    { target_mode: "specific", vault: "V", folder: "Missing" },
-    deps(spawnFn),
-  );
-  expect(result).toEqual({ count: 0, paths: [] });
+// (9) empty stdout for a missing folder → FOLDER_NOT_FOUND (BI-0205; was the FR-010 conflated empty shape)
+test("empty stdout + missing folder → CLI_REPORTED_ERROR / FOLDER_NOT_FOUND naming the folder (BI-0205)", async () => {
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: "", exitCode: 0 },
+    { stdout: folderCheckMissing("Missing"), exitCode: 0 },
+  ]);
+  const err = (await captureRejection(
+    executeListFiles({ target_mode: "specific", vault: "V", folder: "Missing" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err).toBeInstanceOf(UpstreamError);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details.code).toBe("FOLDER_NOT_FOUND");
+  expect(err.details.folder).toBe("Missing");
 });
 
 // (10) trailing-newline-only stdout → empty response
@@ -348,7 +359,7 @@ test("active no-focus — CLI 'Error: no active file' → ERR_NO_ACTIVE_FILE (T0
 
 // (26) trailing-slash folder=Inbox/ passes through verbatim (CLI normalises per F4)
 test("trailing-slash folder='Inbox/' passes through verbatim to argv (CLI-normalised per F4)", async () => {
-  const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: "", exitCode: 0 }]);
+  const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: "Inbox/a.md\n", exitCode: 0 }]);
   await executeListFiles(
     { target_mode: "specific", vault: "V", folder: "Inbox/" },
     deps(spawnFn),
@@ -356,15 +367,124 @@ test("trailing-slash folder='Inbox/' passes through verbatim to argv (CLI-normal
   expect(recorded[0]!.argv).toContain("folder=Inbox/");
 });
 
-// (27) path-traversal folder=../../etc passes through verbatim (CLI confines per F15)
-test("path-traversal folder='../../etc' passes through verbatim; CLI-confined → empty response", async () => {
+// (27) path-traversal folder=../../etc passes through verbatim; an empty listing fails as FOLDER_NOT_FOUND with no stat check (BI-0205 Q1)
+test("path-traversal folder='../../etc' passes through verbatim; empty listing → FOLDER_NOT_FOUND, no eval spawn", async () => {
   const { spawnFn, recorded } = makeQueuedSpawn([{ stdout: "", exitCode: 0 }]);
+  const err = (await captureRejection(
+    executeListFiles({ target_mode: "specific", vault: "V", folder: "../../etc" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(recorded[0]!.argv).toContain("folder=../../etc");
+  expect(recorded).toHaveLength(1);
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details).toEqual({ stage: "envelope-error", code: "FOLDER_NOT_FOUND", folder: "../../etc" });
+});
+
+// =================== Missing-folder check (BI-0205 — cases #29–#37) ===================
+
+// (29) criterion 1: the exact `paths`-shaped error, from a second (eval) spawn in the listing's vault
+test("empty listing + missing folder → paths-shaped FOLDER_NOT_FOUND error; the check is one eval in the same vault", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    { stdout: "", exitCode: 0 },
+    { stdout: folderCheckMissing("NoSuchFolder"), exitCode: 0 },
+  ]);
+  const err = (await captureRejection(
+    executeListFiles({ target_mode: "specific", vault: "V", folder: "NoSuchFolder" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.cause).toBeNull();
+  expect(err.details).toEqual({ stage: "envelope-error", code: "FOLDER_NOT_FOUND", folder: "NoSuchFolder" });
+  expect(err.message).toBe('files: FOLDER_NOT_FOUND for folder "NoSuchFolder"');
+  expect(recorded).toHaveLength(2);
+  expect(recorded[1]!.argv).toContain("eval");
+  expect(findKv(recorded[1]!.argv, "vault")).toBe("V");
+  expect(evalPayload(recorded[1]!)).toEqual({ folder: "NoSuchFolder" });
+});
+
+// (30) criterion 2: an existing empty folder lists as empty, in both total modes
+test.each([false, true])("empty listing + existing folder → { count: 0, paths: [] } (total: %s)", async (total) => {
+  const { spawnFn, getCount } = makeQueuedSpawn([
+    { stdout: "", exitCode: 0 },
+    { stdout: FOLDER_CHECK_OK, exitCode: 0 },
+  ]);
   const result = await executeListFiles(
-    { target_mode: "specific", vault: "V", folder: "../../etc" },
+    { target_mode: "specific", vault: "V", folder: "Sandbox/Empty", total },
     deps(spawnFn),
   );
-  expect(recorded[0]!.argv).toContain("folder=../../etc");
   expect(result).toEqual({ count: 0, paths: [] });
+  expect(getCount()).toBe(2);
+});
+
+// (31) criterion 3: the vault root is unchanged — an empty root listing makes no eval spawn
+test("vault root (no folder) + empty stdout → { count: 0, paths: [] }, ONE spawn", async () => {
+  const { spawnFn, getCount } = makeQueuedSpawn([{ stdout: "", exitCode: 0 }]);
+  const result = await executeListFiles({ target_mode: "specific", vault: "V" }, deps(spawnFn));
+  expect(result).toEqual({ count: 0, paths: [] });
+  expect(getCount()).toBe(1);
+});
+
+// (32) a non-empty listing the wrapper's filters empty proves the folder exists — no eval spawn
+test("non-empty listing filtered to nothing → { count: 0, paths: [] }, ONE spawn", async () => {
+  const { spawnFn, getCount } = makeQueuedSpawn([{ stdout: "Inbox/Sub/deep.md\n", exitCode: 0 }]);
+  const result = await executeListFiles({ target_mode: "specific", vault: "V", folder: "Inbox" }, deps(spawnFn));
+  expect(result).toEqual({ count: 0, paths: [] });
+  expect(getCount()).toBe(1);
+});
+
+// (33) active mode: the check runs in the focused vault (no vault= on the eval)
+test("active mode + empty listing → the check's eval carries no vault=", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    { stdout: "", exitCode: 0 },
+    { stdout: FOLDER_CHECK_OK, exitCode: 0 },
+  ]);
+  const result = await executeListFiles({ target_mode: "active", folder: "Daily" }, deps(spawnFn));
+  expect(result).toEqual({ count: 0, paths: [] });
+  expect(recorded).toHaveLength(2);
+  expect(recorded[1]!.argv).toContain("eval");
+  expect(recorded[1]!.argv.some((a) => a.startsWith("vault="))).toBe(false);
+});
+
+// (34) a `..` segment (either separator) fails without the stat check (BI-0205 Q1)
+test.each(["Sandbox/../Sandbox", "Sandbox\\..\\Sandbox", ".."])(
+  "folder %j + empty listing → FOLDER_NOT_FOUND, no eval spawn",
+  async (folder) => {
+    const { spawnFn, getCount } = makeQueuedSpawn([{ stdout: "", exitCode: 0 }]);
+    const err = (await captureRejection(
+      executeListFiles({ target_mode: "specific", vault: "V", folder }, deps(spawnFn)),
+    )) as UpstreamError;
+    expect(err.code).toBe("CLI_REPORTED_ERROR");
+    expect(err.details).toEqual({ stage: "envelope-error", code: "FOLDER_NOT_FOUND", folder });
+    expect(getCount()).toBe(1);
+  },
+);
+
+// (35) an absolute form resolves inside the vault, so it takes the normal check
+test("drive-absolute folder 'C:/x' + empty listing → takes the eval check", async () => {
+  const { spawnFn, recorded } = makeQueuedSpawn([
+    { stdout: "", exitCode: 0 },
+    { stdout: folderCheckMissing("C:/x"), exitCode: 0 },
+  ]);
+  const err = (await captureRejection(
+    executeListFiles({ target_mode: "specific", vault: "V", folder: "C:/x" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(recorded).toHaveLength(2);
+  expect(evalPayload(recorded[1]!)).toEqual({ folder: "C:/x" });
+  expect(err.details).toEqual({ stage: "envelope-error", code: "FOLDER_NOT_FOUND", folder: "C:/x" });
+});
+
+// (36)/(37) a failed check surfaces decodeEvalEnvelope's CLI_REPORTED_ERROR
+test.each([
+  ["=> not-json{\n", "json-parse"],
+  [`=> ${JSON.stringify({ ok: false, code: "NOT_A_FOLDER", folder: "x" })}\n`, "envelope-parse"],
+])("malformed check answer %j → CLI_REPORTED_ERROR(stage: %j)", async (stdout, stage) => {
+  const { spawnFn } = makeQueuedSpawn([
+    { stdout: "", exitCode: 0 },
+    { stdout, exitCode: 0 },
+  ]);
+  const err = (await captureRejection(
+    executeListFiles({ target_mode: "specific", vault: "V", folder: "Inbox" }, deps(spawnFn)),
+  )) as UpstreamError;
+  expect(err.code).toBe("CLI_REPORTED_ERROR");
+  expect(err.details.stage).toBe(stage);
 });
 
 // =================== Output-cap (T015 — case #28) ===================

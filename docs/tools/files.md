@@ -70,7 +70,7 @@ The tool supports two target modes:
 
 ### Per-field policy
 
-- **`folder`** — when omitted, enumerates the vault root. When present, enumerates direct children of the named folder (non-recursive — see *Filter pipeline* below). Trailing slash (`folder: "Inbox/"`) and no trailing slash (`folder: "Inbox"`) produce byte-identical responses. Path-traversal patterns (`folder: "../../etc"`, `folder: "/absolute"`) are passed through verbatim and confined at the CLI — the wrapper does NOT pre-validate or normalise. Empty string rejects at validation.
+- **`folder`** — when omitted, enumerates the vault root. When present, enumerates direct children of the named folder (non-recursive — see *Filter pipeline* below). Trailing slash (`folder: "Inbox/"`) and no trailing slash (`folder: "Inbox"`) produce byte-identical responses. The value is passed to the CLI verbatim (the CLI confines path-traversal patterns such as `folder: "../../etc"` and `folder: "/absolute"`). A folder that does not exist fails as `FOLDER_NOT_FOUND` (see *Missing folder vs. empty folder*). Empty string rejects at validation.
 - **`ext`** — when omitted, returns all files regardless of extension. When present, returns only files matching the extension. The CLI accepts both `ext: "md"` and `ext: ".md"`. The CLI matches extension **case-sensitively** — `ext: "MD"` does NOT match `.md` files. Empty string rejects at validation. An unrecognised extension (`ext: "qqq"`) returns the empty-folder shape, NOT an error.
 - **`total`** — defaults to `false`. When `true`, the response carries `paths: []` with `count` set to the same value `total: false` would have returned. The wrapper does NOT delegate to the CLI's native `total` flag (see *Known limitations*).
 
@@ -99,17 +99,23 @@ After filtering, the wrapper sorts the remaining paths by UTF-8 byte order via `
 
 ## Behavioural notes
 
-### Single-call
+### One call, two when a named folder lists nothing
 
-Each MCP request fires exactly one `invokeCli` invocation. End-to-end latency approximately 50–200 ms per call. All invocations serialise through the project's single-in-flight queue.
+Each MCP request fires one CLI `files` invocation. When `folder` is set and the CLI lists nothing for it, the wrapper makes a second call, an `eval` in the same vault, to check that the folder exists (see below). The vault root and every non-empty listing stay single-call. End-to-end latency approximately 50–200 ms per call. All invocations serialise through the project's single-in-flight queue.
 
-### Missing folder / empty folder / folder-names-a-file all conflated
+### Missing folder vs. empty folder
 
-A `folder` value that names a missing folder, an empty folder, or a file (not a folder) all return the same empty-folder shape `{ count: 0, paths: [] }` — NOT a structured error. This conflation is inherited from the CLI's `files` subcommand behaviour. Callers needing to distinguish these cases should first verify folder existence via `obsidian_exec` or out-of-band filesystem inspection.
+The CLI answers a missing folder exactly as it answers an empty one (empty output, exit 0), so when a named folder lists nothing the wrapper checks it in the vault:
 
-### Path-traversal CLI-confined
+- **Missing folder** → `CLI_REPORTED_ERROR` with `details: { stage: "envelope-error", code: "FOLDER_NOT_FOUND", folder }` and the message `files: FOLDER_NOT_FOUND for folder "<folder>"`, the same shape [`paths`](./paths.md) uses. One trailing `/` is dropped from `details.folder`.
+- **Empty folder** → `{ count: 0, paths: [] }`.
+- **A path that names a file** → `{ count: 0, paths: [] }`, as before; it is not reported as an error.
 
-`folder: "../../etc"`, `folder: "Fixtures/../Fixtures/X"`, `folder: "/absolute"`, and similar traversal attempts are passed through verbatim to the CLI and confined there. The CLI returns empty stdout for non-vault paths; the wrapper surfaces the conflated empty-folder shape `{ count: 0, paths: [] }`. The wrapper does NOT pre-validate `folder` — the CLI is the confinement layer.
+A folder whose entries the wrapper's own filters remove (for example `folder: ".obsidian"`) still answers `{ count: 0, paths: [] }`: the CLI listed something, so the folder exists and no check runs.
+
+### Path traversal
+
+`folder` is passed to the CLI verbatim and the CLI confines it to the vault. A `folder` with a `..` segment (`folder: "../../etc"`, `folder: "Fixtures/../Fixtures/X"`, with `/` or `\` as separator) that lists nothing fails as `FOLDER_NOT_FOUND` without the existence check, because that check is not confined to the vault; `details.folder` is the value as given. Absolute forms (`/x`, `\x`, `C:/x`, `\\host\x`) resolve inside the vault, so they take the normal check: `folder: "C:/Windows"` fails as `FOLDER_NOT_FOUND`.
 
 ### Sort key — UTF-8 byte order, NOT JavaScript default
 
@@ -125,6 +131,7 @@ In `target_mode: "active"`, the focused vault may shift between the request and 
 |------|------|----------|
 | `VALIDATION_ERROR` | The input failed schema validation (missing `target_mode`, missing `vault` in specific mode, `vault` present in active mode, `file` or `path` present in any mode, `folder` or `ext` empty, unknown top-level key, etc.). | Retry with corrected input. `details.issues` carries the per-issue `path` + `message` + zod code. |
 | `CLI_NON_ZERO_EXIT` | The Obsidian CLI exited with a non-zero code (typical cause: output-cap kill on pathologically large folders, or the CLI itself encountered a non-stdout-reported error). | `details.{exitCode, signal, stdout, stderr}` carry the failure context. |
+| `CLI_REPORTED_ERROR` (`details.stage: "envelope-error"`, `details.code: "FOLDER_NOT_FOUND"`, `details.folder`) | `folder` does not exist in the vault, or contains a `..` segment (see *Missing folder vs. empty folder*). | Verify the folder path; check for typos, a moved folder, or path-separator drift. [`paths`](./paths.md) on a parent folder shows what exists. |
 | `CLI_REPORTED_ERROR` | The CLI exited 0 but reported a failure in-band — either stdout starts with `Error:`, OR the unknown-vault response (`Vault not found.`) was detected. | `details.message` (the first line of stdout) names the specific failure. For unregistered vaults: verify the vault name; ensure the vault is registered in Obsidian. |
 | `ERR_NO_ACTIVE_FILE` | `target_mode: "active"` was used but no Obsidian instance is reachable / no vault is focused. Exact surface depends on the CLI's response shape — may also surface as `CLI_REPORTED_ERROR`. | Ask the user to open a vault in Obsidian, OR call again with `target_mode: "specific"` and an explicit `vault`. |
 | `CLI_BINARY_NOT_FOUND` | The `obsidian` CLI binary is not on `PATH` and `OBSIDIAN_BIN` was unset/invalid. | Operator-side: install the Obsidian CLI, OR set `OBSIDIAN_BIN` to a valid path. |
@@ -240,9 +247,9 @@ Spawns `obsidian vault=Demo files folder=Assets ext=png`. Returns `{ count: <png
 
 The wrapper does NOT delegate to the CLI's native `total` flag because the CLI's `total` count is recursive, incompatible with the wrapper's identical-count-across-modes contract. Both `total: true` and `total: false` apply the same CLI fetch + filter pipeline, so they face the same 10 MiB output-cap threshold. A pathologically large folder that exceeds the cap with `total: false` will ALSO exceed it with `total: true`. Callers needing recursive counts on pathological folders can fall back to `obsidian_exec` with `files folder=X total` — the CLI's native `total` flag is cap-friendly but produces a recursive count distinct from the wrapper's non-recursive count.
 
-### Platform-dependent case-sensitivity on `folder`
+### Case-sensitivity on `folder`
 
-The wrapper passes `folder` to the CLI verbatim without case normalisation. On Windows and macOS (default case-insensitive filesystems), `folder: "inbox"` and `folder: "Inbox"` resolve equivalently. On Linux and case-sensitive macOS volumes, they do not. Callers needing case-sensitivity-independent behaviour should normalise upstream.
+The wrapper passes `folder` to the CLI verbatim without case normalisation, and the CLI's listing matches `folder` case-sensitively, on Windows too (a live probe: `folder: "sandbox/BI-0008"` lists nothing while `folder: "Sandbox/BI-0008"` lists its notes). Callers should pass the folder's exact case. The missing-folder check follows the file system instead, so on a case-insensitive file system (Windows, default macOS) a folder written in the wrong case lists nothing and is found by the check: it answers `{ count: 0, paths: [] }`, not `FOLDER_NOT_FOUND`. A case-only misspelling is therefore not flagged on those hosts.
 
 ### Active-mode multi-vault inheritance
 
