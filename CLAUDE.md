@@ -15,7 +15,7 @@ This gate applies to every test category that produces real CLI invocations: T0 
 
 ## Pull Request Lifecycle and Docs-as-Code
 
-The repository follows ADR-081's branching model (see `CONTRIBUTING.md` § Branches and releases). `develop` is the default branch and every work branch is cut from it and opens its PR into it; a fix found in UAT is cut from, and opens its PR into, its `release/x.y.z` branch. Only `release/*` and `hotfix/*` branches open PRs into `main`, and only the owner merges into `main`. Every PR merges with a merge commit and names its `BI-NNNN` in the branch name or the PR body. An agent opens PRs and never merges them.
+The repository follows ADR-081's branching model (see `CONTRIBUTING.md` § Branches and releases). `develop` is the default branch and every work branch is cut from it and opens its PR into it; a fix found in UAT is cut from, and opens its PR into, its `release/x.y.z` branch. Only `release/*` and `hotfix/*` branches open PRs into `main`, and only the owner merges into `main`. Every PR merges with a merge commit and names its `BI-NNNN` in the branch name or the PR body. An agent opens PRs and never merges them. When the owner asks to prepare, cut or ship a release or a hotfix, follow [`/prepare-release`](.claude/skills/prepare-release/SKILL.md) from the version choice through the back-merge checks.
 
 Every PR ends with a documentation pass, after review and before merge:
 
