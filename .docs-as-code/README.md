@@ -264,7 +264,7 @@ applies. Records written since:
   a file in the way as `NOT_A_FOLDER`, amending ADR-060's no-lookup reading
   of the ENOENT line; Obsidian's index (review argued the fix out of it), a
   server-side stat and dropping the folder-form expansion were rejected
-  (PR #139).
+  (PR #139). Decision 1 amended 2026-11-07 by ADR-077 (PR #155).
 - [decisions/ADR-072-views-base-lists-only-once-the-named-base-is-the-active-file.md](decisions/ADR-072-views-base-lists-only-once-the-named-base-is-the-active-file.md)
   — named-mode `views_base` checks that the named Base is the active file
   after `openLinkText`, waiting up to 1 s, and otherwise fails as
@@ -302,3 +302,11 @@ applies. Records written since:
   `folder` probe, a server-side `fs.stat`, one combined eval and a check on
   every call were rejected; reverses spec 019 FR-010 for the missing case
   (PR #154).
+- [decisions/ADR-077-move-reads-the-clis-already-exists-line-as-a-possible-blocker-only-for-a-folder-form-it-forwarded.md](decisions/ADR-077-move-reads-the-clis-already-exists-line-as-a-possible-blocker-only-for-a-folder-form-it-forwarded.md)
+  — a `file` or active `move` whose folder-form `to` the CLI expanded itself
+  sends the CLI's exact `Destination file already exists!` line to ADR-071's
+  blocked-destination lookup through one `folderSignal` classifier, so all
+  three locators report `NOT_A_FOLDER`, and the description names the
+  failure; expanding the folder form for `file` calls, looking up every
+  collision and a second trigger predicate (review argued the fix out of it)
+  were rejected; amends ADR-071 decision 1 (PR #155).

@@ -1,6 +1,7 @@
 # ADR-071 — `move` checks a blocked destination on disk after the rename fails
 
-- **Status:** Accepted
+- **Status:** Accepted; decision 1 amended by
+  [ADR-077](ADR-077-move-reads-the-clis-already-exists-line-as-a-possible-blocker-only-for-a-folder-form-it-forwarded.md)
 - **Date:** 2026-11-04
 - **Amends:** decision 2 of
   [ADR-060](ADR-060-move-classifies-its-failure-after-the-cli-and-keeps-the-vault-folder-out.md)
