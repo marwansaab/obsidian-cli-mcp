@@ -68,13 +68,13 @@ The `count` is identical across both modes for the same `(query, vault, limit)` 
 
 Per-match shape:
 
-- `path` — source file's vault-relative path with `.md` extension (everything before the first `#` in the plugin's match key).
+- `path` — source file's vault-relative path with `.md` extension (everything before the first `#` in the plugin's match key). An outdated index entry whose key gives an empty path is silently dropped instead of failing the call; every non-empty path is passed through as the plugin returned it (see *Inherited limitations* 7).
 - `headingPath` — array of heading segments after the first `#`. Empty `[]` for source-level matches, which include the text before a note's first heading (the plugin keys it `<path>#`). No segment is ever an empty string. Literal `["---frontmatter---"]` for frontmatter-block matches (the plugin's sentinel is preserved verbatim). Multi-segment for nested-heading blocks. Sub-block ids like `#{1}` appear as ordinary segments.
 - `score` — raw plugin-returned number; embedding-model-dependent semantics (pass-through; no clamp / normalise / round). Non-finite scores (`NaN`, `Infinity`, `null`, missing) are silently dropped.
 
 Sort order: primary `score` descending, secondary `path` byte-asc, tertiary `headingPath.join("#")` byte-asc.
 
-`limit` is applied after this sort, to a fixed list of up to 100 candidates the plugin returns, so a smaller `limit` always returns a leading slice of a larger one: the same entries, in the same order.
+`limit` is applied after this sort, to a fixed list of up to 100 candidates the plugin returns, so a smaller `limit` always returns a leading slice of a larger one: the same entries, in the same order. The dropped entries above are removed before the sort, so `count` can be below `limit`, and the plugin may return fewer than 100 candidates in the first place.
 
 ## Examples — Worked examples
 
@@ -172,6 +172,6 @@ The earlier-priority discriminator fires first and short-circuits the remainder.
 4. **Plugin-version drift** — the wrapper is pinned to the minimum probed Smart Connections version (≥ v4.5.0). Future plugin API shapes may surface as `api-missing`.
 5. **Local-model silent query truncation** — local embed models (e.g. transformers.js) silently truncate inputs at their context window (typically 512 tokens). A 2000-char query may embed only the leading prefix. Cloud models (OpenAI text-embedding-3-small) have larger context windows.
 6. **Embed-call latency cap (10s)** — embed calls exceeding the 10-second timeout surface as `CLI_TIMEOUT`. After a timeout, wait 30–60 s before retrying — the host process may need to recover.
-7. **Stale-index reverse direction** — if a match references a deleted file, the wrapper still surfaces the path verbatim. The plugin's index may lag deletion. Treat dangling matches as plugin-state artefacts.
+7. **Stale-index reverse direction** — if a match references a deleted or moved file, the wrapper still surfaces the path verbatim; it does not check paths against the vault. The plugin's index may lag deletion. Treat dangling matches as plugin-state artefacts. The one exception is an outdated entry with an empty key: it is dropped, because it names no note. (`smart_connections_similar` differs here: it keeps only paths that are Markdown notes in the vault.)
 8. **Low-information queries** — very short queries (single characters, single common stop-words) produce embeddings with little discriminative power; results may be incoherent. Prefer queries that are full sentences or noun phrases.
 9. **Ties at the 100-candidate edge** — the wrapper asks the plugin for 100 candidates on every call, whatever `limit` is. If several matches share the score of the plugin's 100th candidate, the plugin decides which of them are in that list; the documented tie-break orders only the ones it returned. This does not depend on `limit`, so smaller limits are still leading slices of larger ones.

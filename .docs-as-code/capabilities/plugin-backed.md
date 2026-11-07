@@ -122,6 +122,49 @@ What follows from the rule:
   order live once in `_smart-connections-fixtures.ts`, and each tool's
   `_template.test.ts` runs them through its own template.
 
+### Unembedded sources and outdated index entries (PR #156)
+
+Smart Connections lists a note in `env.smart_sources.items` before it embeds
+it, and may never embed a very short one. Until PR #156 (BI-0195)
+`smart_connections_similar`'s Stage 5 asked only whether the source had an
+entry with `find_connections`, so for such a note it called the plugin, whose
+`nearest()` threw `Invalid vector input to nearest()`. The caller got
+dispatch's untyped `CLI_REPORTED_ERROR` with that stdout and no
+`details.code` (TC-00892, TC-00899). Stage 5 now also emits
+`SOURCE_NOT_INDEXED` when the source's `vec` is not an array or typed array,
+the plugin's own throw condition, before `find_connections` is called. The
+handler's existing mapping and message ("source note has no embedding yet")
+are reused, and nothing matches the plugin's message text
+([ADR-078](../decisions/ADR-078-smart-connections-tools-drop-outdated-index-entries-and-check-the-sources-embedding.md)).
+The lifecycle order is unchanged: the check sits inside the last stage, after
+readiness.
+
+The same PR fixed a second failure in both tools. After a note was moved, the
+plugin returned a candidate with an empty key, `TO_MATCH_JS` gave it
+`path: ""`, and the whole call failed at `envelope-parse` because
+`matchEntrySchema` requires `.md` (TC-00225). Each template now filters its
+candidates before `SORT_SLICE_AND_EMIT`, beside the non-finite-score filter,
+and the two filters differ by owner ruling (2026-11-07, "Filter old paths in
+similar only"):
+
+| Tool | Keeps a candidate when | So it also drops |
+| --- | --- | --- |
+| `smart_connections_similar` | `app.vault.getAbstractFileByPath(path)` is a file with extension `md` | the old path of a moved or deleted note, and a non-note candidate |
+| `smart_connections_query` | `path` is not empty | nothing else: non-empty paths pass through verbatim with no vault lookup (BI-0074 Q2, TC-00261) |
+
+Both header comments name the ruling so the filters are not merged, and they
+stay in the templates rather than the cohort leaf. Because they run before the
+sort and the cut, `count`, `total` and the leading-slice rule count only kept
+matches, and `count` can be below `limit` when the plugin returned outdated
+entries. The empty-key rows (`EMPTY_PATH_KEYS` / `EMPTY_PATH_KEPT`, keys `""`,
+`#` and `#H`) live once in `_smart-connections-fixtures.ts`; the similar
+template suite and the new `smart_connections_query/_template.stale-entry.test.ts`
+run them, and the lifecycle suite gained rows for the unembedded source (by
+path and by wikilink), its later embedding, typed-array vectors and stale
+entries. PR #156's code-quality review moved those shared rows into the
+fixtures and folded the lifecycle suite's two index-entry builders into one
+`entry(candidates, vec?)` that throws as the plugin does while `vec` is unset.
+
 Published surface (PR #90; [architecture](../architecture.md#registration--the-one-path-from-a-schema-to-a-published-tool)):
 both carry the read-only hint row, including "beyond vault" (`openWorldHint`)
 false, as spec 068 FR-024 classifies them. `smart_connections_query`'s
@@ -150,7 +193,7 @@ All conditions are `CLI_REPORTED_ERROR` with `details.code`, split further by
 | `SMART_CONNECTIONS_NOT_READY` | `api-missing` | (`similar`) plugin loaded but `env.smart_sources.items` is not available yet |
 | `SMART_CONNECTIONS_NOT_READY` | `api-missing` | (`query`) plugin loaded, lookup API not yet available |
 | `SMART_CONNECTIONS_NOT_READY` | `embed-failed` | (`query`) the query text could not be embedded |
-| `SOURCE_NOT_INDEXED` | — | (`similar`) the source note has no embedding yet; `details.detail` is the resolved path |
+| `SOURCE_NOT_INDEXED` | — | (`similar`) the source note has no entry in the plugin's index, or an entry with no embedding yet (since PR #156); `details.detail` is the resolved path |
 
 Until PR #145 this table gave `smart_connections_similar`'s not-ready row no
 `details.reason`. That was wrong: its handler has set
@@ -235,7 +278,18 @@ there), which comes from a stage that runs only after the vault has answered.
   not depend on `limit`. For `smart_connections_similar`, self-exclusion runs
   after the fetch, so a call can return fewer than `limit` matches when the
   source's own blocks were among the 100; that too is the same at every
-  `limit`. Both help pages document the edge.
+  `limit`. Both help pages document the edge. Since PR #156 the outdated-entry
+  filters drop candidates after the fetch too, and the plugin can return fewer
+  than 100 candidates in the first place (50 for the probed note in
+  `.specify/bugs/bi-0195/test.md`).
+- `SOURCE_NOT_INDEXED` reads the plugin's `vec` getter (public in 4.7.2). A
+  later plugin version that renamed it would make every source read as not
+  indexed: a typed failure, not a wrong result. ADR-014's sentence for the
+  code still says only "no entry in the plugin's index"; PR #156 left the
+  amendment to the owner.
+- PR #156 did not see an empty key from `smart_connections_query`, or a
+  non-empty stale old path from either tool, against the live plugin
+  (`test.md` Residual Risks). Both are pinned in-process only.
 - The 100-candidate fetch was not measured against a live indexed vault in
   PR #116 (spec 085 SC-005, T025): no Smart Connections vault was available
   to the implementation session. `limit: 100` was already an allowed input,
