@@ -1,13 +1,17 @@
 name: CI
 
 on:
+  # main: a merge into main runs CI on the merge commit, which is the head of
+  # the release workflow's back-merge pull request into develop. GitHub counts
+  # push runs toward a pull request's required checks; it does not count
+  # workflow_dispatch runs, and the pull_request run of a pull request the
+  # workflow token opens waits for the owner's approval.
   push:
-    branches: [develop, "release/**", "hotfix/**"]
+    branches: [develop, "release/**", "hotfix/**", main]
   pull_request:
     branches: [develop, "release/**", "hotfix/**", main]
-  # Run by the release-cut and release workflows: a branch they create or a
-  # pull request they open does not trigger push or pull_request runs, so they
-  # start this workflow on that ref to put the required checks on its commit.
+  # Run by the release-cut workflow: a branch it creates with the workflow
+  # token starts no push run, so it starts this workflow on the new branch.
   workflow_dispatch:
 
 concurrency:
