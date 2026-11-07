@@ -5,6 +5,8 @@ name: Release checks
 on:
   pull_request:
     branches: [main]
+    # edited: a pull request retargeted to main is checked without a new push.
+    types: [opened, reopened, synchronize, edited]
 
 permissions:
   contents: read

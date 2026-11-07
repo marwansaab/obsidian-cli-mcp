@@ -4,7 +4,8 @@
 # GitHub Release from the version's CHANGELOG.md section and open the pull
 # request main into develop. A failed publication leaves no tag and no Release:
 # fix and re-run, or ship a hotfix. If the publication succeeded and a later
-# step failed, use "Re-run failed jobs", which keeps the publish job's result.
+# step failed, use "Re-run failed jobs", which keeps the publish job's result
+# (re-running all jobs would find the version tagged, or fail to republish).
 # A push whose version is already tagged has nothing to release and stops after
 # the plan job.
 #
@@ -105,8 +106,14 @@ jobs:
         with:
           node-version: 24
 
+      # Each step below skips what an earlier attempt already did, so
+      # "Re-run failed jobs" can finish a job that failed part-way.
       - name: Tag v${{ env.VERSION }}
         run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" > /dev/null; then
+            echo "v$VERSION is already tagged."
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "v$VERSION" -m "v$VERSION" "$GITHUB_SHA"
@@ -114,14 +121,22 @@ jobs:
 
       - name: Create the GitHub Release
         run: |
+          if gh release view "v$VERSION" > /dev/null 2>&1; then
+            echo "The v$VERSION Release already exists."
+            exit 0
+          fi
           node scripts/release.ts notes "$VERSION" > "$RUNNER_TEMP/notes.md"
           gh release create "v$VERSION" --verify-tag --title "v$VERSION" --notes-file "$RUNNER_TEMP/notes.md"
 
-      # A pull request opened with the workflow token starts no pull_request run
-      # of CI, so CI is started on main, whose commit is the pull request's head.
+      # An open pull request main into develop already carries this commit, so
+      # only a missing one is opened. A pull request opened with the workflow
+      # token starts no pull_request run of CI, so CI is started on main, whose
+      # commit is the pull request's head.
       - name: Open the pull request main into develop
         run: |
-          gh pr create --base develop --head main \
-            --title "chore(release): merge v$VERSION back into develop" \
-            --body "Back-merge of v$VERSION from main into develop after its npm publication (ADR-081 clause 8). Merge with a merge commit."
+          if [ -z "$(gh pr list --base develop --head main --state open --json number --jq '.[].number')" ]; then
+            gh pr create --base develop --head main \
+              --title "chore(release): merge v$VERSION back into develop" \
+              --body "Back-merge of v$VERSION from main into develop after its npm publication (ADR-081 clause 8). Merge with a merge commit."
+          fi
           gh workflow run ci.yml --ref main

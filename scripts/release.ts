@@ -43,13 +43,14 @@ function cut(version: string, date: string): void {
     fail(`expected a date YYYY-MM-DD, got ${JSON.stringify(date)}`);
   const text = readFileSync(CHANGELOG, "utf8");
   if (sectionHeading(version).test(text)) fail(`CHANGELOG.md already has a section for ${version}`);
-  if (!/^## \[Unreleased\]$/m.test(text)) fail("CHANGELOG.md has no `## [Unreleased]` heading");
+  if (!/^## \[Unreleased\]\r?$/m.test(text)) fail("CHANGELOG.md has no `## [Unreleased]` heading");
+  const eol = text.includes("\r\n") ? "\r\n" : "\n";
   const base = "https://github.com/marwansaab/obsidian-cli-mcp";
   const next = text
-    .replace(/^## \[Unreleased\]$/m, `## [Unreleased]\n\n## [${version}] - ${date}`)
+    .replace(/^## \[Unreleased\](?=\r?$)/m, `## [Unreleased]${eol}${eol}## [${version}] - ${date}`)
     .replace(
-      /^\[Unreleased\]: .*$/m,
-      `[Unreleased]: ${base}/compare/v${version}...HEAD\n[${version}]: ${base}/releases/tag/v${version}`,
+      /^\[Unreleased\]: [^\r\n]*/m,
+      `[Unreleased]: ${base}/compare/v${version}...HEAD${eol}[${version}]: ${base}/releases/tag/v${version}`,
     );
   writeFileSync(CHANGELOG, next);
 }
