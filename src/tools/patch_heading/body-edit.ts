@@ -1,6 +1,5 @@
 // Original — no upstream. patch_heading body-edit pure helpers per BI-040 / data-model §Body-edit-algorithm — three placement modes (append after the reach's last non-blank line FR-010 / BI-0206, prepend after marker FR-011, replace direct body FR-012); and trailing-newline detection (FR-014) so the handler can preserve the file's existing conventions. Pure functions: no fs access, no `UpstreamError` throwing; the handler reassembles and writes.
 import { REACH_END_EOF, type ResolvedHeading } from "./heading-walk.js";
-import { lineText } from "../_note-lines.js";
 
 function clampReachEnd(value: number, linesLength: number): number {
   return value === REACH_END_EOF || value > linesLength ? linesLength : value;
@@ -47,7 +46,7 @@ export function applyAppend(
   content: string,
 ): string[] {
   let insertAt = clampReachEnd(resolved.reachEndLineIndex, lines.length);
-  while (insertAt > resolved.reachStartLineIndex && lineText(lines[insertAt - 1]!).trim() === "") {
+  while (insertAt > resolved.reachStartLineIndex && lines[insertAt - 1]!.trim() === "") {
     insertAt--;
   }
   const contentLines = splitContentLines(content);
